@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Episode {
+  id            String   @id
+  name          String
+  code          String?
+  release_date  String?
+  card_count    Int?
+  logo_url      String?
+  symbol_url    String?
+  series        String?
+  synced_at     DateTime?
+  created_at    DateTime @default(now())
+
+  cards         Card[]
+}
+
+model Card {
+  id              String   @id
+  episode_id      String
+  name            String
+  card_number     String?
+  rarity          String?
+  hp              Int?
+  supertype       String?
+  subtypes        String?
+  artist          String?
+  image_url       String?
+  tcggo_url       String?
+  cardmarket_url  String?
+  tcgid           String?
+  cardmarket_id   String?
+  tcgplayer_id    String?
+  price_source_status     String?
+  price_source_checked_at DateTime?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  episode         Episode  @relation(fields: [episode_id], references: [id])
+  prices          Price[]
+
+  @@index([episode_id])
+  @@index([episode_id, card_number])
+  @@index([price_source_status, price_source_checked_at])
+}
+
+model Price {
+  id                    String   @id @default(cuid())
+  card_id               String
+  fetched_at            DateTime @default(now())
+
+  // CardMarket prices per language
+  cm_en_lowest_nm       Float?
+  cm_de_lowest_nm       Float?
+  cm_fr_lowest_nm       Float?
+  cm_es_lowest_nm       Float?
+  cm_it_lowest_nm       Float?
+  cm_en_avg_30d         Float?
+  cm_en_avg_7d          Float?
+
+  // TCGPlayer prices
+  tcp_market            Float?
+  tcp_mid               Float?
+  tcp_low               Float?
+
+  card                  Card     @relation(fields: [card_id], references: [id])
+
+  @@index([card_id])
+  @@index([card_id, fetched_at])
+}
+
+model SyncLog {
+  id          String   @id @default(cuid())
+  type        String
+  status      String
+  message     String?
+  started_at  DateTime @default(now())
+  finished_at DateTime?
+
+  @@index([status, started_at])
+}

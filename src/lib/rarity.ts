@@ -1,0 +1,97 @@
+export const RARITY_LABEL_MAP: Record<string, string> = {
+  common: "Common",
+  uncommon: "Uncommon",
+  rare: "Rare",
+  "rare holo": "Rare Holo",
+  "rare ultra": "Rare Ultra",
+  "rare secret": "Secret Rare",
+  "secret rare": "Secret Rare",
+  "amazing rare": "Amazing Rare",
+  promo: "Promo",
+  "radiant rare": "Radiant Rare",
+  "ace spec rare": "ACE SPEC Rare",
+  "double rare": "Double Rare",
+  "illustration rare": "Illustration Rare",
+  "special illustration rare": "Special Illustration Rare",
+  "hyper rare": "Hyper Rare",
+  "shiny rare": "Shiny Rare",
+  "shiny ultra rare": "Shiny Ultra Rare",
+  "rare rainbow": "Rare Rainbow",
+  "ultra rare": "Ultra Rare",
+  "rare holo ex": "Rare Holo EX",
+  "rare holo v": "Rare Holo V",
+  "rare holo gx": "Rare Holo GX",
+  "trainer gallery rare holo": "Trainer Gallery Rare Holo",
+  "rare holo lv x": "Rare Holo LV.X",
+  "rare holo vstar": "Rare Holo VSTAR",
+  "rare shiny": "Rare Shiny",
+  "rare shiny gx": "Rare Shiny GX",
+  "rare break": "Rare BREAK",
+  "rare prism star": "Rare Prism Star",
+  "rare prime": "Rare Prime",
+  "classic collection": "Classic Collection",
+  "rare holo star": "Rare Holo Star",
+  legend: "LEGEND",
+  "rare shining": "Rare Shining",
+  "rare ace": "Rare ACE",
+  "art rare": "Art Rare",
+  "special art rare": "Special Art Rare",
+  "mega hyper rare": "Mega Hyper Rare",
+  "black white rare": "Black White Rare",
+  "mega attack rare": "Mega Attack Rare",
+};
+
+export const KNOWN_RARITY_ORDER = [
+  "Common",
+  "Uncommon",
+  "Rare",
+  "Rare Holo",
+  "Rare Holo EX",
+  "Rare Holo GX",
+  "Rare Holo V",
+  "Rare Holo VSTAR",
+  "Rare Holo LV.X",
+  "Rare Holo Star",
+  "Rare Ultra",
+  "Ultra Rare",
+  "Double Rare",
+  "Radiant Rare",
+  "Amazing Rare",
+  "ACE SPEC Rare",
+  "Rare BREAK",
+  "Rare Prism Star",
+  "Rare Prime",
+  "Rare Rainbow",
+  "Rare Shiny",
+  "Rare Shiny GX",
+  "Secret Rare",
+  "Illustration Rare",
+  "Art Rare",
+  "Special Illustration Rare",
+  "Special Art Rare",
+  "Shiny Rare",
+  "Shiny Ultra Rare",
+  "Hyper Rare",
+  "Rare Shining",
+  "Rare ACE",
+  "Trainer Gallery Rare Holo",
+  "Classic Collection",
+  "Black White Rare",
+  "Mega Attack Rare",
+  "Mega Hyper Rare",
+  "Promo",
+  "LEGEND",
+] as const;
+
+export function normalizeRarityLabel(rarity: string | null | undefined): string | null {
+  const value = rarity?.trim();
+  if (!value) return null;
+
+  const normalizedKey = value
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  return RARITY_LABEL_MAP[normalizedKey] ?? value;
+}
