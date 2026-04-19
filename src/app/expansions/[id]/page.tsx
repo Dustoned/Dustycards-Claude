@@ -4,6 +4,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { isHiddenExpansion } from "@/lib/episodes";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
+import {
+  buildEpisodeSealedSetPriceHistory,
+  buildEpisodeSetPriceHistory,
+} from "@/lib/price-history";
+import {
+  getActiveSealedGroup,
+  getActiveSealedProducts,
+  getGroupedSealedProducts,
+  getSealedProductPrice,
+  resolveSealedFilter,
+} from "@/lib/sealed-products";
+import { getSealedPriceSnapshotsByEpisode } from "@/lib/sealed-price-snapshots";
 import {
   fetchSealedAvailabilityForEpisode,
   fetchSealedProductsForEpisode,
@@ -26,15 +40,19 @@ const getCachedSealedProducts = unstable_cache(
   { revalidate: 3600 }
 );
 
+function isTcggoEpisodeId(value: string): boolean {
+  return /^\d+$/.test(value);
+}
+
 export default async function ExpansionDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; sealed?: string }>;
 }) {
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, sealed } = await searchParams;
   const requestedTab = tab === "sealed" ? "sealed" : "cards";
 
   const episode = await db.episode.findUnique({
@@ -46,13 +64,60 @@ export default async function ExpansionDetailPage({
     },
   });
 
-  if (!episode) notFound();
+  if (!episode || isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })) {
+    notFound();
+  }
 
-  const hasSealed = await getCachedSealedAvailability(id);
+  const hasSealed = isTcggoEpisodeId(id)
+    ? await getCachedSealedAvailability(id).catch(() => false)
+    : false;
   const activeTab = requestedTab === "sealed" && hasSealed ? "sealed" : "cards";
 
   let cards: CardData[] = [];
+  const sealedProducts =
+    activeTab === "sealed" && isTcggoEpisodeId(id)
+      ? await getCachedSealedProducts(id).catch(() => [])
+      : [];
+  const sealedGroups = activeTab === "sealed" ? getGroupedSealedProducts(sealedProducts) : [];
+  const activeSealedFilter =
+    activeTab === "sealed" ? resolveSealedFilter(sealed, sealedGroups) : "all";
+  const activeSealedGroup =
+    activeTab === "sealed" ? getActiveSealedGroup(sealedGroups, activeSealedFilter) : null;
+  const filteredSealedProducts =
+    activeTab === "sealed" ? getActiveSealedProducts(sealedGroups, activeSealedFilter) : [];
+  let pricePanelTitle = "Set Total";
+  let pricePanelPoints: Array<{ date: string; label: string; value: number | null }> = [];
+  let pricePanelCurrentValue: number | null = null;
+  let pricePanelSubtitle = `0/${episode._count.cards} cards priced`;
+  let pricePanelEmptyText = "Nog geen setprijzen beschikbaar";
   if (activeTab === "cards") {
+    const setPriceHistory = buildEpisodeSetPriceHistory(
+      await db.price.findMany({
+        where: { card: { episode_id: id } },
+        orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
+        select: {
+          card_id: true,
+          fetched_at: true,
+          cm_en_lowest_nm: true,
+          cm_de_lowest_nm: true,
+          cm_fr_lowest_nm: true,
+          cm_es_lowest_nm: true,
+          cm_it_lowest_nm: true,
+        },
+      })
+    );
+    const latestSetPricePoint = setPriceHistory[setPriceHistory.length - 1] ?? null;
+
+    pricePanelPoints = setPriceHistory.map((point) => ({
+      date: point.date,
+      label: point.label,
+      value: point.total_market,
+    }));
+    pricePanelCurrentValue = latestSetPricePoint?.total_market ?? null;
+    pricePanelSubtitle = latestSetPricePoint
+      ? `${latestSetPricePoint.priced_cards}/${episode._count.cards} cards priced`
+      : `0/${episode._count.cards} cards priced`;
+
     const dbCards = await db.card.findMany({
       where: { episode_id: id },
       orderBy: [{ card_number: "asc" }, { name: "asc" }],
@@ -101,9 +166,42 @@ export default async function ExpansionDetailPage({
           : null,
       };
     });
-  }
+  } else {
+    const activeProductIds = new Set(filteredSealedProducts.map((product) => product.id));
+    const sealedPriceHistory = buildEpisodeSealedSetPriceHistory(
+      (await getSealedPriceSnapshotsByEpisode(id)).filter((snapshot) =>
+        activeProductIds.has(snapshot.product_id)
+      )
+    );
+    const currentSealedTotals = filteredSealedProducts.reduce(
+      (acc, product) => {
+        const value = getSealedProductPrice(product);
+        if (value == null) return acc;
 
-  const sealedProducts = activeTab === "sealed" ? await getCachedSealedProducts(id) : [];
+        acc.total += value;
+        acc.priced += 1;
+        return acc;
+      },
+      { total: 0, priced: 0 }
+    );
+    const currentSealedTotal =
+      currentSealedTotals.priced > 0 ? Number(currentSealedTotals.total.toFixed(2)) : null;
+    const latestSealedPricePoint = sealedPriceHistory[sealedPriceHistory.length - 1] ?? null;
+
+    pricePanelTitle =
+      activeSealedFilter === "all" ? "Sealed Total" : `${activeSealedGroup?.label ?? "Sealed"} Total`;
+    pricePanelPoints = sealedPriceHistory.map((point) => ({
+      date: point.date,
+      label: point.label,
+      value: point.total_market,
+    }));
+    if (pricePanelPoints.length === 0 && currentSealedTotal != null) {
+      pricePanelPoints = [{ date: "current", label: "Nu", value: currentSealedTotal }];
+    }
+    pricePanelCurrentValue = currentSealedTotal ?? latestSealedPricePoint?.total_market ?? null;
+    pricePanelSubtitle = `${currentSealedTotals.priced}/${filteredSealedProducts.length} sealed priced`;
+    pricePanelEmptyText = "Nog geen sealed prijzen beschikbaar";
+  }
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -158,6 +256,15 @@ export default async function ExpansionDetailPage({
 
           <SyncEpisodeButton episodeId={id} />
         </div>
+
+        <PriceHistoryPanel
+          title={pricePanelTitle}
+          currency="EUR"
+          points={pricePanelPoints}
+          currentValue={pricePanelCurrentValue}
+          subtitle={pricePanelSubtitle}
+          emptyText={pricePanelEmptyText}
+        />
       </div>
 
       <div className="mb-6 inline-flex rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
@@ -194,10 +301,19 @@ export default async function ExpansionDetailPage({
             <p className="text-sm text-gray-400">Use refresh to fetch this set.</p>
           </div>
         ) : (
-          <ExpansionView cards={cards} />
+          <ExpansionView
+            key={episode.id}
+            cards={cards}
+            episode={{ id: episode.id, name: episode.name, code: episode.code }}
+          />
         )
       ) : (
-        <SealedProductsGrid products={sealedProducts} />
+        <SealedProductsGrid
+          key={episode.id}
+          products={sealedProducts}
+          activeFilter={activeSealedFilter}
+          episode={{ id: episode.id, name: episode.name, code: episode.code }}
+        />
       )}
     </div>
   );

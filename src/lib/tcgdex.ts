@@ -1,18 +1,45 @@
-const TCGDEX_CARDS_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
+const TCGDEX_API_BASE = "https://api.tcgdex.net/v2/en";
+const TCGDEX_CARDS_ENDPOINT = `${TCGDEX_API_BASE}/cards`;
 const HIGH_RES_IMAGE_SUFFIX = "/high.webp";
 const IMAGE_REVALIDATE_SECONDS = 60 * 60 * 24;
+const TCGDEX_REQUEST_BATCH_SIZE = 20;
 
 interface TcgdexCardBrief {
   id: string;
   image?: string | null;
 }
 
+interface TcgdexSetCardBrief {
+  id: string;
+}
+
+interface TcgdexSetResponse {
+  cards?: TcgdexSetCardBrief[] | null;
+}
+
+interface TcgdexCardResponse {
+  id: string;
+  category?: string | null;
+}
+
 type TcgdexImageLookup = Map<string, string>;
 
+const TCGDEX_SET_ID_BY_LOCAL_CODE = new Map<string, string>([["por", "me03"]]);
+
+const TCGDEX_SET_ID_BY_LOCAL_NAME = new Map<string, string>([
+  ["perfect order", "me03"],
+]);
+
 let tcgdexImageLookupPromise: Promise<TcgdexImageLookup> | null = null;
+const tcgdexSupertypeLookupPromises = new Map<string, Promise<ReadonlyMap<string, string>>>();
 
 function normalizeLookupKey(value: string): string {
   return value.trim().toLowerCase();
+}
+
+function normalizeOptionalString(value: string | null | undefined): string | null {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function normalizeNumericString(value: string): string | null {
@@ -124,16 +151,84 @@ function buildCardIdAliases(cardId: string): string[] {
   return [...aliases];
 }
 
-async function loadTcgdexImageLookup(): Promise<TcgdexImageLookup> {
-  const response = await fetch(TCGDEX_CARDS_ENDPOINT, {
-    next: { revalidate: IMAGE_REVALIDATE_SECONDS },
-  });
+async function tcgdexFetch<T>(
+  path: string,
+  options?: { revalidateSeconds?: number }
+): Promise<T> {
+  const init: RequestInit & { next?: { revalidate: number } } =
+    options?.revalidateSeconds != null
+      ? { next: { revalidate: options.revalidateSeconds } }
+      : { cache: "no-store" };
+
+  const response = await fetch(path.startsWith("http") ? path : `${TCGDEX_API_BASE}${path}`, init);
 
   if (!response.ok) {
-    throw new Error(`TCGdex API ${response.status}: ${TCGDEX_CARDS_ENDPOINT}`);
+    throw new Error(`TCGdex API ${response.status}: ${path}`);
   }
 
-  const cards = (await response.json()) as TcgdexCardBrief[];
+  return response.json() as Promise<T>;
+}
+
+async function mapInBatches<T, TResult>(
+  items: readonly T[],
+  mapper: (item: T) => Promise<TResult>
+): Promise<TResult[]> {
+  const results: TResult[] = [];
+
+  for (let index = 0; index < items.length; index += TCGDEX_REQUEST_BATCH_SIZE) {
+    const batch = items.slice(index, index + TCGDEX_REQUEST_BATCH_SIZE);
+    results.push(...(await Promise.all(batch.map((item) => mapper(item)))));
+  }
+
+  return results;
+}
+
+export function categoryToSupertype(category: string | null | undefined): string | null {
+  const normalized = normalizeOptionalString(category)?.toLowerCase();
+
+  if (!normalized) return null;
+  if (normalized === "pokemon") return "Pok\u00e9mon";
+  if (normalized === "trainer") return "Trainer";
+  if (normalized === "energy") return "Energy";
+
+  return normalizeOptionalString(category);
+}
+
+export function resolveTcgdexSetIdForEpisode(input: {
+  code?: string | null;
+  name?: string | null;
+}): string | null {
+  const normalizedCode = normalizeOptionalString(input.code)?.toLowerCase();
+  if (normalizedCode && TCGDEX_SET_ID_BY_LOCAL_CODE.has(normalizedCode)) {
+    return TCGDEX_SET_ID_BY_LOCAL_CODE.get(normalizedCode) ?? null;
+  }
+
+  const normalizedName = normalizeOptionalString(input.name)?.toLowerCase();
+  if (normalizedName && TCGDEX_SET_ID_BY_LOCAL_NAME.has(normalizedName)) {
+    return TCGDEX_SET_ID_BY_LOCAL_NAME.get(normalizedName) ?? null;
+  }
+
+  return null;
+}
+
+async function fetchTcgdexSet(setId: string): Promise<TcgdexSetResponse> {
+  return tcgdexFetch<TcgdexSetResponse>(`/sets/${encodeURIComponent(setId)}`);
+}
+
+async function fetchTcgdexCard(cardId: string): Promise<TcgdexCardResponse> {
+  return tcgdexFetch<TcgdexCardResponse>(`/cards/${encodeURIComponent(cardId)}`);
+}
+
+async function fetchTcgdexSetCards(setId: string): Promise<TcgdexCardResponse[]> {
+  const set = await fetchTcgdexSet(setId);
+  const cardIds = (set.cards ?? []).map((card) => card.id);
+  return mapInBatches(cardIds, (cardId) => fetchTcgdexCard(cardId));
+}
+
+async function loadTcgdexImageLookup(): Promise<TcgdexImageLookup> {
+  const cards = await tcgdexFetch<TcgdexCardBrief[]>(TCGDEX_CARDS_ENDPOINT, {
+    revalidateSeconds: IMAGE_REVALIDATE_SECONDS,
+  });
   const lookup: TcgdexImageLookup = new Map();
 
   for (const card of cards) {
@@ -143,6 +238,24 @@ async function loadTcgdexImageLookup(): Promise<TcgdexImageLookup> {
     for (const alias of buildCardIdAliases(card.id)) {
       if (!lookup.has(alias)) {
         lookup.set(alias, imageUrl);
+      }
+    }
+  }
+
+  return lookup;
+}
+
+async function loadTcgdexSupertypeLookup(setId: string): Promise<ReadonlyMap<string, string>> {
+  const cards = await fetchTcgdexSetCards(setId);
+  const lookup = new Map<string, string>();
+
+  for (const card of cards) {
+    const supertype = categoryToSupertype(card.category);
+    if (!supertype) continue;
+
+    for (const alias of buildCardIdAliases(card.id)) {
+      if (!lookup.has(alias)) {
+        lookup.set(alias, supertype);
       }
     }
   }
@@ -162,7 +275,34 @@ export async function getTcgdexImageLookup(): Promise<TcgdexImageLookup> {
   return tcgdexImageLookupPromise;
 }
 
+export async function getTcgdexSupertypeLookupForSet(
+  setId: string
+): Promise<ReadonlyMap<string, string>> {
+  const normalizedSetId = normalizeLookupKey(setId);
+
+  if (!tcgdexSupertypeLookupPromises.has(normalizedSetId)) {
+    tcgdexSupertypeLookupPromises.set(
+      normalizedSetId,
+      loadTcgdexSupertypeLookup(normalizedSetId).catch((error) => {
+        console.error(`Failed to load TCGdex supertype lookup for ${normalizedSetId}`, error);
+        tcgdexSupertypeLookupPromises.delete(normalizedSetId);
+        return new Map();
+      })
+    );
+  }
+
+  return tcgdexSupertypeLookupPromises.get(normalizedSetId) ?? new Map();
+}
+
 export function resolveTcgdexImageUrl(
+  cardId: string | null | undefined,
+  lookup: ReadonlyMap<string, string>
+): string | null {
+  if (!cardId) return null;
+  return lookup.get(normalizeLookupKey(cardId)) ?? null;
+}
+
+export function resolveTcgdexSupertype(
   cardId: string | null | undefined,
   lookup: ReadonlyMap<string, string>
 ): string | null {

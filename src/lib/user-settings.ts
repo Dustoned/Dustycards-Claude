@@ -40,8 +40,54 @@ export const DEFAULT_SETTINGS: UserSettings = {
   modalSize: "medium",
 };
 
+function pickEnumValue<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T
+): T {
+  return typeof value === "string" && allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+function pickStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
 export function mergeSettings(value: Partial<UserSettings> | null | undefined): UserSettings {
-  return { ...DEFAULT_SETTINGS, ...(value ?? {}) };
+  const source = value ?? {};
+
+  return {
+    theme: pickEnumValue(source.theme, ["light", "dark", "system"], DEFAULT_SETTINGS.theme),
+    widescreen:
+      typeof source.widescreen === "boolean" ? source.widescreen : DEFAULT_SETTINGS.widescreen,
+    autoPriceRefresh:
+      typeof source.autoPriceRefresh === "boolean"
+        ? source.autoPriceRefresh
+        : DEFAULT_SETTINGS.autoPriceRefresh,
+    defaultView: pickEnumValue(
+      source.defaultView,
+      ["table", "grid", "binder"],
+      DEFAULT_SETTINGS.defaultView
+    ),
+    cardSize: pickEnumValue(source.cardSize, ["small", "medium", "large"], DEFAULT_SETTINGS.cardSize),
+    defaultRarities: pickStringArray(source.defaultRarities),
+    defaultSupertypes: pickStringArray(source.defaultSupertypes),
+    showOnlyPriced:
+      typeof source.showOnlyPriced === "boolean"
+        ? source.showOnlyPriced
+        : DEFAULT_SETTINGS.showOnlyPriced,
+    primaryPriceSource: pickEnumValue(
+      source.primaryPriceSource,
+      ["cm_en", "tcp"],
+      DEFAULT_SETTINGS.primaryPriceSource
+    ),
+    sortBy: pickEnumValue(source.sortBy, ["number", "cm_en", "tcp"], DEFAULT_SETTINGS.sortBy),
+    sortDir: pickEnumValue(source.sortDir, ["asc", "desc"], DEFAULT_SETTINGS.sortDir),
+    modalSize: pickEnumValue(
+      source.modalSize,
+      ["small", "medium", "large"],
+      DEFAULT_SETTINGS.modalSize
+    ),
+  };
 }
 
 export function parseStoredSettings(raw: string | null | undefined): UserSettings | null {

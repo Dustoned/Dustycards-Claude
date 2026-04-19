@@ -34,6 +34,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/expansions" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
                 Expansions
               </Link>
+              <Link href="/search" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
+                Search
+              </Link>
               <div className="flex-1" />
               <Link href="/settings" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
                 Settings

@@ -1,0 +1,428 @@
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import CardThreeViewer from "@/app/expansions/[id]/CardThreeViewer";
+import {
+  buildCardMarketProductUrl,
+  buildCardMarketProxyUrl,
+  isDirectCardMarketUrl,
+  withCardMarketFilters,
+} from "@/lib/cardmarket";
+import type { CardPriceHistoryPoint } from "@/lib/price-history";
+import { normalizeRarityLabel } from "@/lib/rarity";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
+import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
+import { useSettings, ModalSize } from "@/components/SettingsProvider";
+import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+
+export interface ModalCardData {
+  id: string;
+  name: string;
+  card_number: string | null;
+  rarity: string | null;
+  hp: number | string | null;
+  image_url: string | null;
+  supertype: string | null;
+  subtypes: string | null;
+  artist: string | null;
+  cardmarket_id: string | null;
+  cardmarket_url: string | null;
+  tcggo_url: string | null;
+  price_source_status: string | null;
+  price_source_checked_at: string | null;
+  price_fetched_at: string | null;
+  price: {
+    cm_en_lowest_nm: number | null;
+    cm_de_lowest_nm: number | null;
+    cm_fr_lowest_nm: number | null;
+    cm_es_lowest_nm: number | null;
+    cm_it_lowest_nm: number | null;
+    tcp_market: number | null;
+    tcp_mid: number | null;
+    tcp_low: number | null;
+    cm_en_avg_7d: number | null;
+    cm_en_avg_30d: number | null;
+  } | null;
+  price_history: CardPriceHistoryPoint[];
+  episode_id: string;
+  episode_name: string;
+  episode_code: string | null;
+}
+
+interface Props {
+  card: ModalCardData;
+  onClose: () => void;
+}
+
+type CurrencyCode = "EUR" | "USD";
+
+function formatCurrency(value: number | null | undefined, currency: CurrencyCode = "EUR"): string {
+  if (value == null) return "--";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+const RARITY_BADGE: Record<string, string> = {
+  Common: "bg-black/6 dark:bg-white/8 text-gray-500 dark:text-gray-400",
+  Uncommon: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+  Rare: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
+  "Rare Holo": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
+  "Rare Ultra": "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
+  "Ultra Rare": "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  "Secret Rare": "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400",
+  "Amazing Rare": "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400",
+  Promo: "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  "Radiant Rare": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  "ACE SPEC Rare": "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
+  "Double Rare": "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300",
+  "Illustration Rare": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
+  "Special Illustration Rare": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
+  "Hyper Rare": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  "Shiny Rare": "bg-lime-50 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300",
+  "Shiny Ultra Rare": "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+  "Rare Rainbow": "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
+  "Rare Holo EX": "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300",
+  "Rare Holo V": "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300",
+  "Rare Holo GX": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  "Trainer Gallery Rare Holo": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
+  "Rare Holo LV.X": "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300",
+  "Rare Holo VSTAR": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  "Rare Shiny": "bg-lime-50 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300",
+  "Rare Shiny GX": "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
+  "Rare BREAK": "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  "Rare Prism Star": "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300",
+  "Rare Prime": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
+  "Classic Collection": "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
+  "Rare Holo Star": "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+  LEGEND: "bg-stone-100 dark:bg-stone-800/60 text-stone-700 dark:text-stone-300",
+  "Rare Shining": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  "Rare ACE": "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
+  "Art Rare": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
+  "Special Art Rare": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
+  "Mega Hyper Rare": "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
+  "Black White Rare": "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
+};
+
+function rarityBadge(rarity: string | null): string {
+  return (
+    RARITY_BADGE[normalizeRarityLabel(rarity) ?? ""] ??
+    "bg-black/5 dark:bg-white/6 text-gray-500 dark:text-gray-400"
+  );
+}
+
+export default function CardModal({ card, onClose }: Props) {
+  const { settings } = useSettings();
+  const [threeDOpen, setThreeDOpen] = useState(false);
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+
+  const ms: ModalSize = settings.modalSize;
+  const wide = settings.widescreen;
+  const imgW =
+    ms === "small"
+      ? wide
+        ? "w-80 sm:w-[22rem] xl:w-[24rem]"
+        : "w-44 sm:w-48"
+      : ms === "large"
+        ? wide
+          ? "w-[24rem] sm:w-[28rem] xl:w-[32rem]"
+          : "w-56 sm:w-72 xl:w-80"
+        : wide
+          ? "w-[22rem] sm:w-[25rem] xl:w-[28rem]"
+          : "w-52 sm:w-64";
+  const imgSize =
+    ms === "small"
+      ? wide
+        ? "320px"
+        : "192px"
+      : ms === "large"
+        ? wide
+          ? "496px"
+          : "320px"
+        : wide
+          ? "432px"
+          : "256px";
+  const maxW =
+    ms === "small"
+      ? wide
+        ? "max-w-[70rem]"
+        : "max-w-xl"
+      : ms === "large"
+        ? wide
+          ? "max-w-[84rem]"
+          : "max-w-5xl"
+        : wide
+          ? "max-w-[76rem]"
+          : "max-w-4xl";
+  const pad = ms === "small" ? (wide ? "p-7" : "p-6") : ms === "large" ? (wide ? "p-9 sm:p-10" : "p-8 sm:p-9") : wide ? "p-8 sm:p-9" : "p-7";
+  const gap = ms === "small" ? (wide ? "gap-4" : "gap-5") : ms === "large" ? (wide ? "gap-5" : "gap-8") : wide ? "gap-4" : "gap-7";
+  const contentWidthCls =
+    ms === "small" ? "sm:w-[31rem]" : ms === "large" ? "sm:w-[35rem]" : "sm:w-[33rem]";
+  const layoutCls = wide
+    ? "flex flex-col sm:grid sm:grid-cols-[auto_auto] sm:items-start"
+    : "flex flex-col sm:flex-row sm:items-start";
+  const mediaColCls = wide
+    ? `shrink-0 ${imgW} mx-auto sm:mx-0 sm:self-start`
+    : `shrink-0 ${imgW} mx-auto sm:mx-0`;
+  const contentCls = wide
+    ? `w-full min-w-0 flex flex-col gap-3 ${contentWidthCls}`
+    : "flex-1 min-w-0 flex flex-col gap-4";
+  const titleCls = ms === "small" ? "text-2xl" : ms === "large" ? "text-4xl" : "text-3xl";
+  const priceCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
+  const metaCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
+  const cardMarketHistory = card.price_history.map((point) => ({
+    date: point.date,
+    label: point.label,
+    value: point.cm_market,
+  }));
+  const tcgPlayerHistory = card.price_history.map((point) => ({
+    date: point.date,
+    label: point.label,
+    value: point.tcp_market,
+  }));
+
+  function getCardMarketUrl(): string | null {
+    const stored = resolvedUrl ?? card.cardmarket_url;
+    if (isDirectCardMarketUrl(stored)) return withCardMarketFilters(stored);
+    if (card.cardmarket_id) return buildCardMarketProductUrl(card.cardmarket_id);
+    return stored;
+  }
+
+  async function openCardMarket() {
+    let targetUrl = getCardMarketUrl() ?? buildCardMarketProxyUrl(card.id);
+    if (!isDirectCardMarketUrl(targetUrl)) {
+      try {
+        const res = await fetch(`/api/cm-url?card_id=${encodeURIComponent(card.id)}`, {
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { url?: string };
+          const direct =
+            typeof data.url === "string" && isDirectCardMarketUrl(data.url)
+              ? withCardMarketFilters(data.url)
+              : null;
+          if (direct) {
+            setResolvedUrl(direct);
+            targetUrl = direct;
+          }
+        }
+      } catch {
+        // fall through with proxy URL
+      }
+    }
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  }
+
+  const storedCardMarketUrl = getCardMarketUrl();
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-6"
+        style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
+        onClick={onClose}
+      >
+        <div
+          className={`${maxW} glass w-full sm:w-auto rounded-3xl shadow-2xl shadow-black/45 overflow-hidden`}
+          style={{
+            background: "rgba(12,12,14,0.82)",
+            border: "1px solid rgba(255,255,255,0.14)",
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className={`${layoutCls} ${gap} ${pad}`}>
+            <div className={mediaColCls}>
+              {card.image_url ? (
+                <button
+                  type="button"
+                  onClick={() => setThreeDOpen(true)}
+                  className={`group relative ${imgW} aspect-[63/88] cursor-grab overflow-hidden rounded-2xl shadow-2xl shadow-black/50 transition-transform hover:scale-[1.015]`}
+                  aria-label={`Open ${card.name} in 3D`}
+                >
+                  <Image
+                    src={card.image_url}
+                    alt={card.name}
+                    fill
+                    className="object-contain"
+                    sizes={imgSize}
+                    loading="eager"
+                    unoptimized
+                  />
+                </button>
+              ) : (
+                <div
+                  className={`${imgW} aspect-[63/88] bg-white/6 rounded-2xl flex items-center justify-center text-white/30`}
+                >
+                  ?
+                </div>
+              )}
+            </div>
+
+            <div className={contentCls}>
+              <div>
+                <h2 className={`${titleCls} font-bold text-white leading-tight`}>{card.name}</h2>
+                <div className={`mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-white/50 ${metaCls}`}>
+                  {card.card_number && <span>#{card.card_number}</span>}
+                  {card.supertype && <span>{card.supertype}</span>}
+                  {card.subtypes && <span>{card.subtypes}</span>}
+                  {card.hp && <span>HP {card.hp}</span>}
+                </div>
+                {card.rarity && (
+                  <span
+                    className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold ${rarityBadge(card.rarity)}`}
+                  >
+                    {normalizeRarityLabel(card.rarity) ?? card.rarity}
+                  </span>
+                )}
+                <div className="mt-2">
+                  <Link
+                    href={`/expansions/${card.episode_id}`}
+                    onClick={onClose}
+                    className="text-sm text-white/50 hover:text-white/80 transition-colors underline-offset-2 hover:underline"
+                  >
+                    {card.episode_name}
+                    {card.episode_code && (
+                      <span className="ml-1 opacity-60">({card.episode_code})</span>
+                    )}
+                  </Link>
+                </div>
+              </div>
+
+              <div className={`grid grid-cols-2 gap-2.5 ${priceCls}`}>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { label: "CardMarket", val: card.price?.cm_en_lowest_nm, currency: "EUR" as const },
+                    { label: "7d avg", val: card.price?.cm_en_avg_7d, currency: "EUR" as const },
+                    { label: "30d avg", val: card.price?.cm_en_avg_30d, currency: "EUR" as const },
+                  ].map(
+                    ({ label, val, currency }) =>
+                      val != null && (
+                        <div
+                          key={label}
+                          className="flex justify-between rounded-xl px-3 py-2"
+                          style={{ background: "rgba(255,255,255,0.08)" }}
+                        >
+                          <span className="text-white/50">{label}</span>
+                          <span className="font-bold text-white tabular-nums">
+                            {formatCurrency(val, currency)}
+                          </span>
+                        </div>
+                      )
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  {[
+                    { label: "TCGPlayer", val: card.price?.tcp_market, currency: "USD" as const },
+                    { label: "TCP Mid", val: card.price?.tcp_mid, currency: "USD" as const },
+                    { label: "TCP Low", val: card.price?.tcp_low, currency: "USD" as const },
+                  ].map(
+                    ({ label, val, currency }) =>
+                      val != null && (
+                        <div
+                          key={label}
+                          className="flex justify-between rounded-xl px-3 py-2"
+                          style={{ background: "rgba(255,255,255,0.08)" }}
+                        >
+                          <span className="text-white/50">{label}</span>
+                          <span className="font-bold text-white tabular-nums">
+                            {formatCurrency(val, currency)}
+                          </span>
+                        </div>
+                      )
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-2">
+                <PriceHistoryPanel
+                  title="CardMarket History"
+                  currency="EUR"
+                  points={cardMarketHistory}
+                  currentValue={card.price?.cm_en_lowest_nm ?? null}
+                  tone="dark"
+                  compact
+                />
+                <PriceHistoryPanel
+                  title="TCGPlayer History"
+                  currency="USD"
+                  points={tcgPlayerHistory}
+                  currentValue={card.price?.tcp_market ?? null}
+                  tone="dark"
+                  compact
+                />
+              </div>
+
+              <PriceRefreshCountdown
+                rarity={card.rarity}
+                priceFetchedAt={card.price_fetched_at}
+                priceSourceStatus={card.price_source_status}
+                priceSourceCheckedAt={card.price_source_checked_at}
+              />
+
+              {card.artist && <p className="text-sm text-white/40">Illus. {card.artist}</p>}
+            </div>
+          </div>
+
+          <div className="flex gap-3 px-6 pb-6">
+            <CollectionAddCardButton
+              card={{
+                id: card.id,
+                name: card.name,
+                image_url: card.image_url,
+                episode: {
+                  id: card.episode_id,
+                  name: card.episode_name,
+                  code: card.episode_code,
+                },
+              }}
+              mode="button"
+              theme="dark"
+              label="Add to DustyCards"
+              className="flex-1 rounded-2xl"
+            />
+            {storedCardMarketUrl ? (
+              <a
+                href={storedCardMarketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-500"
+              >
+                Open CardMarket
+              </a>
+            ) : (
+              <button
+                onClick={openCardMarket}
+                className="flex-1 py-3 rounded-2xl font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+              >
+                Open CardMarket
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="px-6 py-3 rounded-2xl font-semibold text-white/60 hover:text-white transition-colors"
+              style={{ background: "rgba(255,255,255,0.08)" }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {threeDOpen && card.image_url && (
+        <CardThreeViewer
+          key={card.id}
+          card={card}
+          frontImageUrl={card.image_url}
+          cardMarketUrl={storedCardMarketUrl}
+          onClose={() => setThreeDOpen(false)}
+        />
+      )}
+    </>
+  );
+}

@@ -1,10 +1,17 @@
 import { db } from "@/lib/db";
+import { isHiddenExpansion } from "@/lib/episodes";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
+import {
+  categoryToSupertype,
+  getTcgdexSupertypeLookupForSet,
+  resolveTcgdexSetIdForEpisode,
+  resolveTcgdexSupertype,
+} from "@/lib/tcgdex";
 import {
   extractPrices,
   fetchAllEpisodes,
   fetchCardsForEpisode,
-  type NormalizedCard,
+  fetchSealedProductsForEpisode,
 } from "@/lib/tcggo";
 
 const ACTIVE_SYNC_STALE_MS = 1000 * 60 * 60 * 2;
@@ -66,13 +73,6 @@ type CardWriteData = {
 
 interface ExistingPriceRecord extends PriceSnapshotData {
   id: string;
-}
-
-interface ExistingCardRecord extends CardWriteData {
-  id: string;
-  price_source_status: string | null;
-  price_source_checked_at: Date | null;
-  prices: ExistingPriceRecord[];
 }
 
 interface DueCardCandidate {
@@ -148,15 +148,18 @@ export class SyncConflictError extends Error {
 }
 
 function buildCardWriteData(
-  existing: ExistingCardRecord | undefined,
-  card: NormalizedCard
+  existing: CardWriteData | undefined,
+  card: CardWriteData,
+  fallbackSupertype: string | null = null
 ): CardWriteData {
+  const normalizedSupertype = categoryToSupertype(card.supertype);
+
   return {
     name: card.name,
     card_number: card.card_number ?? existing?.card_number ?? null,
     rarity: card.rarity ?? existing?.rarity ?? null,
     hp: card.hp ?? existing?.hp ?? null,
-    supertype: card.supertype ?? existing?.supertype ?? null,
+    supertype: normalizedSupertype ?? fallbackSupertype ?? existing?.supertype ?? null,
     subtypes: card.subtypes ?? existing?.subtypes ?? null,
     artist: card.artist ?? existing?.artist ?? null,
     image_url: card.image_url ?? existing?.image_url ?? null,
@@ -168,8 +171,24 @@ function buildCardWriteData(
   };
 }
 
-function hasCardChanges(existing: ExistingCardRecord, next: CardWriteData): boolean {
+function hasCardChanges(existing: CardWriteData, next: CardWriteData): boolean {
   return CARD_FIELDS.some((field) => existing[field] !== next[field]);
+}
+
+async function getTcgdexSupertypeLookupForEpisode(
+  episodeId: string
+): Promise<ReadonlyMap<string, string>> {
+  const episode = await db.episode.findUnique({
+    where: { id: episodeId },
+    select: { code: true, name: true },
+  });
+
+  const tcgdexSetId = episode ? resolveTcgdexSetIdForEpisode(episode) : null;
+  if (!tcgdexSetId) {
+    return new Map();
+  }
+
+  return getTcgdexSupertypeLookupForSet(tcgdexSetId);
 }
 
 function hasAnyPrice(prices: PriceSnapshotData): boolean {
@@ -398,7 +417,10 @@ async function syncEpisodeCards(
   episodeId: string,
   options: { refreshAllPrices: boolean }
 ): Promise<EpisodeSyncResult> {
-  const cards = await fetchCardsForEpisode(episodeId);
+  const [cards, tcgdexSupertypeLookup] = await Promise.all([
+    fetchCardsForEpisode(episodeId),
+    getTcgdexSupertypeLookupForEpisode(episodeId),
+  ]);
 
   const result = await db.$transaction(async (tx) => {
     const existingCards = await tx.card.findMany({
@@ -452,7 +474,8 @@ async function syncEpisodeCards(
 
     for (const card of cards) {
       const existingCard = existingCardMap.get(card.id);
-      const nextCardData = buildCardWriteData(existingCard, card);
+      const fallbackSupertype = resolveTcgdexSupertype(card.tcgid, tcgdexSupertypeLookup);
+      const nextCardData = buildCardWriteData(existingCard, card, fallbackSupertype);
 
       if (!existingCard) {
         await tx.card.create({
@@ -821,7 +844,10 @@ async function refreshEpisodeDueCards(
   cardIds: string[],
   fetchedAt: Date
 ): Promise<AutoEpisodePriceRefreshResult> {
-  const remoteCards = await fetchCardsForEpisode(episodeId);
+  const [remoteCards, tcgdexSupertypeLookup] = await Promise.all([
+    fetchCardsForEpisode(episodeId),
+    getTcgdexSupertypeLookupForEpisode(episodeId),
+  ]);
   const remoteCardMap = new Map(remoteCards.map((card) => [card.id, card]));
 
   return db.$transaction(async (tx) => {
@@ -881,7 +907,8 @@ async function refreshEpisodeDueCards(
         continue;
       }
 
-      const nextCardData = buildCardWriteData(existingCard, remoteCard);
+      const fallbackSupertype = resolveTcgdexSupertype(remoteCard.tcgid, tcgdexSupertypeLookup);
+      const nextCardData = buildCardWriteData(existingCard, remoteCard, fallbackSupertype);
       if (hasCardChanges(existingCard, nextCardData)) {
         await tx.card.update({
           where: { id: cardId },
@@ -1055,12 +1082,138 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
   );
 }
 
+export async function runSealedSync(): Promise<{ synced: number; products: number }> {
+  const episodes = (
+    await db.episode.findMany({ select: { id: true, name: true, code: true } })
+  ).filter((episode) => !isHiddenExpansion(episode));
+  let synced = 0;
+  let products = 0;
+
+  // Process in batches of 5 to avoid overwhelming the API
+  const BATCH = 5;
+  for (let i = 0; i < episodes.length; i += BATCH) {
+    const batch = episodes.slice(i, i + BATCH);
+    await Promise.all(
+      batch.map(async (ep) => {
+        try {
+          const fetched = await fetchSealedProductsForEpisode(ep.id);
+          if (fetched.length === 0) return;
+          const syncedAt = new Date();
+          await db.$transaction(async (tx) => {
+            const sealedProducts = fetched.map((p) => ({
+              id: p.id,
+              episode_id: ep.id,
+              name: p.name,
+              image_url: p.image_url,
+              tcggo_url: p.tcggo_url,
+              cardmarket_url: p.cardmarket_url,
+              cardmarket_id: p.cardmarket_id,
+              tcgplayer_id: p.tcgplayer_id,
+              cm_lowest: p.price.cm_lowest,
+              cm_lowest_eu: p.price.cm_lowest_eu,
+              cm_lowest_de: p.price.cm_lowest_de,
+              cm_lowest_fr: p.price.cm_lowest_fr,
+              cm_lowest_es: p.price.cm_lowest_es,
+              cm_lowest_it: p.price.cm_lowest_it,
+              cm_avg_7d: p.price.cm_avg_7d,
+              cm_avg_30d: p.price.cm_avg_30d,
+              synced_at: syncedAt,
+            }));
+            const sealedSnapshots = fetched.map((p) => ({
+              product_id: p.id,
+              episode_id: ep.id,
+              fetched_at: syncedAt,
+              cm_lowest: p.price.cm_lowest,
+              cm_lowest_eu: p.price.cm_lowest_eu,
+              cm_lowest_de: p.price.cm_lowest_de,
+              cm_lowest_fr: p.price.cm_lowest_fr,
+              cm_lowest_es: p.price.cm_lowest_es,
+              cm_lowest_it: p.price.cm_lowest_it,
+              cm_avg_7d: p.price.cm_avg_7d,
+              cm_avg_30d: p.price.cm_avg_30d,
+            }));
+
+            await tx.sealedProduct.deleteMany({ where: { episode_id: ep.id } });
+            await tx.sealedProduct.createMany({
+              data: sealedProducts,
+            });
+            await tx.sealedPriceSnapshot.createMany({
+              data: sealedSnapshots,
+            });
+          });
+          synced += 1;
+          products += fetched.length;
+        } catch {
+          // skip failed episodes silently
+        }
+      })
+    );
+  }
+
+  return { synced, products };
+}
+
+async function syncEpisodeSealed(episodeId: string): Promise<void> {
+  const products = await fetchSealedProductsForEpisode(episodeId);
+  if (products.length === 0) return;
+
+  const syncedAt = new Date();
+  await db.$transaction(async (tx) => {
+    const sealedProducts = products.map((p) => ({
+      id: p.id,
+      episode_id: episodeId,
+      name: p.name,
+      image_url: p.image_url,
+      tcggo_url: p.tcggo_url,
+      cardmarket_url: p.cardmarket_url,
+      cardmarket_id: p.cardmarket_id,
+      tcgplayer_id: p.tcgplayer_id,
+      cm_lowest: p.price.cm_lowest,
+      cm_lowest_eu: p.price.cm_lowest_eu,
+      cm_lowest_de: p.price.cm_lowest_de,
+      cm_lowest_fr: p.price.cm_lowest_fr,
+      cm_lowest_es: p.price.cm_lowest_es,
+      cm_lowest_it: p.price.cm_lowest_it,
+      cm_avg_7d: p.price.cm_avg_7d,
+      cm_avg_30d: p.price.cm_avg_30d,
+      synced_at: syncedAt,
+    }));
+    const sealedSnapshots = products.map((p) => ({
+      product_id: p.id,
+      episode_id: episodeId,
+      fetched_at: syncedAt,
+      cm_lowest: p.price.cm_lowest,
+      cm_lowest_eu: p.price.cm_lowest_eu,
+      cm_lowest_de: p.price.cm_lowest_de,
+      cm_lowest_fr: p.price.cm_lowest_fr,
+      cm_lowest_es: p.price.cm_lowest_es,
+      cm_lowest_it: p.price.cm_lowest_it,
+      cm_avg_7d: p.price.cm_avg_7d,
+      cm_avg_30d: p.price.cm_avg_30d,
+    }));
+
+    await tx.sealedProduct.deleteMany({ where: { episode_id: episodeId } });
+    await tx.sealedProduct.createMany({
+      data: sealedProducts,
+    });
+    await tx.sealedPriceSnapshot.createMany({
+      data: sealedSnapshots,
+    });
+  });
+}
+
 export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResult> {
   return runLoggedSync(
     `episode:${episodeId}`,
     `Syncing cards and all prices for episode ${episodeId}`,
     summarizeEpisodeSync,
-    () => syncEpisodeCards(episodeId, { refreshAllPrices: true })
+    async () => {
+      const [cardResult] = await Promise.all([
+        syncEpisodeCards(episodeId, { refreshAllPrices: true }),
+        syncEpisodeSealed(episodeId).catch(() => undefined),
+      ]);
+      return cardResult;
+    }
   );
 }
 
@@ -1117,6 +1270,10 @@ export async function runFullSync(): Promise<FullSyncResult> {
       const episodesToSync: string[] = [];
 
       for (const episode of remoteEpisodes) {
+        if (isHiddenExpansion(episode)) {
+          continue;
+        }
+
         const existingEpisode = localEpisodeMap.get(episode.id);
         const isNewEpisode = !existingEpisode;
         const localCardCount = existingEpisode?._count.cards ?? 0;
@@ -1158,9 +1315,10 @@ export async function runFullSync(): Promise<FullSyncResult> {
       let refreshedPrices = 0;
 
       for (const episodeId of episodesToSync) {
-        const episodeResult = await syncEpisodeCards(episodeId, {
-          refreshAllPrices: false,
-        });
+        const [episodeResult] = await Promise.all([
+          syncEpisodeCards(episodeId, { refreshAllPrices: false }),
+          syncEpisodeSealed(episodeId).catch(() => undefined),
+        ]);
 
         newCards += episodeResult.newCards;
         updatedCards += episodeResult.updatedCards;

@@ -19,7 +19,54 @@ model Episode {
   synced_at     DateTime?
   created_at    DateTime @default(now())
 
-  cards         Card[]
+  cards          Card[]
+  binders        CollectionBinder[]
+  sealedProducts SealedProduct[]
+}
+
+model SealedProduct {
+  id              String   @id
+  episode_id      String
+  name            String
+  image_url       String?
+  tcggo_url       String?
+  cardmarket_url  String?
+  cardmarket_id   String?
+  tcgplayer_id    String?
+  cm_lowest       Float?
+  cm_lowest_eu    Float?
+  cm_lowest_de    Float?
+  cm_lowest_fr    Float?
+  cm_lowest_es    Float?
+  cm_lowest_it    Float?
+  cm_avg_7d       Float?
+  cm_avg_30d      Float?
+  synced_at       DateTime @default(now())
+
+  episode         Episode  @relation(fields: [episode_id], references: [id])
+  collectionItems CollectionSealed[]
+
+  @@index([episode_id])
+  @@index([name])
+}
+
+model SealedPriceSnapshot {
+  id              String   @id @default(cuid())
+  product_id      String
+  episode_id      String
+  fetched_at      DateTime @default(now())
+  cm_lowest       Float?
+  cm_lowest_eu    Float?
+  cm_lowest_de    Float?
+  cm_lowest_fr    Float?
+  cm_lowest_es    Float?
+  cm_lowest_it    Float?
+  cm_avg_7d       Float?
+  cm_avg_30d      Float?
+
+  @@index([product_id])
+  @@index([product_id, fetched_at])
+  @@index([episode_id, fetched_at])
 }
 
 model Card {
@@ -44,11 +91,92 @@ model Card {
   updated_at      DateTime @updatedAt
 
   episode         Episode  @relation(fields: [episode_id], references: [id])
+  collectionItems CollectionCard[]
   prices          Price[]
 
   @@index([episode_id])
   @@index([episode_id, card_number])
   @@index([price_source_status, price_source_checked_at])
+}
+
+model CollectionBinder {
+  id                  String   @id @default(cuid())
+  name                String
+  type                String
+  episode_id          String?
+  accent_color        String?
+  icon_name           String?
+  notes               String?
+  base_purchase_price Float?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  episode             Episode?         @relation(fields: [episode_id], references: [id])
+  cards               CollectionCard[]
+
+  @@index([type])
+  @@index([episode_id])
+  @@index([created_at])
+}
+
+model CollectionCard {
+  id              String   @id @default(cuid())
+  card_id         String
+  binder_id       String?
+  purchase_price  Float?
+  condition       String?
+  language        String?
+  notes           String?
+  grading_company String?
+  grading_grade   String?
+  added_at        DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  card            Card              @relation(fields: [card_id], references: [id])
+  binder          CollectionBinder? @relation(fields: [binder_id], references: [id], onDelete: SetNull)
+  tags            CollectionCardTag[]
+
+  @@index([card_id])
+  @@index([binder_id])
+  @@index([added_at])
+}
+
+model CollectionCardTag {
+  id                 String         @id @default(cuid())
+  collection_card_id String
+  label              String
+
+  collection_card    CollectionCard @relation(fields: [collection_card_id], references: [id], onDelete: Cascade)
+
+  @@index([collection_card_id])
+  @@index([label])
+}
+
+model CollectionSealed {
+  id                      String   @id @default(cuid())
+  product_id              String
+  quantity                Int      @default(1)
+  purchase_price_per_item Float?
+  notes                   String?
+  added_at                DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  product                 SealedProduct         @relation(fields: [product_id], references: [id])
+  tags                    CollectionSealedTag[]
+
+  @@index([product_id])
+  @@index([added_at])
+}
+
+model CollectionSealedTag {
+  id                   String           @id @default(cuid())
+  collection_sealed_id String
+  label                String
+
+  collection_sealed    CollectionSealed @relation(fields: [collection_sealed_id], references: [id], onDelete: Cascade)
+
+  @@index([collection_sealed_id])
+  @@index([label])
 }
 
 model Price {

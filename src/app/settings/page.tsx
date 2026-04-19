@@ -1,5 +1,7 @@
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { getAutoPriceRefreshSnapshot } from "@/lib/sync";
+import { parseCookieSettings, SETTINGS_COOKIE_NAME } from "@/lib/user-settings";
 import ThemeSection from "./ThemeSection";
 import LayoutSection from "./LayoutSection";
 import AutomationSection from "./AutomationSection";
@@ -29,6 +31,9 @@ function parseSyncType(type: string): {
 }
 
 export default async function SettingsPage() {
+  const cookieStore = await cookies();
+  const widescreen = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value)?.widescreen ?? false;
+
   const [
     activeSync,
     activeAutoRefresh,
@@ -143,29 +148,31 @@ export default async function SettingsPage() {
     );
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div className={`${widescreen ? "max-w-[2000px]" : "max-w-2xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
       <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-8">Settings</h1>
 
-      <div className="space-y-4">
+      <div className={`grid gap-4 ${widescreen ? "grid-cols-3" : "grid-cols-1"}`}>
         <ThemeSection />
         <LayoutSection />
-        <AutomationSection />
         <CardDefaultsSection />
         <FiltersSection />
-        <SyncStatusSection
-          activeSync={toSyncEntry(activeSync)}
-          lastSuccessfulSync={toSyncEntry(lastSuccessfulSync)}
-          lastFailedSync={toSyncEntry(lastFailedSync)}
-          autoRefreshStatus={{
-            active: toSyncEntry(activeAutoRefresh),
-            lastSuccess: toSyncEntry(lastAutoRefresh),
-            dueCards: autoRefreshSnapshot.dueCards,
-            missingPriceCards: autoRefreshSnapshot.missingPriceCards,
-            nextBatchCards: autoRefreshSnapshot.nextBatchCards,
-            nextBatchEpisodes: autoRefreshSnapshot.nextBatchEpisodes,
-          }}
-          recentSyncs={recentSyncEntries}
-        />
+        <AutomationSection />
+        <div className={widescreen ? "col-span-3" : ""}>
+          <SyncStatusSection
+            activeSync={toSyncEntry(activeSync)}
+            lastSuccessfulSync={toSyncEntry(lastSuccessfulSync)}
+            lastFailedSync={toSyncEntry(lastFailedSync)}
+            autoRefreshStatus={{
+              active: toSyncEntry(activeAutoRefresh),
+              lastSuccess: toSyncEntry(lastAutoRefresh),
+              dueCards: autoRefreshSnapshot.dueCards,
+              missingPriceCards: autoRefreshSnapshot.missingPriceCards,
+              nextBatchCards: autoRefreshSnapshot.nextBatchCards,
+              nextBatchEpisodes: autoRefreshSnapshot.nextBatchEpisodes,
+            }}
+            recentSyncs={recentSyncEntries}
+          />
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight, Layers3, LibraryBig, Shapes } from "lucide-react";
 import { db } from "@/lib/db";
-import { isRedundantSubsetExpansion } from "@/lib/episodes";
+import { isHiddenExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
 import {
   DEFAULT_SETTINGS,
   parseCookieSettings,
@@ -173,7 +173,11 @@ export default async function ExpansionsPage() {
   ];
 
   const newestEra = ERA_ORDER[0];
-  const visibleSets = deduped.filter((episode) => !isRedundantSubsetExpansion(episode.name));
+  const visibleSets = deduped.filter(
+    (episode) =>
+      !isRedundantSubsetExpansion(episode.name) &&
+      !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
+  );
   const withCards = visibleSets.filter((episode) => {
     const cardCount = episode.card_count ?? episode._count.cards;
     const era = getEra(episode.name, episode.series, episode.release_date);

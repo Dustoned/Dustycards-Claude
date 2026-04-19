@@ -10,7 +10,10 @@ import {
   withCardMarketFilters,
 } from "@/lib/cardmarket";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
+import type { CardPriceHistoryPoint } from "@/lib/price-history";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
+import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import {
   useSettings,
   CardView,
@@ -51,6 +54,15 @@ export interface CardData {
   } | null;
 }
 
+interface CardDetailData {
+  cardmarket_url: string | null;
+  price_source_status: string | null;
+  price_source_checked_at: string | null;
+  price_fetched_at: string | null;
+  price: CardData["price"];
+  price_history: CardPriceHistoryPoint[];
+}
+
 type CurrencyCode = "EUR" | "USD";
 
 const CARD_NUMBER_FALLBACK = "999999";
@@ -89,6 +101,24 @@ function getSortPrice(card: CardData, sortBy: SortBy): number | null {
 
 function getPriceBySource(card: CardData, source: PriceSource): number | null {
   return source === "tcp" ? card.price?.tcp_market ?? null : getCardMarketPrice(card);
+}
+
+function hasAnyVisiblePrice(card: CardData): boolean {
+  const price = card.price;
+  if (!price) return false;
+
+  return [
+    price.cm_en_lowest_nm,
+    price.cm_de_lowest_nm,
+    price.cm_fr_lowest_nm,
+    price.cm_es_lowest_nm,
+    price.cm_it_lowest_nm,
+    price.cm_en_avg_7d,
+    price.cm_en_avg_30d,
+    price.tcp_market,
+    price.tcp_mid,
+    price.tcp_low,
+  ].some((value) => value != null);
 }
 
 function getPriceSourceCurrency(source: PriceSource): CurrencyCode {
@@ -191,10 +221,18 @@ function rarityFilterChip(rarity: string | null, active: boolean): string {
   const palette = rarityBadge(rarity);
 
   if (active) {
-    return `${palette} border-black/12 dark:border-white/12 shadow-sm shadow-black/5 dark:shadow-black/20`;
+    return `${palette} border-black/15 dark:border-white/15 opacity-100 ring-2 ring-gray-900/70 ring-offset-1 ring-offset-white shadow-md shadow-black/10 dark:border-white/15 dark:ring-white/80 dark:ring-offset-black dark:shadow-black/25`;
   }
 
-  return `${palette} border-black/8 dark:border-white/8 opacity-75 hover:opacity-100 hover:border-black/20 dark:hover:border-white/20`;
+  return `${palette} border-black/8 dark:border-white/8 opacity-75 hover:opacity-100 hover:border-black/20 hover:shadow-sm dark:hover:border-white/20`;
+}
+
+function neutralFilterChip(active: boolean): string {
+  if (active) {
+    return "border-gray-900 bg-gray-900 text-white opacity-100 ring-2 ring-gray-900/70 ring-offset-1 ring-offset-white shadow-md shadow-black/10 dark:border-white dark:bg-white dark:text-gray-900 dark:ring-white/80 dark:ring-offset-black dark:shadow-black/25";
+  }
+
+  return "border-black/8 text-gray-500 opacity-80 hover:border-black/20 hover:opacity-100 hover:text-gray-900 hover:shadow-sm dark:border-white/8 dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white";
 }
 
 const cardMinWidth: Record<CardSize, Record<"normal" | "wide", string>> = {
@@ -213,6 +251,11 @@ const warmedCardImageQueue: string[] = [];
 
 interface Props {
   cards: CardData[];
+  episode?: {
+    id: string;
+    name: string;
+    code: string | null;
+  };
 }
 
 interface FilterOption {
@@ -288,13 +331,16 @@ function buildFilterOptions(
     .map(([value, count]) => ({ value, count }));
 }
 
-export default function ExpansionView({ cards }: Props) {
-  const { settings, set, isLoaded } = useSettings();
+export default function ExpansionView({ cards, episode }: Props) {
+  const { settings, set } = useSettings();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<CardData | null>(null);
   const [threeDCard, setThreeDCard] = useState<CardData | null>(null);
   const [resolvedCardMarketUrls, setResolvedCardMarketUrls] = useState<Record<string, string>>({});
-  const view = settings.defaultView;
+  const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
+  const [loadingDetailsId, setLoadingDetailsId] = useState<string | null>(null);
+  const view: Exclude<CardView, "binder"> =
+    settings.defaultView === "binder" ? "grid" : settings.defaultView;
   const rarities = settings.defaultRarities;
   const supertypes = settings.defaultSupertypes;
   const onlyPriced = settings.showOnlyPriced;
@@ -334,6 +380,18 @@ export default function ExpansionView({ cards }: Props) {
     () => supertypes.filter((supertype) => availableSupertypeValues.has(supertype)),
     [supertypes, availableSupertypeValues]
   );
+  const setHasAnyPricedCards = useMemo(
+    () => cards.some((card) => hasAnyVisiblePrice(card)),
+    [cards]
+  );
+  const effectiveOnlyPriced = onlyPriced && setHasAnyPricedCards;
+  const pricedOnlyUnavailable = onlyPriced && !setHasAnyPricedCards;
+
+  useEffect(() => {
+    if (settings.defaultView === "binder") {
+      set("defaultView", "grid");
+    }
+  }, [settings.defaultView, set]);
 
   useEffect(() => {
     const imageUrls = getUniqueCardImageUrls(cards);
@@ -371,6 +429,38 @@ export default function ExpansionView({ cards }: Props) {
       if (timer) clearTimeout(timer);
     };
   }, [cards]);
+
+  useEffect(() => {
+    if (!selected || cardDetailsById[selected.id]) return;
+
+    const controller = new AbortController();
+    const cardId = selected.id;
+
+    void (async () => {
+      try {
+        const res = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error("card details failed");
+
+        const data = (await res.json()) as CardDetailData;
+        setCardDetailsById((prev) => (prev[cardId] ? prev : { ...prev, [cardId]: data }));
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
+      } finally {
+        setLoadingDetailsId((prev) => (prev === cardId ? null : prev));
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [selected, cardDetailsById]);
+
+  function openDetails(card: CardData) {
+    setSelected(card);
+    setLoadingDetailsId(cardDetailsById[card.id] ? null : card.id);
+  }
 
   function getResolvedCardMarketUrl(card: CardData): string | null {
     const storedUrl = resolvedCardMarketUrls[card.id] ?? card.cardmarket_url;
@@ -451,21 +541,9 @@ export default function ExpansionView({ cards }: Props) {
     set("defaultSupertypes", next);
   }
 
-  const filtered = useMemo(() => {
-    if (!isLoaded) return [];
-
+  const sortedCards = useMemo(() => {
     const next = cards.filter((card) => {
       if (normalizedSearch && !card.name.toLowerCase().includes(normalizedSearch)) return false;
-      if (
-        activeRarities.length > 0 &&
-        !activeRarities.includes(normalizeRarityLabel(card.rarity) ?? "")
-      ) {
-        return false;
-      }
-      if (activeSupertypes.length > 0 && !activeSupertypes.includes(card.supertype ?? "")) {
-        return false;
-      }
-      if (onlyPriced && getPriceBySource(card, primaryPriceSource) == null) return false;
       return true;
     });
 
@@ -479,20 +557,42 @@ export default function ExpansionView({ cards }: Props) {
       if (priceDiff !== 0) return priceDiff;
       return compareCardNumbers(a, b);
     });
+  }, [cards, normalizedSearch, sortBy, sortDir]);
+
+  const filteredCards = useMemo(() => {
+    return sortedCards.filter((card) => {
+      if (
+        activeRarities.length > 0 &&
+        !activeRarities.includes(normalizeRarityLabel(card.rarity) ?? "")
+      ) {
+        return false;
+      }
+      if (activeSupertypes.length > 0 && !activeSupertypes.includes(card.supertype ?? "")) {
+        return false;
+      }
+      if (effectiveOnlyPriced && !hasAnyVisiblePrice(card)) return false;
+      return true;
+    });
   }, [
-    cards,
-    normalizedSearch,
+    sortedCards,
     activeRarities,
     activeSupertypes,
-    onlyPriced,
-    sortBy,
-    sortDir,
-    isLoaded,
-    primaryPriceSource,
+    effectiveOnlyPriced,
   ]);
 
+  const persistentFiltersHideEverything =
+    !normalizedSearch &&
+    sortedCards.length > 0 &&
+    filteredCards.length === 0 &&
+    (activeRarities.length > 0 || activeSupertypes.length > 0 || effectiveOnlyPriced);
+
+  const filtered = persistentFiltersHideEverything ? sortedCards : filteredCards;
+
   const hasActiveFilters =
-    Boolean(search) || activeRarities.length > 0 || activeSupertypes.length > 0 || onlyPriced;
+    Boolean(search) ||
+    activeRarities.length > 0 ||
+    activeSupertypes.length > 0 ||
+    onlyPriced;
   const sortSummary = formatSortSummary(sortBy, sortDir);
 
   const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
@@ -506,16 +606,6 @@ export default function ExpansionView({ cards }: Props) {
     { value: "medium", label: "M" },
     { value: "large", label: "L" },
   ];
-
-  if (!isLoaded) {
-    return (
-      <div className="flex min-h-[24rem] items-center justify-center px-6 py-12">
-        <div className="rounded-2xl border border-black/8 bg-white/75 px-4 py-2 text-sm text-gray-500 shadow-sm backdrop-blur-xl dark:border-white/8 dark:bg-white/5 dark:text-white/55">
-          Loading saved view...
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -620,50 +710,69 @@ export default function ExpansionView({ cards }: Props) {
         </div>
 
         <div className="flex flex-wrap gap-1.5 items-center">
-          {availableRarities.map((rarity) => (
-            <button
-              key={rarity.value}
-              onClick={() => toggleRarity(rarity.value)}
-              className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${rarityFilterChip(
-                rarity.value,
-                activeRarities.includes(rarity.value)
-              )}`}
-            >
-              {rarity.value}
-            </button>
-          ))}
+          {availableRarities.map((rarity) => {
+            const active = activeRarities.includes(rarity.value);
+
+            return (
+              <button
+                key={rarity.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggleRarity(rarity.value)}
+                className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+                  active ? "font-semibold" : "font-medium"
+                } ${rarityFilterChip(rarity.value, active)}`}
+              >
+                <span>{rarity.value}</span>
+              </button>
+            );
+          })}
           {availableRarities.length > 0 && availableSupertypes.length > 0 && (
             <div className="w-px h-3.5 bg-black/10 dark:bg-white/10" />
           )}
-          {availableSupertypes.map((supertype) => (
-            <button
-              key={supertype.value}
-              onClick={() => toggleSupertype(supertype.value)}
-              className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${
-                activeSupertypes.includes(supertype.value)
-                  ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900"
-                  : "border-black/8 dark:border-white/8 text-gray-400 hover:border-black/20 dark:hover:border-white/20 hover:text-gray-700 dark:hover:text-gray-200"
-              }`}
-            >
-              {supertype.value}
-            </button>
-          ))}
+          {availableSupertypes.map((supertype) => {
+            const active = activeSupertypes.includes(supertype.value);
+
+            return (
+              <button
+                key={supertype.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggleSupertype(supertype.value)}
+                className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+                  active ? "font-semibold" : "font-medium"
+                } ${neutralFilterChip(active)}`}
+              >
+                <span>{supertype.value}</span>
+              </button>
+            );
+          })}
           {(availableRarities.length > 0 || availableSupertypes.length > 0) && (
             <div className="w-px h-3.5 bg-black/10 dark:bg-white/10" />
           )}
           <button
+            type="button"
+            aria-pressed={onlyPriced}
             onClick={() => {
               set("showOnlyPriced", !onlyPriced);
             }}
-            className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-all ${
-              onlyPriced
-                ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900"
-                : "border-black/8 dark:border-white/8 text-gray-400 hover:border-black/20 dark:hover:border-white/20"
-            }`}
+            className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+              effectiveOnlyPriced ? "font-semibold" : "font-medium"
+            } ${neutralFilterChip(effectiveOnlyPriced)}`}
           >
-            Priced only
+            <span>{pricedOnlyUnavailable ? "No prices yet" : "Priced only"}</span>
           </button>
         </div>
+        {pricedOnlyUnavailable && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            This set has no price data yet, so all cards are shown.
+          </p>
+        )}
+        {persistentFiltersHideEverything && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            Saved filters matched 0 cards here, so this set is shown without them.
+          </p>
+        )}
       </div>
 
       {view === "table" && (
@@ -684,7 +793,7 @@ export default function ExpansionView({ cards }: Props) {
                 {filtered.map((card, index) => (
                   <tr
                     key={card.id}
-                    onClick={() => setSelected(card)}
+                    onClick={() => openDetails(card)}
                     className={`group border-b border-black/4 dark:border-white/6 last:border-0 hover:bg-black/3 dark:hover:bg-white/5 transition-colors cursor-pointer ${
                       index % 2 === 0 ? "" : "bg-black/[0.015] dark:bg-white/[0.025]"
                     }`}
@@ -712,8 +821,26 @@ export default function ExpansionView({ cards }: Props) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="font-semibold text-gray-900 dark:text-white">{card.name}</span>
-                      {card.hp && <span className="ml-2 text-gray-400 text-xs">HP {card.hp}</span>}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="font-semibold text-gray-900 dark:text-white">{card.name}</span>
+                          {card.hp && <span className="ml-2 text-gray-400 text-xs">HP {card.hp}</span>}
+                        </div>
+                        <CollectionAddCardButton
+                          card={{
+                            id: card.id,
+                            name: card.name,
+                            image_url: card.image_url,
+                            episode:
+                              episode ?? {
+                                id: "",
+                                name: "",
+                                code: null,
+                              },
+                          }}
+                          className="h-8 w-8 shrink-0"
+                        />
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {card.rarity ? (
@@ -758,7 +885,7 @@ export default function ExpansionView({ cards }: Props) {
               <div
                 key={card.id}
                 className="flex flex-col gap-1.5 cursor-pointer"
-                onClick={() => setSelected(card)}
+                onClick={() => openDetails(card)}
               >
                 <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-md shadow-black/20 hover:shadow-xl hover:shadow-black/30 hover:scale-[1.03] transition-all duration-200">
                   {card.image_url ? (
@@ -776,6 +903,24 @@ export default function ExpansionView({ cards }: Props) {
                       {card.name.slice(0, 2)}
                     </div>
                   )}
+
+                  <div className="absolute right-2 top-2">
+                    <CollectionAddCardButton
+                      card={{
+                        id: card.id,
+                        name: card.name,
+                        image_url: card.image_url,
+                        episode:
+                          episode ?? {
+                            id: "",
+                            name: "",
+                            code: null,
+                          },
+                      }}
+                      theme="dark"
+                      className="h-8 w-8 bg-black/65 text-white hover:bg-black/78"
+                    />
+                  </div>
                 </div>
                 <div className="px-0.5">
                   <p className="text-xs font-semibold text-gray-900 dark:text-white truncate leading-snug">
@@ -812,17 +957,102 @@ export default function ExpansionView({ cards }: Props) {
       {selected &&
         (() => {
           const ms: ModalSize = settings.modalSize;
-          const storedCardMarketUrl = getResolvedCardMarketUrl(selected);
+          const selectedDetails = cardDetailsById[selected.id] ?? null;
+          const selectedPrice = selectedDetails?.price ?? selected.price;
+          const selectedPriceFetchedAt = selectedDetails?.price_fetched_at ?? selected.price_fetched_at;
+          const selectedPriceSourceStatus =
+            selectedDetails?.price_source_status ?? selected.price_source_status;
+          const selectedPriceSourceCheckedAt =
+            selectedDetails?.price_source_checked_at ?? selected.price_source_checked_at;
+          const selectedCardMarketUrl =
+            selectedDetails?.cardmarket_url != null
+              ? getResolvedCardMarketUrl({
+                  ...selected,
+                  cardmarket_url: selectedDetails.cardmarket_url,
+                })
+              : getResolvedCardMarketUrl(selected);
+          const selectedCardMarketHistory = (selectedDetails?.price_history ?? []).map((point) => ({
+            date: point.date,
+            label: point.label,
+            value: point.cm_market,
+          }));
+          const selectedTcgPlayerHistory = (selectedDetails?.price_history ?? []).map((point) => ({
+            date: point.date,
+            label: point.label,
+            value: point.tcp_market,
+          }));
+          const wide = settings.widescreen;
           const imgW =
             ms === "small"
-              ? "w-44 sm:w-48"
+              ? wide
+                ? "w-80 sm:w-[22rem] xl:w-[24rem]"
+                : "w-44 sm:w-48"
               : ms === "large"
-                ? "w-56 sm:w-72 xl:w-80"
-                : "w-52 sm:w-64";
-          const imgSize = ms === "small" ? "192px" : ms === "large" ? "320px" : "256px";
-          const maxW = ms === "small" ? "max-w-xl" : ms === "large" ? "max-w-5xl" : "max-w-4xl";
-          const pad = ms === "small" ? "p-6" : ms === "large" ? "p-8 sm:p-9" : "p-7";
-          const gap = ms === "small" ? "gap-5" : ms === "large" ? "gap-8" : "gap-7";
+                ? wide
+                  ? "w-[24rem] sm:w-[28rem] xl:w-[32rem]"
+                  : "w-56 sm:w-72 xl:w-80"
+                : wide
+                  ? "w-[22rem] sm:w-[25rem] xl:w-[28rem]"
+                  : "w-52 sm:w-64";
+          const imgSize =
+            ms === "small"
+              ? wide
+                ? "320px"
+                : "192px"
+              : ms === "large"
+                ? wide
+                  ? "496px"
+                  : "320px"
+                : wide
+                  ? "432px"
+                  : "256px";
+          const maxW =
+            ms === "small"
+              ? wide
+                ? "max-w-[70rem]"
+                : "max-w-xl"
+              : ms === "large"
+                ? wide
+                  ? "max-w-[84rem]"
+                  : "max-w-5xl"
+                : wide
+                  ? "max-w-[76rem]"
+                  : "max-w-4xl";
+          const pad =
+            ms === "small"
+              ? wide
+                ? "p-7"
+                : "p-6"
+              : ms === "large"
+                ? wide
+                  ? "p-9 sm:p-10"
+                  : "p-8 sm:p-9"
+                : wide
+                  ? "p-8 sm:p-9"
+                  : "p-7";
+          const gap =
+            ms === "small"
+              ? wide
+                ? "gap-4"
+                : "gap-5"
+              : ms === "large"
+                ? wide
+                  ? "gap-5"
+                  : "gap-8"
+                : wide
+                  ? "gap-4"
+                  : "gap-7";
+          const contentWidthCls =
+            ms === "small" ? "sm:w-[31rem]" : ms === "large" ? "sm:w-[35rem]" : "sm:w-[33rem]";
+          const layoutCls = wide
+            ? "flex flex-col sm:grid sm:grid-cols-[auto_auto] sm:items-start"
+            : "flex flex-col sm:flex-row sm:items-start";
+          const mediaColCls = wide
+            ? `shrink-0 ${imgW} mx-auto sm:mx-0 sm:self-start`
+            : `shrink-0 ${imgW} mx-auto sm:mx-0`;
+          const contentCls = wide
+            ? `w-full min-w-0 flex flex-col gap-3 ${contentWidthCls}`
+            : "flex-1 min-w-0 flex flex-col gap-4";
           const titleCls = ms === "small" ? "text-2xl" : ms === "large" ? "text-4xl" : "text-3xl";
           const priceCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
           const metaCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
@@ -834,15 +1064,15 @@ export default function ExpansionView({ cards }: Props) {
               onClick={() => setSelected(null)}
             >
               <div
-                className={`${maxW} glass w-full rounded-3xl shadow-2xl shadow-black/45 overflow-hidden`}
+                className={`${maxW} glass w-full sm:w-auto rounded-3xl shadow-2xl shadow-black/45 overflow-hidden`}
                 style={{
                   background: "rgba(12,12,14,0.82)",
                   border: "1px solid rgba(255,255,255,0.14)",
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className={`flex flex-col sm:flex-row ${gap} ${pad}`}>
-                  <div className={`shrink-0 ${imgW} mx-auto sm:mx-0`}>
+                <div className={`${layoutCls} ${gap} ${pad}`}>
+                  <div className={mediaColCls}>
                     {selected.image_url ? (
                       <button
                         type="button"
@@ -869,7 +1099,7 @@ export default function ExpansionView({ cards }: Props) {
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0 flex flex-col gap-4">
+                  <div className={contentCls}>
                     <div>
                       <h2 className={`${titleCls} font-bold text-white leading-tight`}>
                         {selected.name}
@@ -891,16 +1121,16 @@ export default function ExpansionView({ cards }: Props) {
                       )}
                     </div>
 
-                    <div className={`grid grid-cols-2 gap-2 ${priceCls}`}>
+                    <div className={`grid grid-cols-2 gap-2.5 ${priceCls}`}>
                       <div className="flex flex-col gap-2">
                         {[
                           {
                             label: "CardMarket",
-                            val: selected.price?.cm_en_lowest_nm,
+                            val: selectedPrice?.cm_en_lowest_nm,
                             currency: "EUR" as const,
                           },
-                          { label: "7d avg", val: selected.price?.cm_en_avg_7d, currency: "EUR" as const },
-                          { label: "30d avg", val: selected.price?.cm_en_avg_30d, currency: "EUR" as const },
+                          { label: "7d avg", val: selectedPrice?.cm_en_avg_7d, currency: "EUR" as const },
+                          { label: "30d avg", val: selectedPrice?.cm_en_avg_30d, currency: "EUR" as const },
                         ].map(
                           ({ label, val, currency }) =>
                             val != null && (
@@ -920,9 +1150,9 @@ export default function ExpansionView({ cards }: Props) {
 
                       <div className="flex flex-col gap-2">
                         {[
-                          { label: "TCGPlayer", val: selected.price?.tcp_market, currency: "USD" as const },
-                          { label: "TCP Mid", val: selected.price?.tcp_mid, currency: "USD" as const },
-                          { label: "TCP Low", val: selected.price?.tcp_low, currency: "USD" as const },
+                          { label: "TCGPlayer", val: selectedPrice?.tcp_market, currency: "USD" as const },
+                          { label: "TCP Mid", val: selectedPrice?.tcp_mid, currency: "USD" as const },
+                          { label: "TCP Low", val: selectedPrice?.tcp_low, currency: "USD" as const },
                         ].map(
                           ({ label, val, currency }) =>
                             val != null && (
@@ -941,11 +1171,32 @@ export default function ExpansionView({ cards }: Props) {
                       </div>
                     </div>
 
+                    <div className="grid gap-3 lg:grid-cols-2">
+                      <PriceHistoryPanel
+                        title="CardMarket History"
+                        currency="EUR"
+                        points={selectedCardMarketHistory}
+                        currentValue={selectedPrice?.cm_en_lowest_nm ?? null}
+                        tone="dark"
+                        loading={loadingDetailsId === selected.id && !selectedDetails}
+                        compact
+                      />
+                      <PriceHistoryPanel
+                        title="TCGPlayer History"
+                        currency="USD"
+                        points={selectedTcgPlayerHistory}
+                        currentValue={selectedPrice?.tcp_market ?? null}
+                        tone="dark"
+                        loading={loadingDetailsId === selected.id && !selectedDetails}
+                        compact
+                      />
+                    </div>
+
                     <PriceRefreshCountdown
                       rarity={selected.rarity}
-                      priceFetchedAt={selected.price_fetched_at}
-                      priceSourceStatus={selected.price_source_status}
-                      priceSourceCheckedAt={selected.price_source_checked_at}
+                      priceFetchedAt={selectedPriceFetchedAt}
+                      priceSourceStatus={selectedPriceSourceStatus}
+                      priceSourceCheckedAt={selectedPriceSourceCheckedAt}
                     />
 
                     {selected.artist && <p className="text-sm text-white/40">Illus. {selected.artist}</p>}
@@ -953,9 +1204,26 @@ export default function ExpansionView({ cards }: Props) {
                 </div>
 
                 <div className="flex gap-3 px-6 pb-6">
-                  {storedCardMarketUrl ? (
+                  <CollectionAddCardButton
+                    card={{
+                      id: selected.id,
+                      name: selected.name,
+                      image_url: selected.image_url,
+                      episode:
+                        episode ?? {
+                          id: "",
+                          name: "",
+                          code: null,
+                        },
+                    }}
+                    mode="button"
+                    theme="dark"
+                    label="Add to DustyCards"
+                    className="flex-1 rounded-2xl"
+                  />
+                  {selectedCardMarketUrl ? (
                     <a
-                      href={storedCardMarketUrl}
+                      href={selectedCardMarketUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-500"

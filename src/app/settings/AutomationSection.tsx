@@ -1,7 +1,46 @@
 "use client";
 
+import { useState } from "react";
+import { Package } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import SyncButton from "../expansions/SyncButton";
+
+function SyncSealedButton() {
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function handleSync() {
+    setLoading(true);
+    setStatus("Syncing sealed products for all expansions…");
+    try {
+      const res = await fetch("/api/sync-sealed", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setStatus(`Done — ${data.products} sealed products across ${data.synced} expansions`);
+      } else {
+        setStatus(`Error: ${data.error}`);
+      }
+    } catch {
+      setStatus("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        onClick={handleSync}
+        disabled={loading}
+        className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08]"
+      >
+        <Package className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
+        {loading ? "Syncing sealed…" : "Sync Sealed Products"}
+      </button>
+      {status && <p className="max-w-sm text-xs text-gray-400">{status}</p>}
+    </div>
+  );
+}
 
 const TIERS = [
   {
@@ -68,6 +107,18 @@ export default function AutomationSection() {
             </p>
           </div>
           <SyncButton />
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">Sync sealed products</p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              Fetch booster boxes, tins, and other sealed products for all expansions.
+            </p>
+          </div>
+          <SyncSealedButton />
         </div>
       </div>
 
