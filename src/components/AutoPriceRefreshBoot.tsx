@@ -76,13 +76,19 @@ export default function AutoPriceRefreshBoot() {
           updatedCards?: number;
           newPrices?: number;
           refreshedPrices?: number;
+          nativeHistoryItems?: number;
         };
 
         if (
           cancelled ||
           !data.ok ||
           data.skipped ||
-          !((data.updatedCards ?? 0) > 0 || (data.newPrices ?? 0) > 0 || (data.refreshedPrices ?? 0) > 0)
+          !(
+            (data.updatedCards ?? 0) > 0 ||
+            (data.newPrices ?? 0) > 0 ||
+            (data.refreshedPrices ?? 0) > 0 ||
+            (data.nativeHistoryItems ?? 0) > 0
+          )
         ) {
           return;
         }

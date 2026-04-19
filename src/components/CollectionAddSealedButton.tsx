@@ -28,7 +28,7 @@ interface Props {
 function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", className?: string) {
   const base =
     mode === "icon"
-      ? "inline-flex h-9 w-9 items-center justify-center rounded-full border transition-all"
+      ? "inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-all"
       : "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-all";
 
   const palette =
@@ -113,7 +113,7 @@ export default function CollectionAddSealedButton({
         className={buttonClasses(mode, theme, className)}
         aria-label={`Add ${product.name} to collection`}
       >
-        <Plus className="h-4 w-4" />
+        <Plus className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
         {mode === "button" && <span>{flashAdded ? "Added" : label}</span>}
       </button>
 
@@ -121,7 +121,10 @@ export default function CollectionAddSealedButton({
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
-          onClick={() => setOpen(false)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen(false);
+          }}
         >
           <div
             className="glass w-full max-w-lg rounded-3xl border border-white/12 bg-[#0d0d10]/90 p-6 text-white shadow-2xl shadow-black/45"

@@ -24,6 +24,22 @@ function toPositiveInteger(value: unknown): number | null {
   return integer > 0 ? integer : null;
 }
 
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const items: string[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of value) {
+    const normalized = toNullableString(entry);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    items.push(normalized);
+  }
+
+  return items;
+}
+
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     productId?: unknown;
@@ -88,5 +104,47 @@ export async function POST(req: NextRequest) {
       id: created.id,
       added_at: created.added_at.toISOString(),
     },
+  });
+}
+
+export async function DELETE(req: NextRequest) {
+  const body = (await req.json()) as {
+    itemId?: unknown;
+    itemIds?: unknown;
+  };
+
+  const itemIds = (() => {
+    const multiple = toStringArray(body.itemIds);
+    if (multiple.length > 0) return multiple;
+
+    const single = toNullableString(body.itemId);
+    return single ? [single] : [];
+  })();
+
+  if (itemIds.length === 0) {
+    return NextResponse.json(
+      { error: "At least one sealed collection item id is required" },
+      { status: 400 }
+    );
+  }
+
+  const existingCount = await db.collectionSealed.count({
+    where: { id: { in: itemIds } },
+  });
+
+  if (existingCount !== itemIds.length) {
+    return NextResponse.json(
+      { error: "One or more sealed collection items were not found" },
+      { status: 404 }
+    );
+  }
+
+  const deleted = await db.collectionSealed.deleteMany({
+    where: { id: { in: itemIds } },
+  });
+
+  return NextResponse.json({
+    success: true,
+    count: deleted.count,
   });
 }

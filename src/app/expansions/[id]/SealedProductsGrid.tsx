@@ -116,10 +116,18 @@ function SealedProductCard({
     : "text-[11px]";
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className={`glass group flex flex-col text-left shadow-md shadow-black/5 transition-transform hover:scale-[1.015] hover:bg-white/8 active:scale-[0.99] dark:hover:bg-white/6 ${cardClass}`}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      className={`glass group flex cursor-pointer flex-col text-left shadow-md shadow-black/5 transition-transform hover:scale-[1.015] hover:bg-white/8 active:scale-[0.99] dark:hover:bg-white/6 ${cardClass}`}
     >
       <div
         className={`relative aspect-square overflow-hidden bg-black/4 dark:bg-white/4 ${mediaClass}`}
@@ -160,7 +168,7 @@ function SealedProductCard({
               episode,
             }}
             theme="dark"
-            className="h-8 w-8 bg-black/65 text-white hover:bg-black/78"
+            className="h-7 w-7 rounded-md bg-black/65 text-white hover:bg-black/78"
           />
         </div>
       </div>
@@ -209,7 +217,7 @@ function SealedProductCard({
           </div>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 

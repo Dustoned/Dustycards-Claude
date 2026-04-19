@@ -7,6 +7,7 @@ import LayoutSection from "./LayoutSection";
 import AutomationSection from "./AutomationSection";
 import CardDefaultsSection from "./CardDefaultsSection";
 import FiltersSection from "./FiltersSection";
+import HomePageSection from "./HomePageSection";
 import SyncStatusSection from "./SyncStatusSection";
 
 export const dynamic = "force-dynamic";
@@ -155,6 +156,7 @@ export default async function SettingsPage() {
         <ThemeSection />
         <LayoutSection />
         <CardDefaultsSection />
+        <HomePageSection />
         <FiltersSection />
         <AutomationSection />
         <div className={widescreen ? "col-span-3" : ""}>

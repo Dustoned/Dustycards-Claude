@@ -17,9 +17,26 @@ function toNullableNumber(value: unknown): number | null {
   return null;
 }
 
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const items: string[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of value) {
+    const normalized = toNullableString(entry);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    items.push(normalized);
+  }
+
+  return items;
+}
+
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     cardId?: unknown;
+    cardIds?: unknown;
     binderId?: unknown;
     purchasePrice?: unknown;
     condition?: unknown;
@@ -30,9 +47,16 @@ export async function POST(req: NextRequest) {
     gradingGrade?: unknown;
   };
 
-  const cardId = toNullableString(body.cardId);
-  if (!cardId) {
-    return NextResponse.json({ error: "Card id is required" }, { status: 400 });
+  const cardIds = (() => {
+    const multiple = toStringArray(body.cardIds);
+    if (multiple.length > 0) return multiple;
+
+    const single = toNullableString(body.cardId);
+    return single ? [single] : [];
+  })();
+
+  if (cardIds.length === 0) {
+    return NextResponse.json({ error: "At least one card id is required" }, { status: 400 });
   }
 
   const purchasePrice = toNullableNumber(body.purchasePrice);
@@ -40,18 +64,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Purchase price cannot be negative" }, { status: 400 });
   }
 
-  const card = await db.card.findUnique({
-    where: { id: cardId },
+  const cards = await db.card.findMany({
+    where: { id: { in: cardIds } },
     select: { id: true, episode_id: true },
   });
 
-  if (!card) {
-    return NextResponse.json({ error: "Card not found" }, { status: 404 });
+  const cardsById = new Map(cards.map((card) => [card.id, card]));
+  const orderedCards = cardIds
+    .map((cardId) => cardsById.get(cardId) ?? null)
+    .filter((card): card is { id: string; episode_id: string } => Boolean(card));
+
+  if (orderedCards.length !== cardIds.length) {
+    return NextResponse.json({ error: "One or more cards were not found" }, { status: 404 });
   }
 
   const binderId = toNullableString(body.binderId);
+  let binder:
+    | {
+        id: string;
+        type: string;
+        episode_id: string | null;
+      }
+    | null = null;
+
   if (binderId) {
-    const binder = await db.collectionBinder.findUnique({
+    binder = await db.collectionBinder.findUnique({
       where: { id: binderId },
       select: { id: true, type: true, episode_id: true },
     });
@@ -60,7 +97,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Binder not found" }, { status: 404 });
     }
 
-    if (binder.type === "linked_set" && binder.episode_id && binder.episode_id !== card.episode_id) {
+    if (
+      binder.type === "linked_set" &&
+      binder.episode_id &&
+      orderedCards.some((card) => card.episode_id !== binder?.episode_id)
+    ) {
       return NextResponse.json(
         { error: "Linked binders can only contain cards from their own set" },
         { status: 400 }
@@ -76,29 +117,167 @@ export async function POST(req: NextRequest) {
         : "";
   const tags = parseCollectionTags(tagsInput);
 
-  const created = await db.collectionCard.create({
-    data: {
-      card_id: card.id,
-      binder_id: binderId,
-      purchase_price: purchasePrice,
-      condition: toNullableString(body.condition),
-      language: toNullableString(body.language),
-      notes: toNullableString(body.notes),
-      grading_company: toNullableString(body.gradingCompany),
-      grading_grade: toNullableString(body.gradingGrade),
-      tags: tags.length > 0 ? { create: tags.map((label) => ({ label })) } : undefined,
-    },
+  const condition = toNullableString(body.condition);
+  const language = toNullableString(body.language);
+  const notes = toNullableString(body.notes);
+  const gradingCompany = toNullableString(body.gradingCompany);
+  const gradingGrade = toNullableString(body.gradingGrade);
+
+  const created = await db.$transaction((tx) =>
+    Promise.all(
+      orderedCards.map((card) =>
+        tx.collectionCard.create({
+          data: {
+            card_id: card.id,
+            binder_id: binderId,
+            purchase_price: purchasePrice,
+            condition,
+            language,
+            notes,
+            grading_company: gradingCompany,
+            grading_grade: gradingGrade,
+            tags: tags.length > 0 ? { create: tags.map((label) => ({ label })) } : undefined,
+          },
+          select: {
+            id: true,
+            added_at: true,
+          },
+        })
+      )
+    )
+  );
+
+  return NextResponse.json({
+    success: true,
+    count: created.length,
+    item: created[0]
+      ? {
+          id: created[0].id,
+          added_at: created[0].added_at.toISOString(),
+        }
+      : null,
+    items: created.map((item) => ({
+      id: item.id,
+      added_at: item.added_at.toISOString(),
+    })),
+  });
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = (await req.json()) as {
+    itemId?: unknown;
+    itemIds?: unknown;
+    binderId?: unknown;
+  };
+
+  const itemIds = (() => {
+    const multiple = toStringArray(body.itemIds);
+    if (multiple.length > 0) return multiple;
+
+    const single = toNullableString(body.itemId);
+    return single ? [single] : [];
+  })();
+
+  if (itemIds.length === 0) {
+    return NextResponse.json({ error: "At least one collection item id is required" }, { status: 400 });
+  }
+
+  const binderId = toNullableString(body.binderId);
+  let binder:
+    | {
+        id: string;
+        type: string;
+        episode_id: string | null;
+      }
+    | null = null;
+
+  const collectionItems = await db.collectionCard.findMany({
+    where: { id: { in: itemIds } },
     select: {
       id: true,
-      added_at: true,
+      card: {
+        select: {
+          episode_id: true,
+        },
+      },
     },
+  });
+
+  if (collectionItems.length !== itemIds.length) {
+    return NextResponse.json({ error: "One or more collection items were not found" }, { status: 404 });
+  }
+
+  if (binderId) {
+    binder = await db.collectionBinder.findUnique({
+      where: { id: binderId },
+      select: { id: true, type: true, episode_id: true },
+    });
+
+    if (!binder) {
+      return NextResponse.json({ error: "Binder not found" }, { status: 404 });
+    }
+
+    if (
+      binder.type === "linked_set" &&
+      binder.episode_id &&
+      collectionItems.some((item) => item.card.episode_id !== binder?.episode_id)
+    ) {
+      return NextResponse.json(
+        { error: "Linked binders can only contain cards from their own set" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const updated = await db.collectionCard.updateMany({
+    where: { id: { in: itemIds } },
+    data: { binder_id: binderId },
   });
 
   return NextResponse.json({
     success: true,
-    item: {
-      id: created.id,
-      added_at: created.added_at.toISOString(),
-    },
+    count: updated.count,
+  });
+}
+
+export async function DELETE(req: NextRequest) {
+  const body = (await req.json()) as {
+    itemId?: unknown;
+    itemIds?: unknown;
+  };
+
+  const itemIds = (() => {
+    const multiple = toStringArray(body.itemIds);
+    if (multiple.length > 0) return multiple;
+
+    const single = toNullableString(body.itemId);
+    return single ? [single] : [];
+  })();
+
+  if (itemIds.length === 0) {
+    return NextResponse.json(
+      { error: "At least one collection item id is required" },
+      { status: 400 }
+    );
+  }
+
+  const existingCount = await db.collectionCard.count({
+    where: { id: { in: itemIds } },
+  });
+
+  if (existingCount !== itemIds.length) {
+    return NextResponse.json(
+      { error: "One or more collection items were not found" },
+      { status: 404 }
+    );
+  }
+
+  const deleted = await db.collectionCard.deleteMany({
+    where: { id: { in: itemIds } },
+  });
+
+  return NextResponse.json({
+    success: true,
+    count: deleted.count,
   });
 }

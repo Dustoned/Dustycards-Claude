@@ -28,6 +28,13 @@ export async function GET(
       episode: {
         select: { id: true, name: true, code: true },
       },
+      gradedPrices: {
+        orderBy: [{ price: "desc" }, { label: "asc" }],
+        select: {
+          label: true,
+          price: true,
+        },
+      },
       prices: {
         orderBy: { fetched_at: "asc" },
         select: {
@@ -86,6 +93,7 @@ export async function GET(
           cm_en_avg_30d: latestPrice.cm_en_avg_30d,
         }
       : null,
+    graded_prices: card.gradedPrices,
     price_history: priceHistory,
     episode_id: card.episode.id,
     episode_name: card.episode.name,

@@ -10,6 +10,7 @@ export interface UserSettings {
   theme: Theme;
   widescreen: boolean;
   autoPriceRefresh: boolean;
+  binderWatchMinPrice: number;
   defaultView: CardView;
   cardSize: CardSize;
   defaultRarities: string[];
@@ -29,6 +30,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   theme: "system",
   widescreen: false,
   autoPriceRefresh: true,
+  binderWatchMinPrice: 50,
   defaultView: "table",
   cardSize: "medium",
   defaultRarities: [],
@@ -52,6 +54,19 @@ function pickStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
+function pickNonNegativeNumber(value: unknown, fallback: number): number {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+  }
+
+  return fallback;
+}
+
 export function mergeSettings(value: Partial<UserSettings> | null | undefined): UserSettings {
   const source = value ?? {};
 
@@ -63,6 +78,10 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       typeof source.autoPriceRefresh === "boolean"
         ? source.autoPriceRefresh
         : DEFAULT_SETTINGS.autoPriceRefresh,
+    binderWatchMinPrice: pickNonNegativeNumber(
+      source.binderWatchMinPrice,
+      DEFAULT_SETTINGS.binderWatchMinPrice
+    ),
     defaultView: pickEnumValue(
       source.defaultView,
       ["table", "grid", "binder"],

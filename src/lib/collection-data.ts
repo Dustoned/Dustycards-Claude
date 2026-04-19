@@ -9,9 +9,7 @@ import {
   getCollectionSealedMarketValue,
   sumCollectionPurchasePrices,
 } from "@/lib/collection";
-
-type CollectionCardRecord = Awaited<ReturnType<typeof getCollectionCards>>[number];
-type CollectionSealedRecord = Awaited<ReturnType<typeof getCollectionSealedItems>>[number];
+import type { EpisodePriceHistorySnapshot } from "@/lib/price-history";
 
 export interface CollectionSummaryMetric {
   investment: number;
@@ -28,6 +26,7 @@ export interface CollectionOverviewData {
   };
   cards: CollectionCardViewItem[];
   looseSingles: CollectionCardViewItem[];
+  binderCards: CollectionCardViewItem[];
   sealed: CollectionSealedViewItem[];
   binders: Array<{
     id: string;
@@ -76,6 +75,7 @@ export interface BinderPageData {
     } | null;
   };
   items: CollectionCardViewItem[];
+  priceSnapshots: EpisodePriceHistorySnapshot[];
   chart: Array<{ date: string; label: string; value: number | null }>;
   metrics: CollectionSummaryMetric & {
     ownedCount: number;
@@ -83,45 +83,91 @@ export interface BinderPageData {
   };
 }
 
-async function getCollectionCards() {
-  return db.collectionCard.findMany({
-    orderBy: { added_at: "desc" },
+const collectionCardSelect = {
+  id: true,
+  binder_id: true,
+  purchase_price: true,
+  condition: true,
+  language: true,
+  notes: true,
+  grading_company: true,
+  grading_grade: true,
+  tags: {
+    select: {
+      label: true,
+    },
+  },
+  card: {
     select: {
       id: true,
-      binder_id: true,
-      purchase_price: true,
-      condition: true,
-      grading_company: true,
-      grading_grade: true,
-      card: {
+      name: true,
+      image_url: true,
+      card_number: true,
+      rarity: true,
+      supertype: true,
+      episode_id: true,
+      prices: {
+        orderBy: { fetched_at: "desc" },
+        take: 1,
+        select: {
+          cm_en_lowest_nm: true,
+          cm_de_lowest_nm: true,
+          cm_fr_lowest_nm: true,
+          cm_es_lowest_nm: true,
+          cm_it_lowest_nm: true,
+        },
+      },
+      episode: {
         select: {
           id: true,
           name: true,
-          image_url: true,
-          card_number: true,
-          episode_id: true,
-          prices: {
-            orderBy: { fetched_at: "desc" },
-            take: 1,
-            select: {
-              cm_en_lowest_nm: true,
-              cm_de_lowest_nm: true,
-              cm_fr_lowest_nm: true,
-              cm_es_lowest_nm: true,
-              cm_it_lowest_nm: true,
-            },
-          },
-          episode: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-            },
-          },
+          code: true,
         },
       },
     },
+  },
+} as const;
+
+const SQLITE_SAFE_CHUNK_SIZE = 250;
+
+async function fetchCollectionCardBatch(options?: {
+  binderId?: string;
+  skip?: number;
+  take?: number;
+}) {
+  return db.collectionCard.findMany({
+    where: options?.binderId ? { binder_id: options.binderId } : undefined,
+    orderBy: { added_at: "desc" },
+    skip: options?.skip ?? 0,
+    take: options?.take ?? SQLITE_SAFE_CHUNK_SIZE,
+    select: collectionCardSelect,
   });
+}
+
+type CollectionCardRecord = Awaited<ReturnType<typeof fetchCollectionCardBatch>>[number];
+type CollectionSealedRecord = Awaited<ReturnType<typeof getCollectionSealedItems>>[number];
+
+async function getCollectionCards(options?: { binderId?: string }) {
+  const records: CollectionCardRecord[] = [];
+  let skip = 0;
+
+  while (true) {
+    const batch = await fetchCollectionCardBatch({
+      binderId: options?.binderId,
+      skip,
+      take: SQLITE_SAFE_CHUNK_SIZE,
+    });
+
+    records.push(...batch);
+
+    if (batch.length < SQLITE_SAFE_CHUNK_SIZE) {
+      break;
+    }
+
+    skip += batch.length;
+  }
+
+  return records;
 }
 
 async function getCollectionSealedItems() {
@@ -156,18 +202,112 @@ async function getCollectionSealedItems() {
   });
 }
 
+async function getCollectionBinders() {
+  return db.collectionBinder.findMany({
+    orderBy: { updated_at: "desc" },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      accent_color: true,
+      icon_name: true,
+      base_purchase_price: true,
+      episode: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          logo_url: true,
+          series: true,
+          card_count: true,
+          _count: { select: { cards: true } },
+        },
+      },
+    },
+  });
+}
+
+function chunkValues<T>(values: T[], size = SQLITE_SAFE_CHUNK_SIZE): T[][] {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+async function getCardHistoryRows(cardIds: string[]) {
+  if (cardIds.length === 0) return [];
+
+  const rows = await Promise.all(
+    chunkValues(cardIds).map((chunk) =>
+      db.price.findMany({
+        where: { card_id: { in: chunk } },
+        orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
+        select: {
+          card_id: true,
+          fetched_at: true,
+          cm_en_lowest_nm: true,
+          cm_de_lowest_nm: true,
+          cm_fr_lowest_nm: true,
+          cm_es_lowest_nm: true,
+          cm_it_lowest_nm: true,
+        },
+      })
+    )
+  );
+
+  return rows.flat();
+}
+
+async function getSealedHistoryRows(productIds: string[]) {
+  if (productIds.length === 0) return [];
+
+  const rows = await Promise.all(
+    chunkValues(productIds).map((chunk) =>
+      db.sealedPriceSnapshot.findMany({
+        where: { product_id: { in: chunk } },
+        orderBy: [{ fetched_at: "asc" }, { product_id: "asc" }],
+        select: {
+          product_id: true,
+          fetched_at: true,
+          cm_lowest: true,
+          cm_lowest_eu: true,
+          cm_lowest_de: true,
+          cm_lowest_fr: true,
+          cm_lowest_es: true,
+          cm_lowest_it: true,
+          cm_avg_7d: true,
+          cm_avg_30d: true,
+        },
+      })
+    )
+  );
+
+  return rows.flat();
+}
+
 function buildCardViewItem(record: CollectionCardRecord): CollectionCardViewItem {
   return {
+    collection_item_id: record.id,
+    collection_item_ids: [record.id],
+    binder_id: record.binder_id,
     card_id: record.card.id,
     name: record.card.name,
     image_url: record.card.image_url,
     card_number: record.card.card_number,
+    rarity: record.card.rarity,
+    supertype: record.card.supertype,
     episode_id: record.card.episode.id,
     episode_name: record.card.episode.name,
     episode_code: record.card.episode.code,
     current_value: getCollectionCardMarketValue(record.card),
     purchase_price: record.purchase_price,
     condition: record.condition,
+    language: record.language,
+    notes: record.notes,
+    tags: record.tags.map((tag) => tag.label),
     grading_company: record.grading_company,
     grading_grade: record.grading_grade,
     owned: true,
@@ -239,50 +379,7 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
   const [collectionCards, collectionSealed, binders, episodes] = await Promise.all([
     getCollectionCards(),
     getCollectionSealedItems(),
-    db.collectionBinder.findMany({
-      orderBy: { updated_at: "desc" },
-      select: {
-        id: true,
-        name: true,
-        type: true,
-        accent_color: true,
-        icon_name: true,
-        base_purchase_price: true,
-        episode: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            logo_url: true,
-            series: true,
-            card_count: true,
-            _count: { select: { cards: true } },
-          },
-        },
-        cards: {
-          select: {
-            purchase_price: true,
-            card: {
-              select: {
-                id: true,
-                episode_id: true,
-                prices: {
-                  orderBy: { fetched_at: "desc" },
-                  take: 1,
-                  select: {
-                    cm_en_lowest_nm: true,
-                    cm_de_lowest_nm: true,
-                    cm_fr_lowest_nm: true,
-                    cm_es_lowest_nm: true,
-                    cm_it_lowest_nm: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    }),
+    getCollectionBinders(),
     db.episode.findMany({
       orderBy: [{ release_date: "desc" }, { name: "asc" }],
       select: { id: true, name: true, code: true },
@@ -307,39 +404,8 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
   const cardQuantities = buildCardQuantityMap(collectionCards);
   const sealedQuantities = buildProductQuantityMap(collectionSealed);
   const [cardHistory, sealedHistory] = await Promise.all([
-    cardQuantities.size > 0
-      ? db.price.findMany({
-          where: { card_id: { in: [...cardQuantities.keys()] } },
-          orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
-          select: {
-            card_id: true,
-            fetched_at: true,
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-          },
-        })
-      : Promise.resolve([]),
-    sealedQuantities.size > 0
-      ? db.sealedPriceSnapshot.findMany({
-          where: { product_id: { in: [...sealedQuantities.keys()] } },
-          orderBy: [{ fetched_at: "asc" }, { product_id: "asc" }],
-          select: {
-            product_id: true,
-            fetched_at: true,
-            cm_lowest: true,
-            cm_lowest_eu: true,
-            cm_lowest_de: true,
-            cm_lowest_fr: true,
-            cm_lowest_es: true,
-            cm_lowest_it: true,
-            cm_avg_7d: true,
-            cm_avg_30d: true,
-          },
-        })
-      : Promise.resolve([]),
+    getCardHistoryRows([...cardQuantities.keys()]),
+    getSealedHistoryRows([...sealedQuantities.keys()]),
   ]);
 
   const combinedHistory = combineValueHistories(
@@ -353,9 +419,7 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
 
   const binderSummaries = binders.map((binder) => {
     if (binder.type === "linked_set" && binder.episode) {
-      const linkedCards = collectionCards.filter(
-        (item) => item.card.episode_id === binder.episode?.id
-      );
+      const linkedCards = collectionCards.filter((item) => item.binder_id === binder.id);
       const uniqueOwned = new Set(linkedCards.map((item) => item.card.id)).size;
       const currentValue = sumCardCurrentValue(linkedCards);
       const investment =
@@ -376,14 +440,10 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
       };
     }
 
-    const currentValue = sumCardCurrentValue(
-      binder.cards.map((item) => ({
-        ...item,
-        purchase_price: item.purchase_price,
-      })) as CollectionCardRecord[]
-    );
+    const binderCards = collectionCards.filter((item) => item.binder_id === binder.id);
+    const currentValue = sumCardCurrentValue(binderCards);
     const investment =
-      sumCollectionPurchasePrices(binder.cards.map((item) => item.purchase_price)) +
+      sumCollectionPurchasePrices(binderCards.map((item) => item.purchase_price)) +
       (binder.base_purchase_price ?? 0);
 
     return {
@@ -393,7 +453,7 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
       accent_color: binder.accent_color,
       icon_name: binder.icon_name,
       episode: null,
-      progressLabel: `${binder.cards.length} cards`,
+      progressLabel: `${binderCards.length} cards`,
       subtitle: "Custom binder",
       ...buildMetric(investment, currentValue),
     };
@@ -409,6 +469,7 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
     },
     cards: collectionCards.map(buildCardViewItem),
     looseSingles: collectionCards.filter((item) => !item.binder_id).map(buildCardViewItem),
+    binderCards: collectionCards.filter((item) => item.binder_id).map(buildCardViewItem),
     sealed: collectionSealed.map(buildSealedViewItem),
     binders: binderSummaries,
     episodes,
@@ -436,43 +497,6 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
           _count: { select: { cards: true } },
         },
       },
-      cards: {
-        orderBy: { added_at: "desc" },
-        select: {
-          id: true,
-          purchase_price: true,
-          condition: true,
-          grading_company: true,
-          grading_grade: true,
-          card: {
-            select: {
-              id: true,
-              name: true,
-              image_url: true,
-              card_number: true,
-              episode_id: true,
-              prices: {
-                orderBy: { fetched_at: "desc" },
-                take: 1,
-                select: {
-                  cm_en_lowest_nm: true,
-                  cm_de_lowest_nm: true,
-                  cm_fr_lowest_nm: true,
-                  cm_es_lowest_nm: true,
-                  cm_it_lowest_nm: true,
-                },
-              },
-              episode: {
-                select: {
-                  id: true,
-                  name: true,
-                  code: true,
-                },
-              },
-            },
-          },
-        },
-      },
     },
   });
 
@@ -488,6 +512,8 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
           name: true,
           image_url: true,
           card_number: true,
+          rarity: true,
+          supertype: true,
           episode_id: true,
           prices: {
             orderBy: { fetched_at: "desc" },
@@ -506,12 +532,20 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         },
       }),
       db.collectionCard.findMany({
-        where: { card: { episode_id: binder.episode.id } },
+        where: { binder_id: binder.id },
         select: {
+          id: true,
           purchase_price: true,
           condition: true,
+          language: true,
+          notes: true,
           grading_company: true,
           grading_grade: true,
+          tags: {
+            select: {
+              label: true,
+            },
+          },
           card: {
             select: {
               id: true,
@@ -527,8 +561,12 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         count: number;
         purchasePrice: number;
         condition: string | null;
+        language: string | null;
+        notes: string | null;
+        tags: string[];
         gradingCompany: string | null;
         gradingGrade: string | null;
+        itemIds: string[];
       }
     >();
 
@@ -537,13 +575,18 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
       if (existing) {
         existing.count += 1;
         existing.purchasePrice += item.purchase_price ?? 0;
+        existing.itemIds.push(item.id);
       } else {
         ownedByCardId.set(item.card.id, {
           count: 1,
           purchasePrice: item.purchase_price ?? 0,
           condition: item.condition,
+          language: item.language,
+          notes: item.notes,
+          tags: item.tags.map((tag) => tag.label),
           gradingCompany: item.grading_company,
           gradingGrade: item.grading_grade,
+          itemIds: [item.id],
         });
       }
     }
@@ -555,28 +598,21 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
 
     const historyRows =
       cardQuantities.size > 0
-        ? await db.price.findMany({
-            where: { card_id: { in: [...cardQuantities.keys()] } },
-            orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
-            select: {
-              card_id: true,
-              fetched_at: true,
-              cm_en_lowest_nm: true,
-              cm_de_lowest_nm: true,
-              cm_fr_lowest_nm: true,
-              cm_es_lowest_nm: true,
-              cm_it_lowest_nm: true,
-            },
-          })
+        ? await getCardHistoryRows([...cardQuantities.keys()])
         : [];
 
     const items: CollectionCardViewItem[] = allSetCards.map((card) => {
       const owned = ownedByCardId.get(card.id);
       return {
+        collection_item_id: owned?.itemIds.length === 1 ? owned.itemIds[0] : null,
+        collection_item_ids: owned?.itemIds ?? [],
+        binder_id: owned ? binder.id : null,
         card_id: card.id,
         name: card.name,
         image_url: card.image_url,
         card_number: card.card_number,
+        rarity: card.rarity,
+        supertype: card.supertype,
         episode_id: card.episode.id,
         episode_name: card.episode.name,
         episode_code: card.episode.code,
@@ -586,6 +622,9 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
             : getCollectionCardMarketValue(card),
         purchase_price: owned ? Number(owned.purchasePrice.toFixed(2)) : null,
         condition: owned?.condition ?? null,
+        language: owned?.language ?? null,
+        notes: owned?.notes ?? null,
+        tags: owned?.tags ?? [],
         grading_company: owned?.gradingCompany ?? null,
         grading_grade: owned?.gradingGrade ?? null,
         owned: Boolean(owned),
@@ -606,6 +645,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
     return {
       binder,
       items,
+      priceSnapshots: historyRows,
       chart: history,
       metrics: {
         ...buildMetric(investment, currentValue),
@@ -615,32 +655,22 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
     };
   }
 
-  const items = binder.cards.map((item) => buildCardViewItem(item as CollectionCardRecord));
-  const currentValue = sumCardCurrentValue(binder.cards as CollectionCardRecord[]);
+  const binderCards = await getCollectionCards({ binderId });
+  const items = binderCards.map(buildCardViewItem);
+  const currentValue = sumCardCurrentValue(binderCards);
   const investment =
-    sumCollectionPurchasePrices(binder.cards.map((item) => item.purchase_price)) +
+    sumCollectionPurchasePrices(binderCards.map((item) => item.purchase_price)) +
     (binder.base_purchase_price ?? 0);
-  const cardQuantities = buildCardQuantityMap(binder.cards as CollectionCardRecord[]);
+  const cardQuantities = buildCardQuantityMap(binderCards);
   const historyRows =
     cardQuantities.size > 0
-      ? await db.price.findMany({
-          where: { card_id: { in: [...cardQuantities.keys()] } },
-          orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
-          select: {
-            card_id: true,
-            fetched_at: true,
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-          },
-        })
+      ? await getCardHistoryRows([...cardQuantities.keys()])
       : [];
 
   return {
     binder,
     items,
+    priceSnapshots: historyRows,
     chart: buildOwnedCardValueHistory(historyRows, cardQuantities).map((point) => ({
       date: point.date,
       label: point.label,

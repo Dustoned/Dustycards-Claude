@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Search, X, Layers, Package, Layers3 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
@@ -53,7 +54,7 @@ interface SearchResults {
 
 function formatEur(value: number | null | undefined): string {
   if (value == null) return "-";
-  return new Intl.NumberFormat("nl-NL", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: 2,
@@ -73,9 +74,9 @@ const expansionMinWidth: Record<"small" | "medium" | "large", Record<"normal" | 
   large: { normal: "250px", wide: "320px" },
 };
 
-export default function SearchPage() {
+function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   const { settings } = useSettings();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
@@ -307,11 +308,19 @@ export default function SearchPage() {
                 }}
               >
                 {results.singles.map((card, index) => (
-                  <button
+                  <div
                     key={card.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => openCard(card)}
-                    className="flex flex-col gap-1.5 group text-left"
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openCard(card);
+                      }
+                    }}
+                    className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
                   >
                     <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-md shadow-black/20 group-hover:shadow-xl group-hover:shadow-black/30 group-hover:scale-[1.03] transition-all duration-200">
                       {card.image_url ? (
@@ -329,51 +338,58 @@ export default function SearchPage() {
                           {card.name.slice(0, 2)}
                         </div>
                       )}
-
-                      <div className="absolute right-2 top-2">
-                        <CollectionAddCardButton
-                          card={{
-                            id: card.id,
-                            name: card.name,
-                            image_url: card.image_url,
-                            episode: {
-                              id: card.episode_id,
-                              name: card.episode_name,
-                              code: card.episode_code,
-                            },
-                          }}
-                          theme="dark"
-                          className="h-8 w-8 bg-black/65 text-white hover:bg-black/78"
-                        />
-                      </div>
                     </div>
 
-                    <div className="px-0.5">
-                      <p className="text-xs font-semibold text-gray-900 dark:text-white truncate leading-snug">
-                        {card.name}
-                      </p>
-                      <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] tabular-nums">
-                        <span className="text-gray-400 dark:text-gray-500">
-                          {card.card_number ? `#${card.card_number}` : "-"}
-                        </span>
-                        {card.cm_en_lowest_nm != null && (
-                          <span className="text-gray-500 dark:text-gray-400">
-                            {formatEur(card.cm_en_lowest_nm)}
-                          </span>
-                        )}
+                    <div className="mt-2 px-0.5">
+                      <div className="flex items-end justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
+                            {card.name}
+                          </p>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
+                            <span className="shrink-0 text-gray-500 dark:text-gray-400">
+                              {card.card_number ? `#${card.card_number}` : "--"}
+                            </span>
+                            <span className="text-gray-300 dark:text-white/20">•</span>
+                            <Link
+                              href={`/expansions/${card.episode_id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                            >
+                              {card.episode_name}
+                              {card.episode_code && (
+                                <span className="ml-1 opacity-60">({card.episode_code})</span>
+                              )}
+                            </Link>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {card.cm_en_lowest_nm != null ? (
+                            <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                              {formatEur(card.cm_en_lowest_nm)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
+                          )}
+
+                          <CollectionAddCardButton
+                            card={{
+                              id: card.id,
+                              name: card.name,
+                              image_url: card.image_url,
+                              episode: {
+                                id: card.episode_id,
+                                name: card.episode_name,
+                                code: card.episode_code,
+                              },
+                            }}
+                            className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                          />
+                        </div>
                       </div>
-                      <Link
-                        href={`/expansions/${card.episode_id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5 hover:text-gray-600 dark:hover:text-gray-300 hover:underline underline-offset-2 transition-colors block"
-                      >
-                        {card.episode_name}
-                        {card.episode_code && (
-                          <span className="ml-1 opacity-60">({card.episode_code})</span>
-                        )}
-                      </Link>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </section>
@@ -399,19 +415,27 @@ export default function SearchPage() {
                 }}
               >
                 {results.sealed.map((product, index) => (
-                  <button
+                  <div
                     key={product.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     onClick={() => openSealed(product)}
-                    className="flex flex-col gap-1.5 group text-left"
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openSealed(product);
+                      }
+                    }}
+                    className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
                   >
-                    <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-md shadow-black/20 group-hover:shadow-xl group-hover:shadow-black/30 group-hover:scale-[1.03] transition-all duration-200 bg-black/4 dark:bg-white/4">
+                    <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-transparent bg-black/4 shadow-md shadow-black/20 transition-all duration-200 group-hover:scale-[1.03] group-hover:shadow-xl group-hover:shadow-black/30 dark:bg-white/4">
                       {product.image_url ? (
                         <Image
                           src={product.image_url}
                           alt={product.name}
                           fill
-                          className="object-contain p-1"
+                          className="object-contain p-3"
                           sizes="160px"
                           loading={index < 18 ? "eager" : undefined}
                           unoptimized
@@ -421,43 +445,49 @@ export default function SearchPage() {
                           <Package className="w-8 h-8 text-gray-300 dark:text-gray-600" />
                         </div>
                       )}
+                    </div>
+                    <div className="mt-2 px-0.5">
+                      <div className="flex items-end justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
+                            {product.name}
+                          </p>
+                          <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
+                            <Link
+                              href={`/expansions/${product.episode.id}?tab=sealed`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                            >
+                              {product.episode.name}
+                              {product.episode.code && (
+                                <span className="ml-1 opacity-60">({product.episode.code})</span>
+                              )}
+                            </Link>
+                          </div>
+                        </div>
 
-                      <div className="absolute right-2 top-2">
-                        <CollectionAddSealedButton
-                          product={{
-                            id: product.id,
-                            name: product.name,
-                            image_url: product.image_url,
-                            episode: product.episode,
-                          }}
-                          theme="dark"
-                          className="h-8 w-8 bg-black/65 text-white hover:bg-black/78"
-                        />
-                      </div>
-                    </div>
-                    <div className="px-0.5">
-                      <p className="text-xs font-semibold text-gray-900 dark:text-white truncate leading-snug line-clamp-2">
-                        {product.name}
-                      </p>
-                      <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] tabular-nums">
-                        <Link
-                          href={`/expansions/${product.episode.id}?tab=sealed`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-gray-400 dark:text-gray-500 truncate hover:text-gray-600 dark:hover:text-gray-300 hover:underline underline-offset-2 transition-colors"
-                        >
-                          {product.episode.name}
-                          {product.episode.code && (
-                            <span className="ml-1 opacity-60">({product.episode.code})</span>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {product.cm_lowest != null ? (
+                            <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                              {formatEur(product.cm_lowest)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
                           )}
-                        </Link>
-                        {product.cm_lowest != null && (
-                          <span className="text-gray-500 dark:text-gray-400 shrink-0">
-                            {formatEur(product.cm_lowest)}
-                          </span>
-                        )}
+
+                          <CollectionAddSealedButton
+                            product={{
+                              id: product.id,
+                              name: product.name,
+                              image_url: product.image_url,
+                              episode: product.episode,
+                            }}
+                            className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </section>
@@ -476,4 +506,11 @@ export default function SearchPage() {
       )}
     </div>
   );
+}
+
+export default function SearchPage() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("q") ?? "";
+
+  return <SearchPageContent key={initialQuery} initialQuery={initialQuery} />;
 }

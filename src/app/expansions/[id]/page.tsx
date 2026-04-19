@@ -22,7 +22,8 @@ import {
   fetchSealedAvailabilityForEpisode,
   fetchSealedProductsForEpisode,
 } from "@/lib/tcggo";
-import ExpansionView, { type CardData } from "./ExpansionView";
+import { type CardData } from "./ExpansionView";
+import ExpansionCardsSection from "./ExpansionCardsSection";
 import SealedProductsGrid from "./SealedProductsGrid";
 import SyncEpisodeButton from "./SyncEpisodeButton";
 
@@ -74,6 +75,15 @@ export default async function ExpansionDetailPage({
   const activeTab = requestedTab === "sealed" && hasSealed ? "sealed" : "cards";
 
   let cards: CardData[] = [];
+  let setPriceSnapshots: Array<{
+    card_id: string;
+    fetched_at: string;
+    cm_en_lowest_nm: number | null;
+    cm_de_lowest_nm: number | null;
+    cm_fr_lowest_nm: number | null;
+    cm_es_lowest_nm: number | null;
+    cm_it_lowest_nm: number | null;
+  }> = [];
   const sealedProducts =
     activeTab === "sealed" && isTcggoEpisodeId(id)
       ? await getCachedSealedProducts(id).catch(() => [])
@@ -91,22 +101,25 @@ export default async function ExpansionDetailPage({
   let pricePanelSubtitle = `0/${episode._count.cards} cards priced`;
   let pricePanelEmptyText = "Nog geen setprijzen beschikbaar";
   if (activeTab === "cards") {
-    const setPriceHistory = buildEpisodeSetPriceHistory(
-      await db.price.findMany({
-        where: { card: { episode_id: id } },
-        orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
-        select: {
-          card_id: true,
-          fetched_at: true,
-          cm_en_lowest_nm: true,
-          cm_de_lowest_nm: true,
-          cm_fr_lowest_nm: true,
-          cm_es_lowest_nm: true,
-          cm_it_lowest_nm: true,
-        },
-      })
-    );
+    const rawSetPriceSnapshots = await db.price.findMany({
+      where: { card: { episode_id: id } },
+      orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
+      select: {
+        card_id: true,
+        fetched_at: true,
+        cm_en_lowest_nm: true,
+        cm_de_lowest_nm: true,
+        cm_fr_lowest_nm: true,
+        cm_es_lowest_nm: true,
+        cm_it_lowest_nm: true,
+      },
+    });
+    const setPriceHistory = buildEpisodeSetPriceHistory(rawSetPriceSnapshots);
     const latestSetPricePoint = setPriceHistory[setPriceHistory.length - 1] ?? null;
+    setPriceSnapshots = rawSetPriceSnapshots.map((snapshot) => ({
+      ...snapshot,
+      fetched_at: snapshot.fetched_at.toISOString(),
+    }));
 
     pricePanelPoints = setPriceHistory.map((point) => ({
       date: point.date,
@@ -257,14 +270,16 @@ export default async function ExpansionDetailPage({
           <SyncEpisodeButton episodeId={id} />
         </div>
 
-        <PriceHistoryPanel
-          title={pricePanelTitle}
-          currency="EUR"
-          points={pricePanelPoints}
-          currentValue={pricePanelCurrentValue}
-          subtitle={pricePanelSubtitle}
-          emptyText={pricePanelEmptyText}
-        />
+        {activeTab === "sealed" && (
+          <PriceHistoryPanel
+            title={pricePanelTitle}
+            currency="EUR"
+            points={pricePanelPoints}
+            currentValue={pricePanelCurrentValue}
+            subtitle={pricePanelSubtitle}
+            emptyText={pricePanelEmptyText}
+          />
+        )}
       </div>
 
       <div className="mb-6 inline-flex rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
@@ -301,10 +316,12 @@ export default async function ExpansionDetailPage({
             <p className="text-sm text-gray-400">Use refresh to fetch this set.</p>
           </div>
         ) : (
-          <ExpansionView
+          <ExpansionCardsSection
             key={episode.id}
             cards={cards}
+            totalCards={episode._count.cards}
             episode={{ id: episode.id, name: episode.name, code: episode.code }}
+            priceSnapshots={setPriceSnapshots}
           />
         )
       ) : (

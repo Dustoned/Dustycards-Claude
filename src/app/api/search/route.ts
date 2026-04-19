@@ -62,15 +62,97 @@ function nameVariants(name: string): string[] {
   return [...new Set([name, name.replace(/-/g, " "), name.replace(/\s+/g, "-")])];
 }
 
+function searchTokens(value: string): string[] {
+  const matches = value.match(/[\p{L}\p{N}]+/gu) ?? [];
+  const seen = new Set<string>();
+  const tokens: string[] = [];
+
+  for (const match of matches) {
+    const normalized = match.trim();
+    if (!normalized) continue;
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    tokens.push(normalized);
+  }
+
+  return tokens;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function nameContains(name: string, field = "name"): any {
-  const variants = nameVariants(name);
+function fieldContains(value: string, field = "name"): any {
+  const variants = nameVariants(value);
 
   if (variants.length === 1) {
-    return { [field]: { contains: name } };
+    return { [field]: { contains: value } };
   }
 
   return { OR: variants.map((variant) => ({ [field]: { contains: variant } })) };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function nameContains(name: string, field = "name"): any {
+  const tokens = searchTokens(name);
+
+  if (tokens.length <= 1) {
+    return fieldContains(name, field);
+  }
+
+  return {
+    OR: [
+      fieldContains(name, field),
+      { AND: tokens.map((token) => fieldContains(token, field)) },
+    ],
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function sealedNameContains(name: string): any {
+  const tokens = searchTokens(name);
+
+  if (tokens.length <= 1) {
+    return {
+      OR: [fieldContains(name), { episode: fieldContains(name, "name") }],
+    };
+  }
+
+  return {
+    OR: [
+      {
+        OR: [fieldContains(name), { episode: fieldContains(name, "name") }],
+      },
+      {
+        AND: tokens.map((token) => ({
+          OR: [fieldContains(token), { episode: fieldContains(token, "name") }],
+        })),
+      },
+    ],
+  };
+}
+
+function relevanceScore(value: string, rawQuery: string): number {
+  const query = rawQuery.trim().toLowerCase();
+  const valueLower = value.toLowerCase();
+  const tokens = searchTokens(rawQuery).map((token) => token.toLowerCase());
+  let score = 0;
+
+  if (!query) return score;
+
+  if (valueLower === query) score += 220;
+  if (valueLower.startsWith(query)) score += 120;
+  else if (valueLower.includes(query)) score += 70;
+
+  for (const token of tokens) {
+    if (valueLower.startsWith(token)) score += 18;
+    else if (valueLower.includes(token)) score += 8;
+  }
+
+  return score;
+}
+
+function compareRelevance(aScore: number, bScore: number): number {
+  return bScore - aScore;
 }
 
 export async function GET(req: NextRequest) {
@@ -114,14 +196,11 @@ export async function GET(req: NextRequest) {
 
     if (name && setCode) {
       sealedWhere.AND = [
-        { OR: [nameContains(name), { episode: nameContains(name, "name") }] },
+        sealedNameContains(name),
         { episode: { OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }] } },
       ];
     } else if (name) {
-      sealedWhere.OR = [
-        ...nameVariants(name).map((variant) => ({ name: { contains: variant } })),
-        ...nameVariants(name).map((variant) => ({ episode: { name: { contains: variant } } })),
-      ];
+      Object.assign(sealedWhere, sealedNameContains(name));
     } else if (setCode) {
       sealedWhere.episode = {
         OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }],
@@ -208,6 +287,7 @@ export async function GET(req: NextRequest) {
     );
 
     const nameLower = (name ?? "").toLowerCase();
+    const relevanceQuery = name ?? q;
     const singles = visibleCards
       .map((card) => ({
         id: card.id,
@@ -221,13 +301,14 @@ export async function GET(req: NextRequest) {
         episode_code: card.episode.code,
         cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? null,
         tcp_market: card.prices[0]?.tcp_market ?? null,
-      }))
+        }))
       .sort((a, b) => {
         if (nameLower) {
-          const aStarts = a.name.toLowerCase().startsWith(nameLower) ? 0 : 1;
-          const bStarts = b.name.toLowerCase().startsWith(nameLower) ? 0 : 1;
-
-          if (aStarts !== bStarts) return aStarts - bStarts;
+          const scoreDiff = compareRelevance(
+            relevanceScore(a.name, relevanceQuery),
+            relevanceScore(b.name, relevanceQuery)
+          );
+          if (scoreDiff !== 0) return scoreDiff;
         }
 
         const nameCmp = a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
@@ -237,12 +318,46 @@ export async function GET(req: NextRequest) {
         const bPrice = b.cm_en_lowest_nm ?? b.tcp_market ?? -1;
         return bPrice - aPrice;
       });
+    const sealedResults = visibleSealed
+      .map((product) => ({
+        id: product.id,
+        name: product.name,
+        image_url: product.image_url,
+        cardmarket_url: product.cardmarket_url,
+        cm_lowest: product.cm_lowest,
+        cm_avg_7d: product.cm_avg_7d,
+        cm_avg_30d: product.cm_avg_30d,
+        episode: product.episode,
+      }))
+      .sort((a, b) => {
+        const aScore =
+          relevanceScore(a.name, relevanceQuery) +
+          Math.floor(relevanceScore(a.episode.name, relevanceQuery) / 2);
+        const bScore =
+          relevanceScore(b.name, relevanceQuery) +
+          Math.floor(relevanceScore(b.episode.name, relevanceQuery) / 2);
+        const scoreDiff = compareRelevance(aScore, bScore);
+        if (scoreDiff !== 0) return scoreDiff;
+
+        const aPrice = a.cm_lowest ?? -1;
+        const bPrice = b.cm_lowest ?? -1;
+        return bPrice - aPrice;
+      });
+    const expansionResults = visibleExpansions.sort((a, b) => {
+      const scoreDiff = compareRelevance(
+        relevanceScore(a.name, relevanceQuery),
+        relevanceScore(b.name, relevanceQuery)
+      );
+      if (scoreDiff !== 0) return scoreDiff;
+
+      return a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
+    });
 
     return NextResponse.json({
       singles,
-      sealed: visibleSealed,
-      expansions: visibleExpansions,
-      total: singles.length + visibleSealed.length + visibleExpansions.length,
+      sealed: sealedResults,
+      expansions: expansionResults,
+      total: singles.length + sealedResults.length + expansionResults.length,
       parsed,
     });
   } catch (e) {

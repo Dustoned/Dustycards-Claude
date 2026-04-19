@@ -8,18 +8,11 @@ import {
   COLLECTION_GRADING_COMPANIES,
   COLLECTION_LANGUAGES,
 } from "@/lib/collection";
+import CollectionInlineBinderCreator, {
+  type InlineBinderOption,
+} from "@/components/CollectionInlineBinderCreator";
 
-interface BinderOption {
-  id: string;
-  name: string;
-  type: string;
-  episode_id: string | null;
-  episode?: {
-    id: string;
-    name: string;
-    code: string | null;
-  } | null;
-}
+type BinderOption = InlineBinderOption;
 
 interface CollectionCardRef {
   id: string;
@@ -40,12 +33,14 @@ interface Props {
   className?: string;
   stopPropagation?: boolean;
   onAdded?: () => void;
+  initialBinderId?: string | null;
+  lockedBinderName?: string | null;
 }
 
 function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", className?: string) {
   const base =
     mode === "icon"
-      ? "inline-flex h-9 w-9 items-center justify-center rounded-full border transition-all"
+      ? "inline-flex h-8 w-8 items-center justify-center rounded-lg border transition-all"
       : "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-sm font-semibold transition-all";
 
   const palette =
@@ -56,6 +51,10 @@ function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", classNa
   return [base, palette, className].filter(Boolean).join(" ");
 }
 
+const modalSelectClasses =
+  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18";
+const modalOptionClasses = "bg-white text-gray-900";
+
 export default function CollectionAddCardButton({
   card,
   mode = "icon",
@@ -64,6 +63,8 @@ export default function CollectionAddCardButton({
   className,
   stopPropagation = true,
   onAdded,
+  initialBinderId = null,
+  lockedBinderName = null,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -72,7 +73,7 @@ export default function CollectionAddCardButton({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [flashAdded, setFlashAdded] = useState(false);
-  const [binderId, setBinderId] = useState("");
+  const [binderId, setBinderId] = useState(initialBinderId ?? "");
   const [purchasePrice, setPurchasePrice] = useState("");
   const [condition, setCondition] = useState("Near Mint");
   const [language, setLanguage] = useState("English");
@@ -80,6 +81,7 @@ export default function CollectionAddCardButton({
   const [tags, setTags] = useState("");
   const [gradingCompany, setGradingCompany] = useState("");
   const [gradingGrade, setGradingGrade] = useState("");
+  const binderLocked = Boolean(initialBinderId && lockedBinderName);
 
   useEffect(() => {
     if (!open) return;
@@ -173,6 +175,19 @@ export default function CollectionAddCardButton({
     setOpen(true);
   }
 
+  function handleBinderCreated(binder: BinderOption) {
+    setBinders((prev) => [binder, ...prev.filter((item) => item.id !== binder.id)]);
+    setBindersLoading(false);
+
+    if (binder.type === "custom" || binder.episode_id === card.episode.id) {
+      setBinderId(binder.id);
+      setSaveError(null);
+      return;
+    }
+
+    setSaveError("Binder created, but it belongs to another set and cannot be used for this card.");
+  }
+
   return (
     <>
       <button
@@ -181,7 +196,7 @@ export default function CollectionAddCardButton({
         className={buttonClasses(mode, theme, className)}
         aria-label={`Add ${card.name} to collection`}
       >
-        <Plus className={mode === "icon" ? "h-4 w-4" : "h-4 w-4"} />
+        <Plus className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
         {mode === "button" && <span>{flashAdded ? "Added" : label}</span>}
       </button>
 
@@ -189,7 +204,10 @@ export default function CollectionAddCardButton({
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
-          onClick={() => setOpen(false)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen(false);
+          }}
         >
           <div
             className="glass w-full max-w-lg rounded-3xl border border-white/12 bg-[#0d0d10]/90 p-6 text-white shadow-2xl shadow-black/45"
@@ -208,23 +226,35 @@ export default function CollectionAddCardButton({
 
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">Save to</span>
-                  <select
-                    value={binderId}
-                    onChange={(event) => setBinderId(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                  >
-                    <option value="">Singles</option>
-                    {availableBinders.map((binder) => (
-                      <option key={binder.id} value={binder.id}>
-                        {binder.name}
-                        {binder.type === "linked_set" ? " - Set binder" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {bindersLoading && <p className="text-xs text-white/35">Binders laden...</p>}
-                </label>
+                {binderLocked ? (
+                  <div className="space-y-1.5 text-sm">
+                    <span className="text-white/60">Save to</span>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5">
+                      <p className="font-medium text-white">{lockedBinderName}</p>
+                      <p className="mt-1 text-xs text-white/45">
+                        This card will be added straight to this binder.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="space-y-1.5 text-sm">
+                    <span className="text-white/60">Save to</span>
+                    <select
+                      value={binderId}
+                      onChange={(event) => setBinderId(event.target.value)}
+                      className={modalSelectClasses}
+                    >
+                      <option value="" className={modalOptionClasses}>Singles</option>
+                      {availableBinders.map((binder) => (
+                        <option key={binder.id} value={binder.id} className={modalOptionClasses}>
+                          {binder.name}
+                          {binder.type === "linked_set" ? " - Set binder" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {bindersLoading && <p className="text-xs text-white/35">Binders laden...</p>}
+                  </label>
+                )}
 
                 <label className="space-y-1.5 text-sm">
                   <span className="text-white/60">Purchase price</span>
@@ -245,10 +275,10 @@ export default function CollectionAddCardButton({
                   <select
                     value={condition}
                     onChange={(event) => setCondition(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                    className={modalSelectClasses}
                   >
                     {COLLECTION_CONDITIONS.map((option) => (
-                      <option key={option} value={option}>
+                      <option key={option} value={option} className={modalOptionClasses}>
                         {option}
                       </option>
                     ))}
@@ -260,10 +290,10 @@ export default function CollectionAddCardButton({
                   <select
                     value={language}
                     onChange={(event) => setLanguage(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                    className={modalSelectClasses}
                   >
                     {COLLECTION_LANGUAGES.map((option) => (
-                      <option key={option} value={option}>
+                      <option key={option} value={option} className={modalOptionClasses}>
                         {option}
                       </option>
                     ))}
@@ -275,11 +305,11 @@ export default function CollectionAddCardButton({
                   <select
                     value={gradingCompany}
                     onChange={(event) => setGradingCompany(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                    className={modalSelectClasses}
                   >
-                    <option value="">Not graded</option>
+                    <option value="" className={modalOptionClasses}>Not graded</option>
                     {COLLECTION_GRADING_COMPANIES.map((option) => (
-                      <option key={option} value={option}>
+                      <option key={option} value={option} className={modalOptionClasses}>
                         {option}
                       </option>
                     ))}
@@ -297,6 +327,13 @@ export default function CollectionAddCardButton({
                   />
                 </label>
               </div>
+
+              {!binderLocked && (
+                <CollectionInlineBinderCreator
+                  suggestedEpisode={card.episode}
+                  onCreated={handleBinderCreated}
+                />
+              )}
 
               <label className="block space-y-1.5 text-sm">
                 <span className="text-white/60">Tags</span>

@@ -22,12 +22,8 @@ interface Props {
 export default function CreateBinderButton({ episodes }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<"linked_set" | "custom">("linked_set");
-  const [name, setName] = useState("");
-  const [linkedQuery, setLinkedQuery] = useState("");
-  const [accentColor, setAccentColor] = useState<(typeof COLLECTION_BINDER_COLORS)[number]>(
-    COLLECTION_BINDER_COLORS[0]
-  );
+  const [query, setQuery] = useState("");
+  const [accentColor, setAccentColor] = useState<string | null>(null);
   const [iconName, setIconName] = useState<(typeof COLLECTION_BINDER_ICONS)[number]>(
     COLLECTION_BINDER_ICONS[0]
   );
@@ -37,7 +33,7 @@ export default function CreateBinderButton({ episodes }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const matchedEpisode = useMemo(() => {
-    const normalized = linkedQuery.trim().toLowerCase();
+    const normalized = query.trim().toLowerCase();
     if (!normalized) return null;
 
     return (
@@ -46,7 +42,7 @@ export default function CreateBinderButton({ episodes }: Props) {
       episodes.find((episode) => episode.name.toLowerCase().includes(normalized)) ??
       null
     );
-  }, [episodes, linkedQuery]);
+  }, [episodes, query]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,12 +54,12 @@ export default function CreateBinderButton({ episodes }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type,
-          name: name || null,
-          episodeId: type === "linked_set" ? matchedEpisode?.id ?? null : null,
-          linkedQuery: type === "linked_set" ? linkedQuery : null,
-          accentColor: type === "custom" ? accentColor : null,
-          iconName: type === "custom" ? iconName : null,
+          type: "auto",
+          name: query || null,
+          episodeId: matchedEpisode?.id ?? null,
+          linkedQuery: query || null,
+          accentColor: matchedEpisode ? null : accentColor,
+          iconName: matchedEpisode ? null : iconName,
           basePurchasePrice: basePurchasePrice || null,
           notes: notes || null,
         }),
@@ -92,7 +88,7 @@ export default function CreateBinderButton({ episodes }: Props) {
         className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
       >
         <Plus className="h-4 w-4" />
-        New Binder
+        Add Binder
       </button>
 
       {open && (
@@ -110,109 +106,43 @@ export default function CreateBinderButton({ episodes }: Props) {
                 Create Binder
               </p>
               <h2 className="mt-2 text-2xl font-bold">New collection binder</h2>
+              <p className="mt-2 text-sm text-white/50">
+                Type a set name for an automatic set binder, or any other name for a custom binder.
+              </p>
             </div>
 
             <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="inline-flex rounded-2xl border border-white/10 bg-white/6 p-1">
-                <button
-                  type="button"
-                  onClick={() => setType("linked_set")}
-                  className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
-                    type === "linked_set" ? "bg-white text-gray-900" : "text-white/70 hover:text-white"
-                  }`}
-                >
-                  Linked set
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setType("custom")}
-                  className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
-                    type === "custom" ? "bg-white text-gray-900" : "text-white/70 hover:text-white"
-                  }`}
-                >
-                  Custom binder
-                </button>
-              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-1.5 text-sm sm:col-span-2">
+                  <span className="text-white/60">Set name or binder name</span>
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                    placeholder="Type a set name or custom binder name"
+                  />
+                  <p className="text-xs text-white/45">
+                    {matchedEpisode
+                      ? `This will create a set binder for ${matchedEpisode.name}${matchedEpisode.code ? ` (${matchedEpisode.code})` : ""}.`
+                      : "No set match yet, so this will become a custom binder."}
+                  </p>
+                </label>
 
-              {type === "linked_set" ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="space-y-1.5 text-sm sm:col-span-2">
-                    <span className="text-white/60">Expansion</span>
-                    <input
-                      list="collection-expansion-options"
-                      value={linkedQuery}
-                      onChange={(event) => setLinkedQuery(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                      placeholder="Type a set name"
-                    />
-                    <datalist id="collection-expansion-options">
-                      {episodes.map((episode) => (
-                        <option
-                          key={episode.id}
-                          value={episode.name}
-                        >{`${episode.name}${episode.code ? ` (${episode.code})` : ""}`}</option>
-                      ))}
-                    </datalist>
-                    {matchedEpisode && (
-                      <p className="text-xs text-emerald-300">
-                        Linked to {matchedEpisode.name}
-                        {matchedEpisode.code ? ` (${matchedEpisode.code})` : ""}
-                      </p>
-                    )}
-                  </label>
+                <label className="space-y-1.5 text-sm">
+                  <span className="text-white/60">Binder base cost</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={basePurchasePrice}
+                    onChange={(event) => setBasePurchasePrice(event.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                    placeholder="0.00"
+                  />
+                </label>
 
-                  <label className="space-y-1.5 text-sm">
-                    <span className="text-white/60">Binder name</span>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                      placeholder={matchedEpisode?.name ?? "Uses set name by default"}
-                    />
-                  </label>
-
-                  <label className="space-y-1.5 text-sm">
-                    <span className="text-white/60">Binder base cost</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      inputMode="decimal"
-                      value={basePurchasePrice}
-                      onChange={(event) => setBasePurchasePrice(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                      placeholder="0.00"
-                    />
-                  </label>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="space-y-1.5 text-sm sm:col-span-2">
-                    <span className="text-white/60">Binder name</span>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                      placeholder="Favorites, Random binder, Chase cards..."
-                    />
-                  </label>
-
-                  <label className="space-y-1.5 text-sm">
-                    <span className="text-white/60">Binder base cost</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      inputMode="decimal"
-                      value={basePurchasePrice}
-                      onChange={(event) => setBasePurchasePrice(event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                      placeholder="0.00"
-                    />
-                  </label>
-
+                {!matchedEpisode && (
                   <div className="space-y-1.5 text-sm">
                     <span className="text-white/60">Icon</span>
                     <div className="flex flex-wrap gap-2">
@@ -235,10 +165,26 @@ export default function CreateBinderButton({ episodes }: Props) {
                       })}
                     </div>
                   </div>
+                )}
 
+                {!matchedEpisode && (
                   <div className="space-y-1.5 text-sm sm:col-span-2">
                     <span className="text-white/60">Accent color</span>
                     <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAccentColor(null)}
+                        className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border-2 bg-white/[0.06] transition-all ${
+                          accentColor == null
+                            ? "scale-110 border-white"
+                            : "border-white/14 hover:border-white/26"
+                        }`}
+                        aria-label="No accent color"
+                        title="No accent color"
+                      >
+                        <span className="absolute inset-[7px] rounded-full border border-white/25" />
+                        <span className="absolute h-px w-5 rotate-45 rounded-full bg-white/70" />
+                      </button>
                       {COLLECTION_BINDER_COLORS.map((option) => {
                         const active = option === accentColor;
                         return (
@@ -256,8 +202,8 @@ export default function CreateBinderButton({ episodes }: Props) {
                       })}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
               <label className="block space-y-1.5 text-sm">
                 <span className="text-white/60">Notes</span>

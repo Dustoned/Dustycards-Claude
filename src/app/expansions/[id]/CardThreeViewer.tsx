@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RotateCcw, X } from "lucide-react";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
+import IllustratorLink from "@/components/IllustratorLink";
 import { withCardMarketFilters } from "@/lib/cardmarket";
 import { normalizeRarityLabel } from "@/lib/rarity";
 
@@ -1221,7 +1222,15 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                     className="mt-4"
                   />
 
-                  {card.artist && <p className="mt-2 text-sm text-white/44">Illus. {card.artist}</p>}
+                  {card.artist && (
+                    <p className="mt-2 text-sm text-white/44">
+                      Illus.{" "}
+                      <IllustratorLink
+                        artist={card.artist}
+                        className="text-white/72 transition-colors hover:text-white hover:underline underline-offset-2"
+                      />
+                    </p>
+                  )}
 
                   {filteredCardMarketUrl && (
                     <a

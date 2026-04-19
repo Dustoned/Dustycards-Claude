@@ -43,19 +43,33 @@ interface RawCard {
 interface RawPrices {
   cardmarket?: {
     lowest_near_mint?: number;
+    lowest_near_mint_EU_only?: number;
     lowest_near_mint_DE?: number;
+    lowest_near_mint_DE_EU_only?: number;
     lowest_near_mint_FR?: number;
+    lowest_near_mint_FR_EU_only?: number;
     lowest_near_mint_ES?: number;
+    lowest_near_mint_ES_EU_only?: number;
     lowest_near_mint_IT?: number;
+    lowest_near_mint_IT_EU_only?: number;
     "30d_average"?: number;
     "7d_average"?: number;
+    graded?: RawGradedPrices | null;
   };
   tcg_player?: {
+    currency?: string;
     market_price?: number;
     mid_price?: number;
     low_price?: number;
   };
 }
+
+type RawGradedPrices =
+  | Array<{
+      grade?: string | null;
+      price?: number | null;
+    }>
+  | Record<string, Record<string, number | null> | number | null>;
 
 interface RawSealedProduct {
   id: number;
@@ -108,6 +122,22 @@ export interface NormalizedCard {
   cardmarket_id: string | null;
   tcgplayer_id: string | null;
   prices: RawPrices | undefined;
+}
+
+export interface NormalizedGradedPrice {
+  label: string;
+  price: number;
+}
+
+export interface TcggoHistoryPricePoint {
+  date: string;
+  label: string;
+  cm_market: number | null;
+  cm_market_de: number | null;
+  cm_market_fr: number | null;
+  cm_market_es: number | null;
+  cm_market_it: number | null;
+  tcp_market: number | null;
 }
 
 export interface NormalizedSealedProduct {
@@ -250,6 +280,100 @@ function normalizeSealedProduct(product: RawSealedProduct): NormalizedSealedProd
   };
 }
 
+function toHistoryDateLabel(dateKey: string): string {
+  return new Intl.DateTimeFormat("nl-NL", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${dateKey}T00:00:00.000Z`));
+}
+
+function normalizeGradeToken(token: string): string {
+  return token
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeGradedPriceLabel(sourceKey: string, nestedKey?: string): string {
+  const upperSource = sourceKey.toUpperCase();
+  const normalizedNested = nestedKey ? normalizeGradeToken(nestedKey) : "";
+  const match = nestedKey?.match(/(\d+(?:\.\d+)?)/);
+
+  if (match) {
+    return `${upperSource} ${match[1]}`;
+  }
+
+  if (normalizedNested) {
+    if (normalizedNested.toUpperCase().startsWith(upperSource)) {
+      return normalizedNested.toUpperCase();
+    }
+
+    return `${upperSource} ${normalizedNested}`;
+  }
+
+  return upperSource;
+}
+
+export function extractGradedPrices(prices: RawPrices | undefined): NormalizedGradedPrice[] {
+  const graded = prices?.cardmarket?.graded;
+  if (!graded) return [];
+
+  if (Array.isArray(graded)) {
+    return graded
+      .flatMap((entry) => {
+        if (!entry?.grade || entry.price == null) return [];
+        return [{ label: entry.grade, price: entry.price }];
+      })
+      .sort((a, b) => b.price - a.price);
+  }
+
+  const normalized: NormalizedGradedPrice[] = [];
+
+  for (const [sourceKey, sourceValue] of Object.entries(graded)) {
+    if (sourceValue == null) continue;
+
+    if (typeof sourceValue === "number") {
+      normalized.push({
+        label: normalizeGradedPriceLabel(sourceKey),
+        price: sourceValue,
+      });
+      continue;
+    }
+
+    if (typeof sourceValue === "object") {
+      for (const [nestedKey, nestedValue] of Object.entries(sourceValue)) {
+        if (nestedValue == null) continue;
+        normalized.push({
+          label: normalizeGradedPriceLabel(sourceKey, nestedKey),
+          price: nestedValue,
+        });
+      }
+    }
+  }
+
+  return normalized.sort((a, b) => b.price - a.price);
+}
+
+interface RawHistoryPriceEntry {
+  cm_low?: number | null;
+  cm_low_de?: number | null;
+  cm_low_fr?: number | null;
+  cm_low_es?: number | null;
+  cm_low_it?: number | null;
+  tcg_player_market?: number | null;
+}
+
+interface RawHistoryPriceResponse {
+  data?: Record<string, RawHistoryPriceEntry>;
+  paging?: {
+    current?: number;
+    total?: number;
+    per_page?: number;
+  };
+  results?: number;
+}
+
 export async function fetchAllEpisodes(): Promise<NormalizedEpisode[]> {
   const all: NormalizedEpisode[] = [];
   let page = 1;
@@ -320,6 +444,70 @@ export async function fetchSealedProductsForEpisode(
   }
 
   return all;
+}
+
+export async function fetchHistoryPricesByItemId(
+  itemId: string,
+  options?: {
+    lang?: "en" | "de" | "fr" | "es" | "it";
+    dateFrom?: string;
+    dateTo?: string;
+  }
+): Promise<TcggoHistoryPricePoint[]> {
+  const params = new URLSearchParams({
+    id: itemId,
+    sort: "asc",
+    page: "1",
+  });
+
+  if (options?.lang) params.set("lang", options.lang);
+  if (options?.dateFrom) params.set("date_from", options.dateFrom);
+  if (options?.dateTo) params.set("date_to", options.dateTo);
+
+  const firstPage = await apiFetch<RawHistoryPriceResponse>(`/pokemon/history-prices?${params}`);
+  const totalPages = firstPage.paging?.total ?? 1;
+  const remainingPages =
+    totalPages > 1
+      ? await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, index) => {
+            const pageParams = new URLSearchParams(params);
+            pageParams.set("page", String(index + 2));
+            return apiFetch<RawHistoryPriceResponse>(`/pokemon/history-prices?${pageParams}`);
+          })
+        )
+      : [];
+  const pages = [firstPage, ...remainingPages];
+
+  const merged = new Map<string, RawHistoryPriceEntry>();
+
+  for (const page of pages) {
+    for (const [date, entry] of Object.entries(page.data ?? {})) {
+      merged.set(date, entry);
+    }
+  }
+
+  return [...merged.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, entry]) => ({
+      date,
+      label: toHistoryDateLabel(date),
+      cm_market: entry.cm_low ?? null,
+      cm_market_de: entry.cm_low_de ?? null,
+      cm_market_fr: entry.cm_low_fr ?? null,
+      cm_market_es: entry.cm_low_es ?? null,
+      cm_market_it: entry.cm_low_it ?? null,
+      tcp_market: entry.tcg_player_market ?? null,
+    }));
+}
+
+export async function fetchCardDetail(cardId: string): Promise<NormalizedCard | null> {
+  const tcgdexImageLookup = await getTcgdexImageLookup();
+  const data = await apiFetch<{ data?: RawCard }>(`/pokemon/cards/${cardId}`);
+  const card = data.data;
+
+  if (!card) return null;
+
+  return normalizeCard(card, tcgdexImageLookup);
 }
 
 export function extractPrices(prices: RawPrices | undefined) {

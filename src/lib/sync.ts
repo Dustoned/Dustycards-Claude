@@ -3,15 +3,19 @@ import { isHiddenExpansion } from "@/lib/episodes";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
 import {
   categoryToSupertype,
+  findTcgdexSetIdForEpisode,
+  getTcgdexIllustratorLookupForCards,
   getTcgdexSupertypeLookupForSet,
-  resolveTcgdexSetIdForEpisode,
   resolveTcgdexSupertype,
 } from "@/lib/tcgdex";
 import {
+  extractGradedPrices,
   extractPrices,
   fetchAllEpisodes,
   fetchCardsForEpisode,
+  fetchHistoryPricesByItemId,
   fetchSealedProductsForEpisode,
+  type NormalizedSealedProduct,
 } from "@/lib/tcggo";
 
 const ACTIVE_SYNC_STALE_MS = 1000 * 60 * 60 * 2;
@@ -23,6 +27,10 @@ const AUTO_PRICE_REFRESH_MIN_INTERVAL_MS = 1000 * 60 * 60 * 6;
 const AUTO_PRICE_BACKFILL_MAX_EPISODES = 2;
 const AUTO_PRICE_BACKFILL_MAX_CARDS = 80;
 const PRICE_SOURCE_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 7;
+const HISTORY_BACKFILL_BATCH_SIZE = 12;
+const DB_WRITE_BATCH_SIZE = 60;
+const AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX = 0;
+const AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX = 0;
 
 const CARD_FIELDS = [
   "name",
@@ -126,6 +134,7 @@ export interface AutoPriceRefreshResult {
   missingPriceCards: number;
   selectedCards: number;
   backfillCards: number;
+  nativeHistoryItems: number;
   remainingDueCards: number;
   updatedCards: number;
   newPrices: number;
@@ -175,15 +184,16 @@ function hasCardChanges(existing: CardWriteData, next: CardWriteData): boolean {
   return CARD_FIELDS.some((field) => existing[field] !== next[field]);
 }
 
-async function getTcgdexSupertypeLookupForEpisode(
-  episodeId: string
-): Promise<ReadonlyMap<string, string>> {
-  const episode = await db.episode.findUnique({
-    where: { id: episodeId },
-    select: { code: true, name: true },
+async function getTcgdexSupertypeLookupForEpisode(input: {
+  code?: string | null;
+  name?: string | null;
+  card_count?: number | null;
+}): Promise<ReadonlyMap<string, string>> {
+  const tcgdexSetId = await findTcgdexSetIdForEpisode({
+    code: input.code,
+    name: input.name,
+    cardCount: input.card_count ?? null,
   });
-
-  const tcgdexSetId = episode ? resolveTcgdexSetIdForEpisode(episode) : null;
   if (!tcgdexSetId) {
     return new Map();
   }
@@ -193,6 +203,31 @@ async function getTcgdexSupertypeLookupForEpisode(
 
 function hasAnyPrice(prices: PriceSnapshotData): boolean {
   return PRICE_FIELDS.some((field) => prices[field] !== null);
+}
+
+function hasAnySealedPrice(
+  price: Pick<
+    NormalizedSealedProduct["price"],
+    | "cm_lowest"
+    | "cm_lowest_eu"
+    | "cm_lowest_de"
+    | "cm_lowest_fr"
+    | "cm_lowest_es"
+    | "cm_lowest_it"
+    | "cm_avg_7d"
+    | "cm_avg_30d"
+  >
+): boolean {
+  return (
+    price.cm_lowest != null ||
+    price.cm_lowest_eu != null ||
+    price.cm_lowest_de != null ||
+    price.cm_lowest_fr != null ||
+    price.cm_lowest_es != null ||
+    price.cm_lowest_it != null ||
+    price.cm_avg_7d != null ||
+    price.cm_avg_30d != null
+  );
 }
 
 function pricesMatch(existing: ExistingPriceRecord, next: PriceSnapshotData): boolean {
@@ -295,6 +330,7 @@ function summarizeAutoPriceRefresh(result: AutoPriceRefreshResult): string {
     `Checked ${result.selectedCards} cards`,
     `${result.checkedEpisodes} sets`,
     `${result.backfillCards} first-price checks`,
+    `${result.nativeHistoryItems} history backfills`,
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
     `${result.remainingDueCards} still due`,
@@ -387,6 +423,260 @@ function queuePriceSnapshotWrite(
   return "new";
 }
 
+function toHistorySnapshotDate(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00.000Z`);
+}
+
+async function mapInBatches<T>(
+  items: T[],
+  batchSize: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  for (let index = 0; index < items.length; index += batchSize) {
+    await Promise.all(items.slice(index, index + batchSize).map((item) => worker(item)));
+  }
+}
+
+async function writeInChunks<T>(
+  items: T[],
+  chunkSize: number,
+  writer: (chunk: T[]) => Promise<void>
+): Promise<void> {
+  for (let index = 0; index < items.length; index += chunkSize) {
+    await writer(items.slice(index, index + chunkSize));
+  }
+}
+
+async function backfillCardNativeHistory(cardIds: string[], syncedAt: Date): Promise<number> {
+  if (cardIds.length === 0) return 0;
+
+  const existingSnapshots = await db.price.findMany({
+    where: { card_id: { in: cardIds } },
+    select: {
+      card_id: true,
+      fetched_at: true,
+    },
+  });
+
+  const existingByCard = new Map<string, Set<string>>();
+
+  for (const snapshot of existingSnapshots) {
+    const existing = existingByCard.get(snapshot.card_id) ?? new Set<string>();
+    existing.add(snapshot.fetched_at.toISOString());
+    existingByCard.set(snapshot.card_id, existing);
+  }
+
+  const historyCreates: Array<{
+    card_id: string;
+    fetched_at: Date;
+  } & PriceSnapshotData> = [];
+  const syncedCardIds: string[] = [];
+
+  await mapInBatches(cardIds, HISTORY_BACKFILL_BATCH_SIZE, async (cardId) => {
+    try {
+      const history = await fetchHistoryPricesByItemId(cardId);
+      const existing = existingByCard.get(cardId) ?? new Set<string>();
+
+      for (const point of history) {
+        const fetchedAt = toHistorySnapshotDate(point.date);
+        const iso = fetchedAt.toISOString();
+        if (existing.has(iso)) {
+          continue;
+        }
+
+        historyCreates.push({
+          card_id: cardId,
+          fetched_at: fetchedAt,
+          cm_en_lowest_nm: point.cm_market,
+          cm_de_lowest_nm: point.cm_market_de,
+          cm_fr_lowest_nm: point.cm_market_fr,
+          cm_es_lowest_nm: point.cm_market_es,
+          cm_it_lowest_nm: point.cm_market_it,
+          cm_en_avg_30d: null,
+          cm_en_avg_7d: null,
+          tcp_market: point.tcp_market,
+          tcp_mid: null,
+          tcp_low: null,
+        });
+        existing.add(iso);
+      }
+
+      syncedCardIds.push(cardId);
+    } catch {
+      // Leave this card eligible for a later history backfill retry.
+    }
+  });
+
+  await db.$transaction(async (tx) => {
+    if (historyCreates.length > 0) {
+      await writeInChunks(historyCreates, DB_WRITE_BATCH_SIZE, async (chunk) => {
+        await tx.price.createMany({
+          data: chunk,
+        });
+      });
+    }
+
+    if (syncedCardIds.length > 0) {
+      await tx.card.updateMany({
+        where: { id: { in: syncedCardIds } },
+        data: { native_history_synced_at: syncedAt },
+      });
+    }
+  });
+
+  return syncedCardIds.length;
+}
+
+async function backfillSealedNativeHistory(
+  products: Array<{ id: string; episodeId: string }>,
+  syncedAt: Date
+): Promise<number> {
+  if (products.length === 0) return 0;
+
+  const existingSnapshots = await db.sealedPriceSnapshot.findMany({
+    where: { product_id: { in: products.map((product) => product.id) } },
+    select: {
+      product_id: true,
+      fetched_at: true,
+    },
+  });
+
+  const existingByProduct = new Map<string, Set<string>>();
+
+  for (const snapshot of existingSnapshots) {
+    const existing = existingByProduct.get(snapshot.product_id) ?? new Set<string>();
+    existing.add(snapshot.fetched_at.toISOString());
+    existingByProduct.set(snapshot.product_id, existing);
+  }
+
+  const historyCreates: Array<{
+    product_id: string;
+    episode_id: string;
+    fetched_at: Date;
+    cm_lowest: number | null;
+    cm_lowest_eu: number | null;
+    cm_lowest_de: number | null;
+    cm_lowest_fr: number | null;
+    cm_lowest_es: number | null;
+    cm_lowest_it: number | null;
+    cm_avg_7d: number | null;
+    cm_avg_30d: number | null;
+  }> = [];
+  const syncedProductIds: string[] = [];
+
+  await mapInBatches(products, HISTORY_BACKFILL_BATCH_SIZE, async (product) => {
+    try {
+      const history = await fetchHistoryPricesByItemId(product.id);
+      const existing = existingByProduct.get(product.id) ?? new Set<string>();
+
+      for (const point of history) {
+        const fetchedAt = toHistorySnapshotDate(point.date);
+        const iso = fetchedAt.toISOString();
+        if (existing.has(iso)) {
+          continue;
+        }
+
+        historyCreates.push({
+          product_id: product.id,
+          episode_id: product.episodeId,
+          fetched_at: fetchedAt,
+          cm_lowest: point.cm_market,
+          cm_lowest_eu: null,
+          cm_lowest_de: point.cm_market_de,
+          cm_lowest_fr: point.cm_market_fr,
+          cm_lowest_es: point.cm_market_es,
+          cm_lowest_it: point.cm_market_it,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        });
+        existing.add(iso);
+      }
+
+      syncedProductIds.push(product.id);
+    } catch {
+      // Leave this product eligible for a later history backfill retry.
+    }
+  });
+
+  await db.$transaction(async (tx) => {
+    if (historyCreates.length > 0) {
+      await writeInChunks(historyCreates, DB_WRITE_BATCH_SIZE, async (chunk) => {
+        await tx.sealedPriceSnapshot.createMany({
+          data: chunk,
+        });
+      });
+    }
+
+    if (syncedProductIds.length > 0) {
+      await tx.sealedProduct.updateMany({
+        where: { id: { in: syncedProductIds } },
+        data: { native_history_synced_at: syncedAt },
+      });
+    }
+  });
+
+  return syncedProductIds.length;
+}
+
+async function selectNativeHistoryBackfillBatch(): Promise<{
+  cardIds: string[];
+  products: Array<{ id: string; episodeId: string }>;
+}> {
+  if (
+    AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX <= 0 &&
+    AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX <= 0
+  ) {
+    return { cardIds: [], products: [] };
+  }
+
+  const [cards, products] = await Promise.all([
+    db.card.findMany({
+      where: {
+        native_history_synced_at: null,
+        OR: [
+          { prices: { some: {} } },
+          { cardmarket_id: { not: null } },
+          { tcgplayer_id: { not: null } },
+        ],
+      },
+      orderBy: [{ updated_at: "desc" }],
+      select: { id: true },
+      take: AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX,
+    }),
+    db.sealedProduct.findMany({
+      where: {
+        native_history_synced_at: null,
+        OR: [
+          { cm_lowest: { not: null } },
+          { cm_lowest_eu: { not: null } },
+          { cm_lowest_de: { not: null } },
+          { cm_lowest_fr: { not: null } },
+          { cm_lowest_es: { not: null } },
+          { cm_lowest_it: { not: null } },
+          { cm_avg_7d: { not: null } },
+          { cm_avg_30d: { not: null } },
+          { cardmarket_id: { not: null } },
+          { tcgplayer_id: { not: null } },
+        ],
+      },
+      orderBy: [{ synced_at: "desc" }],
+      select: {
+        id: true,
+        episode_id: true,
+      },
+      take: AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX,
+    }),
+  ]);
+
+  return {
+    cardIds: cards.map((card) => card.id),
+    products: products.map((product) => ({
+      id: product.id,
+      episodeId: product.episode_id,
+    })),
+  };
+}
+
 function hasAnyMarketplaceId(card: Pick<CardWriteData, "cardmarket_id" | "tcgplayer_id">): boolean {
   return Boolean(card.cardmarket_id || card.tcgplayer_id);
 }
@@ -415,12 +705,34 @@ function mergeSelectedByEpisode(...maps: Array<Map<string, string[]>>): Map<stri
 
 async function syncEpisodeCards(
   episodeId: string,
-  options: { refreshAllPrices: boolean }
+  options: { refreshAllPrices: boolean; backfillNativeHistory: boolean }
 ): Promise<EpisodeSyncResult> {
-  const [cards, tcgdexSupertypeLookup] = await Promise.all([
+  const [cards, episode] = await Promise.all([
     fetchCardsForEpisode(episodeId),
-    getTcgdexSupertypeLookupForEpisode(episodeId),
+    db.episode.findUnique({
+      where: { id: episodeId },
+      select: { code: true, name: true, card_count: true },
+    }),
   ]);
+  const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
+    episode ? getTcgdexSupertypeLookupForEpisode(episode) : Promise.resolve(new Map()),
+    episode
+      ? getTcgdexIllustratorLookupForCards(
+          {
+            code: episode.code,
+            name: episode.name,
+            cardCount: episode.card_count,
+          },
+          cards
+        )
+      : Promise.resolve(new Map()),
+  ]);
+  const fetchedAt = new Date();
+  const nativeHistoryCandidateCardIds = cards
+    .filter(
+      (card) => hasAnyPrice(extractPrices(card.prices)) || hasAnyMarketplaceId(card)
+    )
+    .map((card) => card.id);
 
   const result = await db.$transaction(async (tx) => {
     const existingCards = await tx.card.findMany({
@@ -442,6 +754,7 @@ async function syncEpisodeCards(
         tcgplayer_id: true,
         price_source_status: true,
         price_source_checked_at: true,
+        native_history_synced_at: true,
         prices: {
           orderBy: { fetched_at: "desc" },
           take: 1,
@@ -463,9 +776,15 @@ async function syncEpisodeCards(
     });
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
-    const fetchedAt = new Date();
     const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
     const priceRefreshes: Array<{ id: string; fetched_at: Date }> = [];
+    const gradedCardIds = cards.map((card) => card.id);
+    const gradedCreates: Array<{
+      card_id: string;
+      label: string;
+      price: number;
+      fetched_at: Date;
+    }> = [];
 
     let newCards = 0;
     let updatedCards = 0;
@@ -475,7 +794,15 @@ async function syncEpisodeCards(
     for (const card of cards) {
       const existingCard = existingCardMap.get(card.id);
       const fallbackSupertype = resolveTcgdexSupertype(card.tcgid, tcgdexSupertypeLookup);
-      const nextCardData = buildCardWriteData(existingCard, card, fallbackSupertype);
+      const fallbackArtist = tcgdexIllustratorLookup.get(card.id) ?? null;
+      const nextCardData = buildCardWriteData(
+        existingCard,
+        {
+          ...card,
+          artist: card.artist ?? fallbackArtist,
+        },
+        fallbackSupertype
+      );
 
       if (!existingCard) {
         await tx.card.create({
@@ -490,6 +817,7 @@ async function syncEpisodeCards(
           ...nextCardData,
           price_source_status: null,
           price_source_checked_at: null,
+          native_history_synced_at: null,
           prices: [],
         });
         newCards += 1;
@@ -503,6 +831,15 @@ async function syncEpisodeCards(
           ...nextCardData,
         });
         updatedCards += 1;
+      }
+
+      for (const gradedPrice of extractGradedPrices(card.prices)) {
+        gradedCreates.push({
+          card_id: card.id,
+          label: gradedPrice.label,
+          price: gradedPrice.price,
+          fetched_at: fetchedAt,
+        });
       }
 
       const latestPrice = existingCard?.prices[0] ?? null;
@@ -550,6 +887,16 @@ async function syncEpisodeCards(
       }
     }
 
+    await tx.cardGradedPrice.deleteMany({
+      where: { card_id: { in: gradedCardIds } },
+    });
+
+    if (gradedCreates.length > 0) {
+      await tx.cardGradedPrice.createMany({
+        data: gradedCreates,
+      });
+    }
+
     for (const refresh of priceRefreshes) {
       await tx.price.update({
         where: { id: refresh.id },
@@ -579,6 +926,21 @@ async function syncEpisodeCards(
       refreshedPrices,
     };
   });
+
+  if (options.backfillNativeHistory) {
+    const cardIdsNeedingHistory = (
+      await db.card.findMany({
+        where: {
+          episode_id: episodeId,
+          id: { in: nativeHistoryCandidateCardIds },
+          native_history_synced_at: null,
+        },
+        select: { id: true },
+      })
+    ).map((card) => card.id);
+
+    await backfillCardNativeHistory(cardIdsNeedingHistory, fetchedAt);
+  }
 
   return result;
 }
@@ -844,9 +1206,25 @@ async function refreshEpisodeDueCards(
   cardIds: string[],
   fetchedAt: Date
 ): Promise<AutoEpisodePriceRefreshResult> {
-  const [remoteCards, tcgdexSupertypeLookup] = await Promise.all([
+  const [remoteCards, episode] = await Promise.all([
     fetchCardsForEpisode(episodeId),
-    getTcgdexSupertypeLookupForEpisode(episodeId),
+    db.episode.findUnique({
+      where: { id: episodeId },
+      select: { code: true, name: true, card_count: true },
+    }),
+  ]);
+  const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
+    episode ? getTcgdexSupertypeLookupForEpisode(episode) : Promise.resolve(new Map()),
+    episode
+      ? getTcgdexIllustratorLookupForCards(
+          {
+            code: episode.code,
+            name: episode.name,
+            cardCount: episode.card_count,
+          },
+          remoteCards
+        )
+      : Promise.resolve(new Map()),
   ]);
   const remoteCardMap = new Map(remoteCards.map((card) => [card.id, card]));
 
@@ -893,6 +1271,12 @@ async function refreshEpisodeDueCards(
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
     const priceRefreshes: Array<{ id: string; fetched_at: Date }> = [];
+    const gradedCreates: Array<{
+      card_id: string;
+      label: string;
+      price: number;
+      fetched_at: Date;
+    }> = [];
 
     let updatedCards = 0;
     let newPrices = 0;
@@ -908,13 +1292,30 @@ async function refreshEpisodeDueCards(
       }
 
       const fallbackSupertype = resolveTcgdexSupertype(remoteCard.tcgid, tcgdexSupertypeLookup);
-      const nextCardData = buildCardWriteData(existingCard, remoteCard, fallbackSupertype);
+      const fallbackArtist = tcgdexIllustratorLookup.get(cardId) ?? null;
+      const nextCardData = buildCardWriteData(
+        existingCard,
+        {
+          ...remoteCard,
+          artist: remoteCard.artist ?? fallbackArtist,
+        },
+        fallbackSupertype
+      );
       if (hasCardChanges(existingCard, nextCardData)) {
         await tx.card.update({
           where: { id: cardId },
           data: nextCardData,
         });
         updatedCards += 1;
+      }
+
+      for (const gradedPrice of extractGradedPrices(remoteCard.prices)) {
+        gradedCreates.push({
+          card_id: cardId,
+          label: gradedPrice.label,
+          price: gradedPrice.price,
+          fetched_at: fetchedAt,
+        });
       }
 
       const latestPrice = existingCard.prices[0] ?? null;
@@ -964,6 +1365,16 @@ async function refreshEpisodeDueCards(
       }
     }
 
+    await tx.cardGradedPrice.deleteMany({
+      where: { card_id: { in: cardIds } },
+    });
+
+    if (gradedCreates.length > 0) {
+      await tx.cardGradedPrice.createMany({
+        data: gradedCreates,
+      });
+    }
+
     for (const refresh of priceRefreshes) {
       await tx.price.update({
         where: { id: refresh.id },
@@ -996,14 +1407,21 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       Math.max(AUTO_PRICE_REFRESH_MAX_CARDS - previewDueBatch.selectedCards, 0)
     ),
   });
+  const previewNativeHistoryBatch = await selectNativeHistoryBackfillBatch();
 
-  if (previewDueBatch.dueCards === 0 && previewBackfillBatch.missingPriceCards === 0) {
+  if (
+    previewDueBatch.dueCards === 0 &&
+    previewBackfillBatch.missingPriceCards === 0 &&
+    previewNativeHistoryBatch.cardIds.length === 0 &&
+    previewNativeHistoryBatch.products.length === 0
+  ) {
     return {
       checkedEpisodes: 0,
       dueCards: 0,
       missingPriceCards: 0,
       selectedCards: 0,
       backfillCards: 0,
+      nativeHistoryItems: 0,
       remainingDueCards: 0,
       updatedCards: 0,
       newPrices: 0,
@@ -1025,18 +1443,24 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           Math.max(AUTO_PRICE_REFRESH_MAX_CARDS - dueBatch.selectedCards, 0)
         ),
       });
+      const nativeHistoryBatch = await selectNativeHistoryBackfillBatch();
       const combinedBatch = mergeSelectedByEpisode(
         dueBatch.selectedByEpisode,
         backfillBatch.selectedByEpisode
       );
 
-      if (combinedBatch.size === 0) {
+      if (
+        combinedBatch.size === 0 &&
+        nativeHistoryBatch.cardIds.length === 0 &&
+        nativeHistoryBatch.products.length === 0
+      ) {
         return {
           checkedEpisodes: 0,
           dueCards: dueBatch.dueCards,
           missingPriceCards: backfillBatch.missingPriceCards,
           selectedCards: 0,
           backfillCards: 0,
+          nativeHistoryItems: 0,
           remainingDueCards: 0,
           updatedCards: 0,
           newPrices: 0,
@@ -1061,8 +1485,14 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         refreshedCards += result.refreshedCards;
       }
 
+      const [syncedCardHistoryItems, syncedSealedHistoryItems] = await Promise.all([
+        backfillCardNativeHistory(nativeHistoryBatch.cardIds, fetchedAt),
+        backfillSealedNativeHistory(nativeHistoryBatch.products, fetchedAt),
+      ]);
+
       const remainingDueCards = Math.max(dueBatch.dueCards - dueBatch.selectedCards, 0);
       const selectedCards = countSelectedCards(combinedBatch);
+      const nativeHistoryCount = syncedCardHistoryItems + syncedSealedHistoryItems;
 
       return {
         checkedEpisodes: combinedBatch.size,
@@ -1070,16 +1500,96 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         missingPriceCards: backfillBatch.missingPriceCards,
         selectedCards,
         backfillCards: backfillBatch.selectedCards,
+        nativeHistoryItems: nativeHistoryCount,
         remainingDueCards,
         updatedCards,
         newPrices,
         refreshedPrices,
         refreshedCards,
         skipped: false,
-        message: `Checked ${selectedCards} cards across ${combinedBatch.size} sets.`,
+        message:
+          nativeHistoryCount > 0
+            ? `Checked ${selectedCards} cards across ${combinedBatch.size} sets and backfilled history for ${nativeHistoryCount} items.`
+            : `Checked ${selectedCards} cards across ${combinedBatch.size} sets.`,
       };
     }
   );
+}
+
+async function persistEpisodeSealedProducts(
+  episodeId: string,
+  products: NormalizedSealedProduct[],
+  syncedAt: Date
+): Promise<void> {
+  const fetchedIds = products.map((product) => product.id);
+
+  await db.$transaction(async (tx) => {
+    for (const product of products) {
+      await tx.sealedProduct.upsert({
+        where: { id: product.id },
+        create: {
+          id: product.id,
+          episode_id: episodeId,
+          name: product.name,
+          image_url: product.image_url,
+          tcggo_url: product.tcggo_url,
+          cardmarket_url: product.cardmarket_url,
+          cardmarket_id: product.cardmarket_id,
+          tcgplayer_id: product.tcgplayer_id,
+          cm_lowest: product.price.cm_lowest,
+          cm_lowest_eu: product.price.cm_lowest_eu,
+          cm_lowest_de: product.price.cm_lowest_de,
+          cm_lowest_fr: product.price.cm_lowest_fr,
+          cm_lowest_es: product.price.cm_lowest_es,
+          cm_lowest_it: product.price.cm_lowest_it,
+          cm_avg_7d: product.price.cm_avg_7d,
+          cm_avg_30d: product.price.cm_avg_30d,
+          synced_at: syncedAt,
+        },
+        update: {
+          episode_id: episodeId,
+          name: product.name,
+          image_url: product.image_url,
+          tcggo_url: product.tcggo_url,
+          cardmarket_url: product.cardmarket_url,
+          cardmarket_id: product.cardmarket_id,
+          tcgplayer_id: product.tcgplayer_id,
+          cm_lowest: product.price.cm_lowest,
+          cm_lowest_eu: product.price.cm_lowest_eu,
+          cm_lowest_de: product.price.cm_lowest_de,
+          cm_lowest_fr: product.price.cm_lowest_fr,
+          cm_lowest_es: product.price.cm_lowest_es,
+          cm_lowest_it: product.price.cm_lowest_it,
+          cm_avg_7d: product.price.cm_avg_7d,
+          cm_avg_30d: product.price.cm_avg_30d,
+          synced_at: syncedAt,
+        },
+      });
+    }
+
+    await tx.sealedPriceSnapshot.createMany({
+      data: products.map((product) => ({
+        product_id: product.id,
+        episode_id: episodeId,
+        fetched_at: syncedAt,
+        cm_lowest: product.price.cm_lowest,
+        cm_lowest_eu: product.price.cm_lowest_eu,
+        cm_lowest_de: product.price.cm_lowest_de,
+        cm_lowest_fr: product.price.cm_lowest_fr,
+        cm_lowest_es: product.price.cm_lowest_es,
+        cm_lowest_it: product.price.cm_lowest_it,
+        cm_avg_7d: product.price.cm_avg_7d,
+        cm_avg_30d: product.price.cm_avg_30d,
+      })),
+    });
+
+    await tx.sealedProduct.deleteMany({
+      where: {
+        episode_id: episodeId,
+        id: { notIn: fetchedIds },
+      },
+    });
+  });
 }
 
 export async function runSealedSync(): Promise<{ synced: number; products: number }> {
@@ -1099,48 +1609,7 @@ export async function runSealedSync(): Promise<{ synced: number; products: numbe
           const fetched = await fetchSealedProductsForEpisode(ep.id);
           if (fetched.length === 0) return;
           const syncedAt = new Date();
-          await db.$transaction(async (tx) => {
-            const sealedProducts = fetched.map((p) => ({
-              id: p.id,
-              episode_id: ep.id,
-              name: p.name,
-              image_url: p.image_url,
-              tcggo_url: p.tcggo_url,
-              cardmarket_url: p.cardmarket_url,
-              cardmarket_id: p.cardmarket_id,
-              tcgplayer_id: p.tcgplayer_id,
-              cm_lowest: p.price.cm_lowest,
-              cm_lowest_eu: p.price.cm_lowest_eu,
-              cm_lowest_de: p.price.cm_lowest_de,
-              cm_lowest_fr: p.price.cm_lowest_fr,
-              cm_lowest_es: p.price.cm_lowest_es,
-              cm_lowest_it: p.price.cm_lowest_it,
-              cm_avg_7d: p.price.cm_avg_7d,
-              cm_avg_30d: p.price.cm_avg_30d,
-              synced_at: syncedAt,
-            }));
-            const sealedSnapshots = fetched.map((p) => ({
-              product_id: p.id,
-              episode_id: ep.id,
-              fetched_at: syncedAt,
-              cm_lowest: p.price.cm_lowest,
-              cm_lowest_eu: p.price.cm_lowest_eu,
-              cm_lowest_de: p.price.cm_lowest_de,
-              cm_lowest_fr: p.price.cm_lowest_fr,
-              cm_lowest_es: p.price.cm_lowest_es,
-              cm_lowest_it: p.price.cm_lowest_it,
-              cm_avg_7d: p.price.cm_avg_7d,
-              cm_avg_30d: p.price.cm_avg_30d,
-            }));
-
-            await tx.sealedProduct.deleteMany({ where: { episode_id: ep.id } });
-            await tx.sealedProduct.createMany({
-              data: sealedProducts,
-            });
-            await tx.sealedPriceSnapshot.createMany({
-              data: sealedSnapshots,
-            });
-          });
+          await persistEpisodeSealedProducts(ep.id, fetched, syncedAt);
           synced += 1;
           products += fetched.length;
         } catch {
@@ -1153,53 +1622,44 @@ export async function runSealedSync(): Promise<{ synced: number; products: numbe
   return { synced, products };
 }
 
-async function syncEpisodeSealed(episodeId: string): Promise<void> {
+async function syncEpisodeSealed(
+  episodeId: string,
+  options: { backfillNativeHistory: boolean }
+): Promise<void> {
   const products = await fetchSealedProductsForEpisode(episodeId);
   if (products.length === 0) return;
 
   const syncedAt = new Date();
-  await db.$transaction(async (tx) => {
-    const sealedProducts = products.map((p) => ({
-      id: p.id,
-      episode_id: episodeId,
-      name: p.name,
-      image_url: p.image_url,
-      tcggo_url: p.tcggo_url,
-      cardmarket_url: p.cardmarket_url,
-      cardmarket_id: p.cardmarket_id,
-      tcgplayer_id: p.tcgplayer_id,
-      cm_lowest: p.price.cm_lowest,
-      cm_lowest_eu: p.price.cm_lowest_eu,
-      cm_lowest_de: p.price.cm_lowest_de,
-      cm_lowest_fr: p.price.cm_lowest_fr,
-      cm_lowest_es: p.price.cm_lowest_es,
-      cm_lowest_it: p.price.cm_lowest_it,
-      cm_avg_7d: p.price.cm_avg_7d,
-      cm_avg_30d: p.price.cm_avg_30d,
-      synced_at: syncedAt,
-    }));
-    const sealedSnapshots = products.map((p) => ({
-      product_id: p.id,
-      episode_id: episodeId,
-      fetched_at: syncedAt,
-      cm_lowest: p.price.cm_lowest,
-      cm_lowest_eu: p.price.cm_lowest_eu,
-      cm_lowest_de: p.price.cm_lowest_de,
-      cm_lowest_fr: p.price.cm_lowest_fr,
-      cm_lowest_es: p.price.cm_lowest_es,
-      cm_lowest_it: p.price.cm_lowest_it,
-      cm_avg_7d: p.price.cm_avg_7d,
-      cm_avg_30d: p.price.cm_avg_30d,
-    }));
+  const nativeHistoryCandidateProductIds = products
+    .filter(
+      (product) =>
+        hasAnySealedPrice(product.price) ||
+        Boolean(product.cardmarket_id || product.tcgplayer_id)
+    )
+    .map((product) => product.id);
+  await persistEpisodeSealedProducts(episodeId, products, syncedAt);
 
-    await tx.sealedProduct.deleteMany({ where: { episode_id: episodeId } });
-    await tx.sealedProduct.createMany({
-      data: sealedProducts,
+  if (options.backfillNativeHistory) {
+    const productsNeedingHistory = await db.sealedProduct.findMany({
+      where: {
+        episode_id: episodeId,
+        id: { in: nativeHistoryCandidateProductIds },
+        native_history_synced_at: null,
+      },
+      select: {
+        id: true,
+        episode_id: true,
+      },
     });
-    await tx.sealedPriceSnapshot.createMany({
-      data: sealedSnapshots,
-    });
-  });
+
+    await backfillSealedNativeHistory(
+      productsNeedingHistory.map((product) => ({
+        id: product.id,
+        episodeId: product.episode_id,
+      })),
+      syncedAt
+    );
+  }
 }
 
 export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResult> {
@@ -1209,8 +1669,11 @@ export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResu
     summarizeEpisodeSync,
     async () => {
       const [cardResult] = await Promise.all([
-        syncEpisodeCards(episodeId, { refreshAllPrices: true }),
-        syncEpisodeSealed(episodeId).catch(() => undefined),
+        syncEpisodeCards(episodeId, {
+          refreshAllPrices: true,
+          backfillNativeHistory: true,
+        }),
+        syncEpisodeSealed(episodeId, { backfillNativeHistory: true }).catch(() => undefined),
       ]);
       return cardResult;
     }
@@ -1316,8 +1779,11 @@ export async function runFullSync(): Promise<FullSyncResult> {
 
       for (const episodeId of episodesToSync) {
         const [episodeResult] = await Promise.all([
-          syncEpisodeCards(episodeId, { refreshAllPrices: false }),
-          syncEpisodeSealed(episodeId).catch(() => undefined),
+          syncEpisodeCards(episodeId, {
+            refreshAllPrices: false,
+            backfillNativeHistory: false,
+          }),
+          syncEpisodeSealed(episodeId, { backfillNativeHistory: false }).catch(() => undefined),
         ]);
 
         newCards += episodeResult.newCards;

@@ -16,6 +16,8 @@ import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import { useSettings, ModalSize } from "@/components/SettingsProvider";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CollectionEditCardButton from "@/components/CollectionEditCardButton";
+import IllustratorLink from "@/components/IllustratorLink";
 
 export interface ModalCardData {
   id: string;
@@ -45,10 +47,25 @@ export interface ModalCardData {
     cm_en_avg_7d: number | null;
     cm_en_avg_30d: number | null;
   } | null;
+  graded_prices?: Array<{
+    label: string;
+    price: number;
+  }>;
   price_history: CardPriceHistoryPoint[];
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
+  collection_item?: {
+    id: string;
+    binder_id: string | null;
+    purchase_price: number | null;
+    condition: string | null;
+    language: string | null;
+    notes: string | null;
+    tags: string[];
+    grading_company: string | null;
+    grading_grade: string | null;
+  } | null;
 }
 
 interface Props {
@@ -175,6 +192,7 @@ export default function CardModal({ card, onClose }: Props) {
   const titleCls = ms === "small" ? "text-2xl" : ms === "large" ? "text-4xl" : "text-3xl";
   const priceCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
   const metaCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
+  const gradedPrices = card.graded_prices ?? [];
   const cardMarketHistory = card.price_history.map((point) => ({
     date: point.date,
     label: point.label,
@@ -339,6 +357,28 @@ export default function CardModal({ card, onClose }: Props) {
                 </div>
               </div>
 
+              {gradedPrices.length > 0 && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
+                    Graded
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {gradedPrices.map((gradedPrice) => (
+                      <div
+                        key={gradedPrice.label}
+                        className="flex items-center justify-between rounded-xl px-3 py-2"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                      >
+                        <span className="text-sm text-white/56">{gradedPrice.label}</span>
+                        <span className="text-sm font-bold tabular-nums text-white">
+                          {formatCurrency(gradedPrice.price, "EUR")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-3 lg:grid-cols-2">
                 <PriceHistoryPanel
                   title="CardMarket History"
@@ -365,11 +405,20 @@ export default function CardModal({ card, onClose }: Props) {
                 priceSourceCheckedAt={card.price_source_checked_at}
               />
 
-              {card.artist && <p className="text-sm text-white/40">Illus. {card.artist}</p>}
+              {card.artist && (
+                <p className="text-sm text-white/40">
+                  Illus.{" "}
+                  <IllustratorLink
+                    artist={card.artist}
+                    onClick={onClose}
+                    className="text-white/70 transition-colors hover:text-white hover:underline underline-offset-2"
+                  />
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="flex gap-3 px-6 pb-6">
+          <div className="flex flex-wrap gap-3 px-6 pb-6">
             <CollectionAddCardButton
               card={{
                 id: card.id,
@@ -386,6 +435,26 @@ export default function CardModal({ card, onClose }: Props) {
               label="Add to DustyCards"
               className="flex-1 rounded-2xl"
             />
+            {card.collection_item && (
+              <CollectionEditCardButton
+                card={{
+                  id: card.id,
+                  name: card.name,
+                  image_url: card.image_url,
+                  episode: {
+                    id: card.episode_id,
+                    name: card.episode_name,
+                    code: card.episode_code,
+                  },
+                }}
+                item={card.collection_item}
+                mode="button"
+                theme="dark"
+                label="Edit card"
+                className="flex-1 rounded-2xl"
+                onSaved={onClose}
+              />
+            )}
             {storedCardMarketUrl ? (
               <a
                 href={storedCardMarketUrl}

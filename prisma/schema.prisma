@@ -41,6 +41,7 @@ model SealedProduct {
   cm_lowest_it    Float?
   cm_avg_7d       Float?
   cm_avg_30d      Float?
+  native_history_synced_at DateTime?
   synced_at       DateTime @default(now())
 
   episode         Episode  @relation(fields: [episode_id], references: [id])
@@ -87,16 +88,31 @@ model Card {
   tcgplayer_id    String?
   price_source_status     String?
   price_source_checked_at DateTime?
+  native_history_synced_at DateTime?
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
   episode         Episode  @relation(fields: [episode_id], references: [id])
   collectionItems CollectionCard[]
+  gradedPrices    CardGradedPrice[]
   prices          Price[]
 
   @@index([episode_id])
   @@index([episode_id, card_number])
   @@index([price_source_status, price_source_checked_at])
+}
+
+model CardGradedPrice {
+  id         String   @id @default(cuid())
+  card_id    String
+  label      String
+  price      Float
+  fetched_at DateTime @default(now())
+
+  card       Card     @relation(fields: [card_id], references: [id], onDelete: Cascade)
+
+  @@index([card_id])
+  @@unique([card_id, label])
 }
 
 model CollectionBinder {

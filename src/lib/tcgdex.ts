@@ -17,11 +17,24 @@ interface TcgdexSetResponse {
   cards?: TcgdexSetCardBrief[] | null;
 }
 
-interface TcgdexCardResponse {
+interface TcgdexSetSearchResult {
   id: string;
-  category?: string | null;
+  name: string;
+  cardCount?: {
+    total?: number | null;
+    official?: number | null;
+  } | null;
 }
 
+interface TcgdexCardResponse {
+  id: string;
+  name?: string | null;
+  localId?: string | null;
+  category?: string | null;
+  illustrator?: string | null;
+}
+
+type TcgdexCollectionResponse<T> = T[] | { value?: T[] | null };
 type TcgdexImageLookup = Map<string, string>;
 
 const TCGDEX_SET_ID_BY_LOCAL_CODE = new Map<string, string>([["por", "me03"]]);
@@ -32,6 +45,8 @@ const TCGDEX_SET_ID_BY_LOCAL_NAME = new Map<string, string>([
 
 let tcgdexImageLookupPromise: Promise<TcgdexImageLookup> | null = null;
 const tcgdexSupertypeLookupPromises = new Map<string, Promise<ReadonlyMap<string, string>>>();
+const tcgdexResolvedSetIdPromises = new Map<string, Promise<string | null>>();
+const tcgdexCardDetailPromises = new Map<string, Promise<TcgdexCardResponse | null>>();
 
 function normalizeLookupKey(value: string): string {
   return value.trim().toLowerCase();
@@ -44,6 +59,45 @@ function normalizeOptionalString(value: string | null | undefined): string | nul
 
 function normalizeNumericString(value: string): string | null {
   return /^\d+$/.test(value) ? String(Number(value)) : null;
+}
+
+function normalizeNameForMatch(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function namesMatch(left: string | null | undefined, right: string | null | undefined): boolean {
+  const normalizedLeft = normalizeOptionalString(left);
+  const normalizedRight = normalizeOptionalString(right);
+
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+
+  return normalizeNameForMatch(normalizedLeft) === normalizeNameForMatch(normalizedRight);
+}
+
+function unwrapCollectionResponse<T>(response: TcgdexCollectionResponse<T>): T[] {
+  return Array.isArray(response) ? response : response.value ?? [];
+}
+
+function isTcgdexNotFoundError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("TCGdex API 404");
+}
+
+function buildEpisodeLookupKey(input: {
+  code?: string | null;
+  name?: string | null;
+  cardCount?: number | null;
+}): string {
+  return [
+    normalizeOptionalString(input.code)?.toLowerCase() ?? "",
+    normalizeOptionalString(input.name)?.toLowerCase() ?? "",
+    input.cardCount != null ? String(input.cardCount) : "",
+  ].join("|");
 }
 
 function buildHighResImageUrl(imageBase: string | null | undefined): string | null {
@@ -151,6 +205,31 @@ function buildCardIdAliases(cardId: string): string[] {
   return [...aliases];
 }
 
+function extractCardLocalId(cardId: string | null | undefined): string | null {
+  const normalizedId = normalizeOptionalString(cardId);
+  if (!normalizedId) return null;
+
+  const hyphenIndex = normalizedId.indexOf("-");
+  return hyphenIndex === -1 ? normalizedId : normalizedId.slice(hyphenIndex + 1);
+}
+
+function buildTcgdexLocalIdCandidates(value: string | null | undefined): string[] {
+  const normalizedValue = normalizeOptionalString(value);
+  if (!normalizedValue) return [];
+
+  const primary = normalizedValue.split("/")[0]?.trim() ?? normalizedValue;
+  const compact = primary.replace(/\s+/g, "");
+  const aliases = new Set<string>([compact, compact.toUpperCase()]);
+  const numeric = normalizeNumericString(compact);
+
+  if (numeric) {
+    aliases.add(numeric);
+    aliases.add(numeric.padStart(3, "0"));
+  }
+
+  return [...aliases];
+}
+
 async function tcgdexFetch<T>(
   path: string,
   options?: { revalidateSeconds?: number }
@@ -211,6 +290,71 @@ export function resolveTcgdexSetIdForEpisode(input: {
   return null;
 }
 
+async function searchTcgdexSetsByName(name: string): Promise<TcgdexSetSearchResult[]> {
+  const response = await tcgdexFetch<TcgdexCollectionResponse<TcgdexSetSearchResult>>(
+    `/sets?name=${encodeURIComponent(name)}`,
+    { revalidateSeconds: IMAGE_REVALIDATE_SECONDS }
+  );
+
+  return unwrapCollectionResponse(response);
+}
+
+function pickBestSetMatch(
+  matches: readonly TcgdexSetSearchResult[],
+  input: { name?: string | null; cardCount?: number | null }
+): string | null {
+  if (matches.length === 0) return null;
+
+  const normalizedName = normalizeOptionalString(input.name);
+  let rankedMatches = normalizedName
+    ? matches.filter((match) => namesMatch(match.name, normalizedName))
+    : [];
+
+  if (rankedMatches.length === 0) {
+    rankedMatches = [...matches];
+  }
+
+  if (input.cardCount != null) {
+    const totalMatches = rankedMatches.filter((match) => match.cardCount?.total === input.cardCount);
+    if (totalMatches.length > 0) {
+      rankedMatches = totalMatches;
+    }
+  }
+
+  return rankedMatches[0]?.id ?? null;
+}
+
+export async function findTcgdexSetIdForEpisode(input: {
+  code?: string | null;
+  name?: string | null;
+  cardCount?: number | null;
+}): Promise<string | null> {
+  const directMatch = resolveTcgdexSetIdForEpisode(input);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  const normalizedName = normalizeOptionalString(input.name);
+  if (!normalizedName) {
+    return null;
+  }
+
+  const cacheKey = buildEpisodeLookupKey(input);
+  if (!tcgdexResolvedSetIdPromises.has(cacheKey)) {
+    tcgdexResolvedSetIdPromises.set(
+      cacheKey,
+      searchTcgdexSetsByName(normalizedName).then((matches) =>
+        pickBestSetMatch(matches, {
+          name: normalizedName,
+          cardCount: input.cardCount ?? null,
+        })
+      )
+    );
+  }
+
+  return tcgdexResolvedSetIdPromises.get(cacheKey) ?? null;
+}
+
 async function fetchTcgdexSet(setId: string): Promise<TcgdexSetResponse> {
   return tcgdexFetch<TcgdexSetResponse>(`/sets/${encodeURIComponent(setId)}`);
 }
@@ -219,10 +363,37 @@ async function fetchTcgdexCard(cardId: string): Promise<TcgdexCardResponse> {
   return tcgdexFetch<TcgdexCardResponse>(`/cards/${encodeURIComponent(cardId)}`);
 }
 
+async function fetchTcgdexCardNullable(cardId: string): Promise<TcgdexCardResponse | null> {
+  const normalizedCardId = normalizeLookupKey(cardId);
+  const requestCardId = normalizeOptionalString(cardId) ?? cardId;
+
+  if (!tcgdexCardDetailPromises.has(normalizedCardId)) {
+    tcgdexCardDetailPromises.set(
+      normalizedCardId,
+      fetchTcgdexCard(requestCardId).catch((error) => {
+        if (isTcgdexNotFoundError(error)) {
+          return null;
+        }
+
+        tcgdexCardDetailPromises.delete(normalizedCardId);
+        throw error;
+      })
+    );
+  }
+
+  return tcgdexCardDetailPromises.get(normalizedCardId) ?? null;
+}
+
 async function fetchTcgdexSetCards(setId: string): Promise<TcgdexCardResponse[]> {
   const set = await fetchTcgdexSet(setId);
   const cardIds = (set.cards ?? []).map((card) => card.id);
-  return mapInBatches(cardIds, (cardId) => fetchTcgdexCard(cardId));
+  return mapInBatches(cardIds, async (cardId) => {
+    const detail = await fetchTcgdexCardNullable(cardId);
+    if (!detail) {
+      throw new Error(`TCGdex card disappeared during set sync: ${cardId}`);
+    }
+    return detail;
+  });
 }
 
 async function loadTcgdexImageLookup(): Promise<TcgdexImageLookup> {
@@ -292,6 +463,60 @@ export async function getTcgdexSupertypeLookupForSet(
   }
 
   return tcgdexSupertypeLookupPromises.get(normalizedSetId) ?? new Map();
+}
+
+export async function getTcgdexIllustratorLookupForCards(
+  episode: {
+    code?: string | null;
+    name?: string | null;
+    cardCount?: number | null;
+  },
+  cards: ReadonlyArray<{
+    id: string;
+    name: string;
+    card_number: string | null;
+    tcgid: string | null;
+    artist?: string | null;
+  }>
+): Promise<ReadonlyMap<string, string>> {
+  const setId = await findTcgdexSetIdForEpisode(episode);
+  if (!setId) {
+    return new Map();
+  }
+
+  const lookup = new Map<string, string>();
+  const pendingCards = cards.filter((card) => {
+    if (card.artist) return false;
+    return Boolean(card.card_number || extractCardLocalId(card.tcgid));
+  });
+
+  if (pendingCards.length === 0) {
+    return lookup;
+  }
+
+  const matches = await mapInBatches(pendingCards, async (card) => {
+    const localIdSource = card.card_number ?? extractCardLocalId(card.tcgid);
+
+    for (const localId of buildTcgdexLocalIdCandidates(localIdSource)) {
+      const tcgdexCard = await fetchTcgdexCardNullable(`${setId}-${localId}`);
+      if (!tcgdexCard?.illustrator) continue;
+      if (tcgdexCard.name && !namesMatch(tcgdexCard.name, card.name)) continue;
+
+      return {
+        cardId: card.id,
+        illustrator: tcgdexCard.illustrator,
+      };
+    }
+
+    return null;
+  });
+
+  for (const match of matches) {
+    if (!match) continue;
+    lookup.set(match.cardId, match.illustrator);
+  }
+
+  return lookup;
 }
 
 export function resolveTcgdexImageUrl(

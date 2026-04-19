@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import CardThreeViewer from "./CardThreeViewer";
 import {
   buildCardMarketProductUrl,
@@ -14,6 +15,8 @@ import type { CardPriceHistoryPoint } from "@/lib/price-history";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CollectionBulkAddCardsModal from "@/components/CollectionBulkAddCardsModal";
+import IllustratorLink from "@/components/IllustratorLink";
 import {
   useSettings,
   CardView,
@@ -37,6 +40,9 @@ export interface CardData {
   cardmarket_id: string | null;
   cardmarket_url: string | null;
   tcggo_url: string | null;
+  episode_id?: string;
+  episode_name?: string | null;
+  episode_code?: string | null;
   price_source_status: string | null;
   price_source_checked_at: string | null;
   price_fetched_at: string | null;
@@ -256,11 +262,20 @@ interface Props {
     name: string;
     code: string | null;
   };
+  onVisibleCardsChange?: (cards: CardData[]) => void;
 }
 
 interface FilterOption {
   value: string;
   count: number;
+}
+
+function hasCardEpisodeMeta(card: CardData): card is CardData & {
+  episode_id: string;
+  episode_name: string;
+  episode_code?: string | null;
+} {
+  return Boolean(card.episode_id && card.episode_name);
 }
 
 function rememberWarmedCardImage(url: string): boolean {
@@ -331,11 +346,14 @@ function buildFilterOptions(
     .map(([value, count]) => ({ value, count }));
 }
 
-export default function ExpansionView({ cards, episode }: Props) {
+export default function ExpansionView({ cards, episode, onVisibleCardsChange }: Props) {
   const { settings, set } = useSettings();
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<CardData | null>(null);
   const [threeDCard, setThreeDCard] = useState<CardData | null>(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [resolvedCardMarketUrls, setResolvedCardMarketUrls] = useState<Record<string, string>>({});
   const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
   const [loadingDetailsId, setLoadingDetailsId] = useState<string | null>(null);
@@ -347,6 +365,27 @@ export default function ExpansionView({ cards, episode }: Props) {
   const primaryPriceSource = settings.primaryPriceSource;
   const sortBy = settings.sortBy;
   const sortDir = settings.sortDir;
+  const collectionEpisode = episode ?? {
+    id: "",
+    name: "",
+    code: null,
+  };
+  const showEpisodeMeta = useMemo(
+    () => !episode && cards.some((card) => hasCardEpisodeMeta(card)),
+    [cards, episode]
+  );
+
+  function getCollectionEpisodeForCard(card: CardData) {
+    if (hasCardEpisodeMeta(card)) {
+      return {
+        id: card.episode_id,
+        name: card.episode_name,
+        code: card.episode_code ?? null,
+      };
+    }
+
+    return collectionEpisode;
+  }
   const availableRarities = useMemo(
     () =>
       buildFilterOptions(cards.map((card) => card.rarity), KNOWN_RARITY_ORDER, normalizeRarityLabel),
@@ -384,6 +423,7 @@ export default function ExpansionView({ cards, episode }: Props) {
     () => cards.some((card) => hasAnyVisiblePrice(card)),
     [cards]
   );
+  const selectedCardIdSet = useMemo(() => new Set(selectedCardIds), [selectedCardIds]);
   const effectiveOnlyPriced = onlyPriced && setHasAnyPricedCards;
   const pricedOnlyUnavailable = onlyPriced && !setHasAnyPricedCards;
 
@@ -460,6 +500,27 @@ export default function ExpansionView({ cards, episode }: Props) {
   function openDetails(card: CardData) {
     setSelected(card);
     setLoadingDetailsId(cardDetailsById[card.id] ? null : card.id);
+  }
+
+  function handleCardClick(card: CardData) {
+    if (selectionMode) {
+      setSelectedCardIds((prev) =>
+        prev.includes(card.id) ? prev.filter((id) => id !== card.id) : [...prev, card.id]
+      );
+      return;
+    }
+
+    openDetails(card);
+  }
+
+  function toggleSelectionMode() {
+    setBulkAddOpen(false);
+    setSelectionMode((prev) => {
+      if (prev) {
+        setSelectedCardIds([]);
+      }
+      return !prev;
+    });
   }
 
   function getResolvedCardMarketUrl(card: CardData): string | null {
@@ -587,6 +648,14 @@ export default function ExpansionView({ cards, episode }: Props) {
     (activeRarities.length > 0 || activeSupertypes.length > 0 || effectiveOnlyPriced);
 
   const filtered = persistentFiltersHideEverything ? sortedCards : filteredCards;
+  const selectedCards = useMemo(
+    () => cards.filter((card) => selectedCardIdSet.has(card.id)),
+    [cards, selectedCardIdSet]
+  );
+
+  useEffect(() => {
+    onVisibleCardsChange?.(filtered);
+  }, [filtered, onVisibleCardsChange]);
 
   const hasActiveFilters =
     Boolean(search) ||
@@ -694,6 +763,50 @@ export default function ExpansionView({ cards, episode }: Props) {
           <span className="rounded-full border border-black/8 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:text-gray-400 shrink-0">
             {sortSummary}
           </span>
+          <div className="ml-auto flex items-center gap-2 shrink-0">
+            {selectionMode && (
+              <>
+                <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                  {selectedCardIds.length} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCardIds(filtered.map((card) => card.id))}
+                  disabled={filtered.length === 0 || selectedCardIds.length === filtered.length}
+                  className="rounded-full border border-black/8 px-2.5 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-black/18 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:text-gray-400 dark:hover:border-white/18 dark:hover:text-white"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCardIds([])}
+                  disabled={selectedCardIds.length === 0}
+                  className="rounded-full border border-black/8 px-2.5 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-black/18 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:text-gray-400 dark:hover:border-white/18 dark:hover:text-white"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkAddOpen(true)}
+                  disabled={selectedCardIds.length === 0}
+                  className="rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Bulk add
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={toggleSelectionMode}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                selectionMode
+                  ? "border-blue-500/35 bg-blue-500/12 text-blue-700 dark:text-blue-300"
+                  : "border-black/8 text-gray-500 hover:border-black/18 hover:text-gray-900 dark:border-white/8 dark:text-gray-400 dark:hover:border-white/18 dark:hover:text-white"
+              }`}
+            >
+              {selectionMode ? "Done" : "Select"}
+            </button>
+          </div>
           {hasActiveFilters && (
             <button
               onClick={() => {
@@ -790,79 +903,98 @@ export default function ExpansionView({ cards, episode }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((card, index) => (
-                  <tr
-                    key={card.id}
-                    onClick={() => openDetails(card)}
-                    className={`group border-b border-black/4 dark:border-white/6 last:border-0 hover:bg-black/3 dark:hover:bg-white/5 transition-colors cursor-pointer ${
-                      index % 2 === 0 ? "" : "bg-black/[0.015] dark:bg-white/[0.025]"
-                    }`}
-                  >
-                    <td className="px-5 py-3 text-gray-400 dark:text-white/30 tabular-nums text-xs">
-                      {card.card_number ?? "--"}
-                    </td>
-                    <td className="px-2 py-2">
-                      {card.image_url ? (
-                        <div className="relative w-10 h-14 rounded-lg overflow-hidden shadow-sm">
-                          <Image
-                            src={card.image_url}
-                            alt={card.name}
-                            fill
-                            className="object-cover group-hover:scale-105 transition-transform duration-300"
-                            sizes="40px"
-                            loading={index < 10 ? "eager" : undefined}
-                            unoptimized
+                {filtered.map((card, index) => {
+                  const tableSelected = selectedCardIdSet.has(card.id);
+
+                  return (
+                    <tr
+                      key={card.id}
+                      onClick={() => handleCardClick(card)}
+                      className={`group border-b border-black/4 dark:border-white/6 last:border-0 transition-colors cursor-pointer ${
+                        tableSelected
+                          ? "bg-blue-500/[0.09] dark:bg-blue-400/[0.14]"
+                          : index % 2 === 0
+                            ? "hover:bg-black/3 dark:hover:bg-white/5"
+                            : "bg-black/[0.015] hover:bg-black/[0.03] dark:bg-white/[0.025] dark:hover:bg-white/[0.06]"
+                      }`}
+                    >
+                      <td className="px-5 py-3 text-gray-400 dark:text-white/30 tabular-nums text-xs">
+                        <span>{card.card_number ?? "--"}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        {card.image_url ? (
+                          <div className="relative w-10 h-14 rounded-lg overflow-hidden shadow-sm">
+                            <Image
+                              src={card.image_url}
+                              alt={card.name}
+                              fill
+                              className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              sizes="40px"
+                              loading={index < 10 ? "eager" : undefined}
+                              unoptimized
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-14 bg-black/6 dark:bg-white/6 rounded-lg flex items-center justify-center text-gray-300 text-xs">
+                            ?
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="font-semibold text-gray-900 dark:text-white">{card.name}</span>
+                            {card.hp && <span className="ml-2 text-gray-400 text-xs">HP {card.hp}</span>}
+                          </div>
+                          {!selectionMode && (
+                          <CollectionAddCardButton
+                            card={{
+                              id: card.id,
+                              name: card.name,
+                              image_url: card.image_url,
+                              episode: getCollectionEpisodeForCard(card),
+                            }}
+                            className="h-7 w-7 shrink-0 rounded-md"
                           />
+                        )}
                         </div>
-                      ) : (
-                        <div className="w-10 h-14 bg-black/6 dark:bg-white/6 rounded-lg flex items-center justify-center text-gray-300 text-xs">
-                          ?
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="font-semibold text-gray-900 dark:text-white">{card.name}</span>
-                          {card.hp && <span className="ml-2 text-gray-400 text-xs">HP {card.hp}</span>}
-                        </div>
-                        <CollectionAddCardButton
-                          card={{
-                            id: card.id,
-                            name: card.name,
-                            image_url: card.image_url,
-                            episode:
-                              episode ?? {
-                                id: "",
-                                name: "",
-                                code: null,
-                              },
-                          }}
-                          className="h-8 w-8 shrink-0"
-                        />
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {card.rarity ? (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${rarityBadge(
-                            card.rarity
-                          )}`}
-                        >
-                          {normalizeRarityLabel(card.rarity) ?? card.rarity}
-                        </span>
-                      ) : (
-                        <span className="text-gray-200 dark:text-gray-700">--</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-white font-semibold">
-                      {formatCurrency(getCardMarketPrice(card), "EUR")}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-gray-400">
-                      {formatCurrency(card.price?.tcp_market, "USD")}
-                    </td>
-                  </tr>
-                ))}
+                        {showEpisodeMeta && hasCardEpisodeMeta(card) && (
+                          <div className="mt-1">
+                            <Link
+                              href={`/expansions/${card.episode_id}`}
+                              onClick={(event) => event.stopPropagation()}
+                              className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-700 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                            >
+                              {card.episode_name}
+                              {card.episode_code ? (
+                                <span className="ml-1 opacity-60">({card.episode_code})</span>
+                              ) : null}
+                            </Link>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {card.rarity ? (
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${rarityBadge(
+                              card.rarity
+                            )}`}
+                          >
+                            {normalizeRarityLabel(card.rarity) ?? card.rarity}
+                          </span>
+                        ) : (
+                          <span className="text-gray-200 dark:text-gray-700">--</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-white font-semibold">
+                        {formatCurrency(getCardMarketPrice(card), "EUR")}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-gray-400">
+                        {formatCurrency(card.price?.tcp_market, "USD")}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -881,13 +1013,20 @@ export default function ExpansionView({ cards, episode }: Props) {
           {filtered.map((card, index) => {
             const gridPrice = getPriceBySource(card, primaryPriceSource);
             const gridCurrency = getPriceSourceCurrency(primaryPriceSource);
+            const gridSelected = selectedCardIdSet.has(card.id);
             return (
               <div
                 key={card.id}
                 className="flex flex-col gap-1.5 cursor-pointer"
-                onClick={() => openDetails(card)}
+                onClick={() => handleCardClick(card)}
               >
-                <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-md shadow-black/20 hover:shadow-xl hover:shadow-black/30 hover:scale-[1.03] transition-all duration-200">
+                <div
+                  className={`relative w-full aspect-[63/88] overflow-hidden rounded-xl border transition-all duration-200 ${
+                    gridSelected
+                      ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
+                      : "border-transparent shadow-md shadow-black/20 hover:scale-[1.03] hover:shadow-xl hover:shadow-black/30"
+                  }`}
+                >
                   {card.image_url ? (
                     <Image
                       src={card.image_url}
@@ -904,45 +1043,79 @@ export default function ExpansionView({ cards, episode }: Props) {
                     </div>
                   )}
 
-                  <div className="absolute right-2 top-2">
-                    <CollectionAddCardButton
-                      card={{
-                        id: card.id,
-                        name: card.name,
-                        image_url: card.image_url,
-                        episode:
-                          episode ?? {
-                            id: "",
-                            name: "",
-                            code: null,
-                          },
-                      }}
-                      theme="dark"
-                      className="h-8 w-8 bg-black/65 text-white hover:bg-black/78"
-                    />
-                  </div>
+                  {gridSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
                 </div>
-                <div className="px-0.5">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white truncate leading-snug">
-                    {card.name}
-                  </p>
-                  <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] tabular-nums">
-                    <span className="text-gray-400 dark:text-gray-500">
-                      {card.card_number ? `#${card.card_number}` : "--"}
-                    </span>
-                    {gridPrice != null && (
-                      <span className="text-gray-500 dark:text-gray-400">
-                        {primaryPriceSource === "tcp"
-                          ? `TCP ${formatCurrency(gridPrice, gridCurrency)}`
-                          : formatCurrency(gridPrice, gridCurrency)}
-                      </span>
-                    )}
+                <div className="mt-2 px-0.5">
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
+                        {card.name}
+                      </p>
+                      <div className="mt-0.5 space-y-0.5">
+                        <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                          {card.card_number ? `#${card.card_number}` : "--"}
+                        </span>
+                        {showEpisodeMeta && hasCardEpisodeMeta(card) && (
+                          <Link
+                            href={`/expansions/${card.episode_id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="block truncate text-[11px] font-medium text-gray-400 transition-colors hover:text-gray-700 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                          >
+                            {card.episode_name}
+                            {card.episode_code ? (
+                              <span className="ml-1 opacity-60">({card.episode_code})</span>
+                            ) : null}
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {gridPrice != null ? (
+                        <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                          {primaryPriceSource === "tcp"
+                            ? `TCP ${formatCurrency(gridPrice, gridCurrency)}`
+                            : formatCurrency(gridPrice, gridCurrency)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
+                      )}
+
+                      {!selectionMode && (
+                        <CollectionAddCardButton
+                          card={{
+                            id: card.id,
+                            name: card.name,
+                            image_url: card.image_url,
+                            episode: getCollectionEpisodeForCard(card),
+                          }}
+                          className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {bulkAddOpen && (
+        <CollectionBulkAddCardsModal
+          cards={selectedCards.map((card) => ({
+            id: card.id,
+            name: card.name,
+            image_url: card.image_url,
+            episode: getCollectionEpisodeForCard(card),
+          }))}
+          onClose={() => setBulkAddOpen(false)}
+          onAdded={() => {
+            setBulkAddOpen(false);
+            setSelectionMode(false);
+            setSelectedCardIds([]);
+          }}
+        />
       )}
 
       {filtered.length === 0 && (
@@ -1199,7 +1372,15 @@ export default function ExpansionView({ cards, episode }: Props) {
                       priceSourceCheckedAt={selectedPriceSourceCheckedAt}
                     />
 
-                    {selected.artist && <p className="text-sm text-white/40">Illus. {selected.artist}</p>}
+                    {selected.artist && (
+                      <p className="text-sm text-white/40">
+                        Illus.{" "}
+                        <IllustratorLink
+                          artist={selected.artist}
+                          className="text-white/70 transition-colors hover:text-white hover:underline underline-offset-2"
+                        />
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -1209,12 +1390,7 @@ export default function ExpansionView({ cards, episode }: Props) {
                       id: selected.id,
                       name: selected.name,
                       image_url: selected.image_url,
-                      episode:
-                        episode ?? {
-                          id: "",
-                          name: "",
-                          code: null,
-                        },
+                      episode: getCollectionEpisodeForCard(selected),
                     }}
                     mode="button"
                     theme="dark"
