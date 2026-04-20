@@ -3,7 +3,7 @@ import Link from "next/link";
 import { BookOpen, Boxes, Coins, Sparkles, TrendingUp } from "lucide-react";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import BinderWatchSection from "@/components/BinderWatchSection";
-import CollectionCardsView from "@/components/CollectionCardsView";
+import CollectionCardsView, { type CollectionCardViewItem } from "@/components/CollectionCardsView";
 import CollectionSealedView from "@/components/CollectionSealedView";
 import CreateBinderButton from "@/components/CreateBinderButton";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
@@ -11,6 +11,24 @@ import { formatCollectionCurrency } from "@/lib/collection";
 import { getCollectionOverviewData } from "@/lib/collection-data";
 
 export const dynamic = "force-dynamic";
+
+function isGradedCollectionCard(item: CollectionCardViewItem) {
+  return Boolean(item.grading_company && item.grading_grade);
+}
+
+function SectionHeader({ label, count }: { label: string; count: number }) {
+  return (
+    <div className="mb-4 flex items-center gap-3">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
+        {label}
+      </h2>
+      <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
+        {count}
+      </span>
+      <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+    </div>
+  );
+}
 
 function TabLink({
   href,
@@ -131,11 +149,18 @@ function BinderTile({
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; graded?: string }>;
 }) {
-  const { tab } = await searchParams;
+  const { tab, graded } = await searchParams;
   const activeTab =
-    tab === "cards" || tab === "binders" || tab === "sealed" ? tab : "overview";
+    tab === "cards" ||
+    tab === "binders" ||
+    tab === "sealed" ||
+    tab === "graded"
+      ? tab
+      : graded === "1"
+        ? "graded"
+        : "overview";
   const data = await getCollectionOverviewData();
 
   const summaryCards = [
@@ -173,6 +198,20 @@ export default async function HomePage({
 
   const hasCollection =
     data.cards.length > 0 || data.sealed.length > 0 || data.binders.length > 0;
+  const gradedCards = data.cards.filter(isGradedCollectionCard);
+  const gradedLooseSingles = data.looseSingles.filter(isGradedCollectionCard);
+  const rawLooseSingles = data.looseSingles.filter((item) => !isGradedCollectionCard(item));
+  const showRawLooseSinglesSection =
+    rawLooseSingles.length > 0 || data.looseSingles.length === 0;
+
+  function buildCollectionHref(tabValue: "overview" | "cards" | "binders" | "sealed" | "graded") {
+    const params = new URLSearchParams();
+    if (tabValue !== "overview") {
+      params.set("tab", tabValue);
+    }
+    const query = params.toString();
+    return query ? `/?${query}` : "/";
+  }
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -241,74 +280,139 @@ export default async function HomePage({
           </div>
         </section>
 
-        <div className="inline-flex w-fit rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-          <TabLink href="/" active={activeTab === "overview"} label="Overview" />
-          <TabLink href="/?tab=cards" active={activeTab === "cards"} label="Cards" />
-          <TabLink href="/?tab=binders" active={activeTab === "binders"} label="Binders" />
-          <TabLink href="/?tab=sealed" active={activeTab === "sealed"} label="Sealed" />
-        </div>
-
-        {!hasCollection && (
-          <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
-            <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
-              Your collection is still empty
-            </p>
-            <p className="text-sm text-gray-400">
-              Start with a card, create a binder, or add sealed from search and expansion pages.
-            </p>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex w-fit rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+              <TabLink
+                href={buildCollectionHref("overview")}
+                active={activeTab === "overview"}
+                label="Overview"
+              />
+              <TabLink
+                href={buildCollectionHref("cards")}
+                active={activeTab === "cards"}
+                label="Cards"
+              />
+              <TabLink
+                href={buildCollectionHref("binders")}
+                active={activeTab === "binders"}
+                label="Binders"
+              />
+              <TabLink
+                href={buildCollectionHref("sealed")}
+                active={activeTab === "sealed"}
+                label="Sealed"
+              />
+              <TabLink
+                href={buildCollectionHref("graded")}
+                active={activeTab === "graded"}
+                label="Graded"
+              />
+            </div>
           </div>
-        )}
 
-        {activeTab === "overview" && (
-          <div className="space-y-10">
-            <section>
-              <div className="mb-4 flex items-center gap-3">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-                  Loose Singles
-                </h2>
-                <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                  {data.looseSingles.length}
-                </span>
-                <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-              </div>
-              <CollectionCardsView
-                items={data.looseSingles.slice(0, 12)}
-                allowCollectionRemoval
-                emptyTitle="No loose singles yet"
-                emptyText="Cards saved without a binder appear here."
-              />
-            </section>
+          {!hasCollection && (
+            <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
+              <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
+                Your collection is still empty
+              </p>
+              <p className="text-sm text-gray-400">
+                Start with a card, create a binder, or add sealed from search and expansion pages.
+              </p>
+            </div>
+          )}
 
-            {data.binders.length > 0 && <BinderWatchSection items={data.binderCards} />}
+          {activeTab === "overview" && (
+            <div className="space-y-8">
+            {gradedLooseSingles.length > 0 && (
+              <section>
+                <CollectionCardsView
+                  items={gradedLooseSingles.slice(0, 12)}
+                  allowCollectionRemoval
+                  emptyTitle="No graded cards yet"
+                  emptyText="Graded cards saved without a binder appear here."
+                  sectionTitle="Graded Cards"
+                  sectionCount={gradedLooseSingles.length}
+                />
+              </section>
+            )}
 
-            <section>
-              <div className="mb-4 flex items-center gap-3">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-                  Sealed
-                </h2>
-                <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                  {data.sealed.length}
-                </span>
-                <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-              </div>
-              <CollectionSealedView
-                items={data.sealed.slice(0, 8)}
-                emptyTitle="No sealed saved yet"
-                emptyText="Sealed products you add from search or expansion pages will appear here."
-              />
-            </section>
+            {showRawLooseSinglesSection && (
+              <section>
+                <CollectionCardsView
+                  items={rawLooseSingles.slice(0, 12)}
+                  allowCollectionRemoval
+                  emptyTitle="No loose singles yet"
+                  emptyText="Cards saved without a binder appear here."
+                  sectionTitle="Loose Singles"
+                  sectionCount={rawLooseSingles.length}
+                />
+              </section>
+            )}
 
-            <section>
-              <div className="mb-4 flex items-center gap-3">
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-                  Binders
-                </h2>
-                <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                  {data.binders.length}
-                </span>
-                <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-              </div>
+            {data.binders.length > 0 && data.binderCards.length > 0 && (
+              <BinderWatchSection items={data.binderCards} />
+            )}
 
+              <section>
+                <CollectionSealedView
+                  items={data.sealed.slice(0, 8)}
+                  emptyTitle="No sealed saved yet"
+                  emptyText="Sealed products you add from search or expansion pages will appear here."
+                  sectionTitle="Sealed"
+                  sectionCount={data.sealed.length}
+                />
+              </section>
+
+              <section>
+                <SectionHeader label="Binders" count={data.binders.length} />
+
+                {data.binders.length === 0 ? (
+                  <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
+                    <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
+                      No binders yet
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      Type a set name for an automatic set binder, or create a custom binder.
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className="grid justify-start gap-4"
+                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 360px))" }}
+                  >
+                    {data.binders.map((binder) => (
+                      <BinderTile key={binder.id} binder={binder} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {activeTab === "cards" && (
+          <CollectionCardsView
+            items={data.cards}
+            allowCollectionRemoval
+            emptyTitle="No cards in your collection"
+            emptyText="Use the + button on any card to add it here."
+            splitByGrading={gradedCards.length > 0 && gradedCards.length < data.cards.length}
+            showFilters
+          />
+          )}
+
+          {activeTab === "graded" && (
+            <CollectionCardsView
+              items={gradedCards}
+              allowCollectionRemoval
+              emptyTitle="No graded cards in your collection"
+              emptyText="Cards with a grading company and grade will appear here."
+              showFilters
+            />
+          )}
+
+          {activeTab === "binders" && (
+            <div className="space-y-4">
               {data.binders.length === 0 ? (
                 <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
                   <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
@@ -328,50 +432,17 @@ export default async function HomePage({
                   ))}
                 </div>
               )}
-            </section>
-          </div>
-        )}
+            </div>
+          )}
 
-        {activeTab === "cards" && (
-          <CollectionCardsView
-            items={data.cards}
-            allowCollectionRemoval
-            emptyTitle="No cards in your collection"
-            emptyText="Use the + button on any card to add it here."
-          />
-        )}
-
-        {activeTab === "binders" && (
-          <div className="space-y-4">
-            {data.binders.length === 0 ? (
-              <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
-                <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
-                  No binders yet
-                </p>
-                <p className="text-sm text-gray-400">
-                  Type a set name for an automatic set binder, or create a custom binder.
-                </p>
-              </div>
-            ) : (
-              <div
-                className="grid justify-start gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 360px))" }}
-              >
-                {data.binders.map((binder) => (
-                  <BinderTile key={binder.id} binder={binder} />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === "sealed" && (
-          <CollectionSealedView
-            items={data.sealed}
-            emptyTitle="No sealed in your collection"
-            emptyText="Use the + button on any sealed product to add it here."
-          />
-        )}
+          {activeTab === "sealed" && (
+            <CollectionSealedView
+              items={data.sealed}
+              emptyTitle="No sealed in your collection"
+              emptyText="Use the + button on any sealed product to add it here."
+            />
+          )}
+        </div>
       </div>
     </div>
   );

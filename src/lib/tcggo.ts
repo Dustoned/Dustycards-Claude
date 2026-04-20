@@ -1,10 +1,11 @@
 import { buildCardMarketProductUrl } from "@/lib/cardmarket";
 import { getTcgdexImageLookup, resolveTcgdexImageUrl } from "@/lib/tcgdex";
+import { recordTcggoQuotaSnapshot } from "@/lib/tcggo-usage";
 
 const BASE_URL = "https://cardmarket-api-tcg.p.rapidapi.com";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_RETRY_ATTEMPTS = 2;
-const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 500, 502, 503, 504]);
 
 const headers = {
   "x-rapidapi-key": process.env.RAPIDAPI_KEY!,
@@ -160,6 +161,37 @@ export interface NormalizedSealedProduct {
   };
 }
 
+export class TcggoQuotaExceededError extends Error {
+  path: string;
+  resetAt: Date | null;
+
+  constructor(path: string, resetAt: Date | null = null) {
+    super("TCGGO scraper requests are exhausted. Wait for the quota reset and try again.");
+    this.name = "TcggoQuotaExceededError";
+    this.path = path;
+    this.resetAt = resetAt;
+  }
+}
+
+export function isTcggoQuotaExceededError(
+  error: unknown
+): error is TcggoQuotaExceededError {
+  return error instanceof TcggoQuotaExceededError;
+}
+
+function parseHeaderInt(value: string | null): number | null {
+  if (value == null) return null;
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseQuotaResetAt(headers: Headers): Date | null {
+  const resetSeconds = parseHeaderInt(headers.get("x-ratelimit-requests-reset"));
+  if (resetSeconds == null || resetSeconds < 0) return null;
+  return new Date(Date.now() + resetSeconds * 1000);
+}
+
 async function apiFetch<T>(path: string): Promise<T> {
   let attempt = 0;
   let lastError: Error | null = null;
@@ -175,7 +207,17 @@ async function apiFetch<T>(path: string): Promise<T> {
         signal: controller.signal,
       });
 
+      try {
+        await recordTcggoQuotaSnapshot(res.headers);
+      } catch {
+        // Quota tracking should never block the scraper itself.
+      }
+
       if (!res.ok) {
+        if (res.status === 429) {
+          throw new TcggoQuotaExceededError(path, parseQuotaResetAt(res.headers));
+        }
+
         const statusError = new Error(`TCGGO API ${res.status}: ${path}`);
         if (attempt < MAX_RETRY_ATTEMPTS && RETRYABLE_STATUS_CODES.has(res.status)) {
           lastError = statusError;
@@ -315,17 +357,38 @@ function normalizeGradedPriceLabel(sourceKey: string, nestedKey?: string): strin
   return upperSource;
 }
 
+function dedupeGradedPrices(entries: NormalizedGradedPrice[]): NormalizedGradedPrice[] {
+  const deduped = new Map<string, NormalizedGradedPrice>();
+
+  for (const entry of entries) {
+    const normalizedLabel = entry.label.replace(/\s+/g, " ").trim();
+    if (!normalizedLabel) continue;
+
+    const dedupeKey = normalizedLabel.toUpperCase();
+    const existing = deduped.get(dedupeKey);
+
+    if (!existing || entry.price > existing.price) {
+      deduped.set(dedupeKey, {
+        label: normalizedLabel,
+        price: entry.price,
+      });
+    }
+  }
+
+  return [...deduped.values()].sort((a, b) => b.price - a.price || a.label.localeCompare(b.label));
+}
+
 export function extractGradedPrices(prices: RawPrices | undefined): NormalizedGradedPrice[] {
   const graded = prices?.cardmarket?.graded;
   if (!graded) return [];
 
   if (Array.isArray(graded)) {
-    return graded
-      .flatMap((entry) => {
+    return dedupeGradedPrices(
+      graded.flatMap((entry) => {
         if (!entry?.grade || entry.price == null) return [];
         return [{ label: entry.grade, price: entry.price }];
       })
-      .sort((a, b) => b.price - a.price);
+    );
   }
 
   const normalized: NormalizedGradedPrice[] = [];
@@ -352,7 +415,7 @@ export function extractGradedPrices(prices: RawPrices | undefined): NormalizedGr
     }
   }
 
-  return normalized.sort((a, b) => b.price - a.price);
+  return dedupeGradedPrices(normalized);
 }
 
 interface RawHistoryPriceEntry {

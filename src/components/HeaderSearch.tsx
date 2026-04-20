@@ -2,17 +2,104 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { Search } from "lucide-react";
+import {
+  buildPathWithQuery,
+  clearSearchReturnPath,
+  readSearchReturnPath,
+  rememberSearchReturnPath,
+} from "@/lib/search-navigation";
 
 export default function HeaderSearch() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeQuery = pathname === "/search" ? searchParams.get("q") ?? "" : "";
+  const inputRef = useRef<HTMLInputElement>(null);
+  const startedSearchRef = useRef(false);
+  const shouldRestoreFocusRef = useRef(false);
+  const currentHref = buildPathWithQuery(pathname, searchParams);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const nextValue = pathname === "/search" ? activeQuery : "";
+    if (input.value !== nextValue) {
+      input.value = nextValue;
+    }
+
+    if (pathname === "/search") {
+      startedSearchRef.current = false;
+
+      if (shouldRestoreFocusRef.current) {
+        shouldRestoreFocusRef.current = false;
+        window.requestAnimationFrame(() => {
+          const currentInput = inputRef.current;
+          if (!currentInput) return;
+
+          currentInput.focus();
+          const cursor = currentInput.value.length;
+          currentInput.setSelectionRange(cursor, cursor);
+        });
+      }
+      return;
+    }
+
+    shouldRestoreFocusRef.current = false;
+  }, [activeQuery, pathname]);
+
+  function returnToPreviousPageOrSearch() {
+    const returnHref = readSearchReturnPath();
+    startedSearchRef.current = false;
+    clearSearchReturnPath();
+
+    if (pathname === "/search" && returnHref) {
+      router.replace(returnHref);
+      return;
+    }
+
+    router.replace("/search");
+  }
+
+  function routeToSearch(rawQuery: string, preferPush = false) {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) {
+      returnToPreviousPageOrSearch();
+      return;
+    }
+
+    if (pathname === "/search") {
+      startedSearchRef.current = false;
+    }
+
+    const href = `/search?q=${encodeURIComponent(trimmed)}`;
+
+    if (preferPush && pathname !== "/search" && !startedSearchRef.current) {
+      rememberSearchReturnPath(currentHref);
+      startedSearchRef.current = true;
+      shouldRestoreFocusRef.current = true;
+      router.push(href);
+      return;
+    }
+
+    router.replace(href);
+  }
+
+  function handleChange(nextQuery: string) {
+    if (nextQuery.trim()) {
+      routeToSearch(nextQuery, true);
+      return;
+    }
+
+    if (pathname === "/search" || startedSearchRef.current) {
+      returnToPreviousPageOrSearch();
+    }
+  }
 
   function submitSearch(formData: FormData) {
-    const trimmed = String(formData.get("q") ?? "").trim();
-    router.push(trimmed ? `/search?q=${encodeURIComponent(trimmed)}` : "/search");
+    routeToSearch(String(formData.get("q") ?? ""), pathname !== "/search");
   }
 
   return (
@@ -27,10 +114,11 @@ export default function HeaderSearch() {
         <div className="flex h-10 w-full max-w-xl items-center rounded-full border border-black/8 bg-black/[0.03] px-2 pl-4 shadow-sm shadow-black/5 transition-colors focus-within:border-black/15 focus-within:bg-black/[0.04] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-black/20 dark:focus-within:border-white/20 dark:focus-within:bg-white/[0.07] lg:max-w-2xl">
           <Search className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/40" />
           <input
-            key={`${pathname}-${activeQuery}`}
+            ref={inputRef}
             name="q"
             type="text"
             defaultValue={activeQuery}
+            onChange={(event) => handleChange(event.target.value)}
             placeholder="Search cards, sealed, expansions..."
             className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
             autoComplete="off"
@@ -48,6 +136,10 @@ export default function HeaderSearch() {
       <Link
         href="/search"
         aria-label="Open search"
+        onClick={() => {
+          rememberSearchReturnPath(currentHref);
+          startedSearchRef.current = false;
+        }}
         className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-black/8 bg-black/[0.03] text-gray-500 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white md:hidden"
       >
         <Search className="h-4 w-4" />

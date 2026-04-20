@@ -5,6 +5,7 @@ import {
   buildOwnedCardValueHistory,
   buildOwnedSealedValueHistory,
   combineValueHistories,
+  getCollectionMatchedGradedPrice,
   getCollectionCardMarketValue,
   getCollectionSealedMarketValue,
   sumCollectionPurchasePrices,
@@ -115,6 +116,13 @@ const collectionCardSelect = {
           cm_fr_lowest_nm: true,
           cm_es_lowest_nm: true,
           cm_it_lowest_nm: true,
+        },
+      },
+      gradedPrices: {
+        orderBy: [{ price: "desc" }, { label: "asc" }],
+        select: {
+          label: true,
+          price: true,
         },
       },
       episode: {
@@ -302,7 +310,15 @@ function buildCardViewItem(record: CollectionCardRecord): CollectionCardViewItem
     episode_id: record.card.episode.id,
     episode_name: record.card.episode.name,
     episode_code: record.card.episode.code,
-    current_value: getCollectionCardMarketValue(record.card),
+    current_value: getCollectionCardMarketValue(record.card, {
+      gradingCompany: record.grading_company,
+      gradingGrade: record.grading_grade,
+    }),
+    current_value_label:
+      getCollectionMatchedGradedPrice(record.card, {
+        gradingCompany: record.grading_company,
+        gradingGrade: record.grading_grade,
+      })?.label ?? null,
     purchase_price: record.purchase_price,
     condition: record.condition,
     language: record.language,
@@ -333,7 +349,17 @@ function buildSealedViewItem(record: CollectionSealedRecord): CollectionSealedVi
 
 function sumCardCurrentValue(records: CollectionCardRecord[]): number {
   return Number(
-    records.reduce((total, record) => total + (getCollectionCardMarketValue(record.card) ?? 0), 0).toFixed(2)
+    records
+      .reduce(
+        (total, record) =>
+          total +
+          (getCollectionCardMarketValue(record.card, {
+            gradingCompany: record.grading_company,
+            gradingGrade: record.grading_grade,
+          }) ?? 0),
+        0
+      )
+      .toFixed(2)
   );
 }
 
@@ -526,6 +552,13 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
               cm_it_lowest_nm: true,
             },
           },
+          gradedPrices: {
+            orderBy: [{ price: "desc" }, { label: "asc" }],
+            select: {
+              label: true,
+              price: true,
+            },
+          },
           episode: {
             select: { id: true, name: true, code: true },
           },
@@ -567,15 +600,25 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         gradingCompany: string | null;
         gradingGrade: string | null;
         itemIds: string[];
+        currentValue: number;
       }
     >();
 
+    const allSetCardById = new Map(allSetCards.map((card) => [card.id, card]));
+
     for (const item of ownedCards) {
+      const currentCard = allSetCardById.get(item.card.id);
+      const itemCurrentValue =
+        getCollectionCardMarketValue(currentCard, {
+          gradingCompany: item.grading_company,
+          gradingGrade: item.grading_grade,
+        }) ?? 0;
       const existing = ownedByCardId.get(item.card.id);
       if (existing) {
         existing.count += 1;
         existing.purchasePrice += item.purchase_price ?? 0;
         existing.itemIds.push(item.id);
+        existing.currentValue += itemCurrentValue;
       } else {
         ownedByCardId.set(item.card.id, {
           count: 1,
@@ -587,6 +630,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
           gradingCompany: item.grading_company,
           gradingGrade: item.grading_grade,
           itemIds: [item.id],
+          currentValue: itemCurrentValue,
         });
       }
     }
@@ -617,9 +661,16 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         episode_name: card.episode.name,
         episode_code: card.episode.code,
         current_value:
-          owned && getCollectionCardMarketValue(card) != null
-            ? Number((getCollectionCardMarketValue(card)! * owned.count).toFixed(2))
+          owned
+            ? Number(owned.currentValue.toFixed(2))
             : getCollectionCardMarketValue(card),
+        current_value_label:
+          owned
+            ? getCollectionMatchedGradedPrice(card, {
+                gradingCompany: owned.gradingCompany,
+                gradingGrade: owned.gradingGrade,
+              })?.label ?? null
+            : null,
         purchase_price: owned ? Number(owned.purchasePrice.toFixed(2)) : null,
         condition: owned?.condition ?? null,
         language: owned?.language ?? null,

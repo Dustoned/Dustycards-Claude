@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import CardThreeViewer from "./CardThreeViewer";
 import {
   buildCardMarketProductUrl,
@@ -11,7 +12,14 @@ import {
   withCardMarketFilters,
 } from "@/lib/cardmarket";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
-import type { CardPriceHistoryPoint } from "@/lib/price-history";
+import {
+  CARD_MARKET_HISTORY_SERIES,
+  getCardMarketHistorySeriesCurrentValue,
+  getCardMarketHistorySeriesValue,
+  hasCardMarketHistorySeries,
+  type CardMarketHistorySeriesKey,
+  type CardPriceHistoryPoint,
+} from "@/lib/price-history";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
@@ -26,6 +34,11 @@ import {
   ModalSize,
   PriceSource,
 } from "@/components/SettingsProvider";
+
+interface GradedPriceData {
+  label: string;
+  price: number;
+}
 
 export interface CardData {
   id: string;
@@ -58,14 +71,30 @@ export interface CardData {
     cm_en_avg_7d: number | null;
     cm_en_avg_30d: number | null;
   } | null;
+  graded_prices?: GradedPriceData[];
 }
 
 interface CardDetailData {
+  id: string;
+  name: string;
+  card_number: string | null;
+  rarity: string | null;
+  hp: number | string | null;
+  image_url: string | null;
+  supertype: string | null;
+  subtypes: string | null;
+  artist: string | null;
+  cardmarket_id: string | null;
   cardmarket_url: string | null;
+  tcggo_url: string | null;
+  episode_id: string;
+  episode_name: string;
+  episode_code: string | null;
   price_source_status: string | null;
   price_source_checked_at: string | null;
   price_fetched_at: string | null;
   price: CardData["price"];
+  graded_prices: GradedPriceData[];
   price_history: CardPriceHistoryPoint[];
 }
 
@@ -125,6 +154,32 @@ function hasAnyVisiblePrice(card: CardData): boolean {
     price.tcp_mid,
     price.tcp_low,
   ].some((value) => value != null);
+}
+
+function mergeCardWithDetails(card: CardData, details: CardDetailData): CardData {
+  return {
+    ...card,
+    id: details.id,
+    name: details.name,
+    card_number: details.card_number,
+    rarity: details.rarity,
+    hp: details.hp,
+    image_url: details.image_url,
+    supertype: details.supertype,
+    subtypes: details.subtypes,
+    artist: details.artist,
+    cardmarket_id: details.cardmarket_id,
+    cardmarket_url: details.cardmarket_url,
+    tcggo_url: details.tcggo_url,
+    episode_id: details.episode_id,
+    episode_name: details.episode_name,
+    episode_code: details.episode_code,
+    price_source_status: details.price_source_status,
+    price_source_checked_at: details.price_source_checked_at,
+    price_fetched_at: details.price_fetched_at,
+    price: details.price,
+    graded_prices: details.graded_prices,
+  };
 }
 
 function getPriceSourceCurrency(source: PriceSource): CurrencyCode {
@@ -357,6 +412,10 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
   const [resolvedCardMarketUrls, setResolvedCardMarketUrls] = useState<Record<string, string>>({});
   const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
   const [loadingDetailsId, setLoadingDetailsId] = useState<string | null>(null);
+  const [refreshingCardId, setRefreshingCardId] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [cardMarketHistorySeries, setCardMarketHistorySeries] =
+    useState<CardMarketHistorySeriesKey>("cm_market_en");
   const view: Exclude<CardView, "binder"> =
     settings.defaultView === "binder" ? "grid" : settings.defaultView;
   const rarities = settings.defaultRarities;
@@ -498,8 +557,51 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
   }, [selected, cardDetailsById]);
 
   function openDetails(card: CardData) {
+    setRefreshError(null);
     setSelected(card);
     setLoadingDetailsId(cardDetailsById[card.id] ? null : card.id);
+  }
+
+  async function refreshSelectedCard() {
+    if (!selected) return;
+
+    const cardId = selected.id;
+    setRefreshingCardId(cardId);
+    setRefreshError(null);
+
+    try {
+      const response = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = (await response.json()) as CardDetailData & {
+        error?: string;
+        activeType?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not refresh this card");
+      }
+
+      setCardDetailsById((prev) => ({
+        ...prev,
+        [cardId]: data,
+      }));
+      setSelected((prev) => (prev?.id === cardId ? mergeCardWithDetails(prev, data) : prev));
+
+      if (data.cardmarket_url && isDirectCardMarketUrl(data.cardmarket_url)) {
+        const directUrl = withCardMarketFilters(data.cardmarket_url);
+        setResolvedCardMarketUrls((prev) =>
+          prev[cardId] === directUrl ? prev : { ...prev, [cardId]: directUrl }
+        );
+      }
+    } catch (error) {
+      setRefreshError(
+        error instanceof Error ? error.message : "Could not refresh this card"
+      );
+    } finally {
+      setRefreshingCardId((prev) => (prev === cardId ? null : prev));
+    }
   }
 
   function handleCardClick(card: CardData) {
@@ -1132,6 +1234,8 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
           const ms: ModalSize = settings.modalSize;
           const selectedDetails = cardDetailsById[selected.id] ?? null;
           const selectedPrice = selectedDetails?.price ?? selected.price;
+          const selectedGradedPrices =
+            selectedDetails?.graded_prices ?? selected.graded_prices ?? [];
           const selectedPriceFetchedAt = selectedDetails?.price_fetched_at ?? selected.price_fetched_at;
           const selectedPriceSourceStatus =
             selectedDetails?.price_source_status ?? selected.price_source_status;
@@ -1144,16 +1248,41 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                   cardmarket_url: selectedDetails.cardmarket_url,
                 })
               : getResolvedCardMarketUrl(selected);
-          const selectedCardMarketHistory = (selectedDetails?.price_history ?? []).map((point) => ({
-            date: point.date,
-            label: point.label,
-            value: point.cm_market,
-          }));
           const selectedTcgPlayerHistory = (selectedDetails?.price_history ?? []).map((point) => ({
             date: point.date,
             label: point.label,
             value: point.tcp_market,
           }));
+          const availableCardMarketHistorySeries = CARD_MARKET_HISTORY_SERIES.filter((series) =>
+            hasCardMarketHistorySeries(selectedDetails?.price_history ?? [], series.key)
+          );
+          const activeCardMarketHistorySeries = availableCardMarketHistorySeries.some(
+            (series) => series.key === cardMarketHistorySeries
+          )
+            ? cardMarketHistorySeries
+            : availableCardMarketHistorySeries[0]?.key ?? "cm_market_en";
+          const selectedLocalizedCardMarketHistory = (
+            selectedDetails?.price_history ?? []
+          ).map((point) => ({
+            date: point.date,
+            label: point.label,
+            value:
+              availableCardMarketHistorySeries.length > 0
+                ? getCardMarketHistorySeriesValue(point, activeCardMarketHistorySeries)
+                : point.cm_market,
+          }));
+          const activeCardMarketCurrentValue =
+            availableCardMarketHistorySeries.length > 0
+              ? getCardMarketHistorySeriesCurrentValue(
+                  selectedPrice,
+                  activeCardMarketHistorySeries
+                )
+              : selectedPrice?.cm_en_lowest_nm ??
+                selectedPrice?.cm_de_lowest_nm ??
+                selectedPrice?.cm_fr_lowest_nm ??
+                selectedPrice?.cm_es_lowest_nm ??
+                selectedPrice?.cm_it_lowest_nm ??
+                null;
           const wide = settings.widescreen;
           const imgW =
             ms === "small"
@@ -1234,7 +1363,10 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
             <div
               className="fixed inset-0 z-50 flex items-center justify-center p-6"
               style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
-              onClick={() => setSelected(null)}
+              onClick={() => {
+                setRefreshError(null);
+                setSelected(null);
+              }}
             >
               <div
                 className={`${maxW} glass w-full sm:w-auto rounded-3xl shadow-2xl shadow-black/45 overflow-hidden`}
@@ -1274,23 +1406,41 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
 
                   <div className={contentCls}>
                     <div>
-                      <h2 className={`${titleCls} font-bold text-white leading-tight`}>
-                        {selected.name}
-                      </h2>
-                      <div className={`mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-white/50 ${metaCls}`}>
-                        {selected.card_number && <span>#{selected.card_number}</span>}
-                        {selected.supertype && <span>{selected.supertype}</span>}
-                        {selected.subtypes && <span>{selected.subtypes}</span>}
-                        {selected.hp && <span>HP {selected.hp}</span>}
-                      </div>
-                      {selected.rarity && (
-                        <span
-                          className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold ${rarityBadge(
-                            selected.rarity
-                          )}`}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className={`${titleCls} font-bold text-white leading-tight`}>
+                            {selected.name}
+                          </h2>
+                          <div className={`mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-white/50 ${metaCls}`}>
+                            {selected.card_number && <span>#{selected.card_number}</span>}
+                            {selected.supertype && <span>{selected.supertype}</span>}
+                            {selected.subtypes && <span>{selected.subtypes}</span>}
+                            {selected.hp && <span>HP {selected.hp}</span>}
+                          </div>
+                          {selected.rarity && (
+                            <span
+                              className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold ${rarityBadge(
+                                selected.rarity
+                              )}`}
+                            >
+                              {normalizeRarityLabel(selected.rarity) ?? selected.rarity}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={refreshSelectedCard}
+                          disabled={refreshingCardId === selected.id}
+                          className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/82 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {normalizeRarityLabel(selected.rarity) ?? selected.rarity}
-                        </span>
+                          <RefreshCw
+                            className={`h-4 w-4 ${refreshingCardId === selected.id ? "animate-spin" : ""}`}
+                          />
+                          {refreshingCardId === selected.id ? "Refreshing..." : "Refresh"}
+                        </button>
+                      </div>
+                      {refreshError && (
+                        <p className="mt-2 text-xs text-rose-300">{refreshError}</p>
                       )}
                     </div>
 
@@ -1344,16 +1494,62 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                       </div>
                     </div>
 
+                    {selectedGradedPrices.length > 0 && (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
+                          Graded
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {selectedGradedPrices.map((gradedPrice) => (
+                            <div
+                              key={gradedPrice.label}
+                              className="flex items-center justify-between rounded-xl px-3 py-2"
+                              style={{ background: "rgba(255,255,255,0.06)" }}
+                            >
+                              <span className="text-sm text-white/56">{gradedPrice.label}</span>
+                              <span className="text-sm font-bold tabular-nums text-white">
+                                {formatCurrency(gradedPrice.price, "EUR")}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid gap-3 lg:grid-cols-2">
-                      <PriceHistoryPanel
-                        title="CardMarket History"
-                        currency="EUR"
-                        points={selectedCardMarketHistory}
-                        currentValue={selectedPrice?.cm_en_lowest_nm ?? null}
-                        tone="dark"
-                        loading={loadingDetailsId === selected.id && !selectedDetails}
-                        compact
-                      />
+                      <div className="space-y-2">
+                        {availableCardMarketHistorySeries.length > 1 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {availableCardMarketHistorySeries.map((series) => (
+                              <button
+                                key={series.key}
+                                type="button"
+                                onClick={() => setCardMarketHistorySeries(series.key)}
+                                className={`rounded-full border px-2.5 py-1 text-[11px] leading-none transition-all ${
+                                  activeCardMarketHistorySeries === series.key
+                                    ? "border-white/28 bg-white/14 font-semibold text-white"
+                                    : "border-white/10 text-white/52 hover:border-white/18 hover:text-white/78"
+                                }`}
+                              >
+                                {series.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <PriceHistoryPanel
+                          title={
+                            availableCardMarketHistorySeries.length > 0
+                              ? `CardMarket History (${availableCardMarketHistorySeries.find((series) => series.key === activeCardMarketHistorySeries)?.label ?? "EN"})`
+                              : "CardMarket History"
+                          }
+                          currency="EUR"
+                          points={selectedLocalizedCardMarketHistory}
+                          currentValue={activeCardMarketCurrentValue}
+                          tone="dark"
+                          loading={loadingDetailsId === selected.id && !selectedDetails}
+                          compact
+                        />
+                      </div>
                       <PriceHistoryPanel
                         title="TCGPlayer History"
                         currency="USD"
@@ -1415,7 +1611,10 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                     </button>
                   )}
                   <button
-                    onClick={() => setSelected(null)}
+                    onClick={() => {
+                      setRefreshError(null);
+                      setSelected(null);
+                    }}
                     className="px-6 py-3 rounded-2xl font-semibold text-white/60 hover:text-white transition-colors"
                     style={{ background: "rgba(255,255,255,0.08)" }}
                   >
@@ -1430,7 +1629,7 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
       {selected && threeDCard?.image_url && threeDCard.id === selected.id && (
         <CardThreeViewer
           key={threeDCard.id}
-          card={threeDCard}
+          card={cardDetailsById[threeDCard.id] ? mergeCardWithDetails(threeDCard, cardDetailsById[threeDCard.id]) : threeDCard}
           frontImageUrl={threeDCard.image_url}
           cardMarketUrl={getResolvedCardMarketUrl(threeDCard)}
           onClose={() => setThreeDCard(null)}

@@ -2,13 +2,17 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Search, X, Layers, Package, Layers3 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { useSettings } from "@/components/SettingsProvider";
 import CardModal, { type ModalCardData } from "@/components/CardModal";
+import {
+  clearSearchReturnPath,
+  readSearchReturnPath,
+} from "@/lib/search-navigation";
 import SealedProductModal, {
   type SealedModalProductData,
 } from "@/components/SealedProductModal";
@@ -50,7 +54,10 @@ interface SearchResults {
   sealed: SealedResult[];
   expansions: ExpansionResult[];
   total: number;
+  fuzzy?: boolean;
 }
+
+const MIN_SEARCH_LENGTH = 1;
 
 function formatEur(value: number | null | undefined): string {
   if (value == null) return "-";
@@ -75,23 +82,43 @@ const expansionMinWidth: Record<"small" | "medium" | "large", Record<"normal" | 
 };
 
 function SearchPageContent({ initialQuery }: { initialQuery: string }) {
+  const router = useRouter();
   const { settings } = useSettings();
-  const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const trimmedQuery = query.trim();
+  const trimmedQuery = initialQuery.trim();
 
   useEffect(() => {
-    inputRef.current?.focus();
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      inputRef.current?.focus();
+    }
   }, []);
+
+  function updateQuery(nextQuery: string) {
+    const trimmed = nextQuery.trim();
+    if (trimmed) {
+      router.replace(`/search?q=${encodeURIComponent(trimmed)}`);
+      return;
+    }
+
+    const returnHref = readSearchReturnPath();
+    clearSearchReturnPath();
+
+    if (returnHref) {
+      router.replace(returnHref);
+      return;
+    }
+
+    router.replace("/search");
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (trimmedQuery.length < 3) {
+      if (trimmedQuery.length < MIN_SEARCH_LENGTH) {
         abortRef.current?.abort();
         abortRef.current = null;
         setResults(null);
@@ -167,37 +194,47 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   }
 
   const showEmpty =
-    !loading && results !== null && results.total === 0 && trimmedQuery.length >= 3;
+    !loading && results !== null && results.total === 0 && trimmedQuery.length >= MIN_SEARCH_LENGTH;
 
   const allExpansions: ExpansionResult[] = results?.expansions ?? [];
 
   const minWidth = cardMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"];
   const expMinWidth = expansionMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"];
 
-
   const logoHeight =
     settings.cardSize === "small" ? "h-12" : settings.cardSize === "large" ? "h-20" : "h-14";
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      {/* Search input */}
-      <div className="relative mb-8 max-w-2xl mx-auto">
+      <div className="mb-6 flex flex-col gap-1">
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+          Search
+        </h1>
+        <p className="text-sm text-gray-500 dark:text-white/50">
+          {trimmedQuery
+            ? results?.fuzzy
+              ? `Beste matches voor "${trimmedQuery}" met typo-tolerantie.`
+              : `Live resultaten voor "${trimmedQuery}".`
+            : "Typ bovenin om direct kaarten, sealed en expansions te zoeken."}
+        </p>
+      </div>
+
+      <div className="relative mb-8 max-w-2xl md:hidden">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={initialQuery}
+          onChange={(e) => updateQuery(e.target.value)}
           placeholder="Zoek op naam, set-code, kaartnummer..."
           className="w-full pl-12 pr-10 py-3.5 rounded-2xl text-base bg-white dark:bg-white/5 border border-black/8 dark:border-white/8 text-gray-900 dark:text-white placeholder-gray-400 shadow-sm focus:outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors"
           autoComplete="off"
           spellCheck={false}
         />
-        {query.length > 0 && (
+        {initialQuery.length > 0 && (
           <button
             onClick={() => {
-              setQuery("");
-              setResults(null);
+              updateQuery("");
               inputRef.current?.focus();
             }}
             className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -496,7 +533,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
       )}
 
       {selectedCard && (
-        <CardModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+        <CardModal key={selectedCard.id} card={selectedCard} onClose={() => setSelectedCard(null)} />
       )}
       {selectedSealed && (
         <SealedProductModal
@@ -512,5 +549,5 @@ export default function SearchPage() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
 
-  return <SearchPageContent key={initialQuery} initialQuery={initialQuery} />;
+  return <SearchPageContent initialQuery={initialQuery} />;
 }

@@ -1,12 +1,13 @@
 import { normalizeRarityLabel } from "@/lib/rarity";
 
-export type PriceRefreshTier = "low" | "medium" | "high";
+export type PriceRefreshTier = "base" | "low" | "medium" | "high";
 
 interface PriceRefreshPolicy {
   tier: PriceRefreshTier;
   tierLabel: string;
   cadenceLabel: string;
   intervalMs: number;
+  autoRefreshEnabled: boolean;
 }
 
 export interface PriceRefreshInfo extends PriceRefreshPolicy {
@@ -19,27 +20,38 @@ export interface PriceRefreshInfo extends PriceRefreshPolicy {
 const HOUR_MS = 60 * 60 * 1000;
 
 const PRICE_REFRESH_POLICIES: Record<PriceRefreshTier, PriceRefreshPolicy> = {
+  base: {
+    tier: "base",
+    tierLabel: "Base price",
+    cadenceLabel: "First sync, then manual only",
+    intervalMs: Number.POSITIVE_INFINITY,
+    autoRefreshEnabled: false,
+  },
   low: {
     tier: "low",
     tierLabel: "Low refresh",
     cadenceLabel: "Every 24h",
     intervalMs: 24 * HOUR_MS,
+    autoRefreshEnabled: true,
   },
   medium: {
     tier: "medium",
     tierLabel: "Medium refresh",
-    cadenceLabel: "Every 12h",
-    intervalMs: 12 * HOUR_MS,
+    cadenceLabel: "Every 24h",
+    intervalMs: 24 * HOUR_MS,
+    autoRefreshEnabled: true,
   },
   high: {
     tier: "high",
     tierLabel: "High refresh",
-    cadenceLabel: "Every 6h",
-    intervalMs: 6 * HOUR_MS,
+    cadenceLabel: "Every 12h",
+    intervalMs: 12 * HOUR_MS,
+    autoRefreshEnabled: true,
   },
 };
 
-const LOW_REFRESH_RARITIES = new Set(["Common", "Uncommon", "Rare"]);
+const BASE_PRICE_ONLY_RARITIES = new Set(["Common", "Uncommon"]);
+const LOW_REFRESH_RARITIES = new Set(["Rare"]);
 
 export function formatPriceRefreshedAt(value: string | null): string | null {
   if (!value) return null;
@@ -57,6 +69,7 @@ export function getPriceRefreshTier(rarity: string | null | undefined): PriceRef
   const normalized = normalizeRarityLabel(rarity);
 
   if (!normalized) return "high";
+  if (BASE_PRICE_ONLY_RARITIES.has(normalized)) return "base";
   if (LOW_REFRESH_RARITIES.has(normalized)) return "low";
   if (normalized.includes("Rare Holo")) return "medium";
 
@@ -92,6 +105,16 @@ export function getPriceRefreshInfo(
       hasFetchedAt: false,
       nextRefreshAt: null,
       remainingMs: 0,
+    };
+  }
+
+  if (!policy.autoRefreshEnabled) {
+    return {
+      ...policy,
+      due: false,
+      hasFetchedAt: true,
+      nextRefreshAt: null,
+      remainingMs: Number.POSITIVE_INFINITY,
     };
   }
 

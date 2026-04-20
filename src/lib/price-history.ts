@@ -17,10 +17,26 @@ export interface CardPriceHistoryPoint {
   date: string;
   label: string;
   cm_market: number | null;
+  cm_market_en: number | null;
+  cm_market_de: number | null;
+  cm_market_fr: number | null;
+  cm_market_es: number | null;
+  cm_market_it: number | null;
   tcp_market: number | null;
   cm_avg_7d: number | null;
   cm_avg_30d: number | null;
 }
+
+export const CARD_MARKET_HISTORY_SERIES = [
+  { key: "cm_market_en", label: "EN" },
+  { key: "cm_market_de", label: "DE" },
+  { key: "cm_market_fr", label: "FR" },
+  { key: "cm_market_es", label: "ES" },
+  { key: "cm_market_it", label: "IT" },
+] as const;
+
+export type CardMarketHistorySeriesKey =
+  (typeof CARD_MARKET_HISTORY_SERIES)[number]["key"];
 
 export interface EpisodePriceHistorySnapshot extends CardMarketPriceSnapshot {
   card_id: string;
@@ -100,10 +116,60 @@ export function buildCardPriceHistory(
     date,
     label: toDateLabel(date),
     cm_market: getCardMarketValue(price),
+    cm_market_en: price.cm_en_lowest_nm ?? null,
+    cm_market_de: price.cm_de_lowest_nm ?? null,
+    cm_market_fr: price.cm_fr_lowest_nm ?? null,
+    cm_market_es: price.cm_es_lowest_nm ?? null,
+    cm_market_it: price.cm_it_lowest_nm ?? null,
     tcp_market: price.tcp_market ?? null,
     cm_avg_7d: price.cm_en_avg_7d ?? null,
     cm_avg_30d: price.cm_en_avg_30d ?? null,
   }));
+}
+
+export function getCardMarketHistorySeriesValue(
+  point: CardPriceHistoryPoint,
+  key: CardMarketHistorySeriesKey
+): number | null {
+  switch (key) {
+    case "cm_market_en":
+      return point.cm_market_en ?? null;
+    case "cm_market_de":
+      return point.cm_market_de ?? null;
+    case "cm_market_fr":
+      return point.cm_market_fr ?? null;
+    case "cm_market_es":
+      return point.cm_market_es ?? null;
+    case "cm_market_it":
+      return point.cm_market_it ?? null;
+  }
+}
+
+export function getCardMarketHistorySeriesCurrentValue(
+  snapshot: CardMarketPriceSnapshot | null | undefined,
+  key: CardMarketHistorySeriesKey
+): number | null {
+  if (!snapshot) return null;
+
+  switch (key) {
+    case "cm_market_en":
+      return snapshot.cm_en_lowest_nm ?? null;
+    case "cm_market_de":
+      return snapshot.cm_de_lowest_nm ?? null;
+    case "cm_market_fr":
+      return snapshot.cm_fr_lowest_nm ?? null;
+    case "cm_market_es":
+      return snapshot.cm_es_lowest_nm ?? null;
+    case "cm_market_it":
+      return snapshot.cm_it_lowest_nm ?? null;
+  }
+}
+
+export function hasCardMarketHistorySeries(
+  points: CardPriceHistoryPoint[],
+  key: CardMarketHistorySeriesKey
+): boolean {
+  return points.some((point) => getCardMarketHistorySeriesValue(point, key) != null);
 }
 
 export function buildEpisodeSetPriceHistory(

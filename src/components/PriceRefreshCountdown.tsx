@@ -17,6 +17,7 @@ interface Props {
 }
 
 const TIER_STYLES: Record<PriceRefreshTier, string> = {
+  base: "bg-slate-500/14 text-slate-300",
   low: "bg-emerald-500/14 text-emerald-300",
   medium: "bg-amber-500/14 text-amber-300",
   high: "bg-fuchsia-500/14 text-fuchsia-300",
@@ -54,7 +55,11 @@ export default function PriceRefreshCountdown({
   const summary = !refreshInfo.hasFetchedAt
     ? priceSourceStatus === "unavailable"
       ? "No source price available right now"
-      : "Waiting for first price sync"
+      : refreshInfo.tier === "base"
+        ? "Waiting for first base price sync"
+        : "Waiting for first price sync"
+    : !refreshInfo.autoRefreshEnabled
+      ? "Base price captured; refresh manually when needed"
     : refreshInfo.due
       ? `Refresh overdue by ${formatRefreshCountdown(overdueMs)}`
       : `Next refresh in ${formatRefreshCountdown(refreshInfo.remainingMs)}`;
@@ -80,7 +85,9 @@ export default function PriceRefreshCountdown({
 
       <p className="mt-2 text-sm font-medium text-white/82">{summary}</p>
       {lastRefreshedAt && (
-        <p className="mt-1 text-xs text-white/44">Last refresh {lastRefreshedAt}</p>
+        <p className="mt-1 text-xs text-white/44">
+          {refreshInfo.autoRefreshEnabled ? "Last refresh" : "Base price captured"} {lastRefreshedAt}
+        </p>
       )}
       {!lastRefreshedAt && lastSourceCheckAt && (
         <p className="mt-1 text-xs text-white/44">Last source check {lastSourceCheckAt}</p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,8 +8,15 @@ import { Minus } from "lucide-react";
 import CardModal, { type ModalCardData } from "@/components/CardModal";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionBulkAddCardsModal from "@/components/CollectionBulkAddCardsModal";
+import GradedSlabPreview from "@/components/GradedSlabPreview";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { useSettings } from "@/components/SettingsProvider";
+import {
+  GRADED_SLAB_ASPECT_CLASS,
+  RAW_CARD_ASPECT_CLASS,
+  normalizeGradingCompanyLabel,
+  normalizeGradingGradeLabel,
+} from "@/lib/graded-slabs";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 
 export interface CollectionCardViewItem {
@@ -26,6 +33,7 @@ export interface CollectionCardViewItem {
   episode_name: string;
   episode_code: string | null;
   current_value: number | null;
+  current_value_label?: string | null;
   purchase_price: number | null;
   condition: string | null;
   language?: string | null;
@@ -51,6 +59,10 @@ interface Props {
   allowCollectionRemoval?: boolean;
   showFilters?: boolean;
   onVisibleItemsChange?: (items: CollectionCardViewItem[]) => void;
+  splitByGrading?: boolean;
+  sectionTitle?: string;
+  sectionCount?: number;
+  sectionTrailing?: ReactNode;
 }
 
 interface RemoveDialogState {
@@ -184,6 +196,22 @@ function neutralFilterChip(active: boolean): string {
   return "border-black/8 text-gray-500 opacity-80 hover:border-black/20 hover:opacity-100 hover:text-gray-900 hover:shadow-sm dark:border-white/8 dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white";
 }
 
+function selectionToggleTextClass(active: boolean): string {
+  if (active) {
+    return "shrink-0 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-300 dark:hover:text-blue-200";
+  }
+
+  return "shrink-0 text-xs font-medium text-gray-400 transition-colors hover:text-gray-900 dark:text-white/45 dark:hover:text-white/75";
+}
+
+function isGradedCollectionCard(item: CollectionCardViewItem): boolean {
+  return Boolean(
+    item.owned &&
+      normalizeGradingCompanyLabel(item.grading_company) &&
+      normalizeGradingGradeLabel(item.grading_grade)
+  );
+}
+
 function collectionMetaBadge(
   tone: "neutral" | "positive" | "negative" = "neutral"
 ): string {
@@ -278,10 +306,15 @@ export default function CollectionCardsView({
   allowCollectionRemoval = false,
   showFilters = false,
   onVisibleItemsChange,
+  splitByGrading = false,
+  sectionTitle,
+  sectionCount,
+  sectionTrailing,
 }: Props) {
   const router = useRouter();
   const { settings, set } = useSettings();
   const [search, setSearch] = useState("");
+  const [showOnlyGraded, setShowOnlyGraded] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
@@ -331,6 +364,16 @@ export default function CollectionCardsView({
     () => items.some((item) => item.current_value != null),
     [items]
   );
+  const hasAnyGradedCards = useMemo(
+    () => items.some((item) => isGradedCollectionCard(item)),
+    [items]
+  );
+  const hasAnyRawCards = useMemo(
+    () => items.some((item) => !isGradedCollectionCard(item)),
+    [items]
+  );
+  const showGradedFilter = hasAnyGradedCards && hasAnyRawCards;
+  const effectiveShowOnlyGraded = showOnlyGraded && showGradedFilter;
   const effectiveOnlyPriced = settings.showOnlyPriced && hasAnyPricedCards;
   const pricedOnlyUnavailable = settings.showOnlyPriced && !hasAnyPricedCards;
   const validSelectionKeys = useMemo(
@@ -373,12 +416,24 @@ export default function CollectionCardsView({
         return [];
       }
 
+      if (effectiveShowOnlyGraded && !isGradedCollectionCard(item)) {
+        return [];
+      }
+
       return [{ item, index, selectionKey: `${item.card_id}-${index}` }];
     });
-  }, [items, normalizedSearch, activeRarities, activeSupertypes, effectiveOnlyPriced]);
+  }, [
+    items,
+    normalizedSearch,
+    activeRarities,
+    activeSupertypes,
+    effectiveOnlyPriced,
+    effectiveShowOnlyGraded,
+  ]);
   const persistentFiltersHideEverything =
     showFilters &&
     !normalizedSearch &&
+    !effectiveShowOnlyGraded &&
     items.length > 0 &&
     filteredEntries.length === 0 &&
     (activeRarities.length > 0 || activeSupertypes.length > 0 || effectiveOnlyPriced);
@@ -397,6 +452,32 @@ export default function CollectionCardsView({
     () => visibleEntries.map((entry) => entry.item),
     [visibleEntries]
   );
+    const groupedVisibleEntries = useMemo(() => {
+    if (!splitByGrading) {
+      return [{ key: "all", title: null, entries: visibleEntries }];
+    }
+
+    const gradedEntries = visibleEntries.filter(({ item }) => isGradedCollectionCard(item));
+    const rawEntries = visibleEntries.filter(
+      ({ item }) => !isGradedCollectionCard(item)
+    );
+
+    const groups: Array<{
+      key: string;
+      title: string | null;
+      entries: typeof visibleEntries;
+    }> = [];
+
+    if (gradedEntries.length > 0) {
+      groups.push({ key: "graded", title: "Graded Cards", entries: gradedEntries });
+    }
+
+    if (rawEntries.length > 0) {
+      groups.push({ key: "raw", title: "Raw Cards", entries: rawEntries });
+    }
+
+    return groups;
+  }, [visibleEntries, splitByGrading]);
   const selectableKeys = useMemo(
     () => visibleEntries.map(({ selectionKey }) => selectionKey),
     [visibleEntries]
@@ -601,6 +682,7 @@ export default function CollectionCardsView({
 
   const hasActiveFilters =
     Boolean(search) ||
+    effectiveShowOnlyGraded ||
     activeRarities.length > 0 ||
     activeSupertypes.length > 0 ||
     settings.showOnlyPriced;
@@ -618,8 +700,36 @@ export default function CollectionCardsView({
     );
   }
 
+  const cardTrackWidth =
+    cardMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"];
+  const gridTemplateColumns = `repeat(auto-fill, minmax(${cardTrackWidth}, ${cardTrackWidth}))`;
+  const showInlineSelectionButton =
+    Boolean(sectionTitle) && !showFilters && selectionEnabled && !activeSelectionMode;
+
   return (
     <>
+      {sectionTitle && (
+        <div className="mb-2.5 flex items-center gap-3">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
+            {sectionTitle}
+          </h2>
+          <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
+            {sectionCount ?? items.length}
+          </span>
+          <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+          {sectionTrailing}
+          {showInlineSelectionButton && (
+            <button
+              type="button"
+              onClick={toggleSelectionMode}
+              className={selectionToggleTextClass(false)}
+            >
+              Select
+            </button>
+          )}
+        </div>
+      )}
+
       {showFilters ? (
         <div className="glass mb-4 space-y-2.5 rounded-2xl px-4 py-3 shadow-sm shadow-black/5">
           <div className="flex flex-wrap items-center gap-2">
@@ -683,11 +793,7 @@ export default function CollectionCardsView({
                 <button
                   type="button"
                   onClick={toggleSelectionMode}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    activeSelectionMode
-                      ? "border-blue-500/35 bg-blue-500/12 text-blue-700 dark:text-blue-300"
-                      : "border-black/8 text-gray-500 hover:border-black/18 hover:text-gray-900 dark:border-white/8 dark:text-gray-400 dark:hover:border-white/18 dark:hover:text-white"
-                  }`}
+                  className={selectionToggleTextClass(activeSelectionMode)}
                 >
                   {activeSelectionMode ? "Done" : "Select"}
                 </button>
@@ -699,6 +805,7 @@ export default function CollectionCardsView({
                 type="button"
                 onClick={() => {
                   setSearch("");
+                  setShowOnlyGraded(false);
                   set("defaultRarities", []);
                   set("defaultSupertypes", []);
                   set("showOnlyPriced", false);
@@ -761,6 +868,18 @@ export default function CollectionCardsView({
             >
               <span>{pricedOnlyUnavailable ? "No prices yet" : "Priced only"}</span>
             </button>
+            {showGradedFilter && (
+              <button
+                type="button"
+                aria-pressed={effectiveShowOnlyGraded}
+                onClick={() => setShowOnlyGraded((prev) => !prev)}
+                className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+                  effectiveShowOnlyGraded ? "font-semibold" : "font-medium"
+                } ${neutralFilterChip(effectiveShowOnlyGraded)}`}
+              >
+                <span>Graded</span>
+              </button>
+            )}
           </div>
 
           {pricedOnlyUnavailable && (
@@ -775,7 +894,7 @@ export default function CollectionCardsView({
             </p>
           )}
         </div>
-      ) : selectionEnabled && (
+      ) : selectionEnabled && (!sectionTitle || activeSelectionMode) && (
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           {activeSelectionMode && (
             <>
@@ -824,11 +943,7 @@ export default function CollectionCardsView({
           <button
             type="button"
             onClick={toggleSelectionMode}
-            className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-              activeSelectionMode
-                ? "border-blue-500/50 bg-blue-600 text-white hover:bg-blue-500"
-                : "border-black/8 bg-white/70 text-gray-700 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
-            }`}
+            className={selectionToggleTextClass(activeSelectionMode)}
           >
             {activeSelectionMode ? "Done" : "Select"}
           </button>
@@ -843,81 +958,116 @@ export default function CollectionCardsView({
           <p className="text-sm text-gray-400">Try adjusting or clearing the filters above.</p>
         </div>
       ) : (
-      <div
-        className="grid gap-2"
-        style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(${
-            cardMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"]
-          }, 1fr))`,
-        }}
-      >
-        {visibleEntries.map(({ item, selectionKey }, index) => {
-          const missing = !item.owned;
-          const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
-          const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
-          const conditionBadge = getConditionBadge(item.condition);
-          const imageClass =
-            blurMissing && missing
-              ? "object-contain scale-[1.02] blur-[2.5px] saturate-[0.72] opacity-55"
-              : "object-contain";
-          const pnl =
-            item.current_value != null && item.purchase_price != null
-              ? Number((item.current_value - item.purchase_price).toFixed(2))
-              : null;
-
-          return (
-            <div
-              key={selectionKey}
-              role="button"
-              tabIndex={0}
-              aria-pressed={activeSelectionMode ? isSelected : undefined}
-              aria-disabled={activeSelectionMode && !selectableInMode}
-              onClick={() => handleTileActivate(item, selectionKey, selectableInMode)}
-              onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  handleTileActivate(item, selectionKey, selectableInMode);
-                }
-              }}
-              className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
-            >
+        <div className={splitByGrading ? "space-y-6" : ""}>
+          {groupedVisibleEntries.map((group) => (
+            <section key={group.key}>
+              {group.title && (
+                <div className="mb-2.5 flex items-center gap-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
+                    {group.title}
+                  </h2>
+                  <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
+                    {group.entries.length}
+                  </span>
+                  <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+                </div>
+              )}
               <div
-                className={`relative aspect-[63/88] w-full overflow-hidden rounded-xl border transition-all duration-200 ${
-                  isSelected
-                    ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
-                    : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
-                }`}
+                className="grid gap-2"
+                style={{
+                  gridTemplateColumns,
+                  justifyContent: "start",
+                }}
               >
-                {item.image_url ? (
-                  <Image
-                    src={item.image_url}
-                    alt={item.name}
-                    fill
-                    className={imageClass}
-                    sizes="180px"
-                    loading={index < 18 ? "eager" : undefined}
-                    unoptimized
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-black/6 text-xs text-gray-300 dark:bg-white/6">
-                    {item.name.slice(0, 2)}
-                  </div>
-                )}
+                {group.entries.map(({ item, selectionKey }, index) => {
+                  const missing = !item.owned;
+                  const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
+                  const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
+                  const conditionBadge = getConditionBadge(item.condition);
+                  const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
+                  const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
+                  const isGradedCard = Boolean(item.owned && gradingCompanyLabel && gradingGradeLabel);
+                  const previewAspectClass = isGradedCard
+                    ? GRADED_SLAB_ASPECT_CLASS
+                    : RAW_CARD_ASPECT_CLASS;
+                  const baseImageClass = "object-contain";
+                  const imageClass =
+                    blurMissing && missing
+                      ? `${baseImageClass} blur-[2.5px] saturate-[0.72] opacity-55`
+                      : baseImageClass;
+                  const pnl =
+                    item.current_value != null && item.purchase_price != null
+                      ? Number((item.current_value - item.purchase_price).toFixed(2))
+                      : null;
 
-                {blurMissing && missing && (
-                  <div className="pointer-events-none absolute inset-0 bg-black/[0.08] dark:bg-black/[0.18]" />
-                )}
+                  return (
+                    <div
+                      key={selectionKey}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={activeSelectionMode ? isSelected : undefined}
+                      aria-disabled={activeSelectionMode && !selectableInMode}
+                      onClick={() => handleTileActivate(item, selectionKey, selectableInMode)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleTileActivate(item, selectionKey, selectableInMode);
+                        }
+                      }}
+                      className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
+                    >
+                      <div
+                        className={`relative ${previewAspectClass} w-full overflow-hidden rounded-xl border transition-all duration-200 ${
+                          isSelected
+                            ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
+                            : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
+                        }`}
+                      >
+                        {isGradedCard && gradingCompanyLabel && gradingGradeLabel ? (
+                          <GradedSlabPreview
+                            company={gradingCompanyLabel}
+                            grade={gradingGradeLabel}
+                            name={item.name}
+                            episodeName={item.episode_name}
+                            episodeCode={item.episode_code}
+                            cardNumber={item.card_number}
+                            imageUrl={item.image_url}
+                            alt={item.name}
+                            className="absolute inset-0"
+                            imageClassName={imageClass}
+                            sizes="220px"
+                            loading={index < 18 ? "eager" : undefined}
+                          />
+                        ) : item.image_url ? (
+                          <Image
+                            src={item.image_url}
+                            alt={item.name}
+                            fill
+                            className={imageClass}
+                            sizes="180px"
+                            loading={index < 18 ? "eager" : undefined}
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-black/6 text-xs text-gray-300 dark:bg-white/6">
+                            {item.name.slice(0, 2)}
+                          </div>
+                        )}
 
-                {isSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
+                        {blurMissing && missing && (
+                          <div className="pointer-events-none absolute inset-0 bg-black/[0.08] dark:bg-black/[0.18]" />
+                        )}
 
-                {blurMissing && missing && (
-                  <div className="absolute left-2 top-2">
-                    <span className="rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
-                      Missing
-                    </span>
-                  </div>
-                )}
+                        {isSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
+
+                        {blurMissing && missing && (
+                          <div className="absolute left-2 top-2">
+                            <span className="rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
+                              Missing
+                            </span>
+                          </div>
+                        )}
 
                 {item.owned_count && item.owned_count > 1 && (
                   <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
@@ -950,7 +1100,14 @@ export default function CollectionCardsView({
 
                   <div className="flex shrink-0 items-center gap-1.5">
                     {item.current_value != null ? (
-                      <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                      <span
+                        title={
+                          item.current_value_label
+                            ? `Using ${item.current_value_label} graded price`
+                            : undefined
+                        }
+                        className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white"
+                      >
                         {formatCollectionCurrency(item.current_value)}
                       </span>
                     ) : (
@@ -1020,11 +1177,6 @@ export default function CollectionCardsView({
                         {conditionBadge.label}
                       </span>
                     )}
-                    {item.grading_company && item.grading_grade && (
-                      <span className={collectionMetaBadge()}>
-                        {item.grading_company} {item.grading_grade}
-                      </span>
-                    )}
                   </div>
                 ) : !item.owned && !compactMode ? (
                   <div className="mt-2 flex min-h-[56px] items-center">
@@ -1033,11 +1185,14 @@ export default function CollectionCardsView({
                     </p>
                   </div>
                 ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            </section>
+          ))}
+        </div>
       )}
 
       {bulkAddBinder && bulkAddOpen && (
@@ -1112,7 +1267,9 @@ export default function CollectionCardsView({
         </div>
       )}
 
-      {selectedCard && <CardModal card={selectedCard} onClose={() => setSelectedCard(null)} />}
+      {selectedCard && (
+        <CardModal key={selectedCard.id} card={selectedCard} onClose={() => setSelectedCard(null)} />
+      )}
     </>
   );
 }

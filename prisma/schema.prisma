@@ -230,3 +230,15 @@ model SyncLog {
 
   @@index([status, started_at])
 }
+
+model ApiQuotaSnapshot {
+  source             String   @id
+  requests_limit     Int?
+  requests_remaining Int?
+  requests_used      Int?
+  quota_resets_at    DateTime?
+  observed_at        DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@index([quota_resets_at])
+}

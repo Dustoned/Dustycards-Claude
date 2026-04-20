@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { buildCardPriceHistory } from "@/lib/price-history";
+import { SyncConflictError, runCardPriceRefresh } from "@/lib/sync";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
-
+async function getCardDetailPayload(id: string) {
   const card = await db.card.findUnique({
     where: { id },
     select: {
@@ -55,13 +51,13 @@ export async function GET(
   });
 
   if (!card) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return null;
   }
 
   const latestPrice = card.prices[card.prices.length - 1] ?? null;
   const priceHistory = buildCardPriceHistory(card.prices);
 
-  return NextResponse.json({
+  return {
     id: card.id,
     name: card.name,
     card_number: card.card_number,
@@ -98,5 +94,51 @@ export async function GET(
     episode_id: card.episode.id,
     episode_name: card.episode.name,
     episode_code: card.episode.code,
-  });
+  };
+}
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const payload = await getCardDetailPayload(id);
+
+  if (!payload) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(payload);
+}
+
+export async function POST(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  try {
+    await runCardPriceRefresh(id);
+    const payload = await getCardDetailPayload(id);
+
+    if (!payload) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(payload);
+  } catch (error) {
+    if (error instanceof SyncConflictError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          activeType: error.activeType,
+          startedAt: error.startedAt.toISOString(),
+        },
+        { status: 409 }
+      );
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

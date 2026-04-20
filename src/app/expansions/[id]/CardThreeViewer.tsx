@@ -5,6 +5,15 @@ import { RotateCcw, X } from "lucide-react";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import IllustratorLink from "@/components/IllustratorLink";
 import { withCardMarketFilters } from "@/lib/cardmarket";
+import {
+  PSA_SLAB_MODEL_DIMENSIONS,
+  RAW_TCG_CARD_DIMENSIONS,
+  formatPsaNameLine,
+  formatPsaSetLine,
+  getPsaGradeDescriptor,
+  normalizeGradingCompanyLabel,
+  normalizeGradingGradeLabel,
+} from "@/lib/graded-slabs";
 import { normalizeRarityLabel } from "@/lib/rarity";
 
 type CurrencyCode = "EUR" | "USD";
@@ -12,6 +21,7 @@ type CurrencyCode = "EUR" | "USD";
 interface ViewerCard {
   name: string;
   card_number: string | null;
+  episode_name?: string | null;
   rarity: string | null;
   hp: number | string | null;
   supertype: string | null;
@@ -28,6 +38,14 @@ interface ViewerCard {
     cm_en_avg_7d: number | null;
     cm_en_avg_30d: number | null;
   } | null;
+  graded_prices?: Array<{
+    label: string;
+    price: number;
+  }>;
+  collection_item?: {
+    grading_company: string | null;
+    grading_grade: string | null;
+  } | null;
 }
 
 interface Props {
@@ -38,7 +56,7 @@ interface Props {
 }
 
 const CARD_WIDTH = 2.5;
-const CARD_HEIGHT = (CARD_WIDTH * 88) / 63;
+const CARD_HEIGHT = (CARD_WIDTH * RAW_TCG_CARD_DIMENSIONS.height) / RAW_TCG_CARD_DIMENSIONS.width;
 const CARD_DEPTH = 0.018;
 const CARD_CORNER_RADIUS = 0.078;
 const CARD_FACE_OFFSET = 0.0009;
@@ -47,9 +65,24 @@ const CARD_FRONT_TEXTURE_BLEED = 0.02;
 const CARD_BACK_TEXTURE_INSET = 0.02;
 const CARD_BACK_URL = "/assets/pokemon-card-back.jpg";
 const CARD_PAPER_COLOR = "#ece7df";
-const CARD_BOUNDING_RADIUS = Math.sqrt(
-  (CARD_WIDTH / 2) ** 2 + (CARD_HEIGHT / 2) ** 2 + (CARD_DEPTH / 2) ** 2
-);
+const PSA_SLAB_WIDTH = (CARD_WIDTH * PSA_SLAB_MODEL_DIMENSIONS.width) / RAW_TCG_CARD_DIMENSIONS.width;
+const PSA_SLAB_HEIGHT =
+  (CARD_WIDTH * PSA_SLAB_MODEL_DIMENSIONS.height) / RAW_TCG_CARD_DIMENSIONS.width;
+const PSA_SLAB_DEPTH = (CARD_WIDTH * PSA_SLAB_MODEL_DIMENSIONS.depth) / RAW_TCG_CARD_DIMENSIONS.width;
+const PSA_MODEL_DEPTH_SCALE = PSA_SLAB_DEPTH / PSA_SLAB_MODEL_DIMENSIONS.depth;
+const PSA_FRONT_RECESS_Z =
+  (5 - PSA_SLAB_MODEL_DIMENSIONS.depth / 2) * PSA_MODEL_DEPTH_SCALE;
+const PSA_CARD_CENTER_Y = -PSA_SLAB_HEIGHT * 0.085;
+const PSA_CARD_SCALE = 1.09;
+const PSA_LABEL_WIDTH = PSA_SLAB_WIDTH * 0.888;
+const PSA_LABEL_HEIGHT = PSA_SLAB_HEIGHT * 0.123;
+const PSA_LABEL_WELL_WIDTH = PSA_LABEL_WIDTH * 1.002;
+const PSA_LABEL_WELL_HEIGHT = PSA_LABEL_HEIGHT * 1.002;
+const PSA_LABEL_Y = PSA_SLAB_HEIGHT * 0.387;
+const PSA_LABEL_WELL_Z = -0.014;
+const PSA_LABEL_Z = -0.01;
+const PSA_CARD_COVER_Z = PSA_FRONT_RECESS_Z + 0.0015;
+const PSA_LABEL_COVER_Z = PSA_FRONT_RECESS_Z + 0.0015;
 const DEFAULT_CAMERA_DISTANCE = 8.55;
 const MIN_CAMERA_DISTANCE = 4.4;
 const MAX_CAMERA_DISTANCE = 10.8;
@@ -461,23 +494,269 @@ function createRoundedRectShape(
   radius: number
 ) {
   const shape = new THREE.Shape();
-  const x = -width / 2;
-  const y = -height / 2;
+  appendRoundedRectPath(shape, -width / 2, -height / 2, width, height, radius);
+  return shape;
+}
+
+function appendRoundedRectPath(
+  target: import("three").Shape | import("three").Path,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
   const w = width;
   const h = height;
   const r = Math.min(radius, width / 2, height / 2);
 
-  shape.moveTo(x + r, y);
-  shape.lineTo(x + w - r, y);
-  shape.quadraticCurveTo(x + w, y, x + w, y + r);
-  shape.lineTo(x + w, y + h - r);
-  shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  shape.lineTo(x + r, y + h);
-  shape.quadraticCurveTo(x, y + h, x, y + h - r);
-  shape.lineTo(x, y + r);
-  shape.quadraticCurveTo(x, y, x + r, y);
+  target.moveTo(x + r, y);
+  target.lineTo(x + w - r, y);
+  target.quadraticCurveTo(x + w, y, x + w, y + r);
+  target.lineTo(x + w, y + h - r);
+  target.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  target.lineTo(x + r, y + h);
+  target.quadraticCurveTo(x, y + h, x, y + h - r);
+  target.lineTo(x, y + r);
+  target.quadraticCurveTo(x, y, x + r, y);
+}
 
-  return shape;
+function drawRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) {
+  const clampedRadius = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + clampedRadius, y);
+  context.lineTo(x + width - clampedRadius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + clampedRadius);
+  context.lineTo(x + width, y + height - clampedRadius);
+  context.quadraticCurveTo(x + width, y + height, x + width - clampedRadius, y + height);
+  context.lineTo(x + clampedRadius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - clampedRadius);
+  context.lineTo(x, y + clampedRadius);
+  context.quadraticCurveTo(x, y, x + clampedRadius, y);
+  context.closePath();
+}
+
+function drawPsaLogoMark(
+  context: CanvasRenderingContext2D,
+  centerX: number,
+  baselineY: number,
+  fontSize: number
+) {
+  const drawLetter = (
+    letter: string,
+    x: number,
+    color: string,
+    scale = 1
+  ) => {
+    context.save();
+    context.translate(x, baselineY);
+    context.scale(scale, scale);
+    context.font = `900 ${fontSize}px Arial Black, Arial, sans-serif`;
+    context.textAlign = "left";
+    context.textBaseline = "alphabetic";
+    context.lineJoin = "round";
+    context.lineWidth = fontSize * 0.08;
+    context.strokeStyle = "rgba(17,17,17,0.78)";
+    context.shadowColor = "rgba(255,255,255,0.92)";
+    context.shadowBlur = fontSize * 0.05;
+    context.shadowOffsetY = fontSize * 0.025;
+    context.strokeText(letter, 0, 0);
+    context.fillStyle = color;
+    context.fillText(letter, 0, 0);
+    context.restore();
+  };
+
+  drawLetter("P", centerX - fontSize * 0.92, "#1f57ab", 1.02);
+  drawLetter("S", centerX - fontSize * 0.27, "#f53933", 1.17);
+  drawLetter("A", centerX + fontSize * 0.41, "#1f57ab", 1.02);
+}
+
+function createPsaLabelTexture(
+  THREE: typeof import("three"),
+  cardName: string,
+  episodeName: string | null | undefined,
+  cardNumber: string | null,
+  grade: string
+) {
+  const scale = 2;
+  const s = (value: number) => value * scale;
+  const canvas = document.createElement("canvas");
+  canvas.width = s(1400);
+  canvas.height = s(420);
+
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.fillStyle = "#e13b37";
+  drawRoundedRect(context, 0, 0, canvas.width, canvas.height - s(34), s(30));
+  context.fill();
+
+  context.fillStyle = "#fbfbfb";
+  drawRoundedRect(context, s(16), s(16), canvas.width - s(32), canvas.height - s(66), s(24));
+  context.fill();
+
+  const leftX = s(50);
+  const rightX = canvas.width - s(48);
+  const eyebrowY = s(92);
+  const nameY = s(184);
+  const setY = s(258);
+  const cardNumberY = s(104);
+  const descriptorY = s(180);
+  const gradeY = s(302);
+
+  context.fillStyle = "#111111";
+  context.font = `700 ${s(34)}px Arial, sans-serif`;
+  context.fillText("POKEMON TCG", leftX, eyebrowY);
+
+  context.font = `700 ${s(68)}px Arial, sans-serif`;
+  context.fillText(formatPsaNameLine(cardName), leftX, nameY);
+
+  context.globalAlpha = 0.85;
+  context.font = `600 ${s(46)}px Arial, sans-serif`;
+  context.fillText(formatPsaSetLine(episodeName ?? cardName, cardNumber), leftX, setY);
+  context.globalAlpha = 1;
+
+  context.textAlign = "right";
+  context.font = `700 ${s(52)}px Arial, sans-serif`;
+  if (cardNumber) {
+    context.fillText(`#${cardNumber}`, rightX, cardNumberY);
+  }
+
+  context.font = `700 ${s(52)}px Arial, sans-serif`;
+  context.fillText(getPsaGradeDescriptor(grade) ?? "GRADE", rightX, descriptorY);
+
+  context.font = `900 ${s(128)}px Arial Black, Arial, sans-serif`;
+  context.fillText(grade, rightX, gradeY);
+  context.textAlign = "start";
+
+  context.fillStyle = "#e13b37";
+  const logoOuterWidth = canvas.width * 0.27;
+  const logoOuterX = (canvas.width - logoOuterWidth) / 2;
+  const logoOuterY = canvas.height - s(72);
+  drawRoundedRect(context, logoOuterX, logoOuterY, logoOuterWidth, s(62), s(10));
+  context.fill();
+
+  context.fillStyle = "#fcfcfc";
+  drawRoundedRect(
+    context,
+    logoOuterX + s(8),
+    logoOuterY + s(8),
+    logoOuterWidth - s(16),
+    s(50),
+    s(8)
+  );
+  context.fill();
+  drawPsaLogoMark(context, canvas.width / 2, canvas.height - s(24), s(52));
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function fitStlGeometry(
+  geometry: import("three").BufferGeometry,
+  THREE: typeof import("three"),
+  targetSize: { width: number; height: number; depth: number }
+) {
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox;
+  if (!bounds) return;
+
+  const center = new THREE.Vector3();
+  bounds.getCenter(center);
+  geometry.translate(-center.x, -center.y, -center.z);
+
+  geometry.computeBoundingBox();
+  const centeredBounds = geometry.boundingBox;
+  if (!centeredBounds) return;
+
+  const size = new THREE.Vector3();
+  centeredBounds.getSize(size);
+  const scale = Math.min(
+    targetSize.width / Math.max(size.x, 0.0001),
+    targetSize.height / Math.max(size.y, 0.0001),
+    targetSize.depth / Math.max(size.z, 0.0001)
+  );
+
+  geometry.scale(scale, scale, scale);
+}
+
+function sliceGeometryByCentroidZ(
+  THREE: typeof import("three"),
+  geometry: import("three").BufferGeometry,
+  predicate: (centroidZ: number) => boolean
+) {
+  const positions = geometry.getAttribute("position");
+  const normals = geometry.getAttribute("normal");
+
+  if (!positions || positions.count % 3 !== 0) {
+    return null;
+  }
+
+  const nextPositions: number[] = [];
+  const nextNormals: number[] = [];
+
+  for (let index = 0; index < positions.count; index += 3) {
+    const az = positions.getZ(index);
+    const bz = positions.getZ(index + 1);
+    const cz = positions.getZ(index + 2);
+    const centroidZ = (az + bz + cz) / 3;
+
+    if (!predicate(centroidZ)) {
+      continue;
+    }
+
+    for (let vertexIndex = 0; vertexIndex < 3; vertexIndex += 1) {
+      const offset = index + vertexIndex;
+      nextPositions.push(
+        positions.getX(offset),
+        positions.getY(offset),
+        positions.getZ(offset)
+      );
+
+      if (normals) {
+        nextNormals.push(
+          normals.getX(offset),
+          normals.getY(offset),
+          normals.getZ(offset)
+        );
+      }
+    }
+  }
+
+  if (nextPositions.length === 0) {
+    return null;
+  }
+
+  const nextGeometry = new THREE.BufferGeometry();
+  nextGeometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(nextPositions, 3)
+  );
+
+  if (nextNormals.length === nextPositions.length) {
+    nextGeometry.setAttribute(
+      "normal",
+      new THREE.Float32BufferAttribute(nextNormals, 3)
+    );
+  } else {
+    nextGeometry.computeVertexNormals();
+  }
+
+  return nextGeometry;
 }
 
 function flattenTextureOnCardSurface(
@@ -579,11 +858,14 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function getSafeCameraDistance(camera: import("three").PerspectiveCamera) {
+function getSafeCameraDistance(
+  camera: import("three").PerspectiveCamera,
+  boundingRadius: number
+) {
   const verticalHalfFov = (camera.fov * Math.PI) / 360;
   const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * Math.max(camera.aspect, 0.01));
   const limitingHalfFov = Math.max(Math.min(verticalHalfFov, horizontalHalfFov), 0.01);
-  return (CARD_BOUNDING_RADIUS / Math.sin(limitingHalfFov)) * 1.08;
+  return (boundingRadius / Math.sin(limitingHalfFov)) * 1.08;
 }
 
 function getBaseFramingOffset(viewportWidth: number) {
@@ -632,6 +914,9 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
   const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
   const filteredCardMarketUrl = cardMarketUrl ? withCardMarketFilters(cardMarketUrl) : null;
+  const gradingCompanyLabel = normalizeGradingCompanyLabel(card.collection_item?.grading_company);
+  const gradingGradeLabel = normalizeGradingGradeLabel(card.collection_item?.grading_grade);
+  const isPsaSlabViewer = gradingCompanyLabel === "PSA" && Boolean(gradingGradeLabel);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -724,9 +1009,10 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
             );
           });
 
-        const [loadedFrontTexture, backTexture] = await Promise.all([
+        const [loadedFrontTexture, backTexture, stlLoaderModule] = await Promise.all([
           loadTexture(frontImageUrl),
           loadTexture(CARD_BACK_URL),
+          isPsaSlabViewer ? import("three/examples/jsm/loaders/STLLoader.js") : Promise.resolve(null),
         ]);
 
         if (!mounted) {
@@ -754,8 +1040,13 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
           foilProfile,
           frontTexture
         );
+        if (isPsaSlabViewer) {
+          holoUniforms.uFoilStrength.value *= 0.72;
+          holoUniforms.uRainbowStrength.value *= 0.58;
+        }
         const cardGroup = new THREE.Group();
         const cameraTarget = new THREE.Vector3();
+        const pickTargets: import("three").Object3D[] = [];
         const edgeMaterial = new THREE.MeshPhysicalMaterial({
           color: "#d8d1c7",
           map: edgeTexture ?? undefined,
@@ -814,7 +1105,195 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
         backMesh.position.z = -(CARD_DEPTH / 2 + CARD_FACE_OFFSET);
         backMesh.rotation.y = Math.PI;
 
+        if (isPsaSlabViewer) {
+          edgeMesh.scale.setScalar(PSA_CARD_SCALE);
+          frontMesh.scale.setScalar(PSA_CARD_SCALE);
+          holoMesh.scale.setScalar(PSA_CARD_SCALE);
+          backMesh.scale.setScalar(PSA_CARD_SCALE);
+          edgeMesh.position.y = PSA_CARD_CENTER_Y;
+          frontMesh.position.y = PSA_CARD_CENTER_Y;
+          holoMesh.position.y = PSA_CARD_CENTER_Y;
+          backMesh.position.y = PSA_CARD_CENTER_Y;
+          edgeMesh.position.z = -0.012;
+          frontMesh.position.z = -0.0025;
+          holoMesh.position.z = 0.0005;
+          backMesh.position.z = -(CARD_DEPTH + 0.003);
+        }
+
         cardGroup.add(edgeMesh, frontMesh, holoMesh, backMesh);
+        pickTargets.push(frontMesh, backMesh, edgeMesh);
+
+        let slabGeometry: import("three").BufferGeometry | null = null;
+        let slabFrontGeometry: import("three").BufferGeometry | null = null;
+        let slabBackGeometry: import("three").BufferGeometry | null = null;
+        let slabFrontMaterial: import("three").Material | null = null;
+        let slabBackMaterial: import("three").Material | null = null;
+        let slabFrontMesh: import("three").Mesh | null = null;
+        let slabBackMesh: import("three").Mesh | null = null;
+        let labelTexture: import("three").Texture | null = null;
+        let cardCoverGeometry: import("three").BufferGeometry | null = null;
+        let cardCoverMaterial: import("three").Material | null = null;
+        let labelWellGeometry: import("three").BufferGeometry | null = null;
+        let labelWellMaterial: import("three").Material | null = null;
+        let labelCoverGeometry: import("three").BufferGeometry | null = null;
+        let labelCoverMaterial: import("three").Material | null = null;
+        let labelFaceGeometry: import("three").BufferGeometry | null = null;
+        let labelFrontMaterial: import("three").Material | null = null;
+        let labelBackMaterial: import("three").Material | null = null;
+
+        if (isPsaSlabViewer && gradingGradeLabel && stlLoaderModule) {
+          const stlLoader = new stlLoaderModule.STLLoader();
+          slabGeometry = await new Promise<import("three").BufferGeometry>((resolve, reject) => {
+            stlLoader.load("/assets/slabs/psa-slab.stl", resolve, undefined, reject);
+          });
+
+          if (!mounted) {
+            slabGeometry.dispose();
+            frontTexture.dispose();
+            backTexture.dispose();
+            edgeTexture?.dispose();
+            return;
+          }
+
+          fitStlGeometry(slabGeometry, THREE, {
+            width: PSA_SLAB_WIDTH,
+            height: PSA_SLAB_HEIGHT,
+            depth: PSA_SLAB_DEPTH,
+          });
+
+          slabBackGeometry = sliceGeometryByCentroidZ(THREE, slabGeometry, (centroidZ) => centroidZ < 0);
+          slabFrontGeometry = sliceGeometryByCentroidZ(THREE, slabGeometry, (centroidZ) => centroidZ >= 0);
+
+          slabBackMaterial = new THREE.MeshPhysicalMaterial({
+            color: "#ecebe7",
+            roughness: 0.08,
+            metalness: 0,
+            transparent: true,
+            opacity: 0.3,
+            transmission: 0.26,
+            thickness: 0.16,
+            ior: 1.46,
+            clearcoat: 1,
+            clearcoatRoughness: 0.08,
+            side: THREE.DoubleSide,
+          });
+          slabFrontMaterial = new THREE.MeshPhysicalMaterial({
+            color: "#f3f2ef",
+            roughness: 0.08,
+            metalness: 0,
+            transparent: true,
+            opacity: 0.3,
+            transmission: 0.26,
+            thickness: 0.16,
+            ior: 1.46,
+            clearcoat: 1,
+            clearcoatRoughness: 0.08,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          });
+
+          if (slabBackGeometry) {
+            slabBackMesh = new THREE.Mesh(slabBackGeometry, slabBackMaterial);
+            slabBackMesh.renderOrder = 0.25;
+            cardGroup.add(slabBackMesh);
+            pickTargets.push(slabBackMesh);
+          }
+
+          if (slabFrontGeometry) {
+            slabFrontMesh = new THREE.Mesh(slabFrontGeometry, slabFrontMaterial);
+            slabFrontMesh.renderOrder = 2.25;
+            cardGroup.add(slabFrontMesh);
+            pickTargets.push(slabFrontMesh);
+          }
+
+          cardCoverGeometry = new THREE.ShapeGeometry(faceShape, 16);
+          normalizeGeometryUvs(THREE, cardCoverGeometry);
+          cardCoverMaterial = new THREE.MeshBasicMaterial({
+            color: "#ffffff",
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          });
+          const cardCoverMesh = new THREE.Mesh(cardCoverGeometry, cardCoverMaterial);
+          cardCoverMesh.scale.setScalar(PSA_CARD_SCALE * 1.006);
+          cardCoverMesh.position.set(0, PSA_CARD_CENTER_Y, PSA_CARD_COVER_Z);
+          cardCoverMesh.renderOrder = 2.15;
+          cardGroup.add(cardCoverMesh);
+
+          const labelWellShape = createRoundedRectShape(
+            THREE,
+            PSA_LABEL_WELL_WIDTH,
+            PSA_LABEL_WELL_HEIGHT,
+            0.09
+          );
+          labelWellGeometry = new THREE.ShapeGeometry(labelWellShape, 18);
+          normalizeGeometryUvs(THREE, labelWellGeometry);
+          labelWellMaterial = new THREE.MeshBasicMaterial({
+            color: "#cac7c0",
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+          });
+          const labelWellMesh = new THREE.Mesh(labelWellGeometry, labelWellMaterial);
+          labelWellMesh.position.set(0, PSA_LABEL_Y, PSA_LABEL_WELL_Z);
+          labelWellMesh.renderOrder = 0.55;
+          cardGroup.add(labelWellMesh);
+
+          labelTexture = createPsaLabelTexture(
+            THREE,
+            card.name,
+            card.episode_name,
+            card.card_number,
+            gradingGradeLabel
+          );
+          if (labelTexture) {
+            const labelShape = createRoundedRectShape(
+              THREE,
+              PSA_LABEL_WIDTH,
+              PSA_LABEL_HEIGHT,
+              0.085
+            );
+            labelFaceGeometry = new THREE.ShapeGeometry(labelShape, 18);
+            normalizeGeometryUvs(THREE, labelFaceGeometry);
+            labelFrontMaterial = new THREE.MeshBasicMaterial({
+              map: labelTexture,
+              transparent: true,
+              alphaTest: 0.02,
+              toneMapped: false,
+            });
+            const labelFrontMesh = new THREE.Mesh(labelFaceGeometry, labelFrontMaterial);
+            labelFrontMesh.position.set(0, PSA_LABEL_Y, PSA_LABEL_Z + 0.0002);
+            labelFrontMesh.renderOrder = 0.76;
+            cardGroup.add(labelFrontMesh);
+            pickTargets.push(labelFrontMesh);
+
+            labelBackMaterial = new THREE.MeshBasicMaterial({
+              color: "#f2f1ed",
+            });
+            const labelBackMesh = new THREE.Mesh(labelFaceGeometry, labelBackMaterial);
+            labelBackMesh.position.set(0, PSA_LABEL_Y, PSA_LABEL_Z - 0.0002);
+            labelBackMesh.rotation.y = Math.PI;
+            labelBackMesh.renderOrder = 0.71;
+            cardGroup.add(labelBackMesh);
+
+            labelCoverGeometry = new THREE.ShapeGeometry(labelShape, 18);
+            normalizeGeometryUvs(THREE, labelCoverGeometry);
+            labelCoverMaterial = new THREE.MeshBasicMaterial({
+              color: "#ffffff",
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+              side: THREE.DoubleSide,
+            });
+            const labelCoverMesh = new THREE.Mesh(labelCoverGeometry, labelCoverMaterial);
+            labelCoverMesh.scale.set(1, 1, 1);
+            labelCoverMesh.position.set(0, PSA_LABEL_Y, PSA_LABEL_COVER_Z);
+            labelCoverMesh.renderOrder = 2.16;
+            cardGroup.add(labelCoverMesh);
+          }
+        }
+
         cardGroup.rotation.set(
           initialRotationRef.current.x,
           initialRotationRef.current.y,
@@ -822,9 +1301,14 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
         );
         scene.add(cardGroup);
 
+        const objectBounds = new THREE.Box3().setFromObject(cardGroup);
+        const objectSize = new THREE.Vector3();
+        objectBounds.getSize(objectSize);
+        const objectBoundingRadius = Math.max(objectSize.length() / 2, CARD_WIDTH * 0.8);
+
         const targetRotation = { ...initialRotationRef.current };
         const getResetCameraDistance = () =>
-          Math.max(DEFAULT_CAMERA_DISTANCE, getSafeCameraDistance(camera));
+          Math.max(DEFAULT_CAMERA_DISTANCE, getSafeCameraDistance(camera, objectBoundingRadius));
 
         let targetCameraDistance = getResetCameraDistance();
         const activePointers = new Map<number, { x: number; y: number }>();
@@ -832,7 +1316,6 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
         let pinchStartCameraDistance = targetCameraDistance;
         const raycaster = new THREE.Raycaster();
         const pointer = new THREE.Vector2();
-        const pickTargets: import("three").Object3D[] = [edgeMesh, frontMesh, backMesh];
         const pointerTargetUv = new THREE.Vector2(0.5, 0.5);
         let pointerTargetStrength = 0;
 
@@ -866,7 +1349,8 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
           const y = -((clientY - rect.top) / rect.height) * 2 + 1;
           pointer.set(x, y);
           raycaster.setFromCamera(pointer, camera);
-          return raycaster.intersectObjects(pickTargets, false)[0] ?? null;
+          const intersections = raycaster.intersectObjects(pickTargets, false);
+          return intersections.find((intersection) => intersection.uv) ?? intersections[0] ?? null;
         };
 
         const hitTestCard = (clientX: number, clientY: number) => intersectCard(clientX, clientY) != null;
@@ -989,6 +1473,22 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
           holoMaterial.dispose();
           backMaterial.dispose();
           hiddenFaceMaterial.dispose();
+          slabGeometry?.dispose();
+          slabFrontGeometry?.dispose();
+          slabBackGeometry?.dispose();
+          slabFrontMaterial?.dispose();
+          slabBackMaterial?.dispose();
+          cardCoverGeometry?.dispose();
+          cardCoverMaterial?.dispose();
+          labelFaceGeometry?.dispose();
+          labelFrontMaterial?.dispose();
+          labelBackMaterial?.dispose();
+          labelTexture?.dispose();
+          labelWellGeometry?.dispose();
+          labelWellMaterial?.dispose();
+          labelCoverGeometry?.dispose();
+          labelCoverMaterial?.dispose();
+          slabGeometry?.dispose();
           frontTexture.dispose();
           backTexture.dispose();
           edgeTexture?.dispose();
@@ -1051,7 +1551,15 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
         rootElement.style.cursor = "";
       }
     };
-  }, [frontImageUrl, card.rarity]);
+  }, [
+    frontImageUrl,
+    card.rarity,
+    card.name,
+    card.card_number,
+    card.episode_name,
+    gradingGradeLabel,
+    isPsaSlabViewer,
+  ]);
 
   const cardMarketPriceRows = [
     { label: "CardMarket", value: card.price?.cm_en_lowest_nm, currency: "EUR" as const },
@@ -1063,6 +1571,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     { label: "TCP Mid", value: card.price?.tcp_mid, currency: "USD" as const },
     { label: "TCP Low", value: card.price?.tcp_low, currency: "USD" as const },
   ].filter(({ value }) => value != null);
+  const gradedPriceRows = card.graded_prices ?? [];
 
   function isPersistentUiTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Node)) return false;
@@ -1207,6 +1716,27 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                             <span className="text-white/52">{label}</span>
                             <span className="font-semibold tabular-nums text-white">
                               {formatCurrency(value, currency)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {gradedPriceRows.length > 0 && (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
+                        Graded
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {gradedPriceRows.map((gradedPrice) => (
+                          <div
+                            key={gradedPrice.label}
+                            className="flex items-center justify-between rounded-2xl bg-white/8 px-3 py-2"
+                          >
+                            <span className="text-white/52">{gradedPrice.label}</span>
+                            <span className="font-semibold tabular-nums text-white">
+                              {formatCurrency(gradedPrice.price, "EUR")}
                             </span>
                           </div>
                         ))}

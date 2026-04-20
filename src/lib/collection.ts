@@ -35,9 +35,6 @@ export const COLLECTION_GRADING_COMPANIES = [
   "PSA",
   "BGS",
   "CGC",
-  "ACE",
-  "SGC",
-  "Other",
 ] as const;
 
 export const COLLECTION_BINDER_ICONS = [
@@ -69,6 +66,10 @@ export interface CollectionCardValueLike {
     cm_fr_lowest_nm: number | null;
     cm_es_lowest_nm: number | null;
     cm_it_lowest_nm: number | null;
+  }>;
+  gradedPrices?: Array<{
+    label: string;
+    price: number;
   }>;
 }
 
@@ -102,7 +103,104 @@ export function formatCollectionCurrency(value: number | null | undefined): stri
   }).format(value);
 }
 
-export function getCollectionCardMarketValue(card: CollectionCardValueLike | null | undefined): number | null {
+function normalizeGradeToken(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toUpperCase().replace(/\s+/g, " ") ?? "";
+  if (!normalized) return null;
+
+  if (/^\d+(?:\.0+)?$/.test(normalized)) {
+    return String(Number(normalized));
+  }
+
+  return normalized;
+}
+
+function buildGradedLabelCandidates(
+  gradingCompany: string | null | undefined,
+  gradingGrade: string | null | undefined
+): string[] {
+  const company = gradingCompany?.trim().toUpperCase();
+  const grade = normalizeGradeToken(gradingGrade);
+
+  if (!company || !grade) return [];
+
+  const candidates = new Set<string>([`${company} ${grade}`]);
+
+  if (/^\d+(?:\.\d+)?$/.test(grade)) {
+    candidates.add(`${company} ${Number(grade)}`);
+    if (!grade.includes(".")) {
+      candidates.add(`${company} ${grade}.0`);
+    }
+  }
+
+  return [...candidates];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizeGradedLabelKey(value: string): string {
+  return value
+    .toUpperCase()
+    .replace(/[^A-Z0-9.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function getCollectionMatchedGradedPrice(
+  card: CollectionCardValueLike | null | undefined,
+  options?: {
+    gradingCompany?: string | null;
+    gradingGrade?: string | null;
+  }
+): { label: string; price: number } | null {
+  const candidates = buildGradedLabelCandidates(
+    options?.gradingCompany,
+    options?.gradingGrade
+  );
+  if (candidates.length === 0) return null;
+
+  const normalizedCandidates = candidates.map((candidate) => normalizeGradedLabelKey(candidate));
+  const exactCandidates = new Set(normalizedCandidates);
+  const compactCandidates = new Set(
+    normalizedCandidates.map((candidate) => candidate.replace(/\s+/g, ""))
+  );
+  const prefixMatchers = normalizedCandidates.map(
+    (candidate) =>
+      new RegExp(
+        `^${escapeRegExp(candidate).replace(/\\ /g, "\\s*")}(?![\\d.])(?:$|\\b|\\s|[-(/])`,
+        "i"
+      )
+  );
+
+  for (const gradedPrice of card?.gradedPrices ?? []) {
+    const normalizedLabel = normalizeGradedLabelKey(gradedPrice.label);
+    const compactLabel = normalizedLabel.replace(/\s+/g, "");
+
+    if (
+      exactCandidates.has(normalizedLabel) ||
+      compactCandidates.has(compactLabel) ||
+      prefixMatchers.some((matcher) => matcher.test(normalizedLabel))
+    ) {
+      return gradedPrice;
+    }
+  }
+
+  return null;
+}
+
+export function getCollectionCardMarketValue(
+  card: CollectionCardValueLike | null | undefined,
+  options?: {
+    gradingCompany?: string | null;
+    gradingGrade?: string | null;
+  }
+): number | null {
+  const matchedGradedPrice = getCollectionMatchedGradedPrice(card, options);
+  if (matchedGradedPrice) {
+    return matchedGradedPrice.price;
+  }
+
   return getCardMarketValue(card?.prices?.[0] ?? null);
 }
 

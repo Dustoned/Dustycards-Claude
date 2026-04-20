@@ -10,6 +10,46 @@ interface ParsedQuery {
   setCode: string | null;
 }
 
+interface SearchCardRecord {
+  id: string;
+  name: string;
+  card_number: string | null;
+  rarity: string | null;
+  supertype: string | null;
+  image_url: string | null;
+  episode: {
+    id: string;
+    name: string;
+    code: string | null;
+  };
+  prices: Array<{
+    cm_en_lowest_nm: number | null;
+    tcp_market: number | null;
+  }>;
+}
+
+interface SearchSealedRecord {
+  id: string;
+  name: string;
+  image_url: string | null;
+  cardmarket_url: string | null;
+  cm_lowest: number | null;
+  cm_avg_7d: number | null;
+  cm_avg_30d: number | null;
+  episode: {
+    id: string;
+    name: string;
+    code: string | null;
+  };
+}
+
+interface SearchExpansionRecord {
+  id: string;
+  name: string;
+  code: string | null;
+  logo_url: string | null;
+}
+
 const SET_CODE_RE = /^[a-z]{1,6}\d[\w]*$/i;
 
 function parseSearchQuery(raw: string): ParsedQuery {
@@ -78,6 +118,75 @@ function searchTokens(value: string): string[] {
   }
 
   return tokens;
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function maxFuzzyDistance(length: number): number {
+  if (length <= 4) return 1;
+  if (length <= 8) return 2;
+  return 3;
+}
+
+function damerauLevenshteinDistance(a: string, b: string, maxDistance: number): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1;
+
+  const matrix = Array.from({ length: a.length + 1 }, () =>
+    Array<number>(b.length + 1).fill(0)
+  );
+
+  for (let i = 0; i <= a.length; i += 1) {
+    matrix[i][0] = i;
+  }
+
+  for (let j = 0; j <= b.length; j += 1) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= a.length; i += 1) {
+    let rowMin = maxDistance + 1;
+
+    for (let j = 1; j <= b.length; j += 1) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+
+      let value = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+
+      if (
+        i > 1 &&
+        j > 1 &&
+        a[i - 1] === b[j - 2] &&
+        a[i - 2] === b[j - 1]
+      ) {
+        value = Math.min(value, matrix[i - 2][j - 2] + 1);
+      }
+
+      matrix[i][j] = value;
+      if (value < rowMin) {
+        rowMin = value;
+      }
+    }
+
+    if (rowMin > maxDistance) {
+      return maxDistance + 1;
+    }
+  }
+
+  return matrix[a.length][b.length];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,14 +260,299 @@ function relevanceScore(value: string, rawQuery: string): number {
   return score;
 }
 
+function fuzzyRelevanceScore(value: string, rawQuery: string): number {
+  const normalizedValue = normalizeSearchText(value);
+  const normalizedQuery = normalizeSearchText(rawQuery);
+
+  if (!normalizedValue || !normalizedQuery) return 0;
+
+  let score = relevanceScore(normalizedValue, normalizedQuery);
+  const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+  const valueTokens = normalizedValue.split(" ").filter(Boolean);
+
+  if (queryTokens.length === 0 || valueTokens.length === 0) {
+    return score;
+  }
+
+  let tokenScore = 0;
+
+  for (const queryToken of queryTokens) {
+    const maxDistance = maxFuzzyDistance(queryToken.length);
+    let bestDistance = maxDistance + 1;
+    let bestLengthDiff = Number.POSITIVE_INFINITY;
+
+    for (const valueToken of valueTokens) {
+      const lengthDiff = Math.abs(valueToken.length - queryToken.length);
+      if (lengthDiff > maxDistance) continue;
+
+      const distance = damerauLevenshteinDistance(queryToken, valueToken, maxDistance);
+      if (
+        distance < bestDistance ||
+        (distance === bestDistance && lengthDiff < bestLengthDiff)
+      ) {
+        bestDistance = distance;
+        bestLengthDiff = lengthDiff;
+      }
+    }
+
+    if (bestDistance > maxDistance) {
+      tokenScore = 0;
+      break;
+    }
+
+    tokenScore += 115 - bestDistance * 28 - bestLengthDiff * 6;
+  }
+
+  if (tokenScore > 0) {
+    score = Math.max(score, tokenScore + (queryTokens.length > 1 ? 20 : 0));
+  }
+
+  const compactValue = normalizedValue.replace(/\s+/g, "");
+  const compactQuery = normalizedQuery.replace(/\s+/g, "");
+  const maxWholeDistance = maxFuzzyDistance(compactQuery.length);
+  const wholeDistance = damerauLevenshteinDistance(
+    compactQuery,
+    compactValue,
+    maxWholeDistance
+  );
+
+  if (wholeDistance <= maxWholeDistance) {
+    score = Math.max(
+      score,
+      170 - wholeDistance * 34 - Math.abs(compactValue.length - compactQuery.length) * 3
+    );
+  }
+
+  return score;
+}
+
 function compareRelevance(aScore: number, bScore: number): number {
   return bScore - aScore;
+}
+
+function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) {
+  const nameLower = relevanceQuery.toLowerCase();
+
+  return cards
+    .map((card) => ({
+      id: card.id,
+      name: card.name,
+      card_number: card.card_number,
+      rarity: card.rarity,
+      supertype: card.supertype,
+      image_url: card.image_url,
+      episode_id: card.episode.id,
+      episode_name: card.episode.name,
+      episode_code: card.episode.code,
+      cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? null,
+      tcp_market: card.prices[0]?.tcp_market ?? null,
+    }))
+    .sort((a, b) => {
+      if (nameLower) {
+        const scoreDiff = compareRelevance(
+          relevanceScore(a.name, relevanceQuery),
+          relevanceScore(b.name, relevanceQuery)
+        );
+        if (scoreDiff !== 0) return scoreDiff;
+      }
+
+      const nameCmp = a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
+      if (nameCmp !== 0) return nameCmp;
+
+      const aPrice = a.cm_en_lowest_nm ?? a.tcp_market ?? -1;
+      const bPrice = b.cm_en_lowest_nm ?? b.tcp_market ?? -1;
+      return bPrice - aPrice;
+    });
+}
+
+function formatSealedResults(sealed: SearchSealedRecord[], relevanceQuery: string) {
+  return sealed
+    .map((product) => ({
+      id: product.id,
+      name: product.name,
+      image_url: product.image_url,
+      cardmarket_url: product.cardmarket_url,
+      cm_lowest: product.cm_lowest,
+      cm_avg_7d: product.cm_avg_7d,
+      cm_avg_30d: product.cm_avg_30d,
+      episode: product.episode,
+    }))
+    .sort((a, b) => {
+      const aScore =
+        relevanceScore(a.name, relevanceQuery) +
+        Math.floor(relevanceScore(a.episode.name, relevanceQuery) / 2);
+      const bScore =
+        relevanceScore(b.name, relevanceQuery) +
+        Math.floor(relevanceScore(b.episode.name, relevanceQuery) / 2);
+      const scoreDiff = compareRelevance(aScore, bScore);
+      if (scoreDiff !== 0) return scoreDiff;
+
+      const aPrice = a.cm_lowest ?? -1;
+      const bPrice = b.cm_lowest ?? -1;
+      return bPrice - aPrice;
+    });
+}
+
+function formatExpansionResults(expansions: SearchExpansionRecord[], relevanceQuery: string) {
+  return expansions.sort((a, b) => {
+    const scoreDiff = compareRelevance(
+      relevanceScore(a.name, relevanceQuery),
+      relevanceScore(b.name, relevanceQuery)
+    );
+    if (scoreDiff !== 0) return scoreDiff;
+
+    return a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
+  });
+}
+
+async function runFuzzyFallback(rawQuery: string) {
+  const normalizedQuery = normalizeSearchText(rawQuery);
+  if (normalizedQuery.length < 4) {
+    return { singles: [], sealed: [], expansions: [], total: 0, fuzzy: false };
+  }
+
+  const [allCardCandidates, allSealed, allExpansions] = await Promise.all([
+    db.card.findMany({
+      select: {
+        id: true,
+        name: true,
+        card_number: true,
+        rarity: true,
+        supertype: true,
+        image_url: true,
+        episode: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+      },
+    }),
+    db.sealedProduct.findMany({
+      select: {
+        id: true,
+        name: true,
+        image_url: true,
+        cardmarket_url: true,
+        cm_lowest: true,
+        cm_avg_7d: true,
+        cm_avg_30d: true,
+        episode: { select: { id: true, name: true, code: true } },
+      },
+    }),
+    db.episode.findMany({
+      select: { id: true, name: true, code: true, logo_url: true },
+      take: 200,
+      orderBy: { release_date: "desc" },
+    }),
+  ]);
+
+  const visibleCards = allCardCandidates.filter(
+    (card) =>
+      !isHiddenExpansion({
+        id: card.episode.id,
+        code: card.episode.code,
+        name: card.episode.name,
+      })
+  );
+  const visibleSealed = allSealed.filter(
+    (product) =>
+      !isHiddenExpansion({
+        id: product.episode.id,
+        code: product.episode.code,
+        name: product.episode.name,
+      })
+  );
+  const visibleExpansions = allExpansions.filter(
+    (episode) =>
+      !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
+  );
+
+  const topCardIds = visibleCards
+    .map((card) => ({
+      id: card.id,
+      score:
+        fuzzyRelevanceScore(card.name, rawQuery) +
+        Math.floor(fuzzyRelevanceScore(card.episode.name, rawQuery) / 3),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => compareRelevance(a.score, b.score))
+    .slice(0, Math.min(MAX_RESULTS, 36))
+    .map((entry) => entry.id);
+
+  const detailedCards = topCardIds.length
+    ? await db.card.findMany({
+        where: {
+          id: { in: topCardIds },
+        },
+        select: {
+          id: true,
+          name: true,
+          card_number: true,
+          rarity: true,
+          supertype: true,
+          image_url: true,
+          episode: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+          prices: {
+            orderBy: { fetched_at: "desc" },
+            take: 1,
+            select: { cm_en_lowest_nm: true, tcp_market: true },
+          },
+        },
+      })
+    : [];
+  const detailedCardById = new Map(detailedCards.map((card) => [card.id, card]));
+  const singles = topCardIds
+    .map((id) => detailedCardById.get(id))
+    .filter((card): card is SearchCardRecord => Boolean(card));
+
+  const sealed = visibleSealed
+    .map((product) => ({
+      product,
+      score:
+        fuzzyRelevanceScore(product.name, rawQuery) +
+        Math.floor(fuzzyRelevanceScore(product.episode.name, rawQuery) / 2),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => compareRelevance(a.score, b.score))
+    .slice(0, 18)
+    .map((entry) => entry.product);
+
+  const expansions = visibleExpansions
+    .map((episode) => ({
+      episode,
+      score: fuzzyRelevanceScore(episode.name, rawQuery),
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => compareRelevance(a.score, b.score))
+    .slice(0, 12)
+    .map((entry) => entry.episode);
+
+  const formattedSingles = formatSingleResults(singles, rawQuery);
+  const formattedSealed = formatSealedResults(sealed, rawQuery);
+  const formattedExpansions = formatExpansionResults(expansions, rawQuery);
+
+  return {
+    singles: formattedSingles,
+    sealed: formattedSealed,
+    expansions: formattedExpansions,
+    total:
+      formattedSingles.length + formattedSealed.length + formattedExpansions.length,
+    fuzzy: true,
+  };
 }
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
 
-  if (q.length < 3) {
+  if (q.length === 0) {
     return NextResponse.json({ singles: [], sealed: [], expansions: [], total: 0 });
   }
 
@@ -286,78 +680,27 @@ export async function GET(req: NextRequest) {
         !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
     );
 
-    const nameLower = (name ?? "").toLowerCase();
     const relevanceQuery = name ?? q;
-    const singles = visibleCards
-      .map((card) => ({
-        id: card.id,
-        name: card.name,
-        card_number: card.card_number,
-        rarity: card.rarity,
-        supertype: card.supertype,
-        image_url: card.image_url,
-        episode_id: card.episode.id,
-        episode_name: card.episode.name,
-        episode_code: card.episode.code,
-        cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? null,
-        tcp_market: card.prices[0]?.tcp_market ?? null,
-        }))
-      .sort((a, b) => {
-        if (nameLower) {
-          const scoreDiff = compareRelevance(
-            relevanceScore(a.name, relevanceQuery),
-            relevanceScore(b.name, relevanceQuery)
-          );
-          if (scoreDiff !== 0) return scoreDiff;
-        }
+    const singles = formatSingleResults(visibleCards, relevanceQuery);
+    const sealedResults = formatSealedResults(visibleSealed, relevanceQuery);
+    const expansionResults = formatExpansionResults(visibleExpansions, relevanceQuery);
+    const total = singles.length + sealedResults.length + expansionResults.length;
 
-        const nameCmp = a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
-        if (nameCmp !== 0) return nameCmp;
+    if (total === 0) {
+      const fuzzyResults = await runFuzzyFallback(q);
 
-        const aPrice = a.cm_en_lowest_nm ?? a.tcp_market ?? -1;
-        const bPrice = b.cm_en_lowest_nm ?? b.tcp_market ?? -1;
-        return bPrice - aPrice;
+      return NextResponse.json({
+        ...fuzzyResults,
+        parsed,
       });
-    const sealedResults = visibleSealed
-      .map((product) => ({
-        id: product.id,
-        name: product.name,
-        image_url: product.image_url,
-        cardmarket_url: product.cardmarket_url,
-        cm_lowest: product.cm_lowest,
-        cm_avg_7d: product.cm_avg_7d,
-        cm_avg_30d: product.cm_avg_30d,
-        episode: product.episode,
-      }))
-      .sort((a, b) => {
-        const aScore =
-          relevanceScore(a.name, relevanceQuery) +
-          Math.floor(relevanceScore(a.episode.name, relevanceQuery) / 2);
-        const bScore =
-          relevanceScore(b.name, relevanceQuery) +
-          Math.floor(relevanceScore(b.episode.name, relevanceQuery) / 2);
-        const scoreDiff = compareRelevance(aScore, bScore);
-        if (scoreDiff !== 0) return scoreDiff;
-
-        const aPrice = a.cm_lowest ?? -1;
-        const bPrice = b.cm_lowest ?? -1;
-        return bPrice - aPrice;
-      });
-    const expansionResults = visibleExpansions.sort((a, b) => {
-      const scoreDiff = compareRelevance(
-        relevanceScore(a.name, relevanceQuery),
-        relevanceScore(b.name, relevanceQuery)
-      );
-      if (scoreDiff !== 0) return scoreDiff;
-
-      return a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
-    });
+    }
 
     return NextResponse.json({
       singles,
       sealed: sealedResults,
       expansions: expansionResults,
-      total: singles.length + sealedResults.length + expansionResults.length,
+      total,
+      fuzzy: false,
       parsed,
     });
   } catch (e) {

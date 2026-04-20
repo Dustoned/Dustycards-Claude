@@ -30,6 +30,8 @@ interface Props {
   items: CollectionSealedViewItem[];
   emptyTitle: string;
   emptyText: string;
+  sectionTitle?: string;
+  sectionCount?: number;
 }
 
 interface RemoveDialogState {
@@ -43,6 +45,14 @@ const tileMinWidth = {
   medium: { normal: "220px", wide: "280px" },
   large: { normal: "280px", wide: "340px" },
 } as const;
+
+function selectionToggleTextClass(active: boolean): string {
+  if (active) {
+    return "shrink-0 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-300 dark:hover:text-blue-200";
+  }
+
+  return "shrink-0 text-xs font-medium text-gray-400 transition-colors hover:text-gray-900 dark:text-white/45 dark:hover:text-white/75";
+}
 
 function buildModalProduct(item: CollectionSealedViewItem): SealedModalProductData {
   return {
@@ -68,7 +78,13 @@ function buildModalProduct(item: CollectionSealedViewItem): SealedModalProductDa
   };
 }
 
-export default function CollectionSealedView({ items, emptyTitle, emptyText }: Props) {
+export default function CollectionSealedView({
+  items,
+  emptyTitle,
+  emptyText,
+  sectionTitle,
+  sectionCount,
+}: Props) {
   const router = useRouter();
   const { settings } = useSettings();
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
@@ -86,6 +102,7 @@ export default function CollectionSealedView({ items, emptyTitle, emptyText }: P
   );
   const allSelectableSelected =
     selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id));
+  const showInlineSelectionButton = Boolean(sectionTitle) && !selectionMode && items.length > 0;
 
   function openProduct(item: CollectionSealedViewItem) {
     setSelectedSealed(buildModalProduct(item));
@@ -181,60 +198,92 @@ export default function CollectionSealedView({ items, emptyTitle, emptyText }: P
 
   if (items.length === 0) {
     return (
-      <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
-        <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">{emptyTitle}</p>
-        <p className="text-sm text-gray-400">{emptyText}</p>
-      </div>
+      <>
+        {sectionTitle && (
+          <div className="mb-2.5 flex items-center gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
+              {sectionTitle}
+            </h2>
+            <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
+              {sectionCount ?? items.length}
+            </span>
+            <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+          </div>
+        )}
+        <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
+          <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">{emptyTitle}</p>
+          <p className="text-sm text-gray-400">{emptyText}</p>
+        </div>
+      </>
     );
   }
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-        {selectionMode && (
-          <>
-            <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 text-xs font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
-              {activeSelectedIds.length} selected
-            </span>
+      {sectionTitle && (
+        <div className="mb-2.5 flex items-center gap-3">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
+            {sectionTitle}
+          </h2>
+          <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
+            {sectionCount ?? items.length}
+          </span>
+          <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+          {showInlineSelectionButton && (
             <button
               type="button"
-              onClick={() => setSelectedIds(selectableIds)}
-              disabled={selectableIds.length === 0 || allSelectableSelected}
-              className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+              onClick={toggleSelectionMode}
+              className={selectionToggleTextClass(false)}
             >
-              Select all
+              Select
             </button>
-            <button
-              type="button"
-              onClick={() => setSelectedIds([])}
-              disabled={activeSelectedIds.length === 0}
-              className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={handleBulkRemove}
-              disabled={removingItems || activeSelectedIds.length === 0}
-              className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
-            >
-              Remove
-            </button>
-          </>
-        )}
+          )}
+        </div>
+      )}
 
-        <button
-          type="button"
-          onClick={toggleSelectionMode}
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-            selectionMode
-              ? "border-blue-500/50 bg-blue-600 text-white hover:bg-blue-500"
-              : "border-black/8 bg-white/70 text-gray-700 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
-          }`}
-        >
-          {selectionMode ? "Done" : "Select"}
-        </button>
-      </div>
+      {(selectionMode || !sectionTitle) && (
+        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          {selectionMode && (
+            <>
+              <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 text-xs font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
+                {activeSelectedIds.length} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(selectableIds)}
+                disabled={selectableIds.length === 0 || allSelectableSelected}
+                className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds([])}
+                disabled={activeSelectedIds.length === 0}
+                className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkRemove}
+                disabled={removingItems || activeSelectedIds.length === 0}
+                className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+              >
+                Remove
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={toggleSelectionMode}
+            className={selectionToggleTextClass(selectionMode)}
+          >
+            {selectionMode ? "Done" : "Select"}
+          </button>
+        </div>
+      )}
 
       <div
         className="grid gap-3"

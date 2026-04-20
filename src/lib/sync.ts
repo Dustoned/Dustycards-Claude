@@ -12,15 +12,18 @@ import {
   extractGradedPrices,
   extractPrices,
   fetchAllEpisodes,
+  fetchCardDetail,
   fetchCardsForEpisode,
   fetchHistoryPricesByItemId,
   fetchSealedProductsForEpisode,
+  isTcggoQuotaExceededError,
   type NormalizedSealedProduct,
 } from "@/lib/tcggo";
 
 const ACTIVE_SYNC_STALE_MS = 1000 * 60 * 60 * 2;
 const STALE_SYNC_MESSAGE = "Marked stale after exceeding sync timeout";
 const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
+const CARD_HISTORY_SYNC_TYPE = "card-history";
 const AUTO_PRICE_REFRESH_MAX_EPISODES = 6;
 const AUTO_PRICE_REFRESH_MAX_CARDS = 240;
 const AUTO_PRICE_REFRESH_MIN_INTERVAL_MS = 1000 * 60 * 60 * 6;
@@ -98,6 +101,7 @@ interface AutoEpisodePriceRefreshResult {
   newPrices: number;
   refreshedPrices: number;
   refreshedCards: number;
+  gradedPricesUpdated: number;
 }
 
 interface MissingPriceCandidate {
@@ -108,6 +112,10 @@ interface MissingPriceCandidate {
   createdAt: Date;
 }
 
+interface SyncProgressController {
+  updateMessage: (message: string) => Promise<void>;
+}
+
 export interface EpisodeSyncResult {
   episodeId: string;
   count: number;
@@ -115,6 +123,7 @@ export interface EpisodeSyncResult {
   updatedCards: number;
   newPrices: number;
   refreshedPrices: number;
+  gradedPricesUpdated: number;
 }
 
 export interface FullSyncResult {
@@ -126,6 +135,7 @@ export interface FullSyncResult {
   updatedCards: number;
   newPrices: number;
   refreshedPrices: number;
+  gradedPricesUpdated: number;
 }
 
 export interface AutoPriceRefreshResult {
@@ -140,6 +150,26 @@ export interface AutoPriceRefreshResult {
   newPrices: number;
   refreshedPrices: number;
   refreshedCards: number;
+  gradedPricesUpdated: number;
+  skipped: boolean;
+  message: string;
+}
+
+export interface CardPriceRefreshResult {
+  cardId: string;
+  updatedCard: boolean;
+  newPrices: number;
+  refreshedPrices: number;
+  gradedPricesUpdated: number;
+  historySnapshotsImported: number;
+  historySynced: boolean;
+}
+
+export interface CardHistorySyncResult {
+  candidateCards: number;
+  syncedCards: number;
+  newHistorySnapshots: number;
+  remainingCards: number;
   skipped: boolean;
   message: string;
 }
@@ -262,6 +292,13 @@ async function acquireSyncLog(type: string, message: string) {
       throw new SyncConflictError(activeSync.type, activeSync.started_at);
     }
 
+    await tx.syncLog.deleteMany({
+      where: {
+        status: { in: ["success", "failed"] },
+        finished_at: { not: null },
+      },
+    });
+
     return tx.syncLog.create({
       data: {
         type,
@@ -283,16 +320,26 @@ async function finalizeSyncLog(id: string, status: "success" | "failed", message
   });
 }
 
+async function updateSyncLogMessage(id: string, message: string) {
+  await db.syncLog.update({
+    where: { id },
+    data: { message },
+  });
+}
+
 async function runLoggedSync<T>(
   type: string,
   startMessage: string,
   successMessage: (result: T) => string,
-  work: () => Promise<T>
+  work: (progress: SyncProgressController) => Promise<T>
 ): Promise<T> {
   const log = await acquireSyncLog(type, startMessage);
+  const progress: SyncProgressController = {
+    updateMessage: (message) => updateSyncLogMessage(log.id, message),
+  };
 
   try {
-    const result = await work();
+    const result = await work(progress);
     await finalizeSyncLog(log.id, "success", successMessage(result));
     return result;
   } catch (error) {
@@ -309,6 +356,7 @@ function summarizeEpisodeSync(result: EpisodeSyncResult): string {
     `${result.updatedCards} updated cards`,
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
+    `${result.gradedPricesUpdated} graded prices updated`,
   ].join(" | ");
 }
 
@@ -322,6 +370,7 @@ function summarizeFullSync(result: FullSyncResult): string {
     `${result.updatedCards} updated cards`,
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
+    `${result.gradedPricesUpdated} graded prices updated`,
   ].join(" | ");
 }
 
@@ -333,8 +382,43 @@ function summarizeAutoPriceRefresh(result: AutoPriceRefreshResult): string {
     `${result.nativeHistoryItems} history backfills`,
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
+    `${result.gradedPricesUpdated} graded prices updated`,
     `${result.remainingDueCards} still due`,
   ].join(" | ");
+}
+
+function summarizeCardPriceRefresh(result: CardPriceRefreshResult): string {
+  return [
+    "Single card refresh",
+    result.updatedCard ? "metadata updated" : "metadata unchanged",
+    `${result.newPrices} new price snapshots`,
+    `${result.refreshedPrices} refreshed prices`,
+    `${result.gradedPricesUpdated} graded prices updated`,
+    result.historySynced ? "history synced" : "history unavailable",
+    `${result.historySnapshotsImported} history snapshots`,
+  ].join(" | ");
+}
+
+function summarizeSealedSync(result: { synced: number; products: number }): string {
+  return [
+    `${result.synced} sets synced`,
+    `${result.products} sealed products updated`,
+  ].join(" | ");
+}
+
+function summarizeCardHistorySync(result: CardHistorySyncResult): string {
+  const summary = [
+    `Checked ${result.candidateCards} cards`,
+    `${result.syncedCards} cards synced`,
+    `${result.newHistorySnapshots} history snapshots`,
+    `${result.remainingCards} still pending`,
+  ];
+
+  if (result.skipped && result.candidateCards > 0) {
+    summary.push("paused for quota reset");
+  }
+
+  return summary.join(" | ");
 }
 
 async function pruneAutoPriceRefreshLogs(keepId: string) {
@@ -350,12 +434,15 @@ async function pruneAutoPriceRefreshLogs(keepId: string) {
 async function runAutoLoggedSync<T>(
   startMessage: string,
   successMessage: (result: T) => string,
-  work: () => Promise<T>
+  work: (progress: SyncProgressController) => Promise<T>
 ): Promise<T> {
   const log = await acquireSyncLog(AUTO_PRICE_REFRESH_TYPE, startMessage);
+  const progress: SyncProgressController = {
+    updateMessage: (message) => updateSyncLogMessage(log.id, message),
+  };
 
   try {
-    const result = await work();
+    const result = await work(progress);
     await finalizeSyncLog(log.id, "success", successMessage(result));
     await pruneAutoPriceRefreshLogs(log.id);
     return result;
@@ -374,6 +461,8 @@ function normalizeTimestamp(value: Date | string | null | undefined): string | n
 
 function getTierWeight(tier: PriceRefreshTier): number {
   switch (tier) {
+    case "base":
+      return 0;
     case "high":
       return 3;
     case "medium":
@@ -447,8 +536,68 @@ async function writeInChunks<T>(
   }
 }
 
-async function backfillCardNativeHistory(cardIds: string[], syncedAt: Date): Promise<number> {
-  if (cardIds.length === 0) return 0;
+function dedupeGradedCreateRows(
+  rows: Array<{
+    card_id: string;
+    label: string;
+    price: number;
+    fetched_at: Date;
+  }>
+): Array<{
+  card_id: string;
+  label: string;
+  price: number;
+  fetched_at: Date;
+}> {
+  const deduped = new Map<
+    string,
+    {
+      card_id: string;
+      label: string;
+      price: number;
+      fetched_at: Date;
+    }
+  >();
+
+  for (const row of rows) {
+    const normalizedLabel = row.label.replace(/\s+/g, " ").trim();
+    if (!normalizedLabel) continue;
+
+    const dedupeKey = `${row.card_id}::${normalizedLabel.toUpperCase()}`;
+    const existing = deduped.get(dedupeKey);
+
+    if (!existing || row.price > existing.price) {
+      deduped.set(dedupeKey, {
+        ...row,
+        label: normalizedLabel,
+      });
+    }
+  }
+
+  return [...deduped.values()];
+}
+
+async function backfillCardNativeHistoryDetailed(
+  cardIds: string[],
+  syncedAt: Date,
+  options?: {
+    batchSize?: number;
+    onProgress?: (progress: {
+      totalCards: number;
+      processedCards: number;
+      syncedCards: number;
+      snapshotsCreated: number;
+    }) => Promise<void> | void;
+  }
+): Promise<{
+  syncedCards: number;
+  snapshotsCreated: number;
+  processedCards: number;
+  quotaExceeded: boolean;
+}> {
+  if (cardIds.length === 0) {
+    return { syncedCards: 0, snapshotsCreated: 0, processedCards: 0, quotaExceeded: false };
+  }
 
   const existingSnapshots = await db.price.findMany({
     where: { card_id: { in: cardIds } },
@@ -466,65 +615,134 @@ async function backfillCardNativeHistory(cardIds: string[], syncedAt: Date): Pro
     existingByCard.set(snapshot.card_id, existing);
   }
 
-  const historyCreates: Array<{
-    card_id: string;
-    fetched_at: Date;
-  } & PriceSnapshotData> = [];
-  const syncedCardIds: string[] = [];
+  const batchSize = options?.batchSize ?? HISTORY_BACKFILL_BATCH_SIZE;
+  let processedCards = 0;
+  let totalSyncedCards = 0;
+  let totalSnapshotsCreated = 0;
+  let quotaExceeded = false;
 
-  await mapInBatches(cardIds, HISTORY_BACKFILL_BATCH_SIZE, async (cardId) => {
-    try {
-      const history = await fetchHistoryPricesByItemId(cardId);
-      const existing = existingByCard.get(cardId) ?? new Set<string>();
+  for (let index = 0; index < cardIds.length; index += batchSize) {
+    const batchIds = cardIds.slice(index, index + batchSize);
+    const batchResults = await Promise.all(
+      batchIds.map(async (cardId) => {
+        try {
+          const history = await fetchHistoryPricesByItemId(cardId);
+          const existing = existingByCard.get(cardId) ?? new Set<string>();
+          const creates: Array<{
+            card_id: string;
+            fetched_at: Date;
+          } & PriceSnapshotData> = [];
 
-      for (const point of history) {
-        const fetchedAt = toHistorySnapshotDate(point.date);
-        const iso = fetchedAt.toISOString();
-        if (existing.has(iso)) {
-          continue;
+          for (const point of history) {
+            const fetchedAt = toHistorySnapshotDate(point.date);
+            const iso = fetchedAt.toISOString();
+            if (existing.has(iso)) {
+              continue;
+            }
+
+            creates.push({
+              card_id: cardId,
+              fetched_at: fetchedAt,
+              cm_en_lowest_nm: point.cm_market,
+              cm_de_lowest_nm: point.cm_market_de,
+              cm_fr_lowest_nm: point.cm_market_fr,
+              cm_es_lowest_nm: point.cm_market_es,
+              cm_it_lowest_nm: point.cm_market_it,
+              cm_en_avg_30d: null,
+              cm_en_avg_7d: null,
+              tcp_market: point.tcp_market,
+              tcp_mid: null,
+              tcp_low: null,
+            });
+            existing.add(iso);
+          }
+
+          existingByCard.set(cardId, existing);
+
+          return {
+            cardId,
+            synced: true,
+            creates,
+            quotaExceeded: false,
+          };
+        } catch (error) {
+          if (isTcggoQuotaExceededError(error)) {
+            return {
+              cardId,
+              synced: false,
+              creates: [] as Array<{
+                card_id: string;
+                fetched_at: Date;
+              } & PriceSnapshotData>,
+              quotaExceeded: true,
+            };
+          }
+
+          return {
+            cardId,
+            synced: false,
+            creates: [] as Array<{
+              card_id: string;
+              fetched_at: Date;
+            } & PriceSnapshotData>,
+            quotaExceeded: false,
+          };
         }
+      })
+    );
 
-        historyCreates.push({
-          card_id: cardId,
-          fetched_at: fetchedAt,
-          cm_en_lowest_nm: point.cm_market,
-          cm_de_lowest_nm: point.cm_market_de,
-          cm_fr_lowest_nm: point.cm_market_fr,
-          cm_es_lowest_nm: point.cm_market_es,
-          cm_it_lowest_nm: point.cm_market_it,
-          cm_en_avg_30d: null,
-          cm_en_avg_7d: null,
-          tcp_market: point.tcp_market,
-          tcp_mid: null,
-          tcp_low: null,
+    const batchCreates = batchResults.flatMap((result) => result.creates);
+    const batchSyncedCardIds = batchResults
+      .filter((result) => result.synced)
+      .map((result) => result.cardId);
+
+    await db.$transaction(async (tx) => {
+      if (batchCreates.length > 0) {
+        await writeInChunks(batchCreates, DB_WRITE_BATCH_SIZE, async (chunk) => {
+          await tx.price.createMany({
+            data: chunk,
+          });
         });
-        existing.add(iso);
       }
 
-      syncedCardIds.push(cardId);
-    } catch {
-      // Leave this card eligible for a later history backfill retry.
-    }
-  });
-
-  await db.$transaction(async (tx) => {
-    if (historyCreates.length > 0) {
-      await writeInChunks(historyCreates, DB_WRITE_BATCH_SIZE, async (chunk) => {
-        await tx.price.createMany({
-          data: chunk,
+      if (batchSyncedCardIds.length > 0) {
+        await tx.card.updateMany({
+          where: { id: { in: batchSyncedCardIds } },
+          data: { native_history_synced_at: syncedAt },
         });
+      }
+    });
+
+    processedCards += batchIds.length;
+    totalSyncedCards += batchSyncedCardIds.length;
+    totalSnapshotsCreated += batchCreates.length;
+
+    if (options?.onProgress) {
+      await options.onProgress({
+        totalCards: cardIds.length,
+        processedCards,
+        syncedCards: totalSyncedCards,
+        snapshotsCreated: totalSnapshotsCreated,
       });
     }
 
-    if (syncedCardIds.length > 0) {
-      await tx.card.updateMany({
-        where: { id: { in: syncedCardIds } },
-        data: { native_history_synced_at: syncedAt },
-      });
+    if (batchResults.some((result) => result.quotaExceeded)) {
+      quotaExceeded = true;
+      break;
     }
-  });
+  }
 
-  return syncedCardIds.length;
+  return {
+    syncedCards: totalSyncedCards,
+    snapshotsCreated: totalSnapshotsCreated,
+    processedCards,
+    quotaExceeded,
+  };
+}
+
+async function backfillCardNativeHistory(cardIds: string[], syncedAt: Date): Promise<number> {
+  const result = await backfillCardNativeHistoryDetailed(cardIds, syncedAt);
+  return result.syncedCards;
 }
 
 async function backfillSealedNativeHistory(
@@ -677,6 +895,23 @@ async function selectNativeHistoryBackfillBatch(): Promise<{
   };
 }
 
+async function selectManualCardHistoryCandidates(): Promise<string[]> {
+  const cards = await db.card.findMany({
+    where: {
+      native_history_synced_at: null,
+      OR: [
+        { prices: { some: {} } },
+        { cardmarket_id: { not: null } },
+        { tcgplayer_id: { not: null } },
+      ],
+    },
+    orderBy: [{ updated_at: "desc" }],
+    select: { id: true },
+  });
+
+  return cards.map((card) => card.id);
+}
+
 function hasAnyMarketplaceId(card: Pick<CardWriteData, "cardmarket_id" | "tcgplayer_id">): boolean {
   return Boolean(card.cardmarket_id || card.tcgplayer_id);
 }
@@ -778,7 +1013,7 @@ async function syncEpisodeCards(
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
     const priceRefreshes: Array<{ id: string; fetched_at: Date }> = [];
-    const gradedCardIds = cards.map((card) => card.id);
+    const gradedCardIdsToReplace = new Set<string>();
     const gradedCreates: Array<{
       card_id: string;
       label: string;
@@ -833,13 +1068,17 @@ async function syncEpisodeCards(
         updatedCards += 1;
       }
 
-      for (const gradedPrice of extractGradedPrices(card.prices)) {
-        gradedCreates.push({
-          card_id: card.id,
-          label: gradedPrice.label,
-          price: gradedPrice.price,
-          fetched_at: fetchedAt,
-        });
+      const nextGradedPrices = extractGradedPrices(card.prices);
+      if (nextGradedPrices.length > 0) {
+        gradedCardIdsToReplace.add(card.id);
+        for (const gradedPrice of nextGradedPrices) {
+          gradedCreates.push({
+            card_id: card.id,
+            label: gradedPrice.label,
+            price: gradedPrice.price,
+            fetched_at: fetchedAt,
+          });
+        }
       }
 
       const latestPrice = existingCard?.prices[0] ?? null;
@@ -887,13 +1126,17 @@ async function syncEpisodeCards(
       }
     }
 
-    await tx.cardGradedPrice.deleteMany({
-      where: { card_id: { in: gradedCardIds } },
-    });
+    if (gradedCardIdsToReplace.size > 0) {
+      await tx.cardGradedPrice.deleteMany({
+        where: { card_id: { in: [...gradedCardIdsToReplace] } },
+      });
+    }
 
-    if (gradedCreates.length > 0) {
+    const dedupedGradedCreates = dedupeGradedCreateRows(gradedCreates);
+
+    if (dedupedGradedCreates.length > 0) {
       await tx.cardGradedPrice.createMany({
-        data: gradedCreates,
+        data: dedupedGradedCreates,
       });
     }
 
@@ -924,6 +1167,7 @@ async function syncEpisodeCards(
       updatedCards,
       newPrices,
       refreshedPrices,
+      gradedPricesUpdated: dedupedGradedCreates.length,
     };
   });
 
@@ -982,6 +1226,7 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
     if (!latestFetchedAt) continue;
 
     const refreshInfo = getPriceRefreshInfo(candidate.rarity, latestFetchedAt, now.getTime());
+    if (!refreshInfo.autoRefreshEnabled) continue;
     if (!refreshInfo.due) continue;
 
     dueCandidates.push({
@@ -1183,6 +1428,8 @@ export async function getAutoPriceRefreshSnapshot(): Promise<{
   missingPriceCards: number;
   nextBatchCards: number;
   nextBatchEpisodes: number;
+  nextBatchEpisodeIds: string[];
+  nextBatchCardIds: string[];
 }> {
   const dueBatch = await selectAutoRefreshBatch(new Date());
   const backfillBatch = await selectMissingPriceBackfillBatch({
@@ -1198,6 +1445,8 @@ export async function getAutoPriceRefreshSnapshot(): Promise<{
     missingPriceCards: backfillBatch.missingPriceCards,
     nextBatchCards: countSelectedCards(combinedBatch),
     nextBatchEpisodes: combinedBatch.size,
+    nextBatchEpisodeIds: [...combinedBatch.keys()].slice(0, 6),
+    nextBatchCardIds: [...new Set([...combinedBatch.values()].flat())].slice(0, 8),
   };
 }
 
@@ -1271,6 +1520,7 @@ async function refreshEpisodeDueCards(
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
     const priceRefreshes: Array<{ id: string; fetched_at: Date }> = [];
+    const gradedCardIdsToReplace = new Set<string>();
     const gradedCreates: Array<{
       card_id: string;
       label: string;
@@ -1309,13 +1559,17 @@ async function refreshEpisodeDueCards(
         updatedCards += 1;
       }
 
-      for (const gradedPrice of extractGradedPrices(remoteCard.prices)) {
-        gradedCreates.push({
-          card_id: cardId,
-          label: gradedPrice.label,
-          price: gradedPrice.price,
-          fetched_at: fetchedAt,
-        });
+      const nextGradedPrices = extractGradedPrices(remoteCard.prices);
+      if (nextGradedPrices.length > 0) {
+        gradedCardIdsToReplace.add(cardId);
+        for (const gradedPrice of nextGradedPrices) {
+          gradedCreates.push({
+            card_id: cardId,
+            label: gradedPrice.label,
+            price: gradedPrice.price,
+            fetched_at: fetchedAt,
+          });
+        }
       }
 
       const latestPrice = existingCard.prices[0] ?? null;
@@ -1365,13 +1619,17 @@ async function refreshEpisodeDueCards(
       }
     }
 
-    await tx.cardGradedPrice.deleteMany({
-      where: { card_id: { in: cardIds } },
-    });
+    if (gradedCardIdsToReplace.size > 0) {
+      await tx.cardGradedPrice.deleteMany({
+        where: { card_id: { in: [...gradedCardIdsToReplace] } },
+      });
+    }
 
-    if (gradedCreates.length > 0) {
+    const dedupedGradedCreates = dedupeGradedCreateRows(gradedCreates);
+
+    if (dedupedGradedCreates.length > 0) {
       await tx.cardGradedPrice.createMany({
-        data: gradedCreates,
+        data: dedupedGradedCreates,
       });
     }
 
@@ -1395,8 +1653,259 @@ async function refreshEpisodeDueCards(
       newPrices,
       refreshedPrices,
       refreshedCards,
+      gradedPricesUpdated: dedupedGradedCreates.length,
     };
   });
+}
+
+export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefreshResult> {
+  return runLoggedSync(
+    `card:${cardId}`,
+    `Refreshing price for card ${cardId}`,
+    summarizeCardPriceRefresh,
+    async (progress) => {
+      const existingCard = await db.card.findUnique({
+        where: { id: cardId },
+        select: {
+          id: true,
+          name: true,
+          card_number: true,
+          rarity: true,
+          hp: true,
+          supertype: true,
+          subtypes: true,
+          artist: true,
+          image_url: true,
+          tcggo_url: true,
+          cardmarket_url: true,
+          tcgid: true,
+          cardmarket_id: true,
+          tcgplayer_id: true,
+          price_source_status: true,
+          price_source_checked_at: true,
+          episode: {
+            select: {
+              code: true,
+              name: true,
+              card_count: true,
+            },
+          },
+          prices: {
+            orderBy: { fetched_at: "desc" },
+            take: 1,
+            select: {
+              id: true,
+              cm_en_lowest_nm: true,
+              cm_de_lowest_nm: true,
+              cm_fr_lowest_nm: true,
+              cm_es_lowest_nm: true,
+              cm_it_lowest_nm: true,
+              cm_en_avg_30d: true,
+              cm_en_avg_7d: true,
+              tcp_market: true,
+              tcp_mid: true,
+              tcp_low: true,
+            },
+          },
+        },
+      });
+
+      if (!existingCard) {
+        throw new Error("Card not found.");
+      }
+
+      await progress.updateMessage(`Refreshing ${existingCard.name} (${cardId})`);
+
+      const remoteCard = await fetchCardDetail(cardId);
+      if (!remoteCard) {
+        throw new Error("Card not found in the scraper source.");
+      }
+
+      const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
+        getTcgdexSupertypeLookupForEpisode(existingCard.episode),
+        getTcgdexIllustratorLookupForCards(
+          {
+            code: existingCard.episode.code,
+            name: existingCard.episode.name,
+            cardCount: existingCard.episode.card_count,
+          },
+          [remoteCard]
+        ),
+      ]);
+      const fetchedAt = new Date();
+
+      const refreshResult = await db.$transaction(async (tx) => {
+        const fallbackSupertype = resolveTcgdexSupertype(remoteCard.tcgid, tcgdexSupertypeLookup);
+        const fallbackArtist = tcgdexIllustratorLookup.get(cardId) ?? null;
+        const nextCardData = buildCardWriteData(
+          existingCard,
+          {
+            ...remoteCard,
+            artist: remoteCard.artist ?? fallbackArtist,
+          },
+          fallbackSupertype
+        );
+
+        let updatedCard = false;
+        let newPrices = 0;
+        let refreshedPrices = 0;
+
+        if (hasCardChanges(existingCard, nextCardData)) {
+          await tx.card.update({
+            where: { id: cardId },
+            data: nextCardData,
+          });
+          updatedCard = true;
+        }
+
+        const gradedCreates = dedupeGradedCreateRows(
+          extractGradedPrices(remoteCard.prices).map((gradedPrice) => ({
+            card_id: cardId,
+            label: gradedPrice.label,
+            price: gradedPrice.price,
+            fetched_at: fetchedAt,
+          }))
+        );
+
+        if (gradedCreates.length > 0) {
+          await tx.cardGradedPrice.deleteMany({
+            where: { card_id: cardId },
+          });
+          await tx.cardGradedPrice.createMany({
+            data: gradedCreates,
+          });
+        }
+
+        const latestPrice = existingCard.prices[0] ?? null;
+        const nextPrice = extractPrices(remoteCard.prices);
+        const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
+        const priceRefreshes: Array<{ id: string; fetched_at: Date }> = [];
+        const writeMode = queuePriceSnapshotWrite(
+          latestPrice,
+          nextPrice,
+          cardId,
+          fetchedAt,
+          { refreshAllPrices: true },
+          priceCreates,
+          priceRefreshes
+        );
+
+        if (writeMode === "new") {
+          if (existingCard.price_source_status || existingCard.price_source_checked_at) {
+            await tx.card.update({
+              where: { id: cardId },
+              data: {
+                price_source_status: null,
+                price_source_checked_at: null,
+              },
+            });
+          }
+          newPrices += 1;
+        } else if (writeMode === "refreshed") {
+          if (existingCard.price_source_status || existingCard.price_source_checked_at) {
+            await tx.card.update({
+              where: { id: cardId },
+              data: {
+                price_source_status: null,
+                price_source_checked_at: null,
+              },
+            });
+          }
+          refreshedPrices += 1;
+        } else {
+          await tx.card.update({
+            where: { id: cardId },
+            data: {
+              price_source_status: "unavailable",
+              price_source_checked_at: fetchedAt,
+            },
+          });
+        }
+
+        for (const refresh of priceRefreshes) {
+          await tx.price.update({
+            where: { id: refresh.id },
+            data: { fetched_at: refresh.fetched_at },
+          });
+        }
+
+        if (priceCreates.length > 0) {
+          await tx.price.createMany({
+            data: priceCreates,
+          });
+        }
+
+        return {
+          cardId,
+          updatedCard,
+          newPrices,
+          refreshedPrices,
+          gradedPricesUpdated: gradedCreates.length,
+        };
+      });
+
+      await progress.updateMessage(`Refreshing ${existingCard.name} history (${cardId})`);
+
+      const historyResult = await backfillCardNativeHistoryDetailed([cardId], fetchedAt, {
+        batchSize: 1,
+      });
+
+      return {
+        ...refreshResult,
+        historySnapshotsImported: historyResult.snapshotsCreated,
+        historySynced: historyResult.syncedCards > 0,
+      };
+    }
+  );
+}
+
+export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
+  const candidateCards = await selectManualCardHistoryCandidates();
+
+  if (candidateCards.length === 0) {
+    return {
+      candidateCards: 0,
+      syncedCards: 0,
+      newHistorySnapshots: 0,
+      remainingCards: 0,
+      skipped: true,
+      message: "All current cards already have imported history.",
+    };
+  }
+
+  return runLoggedSync(
+    CARD_HISTORY_SYNC_TYPE,
+    `Syncing full TCGGO card history for ${candidateCards.length} cards`,
+    summarizeCardHistorySync,
+    async (progress) => {
+      await progress.updateMessage(
+        `Syncing TCGGO card history for ${candidateCards.length} cards. This uses scraper requests.`
+      );
+
+      const syncedAt = new Date();
+      const result = await backfillCardNativeHistoryDetailed(candidateCards, syncedAt, {
+        batchSize: 3,
+        onProgress: async ({ totalCards, processedCards, syncedCards, snapshotsCreated }) => {
+          await progress.updateMessage(
+            `Syncing card history ${processedCards}/${totalCards} | ${syncedCards} synced | ${snapshotsCreated} history snapshots | ${Math.max(totalCards - syncedCards, 0)} still pending`
+          );
+        },
+      });
+
+      return {
+        candidateCards: candidateCards.length,
+        syncedCards: result.syncedCards,
+        newHistorySnapshots: result.snapshotsCreated,
+        remainingCards: Math.max(candidateCards.length - result.syncedCards, 0),
+        skipped: result.quotaExceeded,
+        message: result.quotaExceeded
+          ? `Paused after ${result.processedCards} cards because scraper requests are exhausted. Resume after the quota reset.`
+          : result.syncedCards > 0
+            ? `Imported history for ${result.syncedCards} cards.`
+            : "No new history was imported.",
+      };
+    }
+  );
 }
 
 export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
@@ -1427,6 +1936,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       newPrices: 0,
       refreshedPrices: 0,
       refreshedCards: 0,
+      gradedPricesUpdated: 0,
       skipped: true,
       message: "No cards are due or waiting for a first price sync.",
     };
@@ -1435,7 +1945,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
   return runAutoLoggedSync(
     "Refreshing due cards and backfilling missing first prices in the background",
     summarizeAutoPriceRefresh,
-    async () => {
+    async (progress) => {
       const dueBatch = await selectAutoRefreshBatch(new Date());
       const backfillBatch = await selectMissingPriceBackfillBatch({
         maxCards: Math.min(
@@ -1466,6 +1976,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           newPrices: 0,
           refreshedPrices: 0,
           refreshedCards: 0,
+          gradedPricesUpdated: 0,
           skipped: true,
           message: "No cards are due or waiting for a first price sync.",
         };
@@ -1476,13 +1987,51 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       let newPrices = 0;
       let refreshedPrices = 0;
       let refreshedCards = 0;
+      let gradedPricesUpdated = 0;
+      const episodeEntries = [...combinedBatch.entries()];
+      const previewCardRecords = episodeEntries.length
+        ? await db.card.findMany({
+            where: {
+              id: {
+                in: [...new Set(episodeEntries.flatMap(([, cardIds]) => cardIds.slice(0, 4)))],
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+            },
+          })
+        : [];
+      const previewCardNameById = Object.fromEntries(
+        previewCardRecords.map((card) => [card.id, card.name])
+      );
+      const episodeRecords = episodeEntries.length
+        ? await db.episode.findMany({
+            where: { id: { in: episodeEntries.map(([episodeId]) => episodeId) } },
+            select: { id: true, name: true },
+          })
+        : [];
+      const episodeNameById = Object.fromEntries(
+        episodeRecords.map((episode) => [episode.id, episode.name])
+      );
 
-      for (const [episodeId, cardIds] of combinedBatch) {
+      for (const [episodeIndex, [episodeId, cardIds]] of episodeEntries.entries()) {
+        const episodeName = episodeNameById[episodeId] ?? `Set ${episodeId}`;
+        const previewNames = cardIds
+          .slice(0, 4)
+          .map((id) => previewCardNameById[id])
+          .filter((name): name is string => Boolean(name));
+        const previewLabel = previewNames.length > 0 ? ` | cards: ${previewNames.join(", ")}` : "";
+        await progress.updateMessage(
+          `Refreshing ${episodeName} (${episodeIndex + 1}/${episodeEntries.length}) | ${cardIds.length} cards${previewLabel}`
+        );
+
         const result = await refreshEpisodeDueCards(episodeId, cardIds, fetchedAt);
         updatedCards += result.updatedCards;
         newPrices += result.newPrices;
         refreshedPrices += result.refreshedPrices;
         refreshedCards += result.refreshedCards;
+        gradedPricesUpdated += result.gradedPricesUpdated;
       }
 
       const [syncedCardHistoryItems, syncedSealedHistoryItems] = await Promise.all([
@@ -1506,6 +2055,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         newPrices,
         refreshedPrices,
         refreshedCards,
+        gradedPricesUpdated,
         skipped: false,
         message:
           nativeHistoryCount > 0
@@ -1593,33 +2143,40 @@ async function persistEpisodeSealedProducts(
 }
 
 export async function runSealedSync(): Promise<{ synced: number; products: number }> {
-  const episodes = (
-    await db.episode.findMany({ select: { id: true, name: true, code: true } })
-  ).filter((episode) => !isHiddenExpansion(episode));
-  let synced = 0;
-  let products = 0;
+  return runLoggedSync(
+    "sealed",
+    "Syncing sealed products for all expansions",
+    summarizeSealedSync,
+    async () => {
+      const episodes = (
+        await db.episode.findMany({ select: { id: true, name: true, code: true } })
+      ).filter((episode) => !isHiddenExpansion(episode));
+      let synced = 0;
+      let products = 0;
 
-  // Process in batches of 5 to avoid overwhelming the API
-  const BATCH = 5;
-  for (let i = 0; i < episodes.length; i += BATCH) {
-    const batch = episodes.slice(i, i + BATCH);
-    await Promise.all(
-      batch.map(async (ep) => {
-        try {
-          const fetched = await fetchSealedProductsForEpisode(ep.id);
-          if (fetched.length === 0) return;
-          const syncedAt = new Date();
-          await persistEpisodeSealedProducts(ep.id, fetched, syncedAt);
-          synced += 1;
-          products += fetched.length;
-        } catch {
-          // skip failed episodes silently
-        }
-      })
-    );
-  }
+      // Process in batches of 5 to avoid overwhelming the API
+      const BATCH = 5;
+      for (let i = 0; i < episodes.length; i += BATCH) {
+        const batch = episodes.slice(i, i + BATCH);
+        await Promise.all(
+          batch.map(async (ep) => {
+            try {
+              const fetched = await fetchSealedProductsForEpisode(ep.id);
+              if (fetched.length === 0) return;
+              const syncedAt = new Date();
+              await persistEpisodeSealedProducts(ep.id, fetched, syncedAt);
+              synced += 1;
+              products += fetched.length;
+            } catch {
+              // skip failed episodes silently
+            }
+          })
+        );
+      }
 
-  return { synced, products };
+      return { synced, products };
+    }
+  );
 }
 
 async function syncEpisodeSealed(
@@ -1667,13 +2224,20 @@ export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResu
     `episode:${episodeId}`,
     `Syncing cards and all prices for episode ${episodeId}`,
     summarizeEpisodeSync,
-    async () => {
+    async (progress) => {
+      const episode = await db.episode.findUnique({
+        where: { id: episodeId },
+        select: { name: true },
+      });
+      if (episode?.name) {
+        await progress.updateMessage(`Syncing ${episode.name}`);
+      }
       const [cardResult] = await Promise.all([
         syncEpisodeCards(episodeId, {
           refreshAllPrices: true,
-          backfillNativeHistory: true,
+          backfillNativeHistory: false,
         }),
-        syncEpisodeSealed(episodeId, { backfillNativeHistory: true }).catch(() => undefined),
+        syncEpisodeSealed(episodeId, { backfillNativeHistory: false }).catch(() => undefined),
       ]);
       return cardResult;
     }
@@ -1685,7 +2249,7 @@ export async function runFullSync(): Promise<FullSyncResult> {
     "full",
     "Checking new sets, cards, and missing prices",
     summarizeFullSync,
-    async () => {
+    async (progress) => {
       const [remoteEpisodes, localEpisodes, cardsMissingPrices, cardsMissingMetadata] =
         await Promise.all([
           fetchAllEpisodes(),
@@ -1776,8 +2340,14 @@ export async function runFullSync(): Promise<FullSyncResult> {
       let updatedCards = 0;
       let newPrices = 0;
       let refreshedPrices = 0;
+      let gradedPricesUpdated = 0;
 
-      for (const episodeId of episodesToSync) {
+      for (const [episodeIndex, episodeId] of episodesToSync.entries()) {
+        const episodeName =
+          remoteEpisodes.find((episode) => episode.id === episodeId)?.name ?? `Set ${episodeId}`;
+        await progress.updateMessage(
+          `Syncing ${episodeName} (${episodeIndex + 1}/${episodesToSync.length})`
+        );
         const [episodeResult] = await Promise.all([
           syncEpisodeCards(episodeId, {
             refreshAllPrices: false,
@@ -1790,6 +2360,7 @@ export async function runFullSync(): Promise<FullSyncResult> {
         updatedCards += episodeResult.updatedCards;
         newPrices += episodeResult.newPrices;
         refreshedPrices += episodeResult.refreshedPrices;
+        gradedPricesUpdated += episodeResult.gradedPricesUpdated;
       }
 
       return {
@@ -1801,6 +2372,7 @@ export async function runFullSync(): Promise<FullSyncResult> {
         updatedCards,
         newPrices,
         refreshedPrices,
+        gradedPricesUpdated,
       };
     }
   );
