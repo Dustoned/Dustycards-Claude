@@ -6,7 +6,10 @@ const REDUNDANT_SUBSET_PATTERNS = [
 
 const HIDDEN_EXPANSION_IDS = new Set(["20"]);
 const HIDDEN_EXPANSION_CODES = new Set(["sve"]);
-const HIDDEN_EXPANSION_NAMES = new Set(["scarlet & violet energies"]);
+const HIDDEN_EXPANSION_NAMES = new Set([
+  "scarlet & violet energies",
+  "celebrations: classic collection",
+]);
 
 export function isRedundantSubsetExpansion(name: string): boolean {
   const normalized = name.toLowerCase();

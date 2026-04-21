@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,7 +31,8 @@ interface Props {
   emptyTitle: string;
   emptyText: string;
   sectionTitle?: string;
-  sectionCount?: number;
+  sectionCount?: ReactNode;
+  sectionTrailing?: ReactNode;
 }
 
 interface RemoveDialogState {
@@ -84,6 +85,7 @@ export default function CollectionSealedView({
   emptyText,
   sectionTitle,
   sectionCount,
+  sectionTrailing,
 }: Props) {
   const router = useRouter();
   const { settings } = useSettings();
@@ -208,6 +210,7 @@ export default function CollectionSealedView({
               {sectionCount ?? items.length}
             </span>
             <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+            {sectionTrailing}
           </div>
         )}
         <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
@@ -229,6 +232,7 @@ export default function CollectionSealedView({
             {sectionCount ?? items.length}
           </span>
           <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+          {sectionTrailing}
           {showInlineSelectionButton && (
             <button
               type="button"

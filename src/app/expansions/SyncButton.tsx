@@ -34,6 +34,9 @@ export default function SyncButton() {
           setStatus(`Up to date across ${data.count} sets`);
         }
         router.refresh();
+      } else if (data.cancelled) {
+        setStatus(data.error ?? "Sync stopped.");
+        router.refresh();
       } else {
         setStatus(`Error: ${data.error}`);
       }

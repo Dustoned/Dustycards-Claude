@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { buildCardPriceHistory } from "@/lib/price-history";
-import { SyncConflictError, runCardPriceRefresh } from "@/lib/sync";
+import {
+  runCardPriceRefresh,
+  runSingleCardHistoryImport,
+  SyncCancelledError,
+  SyncConflictError,
+} from "@/lib/sync";
+import { isTcggoQuotaExceededError } from "@/lib/tcggo";
+
+type CardAction = "refresh" | "sync-history";
 
 async function getCardDetailPayload(id: string) {
   const card = await db.card.findUnique({
@@ -23,6 +31,25 @@ async function getCardDetailPayload(id: string) {
       price_source_checked_at: true,
       episode: {
         select: { id: true, name: true, code: true },
+      },
+      collectionItems: {
+        orderBy: { updated_at: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          binder_id: true,
+          purchase_price: true,
+          condition: true,
+          language: true,
+          notes: true,
+          grading_company: true,
+          grading_grade: true,
+          tags: {
+            select: {
+              label: true,
+            },
+          },
+        },
       },
       gradedPrices: {
         orderBy: [{ price: "desc" }, { label: "asc" }],
@@ -56,6 +83,7 @@ async function getCardDetailPayload(id: string) {
 
   const latestPrice = card.prices[card.prices.length - 1] ?? null;
   const priceHistory = buildCardPriceHistory(card.prices);
+  const collectionItem = card.collectionItems[0] ?? null;
 
   return {
     id: card.id,
@@ -94,6 +122,19 @@ async function getCardDetailPayload(id: string) {
     episode_id: card.episode.id,
     episode_name: card.episode.name,
     episode_code: card.episode.code,
+    collection_item: collectionItem
+      ? {
+          id: collectionItem.id,
+          binder_id: collectionItem.binder_id,
+          purchase_price: collectionItem.purchase_price,
+          condition: collectionItem.condition,
+          language: collectionItem.language,
+          notes: collectionItem.notes,
+          tags: collectionItem.tags.map((tag) => tag.label),
+          grading_company: collectionItem.grading_company,
+          grading_grade: collectionItem.grading_grade,
+        }
+      : null,
   };
 }
 
@@ -112,13 +153,29 @@ export async function GET(
 }
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
+  let action: CardAction = "refresh";
+
   try {
-    await runCardPriceRefresh(id);
+    const body = (await req.json()) as { action?: CardAction };
+    if (body.action === "sync-history") {
+      action = "sync-history";
+    }
+  } catch {
+    // Empty or invalid JSON should behave like a regular refresh.
+  }
+
+  try {
+    if (action === "sync-history") {
+      await runSingleCardHistoryImport(id);
+    } else {
+      await runCardPriceRefresh(id);
+    }
+
     const payload = await getCardDetailPayload(id);
 
     if (!payload) {
@@ -127,6 +184,16 @@ export async function POST(
 
     return NextResponse.json(payload);
   } catch (error) {
+    if (error instanceof SyncCancelledError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          cancelled: true,
+        },
+        { status: 409 }
+      );
+    }
+
     if (error instanceof SyncConflictError) {
       return NextResponse.json(
         {
@@ -135,6 +202,16 @@ export async function POST(
           startedAt: error.startedAt.toISOString(),
         },
         { status: 409 }
+      );
+    }
+
+    if (isTcggoQuotaExceededError(error)) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          resetAt: error.resetAt ? error.resetAt.toISOString() : null,
+        },
+        { status: 429 }
       );
     }
 

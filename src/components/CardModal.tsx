@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { ChevronDown, LineChart, RefreshCw } from "lucide-react";
 import CardThreeViewer from "@/app/expansions/[id]/CardThreeViewer";
 import GradedSlabPreview from "@/components/GradedSlabPreview";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
+import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
+import { useSettings, type ModalSize } from "@/components/SettingsProvider";
+import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CollectionEditCardButton from "@/components/CollectionEditCardButton";
+import IllustratorLink from "@/components/IllustratorLink";
 import {
   buildCardMarketProductUrl,
   buildCardMarketProxyUrl,
@@ -27,12 +33,7 @@ import {
   type CardPriceHistoryPoint,
 } from "@/lib/price-history";
 import { normalizeRarityLabel } from "@/lib/rarity";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
-import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
-import { useSettings, ModalSize } from "@/components/SettingsProvider";
-import CollectionAddCardButton from "@/components/CollectionAddCardButton";
-import CollectionEditCardButton from "@/components/CollectionEditCardButton";
-import IllustratorLink from "@/components/IllustratorLink";
+import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
 export interface ModalCardData {
   id: string;
@@ -90,14 +91,26 @@ interface Props {
 
 type CurrencyCode = "EUR" | "USD";
 
-function formatCurrency(value: number | null | undefined, currency: CurrencyCode = "EUR"): string {
-  if (value == null) return "--";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+interface SectionShellProps {
+  eyebrow?: string;
+  title?: string;
+  description?: string | null;
+  children: ReactNode;
+  className?: string;
+}
+
+interface MetricTileProps {
+  label: string;
+  value: ReactNode;
+  hint?: string | null;
+  accent?: "emerald" | "blue" | "violet" | "slate";
+  className?: string;
+}
+
+interface MarketRowProps {
+  label: string;
+  value: ReactNode;
+  hint?: string | null;
 }
 
 const RARITY_BADGE: Record<string, string> = {
@@ -141,6 +154,17 @@ const RARITY_BADGE: Record<string, string> = {
   "Black White Rare": "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
 };
 
+function formatCurrency(value: number | null | undefined, currency: CurrencyCode = "EUR"): string {
+  if (value == null) return "--";
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function rarityBadge(rarity: string | null): string {
   return (
     RARITY_BADGE[normalizeRarityLabel(rarity) ?? ""] ??
@@ -148,70 +172,177 @@ function rarityBadge(rarity: string | null): string {
   );
 }
 
+function SectionShell({
+  eyebrow,
+  title,
+  description,
+  children,
+  className = "",
+}: SectionShellProps) {
+  return (
+    <section className={`rounded-[26px] border border-white/10 bg-white/[0.055] p-4 sm:p-5 ${className}`}>
+      {(eyebrow || title || description) && (
+        <div className="mb-4 space-y-1.5">
+          {eyebrow && (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+              {eyebrow}
+            </p>
+          )}
+          {title && <h3 className="text-lg font-semibold text-white">{title}</h3>}
+          {description && <p className="text-sm text-white/48">{description}</p>}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  hint,
+  accent = "slate",
+  className = "",
+}: MetricTileProps) {
+  const accentClass =
+    accent === "emerald"
+      ? "border-emerald-400/16 bg-emerald-400/[0.08]"
+      : accent === "blue"
+        ? "border-blue-400/16 bg-blue-400/[0.08]"
+        : accent === "violet"
+          ? "border-violet-400/16 bg-violet-400/[0.08]"
+          : "border-white/10 bg-black/22";
+
+  return (
+    <div className={`rounded-2xl border px-3 py-3 ${accentClass} ${className}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/38">{label}</p>
+      <p className="mt-2 text-lg font-semibold tabular-nums text-white">{value}</p>
+      {hint && <p className="mt-1 text-xs text-white/42">{hint}</p>}
+    </div>
+  );
+}
+
+function MarketRow({ label, value, hint }: MarketRowProps) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/20 px-3 py-3">
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">{label}</p>
+        {hint && <p className="mt-1 text-xs text-white/40">{hint}</p>}
+      </div>
+      <p className="shrink-0 text-base font-semibold tabular-nums text-white">{value}</p>
+    </div>
+  );
+}
+
+function MetaPill({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-white/68 ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function normalizeGradePickerValue(value: string | null | undefined): string {
+  return value?.toUpperCase().replace(/\s+/g, " ").trim() ?? "";
+}
+
+function getPreferredGradedLabel(
+  prices: Array<{ label: string; price: number }>,
+  company: string | null | undefined,
+  grade: string | null | undefined
+): string | null {
+  if (prices.length === 0) return null;
+
+  const normalizedCompany = normalizeGradePickerValue(company);
+  const normalizedGrade = normalizeGradePickerValue(grade);
+
+  if (normalizedCompany && normalizedGrade) {
+    const preferredKey = `${normalizedCompany} ${normalizedGrade}`;
+    const matchedPrice = prices.find((price) => {
+      const normalizedLabel = normalizeGradePickerValue(price.label);
+      return (
+        normalizedLabel === preferredKey ||
+        normalizedLabel.startsWith(`${preferredKey} `) ||
+        normalizedLabel.includes(preferredKey)
+      );
+    });
+
+    if (matchedPrice) {
+      return matchedPrice.label;
+    }
+  }
+
+  return prices[0]?.label ?? null;
+}
+
 export default function CardModal({ card, onClose }: Props) {
+  useBodyScrollLock();
+
   const [modalCard, setModalCard] = useState(card);
   const { settings } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncingHistory, setSyncingHistory] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [historyChartsOpen, setHistoryChartsOpen] = useState(false);
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
+  const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(
+    () => getPreferredGradedLabel(card.graded_prices ?? [], card.collection_item?.grading_company, card.collection_item?.grading_grade)
+  );
 
   const ms: ModalSize = settings.modalSize;
   const wide = settings.widescreen;
-  const imgW =
+  const mediaWidth =
     ms === "small"
       ? wide
-        ? "w-80 sm:w-[22rem] xl:w-[24rem]"
-        : "w-44 sm:w-48"
+        ? "w-[17.5rem] sm:w-[18.75rem]"
+        : "w-56 sm:w-60"
       : ms === "large"
         ? wide
-          ? "w-[24rem] sm:w-[28rem] xl:w-[32rem]"
-          : "w-56 sm:w-72 xl:w-80"
+          ? "w-[21rem] sm:w-[23rem] xl:w-[24.5rem]"
+          : "w-64 sm:w-80 xl:w-[20rem]"
         : wide
-          ? "w-[22rem] sm:w-[25rem] xl:w-[28rem]"
-          : "w-52 sm:w-64";
-  const imgSize =
+          ? "w-[19rem] sm:w-[20.5rem] xl:w-[21.75rem]"
+          : "w-60 sm:w-72";
+  const imageSize =
     ms === "small"
       ? wide
-        ? "320px"
-        : "192px"
+        ? "304px"
+        : "240px"
       : ms === "large"
         ? wide
-          ? "496px"
+          ? "408px"
           : "320px"
         : wide
-          ? "432px"
-          : "256px";
+          ? "360px"
+          : "304px";
   const maxW =
     ms === "small"
       ? wide
-        ? "max-w-[70rem]"
-        : "max-w-xl"
+        ? "max-w-[72rem]"
+        : "max-w-[66rem]"
       : ms === "large"
         ? wide
           ? "max-w-[84rem]"
-          : "max-w-5xl"
+          : "max-w-[76rem]"
         : wide
           ? "max-w-[76rem]"
-          : "max-w-4xl";
-  const pad = ms === "small" ? (wide ? "p-7" : "p-6") : ms === "large" ? (wide ? "p-9 sm:p-10" : "p-8 sm:p-9") : wide ? "p-8 sm:p-9" : "p-7";
-  const gap = ms === "small" ? (wide ? "gap-4" : "gap-5") : ms === "large" ? (wide ? "gap-5" : "gap-8") : wide ? "gap-4" : "gap-7";
-  const contentWidthCls =
-    ms === "small" ? "sm:w-[31rem]" : ms === "large" ? "sm:w-[35rem]" : "sm:w-[33rem]";
-  const layoutCls = wide
-    ? "flex flex-col sm:grid sm:grid-cols-[auto_auto] sm:items-start"
-    : "flex flex-col sm:flex-row sm:items-start";
-  const mediaColCls = wide
-    ? `shrink-0 ${imgW} mx-auto sm:mx-0 sm:self-start`
-    : `shrink-0 ${imgW} mx-auto sm:mx-0`;
-  const contentCls = wide
-    ? `w-full min-w-0 flex flex-col gap-3 ${contentWidthCls}`
-    : "flex-1 min-w-0 flex flex-col gap-4";
-  const titleCls = ms === "small" ? "text-2xl" : ms === "large" ? "text-4xl" : "text-3xl";
-  const priceCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
+          : "max-w-[68rem]";
+  const pad =
+    ms === "small"
+      ? "p-4 sm:p-5"
+      : ms === "large"
+        ? "p-5 sm:p-6"
+        : "p-4 sm:p-5";
+  const gridGap = ms === "large" ? "gap-5 sm:gap-6" : "gap-4 sm:gap-5";
+  const titleCls =
+    ms === "small" ? "text-[1.75rem]" : ms === "large" ? "text-[2.4rem]" : "text-[2.1rem]";
   const metaCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
+
   const gradedPrices = modalCard.graded_prices ?? [];
   const gradingCompanyLabel = normalizeGradingCompanyLabel(
     modalCard.collection_item?.grading_company
@@ -223,6 +354,11 @@ export default function CardModal({ card, onClose }: Props) {
   const previewAspectClass = showGradedPreview
     ? GRADED_SLAB_ASPECT_CLASS
     : RAW_CARD_ASPECT_CLASS;
+  const isBusy = refreshing || syncingHistory;
+  const normalizedRarity = normalizeRarityLabel(modalCard.rarity) ?? modalCard.rarity;
+  const typeLabel = [modalCard.supertype, modalCard.subtypes].filter(Boolean).join(" / ");
+  const collectionItem = modalCard.collection_item ?? null;
+  const collectionTags = collectionItem?.tags ?? [];
   const availableCardMarketHistorySeries = CARD_MARKET_HISTORY_SERIES.filter((series) =>
     hasCardMarketHistorySeries(modalCard.price_history, series.key)
   );
@@ -231,6 +367,9 @@ export default function CardModal({ card, onClose }: Props) {
   )
     ? cardMarketHistorySeries
     : availableCardMarketHistorySeries[0]?.key ?? "cm_market_en";
+  const activeCardMarketSeriesLabel =
+    availableCardMarketHistorySeries.find((series) => series.key === activeCardMarketHistorySeries)
+      ?.label ?? "EN";
   const cardMarketHistory = modalCard.price_history.map((point) => ({
     date: point.date,
     label: point.label,
@@ -256,14 +395,31 @@ export default function CardModal({ card, onClose }: Props) {
         modalCard.price?.cm_es_lowest_nm ??
         modalCard.price?.cm_it_lowest_nm ??
         null;
+  const preferredGradedLabel = getPreferredGradedLabel(
+    gradedPrices,
+    gradingCompanyLabel,
+    gradingGradeLabel
+  );
+  const selectedGradedPrice =
+    gradedPrices.find((price) => price.label === selectedGradedLabel) ??
+    gradedPrices.find((price) => price.label === preferredGradedLabel) ??
+    null;
 
-  async function refreshCard() {
-    setRefreshing(true);
+  async function runCardAction(action: "refresh" | "sync-history") {
+    if (action === "refresh") {
+      setRefreshing(true);
+    } else {
+      setSyncingHistory(true);
+    }
     setRefreshError(null);
 
     try {
       const response = await fetch(`/api/cards/${encodeURIComponent(modalCard.id)}`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action }),
         cache: "no-store",
       });
       const data = (await response.json()) as ModalCardData & {
@@ -272,20 +428,33 @@ export default function CardModal({ card, onClose }: Props) {
       };
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Could not refresh this card");
+        throw new Error(
+          data.error ??
+            (action === "refresh"
+              ? "Could not refresh this card"
+              : "Could not import price history for this card")
+        );
       }
 
       setModalCard((prev) => ({
         ...data,
-        collection_item: prev.collection_item ?? null,
+        collection_item: data.collection_item ?? prev.collection_item ?? null,
       }));
       setResolvedUrl(null);
     } catch (error) {
       setRefreshError(
-        error instanceof Error ? error.message : "Could not refresh this card"
+        error instanceof Error
+          ? error.message
+          : action === "refresh"
+            ? "Could not refresh this card"
+            : "Could not import price history for this card"
       );
     } finally {
-      setRefreshing(false);
+      if (action === "refresh") {
+        setRefreshing(false);
+      } else {
+        setSyncingHistory(false);
+      }
     }
   }
 
@@ -322,246 +491,466 @@ export default function CardModal({ card, onClose }: Props) {
   }
 
   const storedCardMarketUrl = getCardMarketUrl();
+  const headerMeta = [
+    modalCard.episode_code ? modalCard.episode_code : null,
+    modalCard.card_number ? `#${modalCard.card_number}` : null,
+  ].filter(Boolean);
+  const headerMetaLabel = headerMeta.length > 0 ? headerMeta.join(" ") : null;
+  const collectionLanguage =
+    collectionItem?.language && collectionItem.language.trim().length > 0
+      ? collectionItem.language.trim()
+      : null;
+  const heroDetailStats = [
+    {
+      label: "Type",
+      value: typeLabel || "--",
+    },
+    {
+      label: "Set",
+      value: (
+        <div>
+          <Link
+            href={`/expansions/${modalCard.episode_id}`}
+            onClick={onClose}
+            className="inline-flex max-w-full items-center text-sm font-medium text-white/84 transition-colors hover:text-white hover:underline underline-offset-2"
+          >
+            <span className="truncate">{modalCard.episode_name}</span>
+          </Link>
+        </div>
+      ),
+    },
+    {
+      label: "Artist",
+      value: modalCard.artist ? (
+        <IllustratorLink
+          artist={modalCard.artist}
+          onClick={onClose}
+          className="transition-colors hover:text-white hover:underline underline-offset-2"
+        />
+      ) : (
+        "--"
+      ),
+    },
+  ];
+  const collectionStats = [
+    {
+      label: "Purchase",
+      value:
+        collectionItem?.purchase_price != null
+          ? formatCurrency(collectionItem.purchase_price, "EUR")
+          : "--",
+      show: collectionItem?.purchase_price != null,
+    },
+    {
+      label: "Condition",
+      value: collectionItem?.condition ?? "--",
+      show: Boolean(collectionItem?.condition),
+    },
+  ];
+  const headerDetailStats = collectionItem
+    ? [...heroDetailStats, ...collectionStats.filter((stat) => stat.show)]
+    : heroDetailStats;
+  const cardMarketMetrics = [
+    {
+      label: "Current",
+      value: formatCurrency(activeCardMarketCurrentValue, "EUR"),
+      hint:
+        availableCardMarketHistorySeries.length > 1 ? `Using ${activeCardMarketSeriesLabel}` : null,
+      accent: "emerald" as const,
+    },
+    {
+      label: "7D Avg",
+      value: formatCurrency(modalCard.price?.cm_en_avg_7d ?? null, "EUR"),
+      accent: "slate" as const,
+    },
+    {
+      label: "30D Avg",
+      value: formatCurrency(modalCard.price?.cm_en_avg_30d ?? null, "EUR"),
+      accent: "slate" as const,
+    },
+  ];
+  const tcgMetrics = [
+    {
+      label: "Current",
+      value: formatCurrency(modalCard.price?.tcp_market ?? null, "USD"),
+      hint: null,
+      accent: "blue" as const,
+    },
+    {
+      label: "TCP Mid",
+      value: formatCurrency(modalCard.price?.tcp_mid ?? null, "USD"),
+      hint: null,
+      accent: "slate" as const,
+    },
+    {
+      label: "TCP Low",
+      value: formatCurrency(modalCard.price?.tcp_low ?? null, "USD"),
+      hint: null,
+      accent: "slate" as const,
+    },
+  ];
+  const hasTcgPlayerPricing = [
+    modalCard.price?.tcp_market,
+    modalCard.price?.tcp_mid,
+    modalCard.price?.tcp_low,
+  ].some((value) => value != null);
+  const detailStatClass =
+    "rounded-[18px] border border-white/8 bg-black/18 px-3 py-2.5 backdrop-blur-sm";
+  const footerGridClass = collectionItem
+    ? "grid gap-3 px-4 pb-4 sm:px-5 sm:pb-5 sm:grid-cols-2 xl:grid-cols-4"
+    : "grid gap-3 px-4 pb-4 sm:px-5 sm:pb-5 sm:grid-cols-2 xl:grid-cols-3";
 
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-6"
-        style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
+        style={{ backgroundColor: "rgba(0,0,0,0.72)", backdropFilter: "blur(14px)" }}
         onClick={onClose}
       >
         <div
-          className={`${maxW} glass w-full sm:w-auto rounded-3xl shadow-2xl shadow-black/45 overflow-hidden`}
+          className={`${maxW} glass max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] shadow-[0_32px_90px_rgba(0,0,0,0.52)]`}
           style={{
-            background: "rgba(12,12,14,0.82)",
-            border: "1px solid rgba(255,255,255,0.14)",
+            background: "rgba(10,10,12,0.92)",
+            border: "1px solid rgba(255,255,255,0.12)",
           }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
         >
-        <div className={`${layoutCls} ${gap} ${pad}`}>
-          <div className={mediaColCls}>
-            {modalCard.image_url ? (
-              <button
-                type="button"
-                onClick={() => setThreeDOpen(true)}
-                className={`group relative ${imgW} ${previewAspectClass} cursor-grab overflow-hidden rounded-2xl shadow-2xl shadow-black/50 transition-transform hover:scale-[1.015]`}
-                aria-label={`Open ${modalCard.name} in 3D`}
-              >
-                {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (
-                  <GradedSlabPreview
-                    company={gradingCompanyLabel}
-                    grade={gradingGradeLabel}
-                    name={modalCard.name}
-                    episodeName={modalCard.episode_name}
-                    episodeCode={modalCard.episode_code}
-                    cardNumber={modalCard.card_number}
-                    imageUrl={modalCard.image_url}
-                    alt={modalCard.name}
-                    className="absolute inset-0"
-                    sizes={imgSize}
-                    loading="eager"
-                    priority
-                    variant="detail"
-                  />
-                ) : (
-                  <Image
-                    src={modalCard.image_url}
-                    alt={modalCard.name}
-                    fill
-                    className="object-contain"
-                    sizes={imgSize}
-                    loading="eager"
-                    unoptimized
-                  />
-                )}
-              </button>
-            ) : (
-              <div
-                className={`${imgW} ${previewAspectClass} bg-white/6 rounded-2xl flex items-center justify-center text-white/30`}
-              >
-                ?
-              </div>
-              )}
-            </div>
-
-            <div className={contentCls}>
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className={`${titleCls} font-bold text-white leading-tight`}>{modalCard.name}</h2>
-                    <div className={`mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-white/50 ${metaCls}`}>
-                      {modalCard.card_number && <span>#{modalCard.card_number}</span>}
-                      {modalCard.supertype && <span>{modalCard.supertype}</span>}
-                      {modalCard.subtypes && <span>{modalCard.subtypes}</span>}
-                      {modalCard.hp && <span>HP {modalCard.hp}</span>}
-                    </div>
-                    {modalCard.rarity && (
-                      <span
-                        className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold ${rarityBadge(modalCard.rarity)}`}
-                      >
-                        {normalizeRarityLabel(modalCard.rarity) ?? modalCard.rarity}
-                      </span>
-                    )}
-                    <div className="mt-2">
-                      <Link
-                        href={`/expansions/${modalCard.episode_id}`}
-                        onClick={onClose}
-                        className="text-sm text-white/50 hover:text-white/80 transition-colors underline-offset-2 hover:underline"
-                      >
-                        {modalCard.episode_name}
-                        {modalCard.episode_code && (
-                          <span className="ml-1 opacity-60">({modalCard.episode_code})</span>
-                        )}
-                      </Link>
-                    </div>
-                  </div>
+          <div className={`${pad}`}>
+            <div className={`grid ${gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-stretch`}>
+              <aside className={`mx-auto flex h-full w-full max-w-full flex-col gap-4 lg:mx-0 ${mediaWidth}`}>
+                {modalCard.image_url ? (
                   <button
                     type="button"
-                    onClick={refreshCard}
-                    disabled={refreshing}
-                    className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/82 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => setThreeDOpen(true)}
+                    className={`group relative ${previewAspectClass} w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.01]`}
+                    aria-label={`Open ${modalCard.name} in 3D`}
                   >
-                    <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                    {refreshing ? "Refreshing..." : "Refresh"}
+                    {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (
+                      <GradedSlabPreview
+                        company={gradingCompanyLabel}
+                        grade={gradingGradeLabel}
+                        name={modalCard.name}
+                        episodeName={modalCard.episode_name}
+                        episodeCode={modalCard.episode_code}
+                        cardNumber={modalCard.card_number}
+                        imageUrl={modalCard.image_url}
+                        alt={modalCard.name}
+                        className="absolute inset-0"
+                        sizes={imageSize}
+                        loading="eager"
+                        priority
+                        variant="detail"
+                      />
+                    ) : (
+                      <Image
+                        src={modalCard.image_url}
+                        alt={modalCard.name}
+                        fill
+                        className="object-contain"
+                        sizes={imageSize}
+                        loading="eager"
+                        unoptimized
+                      />
+                    )}
                   </button>
-                </div>
-                {refreshError && (
-                  <p className="mt-2 text-xs text-rose-300">{refreshError}</p>
-                )}
-              </div>
-
-              <div className={`grid grid-cols-2 gap-2.5 ${priceCls}`}>
-                <div className="flex flex-col gap-2">
-                  {[
-                    { label: "CardMarket", val: modalCard.price?.cm_en_lowest_nm, currency: "EUR" as const },
-                    { label: "7d avg", val: modalCard.price?.cm_en_avg_7d, currency: "EUR" as const },
-                    { label: "30d avg", val: modalCard.price?.cm_en_avg_30d, currency: "EUR" as const },
-                  ].map(
-                    ({ label, val, currency }) =>
-                      val != null && (
-                        <div
-                          key={label}
-                          className="flex justify-between rounded-xl px-3 py-2"
-                          style={{ background: "rgba(255,255,255,0.08)" }}
-                        >
-                          <span className="text-white/50">{label}</span>
-                          <span className="font-bold text-white tabular-nums">
-                            {formatCurrency(val, currency)}
-                          </span>
-                        </div>
-                      )
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  {[
-                    { label: "TCGPlayer", val: modalCard.price?.tcp_market, currency: "USD" as const },
-                    { label: "TCP Mid", val: modalCard.price?.tcp_mid, currency: "USD" as const },
-                    { label: "TCP Low", val: modalCard.price?.tcp_low, currency: "USD" as const },
-                  ].map(
-                    ({ label, val, currency }) =>
-                      val != null && (
-                        <div
-                          key={label}
-                          className="flex justify-between rounded-xl px-3 py-2"
-                          style={{ background: "rgba(255,255,255,0.08)" }}
-                        >
-                          <span className="text-white/50">{label}</span>
-                          <span className="font-bold text-white tabular-nums">
-                            {formatCurrency(val, currency)}
-                          </span>
-                        </div>
-                      )
-                  )}
-                </div>
-              </div>
-
-              {gradedPrices.length > 0 && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
-                    Graded
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {gradedPrices.map((gradedPrice) => (
-                      <div
-                        key={gradedPrice.label}
-                        className="flex items-center justify-between rounded-xl px-3 py-2"
-                        style={{ background: "rgba(255,255,255,0.06)" }}
-                      >
-                        <span className="text-sm text-white/56">{gradedPrice.label}</span>
-                        <span className="text-sm font-bold tabular-nums text-white">
-                          {formatCurrency(gradedPrice.price, "EUR")}
-                        </span>
-                      </div>
-                    ))}
+                ) : (
+                  <div
+                    className={`${previewAspectClass} flex w-full items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.03] text-white/30`}
+                  >
+                    ?
                   </div>
-                </div>
-              )}
+                )}
 
-              <div className="grid gap-3 lg:grid-cols-2">
-                <div className="space-y-2">
-                  {availableCardMarketHistorySeries.length > 1 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {availableCardMarketHistorySeries.map((series) => (
-                        <button
-                          key={series.key}
-                          type="button"
-                          onClick={() => setCardMarketHistorySeries(series.key)}
-                          className={`rounded-full border px-2.5 py-1 text-[11px] leading-none transition-all ${
-                            activeCardMarketHistorySeries === series.key
-                              ? "border-white/28 bg-white/14 font-semibold text-white"
-                              : "border-white/10 text-white/52 hover:border-white/18 hover:text-white/78"
-                          }`}
-                        >
-                          {series.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <PriceHistoryPanel
-                    title={
-                      availableCardMarketHistorySeries.length > 0
-                        ? `CardMarket History (${availableCardMarketHistorySeries.find((series) => series.key === activeCardMarketHistorySeries)?.label ?? "EN"})`
-                        : "CardMarket History"
-                    }
-                    currency="EUR"
-                    points={cardMarketHistory}
-                    currentValue={activeCardMarketCurrentValue}
-                    tone="dark"
-                    compact
-                  />
-                </div>
-                <PriceHistoryPanel
-                  title="TCGPlayer History"
-                  currency="USD"
-                  points={tcgPlayerHistory}
-                  currentValue={modalCard.price?.tcp_market ?? null}
-                  tone="dark"
+                <PriceRefreshCountdown
+                  rarity={modalCard.rarity}
+                  priceFetchedAt={modalCard.price_fetched_at}
+                  priceSourceStatus={modalCard.price_source_status}
+                  priceSourceCheckedAt={modalCard.price_source_checked_at}
                   compact
                 />
+              </aside>
+
+              <div className="min-w-0 space-y-3">
+                <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))]">
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_48%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.16),transparent_42%)]" />
+
+                  <div className="relative">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <h2 className={`${titleCls} leading-[0.98] font-bold text-white`}>
+                            {modalCard.name}
+                          </h2>
+                          {normalizedRarity && (
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${rarityBadge(
+                                modalCard.rarity
+                              )}`}
+                            >
+                              {normalizedRarity}
+                            </span>
+                          )}
+                          <MetaPill className={collectionItem ? "text-emerald-200" : "text-white/60"}>
+                            {collectionItem ? "In DustyCards" : "Not in collection"}
+                          </MetaPill>
+                        </div>
+
+                        <div className={`mt-3 flex flex-wrap items-center gap-2.5 text-white/54 ${metaCls}`}>
+                          {headerMetaLabel && <span className="whitespace-nowrap">{headerMetaLabel}</span>}
+                          {collectionLanguage && <MetaPill>{collectionLanguage}</MetaPill>}
+                          {gradingCompanyLabel && gradingGradeLabel && (
+                            <MetaPill className="text-violet-200">
+                              {gradingCompanyLabel} {gradingGradeLabel}
+                            </MetaPill>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void runCardAction("sync-history")}
+                          disabled={isBusy}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <LineChart className={`h-4 w-4 ${syncingHistory ? "animate-pulse" : ""}`} />
+                          {syncingHistory ? "Syncing..." : "Sync History"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void runCardAction("refresh")}
+                          disabled={isBusy}
+                          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                          {refreshing ? "Refreshing..." : "Refresh"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      {headerDetailStats.map((stat) => (
+                        <div key={stat.label} className={detailStatClass}>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
+                            {stat.label}
+                          </p>
+                          <div className="mt-1.5 text-sm font-medium text-white/84">{stat.value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {collectionItem ? (
+                      <>
+                        {collectionTags.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {collectionTags.map((tag) => (
+                              <MetaPill key={tag}>{tag}</MetaPill>
+                            ))}
+                          </div>
+                        )}
+
+                        {collectionItem.notes && (
+                          <div className={`mt-3 ${detailStatClass}`}>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
+                              Notes
+                            </p>
+                            <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-white/72">
+                              {collectionItem.notes}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="mt-3 rounded-[20px] border border-dashed border-white/8 bg-black/12 px-3 py-3 text-sm text-white/56">
+                        Add this card to DustyCards to save purchase details, condition, language and notes.
+                      </div>
+                    )}
+
+                    {refreshError && <p className="mt-4 text-sm text-rose-300">{refreshError}</p>}
+                  </div>
+                </SectionShell>
+
+                <SectionShell title="Current pricing">
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="rounded-[24px] border border-white/10 bg-black/24 p-4">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
+                            CardMarket
+                          </p>
+                        </div>
+                        {availableCardMarketHistorySeries.length > 1 && (
+                          <MetaPill>{activeCardMarketSeriesLabel}</MetaPill>
+                        )}
+                      </div>
+
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+                        <MetricTile
+                          label={cardMarketMetrics[0].label}
+                          value={cardMarketMetrics[0].value}
+                          hint={cardMarketMetrics[0].hint ?? null}
+                          accent="emerald"
+                          className="min-h-[108px]"
+                        />
+
+                        <div className="grid gap-3">
+                          {cardMarketMetrics.slice(1).map((metric) => (
+                            <MarketRow
+                              key={metric.label}
+                              label={metric.label}
+                              value={metric.value}
+                              hint={metric.hint ?? null}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[24px] border border-white/10 bg-black/24 p-4">
+                      <div className="mb-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
+                          TCGPlayer
+                        </p>
+                      </div>
+
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+                        <MetricTile
+                          label={tcgMetrics[0].label}
+                          value={tcgMetrics[0].value}
+                          hint={hasTcgPlayerPricing ? null : "No live pricing"}
+                          accent={hasTcgPlayerPricing ? "blue" : "slate"}
+                          className="min-h-[108px]"
+                        />
+
+                        <div className="grid gap-3">
+                          {tcgMetrics.slice(1).map((metric) => (
+                            <MarketRow
+                              key={metric.label}
+                              label={metric.label}
+                              value={metric.value}
+                              hint={metric.hint ?? null}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {gradedPrices.length > 0 && (
+                    <div className="mt-4 rounded-[24px] border border-white/10 bg-black/24 p-3.5">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto] lg:items-center">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
+                            Graded
+                          </p>
+                          {gradingCompanyLabel && gradingGradeLabel && (
+                            <p className="mt-1 text-xs text-white/42">
+                              Saved grade {gradingCompanyLabel} {gradingGradeLabel}
+                            </p>
+                          )}
+                        </div>
+
+                        {gradedPrices.length > 1 ? (
+                          <select
+                            value={selectedGradedPrice?.label ?? ""}
+                            onChange={(event) => setSelectedGradedLabel(event.target.value)}
+                            className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2.5 text-sm font-medium text-white outline-none transition-colors focus:border-white/18"
+                          >
+                            {gradedPrices.map((gradedPrice) => (
+                              <option
+                                key={gradedPrice.label}
+                                value={gradedPrice.label}
+                                className="bg-[#111214] text-white"
+                              >
+                                {gradedPrice.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <div className="rounded-2xl border border-violet-400/16 bg-violet-400/[0.08] px-3 py-2.5 text-sm font-semibold text-white/78">
+                            {selectedGradedPrice?.label ?? gradedPrices[0]?.label ?? "Graded"}
+                          </div>
+                        )}
+
+                        {selectedGradedPrice && (
+                          <p className="shrink-0 rounded-2xl border border-violet-400/16 bg-violet-400/[0.08] px-3 py-2.5 text-right text-xl font-semibold tabular-nums text-white">
+                            {formatCurrency(selectedGradedPrice.price, "EUR")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </SectionShell>
+
+                <SectionShell className="overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setHistoryChartsOpen((current) => !current)}
+                    className="flex w-full items-center justify-between gap-4 text-left"
+                    aria-expanded={historyChartsOpen}
+                    aria-controls={`history-charts-${modalCard.id}`}
+                  >
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                        Price history
+                      </p>
+                      <h3 className="mt-1 text-lg font-semibold text-white">History charts</h3>
+                    </div>
+                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/68">
+                      {historyChartsOpen ? "Hide" : "Show"}
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform ${historyChartsOpen ? "rotate-180" : ""}`}
+                      />
+                    </span>
+                  </button>
+
+                  {historyChartsOpen && (
+                    <div id={`history-charts-${modalCard.id}`} className="mt-4 grid gap-4 xl:grid-cols-2">
+                      <PriceHistoryPanel
+                        title="CardMarket History"
+                        currency="EUR"
+                        points={cardMarketHistory}
+                        currentValue={activeCardMarketCurrentValue}
+                        tone="dark"
+                        headerAccessory={
+                          availableCardMarketHistorySeries.length > 1 ? (
+                            <div className="flex flex-wrap justify-end gap-1.5">
+                              {availableCardMarketHistorySeries.map((series) => (
+                                <button
+                                  key={series.key}
+                                  type="button"
+                                  onClick={() => setCardMarketHistorySeries(series.key)}
+                                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                    activeCardMarketHistorySeries === series.key
+                                      ? "border-white/24 bg-white/14 text-white"
+                                      : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                                  }`}
+                                >
+                                  {series.label}
+                                </button>
+                              ))}
+                            </div>
+                          ) : availableCardMarketHistorySeries.length === 1 ? (
+                            <MetaPill>{activeCardMarketSeriesLabel}</MetaPill>
+                          ) : null
+                        }
+                      />
+
+                      <PriceHistoryPanel
+                        title="TCGPlayer History"
+                        currency="USD"
+                        points={tcgPlayerHistory}
+                        currentValue={modalCard.price?.tcp_market ?? null}
+                        tone="dark"
+                      />
+                    </div>
+                  )}
+                </SectionShell>
               </div>
-
-              <PriceRefreshCountdown
-                rarity={modalCard.rarity}
-                priceFetchedAt={modalCard.price_fetched_at}
-                priceSourceStatus={modalCard.price_source_status}
-                priceSourceCheckedAt={modalCard.price_source_checked_at}
-              />
-
-              {modalCard.artist && (
-                <p className="text-sm text-white/40">
-                  Illus.{" "}
-                  <IllustratorLink
-                    artist={modalCard.artist}
-                    onClick={onClose}
-                    className="text-white/70 transition-colors hover:text-white hover:underline underline-offset-2"
-                  />
-                </p>
-              )}
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3 px-6 pb-6">
+          <div className={footerGridClass}>
             <CollectionAddCardButton
               card={{
                 id: modalCard.id,
@@ -576,9 +965,10 @@ export default function CardModal({ card, onClose }: Props) {
               mode="button"
               theme="dark"
               label="Add to DustyCards"
-              className="flex-1 rounded-2xl"
+              className="rounded-2xl"
             />
-            {modalCard.collection_item && (
+
+            {collectionItem && (
               <CollectionEditCardButton
                 card={{
                   id: modalCard.id,
@@ -590,35 +980,36 @@ export default function CardModal({ card, onClose }: Props) {
                     code: modalCard.episode_code,
                   },
                 }}
-                item={modalCard.collection_item}
+                item={collectionItem}
                 mode="button"
                 theme="dark"
                 label="Edit card"
-                className="flex-1 rounded-2xl"
+                className="rounded-2xl"
                 onSaved={onClose}
               />
             )}
+
             {storedCardMarketUrl ? (
               <a
                 href={storedCardMarketUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-500"
+                className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-500"
               >
                 Open CardMarket
               </a>
             ) : (
               <button
                 onClick={openCardMarket}
-                className="flex-1 py-3 rounded-2xl font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500"
               >
                 Open CardMarket
               </button>
             )}
+
             <button
               onClick={onClose}
-              className="px-6 py-3 rounded-2xl font-semibold text-white/60 hover:text-white transition-colors"
-              style={{ background: "rgba(255,255,255,0.08)" }}
+              className="rounded-2xl bg-white/[0.08] px-6 py-3 font-semibold text-white/68 transition-colors hover:bg-white/[0.12] hover:text-white"
             >
               Close
             </button>

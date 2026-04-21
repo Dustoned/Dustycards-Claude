@@ -1,16 +1,160 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import { buildSealedPriceHistory } from "@/lib/price-history";
 import { getSealedPriceSnapshotsByProduct } from "@/lib/sealed-price-snapshots";
+import {
+  runSealedProductHistorySync,
+  runSealedProductRefresh,
+  SyncCancelledError,
+  SyncConflictError,
+} from "@/lib/sync";
+import { buildCardMarketProductUrl } from "@/lib/cardmarket";
+import { isTcggoQuotaExceededError } from "@/lib/tcggo";
+
+type SealedAction = "refresh" | "sync-history";
+
+async function getSealedDetailPayload(id: string) {
+  const product = await db.sealedProduct.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      image_url: true,
+      tcggo_url: true,
+      cardmarket_url: true,
+      cardmarket_id: true,
+      cm_lowest: true,
+      cm_lowest_eu: true,
+      cm_lowest_de: true,
+      cm_lowest_fr: true,
+      cm_lowest_es: true,
+      cm_lowest_it: true,
+      cm_avg_7d: true,
+      cm_avg_30d: true,
+      synced_at: true,
+      native_history_synced_at: true,
+      episode: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
+    },
+  });
+
+  if (!product) {
+    return null;
+  }
+
+  const snapshots = await getSealedPriceSnapshotsByProduct(id);
+
+  return {
+    id: product.id,
+    name: product.name,
+    image_url: product.image_url,
+    tcggo_url: product.tcggo_url,
+    cardmarket_id: product.cardmarket_id,
+    cardmarket_url:
+      product.cardmarket_url ??
+      (product.cardmarket_id ? buildCardMarketProductUrl(product.cardmarket_id) : null),
+    price_fetched_at: product.synced_at ? product.synced_at.toISOString() : null,
+    history_synced_at: product.native_history_synced_at
+      ? product.native_history_synced_at.toISOString()
+      : null,
+    price: {
+      cm_lowest: product.cm_lowest,
+      cm_lowest_eu: product.cm_lowest_eu,
+      cm_lowest_de: product.cm_lowest_de,
+      cm_lowest_fr: product.cm_lowest_fr,
+      cm_lowest_es: product.cm_lowest_es,
+      cm_lowest_it: product.cm_lowest_it,
+      cm_avg_7d: product.cm_avg_7d,
+      cm_avg_30d: product.cm_avg_30d,
+    },
+    price_history: buildSealedPriceHistory(snapshots),
+    episode: product.episode,
+  };
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const payload = await getSealedDetailPayload(id);
 
-  const snapshots = await getSealedPriceSnapshotsByProduct(id);
+  if (!payload) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
-  return NextResponse.json({
-    price_history: buildSealedPriceHistory(snapshots),
-  });
+  return NextResponse.json(payload);
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  let action: SealedAction = "refresh";
+
+  try {
+    const body = (await req.json()) as { action?: SealedAction };
+    if (body.action === "sync-history") {
+      action = "sync-history";
+    }
+  } catch {
+    // Treat empty or invalid JSON bodies as a regular refresh request.
+  }
+
+  try {
+    if (action === "sync-history") {
+      await runSealedProductHistorySync(id);
+    } else {
+      await runSealedProductRefresh(id);
+    }
+
+    const payload = await getSealedDetailPayload(id);
+
+    if (!payload) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(payload);
+  } catch (error) {
+    if (error instanceof SyncCancelledError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          cancelled: true,
+        },
+        { status: 409 }
+      );
+    }
+
+    if (error instanceof SyncConflictError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          activeType: error.activeType,
+          startedAt: error.startedAt.toISOString(),
+        },
+        { status: 409 }
+      );
+    }
+
+    if (isTcggoQuotaExceededError(error)) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          resetAt: error.resetAt ? error.resetAt.toISOString() : null,
+        },
+        { status: 429 }
+      );
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

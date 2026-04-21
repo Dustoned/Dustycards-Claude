@@ -4,6 +4,33 @@
 
 :root {
   --font-sans: var(--font-geist-sans);
+  color-scheme: light;
+  background-color: #f2f2f7;
+}
+
+html {
+  min-height: 100%;
+  background-color: #f2f2f7;
+  color-scheme: light;
+}
+
+html.dark,
+html[data-theme="dark"] {
+  background-color: #000;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    background-color: #000;
+    color-scheme: dark;
+  }
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background: transparent;
 }
 
 * {

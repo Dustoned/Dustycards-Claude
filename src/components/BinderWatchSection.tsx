@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import CollectionCardsView, { type CollectionCardViewItem } from "@/components/CollectionCardsView";
 import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
 
 export default function BinderWatchSection({
   items,
+  sectionTrailing,
 }: {
   items: CollectionCardViewItem[];
+  sectionTrailing?: ReactNode;
 }) {
   const { settings } = useSettings();
   const threshold = settings.binderWatchMinPrice;
@@ -35,6 +37,7 @@ export default function BinderWatchSection({
           {formatCollectionCurrency(threshold)}+
         </span>
         <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+        {sectionTrailing}
         <Link
           href="/settings"
           className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-700 dark:text-white/45 dark:hover:text-white/75"
@@ -44,7 +47,7 @@ export default function BinderWatchSection({
       </div>
 
       <CollectionCardsView
-        items={watchedItems.slice(0, 12)}
+        items={watchedItems}
         emptyTitle="No binder watch hits yet"
         emptyText={`No binder cards above ${formatCollectionCurrency(threshold)} yet.`}
       />

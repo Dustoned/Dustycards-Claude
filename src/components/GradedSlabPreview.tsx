@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
   formatPsaNameLine,
@@ -21,6 +24,7 @@ interface Props {
   loading?: "lazy" | "eager";
   priority?: boolean;
   variant?: "tile" | "detail";
+  tileSize?: "small" | "medium" | "large";
 }
 
 function PsaLogoMark({ className = "" }: { className?: string }) {
@@ -154,6 +158,18 @@ const DETAIL_METRICS = {
   glare: "inset-x-[15%] top-[4%] h-[4.7%]",
 } as const;
 
+const DETAIL_LABEL_BASE_WIDTH = 420;
+
+function getTileLabelScale(tileSize: "small" | "medium" | "large"): number {
+  if (tileSize === "small") return 0.84;
+  if (tileSize === "large") return 1.28;
+  return 1;
+}
+
+function clampScale(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
 export default function GradedSlabPreview({
   company,
   grade,
@@ -169,19 +185,65 @@ export default function GradedSlabPreview({
   loading,
   priority = false,
   variant = "tile",
+  tileSize = "medium",
 }: Props) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [slabWidth, setSlabWidth] = useState(0);
+
+  useEffect(() => {
+    if (variant !== "detail") {
+      return;
+    }
+
+    const element = rootRef.current;
+    if (!element) {
+      return;
+    }
+
+    const updateWidth = (nextWidth: number) => {
+      const normalizedWidth = Math.round(nextWidth);
+      setSlabWidth((currentWidth) =>
+        currentWidth === normalizedWidth ? currentWidth : normalizedWidth
+      );
+    };
+
+    updateWidth(element.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      updateWidth(entry.contentRect.width);
+    });
+
+    observer.observe(element);
+
+    return () => observer.disconnect();
+  }, [variant]);
+
   const theme = getGradedSlabTheme(company);
   const isPsa = company === "PSA";
   const metrics = variant === "detail" ? DETAIL_METRICS : TILE_METRICS;
+  const detailLabelScale =
+    slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.72, 1.02) : 0.88;
+  const labelScale = variant === "detail" ? detailLabelScale : getTileLabelScale(tileSize);
+  const scaledLabelContentStyle =
+    labelScale === 1
+      ? undefined
+      : {
+          width: `${100 / labelScale}%`,
+          height: `${100 / labelScale}%`,
+          transform: `scale(${labelScale})`,
+          transformOrigin: "top left",
+        };
   const psaDescriptor = isPsa ? getPsaGradeDescriptor(grade) : null;
   const psaNameLine = isPsa ? formatPsaNameLine(name) : null;
-  const psaSetLine = isPsa ? formatPsaSetLine(episodeName, cardNumber) : null;
+  const psaSetLine = isPsa ? formatPsaSetLine(episodeName, cardNumber ?? null) : null;
   const slabSubtitle = [episodeCode ?? episodeName, cardNumber ? `#${cardNumber}` : null]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <div className={`relative h-full w-full text-left ${className}`}>
+    <div ref={rootRef} className={`relative h-full w-full text-left ${className}`}>
       <div
         className={`relative h-full w-full overflow-hidden border shadow-[0_14px_30px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.18)] ${metrics.shellRadius} ${theme.shell}`}
       >
@@ -193,87 +255,95 @@ export default function GradedSlabPreview({
           <div
             className={`absolute z-[2] shadow-sm shadow-black/15 ${metrics.psaLabel} ${theme.labelOuter}`}
           >
-            <div className={`relative h-full w-full rounded-[2px] ${theme.labelInner}`}>
-              <div
-                className={`absolute flex flex-col items-start text-left leading-none text-[#111111] ${metrics.psaLeft}`}
-              >
-                <p
-                  className={`truncate font-bold uppercase tracking-[0.18em] ${metrics.psaEyebrow}`}
+            <div className="relative h-full w-full" style={scaledLabelContentStyle}>
+              <div className={`relative h-full w-full rounded-[2px] ${theme.labelInner}`}>
+                <div
+                  className={`absolute flex flex-col items-start text-left leading-none text-[#111111] ${metrics.psaLeft}`}
                 >
-                  Pokemon TCG
-                </p>
-                <p
-                  className={`truncate font-bold uppercase tracking-[0.03em] ${metrics.psaName}`}
+                  <p
+                    className={`truncate font-bold uppercase tracking-[0.18em] ${metrics.psaEyebrow}`}
+                  >
+                    Pokemon TCG
+                  </p>
+                  <p
+                    className={`truncate font-bold uppercase tracking-[0.03em] ${metrics.psaName}`}
+                  >
+                    {psaNameLine}
+                  </p>
+                  <p
+                    className={`truncate font-semibold uppercase tracking-[0.07em] opacity-85 ${metrics.psaSet}`}
+                  >
+                    {psaSetLine}
+                  </p>
+                </div>
+
+                <div
+                  className={`absolute flex flex-col items-end text-right text-[#111111] ${metrics.psaRight}`}
                 >
-                  {psaNameLine}
-                </p>
-                <p
-                  className={`truncate font-semibold uppercase tracking-[0.07em] opacity-85 ${metrics.psaSet}`}
-                >
-                  {psaSetLine}
-                </p>
+                  <p
+                    className={`truncate font-bold leading-none tracking-[0.02em] ${metrics.psaRightMeta}`}
+                  >
+                    {cardNumber ? `#${cardNumber}` : ""}
+                  </p>
+                  <p
+                    className={`mt-[4px] truncate font-bold leading-none tracking-[0.08em] ${metrics.psaRightMeta}`}
+                  >
+                    {psaDescriptor ?? "GRADE"}
+                  </p>
+                  <p className={`font-black leading-none ${metrics.psaGrade}`}>{grade}</p>
+                </div>
               </div>
 
               <div
-                className={`absolute flex flex-col items-end text-right text-[#111111] ${metrics.psaRight}`}
+                className={`absolute left-1/2 -translate-x-1/2 bg-[#e13b37] shadow-[0_1px_0_rgba(255,255,255,0.16)] ${metrics.psaLogoWrap}`}
               >
-                <p
-                  className={`truncate font-bold leading-none tracking-[0.02em] ${metrics.psaRightMeta}`}
+                <div
+                  className={`flex h-full w-full items-center justify-center bg-[#fffefe] ${metrics.psaLogoInner}`}
                 >
-                  {cardNumber ? `#${cardNumber}` : ""}
-                </p>
-                <p
-                  className={`mt-[4px] truncate font-bold leading-none tracking-[0.08em] ${metrics.psaRightMeta}`}
-                >
-                  {psaDescriptor ?? "GRADE"}
-                </p>
-                <p className={`font-black leading-none ${metrics.psaGrade}`}>{grade}</p>
-              </div>
-            </div>
-
-            <div
-              className={`absolute left-1/2 -translate-x-1/2 bg-[#e13b37] shadow-[0_1px_0_rgba(255,255,255,0.16)] ${metrics.psaLogoWrap}`}
-            >
-              <div
-                className={`flex h-full w-full items-center justify-center bg-[#fffefe] ${metrics.psaLogoInner}`}
-              >
-                <PsaLogoMark className={metrics.psaLogo} />
+                  <PsaLogoMark className={metrics.psaLogo} />
+                </div>
               </div>
             </div>
           </div>
         ) : (
           <div
-            className={`absolute z-[2] flex overflow-hidden shadow-sm shadow-black/8 ${metrics.genericLabel} ${theme.labelOuter}`}
+            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/8 ${metrics.genericLabel} ${theme.labelOuter}`}
           >
-            <div className={`absolute inset-x-0 top-0 h-[3px] ${theme.labelDivider}`} />
-            <div
-              className={`relative min-w-0 flex-1 text-left leading-none text-white ${metrics.genericContent}`}
-            >
-              <span
-                className={`font-black uppercase tracking-[0.22em] ${metrics.genericEyebrow}`}
-              >
-                {company}
-              </span>
-              <p
-                className={`truncate font-semibold uppercase tracking-[0.08em] ${metrics.genericName}`}
-              >
-                {name}
-              </p>
-              <p
-                className={`truncate font-medium uppercase tracking-[0.12em] opacity-75 ${metrics.genericSet}`}
-              >
-                {slabSubtitle}
-              </p>
-            </div>
-            <div
-              className={`relative flex flex-col items-center justify-center text-white ${metrics.genericGradeColumn} ${theme.gradeDivider}`}
-            >
-              <span
-                className={`font-bold uppercase tracking-[0.18em] opacity-70 ${metrics.genericGradeLabel}`}
-              >
-                Grade
-              </span>
-              <span className={`font-black leading-none tracking-[0] ${metrics.genericGrade}`}>{grade}</span>
+            <div className="relative h-full w-full" style={scaledLabelContentStyle}>
+              <div className={`relative flex h-full w-full overflow-hidden`}>
+                <div className={`absolute inset-x-0 top-0 h-[3px] ${theme.labelDivider}`} />
+                <div
+                  className={`relative min-w-0 flex-1 text-left leading-none text-white ${metrics.genericContent}`}
+                >
+                  <span
+                    className={`font-black uppercase tracking-[0.22em] ${metrics.genericEyebrow}`}
+                  >
+                    {company}
+                  </span>
+                  <p
+                    className={`truncate font-semibold uppercase tracking-[0.08em] ${metrics.genericName}`}
+                  >
+                    {name}
+                  </p>
+                  <p
+                    className={`truncate font-medium uppercase tracking-[0.12em] opacity-75 ${metrics.genericSet}`}
+                  >
+                    {slabSubtitle}
+                  </p>
+                </div>
+                <div
+                  className={`relative flex flex-col items-center justify-center text-white ${metrics.genericGradeColumn} ${theme.gradeDivider}`}
+                >
+                  <span
+                    className={`font-bold uppercase tracking-[0.18em] opacity-70 ${metrics.genericGradeLabel}`}
+                  >
+                    Grade
+                  </span>
+                  <span className={`font-black leading-none tracking-[0] ${metrics.genericGrade}`}>
+                    {grade}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         )}

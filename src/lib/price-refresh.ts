@@ -51,7 +51,7 @@ const PRICE_REFRESH_POLICIES: Record<PriceRefreshTier, PriceRefreshPolicy> = {
 };
 
 const BASE_PRICE_ONLY_RARITIES = new Set(["Common", "Uncommon"]);
-const LOW_REFRESH_RARITIES = new Set(["Rare"]);
+const MEDIUM_REFRESH_RARITIES = new Set(["Rare"]);
 
 export function formatPriceRefreshedAt(value: string | null): string | null {
   if (!value) return null;
@@ -70,7 +70,7 @@ export function getPriceRefreshTier(rarity: string | null | undefined): PriceRef
 
   if (!normalized) return "high";
   if (BASE_PRICE_ONLY_RARITIES.has(normalized)) return "base";
-  if (LOW_REFRESH_RARITIES.has(normalized)) return "low";
+  if (MEDIUM_REFRESH_RARITIES.has(normalized)) return "medium";
   if (normalized.includes("Rare Holo")) return "medium";
 
   return "high";

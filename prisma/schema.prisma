@@ -227,8 +227,10 @@ model SyncLog {
   message     String?
   started_at  DateTime @default(now())
   finished_at DateTime?
+  cancel_requested_at DateTime?
 
   @@index([status, started_at])
+  @@index([cancel_requested_at])
 }
 
 model ApiQuotaSnapshot {

@@ -4,9 +4,9 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSettings } from "@/components/SettingsProvider";
 
-const AUTO_PRICE_REFRESH_POLL_MS = 60_000;
-const AUTO_PRICE_REFRESH_START_DELAY_MS = 10_000;
-const AUTO_PRICE_REFRESH_MIN_TRIGGER_GAP_MS = 45_000;
+const AUTO_PRICE_REFRESH_POLL_MS = 30_000;
+const AUTO_PRICE_REFRESH_START_DELAY_MS = 3_000;
+const AUTO_PRICE_REFRESH_MIN_TRIGGER_GAP_MS = 25_000;
 const AUTO_PRICE_REFRESH_FORCE_GAP_MS = 5_000;
 const AUTO_PRICE_REFRESH_REFRESH_COOLDOWN_MS = 15_000;
 const AUTO_PRICE_REFRESH_STORAGE_KEY = "dustycards-auto-price-refresh-last-trigger";

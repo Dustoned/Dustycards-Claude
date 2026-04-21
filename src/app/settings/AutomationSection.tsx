@@ -20,6 +20,9 @@ function SyncSealedButton() {
       if (data.ok) {
         setStatus(`Done - ${data.products} sealed products across ${data.synced} expansions`);
         router.refresh();
+      } else if (data.cancelled) {
+        setStatus(data.error ?? "Sealed sync stopped.");
+        router.refresh();
       } else {
         setStatus(`Error: ${data.error}`);
       }
@@ -72,6 +75,9 @@ function SyncCardHistoryButton({ pendingCards }: { pendingCards: number }) {
             `Done - ${data.syncedCards} cards synced, ${data.newHistorySnapshots} history snapshots imported`
         );
         router.refresh();
+      } else if (data.cancelled) {
+        setStatus(data.error ?? "Card history sync stopped.");
+        router.refresh();
       } else {
         const activeLabel =
           data.activeType === "card-history"
@@ -99,7 +105,7 @@ function SyncCardHistoryButton({ pendingCards }: { pendingCards: number }) {
         {loading ? "Syncing history..." : "Sync Card History"}
       </button>
       <p className="max-w-sm text-xs text-gray-400">
-        Manual only. Uses scraper requests and keeps the normal snapshot sync separate.
+        Manual only. Uses scraper requests and only targets collection cards above Common, Uncommon, and Rare.
       </p>
       {status && <p className="max-w-sm text-xs text-gray-400">{status}</p>}
     </div>
@@ -114,21 +120,15 @@ const TIERS = [
     cadence: "First sync, then manual only",
   },
   {
-    label: "Low",
-    badge: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
-    description: "Rare only",
-    cadence: "Every 24 hours",
-  },
-  {
     label: "Medium",
     badge: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-    description: "Rare Holo and holo variants",
+    description: "Rare, Rare Holo, and holo variants",
     cadence: "Every 24 hours",
   },
   {
     label: "High",
     badge: "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
-    description: "Everything above that tier",
+    description: "Ultra rares, illustration rares, promos, and higher tiers",
     cadence: "Every 12 hours",
   },
 ] as const;
@@ -237,10 +237,10 @@ export default function AutomationSection({
           <div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">Card history import</p>
             <p className="mt-0.5 text-xs text-gray-400">
-              Import full TCGGO history per card only when you choose to spend scraper requests.
+              Import full TCGGO history for collection cards, excluding Common, Uncommon, and Rare.
             </p>
             <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-              Pending cards:{" "}
+              Pending eligible collection cards:{" "}
               <span className="font-semibold text-gray-900 dark:text-white">
                 {pendingCardHistoryCards}
               </span>

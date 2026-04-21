@@ -14,6 +14,7 @@ interface Props {
   priceSourceStatus?: string | null;
   priceSourceCheckedAt?: string | null;
   className?: string;
+  compact?: boolean;
 }
 
 const TIER_STYLES: Record<PriceRefreshTier, string> = {
@@ -29,6 +30,7 @@ export default function PriceRefreshCountdown({
   priceSourceStatus,
   priceSourceCheckedAt,
   className,
+  compact = false,
 }: Props) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -63,6 +65,60 @@ export default function PriceRefreshCountdown({
     : refreshInfo.due
       ? `Refresh overdue by ${formatRefreshCountdown(overdueMs)}`
       : `Next refresh in ${formatRefreshCountdown(refreshInfo.remainingMs)}`;
+
+  const compactSummary = !refreshInfo.hasFetchedAt
+    ? priceSourceStatus === "unavailable"
+      ? "No source price available"
+      : refreshInfo.tier === "base"
+        ? "Waiting for first base sync"
+        : "Waiting for first sync"
+    : !refreshInfo.autoRefreshEnabled
+      ? "Manual after base sync"
+    : refreshInfo.due
+      ? `Overdue ${formatRefreshCountdown(overdueMs)}`
+      : `Next refresh ${formatRefreshCountdown(refreshInfo.remainingMs)}`;
+
+  if (compact) {
+    const cadenceText = refreshInfo.autoRefreshEnabled
+      ? refreshInfo.cadenceLabel
+      : refreshInfo.hasFetchedAt
+        ? "Manual only"
+        : "Pending first sync";
+    const compactDetail = lastRefreshedAt
+      ? `${refreshInfo.autoRefreshEnabled ? "Last" : "Captured"} ${lastRefreshedAt}`
+      : lastSourceCheckAt
+        ? `Last source check ${lastSourceCheckAt}`
+        : null;
+
+    return (
+      <div
+        className={`rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] px-3.5 py-3 backdrop-blur-md ${
+          className ?? ""
+        }`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                  TIER_STYLES[refreshInfo.tier]
+                }`}
+              >
+                {refreshInfo.tierLabel}
+              </span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/34">
+                {cadenceText}
+              </span>
+            </div>
+
+            <p className="mt-2 text-sm font-semibold text-white/86">{compactSummary}</p>
+
+            {compactDetail && <p className="mt-1 text-[11px] text-white/42">{compactDetail}</p>}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

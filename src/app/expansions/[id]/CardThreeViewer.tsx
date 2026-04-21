@@ -5,6 +5,7 @@ import { RotateCcw, X } from "lucide-react";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import IllustratorLink from "@/components/IllustratorLink";
 import { withCardMarketFilters } from "@/lib/cardmarket";
+import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import {
   PSA_SLAB_MODEL_DIMENSIONS,
   RAW_TCG_CARD_DIMENSIONS,
@@ -304,15 +305,15 @@ function createFoilOverlayMaterial(
         vec2 holoDrift = vec2(reflectDir.x * 0.24, reflectDir.y * 0.18);
         vec2 pointerUv = mix(vec2(0.5, 0.5), uPointerUv, clamp(uPointerStrength, 0.0, 1.0));
         vec3 artColor = sampleCard(vUv);
-        vec3 artSampleX = sampleCard(vUv + vec2(uTexelSize.x * 4.0, 0.0));
-        vec3 artSampleY = sampleCard(vUv + vec2(0.0, uTexelSize.y * 4.0));
-        vec3 artSampleDiag = sampleCard(vUv + uTexelSize * vec2(3.0, -3.0));
+        vec3 artSampleX = sampleCard(vUv + vec2(uTexelSize.x * 2.0, 0.0));
+        vec3 artSampleY = sampleCard(vUv + vec2(0.0, uTexelSize.y * 2.0));
+        vec3 artSampleDiag = sampleCard(vUv + uTexelSize * vec2(1.75, -1.75));
         float artLuma = dot(artColor, vec3(0.299, 0.587, 0.114));
         float artMax = max(max(artColor.r, artColor.g), artColor.b);
         float artMin = min(min(artColor.r, artColor.g), artColor.b);
         float artSaturation = artMax - artMin;
         float artDetail = clamp(
-          (length(artColor - artSampleX) + length(artColor - artSampleY) + length(artColor - artSampleDiag)) * 1.9,
+          (length(artColor - artSampleX) + length(artColor - artSampleY) + length(artColor - artSampleDiag)) * 1.28,
           0.0,
           1.0
         );
@@ -346,11 +347,29 @@ function createFoilOverlayMaterial(
           clamp(dot(reflectDir, normalize(vec3(vec2(-artAxis.y, artAxis.x) * vec2(0.56, 0.4), 1.0))), 0.0, 1.0),
           mix(40.0, 14.0, gradientStrength)
         ) * (0.12 + artDetail * 0.88);
-        float foilMask = clamp(
-          0.08 + artSaturation * 0.4 + artDetail * 0.65 + gradientStrength * 0.45 + (1.0 - artLuma) * 0.04,
+        float detailPresence = clamp(gradientStrength * 0.72 + artDetail * 0.58, 0.0, 1.0);
+        float readabilityMask = mix(1.0, 0.88, smoothstep(0.24, 0.92, detailPresence));
+        float localFoilFocus = clamp(
+          artDetail * 0.82 + gradientStrength * 0.68 + artSpecular * 0.52 + artSaturation * 0.28,
           0.0,
           1.0
         );
+        float foilMask = clamp(
+          0.08 + artSaturation * 0.39 + artDetail * 0.6 + gradientStrength * 0.34 + (1.0 - artLuma) * 0.04,
+          0.0,
+          1.0
+        ) * readabilityMask;
+        float microBand = 1.0 - smoothstep(
+          0.05,
+          0.2,
+          abs(
+            dot(centeredUv, normalize(vec2(-artAxis.y, artAxis.x) * vec2(0.88, 0.72))) +
+              reflectDir.x * mix(0.16, 0.48, gradientStrength) -
+              reflectDir.y * mix(0.1, 0.32, gradientStrength) +
+              (artRegion - 1.0) * 0.08
+          )
+        );
+        float localFoilBoost = 1.0 + localFoilFocus * (0.12 + microBand * 0.34);
 
         float cursorDistance = distance(
           vUv + holoDrift * 0.16,
@@ -386,6 +405,7 @@ function createFoilOverlayMaterial(
               artSweep * 0.32 +
               artSpecular * 0.74 +
               microSpecular * 0.46 +
+              microBand * 0.18 +
               cursorHighlight * 0.12,
             0.0,
             1.0
@@ -395,17 +415,19 @@ function createFoilOverlayMaterial(
           silverColor *
           clamp(
             0.1 +
-              fresnel * 0.14 +
+              fresnel * 0.13 +
               tiltSweep * 0.08 +
-              secondarySweep * 0.06 +
+              secondarySweep * 0.055 +
               artSweep * 0.34 +
-              artSpecular * 0.52 +
-              microSpecular * 0.34 +
+              artSpecular * 0.5 +
+              microSpecular * 0.3 +
+              microBand * 0.12 +
               cursorSoft * 0.1,
             0.0,
             1.0
           ) *
           foilMask *
+          localFoilBoost *
           uFoilStrength;
         vec3 color = screenBlend(vec3(0.02), baseFoil);
         color = screenBlend(
@@ -422,13 +444,15 @@ function createFoilOverlayMaterial(
         );
         float alpha = clamp(
           foilMask *
-            (0.03 +
+            (0.026 +
               fresnel * 0.06 +
               artSweep * 0.12 +
-              artSpecular * 0.18 +
-              microSpecular * 0.12 +
-              cursorHighlight * 0.06 +
-              grazingHighlight * 0.16) *
+              artSpecular * 0.17 +
+              microSpecular * 0.11 +
+              microBand * 0.09 +
+              cursorHighlight * 0.055 +
+              grazingHighlight * 0.15) *
+            mix(1.0, 1.18, localFoilFocus * microBand) *
             uFoilStrength,
           0.0,
           0.54
@@ -456,8 +480,15 @@ function createFoilOverlayMaterial(
           );
           float prismMask = clamp(
             foilMask *
-              (0.12 + artSaturation * 0.42 + artDetail * 0.48 + gradientStrength * 0.28 + artSpecular * 0.3) *
-              (rainbowSweep * 0.78 + prismBand * 0.34 + cursorSoft * 0.12),
+              (
+                0.13 +
+                artSaturation * 0.45 +
+                artDetail * 0.43 +
+                gradientStrength * 0.26 +
+                artSpecular * 0.3 +
+                localFoilFocus * 0.18
+              ) *
+              (rainbowSweep * 0.84 + prismBand * 0.38 + microBand * 0.28 + cursorSoft * 0.13),
             0.0,
             1.0
           ) * uRainbowStrength;
@@ -474,12 +505,12 @@ function createFoilOverlayMaterial(
             )
           );
           vec3 rainbowBlend = rainbow * prismMask;
-          color = screenBlend(color, rainbowBlend * 1.16);
-          color = mix(color, colorDodgeBlend(color, rainbowBlend * 1.08), 0.58);
-          alpha += prismMask * 0.34;
+          color = screenBlend(color, rainbowBlend * 1.18);
+          color = mix(color, colorDodgeBlend(color, rainbowBlend * 1.06), 0.52);
+          alpha += prismMask * 0.35;
         }
 
-        gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.72));
+        gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.68));
       }
     `,
   });
@@ -918,10 +949,9 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
   const gradingGradeLabel = normalizeGradingGradeLabel(card.collection_item?.grading_grade);
   const isPsaSlabViewer = gradingCompanyLabel === "PSA" && Boolean(gradingGradeLabel);
 
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+  useBodyScrollLock();
 
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
@@ -930,7 +960,6 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
 
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose]);
@@ -1665,7 +1694,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
               <div className="pointer-events-none mt-4 md:mt-0 md:flex md:items-center">
                 <div
                   ref={detailsRef}
-                  className="pointer-events-auto mx-auto max-w-lg rounded-3xl border border-white/14 bg-transparent px-5 py-4 backdrop-blur-xl md:mx-0 md:w-full md:max-w-none md:max-h-[calc(100vh-3rem)] md:overflow-y-auto"
+                  className="pointer-events-auto mx-auto max-w-lg rounded-3xl border border-white/14 bg-transparent px-5 py-4 backdrop-blur-xl md:mx-0 md:w-full md:max-w-none md:max-h-[calc(100vh-3rem)] md:overflow-y-auto md:overscroll-contain"
                   style={{
                     background: "rgba(12,12,14,0.68)",
                     border: "1px solid rgba(255,255,255,0.16)",
@@ -1678,7 +1707,6 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                     {card.card_number && <span>#{card.card_number}</span>}
                     {card.supertype && <span>{card.supertype}</span>}
                     {card.subtypes && <span>{card.subtypes}</span>}
-                    {card.hp && <span>HP {card.hp}</span>}
                   </div>
 
                   {card.rarity && (

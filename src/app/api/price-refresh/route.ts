@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SyncConflictError, runAutoPriceRefresh } from "@/lib/sync";
+import { SyncCancelledError, SyncConflictError, runAutoPriceRefresh } from "@/lib/sync";
 
 export async function POST() {
   try {
@@ -9,6 +9,17 @@ export async function POST() {
       ...result,
     });
   } catch (error) {
+    if (error instanceof SyncCancelledError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          cancelled: true,
+          error: error.message,
+        },
+        { status: 409 }
+      );
+    }
+
     if (error instanceof SyncConflictError) {
       return NextResponse.json(
         {

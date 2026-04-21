@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { Prisma } from "@/generated/prisma";
 import type { CollectionCardViewItem } from "@/components/CollectionCardsView";
 import type { CollectionSealedViewItem } from "@/components/CollectionSealedView";
 import {
@@ -116,6 +117,7 @@ const collectionCardSelect = {
           cm_fr_lowest_nm: true,
           cm_es_lowest_nm: true,
           cm_it_lowest_nm: true,
+          tcp_market: true,
         },
       },
       gradedPrices: {
@@ -134,7 +136,7 @@ const collectionCardSelect = {
       },
     },
   },
-} as const;
+} satisfies Prisma.CollectionCardSelect;
 
 const SQLITE_SAFE_CHUNK_SIZE = 250;
 
@@ -297,6 +299,9 @@ async function getSealedHistoryRows(productIds: string[]) {
 }
 
 function buildCardViewItem(record: CollectionCardRecord): CollectionCardViewItem {
+  const cmValue = getCollectionCardMarketValue(record.card);
+  const tcpValue = record.card.prices[0]?.tcp_market ?? null;
+
   return {
     collection_item_id: record.id,
     collection_item_ids: [record.id],
@@ -310,6 +315,8 @@ function buildCardViewItem(record: CollectionCardRecord): CollectionCardViewItem
     episode_id: record.card.episode.id,
     episode_name: record.card.episode.name,
     episode_code: record.card.episode.code,
+    cm_value: cmValue,
+    tcp_value: tcpValue,
     current_value: getCollectionCardMarketValue(record.card, {
       gradingCompany: record.grading_company,
       gradingGrade: record.grading_grade,
@@ -550,6 +557,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
               cm_fr_lowest_nm: true,
               cm_es_lowest_nm: true,
               cm_it_lowest_nm: true,
+              tcp_market: true,
             },
           },
           gradedPrices: {
@@ -601,6 +609,8 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         gradingGrade: string | null;
         itemIds: string[];
         currentValue: number;
+        cmValue: number;
+        tcpValue: number;
       }
     >();
 
@@ -613,12 +623,16 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
           gradingCompany: item.grading_company,
           gradingGrade: item.grading_grade,
         }) ?? 0;
+      const itemCmValue = getCollectionCardMarketValue(currentCard) ?? 0;
+      const itemTcpValue = currentCard?.prices[0]?.tcp_market ?? 0;
       const existing = ownedByCardId.get(item.card.id);
       if (existing) {
         existing.count += 1;
         existing.purchasePrice += item.purchase_price ?? 0;
         existing.itemIds.push(item.id);
         existing.currentValue += itemCurrentValue;
+        existing.cmValue += itemCmValue;
+        existing.tcpValue += itemTcpValue;
       } else {
         ownedByCardId.set(item.card.id, {
           count: 1,
@@ -631,6 +645,8 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
           gradingGrade: item.grading_grade,
           itemIds: [item.id],
           currentValue: itemCurrentValue,
+          cmValue: itemCmValue,
+          tcpValue: itemTcpValue,
         });
       }
     }
@@ -660,6 +676,12 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         episode_id: card.episode.id,
         episode_name: card.episode.name,
         episode_code: card.episode.code,
+        cm_value: owned
+          ? Number(owned.cmValue.toFixed(2))
+          : getCollectionCardMarketValue(card),
+        tcp_value: owned
+          ? Number(owned.tcpValue.toFixed(2))
+          : card.prices[0]?.tcp_market ?? null,
         current_value:
           owned
             ? Number(owned.currentValue.toFixed(2))

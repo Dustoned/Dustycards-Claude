@@ -50,6 +50,7 @@ function save(s: UserSettings) {
 
 function applyTheme(theme: Theme) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = theme;
   document.documentElement.classList.toggle(
     "dark",
     theme === "dark" || (theme === "system" && prefersDark)

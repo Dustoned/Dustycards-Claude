@@ -1,9 +1,9 @@
-import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, Boxes, Coins, Sparkles, TrendingUp } from "lucide-react";
-import CollectionBinderIcon from "@/components/CollectionBinderIcon";
-import BinderWatchSection from "@/components/BinderWatchSection";
 import CollectionCardsView, { type CollectionCardViewItem } from "@/components/CollectionCardsView";
+import CollectionOverviewSections, {
+  BinderOverviewTile,
+} from "@/components/CollectionOverviewSections";
 import CollectionSealedView from "@/components/CollectionSealedView";
 import CreateBinderButton from "@/components/CreateBinderButton";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
@@ -14,20 +14,6 @@ export const dynamic = "force-dynamic";
 
 function isGradedCollectionCard(item: CollectionCardViewItem) {
   return Boolean(item.grading_company && item.grading_grade);
-}
-
-function SectionHeader({ label, count }: { label: string; count: number }) {
-  return (
-    <div className="mb-4 flex items-center gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-        {label}
-      </h2>
-      <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-        {count}
-      </span>
-      <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-    </div>
-  );
 }
 
 function TabLink({
@@ -49,99 +35,6 @@ function TabLink({
       }`}
     >
       {label}
-    </Link>
-  );
-}
-
-function BinderTile({
-  binder,
-}: {
-  binder: {
-    id: string;
-    name: string;
-    subtitle: string;
-    progressLabel: string;
-    currentValue: number;
-    pnl: number;
-    accent_color: string | null;
-    icon_name: string | null;
-    episode: {
-      logo_url: string | null;
-    } | null;
-  };
-}) {
-  const accentColor = binder.accent_color;
-
-  return (
-    <Link
-      href={`/binders/${binder.id}`}
-      className="glass group relative flex h-full flex-col gap-4 overflow-hidden rounded-3xl p-5 shadow-lg shadow-black/5 transition-transform hover:scale-[1.01] hover:bg-white/8 dark:hover:bg-white/6"
-      style={
-        binder.accent_color
-          ? { boxShadow: `inset 0 0 0 1px ${binder.accent_color}2f` }
-          : undefined
-      }
-    >
-      {binder.accent_color && (
-        <div
-          className="absolute inset-x-5 top-0 h-1 rounded-b-full"
-          style={{ backgroundColor: accentColor ?? undefined }}
-        />
-      )}
-
-      <div
-        className="relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-2xl border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]"
-        style={
-          binder.accent_color
-            ? { boxShadow: `inset 0 0 0 1px ${binder.accent_color}24` }
-            : undefined
-        }
-      >
-        {binder.episode?.logo_url ? (
-          <Image
-            src={binder.episode.logo_url}
-            alt={binder.name}
-            fill
-            className="object-contain p-5 sm:p-6"
-            unoptimized
-          />
-        ) : (
-          <div
-            className="flex h-20 w-20 items-center justify-center rounded-3xl border border-black/8 bg-white/80 text-gray-500 dark:border-white/10 dark:bg-white/8 dark:text-white/70"
-            style={accentColor ? { color: accentColor } : undefined}
-          >
-            <CollectionBinderIcon iconName={binder.icon_name} className="h-9 w-9" />
-          </div>
-        )}
-      </div>
-
-      <div className="min-w-0">
-        <h3 className="truncate text-xl font-bold text-gray-900 dark:text-white">{binder.name}</h3>
-        <p className="mt-1 truncate text-sm text-gray-500 dark:text-white/50">{binder.subtitle}</p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 text-xs">
-        {[
-          { label: "Progress", value: binder.progressLabel },
-          { label: "Value", value: formatCollectionCurrency(binder.currentValue) },
-          {
-            label: "P&L",
-            value: `${binder.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(binder.pnl)}`,
-          },
-        ].map((metric) => (
-          <div
-            key={metric.label}
-            className="rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-3 dark:border-white/8 dark:bg-white/[0.04]"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-              {metric.label}
-            </p>
-            <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
-              {metric.value}
-            </p>
-          </div>
-        ))}
-      </div>
     </Link>
   );
 }
@@ -251,6 +144,7 @@ export default async function HomePage({
               currency="EUR"
               points={data.overview.chart}
               currentValue={data.overview.currentValue}
+              layout="hero"
               subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
                 data.overview.pnl
               )}`}
@@ -323,71 +217,14 @@ export default async function HomePage({
           )}
 
           {activeTab === "overview" && (
-            <div className="space-y-8">
-            {gradedLooseSingles.length > 0 && (
-              <section>
-                <CollectionCardsView
-                  items={gradedLooseSingles.slice(0, 12)}
-                  allowCollectionRemoval
-                  emptyTitle="No graded cards yet"
-                  emptyText="Graded cards saved without a binder appear here."
-                  sectionTitle="Graded Cards"
-                  sectionCount={gradedLooseSingles.length}
-                />
-              </section>
-            )}
-
-            {showRawLooseSinglesSection && (
-              <section>
-                <CollectionCardsView
-                  items={rawLooseSingles.slice(0, 12)}
-                  allowCollectionRemoval
-                  emptyTitle="No loose singles yet"
-                  emptyText="Cards saved without a binder appear here."
-                  sectionTitle="Loose Singles"
-                  sectionCount={rawLooseSingles.length}
-                />
-              </section>
-            )}
-
-            {data.binders.length > 0 && data.binderCards.length > 0 && (
-              <BinderWatchSection items={data.binderCards} />
-            )}
-
-              <section>
-                <CollectionSealedView
-                  items={data.sealed.slice(0, 8)}
-                  emptyTitle="No sealed saved yet"
-                  emptyText="Sealed products you add from search or expansion pages will appear here."
-                  sectionTitle="Sealed"
-                  sectionCount={data.sealed.length}
-                />
-              </section>
-
-              <section>
-                <SectionHeader label="Binders" count={data.binders.length} />
-
-                {data.binders.length === 0 ? (
-                  <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
-                    <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
-                      No binders yet
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      Type a set name for an automatic set binder, or create a custom binder.
-                    </p>
-                  </div>
-                ) : (
-                  <div
-                    className="grid justify-start gap-4"
-                    style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 360px))" }}
-                  >
-                    {data.binders.map((binder) => (
-                      <BinderTile key={binder.id} binder={binder} />
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
+            <CollectionOverviewSections
+              gradedLooseSingles={gradedLooseSingles}
+              rawLooseSingles={rawLooseSingles}
+              showRawLooseSinglesSection={showRawLooseSinglesSection}
+              binderCards={data.binderCards}
+              sealed={data.sealed}
+              binders={data.binders}
+            />
           )}
 
           {activeTab === "cards" && (
@@ -428,7 +265,7 @@ export default async function HomePage({
                   style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 360px))" }}
                 >
                   {data.binders.map((binder) => (
-                    <BinderTile key={binder.id} binder={binder} />
+                    <BinderOverviewTile key={binder.id} binder={binder} />
                   ))}
                 </div>
               )}

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { RefreshCw } from "lucide-react";
+import { LineChart, RefreshCw } from "lucide-react";
 import CardThreeViewer from "./CardThreeViewer";
 import {
   buildCardMarketProductUrl,
@@ -23,6 +23,12 @@ import {
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CardBrowserToolbar, {
+  type CardBrowserToolbarActiveFilter,
+  type CardBrowserToolbarFilterOption,
+  type CardBrowserToolbarFilterSection,
+  type CardBrowserToolbarOption,
+} from "@/components/CardBrowserToolbar";
 import CollectionBulkAddCardsModal from "@/components/CollectionBulkAddCardsModal";
 import IllustratorLink from "@/components/IllustratorLink";
 import {
@@ -383,12 +389,14 @@ function buildFilterOptions(
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }
 
-  const rankByValue = new Map(preferredOrder.map((value, index) => [value, index]));
+  const rankByValue = new Map(
+    preferredOrder.map((value, index) => [value.trim().toLowerCase(), index])
+  );
 
   return [...counts.entries()]
     .sort(([a], [b]) => {
-      const aRank = rankByValue.get(a);
-      const bRank = rankByValue.get(b);
+      const aRank = rankByValue.get(a.trim().toLowerCase());
+      const bRank = rankByValue.get(b.trim().toLowerCase());
 
       if (aRank != null || bRank != null) {
         if (aRank == null) return 1;
@@ -404,6 +412,7 @@ function buildFilterOptions(
 export default function ExpansionView({ cards, episode, onVisibleCardsChange }: Props) {
   const { settings, set } = useSettings();
   const [search, setSearch] = useState("");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selected, setSelected] = useState<CardData | null>(null);
   const [threeDCard, setThreeDCard] = useState<CardData | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -413,6 +422,7 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
   const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
   const [loadingDetailsId, setLoadingDetailsId] = useState<string | null>(null);
   const [refreshingCardId, setRefreshingCardId] = useState<string | null>(null);
+  const [syncingHistoryCardId, setSyncingHistoryCardId] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
@@ -562,16 +572,24 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
     setLoadingDetailsId(cardDetailsById[card.id] ? null : card.id);
   }
 
-  async function refreshSelectedCard() {
+  async function runSelectedCardAction(action: "refresh" | "sync-history") {
     if (!selected) return;
 
     const cardId = selected.id;
-    setRefreshingCardId(cardId);
+    if (action === "refresh") {
+      setRefreshingCardId(cardId);
+    } else {
+      setSyncingHistoryCardId(cardId);
+    }
     setRefreshError(null);
 
     try {
       const response = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action }),
         cache: "no-store",
       });
       const data = (await response.json()) as CardDetailData & {
@@ -580,7 +598,12 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
       };
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Could not refresh this card");
+        throw new Error(
+          data.error ??
+            (action === "refresh"
+              ? "Could not refresh this card"
+              : "Could not import price history for this card")
+        );
       }
 
       setCardDetailsById((prev) => ({
@@ -597,10 +620,18 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
       }
     } catch (error) {
       setRefreshError(
-        error instanceof Error ? error.message : "Could not refresh this card"
+        error instanceof Error
+          ? error.message
+          : action === "refresh"
+            ? "Could not refresh this card"
+            : "Could not import price history for this card"
       );
     } finally {
-      setRefreshingCardId((prev) => (prev === cardId ? null : prev));
+      if (action === "refresh") {
+        setRefreshingCardId((prev) => (prev === cardId ? null : prev));
+      } else {
+        setSyncingHistoryCardId((prev) => (prev === cardId ? null : prev));
+      }
     }
   }
 
@@ -706,7 +737,21 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
 
   const sortedCards = useMemo(() => {
     const next = cards.filter((card) => {
-      if (normalizedSearch && !card.name.toLowerCase().includes(normalizedSearch)) return false;
+      if (normalizedSearch) {
+        const compactIdentifier = `${card.episode_code ?? ""}${card.card_number ?? ""}`;
+        const haystack = [
+          card.name,
+          card.card_number ?? "",
+          card.episode_name ?? "",
+          card.episode_code ?? "",
+          compactIdentifier,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!haystack.includes(normalizedSearch)) return false;
+      }
+
       return true;
     });
 
@@ -777,10 +822,209 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
     { value: "medium", label: "M" },
     { value: "large", label: "L" },
   ];
+  const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
+  const filterBadgeCount =
+    activeRarities.length +
+    activeSupertypes.length +
+    (onlyPriced ? 1 : 0) +
+    (search.trim() ? 1 : 0);
+  const toolbarSortOptions: CardBrowserToolbarOption[] = [
+    {
+      value: "number",
+      label: "#",
+      title: "Sort by card number",
+    },
+    {
+      value: "cm_en",
+      label: "CM",
+      title: "Sort by CardMarket and use CardMarket as main prices",
+    },
+    {
+      value: "tcp",
+      label: "TCP",
+      title: "Sort by TCGPlayer and use TCGPlayer as main prices",
+    },
+  ];
+  const toolbarSizeOptions: CardBrowserToolbarOption[] = [
+    { value: "small", label: "S" },
+    { value: "medium", label: "M" },
+    { value: "large", label: "L" },
+  ];
+  const toolbarActiveFilters: CardBrowserToolbarActiveFilter[] = [
+    ...(search.trim()
+      ? [
+          {
+            key: `search-${search.trim().toLowerCase()}`,
+            label: `Search: ${search.trim()}`,
+            onRemove: () => setSearch(""),
+          },
+        ]
+      : []),
+    ...activeRarities.map((rarity) => ({
+      key: `rarity-${rarity}`,
+      label: rarity,
+      onRemove: () => toggleRarity(rarity),
+    })),
+    ...activeSupertypes.map((supertype) => ({
+      key: `supertype-${supertype}`,
+      label: supertype,
+      onRemove: () => toggleSupertype(supertype),
+    })),
+    ...(onlyPriced
+      ? [
+          {
+            key: "priced-only",
+            label: "Priced only",
+            onRemove: () => set("showOnlyPriced", false),
+          },
+        ]
+      : []),
+  ];
+  const toolbarQuickFilters: CardBrowserToolbarFilterOption[] = [
+    {
+      key: "quick-priced-only",
+      label: pricedOnlyUnavailable ? "No prices yet" : "Priced only",
+      active: onlyPriced,
+      onToggle: () => set("showOnlyPriced", !onlyPriced),
+      className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+        onlyPriced ? "font-semibold" : "font-medium"
+      } ${neutralFilterChip(onlyPriced)}`,
+    },
+    ...availableSupertypes.map((supertype) => {
+      const active = activeSupertypes.includes(supertype.value);
+
+      return {
+        key: `quick-type-${supertype.value}`,
+        label: supertype.value,
+        active,
+        count: supertype.count,
+        onToggle: () => toggleSupertype(supertype.value),
+        className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+          active ? "font-semibold" : "font-medium"
+        } ${neutralFilterChip(active)}`,
+      };
+    }),
+  ];
+  const toolbarFilterSections: CardBrowserToolbarFilterSection[] = [
+    {
+      key: "rarity",
+      title: "Rarity",
+      summary: activeRarities.length > 0 ? `${activeRarities.length} selected` : "All",
+      className: "xl:min-w-0",
+      options: availableRarities.map((rarity) => {
+        const active = activeRarities.includes(rarity.value);
+
+        return {
+          key: rarity.value,
+          label: rarity.value,
+          active,
+          count: rarity.count,
+          onToggle: () => toggleRarity(rarity.value),
+          className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+            active ? "font-semibold" : "font-medium"
+          } ${rarityFilterChip(rarity.value, active)}`,
+        };
+      }),
+    },
+  ];
+  const toolbarWarnings = [
+    ...(pricedOnlyUnavailable
+      ? [
+          "This set has no price data yet, so the priced-only filter stays visible but does not hide cards.",
+        ]
+      : []),
+    ...(persistentFiltersHideEverything
+      ? ["Saved filters matched 0 cards here, so this set is shown without them."]
+      : []),
+  ];
+
+  function clearAllFilters() {
+    setSearch("");
+    set("defaultRarities", []);
+    set("defaultSupertypes", []);
+    set("showOnlyPriced", false);
+  }
 
   return (
     <div>
-      <div className="glass rounded-2xl px-4 py-3 mb-4 shadow-sm shadow-black/5 space-y-2.5">
+      <CardBrowserToolbar
+        searchValue={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search name, number, rarity..."
+        resultLabel={`${filtered.length} / ${cards.length}`}
+        sortSummary={sortSummary}
+        priceSourceLabel={primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+        viewOptions={[
+          { value: "table", label: "Table" },
+          { value: "grid", label: "Grid" },
+        ]}
+        activeView={view}
+        onViewChange={(value) => set("defaultView", value as CardView)}
+        sortOptions={toolbarSortOptions}
+        activeSort={sortBy}
+        onSortChange={(value) => toggleSort(value as SortBy)}
+        sizeOptions={toolbarSizeOptions}
+        activeSize={settings.cardSize}
+        onSizeChange={(value) => set("cardSize", value as CardSize)}
+        filtersExpanded={filtersPanelExpanded}
+        onToggleFilters={() => setFiltersExpanded((prev) => !prev)}
+        filterBadgeCount={filterBadgeCount}
+        hasActiveFilters={hasActiveFilters}
+        onClearAll={clearAllFilters}
+        activeFilters={toolbarActiveFilters}
+        quickFilters={toolbarQuickFilters}
+        filterSections={toolbarFilterSections}
+        warnings={toolbarWarnings}
+        selectionSlot={
+          <div className="flex flex-wrap items-center gap-2">
+            {selectionMode && (
+              <>
+                <span className="inline-flex items-center gap-2 rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                  {selectedCardIds.length} selected
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCardIds(filtered.map((card) => card.id))}
+                  disabled={filtered.length === 0 || selectedCardIds.length === filtered.length}
+                  className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCardIds([])}
+                  disabled={selectedCardIds.length === 0}
+                  className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkAddOpen(true)}
+                  disabled={selectedCardIds.length === 0}
+                  className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Bulk add
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={toggleSelectionMode}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                selectionMode
+                  ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
+                  : "border-black/8 bg-white/70 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+              }`}
+            >
+              {selectionMode ? "Done" : "Select"}
+            </button>
+          </div>
+        }
+      />
+
+      {false && (
+        <div className="glass rounded-2xl px-4 py-3 mb-4 shadow-sm shadow-black/5 space-y-2.5">
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg overflow-hidden border border-black/8 dark:border-white/8 shrink-0">
             {(["table", "grid"] as CardView[]).map((v) => (
@@ -988,7 +1232,8 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
             Saved filters matched 0 cards here, so this set is shown without them.
           </p>
         )}
-      </div>
+        </div>
+      )}
 
       {view === "table" && (
         <div className="glass rounded-3xl shadow-lg shadow-black/5 overflow-hidden">
@@ -1046,7 +1291,6 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
                             <span className="font-semibold text-gray-900 dark:text-white">{card.name}</span>
-                            {card.hp && <span className="ml-2 text-gray-400 text-xs">HP {card.hp}</span>}
                           </div>
                           {!selectionMode && (
                           <CollectionAddCardButton
@@ -1415,7 +1659,6 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                             {selected.card_number && <span>#{selected.card_number}</span>}
                             {selected.supertype && <span>{selected.supertype}</span>}
                             {selected.subtypes && <span>{selected.subtypes}</span>}
-                            {selected.hp && <span>HP {selected.hp}</span>}
                           </div>
                           {selected.rarity && (
                             <span
@@ -1427,17 +1670,36 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                             </span>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={refreshSelectedCard}
-                          disabled={refreshingCardId === selected.id}
-                          className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/82 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <RefreshCw
-                            className={`h-4 w-4 ${refreshingCardId === selected.id ? "animate-spin" : ""}`}
-                          />
-                          {refreshingCardId === selected.id ? "Refreshing..." : "Refresh"}
-                        </button>
+                        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void runSelectedCardAction("sync-history")}
+                            disabled={
+                              refreshingCardId === selected.id ||
+                              syncingHistoryCardId === selected.id
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/82 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <LineChart
+                              className={`h-4 w-4 ${syncingHistoryCardId === selected.id ? "animate-pulse" : ""}`}
+                            />
+                            {syncingHistoryCardId === selected.id ? "Syncing..." : "Sync History"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void runSelectedCardAction("refresh")}
+                            disabled={
+                              refreshingCardId === selected.id ||
+                              syncingHistoryCardId === selected.id
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/82 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <RefreshCw
+                              className={`h-4 w-4 ${refreshingCardId === selected.id ? "animate-spin" : ""}`}
+                            />
+                            {refreshingCardId === selected.id ? "Refreshing..." : "Refresh"}
+                          </button>
+                        </div>
                       </div>
                       {refreshError && (
                         <p className="mt-2 text-xs text-rose-300">{refreshError}</p>

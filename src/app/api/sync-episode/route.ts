@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SyncConflictError, runEpisodeSync } from "@/lib/sync";
+import { SyncCancelledError, SyncConflictError, runEpisodeSync } from "@/lib/sync";
 
 export async function POST(request: NextRequest) {
   const { episodeId } = await request.json();
@@ -14,6 +14,17 @@ export async function POST(request: NextRequest) {
       ...result,
     });
   } catch (error) {
+    if (error instanceof SyncCancelledError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          cancelled: true,
+          error: error.message,
+        },
+        { status: 409 }
+      );
+    }
+
     if (error instanceof SyncConflictError) {
       return NextResponse.json(
         {

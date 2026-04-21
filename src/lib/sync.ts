@@ -22,6 +22,7 @@ import {
 
 const ACTIVE_SYNC_STALE_MS = 1000 * 60 * 60 * 2;
 const STALE_SYNC_MESSAGE = "Marked stale after exceeding sync timeout";
+const SYNC_CANCELLED_MESSAGE = "Cancelled by user after the current batch finished.";
 const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
 const CARD_HISTORY_SYNC_TYPE = "card-history";
 const AUTO_PRICE_REFRESH_MAX_EPISODES = 6;
@@ -31,9 +32,19 @@ const AUTO_PRICE_BACKFILL_MAX_EPISODES = 2;
 const AUTO_PRICE_BACKFILL_MAX_CARDS = 80;
 const PRICE_SOURCE_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 7;
 const HISTORY_BACKFILL_BATCH_SIZE = 12;
+const MANUAL_HISTORY_SYNC_BATCH_SIZE = 2;
 const DB_WRITE_BATCH_SIZE = 60;
 const AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX = 0;
 const AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX = 0;
+const CANCELLATION_CHECK_INTERVAL_MS = 750;
+const MANUAL_HISTORY_EXCLUDED_RARITIES = [
+  "Common",
+  "Uncommon",
+  "Rare",
+  "common",
+  "uncommon",
+  "rare",
+] as const;
 
 const CARD_FIELDS = [
   "name",
@@ -112,8 +123,20 @@ interface MissingPriceCandidate {
   createdAt: Date;
 }
 
+async function getHiddenEpisodeIds(): Promise<string[]> {
+  const episodes = await db.episode.findMany({
+    select: { id: true, code: true, name: true },
+  });
+
+  return episodes
+    .filter((episode) => isHiddenExpansion(episode))
+    .map((episode) => episode.id);
+}
+
 interface SyncProgressController {
+  syncId: string;
   updateMessage: (message: string) => Promise<void>;
+  throwIfCancelled: () => Promise<void>;
 }
 
 export interface EpisodeSyncResult {
@@ -161,8 +184,24 @@ export interface CardPriceRefreshResult {
   newPrices: number;
   refreshedPrices: number;
   gradedPricesUpdated: number;
-  historySnapshotsImported: number;
+}
+
+export interface CardHistoryImportResult {
+  cardId: string;
+  historyPointsFetched: number;
+  newHistorySnapshots: number;
   historySynced: boolean;
+}
+
+export interface SealedProductRefreshResult {
+  productId: string;
+  syncedAt: Date;
+}
+
+export interface SealedProductHistorySyncResult {
+  productId: string;
+  historyPointsFetched: number;
+  newHistorySnapshots: number;
 }
 
 export interface CardHistorySyncResult {
@@ -184,6 +223,29 @@ export class SyncConflictError extends Error {
     this.activeType = activeType;
     this.startedAt = startedAt;
   }
+}
+
+export class SyncCancelledError extends Error {
+  syncId: string;
+
+  constructor(syncId: string, message = SYNC_CANCELLED_MESSAGE) {
+    super(message);
+    this.name = "SyncCancelledError";
+    this.syncId = syncId;
+  }
+}
+
+export interface SyncCancellationRequestResult {
+  status: "requested" | "already-requested" | "already-finished" | "not-found";
+  sync: {
+    id: string;
+    type: string;
+    status: string;
+    message: string | null;
+    started_at: Date;
+    finished_at: Date | null;
+    cancel_requested_at: Date | null;
+  } | null;
 }
 
 function buildCardWriteData(
@@ -280,6 +342,7 @@ async function acquireSyncLog(type: string, message: string) {
         status: "failed",
         message: STALE_SYNC_MESSAGE,
         finished_at: now,
+        cancel_requested_at: null,
       },
     });
 
@@ -294,7 +357,7 @@ async function acquireSyncLog(type: string, message: string) {
 
     await tx.syncLog.deleteMany({
       where: {
-        status: { in: ["success", "failed"] },
+        status: { in: ["success", "failed", "cancelled"] },
         finished_at: { not: null },
       },
     });
@@ -309,13 +372,49 @@ async function acquireSyncLog(type: string, message: string) {
   });
 }
 
-async function finalizeSyncLog(id: string, status: "success" | "failed", message: string) {
+function createSyncCancellationChecker(syncId: string) {
+  let lastCheckedAt = 0;
+  let cancellationRequested = false;
+
+  return async () => {
+    if (cancellationRequested) {
+      throw new SyncCancelledError(syncId);
+    }
+
+    const now = Date.now();
+    if (now - lastCheckedAt < CANCELLATION_CHECK_INTERVAL_MS) {
+      return;
+    }
+
+    lastCheckedAt = now;
+
+    const sync = await db.syncLog.findUnique({
+      where: { id: syncId },
+      select: {
+        status: true,
+        cancel_requested_at: true,
+      },
+    });
+
+    if (sync?.status === "running" && sync.cancel_requested_at) {
+      cancellationRequested = true;
+      throw new SyncCancelledError(syncId);
+    }
+  };
+}
+
+async function finalizeSyncLog(
+  id: string,
+  status: "success" | "failed" | "cancelled",
+  message: string
+) {
   await db.syncLog.update({
     where: { id },
     data: {
       status,
       message,
       finished_at: new Date(),
+      ...(status === "cancelled" ? {} : { cancel_requested_at: null }),
     },
   });
 }
@@ -327,6 +426,65 @@ async function updateSyncLogMessage(id: string, message: string) {
   });
 }
 
+export async function requestSyncCancellation(
+  id: string
+): Promise<SyncCancellationRequestResult> {
+  const existing = await db.syncLog.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      message: true,
+      started_at: true,
+      finished_at: true,
+      cancel_requested_at: true,
+    },
+  });
+
+  if (!existing) {
+    return {
+      status: "not-found",
+      sync: null,
+    };
+  }
+
+  if (existing.status !== "running") {
+    return {
+      status: "already-finished",
+      sync: existing,
+    };
+  }
+
+  if (existing.cancel_requested_at) {
+    return {
+      status: "already-requested",
+      sync: existing,
+    };
+  }
+
+  const updated = await db.syncLog.update({
+    where: { id },
+    data: {
+      cancel_requested_at: new Date(),
+    },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      message: true,
+      started_at: true,
+      finished_at: true,
+      cancel_requested_at: true,
+    },
+  });
+
+  return {
+    status: "requested",
+    sync: updated,
+  };
+}
+
 async function runLoggedSync<T>(
   type: string,
   startMessage: string,
@@ -334,17 +492,25 @@ async function runLoggedSync<T>(
   work: (progress: SyncProgressController) => Promise<T>
 ): Promise<T> {
   const log = await acquireSyncLog(type, startMessage);
+  const throwIfCancelled = createSyncCancellationChecker(log.id);
   const progress: SyncProgressController = {
+    syncId: log.id,
     updateMessage: (message) => updateSyncLogMessage(log.id, message),
+    throwIfCancelled,
   };
 
   try {
+    await progress.throwIfCancelled();
     const result = await work(progress);
     await finalizeSyncLog(log.id, "success", successMessage(result));
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await finalizeSyncLog(log.id, "failed", message);
+    await finalizeSyncLog(
+      log.id,
+      error instanceof SyncCancelledError ? "cancelled" : "failed",
+      message
+    );
     throw error;
   }
 }
@@ -394,8 +560,31 @@ function summarizeCardPriceRefresh(result: CardPriceRefreshResult): string {
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
     `${result.gradedPricesUpdated} graded prices updated`,
+  ].join(" | ");
+}
+
+function summarizeCardHistoryImport(result: CardHistoryImportResult): string {
+  return [
+    "Single card history sync",
+    `${result.historyPointsFetched} history points fetched`,
+    `${result.newHistorySnapshots} new history snapshots`,
     result.historySynced ? "history synced" : "history unavailable",
-    `${result.historySnapshotsImported} history snapshots`,
+  ].join(" | ");
+}
+
+function summarizeSealedProductRefresh(result: SealedProductRefreshResult): string {
+  return [
+    "Single sealed refresh",
+    `product ${result.productId}`,
+    `synced ${result.syncedAt.toISOString()}`,
+  ].join(" | ");
+}
+
+function summarizeSealedProductHistorySync(result: SealedProductHistorySyncResult): string {
+  return [
+    "Single sealed history sync",
+    `${result.historyPointsFetched} history points fetched`,
+    `${result.newHistorySnapshots} new history snapshots`,
   ].join(" | ");
 }
 
@@ -408,7 +597,7 @@ function summarizeSealedSync(result: { synced: number; products: number }): stri
 
 function summarizeCardHistorySync(result: CardHistorySyncResult): string {
   const summary = [
-    `Checked ${result.candidateCards} cards`,
+    `Eligible ${result.candidateCards} cards`,
     `${result.syncedCards} cards synced`,
     `${result.newHistorySnapshots} history snapshots`,
     `${result.remainingCards} still pending`,
@@ -437,18 +626,26 @@ async function runAutoLoggedSync<T>(
   work: (progress: SyncProgressController) => Promise<T>
 ): Promise<T> {
   const log = await acquireSyncLog(AUTO_PRICE_REFRESH_TYPE, startMessage);
+  const throwIfCancelled = createSyncCancellationChecker(log.id);
   const progress: SyncProgressController = {
+    syncId: log.id,
     updateMessage: (message) => updateSyncLogMessage(log.id, message),
+    throwIfCancelled,
   };
 
   try {
+    await progress.throwIfCancelled();
     const result = await work(progress);
     await finalizeSyncLog(log.id, "success", successMessage(result));
     await pruneAutoPriceRefreshLogs(log.id);
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await finalizeSyncLog(log.id, "failed", message);
+    await finalizeSyncLog(
+      log.id,
+      error instanceof SyncCancelledError ? "cancelled" : "failed",
+      message
+    );
     throw error;
   }
 }
@@ -480,7 +677,7 @@ function queuePriceSnapshotWrite(
   fetchedAt: Date,
   options: { refreshAllPrices: boolean },
   priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData>,
-  priceRefreshes: Array<{ id: string; fetched_at: Date }>
+  priceRefreshes: string[]
 ): "new" | "refreshed" | "none" {
   if (!hasAnyPrice(nextPrice)) {
     return "none";
@@ -500,7 +697,7 @@ function queuePriceSnapshotWrite(
   }
 
   if (latestPrice && pricesMatch(latestPrice, nextPrice)) {
-    priceRefreshes.push({ id: latestPrice.id, fetched_at: fetchedAt });
+    priceRefreshes.push(latestPrice.id);
     return "refreshed";
   }
 
@@ -582,6 +779,7 @@ async function backfillCardNativeHistoryDetailed(
   syncedAt: Date,
   options?: {
     batchSize?: number;
+    throwIfCancelled?: () => Promise<void>;
     onProgress?: (progress: {
       totalCards: number;
       processedCards: number;
@@ -598,6 +796,8 @@ async function backfillCardNativeHistoryDetailed(
   if (cardIds.length === 0) {
     return { syncedCards: 0, snapshotsCreated: 0, processedCards: 0, quotaExceeded: false };
   }
+
+  await options?.throwIfCancelled?.();
 
   const existingSnapshots = await db.price.findMany({
     where: { card_id: { in: cardIds } },
@@ -622,9 +822,13 @@ async function backfillCardNativeHistoryDetailed(
   let quotaExceeded = false;
 
   for (let index = 0; index < cardIds.length; index += batchSize) {
+    await options?.throwIfCancelled?.();
+
     const batchIds = cardIds.slice(index, index + batchSize);
     const batchResults = await Promise.all(
       batchIds.map(async (cardId) => {
+        await options?.throwIfCancelled?.();
+
         try {
           const history = await fetchHistoryPricesByItemId(cardId);
           const existing = existingByCard.get(cardId) ?? new Set<string>();
@@ -691,6 +895,8 @@ async function backfillCardNativeHistoryDetailed(
       })
     );
 
+    await options?.throwIfCancelled?.();
+
     const batchCreates = batchResults.flatMap((result) => result.creates);
     const batchSyncedCardIds = batchResults
       .filter((result) => result.synced)
@@ -732,6 +938,8 @@ async function backfillCardNativeHistoryDetailed(
     }
   }
 
+  await options?.throwIfCancelled?.();
+
   return {
     syncedCards: totalSyncedCards,
     snapshotsCreated: totalSnapshotsCreated,
@@ -740,16 +948,25 @@ async function backfillCardNativeHistoryDetailed(
   };
 }
 
-async function backfillCardNativeHistory(cardIds: string[], syncedAt: Date): Promise<number> {
-  const result = await backfillCardNativeHistoryDetailed(cardIds, syncedAt);
+async function backfillCardNativeHistory(
+  cardIds: string[],
+  syncedAt: Date,
+  throwIfCancelled?: () => Promise<void>
+): Promise<number> {
+  const result = await backfillCardNativeHistoryDetailed(cardIds, syncedAt, {
+    throwIfCancelled,
+  });
   return result.syncedCards;
 }
 
 async function backfillSealedNativeHistory(
   products: Array<{ id: string; episodeId: string }>,
-  syncedAt: Date
+  syncedAt: Date,
+  throwIfCancelled?: () => Promise<void>
 ): Promise<number> {
   if (products.length === 0) return 0;
+
+  await throwIfCancelled?.();
 
   const existingSnapshots = await db.sealedPriceSnapshot.findMany({
     where: { product_id: { in: products.map((product) => product.id) } },
@@ -783,6 +1000,8 @@ async function backfillSealedNativeHistory(
   const syncedProductIds: string[] = [];
 
   await mapInBatches(products, HISTORY_BACKFILL_BATCH_SIZE, async (product) => {
+    await throwIfCancelled?.();
+
     try {
       const history = await fetchHistoryPricesByItemId(product.id);
       const existing = existingByProduct.get(product.id) ?? new Set<string>();
@@ -816,6 +1035,8 @@ async function backfillSealedNativeHistory(
     }
   });
 
+  await throwIfCancelled?.();
+
   await db.$transaction(async (tx) => {
     if (historyCreates.length > 0) {
       await writeInChunks(historyCreates, DB_WRITE_BATCH_SIZE, async (chunk) => {
@@ -832,6 +1053,8 @@ async function backfillSealedNativeHistory(
       });
     }
   });
+
+  await throwIfCancelled?.();
 
   return syncedProductIds.length;
 }
@@ -898,7 +1121,15 @@ async function selectNativeHistoryBackfillBatch(): Promise<{
 async function selectManualCardHistoryCandidates(): Promise<string[]> {
   const cards = await db.card.findMany({
     where: {
+      collectionItems: {
+        some: {},
+      },
       native_history_synced_at: null,
+      NOT: {
+        rarity: {
+          in: [...MANUAL_HISTORY_EXCLUDED_RARITIES],
+        },
+      },
       OR: [
         { prices: { some: {} } },
         { cardmarket_id: { not: null } },
@@ -940,8 +1171,14 @@ function mergeSelectedByEpisode(...maps: Array<Map<string, string[]>>): Map<stri
 
 async function syncEpisodeCards(
   episodeId: string,
-  options: { refreshAllPrices: boolean; backfillNativeHistory: boolean }
+  options: {
+    refreshAllPrices: boolean;
+    backfillNativeHistory: boolean;
+    throwIfCancelled?: () => Promise<void>;
+  }
 ): Promise<EpisodeSyncResult> {
+  await options.throwIfCancelled?.();
+
   const [cards, episode] = await Promise.all([
     fetchCardsForEpisode(episodeId),
     db.episode.findUnique({
@@ -949,6 +1186,9 @@ async function syncEpisodeCards(
       select: { code: true, name: true, card_count: true },
     }),
   ]);
+
+  await options.throwIfCancelled?.();
+
   const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
     episode ? getTcgdexSupertypeLookupForEpisode(episode) : Promise.resolve(new Map()),
     episode
@@ -962,6 +1202,9 @@ async function syncEpisodeCards(
         )
       : Promise.resolve(new Map()),
   ]);
+
+  await options.throwIfCancelled?.();
+
   const fetchedAt = new Date();
   const nativeHistoryCandidateCardIds = cards
     .filter(
@@ -1012,7 +1255,7 @@ async function syncEpisodeCards(
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
-    const priceRefreshes: Array<{ id: string; fetched_at: Date }> = [];
+    const priceRefreshes: string[] = [];
     const gradedCardIdsToReplace = new Set<string>();
     const gradedCreates: Array<{
       card_id: string;
@@ -1026,7 +1269,11 @@ async function syncEpisodeCards(
     let newPrices = 0;
     let refreshedPrices = 0;
 
-    for (const card of cards) {
+    for (const [cardIndex, card] of cards.entries()) {
+      if (cardIndex === 0 || cardIndex % 25 === 0) {
+        await options.throwIfCancelled?.();
+      }
+
       const existingCard = existingCardMap.get(card.id);
       const fallbackSupertype = resolveTcgdexSupertype(card.tcgid, tcgdexSupertypeLookup);
       const fallbackArtist = tcgdexIllustratorLookup.get(card.id) ?? null;
@@ -1140,10 +1387,12 @@ async function syncEpisodeCards(
       });
     }
 
-    for (const refresh of priceRefreshes) {
-      await tx.price.update({
-        where: { id: refresh.id },
-        data: { fetched_at: refresh.fetched_at },
+    if (priceRefreshes.length > 0) {
+      await writeInChunks([...new Set(priceRefreshes)], DB_WRITE_BATCH_SIZE, async (chunk) => {
+        await tx.price.updateMany({
+          where: { id: { in: chunk } },
+          data: { fetched_at: fetchedAt },
+        });
       });
     }
 
@@ -1172,6 +1421,8 @@ async function syncEpisodeCards(
   });
 
   if (options.backfillNativeHistory) {
+    await options.throwIfCancelled?.();
+
     const cardIdsNeedingHistory = (
       await db.card.findMany({
         where: {
@@ -1183,7 +1434,7 @@ async function syncEpisodeCards(
       })
     ).map((card) => card.id);
 
-    await backfillCardNativeHistory(cardIdsNeedingHistory, fetchedAt);
+    await backfillCardNativeHistory(cardIdsNeedingHistory, fetchedAt, options.throwIfCancelled);
   }
 
   return result;
@@ -1218,10 +1469,13 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
     WHERE c.tcggo_url IS NOT NULL
       AND latest_prices.latest_fetched_at <= ${potentialCutoff}
   `;
+  const hiddenEpisodeIds = new Set(await getHiddenEpisodeIds());
 
   const dueCandidates: DueCardCandidate[] = [];
 
   for (const candidate of candidates) {
+    if (hiddenEpisodeIds.has(candidate.episode_id)) continue;
+
     const latestFetchedAt = normalizeTimestamp(candidate.latest_fetched_at);
     if (!latestFetchedAt) continue;
 
@@ -1330,11 +1584,15 @@ async function selectMissingPriceBackfillBatch(options?: {
     };
   }
 
+  const hiddenEpisodeIds = await getHiddenEpisodeIds();
+  const visibleEpisodeFilter =
+    hiddenEpisodeIds.length > 0 ? { episode_id: { notIn: hiddenEpisodeIds } } : {};
   const retryBefore = new Date(Date.now() - PRICE_SOURCE_UNAVAILABLE_RETRY_MS);
 
   const [missingPriceCards, cards] = await Promise.all([
     db.card.count({
       where: {
+        ...visibleEpisodeFilter,
         tcggo_url: { not: null },
         prices: {
           none: {},
@@ -1343,6 +1601,7 @@ async function selectMissingPriceBackfillBatch(options?: {
     }),
     db.card.findMany({
       where: {
+        ...visibleEpisodeFilter,
         tcggo_url: { not: null },
         prices: {
           none: {},
@@ -1453,8 +1712,11 @@ export async function getAutoPriceRefreshSnapshot(): Promise<{
 async function refreshEpisodeDueCards(
   episodeId: string,
   cardIds: string[],
-  fetchedAt: Date
+  fetchedAt: Date,
+  throwIfCancelled?: () => Promise<void>
 ): Promise<AutoEpisodePriceRefreshResult> {
+  await throwIfCancelled?.();
+
   const [remoteCards, episode] = await Promise.all([
     fetchCardsForEpisode(episodeId),
     db.episode.findUnique({
@@ -1462,6 +1724,9 @@ async function refreshEpisodeDueCards(
       select: { code: true, name: true, card_count: true },
     }),
   ]);
+
+  await throwIfCancelled?.();
+
   const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
     episode ? getTcgdexSupertypeLookupForEpisode(episode) : Promise.resolve(new Map()),
     episode
@@ -1475,6 +1740,9 @@ async function refreshEpisodeDueCards(
         )
       : Promise.resolve(new Map()),
   ]);
+
+  await throwIfCancelled?.();
+
   const remoteCardMap = new Map(remoteCards.map((card) => [card.id, card]));
 
   return db.$transaction(async (tx) => {
@@ -1519,7 +1787,7 @@ async function refreshEpisodeDueCards(
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
-    const priceRefreshes: Array<{ id: string; fetched_at: Date }> = [];
+    const priceRefreshes: string[] = [];
     const gradedCardIdsToReplace = new Set<string>();
     const gradedCreates: Array<{
       card_id: string;
@@ -1533,7 +1801,11 @@ async function refreshEpisodeDueCards(
     let refreshedPrices = 0;
     let refreshedCards = 0;
 
-    for (const cardId of cardIds) {
+    for (const [cardIndex, cardId] of cardIds.entries()) {
+      if (cardIndex === 0 || cardIndex % 25 === 0) {
+        await throwIfCancelled?.();
+      }
+
       const existingCard = existingCardMap.get(cardId);
       const remoteCard = remoteCardMap.get(cardId);
 
@@ -1551,11 +1823,15 @@ async function refreshEpisodeDueCards(
         },
         fallbackSupertype
       );
+      const cardUpdateData: Partial<CardWriteData> & {
+        price_source_status?: string | null;
+        price_source_checked_at?: Date | null;
+      } = {};
+      let shouldUpdateCard = false;
+
       if (hasCardChanges(existingCard, nextCardData)) {
-        await tx.card.update({
-          where: { id: cardId },
-          data: nextCardData,
-        });
+        Object.assign(cardUpdateData, nextCardData);
+        shouldUpdateCard = true;
         updatedCards += 1;
       }
 
@@ -1586,35 +1862,30 @@ async function refreshEpisodeDueCards(
 
       if (writeMode === "new") {
         if (existingCard.price_source_status || existingCard.price_source_checked_at) {
-          await tx.card.update({
-            where: { id: cardId },
-            data: {
-              price_source_status: null,
-              price_source_checked_at: null,
-            },
-          });
+          cardUpdateData.price_source_status = null;
+          cardUpdateData.price_source_checked_at = null;
+          shouldUpdateCard = true;
         }
         newPrices += 1;
         refreshedCards += 1;
       } else if (writeMode === "refreshed") {
         if (existingCard.price_source_status || existingCard.price_source_checked_at) {
-          await tx.card.update({
-            where: { id: cardId },
-            data: {
-              price_source_status: null,
-              price_source_checked_at: null,
-            },
-          });
+          cardUpdateData.price_source_status = null;
+          cardUpdateData.price_source_checked_at = null;
+          shouldUpdateCard = true;
         }
         refreshedPrices += 1;
         refreshedCards += 1;
       } else {
+        cardUpdateData.price_source_status = "unavailable";
+        cardUpdateData.price_source_checked_at = fetchedAt;
+        shouldUpdateCard = true;
+      }
+
+      if (shouldUpdateCard) {
         await tx.card.update({
           where: { id: cardId },
-          data: {
-            price_source_status: "unavailable",
-            price_source_checked_at: fetchedAt,
-          },
+          data: cardUpdateData,
         });
       }
     }
@@ -1633,10 +1904,12 @@ async function refreshEpisodeDueCards(
       });
     }
 
-    for (const refresh of priceRefreshes) {
-      await tx.price.update({
-        where: { id: refresh.id },
-        data: { fetched_at: refresh.fetched_at },
+    if (priceRefreshes.length > 0) {
+      await writeInChunks([...new Set(priceRefreshes)], DB_WRITE_BATCH_SIZE, async (chunk) => {
+        await tx.price.updateMany({
+          where: { id: { in: chunk } },
+          data: { fetched_at: fetchedAt },
+        });
       });
     }
 
@@ -1664,6 +1937,8 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
     `Refreshing price for card ${cardId}`,
     summarizeCardPriceRefresh,
     async (progress) => {
+      await progress.throwIfCancelled();
+
       const existingCard = await db.card.findUnique({
         where: { id: cardId },
         select: {
@@ -1714,12 +1989,15 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
         throw new Error("Card not found.");
       }
 
+      await progress.throwIfCancelled();
       await progress.updateMessage(`Refreshing ${existingCard.name} (${cardId})`);
 
       const remoteCard = await fetchCardDetail(cardId);
       if (!remoteCard) {
         throw new Error("Card not found in the scraper source.");
       }
+
+      await progress.throwIfCancelled();
 
       const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
         getTcgdexSupertypeLookupForEpisode(existingCard.episode),
@@ -1779,7 +2057,7 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
         const latestPrice = existingCard.prices[0] ?? null;
         const nextPrice = extractPrices(remoteCard.prices);
         const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
-        const priceRefreshes: Array<{ id: string; fetched_at: Date }> = [];
+        const priceRefreshes: string[] = [];
         const writeMode = queuePriceSnapshotWrite(
           latestPrice,
           nextPrice,
@@ -1822,10 +2100,12 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           });
         }
 
-        for (const refresh of priceRefreshes) {
-          await tx.price.update({
-            where: { id: refresh.id },
-            data: { fetched_at: refresh.fetched_at },
+        if (priceRefreshes.length > 0) {
+          await writeInChunks([...new Set(priceRefreshes)], DB_WRITE_BATCH_SIZE, async (chunk) => {
+            await tx.price.updateMany({
+              where: { id: { in: chunk } },
+              data: { fetched_at: fetchedAt },
+            });
           });
         }
 
@@ -1844,16 +2124,253 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
         };
       });
 
-      await progress.updateMessage(`Refreshing ${existingCard.name} history (${cardId})`);
+      return refreshResult;
+    }
+  );
+}
 
-      const historyResult = await backfillCardNativeHistoryDetailed([cardId], fetchedAt, {
-        batchSize: 1,
+export async function runSingleCardHistoryImport(
+  cardId: string
+): Promise<CardHistoryImportResult> {
+  return runLoggedSync(
+    `card-history:${cardId}`,
+    `Syncing history for card ${cardId}`,
+    summarizeCardHistoryImport,
+    async (progress) => {
+      await progress.throwIfCancelled();
+
+      const existingCard = await db.card.findUnique({
+        where: { id: cardId },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      if (!existingCard) {
+        throw new Error("Card not found.");
+      }
+
+      await progress.throwIfCancelled();
+      await progress.updateMessage(`Syncing ${existingCard.name} history (${cardId})`);
+
+      const history = await fetchHistoryPricesByItemId(cardId);
+      await progress.throwIfCancelled();
+
+      const existingSnapshots = await db.price.findMany({
+        where: { card_id: cardId },
+        select: {
+          fetched_at: true,
+        },
+      });
+      const existingSnapshotDates = new Set(
+        existingSnapshots.map((snapshot) => snapshot.fetched_at.toISOString())
+      );
+      const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
+
+      for (const point of history) {
+        const fetchedAt = toHistorySnapshotDate(point.date);
+        const iso = fetchedAt.toISOString();
+
+        if (existingSnapshotDates.has(iso)) {
+          continue;
+        }
+
+        priceCreates.push({
+          card_id: cardId,
+          fetched_at: fetchedAt,
+          cm_en_lowest_nm: point.cm_market,
+          cm_de_lowest_nm: point.cm_market_de,
+          cm_fr_lowest_nm: point.cm_market_fr,
+          cm_es_lowest_nm: point.cm_market_es,
+          cm_it_lowest_nm: point.cm_market_it,
+          cm_en_avg_30d: null,
+          cm_en_avg_7d: null,
+          tcp_market: point.tcp_market,
+          tcp_mid: null,
+          tcp_low: null,
+        });
+        existingSnapshotDates.add(iso);
+      }
+
+      const syncedAt = new Date();
+
+      await db.$transaction(async (tx) => {
+        if (priceCreates.length > 0) {
+          await writeInChunks(priceCreates, DB_WRITE_BATCH_SIZE, async (chunk) => {
+            await tx.price.createMany({
+              data: chunk,
+            });
+          });
+        }
+
+        await tx.card.update({
+          where: { id: cardId },
+          data: {
+            native_history_synced_at: syncedAt,
+          },
+        });
       });
 
       return {
-        ...refreshResult,
-        historySnapshotsImported: historyResult.snapshotsCreated,
-        historySynced: historyResult.syncedCards > 0,
+        cardId,
+        historyPointsFetched: history.length,
+        newHistorySnapshots: priceCreates.length,
+        historySynced: true,
+      };
+    }
+  );
+}
+
+export async function runSealedProductRefresh(
+  productId: string
+): Promise<SealedProductRefreshResult> {
+  return runLoggedSync(
+    `sealed-product:${productId}`,
+    `Refreshing price for sealed product ${productId}`,
+    summarizeSealedProductRefresh,
+    async (progress) => {
+      await progress.throwIfCancelled();
+
+      const existingProduct = await db.sealedProduct.findUnique({
+        where: { id: productId },
+        select: {
+          id: true,
+          name: true,
+          episode_id: true,
+        },
+      });
+
+      if (!existingProduct) {
+        throw new Error("Sealed product not found.");
+      }
+
+      await progress.throwIfCancelled();
+      await progress.updateMessage(`Refreshing ${existingProduct.name} (${productId})`);
+
+      const remoteProducts = await fetchSealedProductsForEpisode(existingProduct.episode_id);
+      const remoteProduct = remoteProducts.find((product) => product.id === productId);
+
+      if (!remoteProduct) {
+        throw new Error("Sealed product not found in the scraper source.");
+      }
+
+      await progress.throwIfCancelled();
+
+      const syncedAt = new Date();
+      await persistEpisodeSealedProducts(existingProduct.episode_id, [remoteProduct], syncedAt, {
+        replaceMissingEpisodeProducts: false,
+      });
+
+      return {
+        productId,
+        syncedAt,
+      };
+    }
+  );
+}
+
+export async function runSealedProductHistorySync(
+  productId: string
+): Promise<SealedProductHistorySyncResult> {
+  return runLoggedSync(
+    `sealed-history:${productId}`,
+    `Syncing price history for sealed product ${productId}`,
+    summarizeSealedProductHistorySync,
+    async (progress) => {
+      await progress.throwIfCancelled();
+
+      const product = await db.sealedProduct.findUnique({
+        where: { id: productId },
+        select: {
+          id: true,
+          name: true,
+          episode_id: true,
+        },
+      });
+
+      if (!product) {
+        throw new Error("Sealed product not found.");
+      }
+
+      await progress.throwIfCancelled();
+      await progress.updateMessage(`Syncing ${product.name} history (${productId})`);
+
+      const history = await fetchHistoryPricesByItemId(product.id);
+
+      await progress.throwIfCancelled();
+
+      const existingSnapshots = await db.sealedPriceSnapshot.findMany({
+        where: { product_id: product.id },
+        select: {
+          fetched_at: true,
+        },
+      });
+      const existingSnapshotDates = new Set(
+        existingSnapshots.map((snapshot) => snapshot.fetched_at.toISOString())
+      );
+      const historyCreates: Array<{
+        product_id: string;
+        episode_id: string;
+        fetched_at: Date;
+        cm_lowest: number | null;
+        cm_lowest_eu: number | null;
+        cm_lowest_de: number | null;
+        cm_lowest_fr: number | null;
+        cm_lowest_es: number | null;
+        cm_lowest_it: number | null;
+        cm_avg_7d: number | null;
+        cm_avg_30d: number | null;
+      }> = [];
+
+      for (const point of history) {
+        const fetchedAt = toHistorySnapshotDate(point.date);
+        const iso = fetchedAt.toISOString();
+
+        if (existingSnapshotDates.has(iso)) {
+          continue;
+        }
+
+        historyCreates.push({
+          product_id: product.id,
+          episode_id: product.episode_id,
+          fetched_at: fetchedAt,
+          cm_lowest: point.cm_market,
+          cm_lowest_eu: null,
+          cm_lowest_de: point.cm_market_de,
+          cm_lowest_fr: point.cm_market_fr,
+          cm_lowest_es: point.cm_market_es,
+          cm_lowest_it: point.cm_market_it,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        });
+        existingSnapshotDates.add(iso);
+      }
+
+      await progress.throwIfCancelled();
+
+      const syncedAt = new Date();
+      await db.$transaction(async (tx) => {
+        if (historyCreates.length > 0) {
+          await writeInChunks(historyCreates, DB_WRITE_BATCH_SIZE, async (chunk) => {
+            await tx.sealedPriceSnapshot.createMany({
+              data: chunk,
+            });
+          });
+        }
+
+        await tx.sealedProduct.update({
+          where: { id: product.id },
+          data: {
+            native_history_synced_at: syncedAt,
+          },
+        });
+      });
+
+      return {
+        productId,
+        historyPointsFetched: history.length,
+        newHistorySnapshots: historyCreates.length,
       };
     }
   );
@@ -1869,7 +2386,7 @@ export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
       newHistorySnapshots: 0,
       remainingCards: 0,
       skipped: true,
-      message: "All current cards already have imported history.",
+      message: "All eligible collection cards already have imported history.",
     };
   }
 
@@ -1878,13 +2395,15 @@ export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
     `Syncing full TCGGO card history for ${candidateCards.length} cards`,
     summarizeCardHistorySync,
     async (progress) => {
+      await progress.throwIfCancelled();
       await progress.updateMessage(
-        `Syncing TCGGO card history for ${candidateCards.length} cards. This uses scraper requests.`
+        `Syncing TCGGO card history for ${candidateCards.length} collection cards (excluding Common, Uncommon, and Rare). This uses scraper requests.`
       );
 
       const syncedAt = new Date();
       const result = await backfillCardNativeHistoryDetailed(candidateCards, syncedAt, {
-        batchSize: 3,
+        batchSize: MANUAL_HISTORY_SYNC_BATCH_SIZE,
+        throwIfCancelled: progress.throwIfCancelled,
         onProgress: async ({ totalCards, processedCards, syncedCards, snapshotsCreated }) => {
           await progress.updateMessage(
             `Syncing card history ${processedCards}/${totalCards} | ${syncedCards} synced | ${snapshotsCreated} history snapshots | ${Math.max(totalCards - syncedCards, 0)} still pending`
@@ -1946,6 +2465,8 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
     "Refreshing due cards and backfilling missing first prices in the background",
     summarizeAutoPriceRefresh,
     async (progress) => {
+      await progress.throwIfCancelled();
+
       const dueBatch = await selectAutoRefreshBatch(new Date());
       const backfillBatch = await selectMissingPriceBackfillBatch({
         maxCards: Math.min(
@@ -1989,6 +2510,8 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       let refreshedCards = 0;
       let gradedPricesUpdated = 0;
       const episodeEntries = [...combinedBatch.entries()];
+      const selectedCards = countSelectedCards(combinedBatch);
+      const batchSummary = `Batch ${selectedCards} cards across ${episodeEntries.length} sets | due backlog ${dueBatch.dueCards}`;
       const previewCardRecords = episodeEntries.length
         ? await db.card.findMany({
             where: {
@@ -2015,7 +2538,12 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         episodeRecords.map((episode) => [episode.id, episode.name])
       );
 
+      await progress.throwIfCancelled();
+      await progress.updateMessage(batchSummary);
+
       for (const [episodeIndex, [episodeId, cardIds]] of episodeEntries.entries()) {
+        await progress.throwIfCancelled();
+
         const episodeName = episodeNameById[episodeId] ?? `Set ${episodeId}`;
         const previewNames = cardIds
           .slice(0, 4)
@@ -2023,10 +2551,15 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           .filter((name): name is string => Boolean(name));
         const previewLabel = previewNames.length > 0 ? ` | cards: ${previewNames.join(", ")}` : "";
         await progress.updateMessage(
-          `Refreshing ${episodeName} (${episodeIndex + 1}/${episodeEntries.length}) | ${cardIds.length} cards${previewLabel}`
+          `${batchSummary} | Refreshing ${episodeName} (${episodeIndex + 1}/${episodeEntries.length}) | ${cardIds.length} cards${previewLabel}`
         );
 
-        const result = await refreshEpisodeDueCards(episodeId, cardIds, fetchedAt);
+        const result = await refreshEpisodeDueCards(
+          episodeId,
+          cardIds,
+          fetchedAt,
+          progress.throwIfCancelled
+        );
         updatedCards += result.updatedCards;
         newPrices += result.newPrices;
         refreshedPrices += result.refreshedPrices;
@@ -2034,13 +2567,18 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         gradedPricesUpdated += result.gradedPricesUpdated;
       }
 
+      await progress.throwIfCancelled();
+
       const [syncedCardHistoryItems, syncedSealedHistoryItems] = await Promise.all([
-        backfillCardNativeHistory(nativeHistoryBatch.cardIds, fetchedAt),
-        backfillSealedNativeHistory(nativeHistoryBatch.products, fetchedAt),
+        backfillCardNativeHistory(nativeHistoryBatch.cardIds, fetchedAt, progress.throwIfCancelled),
+        backfillSealedNativeHistory(
+          nativeHistoryBatch.products,
+          fetchedAt,
+          progress.throwIfCancelled
+        ),
       ]);
 
       const remainingDueCards = Math.max(dueBatch.dueCards - dueBatch.selectedCards, 0);
-      const selectedCards = countSelectedCards(combinedBatch);
       const nativeHistoryCount = syncedCardHistoryItems + syncedSealedHistoryItems;
 
       return {
@@ -2069,9 +2607,13 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
 async function persistEpisodeSealedProducts(
   episodeId: string,
   products: NormalizedSealedProduct[],
-  syncedAt: Date
+  syncedAt: Date,
+  options?: {
+    replaceMissingEpisodeProducts?: boolean;
+  }
 ): Promise<void> {
   const fetchedIds = products.map((product) => product.id);
+  const replaceMissingEpisodeProducts = options?.replaceMissingEpisodeProducts ?? true;
 
   await db.$transaction(async (tx) => {
     for (const product of products) {
@@ -2133,12 +2675,14 @@ async function persistEpisodeSealedProducts(
       })),
     });
 
-    await tx.sealedProduct.deleteMany({
-      where: {
-        episode_id: episodeId,
-        id: { notIn: fetchedIds },
-      },
-    });
+    if (replaceMissingEpisodeProducts) {
+      await tx.sealedProduct.deleteMany({
+        where: {
+          episode_id: episodeId,
+          id: { notIn: fetchedIds },
+        },
+      });
+    }
   });
 }
 
@@ -2147,7 +2691,9 @@ export async function runSealedSync(): Promise<{ synced: number; products: numbe
     "sealed",
     "Syncing sealed products for all expansions",
     summarizeSealedSync,
-    async () => {
+    async (progress) => {
+      await progress.throwIfCancelled();
+
       const episodes = (
         await db.episode.findMany({ select: { id: true, name: true, code: true } })
       ).filter((episode) => !isHiddenExpansion(episode));
@@ -2157,9 +2703,13 @@ export async function runSealedSync(): Promise<{ synced: number; products: numbe
       // Process in batches of 5 to avoid overwhelming the API
       const BATCH = 5;
       for (let i = 0; i < episodes.length; i += BATCH) {
+        await progress.throwIfCancelled();
+
         const batch = episodes.slice(i, i + BATCH);
         await Promise.all(
           batch.map(async (ep) => {
+            await progress.throwIfCancelled();
+
             try {
               const fetched = await fetchSealedProductsForEpisode(ep.id);
               if (fetched.length === 0) return;
@@ -2181,10 +2731,17 @@ export async function runSealedSync(): Promise<{ synced: number; products: numbe
 
 async function syncEpisodeSealed(
   episodeId: string,
-  options: { backfillNativeHistory: boolean }
+  options: {
+    backfillNativeHistory: boolean;
+    throwIfCancelled?: () => Promise<void>;
+  }
 ): Promise<void> {
+  await options.throwIfCancelled?.();
+
   const products = await fetchSealedProductsForEpisode(episodeId);
   if (products.length === 0) return;
+
+  await options.throwIfCancelled?.();
 
   const syncedAt = new Date();
   const nativeHistoryCandidateProductIds = products
@@ -2197,6 +2754,8 @@ async function syncEpisodeSealed(
   await persistEpisodeSealedProducts(episodeId, products, syncedAt);
 
   if (options.backfillNativeHistory) {
+    await options.throwIfCancelled?.();
+
     const productsNeedingHistory = await db.sealedProduct.findMany({
       where: {
         episode_id: episodeId,
@@ -2214,7 +2773,8 @@ async function syncEpisodeSealed(
         id: product.id,
         episodeId: product.episode_id,
       })),
-      syncedAt
+      syncedAt,
+      options.throwIfCancelled
     );
   }
 }
@@ -2225,6 +2785,8 @@ export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResu
     `Syncing cards and all prices for episode ${episodeId}`,
     summarizeEpisodeSync,
     async (progress) => {
+      await progress.throwIfCancelled();
+
       const episode = await db.episode.findUnique({
         where: { id: episodeId },
         select: { name: true },
@@ -2236,8 +2798,12 @@ export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResu
         syncEpisodeCards(episodeId, {
           refreshAllPrices: true,
           backfillNativeHistory: false,
+          throwIfCancelled: progress.throwIfCancelled,
         }),
-        syncEpisodeSealed(episodeId, { backfillNativeHistory: false }).catch(() => undefined),
+        syncEpisodeSealed(episodeId, {
+          backfillNativeHistory: false,
+          throwIfCancelled: progress.throwIfCancelled,
+        }).catch(() => undefined),
       ]);
       return cardResult;
     }
@@ -2250,6 +2816,8 @@ export async function runFullSync(): Promise<FullSyncResult> {
     "Checking new sets, cards, and missing prices",
     summarizeFullSync,
     async (progress) => {
+      await progress.throwIfCancelled();
+
       const [remoteEpisodes, localEpisodes, cardsMissingPrices, cardsMissingMetadata] =
         await Promise.all([
           fetchAllEpisodes(),
@@ -2297,6 +2865,8 @@ export async function runFullSync(): Promise<FullSyncResult> {
       const episodesToSync: string[] = [];
 
       for (const episode of remoteEpisodes) {
+        await progress.throwIfCancelled();
+
         if (isHiddenExpansion(episode)) {
           continue;
         }
@@ -2343,6 +2913,8 @@ export async function runFullSync(): Promise<FullSyncResult> {
       let gradedPricesUpdated = 0;
 
       for (const [episodeIndex, episodeId] of episodesToSync.entries()) {
+        await progress.throwIfCancelled();
+
         const episodeName =
           remoteEpisodes.find((episode) => episode.id === episodeId)?.name ?? `Set ${episodeId}`;
         await progress.updateMessage(
@@ -2352,8 +2924,12 @@ export async function runFullSync(): Promise<FullSyncResult> {
           syncEpisodeCards(episodeId, {
             refreshAllPrices: false,
             backfillNativeHistory: false,
+            throwIfCancelled: progress.throwIfCancelled,
           }),
-          syncEpisodeSealed(episodeId, { backfillNativeHistory: false }).catch(() => undefined),
+          syncEpisodeSealed(episodeId, {
+            backfillNativeHistory: false,
+            throwIfCancelled: progress.throwIfCancelled,
+          }).catch(() => undefined),
         ]);
 
         newCards += episodeResult.newCards;

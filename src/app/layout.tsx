@@ -5,7 +5,11 @@ import Link from "next/link";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import HeaderSearch from "@/components/HeaderSearch";
 import SettingsProvider from "@/components/SettingsProvider";
-import { parseCookieSettings, SETTINGS_COOKIE_NAME } from "@/lib/user-settings";
+import {
+  initSettingsScript,
+  parseCookieSettings,
+  SETTINGS_COOKIE_NAME,
+} from "@/lib/user-settings";
 import "./globals.css";
 
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -18,11 +22,27 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const initialSettings = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value);
+  const htmlClassName = [
+    geist.variable,
+    "h-full",
+    "antialiased",
+    initialSettings?.theme === "dark" ? "dark" : "",
+    initialSettings?.widescreen ? "widescreen" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <html lang="en" className={`${geist.variable} h-full antialiased`} suppressHydrationWarning>
-      <head />
-      <body className="min-h-full flex flex-col bg-[#f2f2f7] dark:bg-black transition-colors duration-200">
+    <html
+      lang="en"
+      className={htmlClassName}
+      data-theme={initialSettings?.theme ?? "system"}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: initSettingsScript }} />
+      </head>
+      <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
         <SettingsProvider initialSettings={initialSettings}>
           <AutoPriceRefreshBoot />
           <header className="sticky top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8">

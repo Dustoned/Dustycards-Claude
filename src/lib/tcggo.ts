@@ -6,6 +6,7 @@ const BASE_URL = "https://cardmarket-api-tcg.p.rapidapi.com";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_RETRY_ATTEMPTS = 2;
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 500, 502, 503, 504]);
+const HISTORY_PAGE_FETCH_DELAY_MS = 120;
 
 const headers = {
   "x-rapidapi-key": process.env.RAPIDAPI_KEY!,
@@ -252,6 +253,10 @@ async function apiFetch<T>(path: string): Promise<T> {
   throw lastError ?? new Error(`TCGGO API request failed: ${path}`);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function normalizeEpisode(ep: RawEpisode): NormalizedEpisode {
   return {
     id: String(ep.id),
@@ -453,18 +458,35 @@ export async function fetchAllEpisodes(): Promise<NormalizedEpisode[]> {
 }
 
 export async function fetchCardsForEpisode(episodeId: string): Promise<NormalizedCard[]> {
-  const all: NormalizedCard[] = [];
   const tcgdexImageLookup = await getTcgdexImageLookup();
-  let page = 1;
-  while (true) {
-    const data = await apiFetch<{ data: RawCard[]; paging?: { total?: number } }>(
-      `/pokemon/episodes/${episodeId}/cards?page=${page}&per_page=100`
-    );
-    all.push(...(data.data ?? []).map((card) => normalizeCard(card, tcgdexImageLookup)));
-    const totalPages = data.paging?.total ?? 1;
-    if (page >= totalPages) break;
-    page++;
+
+  const firstPage = await apiFetch<{
+    data: RawCard[];
+    paging?: { total?: number };
+  }>(`/pokemon/episodes/${episodeId}/cards?page=1&per_page=100`);
+
+  const all: NormalizedCard[] = (firstPage.data ?? []).map((card) =>
+    normalizeCard(card, tcgdexImageLookup)
+  );
+  const totalPages = firstPage.paging?.total ?? 1;
+
+  if (totalPages <= 1) {
+    return all;
   }
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) =>
+      apiFetch<{
+        data: RawCard[];
+        paging?: { total?: number };
+      }>(`/pokemon/episodes/${episodeId}/cards?page=${index + 2}&per_page=100`)
+    )
+  );
+
+  for (const page of remainingPages) {
+    all.push(...(page.data ?? []).map((card) => normalizeCard(card, tcgdexImageLookup)));
+  }
+
   return all;
 }
 
@@ -529,17 +551,16 @@ export async function fetchHistoryPricesByItemId(
 
   const firstPage = await apiFetch<RawHistoryPriceResponse>(`/pokemon/history-prices?${params}`);
   const totalPages = firstPage.paging?.total ?? 1;
-  const remainingPages =
-    totalPages > 1
-      ? await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, index) => {
-            const pageParams = new URLSearchParams(params);
-            pageParams.set("page", String(index + 2));
-            return apiFetch<RawHistoryPriceResponse>(`/pokemon/history-prices?${pageParams}`);
-          })
-        )
-      : [];
-  const pages = [firstPage, ...remainingPages];
+  const pages = [firstPage];
+
+  // History imports are request-heavy and RapidAPI tends to burst-rate-limit them
+  // long before the daily window is actually empty. Fetch follow-up pages gently.
+  for (let pageNumber = 2; pageNumber <= totalPages; pageNumber += 1) {
+    const pageParams = new URLSearchParams(params);
+    pageParams.set("page", String(pageNumber));
+    await sleep(HISTORY_PAGE_FETCH_DELAY_MS);
+    pages.push(await apiFetch<RawHistoryPriceResponse>(`/pokemon/history-prices?${pageParams}`));
+  }
 
   const merged = new Map<string, RawHistoryPriceEntry>();
 

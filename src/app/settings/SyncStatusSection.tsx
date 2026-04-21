@@ -1,3 +1,6 @@
+import SyncStatusAutoRefresh from "./SyncStatusAutoRefresh";
+import SyncCancelButton from "./SyncCancelButton";
+
 interface SyncStatusEntry {
   id: string;
   type: string;
@@ -6,6 +9,7 @@ interface SyncStatusEntry {
   message: string | null;
   started_at: Date;
   finished_at: Date | null;
+  cancel_requested_at: Date | null;
 }
 
 interface AutoRefreshStatus {
@@ -42,6 +46,7 @@ interface GroupedSyncStatusEntry {
   message: string | null;
   started_at: Date;
   finished_at: Date | null;
+  cancel_requested_at: Date | null;
   oldest_started_at: Date;
   entries: SyncStatusEntry[];
 }
@@ -74,10 +79,14 @@ function formatDuration(startedAt: Date, finishedAt: Date | null): string | null
 
 function statusBadge(status: string): string {
   switch (status) {
+    case "cancelling":
+      return "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
     case "running":
       return "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
     case "success":
       return "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
+    case "cancelled":
+      return "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300";
     case "failed":
       return "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
     default:
@@ -87,15 +96,27 @@ function statusBadge(status: string): string {
 
 function humanStatus(status: string): string {
   switch (status) {
+    case "cancelling":
+      return "Stopping";
     case "running":
       return "Running";
     case "success":
       return "Success";
+    case "cancelled":
+      return "Cancelled";
     case "failed":
       return "Failed";
     default:
       return status;
   }
+}
+
+function visualStatus(entry: Pick<SyncStatusEntry, "status" | "cancel_requested_at">): string {
+  if (entry.status === "running" && entry.cancel_requested_at) {
+    return "cancelling";
+  }
+
+  return entry.status;
 }
 
 function compactMessage(message: string | null, maxLength = 220): string | null {
@@ -116,6 +137,69 @@ function compactMessage(message: string | null, maxLength = 220): string | null 
   }
 
   return `${normalized.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function parseAutoRefreshProgress(message: string | null): {
+  batchCards: number | null;
+  batchSets: number | null;
+  dueBacklog: number | null;
+  currentSet: string | null;
+  currentSetIndex: number | null;
+  currentSetTotal: number | null;
+  currentSetCards: number | null;
+} {
+  const normalized = compactMessage(message, 500);
+  if (!normalized) {
+    return {
+      batchCards: null,
+      batchSets: null,
+      dueBacklog: null,
+      currentSet: null,
+      currentSetIndex: null,
+      currentSetTotal: null,
+      currentSetCards: null,
+    };
+  }
+
+  const result = {
+    batchCards: null as number | null,
+    batchSets: null as number | null,
+    dueBacklog: null as number | null,
+    currentSet: null as string | null,
+    currentSetIndex: null as number | null,
+    currentSetTotal: null as number | null,
+    currentSetCards: null as number | null,
+  };
+
+  for (const part of normalized.split("|").map((entry) => entry.trim()).filter(Boolean)) {
+    let match = part.match(/^Batch (\d+) cards across (\d+) sets$/i);
+    if (match) {
+      result.batchCards = Number(match[1]);
+      result.batchSets = Number(match[2]);
+      continue;
+    }
+
+    match = part.match(/^due backlog (\d+)$/i);
+    if (match) {
+      result.dueBacklog = Number(match[1]);
+      continue;
+    }
+
+    match = part.match(/^Refreshing (.+) \((\d+)\/(\d+)\)$/i);
+    if (match) {
+      result.currentSet = match[1];
+      result.currentSetIndex = Number(match[2]);
+      result.currentSetTotal = Number(match[3]);
+      continue;
+    }
+
+    match = part.match(/^(\d+) cards$/i);
+    if (match && result.currentSetCards == null) {
+      result.currentSetCards = Number(match[1]);
+    }
+  }
+
+  return result;
 }
 
 function metricBadgeTone(tone: ActivityMetric["tone"] = "default"): string {
@@ -149,6 +233,12 @@ function parseActivityMetrics(entry: SyncStatusEntry): {
     let match = part.match(/^Checked (\d+) cards$/i);
     if (match) {
       metrics.push({ label: "cards checked", value: match[1] });
+      continue;
+    }
+
+    match = part.match(/^Eligible (\d+) cards$/i);
+    if (match) {
+      metrics.push({ label: "eligible", value: match[1] });
       continue;
     }
 
@@ -266,6 +356,19 @@ function parseActivityMetrics(entry: SyncStatusEntry): {
       continue;
     }
 
+    match = part.match(/^Batch (\d+) cards across (\d+) sets$/i);
+    if (match) {
+      metrics.push({ label: "batch cards", value: match[1] });
+      metrics.push({ label: "batch sets", value: match[2] });
+      continue;
+    }
+
+    match = part.match(/^due backlog (\d+)$/i);
+    if (match) {
+      metrics.push({ label: "due backlog", value: match[1], tone: "warning" });
+      continue;
+    }
+
     if (/^Checked \d+$/i.test(part) && entry.type.startsWith("card:")) {
       continue;
     }
@@ -336,6 +439,7 @@ function SyncEntryCard({
   const repeatCount = entry.entries.length;
   const { metrics, detail } = parseActivityMetrics(entry);
   const isFailure = accent === "failure" || entry.status === "failed";
+  const entryStatus = visualStatus(entry);
 
   return (
     <div
@@ -346,8 +450,8 @@ function SyncEntryCard({
       }
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(entry.status)}`}>
-          {humanStatus(entry.status)}
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(entryStatus)}`}>
+          {humanStatus(entryStatus)}
         </span>
         <span className="text-sm font-semibold text-gray-900 dark:text-white">{entry.label}</span>
         {repeatCount > 1 && (
@@ -396,6 +500,7 @@ function SummaryTile({
 }) {
   const duration = entry ? formatDuration(entry.started_at, entry.finished_at) : null;
   const summary = compactMessage(entry?.message ?? null, 180);
+  const entryStatus = entry ? visualStatus(entry) : null;
 
   return (
     <div className="rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
@@ -403,8 +508,8 @@ function SummaryTile({
       {entry ? (
         <div className="mt-3 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(entry.status)}`}>
-              {humanStatus(entry.status)}
+            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(entryStatus ?? entry.status)}`}>
+              {humanStatus(entryStatus ?? entry.status)}
             </span>
             <span className="text-sm font-semibold text-gray-900 dark:text-white">{entry.label}</span>
           </div>
@@ -470,28 +575,36 @@ function AutoRefreshCard({
   nextBatchCardLabels,
 }: AutoRefreshStatus) {
   const isRunning = Boolean(active);
+  const activeProgress = parseAutoRefreshProgress(active?.message ?? null);
+  const batchCards = activeProgress.batchCards ?? nextBatchCards;
+  const batchSets = activeProgress.batchSets ?? nextBatchEpisodes;
+  const remainingAfterBatch = Math.max(dueCards - batchCards, 0);
   const currentSummary = compactMessage(active?.message ?? null, 220);
   const lastSuccessSummary = compactMessage(lastSuccess?.message ?? null, 220);
+  const activeStatus = active ? visualStatus(active) : "success";
 
   return (
     <div className="rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(
-            isRunning ? "running" : "success"
+            isRunning ? activeStatus : "success"
           )}`}
         >
-          {isRunning ? "Running" : "Idle"}
+          {isRunning ? humanStatus(activeStatus) : "Idle"}
         </span>
         <span className="text-sm font-semibold text-gray-900 dark:text-white">
           Background Price Refresh
         </span>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Due Now</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            Due Backlog
+          </p>
           <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{dueCards}</p>
+          <p className="text-xs text-gray-400">Live eligible queue</p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
@@ -502,17 +615,42 @@ function AutoRefreshCard({
           </p>
         </div>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Next Batch</p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{nextBatchCards}</p>
-          <p className="text-xs text-gray-400">{nextBatchEpisodes} sets</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            {isRunning ? "Current Batch" : "Selected Next Batch"}
+          </p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{batchCards}</p>
+          <p className="text-xs text-gray-400">{batchSets} sets</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            {isRunning ? "Remaining After Batch" : "Remaining After Next Batch"}
+          </p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+            {remainingAfterBatch}
+          </p>
+          <p className="text-xs text-gray-400">Approximate live backlog</p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Current Run</p>
-          <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-            {active ? formatDateTime(active.started_at) : "--"}
-          </p>
-          {active && (
-            <p className="text-xs text-gray-400">{formatDuration(active.started_at, null) ?? "--"}</p>
+          {active ? (
+            <>
+              <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+                {activeProgress.currentSet ?? formatDateTime(active.started_at)}
+              </p>
+              <p className="text-xs text-gray-400">
+                {activeProgress.currentSetIndex != null && activeProgress.currentSetTotal != null
+                  ? `Set ${activeProgress.currentSetIndex}/${activeProgress.currentSetTotal}`
+                  : formatDateTime(active.started_at)}
+                {activeProgress.currentSetCards != null
+                  ? ` | ${activeProgress.currentSetCards} selected cards`
+                  : ""}
+              </p>
+              <p className="text-xs text-gray-400">
+                {formatDuration(active.started_at, null) ?? "--"}
+              </p>
+            </>
+          ) : (
+            <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">--</p>
           )}
         </div>
         <div>
@@ -539,9 +677,18 @@ function AutoRefreshCard({
           Last success: {lastSuccessSummary}
         </p>
       )}
+      <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+        Due backlog is recalculated live across the whole queue, so it is not a progress bar for
+        the current set.
+      </p>
+      {active?.cancel_requested_at && (
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
+          Stop requested. The current in-flight batch will finish before this run exits.
+        </p>
+      )}
       {nextBatchSetLabels.length > 0 && (
         <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          Next sets:{" "}
+          {isRunning ? "Batch sets:" : "Next sets:"}{" "}
           <span className="font-medium text-gray-700 dark:text-gray-200">
             {nextBatchSetLabels.join(", ")}
           </span>
@@ -549,7 +696,7 @@ function AutoRefreshCard({
       )}
       {nextBatchCardLabels.length > 0 && (
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Cards in queue:{" "}
+          {isRunning ? "Sample cards in batch:" : "Cards in queue:"}{" "}
           <span className="font-medium text-gray-700 dark:text-gray-200">
             {nextBatchCardLabels.join(", ")}
           </span>
@@ -628,6 +775,8 @@ export default function SyncStatusSection({
 }) {
   return (
     <div className="glass rounded-2xl p-6 shadow-md shadow-black/5">
+      <SyncStatusAutoRefresh enabled={Boolean(activeSync)} />
+
       <div className="mb-5">
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">Sync Status</h2>
         <p className="mt-0.5 text-sm text-gray-400">
@@ -645,6 +794,30 @@ export default function SyncStatusSection({
         <SummaryTile title="Last Failed" entry={lastFailedSync} emptyLabel="No failed syncs." />
         <OverviewTile overview={overview} />
       </div>
+
+      {activeSync && (
+        <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                {activeSync.cancel_requested_at
+                  ? "Stopping current sync"
+                  : `Current sync: ${activeSync.label}`}
+              </p>
+              <p className="mt-0.5 text-xs text-gray-400">
+                {activeSync.cancel_requested_at
+                  ? "The running job will stop at the next safe checkpoint."
+                  : "Use stop if you want the current job to finish its in-flight batch and then exit cleanly."}
+              </p>
+            </div>
+            <SyncCancelButton
+              syncId={activeSync.id}
+              syncLabel={activeSync.label}
+              cancellationRequested={Boolean(activeSync.cancel_requested_at)}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
         <AutoRefreshCard {...autoRefreshStatus} />

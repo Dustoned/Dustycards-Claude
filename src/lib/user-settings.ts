@@ -151,8 +151,9 @@ export const initSettingsScript = `
     document.cookie = '${SETTINGS_COOKIE_NAME}=' + encodeURIComponent(JSON.stringify(s)) + '; Path=/; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; SameSite=Lax';
     var t = s.theme || 'system';
     var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    if (dark) document.documentElement.classList.add('dark');
-    if (s.widescreen) document.documentElement.classList.add('widescreen');
+    document.documentElement.dataset.theme = t;
+    document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.classList.toggle('widescreen', !!s.widescreen);
   } catch(e){}
 })();
 `;

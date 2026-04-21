@@ -131,7 +131,15 @@ export default async function SettingsPage() {
     getTcggoUsageSnapshot(),
     db.card.count({
       where: {
+        collectionItems: {
+          some: {},
+        },
         native_history_synced_at: null,
+        NOT: {
+          rarity: {
+            in: ["Common", "Uncommon", "Rare", "common", "uncommon", "rare"],
+          },
+        },
         OR: [
           { prices: { some: {} } },
           { cardmarket_id: { not: null } },
@@ -222,6 +230,7 @@ export default async function SettingsPage() {
       message: log.message,
       started_at: log.started_at,
       finished_at: log.finished_at,
+      cancel_requested_at: log.cancel_requested_at,
     };
   };
 

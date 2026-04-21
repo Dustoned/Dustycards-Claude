@@ -5,12 +5,25 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Minus } from "lucide-react";
+import CardBrowserToolbar, {
+  type CardBrowserToolbarActiveFilter,
+  type CardBrowserToolbarFilterOption,
+  type CardBrowserToolbarFilterSection,
+  type CardBrowserToolbarOption,
+} from "@/components/CardBrowserToolbar";
 import CardModal, { type ModalCardData } from "@/components/CardModal";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionBulkAddCardsModal from "@/components/CollectionBulkAddCardsModal";
 import GradedSlabPreview from "@/components/GradedSlabPreview";
 import { formatCollectionCurrency } from "@/lib/collection";
-import { useSettings } from "@/components/SettingsProvider";
+import {
+  useSettings,
+  type CardSize,
+  type CardView,
+  type PriceSource,
+  type SortBy,
+  type SortDir,
+} from "@/components/SettingsProvider";
 import {
   GRADED_SLAB_ASPECT_CLASS,
   RAW_CARD_ASPECT_CLASS,
@@ -32,6 +45,8 @@ export interface CollectionCardViewItem {
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
+  cm_value?: number | null;
+  tcp_value?: number | null;
   current_value: number | null;
   current_value_label?: string | null;
   purchase_price: number | null;
@@ -61,7 +76,7 @@ interface Props {
   onVisibleItemsChange?: (items: CollectionCardViewItem[]) => void;
   splitByGrading?: boolean;
   sectionTitle?: string;
-  sectionCount?: number;
+  sectionCount?: ReactNode;
   sectionTrailing?: ReactNode;
 }
 
@@ -78,11 +93,19 @@ const cardMinWidth = {
 } as const;
 
 const KNOWN_SUPERTYPE_ORDER = ["pokemon", "trainer", "energy"] as const;
+const CARD_NUMBER_FALLBACK = "999999";
+const cardNumberCollator = new Intl.Collator("en", {
+  numeric: true,
+  sensitivity: "base",
+});
 
 interface FilterOption {
   value: string;
   count: number;
 }
+
+type CollectionView = Exclude<CardView, "binder">;
+type CurrencyCode = "EUR" | "USD";
 
 function buildFilterOptions(
   values: Array<string | null | undefined>,
@@ -97,7 +120,9 @@ function buildFilterOptions(
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }
 
-  const rankByValue = new Map(preferredOrder.map((value, index) => [value, index]));
+  const rankByValue = new Map(
+    preferredOrder.map((value, index) => [value.trim().toLowerCase(), index])
+  );
 
   return [...counts.entries()]
     .sort(([a], [b]) => {
@@ -182,18 +207,18 @@ function rarityFilterChip(rarity: string | null, active: boolean): string {
   const palette = rarityBadge(rarity);
 
   if (active) {
-    return `${palette} border-black/15 dark:border-white/15 opacity-100 ring-2 ring-gray-900/70 ring-offset-1 ring-offset-white shadow-md shadow-black/10 dark:ring-white/80 dark:ring-offset-black dark:shadow-black/25`;
+    return `${palette} border-black/12 dark:border-white/14 opacity-100 shadow-sm shadow-black/10 ring-1 ring-inset ring-black/5 dark:ring-white/10`;
   }
 
-  return `${palette} border-black/8 dark:border-white/8 opacity-75 hover:opacity-100 hover:border-black/20 hover:shadow-sm dark:hover:border-white/20`;
+  return `${palette} border-black/8 dark:border-white/8 opacity-80 hover:opacity-100 hover:border-black/15 dark:hover:border-white/16`;
 }
 
 function neutralFilterChip(active: boolean): string {
   if (active) {
-    return "border-gray-900 bg-gray-900 text-white opacity-100 ring-2 ring-gray-900/70 ring-offset-1 ring-offset-white shadow-md shadow-black/10 dark:border-white dark:bg-white dark:text-gray-900 dark:ring-white/80 dark:ring-offset-black dark:shadow-black/25";
+    return "border-gray-900/90 bg-gray-900 text-white opacity-100 shadow-sm shadow-black/10 dark:border-white/90 dark:bg-white dark:text-gray-900";
   }
 
-  return "border-black/8 text-gray-500 opacity-80 hover:border-black/20 hover:opacity-100 hover:text-gray-900 hover:shadow-sm dark:border-white/8 dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white";
+  return "border-black/8 text-gray-500 opacity-85 hover:border-black/15 hover:opacity-100 hover:text-gray-900 dark:border-white/8 dark:text-white/55 dark:hover:border-white/16 dark:hover:text-white";
 }
 
 function selectionToggleTextClass(active: boolean): string {
@@ -210,6 +235,96 @@ function isGradedCollectionCard(item: CollectionCardViewItem): boolean {
       normalizeGradingCompanyLabel(item.grading_company) &&
       normalizeGradingGradeLabel(item.grading_grade)
   );
+}
+
+function formatMarketCurrency(
+  value: number | null | undefined,
+  currency: CurrencyCode = "EUR"
+): string {
+  if (value == null) return "--";
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function getCollectionItemPrice(
+  item: CollectionCardViewItem,
+  source: PriceSource
+): number | null {
+  if (item.current_value_label) {
+    return item.current_value;
+  }
+
+  return source === "tcp"
+    ? item.tcp_value ?? item.cm_value ?? item.current_value
+    : item.cm_value ?? item.tcp_value ?? item.current_value;
+}
+
+function getCollectionItemPriceCurrency(
+  item: CollectionCardViewItem,
+  source: PriceSource
+): CurrencyCode {
+  if (item.current_value_label) {
+    return "EUR";
+  }
+
+  return source === "tcp" && item.tcp_value != null ? "USD" : "EUR";
+}
+
+function getCollectionSortPrice(
+  item: CollectionCardViewItem,
+  sortBy: SortBy
+): number | null {
+  if (item.current_value_label) {
+    return item.current_value;
+  }
+
+  if (sortBy === "tcp") {
+    return item.tcp_value ?? item.cm_value ?? item.current_value;
+  }
+
+  return item.cm_value ?? item.tcp_value ?? item.current_value;
+}
+
+function hasAnyVisiblePrice(item: CollectionCardViewItem): boolean {
+  return [item.current_value, item.cm_value, item.tcp_value].some((value) => value != null);
+}
+
+function comparePriceValues(a: number | null, b: number | null, sortDir: SortDir): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return sortDir === "asc" ? a - b : b - a;
+}
+
+function compareCollectionCardNumbers(
+  a: CollectionCardViewItem,
+  b: CollectionCardViewItem
+): number {
+  const diff = cardNumberCollator.compare(
+    a.card_number?.trim() || CARD_NUMBER_FALLBACK,
+    b.card_number?.trim() || CARD_NUMBER_FALLBACK
+  );
+  if (diff !== 0) return diff;
+  return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+}
+
+function getSortLabel(sortBy: SortBy): string {
+  if (sortBy === "number") return "Number";
+  return sortBy === "cm_en" ? "CardMarket" : "TCGPlayer";
+}
+
+function getDefaultSortDir(sortBy: SortBy): SortDir {
+  return sortBy === "number" ? "asc" : "desc";
+}
+
+function formatSortSummary(sortBy: SortBy, sortDir: SortDir): string {
+  const direction = sortDir === "asc" ? "low-high" : "high-low";
+  return `${getSortLabel(sortBy)} ${direction}`;
 }
 
 function collectionMetaBadge(
@@ -313,7 +428,13 @@ export default function CollectionCardsView({
 }: Props) {
   const router = useRouter();
   const { settings, set } = useSettings();
+  const view: CollectionView =
+    settings.defaultView === "binder" ? "grid" : settings.defaultView;
+  const sortBy = settings.sortBy;
+  const sortDir = settings.sortDir;
+  const primaryPriceSource = settings.primaryPriceSource;
   const [search, setSearch] = useState("");
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [showOnlyGraded, setShowOnlyGraded] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -361,7 +482,7 @@ export default function CollectionCardsView({
   );
   const normalizedSearch = search.trim().toLowerCase();
   const hasAnyPricedCards = useMemo(
-    () => items.some((item) => item.current_value != null),
+    () => items.some((item) => hasAnyVisiblePrice(item)),
     [items]
   );
   const hasAnyGradedCards = useMemo(
@@ -373,9 +494,19 @@ export default function CollectionCardsView({
     [items]
   );
   const showGradedFilter = hasAnyGradedCards && hasAnyRawCards;
-  const effectiveShowOnlyGraded = showOnlyGraded && showGradedFilter;
-  const effectiveOnlyPriced = settings.showOnlyPriced && hasAnyPricedCards;
-  const pricedOnlyUnavailable = settings.showOnlyPriced && !hasAnyPricedCards;
+  const applySavedFilters = showFilters;
+  const appliedRarities = useMemo(
+    () => (applySavedFilters ? activeRarities : []),
+    [applySavedFilters, activeRarities]
+  );
+  const appliedSupertypes = useMemo(
+    () => (applySavedFilters ? activeSupertypes : []),
+    [applySavedFilters, activeSupertypes]
+  );
+  const effectiveShowOnlyGraded = applySavedFilters && showOnlyGraded && showGradedFilter;
+  const effectiveOnlyPriced = applySavedFilters && settings.showOnlyPriced && hasAnyPricedCards;
+  const pricedOnlyUnavailable =
+    applySavedFilters && settings.showOnlyPriced && !hasAnyPricedCards;
   const validSelectionKeys = useMemo(
     () => new Set(items.map((item, index) => `${item.card_id}-${index}`)),
     [items]
@@ -386,14 +517,16 @@ export default function CollectionCardsView({
   );
   const selectedKeySet = useMemo(() => new Set(activeSelectedKeys), [activeSelectedKeys]);
   const activeSelectionMode = selectionEnabled && selectionMode;
-  const filteredEntries = useMemo(() => {
+  const sortedEntries = useMemo(() => {
     return items.flatMap((item, index) => {
       if (normalizedSearch) {
+        const compactIdentifier = `${item.episode_code ?? ""}${item.card_number ?? ""}`;
         const haystack = [
           item.name,
           item.card_number ?? "",
           item.episode_name,
           item.episode_code ?? "",
+          compactIdentifier,
         ]
           .join(" ")
           .toLowerCase();
@@ -401,34 +534,55 @@ export default function CollectionCardsView({
         if (!haystack.includes(normalizedSearch)) return [];
       }
 
-      if (
-        activeRarities.length > 0 &&
-        !activeRarities.includes(normalizeRarityLabel(item.rarity) ?? "")
-      ) {
-        return [];
-      }
-
-      if (activeSupertypes.length > 0 && !activeSupertypes.includes(item.supertype ?? "")) {
-        return [];
-      }
-
-      if (effectiveOnlyPriced && item.current_value == null) {
-        return [];
-      }
-
-      if (effectiveShowOnlyGraded && !isGradedCollectionCard(item)) {
-        return [];
-      }
-
       return [{ item, index, selectionKey: `${item.card_id}-${index}` }];
     });
+  }, [items, normalizedSearch]);
+  const filteredEntries = useMemo(() => {
+    return [...sortedEntries]
+      .filter(({ item }) => {
+        if (
+          appliedRarities.length > 0 &&
+          !appliedRarities.includes(normalizeRarityLabel(item.rarity) ?? "")
+        ) {
+          return false;
+        }
+
+        if (appliedSupertypes.length > 0 && !appliedSupertypes.includes(item.supertype ?? "")) {
+          return false;
+        }
+
+        if (effectiveOnlyPriced && !hasAnyVisiblePrice(item)) {
+          return false;
+        }
+
+        if (effectiveShowOnlyGraded && !isGradedCollectionCard(item)) {
+          return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "number") {
+          const diff = compareCollectionCardNumbers(a.item, b.item);
+          return sortDir === "asc" ? diff : -diff;
+        }
+
+        const priceDiff = comparePriceValues(
+          getCollectionSortPrice(a.item, sortBy),
+          getCollectionSortPrice(b.item, sortBy),
+          sortDir
+        );
+        if (priceDiff !== 0) return priceDiff;
+        return compareCollectionCardNumbers(a.item, b.item);
+      });
   }, [
-    items,
-    normalizedSearch,
-    activeRarities,
-    activeSupertypes,
+    sortedEntries,
+    appliedRarities,
+    appliedSupertypes,
     effectiveOnlyPriced,
     effectiveShowOnlyGraded,
+    sortBy,
+    sortDir,
   ]);
   const persistentFiltersHideEverything =
     showFilters &&
@@ -436,7 +590,7 @@ export default function CollectionCardsView({
     !effectiveShowOnlyGraded &&
     items.length > 0 &&
     filteredEntries.length === 0 &&
-    (activeRarities.length > 0 || activeSupertypes.length > 0 || effectiveOnlyPriced);
+    (appliedRarities.length > 0 || appliedSupertypes.length > 0 || effectiveOnlyPriced);
   const visibleEntries = useMemo(
     () =>
       persistentFiltersHideEverything
@@ -683,13 +837,46 @@ export default function CollectionCardsView({
   const hasActiveFilters =
     Boolean(search) ||
     effectiveShowOnlyGraded ||
-    activeRarities.length > 0 ||
-    activeSupertypes.length > 0 ||
-    settings.showOnlyPriced;
+    appliedRarities.length > 0 ||
+    appliedSupertypes.length > 0 ||
+    effectiveOnlyPriced;
+  const sortSummary = formatSortSummary(sortBy, sortDir);
+  const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
+    { value: "number", label: "#" },
+    { value: "cm_en", label: "CM" },
+    { value: "tcp", label: "TCP" },
+  ];
+  const SIZE_OPTIONS: Array<{ value: CardSize; label: string }> = [
+    { value: "small", label: "S" },
+    { value: "medium", label: "M" },
+    { value: "large", label: "L" },
+  ];
 
   useEffect(() => {
     onVisibleItemsChange?.(visibleItems);
   }, [visibleItems, onVisibleItemsChange]);
+
+  function toggleSort(nextSort: SortBy) {
+    if (nextSort === "cm_en" || nextSort === "tcp") {
+      set("primaryPriceSource", nextSort);
+    }
+
+    if (sortBy === nextSort) {
+      set("sortDir", sortDir === "asc" ? "desc" : "asc");
+      return;
+    }
+
+    set("sortBy", nextSort);
+    set("sortDir", getDefaultSortDir(nextSort));
+  }
+
+  function clearAllFilters() {
+    setSearch("");
+    setShowOnlyGraded(false);
+    set("defaultRarities", []);
+    set("defaultSupertypes", []);
+    set("showOnlyPriced", false);
+  }
 
   if (items.length === 0) {
     return (
@@ -705,6 +892,144 @@ export default function CollectionCardsView({
   const gridTemplateColumns = `repeat(auto-fill, minmax(${cardTrackWidth}, ${cardTrackWidth}))`;
   const showInlineSelectionButton =
     Boolean(sectionTitle) && !showFilters && selectionEnabled && !activeSelectionMode;
+  const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
+  const filterBadgeCount =
+    appliedRarities.length +
+    appliedSupertypes.length +
+    (effectiveOnlyPriced ? 1 : 0) +
+    (effectiveShowOnlyGraded ? 1 : 0) +
+    (search.trim() ? 1 : 0);
+  const toolbarSortOptions: CardBrowserToolbarOption[] = [
+    {
+      value: "number",
+      label: "#",
+      title: "Sort by card number",
+    },
+    {
+      value: "cm_en",
+      label: "CM",
+      title: "Sort by CardMarket and use CardMarket as main prices",
+    },
+    {
+      value: "tcp",
+      label: "TCP",
+      title: "Sort by TCGPlayer and use TCGPlayer as main prices",
+    },
+  ];
+  const toolbarSizeOptions: CardBrowserToolbarOption[] = [
+    { value: "small", label: "S" },
+    { value: "medium", label: "M" },
+    { value: "large", label: "L" },
+  ];
+  const toolbarActiveFilters: CardBrowserToolbarActiveFilter[] = [
+    ...(search.trim()
+      ? [
+          {
+            key: `search-${search.trim().toLowerCase()}`,
+            label: `Search: ${search.trim()}`,
+            onRemove: () => setSearch(""),
+          },
+        ]
+      : []),
+    ...appliedRarities.map((rarity) => ({
+      key: `rarity-${rarity}`,
+      label: rarity,
+      onRemove: () => toggleRarity(rarity),
+    })),
+    ...appliedSupertypes.map((supertype) => ({
+      key: `supertype-${supertype}`,
+      label: supertype,
+      onRemove: () => toggleSupertype(supertype),
+    })),
+    ...(effectiveOnlyPriced
+      ? [
+          {
+            key: "priced-only",
+            label: "Priced only",
+            onRemove: () => set("showOnlyPriced", false),
+          },
+        ]
+      : []),
+    ...(effectiveShowOnlyGraded
+      ? [
+          {
+            key: "graded-only",
+            label: "Graded only",
+            onRemove: () => setShowOnlyGraded(false),
+          },
+        ]
+      : []),
+  ];
+  const toolbarQuickFilters: CardBrowserToolbarFilterOption[] = [
+    {
+      key: "quick-priced-only",
+      label: pricedOnlyUnavailable ? "No prices yet" : "Priced only",
+      active: settings.showOnlyPriced,
+      onToggle: () => set("showOnlyPriced", !settings.showOnlyPriced),
+      className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+        settings.showOnlyPriced ? "font-semibold" : "font-medium"
+      } ${neutralFilterChip(settings.showOnlyPriced)}`,
+    },
+    ...(showGradedFilter
+      ? [
+          {
+            key: "quick-graded-only",
+            label: "Graded only",
+            active: effectiveShowOnlyGraded,
+            onToggle: () => setShowOnlyGraded((prev) => !prev),
+            className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+              effectiveShowOnlyGraded ? "font-semibold" : "font-medium"
+            } ${neutralFilterChip(effectiveShowOnlyGraded)}`,
+          } satisfies CardBrowserToolbarFilterOption,
+        ]
+      : []),
+    ...availableSupertypes.map((supertype) => {
+      const active = activeSupertypes.includes(supertype.value);
+
+      return {
+        key: `quick-type-${supertype.value}`,
+        label: supertype.value,
+        active,
+        count: supertype.count,
+        onToggle: () => toggleSupertype(supertype.value),
+        className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+          active ? "font-semibold" : "font-medium"
+        } ${neutralFilterChip(active)}`,
+      };
+    }),
+  ];
+  const toolbarFilterSections: CardBrowserToolbarFilterSection[] = [
+    {
+      key: "rarity",
+      title: "Rarity",
+      summary: appliedRarities.length > 0 ? `${appliedRarities.length} selected` : "All",
+      className: "xl:min-w-0",
+      options: availableRarities.map((rarity) => {
+        const active = appliedRarities.includes(rarity.value);
+
+        return {
+          key: rarity.value,
+          label: rarity.value,
+          active,
+          count: rarity.count,
+          onToggle: () => toggleRarity(rarity.value),
+          className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+            active ? "font-semibold" : "font-medium"
+          } ${rarityFilterChip(rarity.value, active)}`,
+        };
+      }),
+    },
+  ];
+  const toolbarWarnings = [
+    ...(pricedOnlyUnavailable
+      ? [
+          "This view has no price data yet, so the priced-only filter stays visible but does not hide cards.",
+        ]
+      : []),
+    ...(persistentFiltersHideEverything
+      ? ["Saved filters matched 0 cards here, so this view is shown without them."]
+      : []),
+  ];
 
   return (
     <>
@@ -731,7 +1056,169 @@ export default function CollectionCardsView({
       )}
 
       {showFilters ? (
-        <div className="glass mb-4 space-y-2.5 rounded-2xl px-4 py-3 shadow-sm shadow-black/5">
+        <>
+          <CardBrowserToolbar
+            searchValue={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search name, number, set..."
+            resultLabel={`${visibleItems.length} / ${items.length}`}
+            sortSummary={sortSummary}
+            priceSourceLabel={primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+            viewOptions={[
+              { value: "table", label: "Table" },
+              { value: "grid", label: "Grid" },
+            ]}
+            activeView={view}
+            onViewChange={(value) => set("defaultView", value as CollectionView)}
+            sortOptions={toolbarSortOptions}
+            activeSort={sortBy}
+            onSortChange={(value) => toggleSort(value as SortBy)}
+            sizeOptions={toolbarSizeOptions}
+            activeSize={settings.cardSize}
+            onSizeChange={(value) => set("cardSize", value as CardSize)}
+            filtersExpanded={filtersPanelExpanded}
+            onToggleFilters={() => setFiltersExpanded((prev) => !prev)}
+            filterBadgeCount={filterBadgeCount}
+            hasActiveFilters={hasActiveFilters}
+            onClearAll={clearAllFilters}
+            activeFilters={toolbarActiveFilters}
+            quickFilters={toolbarQuickFilters}
+            filterSections={toolbarFilterSections}
+            warnings={toolbarWarnings}
+            selectionSlot={
+              selectionEnabled ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {activeSelectionMode && (
+                    <>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                        {activeSelectedKeys.length} selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKeys(selectableKeys)}
+                        disabled={selectableKeys.length === 0 || allSelectableSelected}
+                        className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKeys([])}
+                        disabled={activeSelectedKeys.length === 0}
+                        className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                      >
+                        Clear
+                      </button>
+                      {canBulkAddToBinder && (
+                        <button
+                          type="button"
+                          onClick={handleBulkAdd}
+                          disabled={selectedCards.length === 0}
+                          className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          Bulk add
+                        </button>
+                      )}
+                      {canRemoveFromCollection && (
+                        <button
+                          type="button"
+                          onClick={handleBulkRemove}
+                          disabled={removingItems || selectedCollectionItemIds.length === 0}
+                          className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={toggleSelectionMode}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      activeSelectionMode
+                        ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
+                        : "border-black/8 bg-white/70 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                    }`}
+                  >
+                    {activeSelectionMode ? "Done" : "Select"}
+                  </button>
+                </div>
+              ) : null
+            }
+          />
+          {false && (
+            <div className="glass mb-4 space-y-2.5 rounded-2xl px-4 py-3 shadow-sm shadow-black/5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex shrink-0 overflow-hidden rounded-lg border border-black/8 dark:border-white/8">
+              {(["table", "grid"] as CollectionView[]).map((nextView) => (
+                <button
+                  key={nextView}
+                  type="button"
+                  onClick={() => set("defaultView", nextView)}
+                  className={`px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                    view === nextView
+                      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                      : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  }`}
+                >
+                  {nextView}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-4 w-px shrink-0 bg-black/10 dark:bg-white/10" />
+
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="mr-0.5 text-xs text-gray-400">Sort</span>
+              <div className="flex overflow-hidden rounded-lg border border-black/8 dark:border-white/8">
+                {SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    title={
+                      option.value === "cm_en"
+                        ? "Sort by CardMarket and use CardMarket as main prices"
+                        : option.value === "tcp"
+                          ? "Sort by TCGPlayer and use TCGPlayer as main prices"
+                          : "Sort by card number"
+                    }
+                    onClick={() => toggleSort(option.value)}
+                    className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                      sortBy === option.value
+                        ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                        : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                    }`}
+                  >
+                    {option.label}
+                    {sortBy === option.value ? (sortDir === "asc" ? " ↑" : " ↓") : ""}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="h-4 w-px shrink-0 bg-black/10 dark:bg-white/10" />
+
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="mr-0.5 text-xs text-gray-400">Size</span>
+              <div className="flex overflow-hidden rounded-lg border border-black/8 dark:border-white/8">
+                {SIZE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => set("cardSize", option.value)}
+                    className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                      settings.cardSize === option.value
+                        ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                        : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
@@ -743,6 +1230,9 @@ export default function CollectionCardsView({
 
             <span className="shrink-0 text-xs tabular-nums text-gray-400">
               {visibleItems.length} / {items.length}
+            </span>
+            <span className="shrink-0 rounded-full border border-black/8 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:text-gray-400">
+              {sortSummary}
             </span>
 
             {selectionEnabled && (
@@ -893,7 +1383,9 @@ export default function CollectionCardsView({
               Saved filters matched 0 cards here, so this binder is shown without them.
             </p>
           )}
-        </div>
+            </div>
+          )}
+        </>
       ) : selectionEnabled && (!sectionTitle || activeSelectionMode) && (
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           {activeSelectionMode && (
@@ -957,6 +1449,239 @@ export default function CollectionCardsView({
           </p>
           <p className="text-sm text-gray-400">Try adjusting or clearing the filters above.</p>
         </div>
+      ) : view === "table" ? (
+        <div className={splitByGrading ? "space-y-6" : ""}>
+          {groupedVisibleEntries.map((group) => (
+            <section key={group.key}>
+              {group.title && (
+                <div className="mb-2.5 flex items-center gap-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
+                    {group.title}
+                  </h2>
+                  <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
+                    {group.entries.length}
+                  </span>
+                  <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
+                </div>
+              )}
+
+              <div className="overflow-x-auto rounded-2xl border border-black/8 bg-white/70 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
+                <table className="min-w-full text-sm text-gray-900 dark:text-white">
+                  <thead className="border-b border-black/8 text-xs uppercase tracking-[0.14em] text-gray-400 dark:border-white/8 dark:text-white/40">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold">Card</th>
+                      <th className="px-4 py-3 text-left font-semibold">Rarity</th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        {primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+                      </th>
+                      {!compactMode && (
+                        <th className="px-4 py-3 text-left font-semibold">Paid</th>
+                      )}
+                      {!compactMode && (
+                        <th className="px-4 py-3 text-left font-semibold">P&amp;L</th>
+                      )}
+                      <th className="px-4 py-3 text-left font-semibold">Status</th>
+                      <th className="px-4 py-3 text-right font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.entries.map(({ item, selectionKey }, index) => {
+                      const missing = !item.owned;
+                      const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
+                      const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
+                      const displayPrice = getCollectionItemPrice(item, primaryPriceSource);
+                      const displayPriceCurrency = getCollectionItemPriceCurrency(
+                        item,
+                        primaryPriceSource
+                      );
+                      const pnl =
+                        item.current_value != null && item.purchase_price != null
+                          ? Number((item.current_value - item.purchase_price).toFixed(2))
+                          : null;
+
+                      return (
+                        <tr
+                          key={selectionKey}
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={activeSelectionMode ? isSelected : undefined}
+                          aria-disabled={activeSelectionMode && !selectableInMode}
+                          onClick={() => handleTileActivate(item, selectionKey, selectableInMode)}
+                          onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget) return;
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              handleTileActivate(item, selectionKey, selectableInMode);
+                            }
+                          }}
+                          className={`border-b border-black/6 transition-colors last:border-b-0 dark:border-white/6 ${
+                            isSelected
+                              ? "bg-blue-500/10"
+                              : missing && blurMissing
+                                ? "opacity-70"
+                                : "hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
+                          } ${activeSelectionMode && !selectableInMode ? "cursor-not-allowed" : "cursor-pointer"}`}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-black/8 bg-black/5 dark:border-white/8 dark:bg-white/5">
+                                {item.image_url ? (
+                                  <Image
+                                    src={item.image_url}
+                                    alt={item.name}
+                                    fill
+                                    className={`object-contain ${
+                                      blurMissing && missing
+                                        ? "blur-[2px] saturate-[0.72] opacity-55"
+                                        : ""
+                                    }`}
+                                    sizes="48px"
+                                    loading={index < 18 ? "eager" : undefined}
+                                    unoptimized
+                                  />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
+                                    {item.name.slice(0, 2)}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold">{item.name}</p>
+                                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-white/50">
+                                  <span>{item.card_number ? `#${item.card_number}` : "--"}</span>
+                                  <span>•</span>
+                                  <Link
+                                    href={`/expansions/${item.episode_id}`}
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
+                                  >
+                                    {item.episode_name}
+                                    {item.episode_code ? (
+                                      <span className="ml-1 opacity-60">({item.episode_code})</span>
+                                    ) : null}
+                                  </Link>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {item.rarity ? (
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${rarityBadge(item.rarity)}`}
+                              >
+                                {normalizeRarityLabel(item.rarity) ?? item.rarity}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-white/35">--</span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            {displayPrice != null ? (
+                              <div className="space-y-0.5">
+                                <p className="font-semibold tabular-nums">
+                                  {formatMarketCurrency(displayPrice, displayPriceCurrency)}
+                                </p>
+                                {item.current_value_label && (
+                                  <p className="text-[11px] text-gray-400 dark:text-white/35">
+                                    {item.current_value_label}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-white/35">
+                                No price
+                              </span>
+                            )}
+                          </td>
+
+                          {!compactMode && (
+                            <td className="px-4 py-3 text-sm text-gray-500 dark:text-white/55">
+                              {item.purchase_price != null
+                                ? formatCollectionCurrency(item.purchase_price)
+                                : "--"}
+                            </td>
+                          )}
+
+                          {!compactMode && (
+                            <td className="px-4 py-3">
+                              {pnl != null ? (
+                                <span
+                                  className={
+                                    pnl >= 0
+                                      ? "font-semibold text-emerald-600 dark:text-emerald-300"
+                                      : "font-semibold text-rose-600 dark:text-rose-300"
+                                  }
+                                >
+                                  {pnl >= 0 ? "+" : ""}
+                                  {formatCollectionCurrency(pnl)}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400 dark:text-white/35">--</span>
+                              )}
+                            </td>
+                          )}
+
+                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-white/55">
+                            {missing && blurMissing ? (
+                              <span>Missing</span>
+                            ) : item.owned_count && item.owned_count > 1 ? (
+                              <span>x{item.owned_count} owned</span>
+                            ) : item.owned ? (
+                              <span>Owned</span>
+                            ) : (
+                              <span>Available</span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end gap-1.5">
+                              {!activeSelectionMode &&
+                                (item.owned ? (
+                                  canRemoveFromCollection &&
+                                  (item.collection_item_id ||
+                                    (item.collection_item_ids?.length ?? 0) > 0) ? (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => handleSingleRemove(event, item)}
+                                      disabled={removingItems}
+                                      className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-md border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                      aria-label={`Remove ${item.name} from collection`}
+                                      title="Remove from collection"
+                                    >
+                                      <Minus className="h-3.5 w-3.5" />
+                                    </button>
+                                  ) : null
+                                ) : (
+                                  <CollectionAddCardButton
+                                    card={{
+                                      id: item.card_id,
+                                      name: item.name,
+                                      image_url: item.image_url,
+                                      episode: {
+                                        id: item.episode_id,
+                                        name: item.episode_name,
+                                        code: item.episode_code,
+                                      },
+                                    }}
+                                    initialBinderId={bulkAddBinder?.id ?? null}
+                                    lockedBinderName={bulkAddBinder?.name ?? null}
+                                    className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                  />
+                                ))}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))}
+        </div>
       ) : (
         <div className={splitByGrading ? "space-y-6" : ""}>
           {groupedVisibleEntries.map((group) => (
@@ -995,6 +1720,11 @@ export default function CollectionCardsView({
                     blurMissing && missing
                       ? `${baseImageClass} blur-[2.5px] saturate-[0.72] opacity-55`
                       : baseImageClass;
+                  const displayPrice = getCollectionItemPrice(item, primaryPriceSource);
+                  const displayPriceCurrency = getCollectionItemPriceCurrency(
+                    item,
+                    primaryPriceSource
+                  );
                   const pnl =
                     item.current_value != null && item.purchase_price != null
                       ? Number((item.current_value - item.purchase_price).toFixed(2))
@@ -1036,6 +1766,7 @@ export default function CollectionCardsView({
                             alt={item.name}
                             className="absolute inset-0"
                             imageClassName={imageClass}
+                            tileSize={settings.cardSize}
                             sizes="220px"
                             loading={index < 18 ? "eager" : undefined}
                           />
@@ -1099,7 +1830,7 @@ export default function CollectionCardsView({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1.5">
-                    {item.current_value != null ? (
+                    {displayPrice != null ? (
                       <span
                         title={
                           item.current_value_label
@@ -1108,7 +1839,7 @@ export default function CollectionCardsView({
                         }
                         className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white"
                       >
-                        {formatCollectionCurrency(item.current_value)}
+                        {formatMarketCurrency(displayPrice, displayPriceCurrency)}
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>

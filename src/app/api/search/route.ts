@@ -8,6 +8,7 @@ interface ParsedQuery {
   name: string | null;
   cardNumber: string | null;
   setCode: string | null;
+  rawCardRef: string | null;
 }
 
 interface SearchCardRecord {
@@ -51,16 +52,33 @@ interface SearchExpansionRecord {
 }
 
 const SET_CODE_RE = /^[a-z]{1,6}\d[\w]*$/i;
+const COMPACT_CARD_REF_RE = /^([a-z]{1,8})(\d[\w/-]*)$/i;
+
+function parseCompactCardReference(value: string): {
+  setCode: string;
+  cardNumber: string;
+  rawCardRef: string;
+} | null {
+  const compact = value.trim().replace(/^#+/, "").replace(/\s+/g, "");
+  const match = COMPACT_CARD_REF_RE.exec(compact);
+  if (!match) return null;
+
+  return {
+    setCode: match[1],
+    cardNumber: match[2],
+    rawCardRef: compact,
+  };
+}
 
 function parseSearchQuery(raw: string): ParsedQuery {
   const q = raw.trim();
 
   if (/^\d+$/.test(q)) {
-    return { name: null, cardNumber: q, setCode: null };
+    return { name: null, cardNumber: q, setCode: null, rawCardRef: null };
   }
 
   if (/^\d+\/\d+$/.test(q)) {
-    return { name: null, cardNumber: q.split("/")[0], setCode: null };
+    return { name: null, cardNumber: q.split("/")[0], setCode: null, rawCardRef: null };
   }
 
   const withSlash = /^(.+?)\s+(\d+)\/\d+$/.exec(q);
@@ -69,10 +87,20 @@ function parseSearchQuery(raw: string): ParsedQuery {
     const cardNumber = withSlash[2];
 
     if (SET_CODE_RE.test(prefix)) {
-      return { name: null, cardNumber, setCode: prefix };
+      return { name: null, cardNumber, setCode: prefix, rawCardRef: `${prefix}${cardNumber}` };
     }
 
-    return { name: prefix, cardNumber, setCode: null };
+    return { name: prefix, cardNumber, setCode: null, rawCardRef: null };
+  }
+
+  const compactReference = parseCompactCardReference(q);
+  if (compactReference) {
+    return {
+      name: null,
+      cardNumber: compactReference.cardNumber,
+      setCode: compactReference.setCode,
+      rawCardRef: compactReference.rawCardRef,
+    };
   }
 
   const tokens = q.split(/\s+/);
@@ -83,19 +111,24 @@ function parseSearchQuery(raw: string): ParsedQuery {
     const nameTokens = tokens.filter((_, index) => index !== codeIdx);
     const lastToken = nameTokens[nameTokens.length - 1];
 
-    if (/^\d+$/.test(lastToken) && nameTokens.length > 1) {
-      return { name: nameTokens.slice(0, -1).join(" "), cardNumber: lastToken, setCode };
+    if (/^\d+$/.test(lastToken)) {
+      return {
+        name: nameTokens.slice(0, -1).join(" ") || null,
+        cardNumber: lastToken,
+        setCode,
+        rawCardRef: `${setCode}${lastToken}`,
+      };
     }
 
-    return { name: nameTokens.join(" ") || null, cardNumber: null, setCode };
+    return { name: nameTokens.join(" ") || null, cardNumber: null, setCode, rawCardRef: null };
   }
 
   const withNumber = /^(.+?)\s+(\d+)$/.exec(q);
   if (withNumber) {
-    return { name: withNumber[1], cardNumber: withNumber[2], setCode: null };
+    return { name: withNumber[1], cardNumber: withNumber[2], setCode: null, rawCardRef: null };
   }
 
-  return { name: q || null, cardNumber: null, setCode: null };
+  return { name: q || null, cardNumber: null, setCode: null, rawCardRef: null };
 }
 
 function nameVariants(name: string): string[] {
@@ -128,6 +161,56 @@ function normalizeSearchText(value: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, " ");
+}
+
+function episodeMatchesSetCode(setCode: string) {
+  return {
+    OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }],
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildCardNumberCondition(cardNumber: string): any {
+  return /^\d+$/.test(cardNumber)
+    ? { card_number: cardNumber }
+    : { card_number: { contains: cardNumber } };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildCardFreeTextCondition(query: string): any {
+  const conditions = [nameContains(query)];
+
+  if (/\d/.test(query)) {
+    conditions.push(fieldContains(query, "card_number"));
+
+    const compactReference = parseCompactCardReference(query);
+    if (compactReference) {
+      conditions.push({
+        AND: [
+          { episode: episodeMatchesSetCode(compactReference.setCode) },
+          buildCardNumberCondition(compactReference.cardNumber),
+        ],
+      });
+    }
+  }
+
+  return conditions.length === 1 ? conditions[0] : { OR: conditions };
+}
+
+function buildCardSearchText(card: {
+  name: string;
+  card_number: string | null;
+  episode_name?: string | null;
+  episode_code?: string | null;
+  episode?: { name: string; code: string | null };
+}): string {
+  const episodeName = card.episode?.name ?? card.episode_name ?? "";
+  const episodeCode = card.episode?.code ?? card.episode_code ?? "";
+  const compactRef = episodeCode && card.card_number ? `${episodeCode}${card.card_number}` : "";
+
+  return [card.name, card.card_number ?? "", episodeName, episodeCode, compactRef]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function maxFuzzyDistance(length: number): number {
@@ -331,8 +414,6 @@ function compareRelevance(aScore: number, bScore: number): number {
 }
 
 function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) {
-  const nameLower = relevanceQuery.toLowerCase();
-
   return cards
     .map((card) => ({
       id: card.id,
@@ -348,10 +429,10 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
       tcp_market: card.prices[0]?.tcp_market ?? null,
     }))
     .sort((a, b) => {
-      if (nameLower) {
+      if (relevanceQuery.trim()) {
         const scoreDiff = compareRelevance(
-          relevanceScore(a.name, relevanceQuery),
-          relevanceScore(b.name, relevanceQuery)
+          relevanceScore(buildCardSearchText(a), relevanceQuery),
+          relevanceScore(buildCardSearchText(b), relevanceQuery)
         );
         if (scoreDiff !== 0) return scoreDiff;
       }
@@ -472,9 +553,7 @@ async function runFuzzyFallback(rawQuery: string) {
   const topCardIds = visibleCards
     .map((card) => ({
       id: card.id,
-      score:
-        fuzzyRelevanceScore(card.name, rawQuery) +
-        Math.floor(fuzzyRelevanceScore(card.episode.name, rawQuery) / 3),
+      score: fuzzyRelevanceScore(buildCardSearchText(card), rawQuery),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => compareRelevance(a.score, b.score))
@@ -558,47 +637,63 @@ export async function GET(req: NextRequest) {
 
   try {
     const parsed = parseSearchQuery(q);
-    const { name, cardNumber, setCode } = parsed;
+    const { name, cardNumber, setCode, rawCardRef } = parsed;
 
     // SQLite LIKE is already case-insensitive for ASCII, so we do not use mode:"insensitive".
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cardWhere: any = {};
+    const cardAndConditions: Array<Record<string, unknown>> = [];
 
-    if (name && setCode) {
-      cardWhere.AND = [
-        nameContains(name),
-        { episode: { OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }] } },
-      ];
-    } else if (name) {
-      Object.assign(cardWhere, nameContains(name));
-    } else if (setCode) {
-      cardWhere.episode = {
-        OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }],
-      };
+    if (name) {
+      cardAndConditions.push(buildCardFreeTextCondition(name));
     }
 
     if (cardNumber) {
-      if (cardWhere.AND) {
-        cardWhere.AND.push({ card_number: cardNumber });
+      if (setCode) {
+        const referenceConditions: Array<Record<string, unknown>> = [
+          {
+            AND: [
+              { episode: episodeMatchesSetCode(setCode) },
+              buildCardNumberCondition(cardNumber),
+            ],
+          },
+        ];
+
+        if (rawCardRef) {
+          referenceConditions.push({ card_number: { contains: rawCardRef } });
+        }
+
+        cardAndConditions.push(
+          referenceConditions.length === 1 ? referenceConditions[0] : { OR: referenceConditions }
+        );
       } else {
-        cardWhere.card_number = cardNumber;
+        cardAndConditions.push(buildCardNumberCondition(cardNumber));
       }
+    } else if (setCode) {
+      cardAndConditions.push({ episode: episodeMatchesSetCode(setCode) });
+    }
+
+    if (cardAndConditions.length === 1) {
+      Object.assign(cardWhere, cardAndConditions[0]);
+    } else if (cardAndConditions.length > 1) {
+      cardWhere.AND = cardAndConditions;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sealedWhere: any = {};
+    const shouldSearchSealed = Boolean((name || setCode) && !cardNumber);
+    const shouldSearchExpansions = Boolean(name && !setCode && !cardNumber);
+    const expansionQuery = shouldSearchExpansions ? name ?? "" : "";
 
     if (name && setCode) {
       sealedWhere.AND = [
         sealedNameContains(name),
-        { episode: { OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }] } },
+        { episode: episodeMatchesSetCode(setCode) },
       ];
     } else if (name) {
       Object.assign(sealedWhere, sealedNameContains(name));
     } else if (setCode) {
-      sealedWhere.episode = {
-        OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }],
-      };
+      sealedWhere.episode = episodeMatchesSetCode(setCode);
     }
 
     const [cards, sealed, expansions] = await Promise.all([
@@ -628,7 +723,7 @@ export async function GET(req: NextRequest) {
         orderBy: [{ episode: { release_date: "desc" } }, { card_number: "asc" }],
       }),
 
-      name || setCode
+      shouldSearchSealed
         ? db.sealedProduct.findMany({
             where: sealedWhere,
             take: MAX_RESULTS,
@@ -646,12 +741,16 @@ export async function GET(req: NextRequest) {
           })
         : Promise.resolve([]),
 
-      name && !setCode
+      shouldSearchExpansions
         ? db.episode.findMany({
             where:
-              nameVariants(name).length === 1
-                ? { name: { contains: name } }
-                : { OR: nameVariants(name).map((variant) => ({ name: { contains: variant } })) },
+              nameVariants(expansionQuery).length === 1
+                ? { name: { contains: expansionQuery } }
+                : {
+                    OR: nameVariants(expansionQuery).map((variant) => ({
+                      name: { contains: variant },
+                    })),
+                  },
             select: { id: true, name: true, code: true, logo_url: true },
             orderBy: { release_date: "desc" },
             take: 20,
