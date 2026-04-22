@@ -1531,65 +1531,69 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
           const imgW =
             ms === "small"
               ? wide
-                ? "w-80 sm:w-[22rem] xl:w-[24rem]"
-                : "w-44 sm:w-48"
+                ? "w-[17rem] sm:w-[19rem] xl:w-[21rem]"
+                : "w-44 sm:w-52 xl:w-56"
               : ms === "large"
                 ? wide
-                  ? "w-[24rem] sm:w-[28rem] xl:w-[32rem]"
-                  : "w-56 sm:w-72 xl:w-80"
+                  ? "w-[25rem] sm:w-[29rem] xl:w-[33rem]"
+                  : "w-64 sm:w-72 xl:w-[23rem]"
                 : wide
-                  ? "w-[22rem] sm:w-[25rem] xl:w-[28rem]"
-                  : "w-52 sm:w-64";
+                  ? "w-[21rem] sm:w-[24rem] xl:w-[27rem]"
+                  : "w-52 sm:w-64 xl:w-[20rem]";
           const imgSize =
             ms === "small"
               ? wide
-                ? "320px"
-                : "192px"
+                ? "336px"
+                : "224px"
               : ms === "large"
                 ? wide
-                  ? "496px"
-                  : "320px"
+                  ? "592px"
+                  : "432px"
                 : wide
-                  ? "432px"
-                  : "256px";
+                  ? "464px"
+                  : "320px";
           const maxW =
             ms === "small"
               ? wide
                 ? "max-w-[70rem]"
-                : "max-w-xl"
+                : "max-w-[56rem]"
               : ms === "large"
                 ? wide
-                  ? "max-w-[84rem]"
-                  : "max-w-5xl"
+                  ? "max-w-[100rem]"
+                  : "max-w-[84rem]"
                 : wide
-                  ? "max-w-[76rem]"
-                  : "max-w-4xl";
+                  ? "max-w-[82rem]"
+                  : "max-w-[70rem]";
           const pad =
             ms === "small"
               ? wide
-                ? "p-7"
-                : "p-6"
+                ? "p-6 sm:p-7"
+                : "p-5 sm:p-6"
               : ms === "large"
                 ? wide
-                  ? "p-9 sm:p-10"
-                  : "p-8 sm:p-9"
+                  ? "p-8 sm:p-9 xl:p-10"
+                  : "p-7 sm:p-8"
                 : wide
-                  ? "p-8 sm:p-9"
-                  : "p-7";
+                  ? "p-7 sm:p-8"
+                  : "p-6 sm:p-7";
           const gap =
             ms === "small"
               ? wide
-                ? "gap-4"
-                : "gap-5"
+                ? "gap-5"
+                : "gap-5 sm:gap-6"
               : ms === "large"
                 ? wide
-                  ? "gap-5"
-                  : "gap-8"
+                  ? "gap-8 xl:gap-10"
+                  : "gap-7 sm:gap-8"
                 : wide
-                  ? "gap-4"
-                  : "gap-7";
+                  ? "gap-6 sm:gap-7"
+                  : "gap-6 sm:gap-7";
           const contentWidthCls =
-            ms === "small" ? "sm:w-[31rem]" : ms === "large" ? "sm:w-[35rem]" : "sm:w-[33rem]";
+            ms === "small"
+              ? "sm:w-[28rem]"
+              : ms === "large"
+                ? "sm:w-[40rem] xl:w-[44rem]"
+                : "sm:w-[34rem] xl:w-[38rem]";
           const layoutCls = wide
             ? "flex flex-col sm:grid sm:grid-cols-[auto_auto] sm:items-start"
             : "flex flex-col sm:flex-row sm:items-start";
@@ -1599,9 +1603,22 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
           const contentCls = wide
             ? `w-full min-w-0 flex flex-col gap-3 ${contentWidthCls}`
             : "flex-1 min-w-0 flex flex-col gap-4";
-          const titleCls = ms === "small" ? "text-2xl" : ms === "large" ? "text-4xl" : "text-3xl";
-          const priceCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
-          const metaCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
+          const titleCls =
+            ms === "small"
+              ? "text-2xl sm:text-[2rem]"
+              : ms === "large"
+                ? "text-[2.4rem] sm:text-[3rem] xl:text-[3.35rem]"
+                : "text-3xl sm:text-[2.5rem]";
+          const priceCls =
+            ms === "small" ? "text-sm" : ms === "large" ? "text-base sm:text-[17px]" : "text-[15px]";
+          const metaCls =
+            ms === "small" ? "text-sm" : ms === "large" ? "text-base sm:text-[17px]" : "text-[15px]";
+          const footerPad =
+            ms === "small"
+              ? "px-5 pb-5 sm:px-6 sm:pb-6"
+              : ms === "large"
+                ? "px-7 pb-7 sm:px-8 sm:pb-8 xl:px-9 xl:pb-9"
+                : "px-6 pb-6 sm:px-7 sm:pb-7";
 
           return (
             <div
@@ -1842,7 +1859,7 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                   </div>
                 </div>
 
-                <div className="flex gap-3 px-6 pb-6">
+                <div className={`flex gap-3 ${footerPad}`}>
                   <CollectionAddCardButton
                     card={{
                       id: selected.id,

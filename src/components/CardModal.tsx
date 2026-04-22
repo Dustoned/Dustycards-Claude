@@ -299,49 +299,59 @@ export default function CardModal({ card, onClose }: Props) {
   const mediaWidth =
     ms === "small"
       ? wide
-        ? "w-[17.5rem] sm:w-[18.75rem]"
-        : "w-56 sm:w-60"
+        ? "w-[16rem] sm:w-[17.5rem] xl:w-[18.5rem]"
+        : "w-48 sm:w-52 xl:w-56"
       : ms === "large"
         ? wide
-          ? "w-[21rem] sm:w-[23rem] xl:w-[24.5rem]"
-          : "w-64 sm:w-80 xl:w-[20rem]"
+          ? "w-[24rem] sm:w-[27rem] xl:w-[30rem]"
+          : "w-72 sm:w-80 xl:w-[24rem]"
         : wide
-          ? "w-[19rem] sm:w-[20.5rem] xl:w-[21.75rem]"
-          : "w-60 sm:w-72";
+          ? "w-[19rem] sm:w-[21rem] xl:w-[23.5rem]"
+          : "w-60 sm:w-72 xl:w-[20rem]";
   const imageSize =
     ms === "small"
       ? wide
-        ? "304px"
-        : "240px"
+        ? "296px"
+        : "224px"
       : ms === "large"
         ? wide
-          ? "408px"
-          : "320px"
+          ? "560px"
+          : "448px"
         : wide
-          ? "360px"
-          : "304px";
+          ? "384px"
+          : "320px";
   const maxW =
     ms === "small"
       ? wide
-        ? "max-w-[72rem]"
-        : "max-w-[66rem]"
+        ? "max-w-[68rem]"
+        : "max-w-[58rem]"
       : ms === "large"
         ? wide
-          ? "max-w-[84rem]"
-          : "max-w-[76rem]"
+          ? "max-w-[104rem]"
+          : "max-w-[90rem]"
         : wide
-          ? "max-w-[76rem]"
-          : "max-w-[68rem]";
+          ? "max-w-[86rem]"
+          : "max-w-[74rem]";
   const pad =
     ms === "small"
       ? "p-4 sm:p-5"
       : ms === "large"
-        ? "p-5 sm:p-6"
-        : "p-4 sm:p-5";
-  const gridGap = ms === "large" ? "gap-5 sm:gap-6" : "gap-4 sm:gap-5";
+        ? "p-6 sm:p-7 xl:p-8"
+        : "p-5 sm:p-6";
+  const gridGap =
+    ms === "small"
+      ? "gap-4 sm:gap-5"
+      : ms === "large"
+        ? "gap-6 sm:gap-8 xl:gap-10"
+        : "gap-5 sm:gap-6";
   const titleCls =
-    ms === "small" ? "text-[1.75rem]" : ms === "large" ? "text-[2.4rem]" : "text-[2.1rem]";
-  const metaCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
+    ms === "small"
+      ? "text-[1.7rem] sm:text-[1.85rem]"
+      : ms === "large"
+        ? "text-[2.45rem] sm:text-[2.85rem] xl:text-[3.15rem]"
+        : "text-[2.15rem] sm:text-[2.4rem]";
+  const metaCls =
+    ms === "small" ? "text-sm" : ms === "large" ? "text-base sm:text-[17px]" : "text-[15px]";
 
   const gradedPrices = modalCard.graded_prices ?? [];
   const gradingCompanyLabel = normalizeGradingCompanyLabel(
@@ -595,10 +605,20 @@ export default function CardModal({ card, onClose }: Props) {
     modalCard.price?.tcp_low,
   ].some((value) => value != null);
   const detailStatClass =
-    "rounded-[18px] border border-white/8 bg-black/18 px-3 py-2.5 backdrop-blur-sm";
+    ms === "small"
+      ? "rounded-[18px] border border-white/8 bg-black/18 px-3 py-2.5 backdrop-blur-sm"
+      : ms === "large"
+        ? "rounded-[22px] border border-white/8 bg-black/18 px-4 py-3.5 backdrop-blur-sm"
+        : "rounded-[20px] border border-white/8 bg-black/18 px-3.5 py-3 backdrop-blur-sm";
+  const footerPad =
+    ms === "small"
+      ? "px-4 pb-4 sm:px-5 sm:pb-5"
+      : ms === "large"
+        ? "px-6 pb-6 sm:px-7 sm:pb-7 xl:px-8 xl:pb-8"
+        : "px-5 pb-5 sm:px-6 sm:pb-6";
   const footerGridClass = collectionItem
-    ? "grid gap-3 px-4 pb-4 sm:px-5 sm:pb-5 sm:grid-cols-2 xl:grid-cols-4"
-    : "grid gap-3 px-4 pb-4 sm:px-5 sm:pb-5 sm:grid-cols-2 xl:grid-cols-3";
+    ? `grid gap-3 ${footerPad} sm:grid-cols-2 xl:grid-cols-4`
+    : `grid gap-3 ${footerPad} sm:grid-cols-2 xl:grid-cols-3`;
 
   return (
     <>

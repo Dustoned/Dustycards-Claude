@@ -190,49 +190,67 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const mediaWidth =
     ms === "small"
       ? wide
-        ? "w-[17rem] sm:w-[18.5rem]"
-        : "w-52 sm:w-56"
+        ? "w-[15.5rem] sm:w-[17rem] xl:w-[18rem]"
+        : "w-44 sm:w-52 xl:w-56"
       : ms === "large"
         ? wide
-          ? "w-[20rem] sm:w-[22rem] xl:w-[24rem]"
-          : "w-60 sm:w-72 xl:w-[19rem]"
+          ? "w-[22rem] sm:w-[25rem] xl:w-[28rem]"
+          : "w-72 sm:w-80 xl:w-[22rem]"
         : wide
-          ? "w-[18.25rem] sm:w-[19.5rem] xl:w-[20.5rem]"
-          : "w-56 sm:w-64";
+          ? "w-[18rem] sm:w-[20rem] xl:w-[22rem]"
+          : "w-56 sm:w-64 xl:w-[19rem]";
   const imageSize =
     ms === "small"
       ? wide
-        ? "296px"
-        : "224px"
+        ? "288px"
+        : "208px"
       : ms === "large"
         ? wide
-          ? "392px"
-          : "304px"
+          ? "520px"
+          : "416px"
         : wide
-          ? "344px"
-          : "272px";
+          ? "384px"
+          : "304px";
   const maxW =
     ms === "small"
       ? wide
-        ? "max-w-[72rem]"
-        : "max-w-[66rem]"
+        ? "max-w-[66rem]"
+        : "max-w-[56rem]"
       : ms === "large"
         ? wide
-          ? "max-w-[84rem]"
-          : "max-w-[76rem]"
+          ? "max-w-[98rem]"
+          : "max-w-[84rem]"
         : wide
-          ? "max-w-[76rem]"
-          : "max-w-[68rem]";
+          ? "max-w-[82rem]"
+          : "max-w-[70rem]";
   const pad =
     ms === "small"
       ? "p-4 sm:p-5"
       : ms === "large"
-        ? "p-5 sm:p-6"
-        : "p-4 sm:p-5";
-  const gridGap = ms === "large" ? "gap-5 sm:gap-6" : "gap-4 sm:gap-5";
+        ? "p-6 sm:p-7 xl:p-8"
+        : "p-5 sm:p-6";
+  const gridGap =
+    ms === "small"
+      ? "gap-4 sm:gap-5"
+      : ms === "large"
+        ? "gap-6 sm:gap-8 xl:gap-10"
+        : "gap-5 sm:gap-6";
   const titleCls =
-    ms === "small" ? "text-[1.75rem]" : ms === "large" ? "text-[2.4rem]" : "text-[2.1rem]";
-  const metaCls = ms === "small" ? "text-sm" : ms === "large" ? "text-base" : "text-[15px]";
+    ms === "small"
+      ? "text-[1.7rem] sm:text-[1.85rem]"
+      : ms === "large"
+        ? "text-[2.4rem] sm:text-[2.8rem] xl:text-[3.05rem]"
+        : "text-[2.1rem] sm:text-[2.35rem]";
+  const metaCls =
+    ms === "small" ? "text-sm" : ms === "large" ? "text-base sm:text-[17px]" : "text-[15px]";
+  const imagePadding =
+    ms === "small" ? "p-3" : ms === "large" ? "p-5 sm:p-6" : "p-4 sm:p-5";
+  const footerPad =
+    ms === "small"
+      ? "px-4 pb-4 sm:px-5 sm:pb-5"
+      : ms === "large"
+        ? "px-6 pb-6 sm:px-7 sm:pb-7 xl:px-8 xl:pb-8"
+        : "px-5 pb-5 sm:px-6 sm:pb-6";
 
   const primaryPrice = getSealedProductPrice(modalProduct);
   const priceHistory = modalProduct.price_history;
@@ -406,7 +424,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
                     src={modalProduct.image_url}
                     alt={modalProduct.name}
                     fill
-                    className="object-contain p-4"
+                    className={`object-contain ${imagePadding}`}
                     sizes={imageSize}
                     loading="eager"
                     unoptimized
@@ -581,7 +599,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
           </div>
         </div>
 
-        <div className="grid gap-3 px-4 pb-4 sm:px-5 sm:pb-5 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={`grid gap-3 ${footerPad} sm:grid-cols-2 xl:grid-cols-3`}>
           <CollectionAddSealedButton
             product={{
               id: modalProduct.id,
