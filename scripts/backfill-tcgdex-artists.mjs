@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { copyFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,7 +10,14 @@ const SET_ID_BY_LOCAL_NAME = new Map([["perfect order", "me03"]]);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const db = new Database(resolve(__dirname, "../dustycards.db"));
+const LIVE_DB_PATH = resolve(__dirname, "../dustycards.db");
+const APP_DB_SNAPSHOT_PATH = resolve(__dirname, "../data/dustycards.app.db");
+
+if (!existsSync(LIVE_DB_PATH) && existsSync(APP_DB_SNAPSHOT_PATH)) {
+  copyFileSync(APP_DB_SNAPSHOT_PATH, LIVE_DB_PATH);
+}
+
+const db = new Database(LIVE_DB_PATH);
 
 const requestedCodes = new Set(
   process.argv

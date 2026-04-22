@@ -18,7 +18,16 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Database Files
+
+- `data/dustycards.app.db` is the tracked app snapshot that ships with the repo.
+- `dustycards.db` is the local live database created automatically from that snapshot if it is missing.
+- Collection data stays in the live database, so if you want to move your personal collection to another machine you can still copy `dustycards.db`.
+- To refresh the tracked app snapshot from your current live database, run:
+
+```bash
+npm run db:snapshot
+```
 
 ## Learn More
 

@@ -19,6 +19,7 @@
 
 # production
 /build
+dustycards.db
 
 # misc
 .DS_Store
