@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { isHiddenExpansion } from "@/lib/episodes";
+import { buildVisibleEpisodeWhereSql } from "@/lib/illustrators";
 import IllustratorCardsClient from "./IllustratorCardsClient";
-import { type CardData } from "@/app/expansions/[id]/ExpansionView";
+import type { CardData } from "@/types/card-data";
 
 export const dynamic = "force-dynamic";
 
@@ -53,8 +53,30 @@ function toIsoString(value: Date | string | null | undefined): string | null {
 }
 
 async function getIllustratorCards(artist: string): Promise<IllustratorCardRow[]> {
+  const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e");
+
   return db.$queryRawUnsafe<IllustratorCardRow[]>(
     `
+      WITH latest_price AS (
+        SELECT
+          p.card_id,
+          p.fetched_at,
+          p.cm_en_lowest_nm,
+          p.cm_de_lowest_nm,
+          p.cm_fr_lowest_nm,
+          p.cm_es_lowest_nm,
+          p.cm_it_lowest_nm,
+          p.tcp_market,
+          p.tcp_mid,
+          p.tcp_low,
+          p.cm_en_avg_7d,
+          p.cm_en_avg_30d,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS price_rank
+        FROM "Price" p
+      )
       SELECT
         c.id,
         c.name,
@@ -73,29 +95,25 @@ async function getIllustratorCards(artist: string): Promise<IllustratorCardRow[]
         e.id AS episode_id,
         e.name AS episode_name,
         e.code AS episode_code,
-        p.fetched_at AS price_fetched_at,
-        p.cm_en_lowest_nm,
-        p.cm_de_lowest_nm,
-        p.cm_fr_lowest_nm,
-        p.cm_es_lowest_nm,
-        p.cm_it_lowest_nm,
-        p.tcp_market,
-        p.tcp_mid,
-        p.tcp_low,
-        p.cm_en_avg_7d,
-        p.cm_en_avg_30d
+        lp.fetched_at AS price_fetched_at,
+        lp.cm_en_lowest_nm,
+        lp.cm_de_lowest_nm,
+        lp.cm_fr_lowest_nm,
+        lp.cm_es_lowest_nm,
+        lp.cm_it_lowest_nm,
+        lp.tcp_market,
+        lp.tcp_mid,
+        lp.tcp_low,
+        lp.cm_en_avg_7d,
+        lp.cm_en_avg_30d
       FROM "Card" c
       INNER JOIN "Episode" e
         ON e.id = c.episode_id
-      LEFT JOIN "Price" p
-        ON p.id = (
-          SELECT p2.id
-          FROM "Price" p2
-          WHERE p2.card_id = c.id
-          ORDER BY p2.fetched_at DESC, p2.id DESC
-          LIMIT 1
-        )
+      LEFT JOIN latest_price lp
+        ON lp.card_id = c.id
+       AND lp.price_rank = 1
       WHERE c.artist = ?
+${visibleEpisodeWhereSql}
       ORDER BY
         e.release_date DESC,
         CASE
@@ -112,21 +130,42 @@ async function getIllustratorCards(artist: string): Promise<IllustratorCardRow[]
 async function getIllustratorPriceSnapshots(
   artist: string
 ): Promise<IllustratorPriceSnapshotRow[]> {
+  const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e");
+
   return db.$queryRawUnsafe<IllustratorPriceSnapshotRow[]>(
     `
+      WITH ranked_daily_prices AS (
+        SELECT
+          p.card_id,
+          p.fetched_at,
+          p.cm_en_lowest_nm,
+          p.cm_de_lowest_nm,
+          p.cm_fr_lowest_nm,
+          p.cm_es_lowest_nm,
+          p.cm_it_lowest_nm,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id, DATE(p.fetched_at)
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS daily_rank
+        FROM "Price" p
+        INNER JOIN "Card" c
+          ON c.id = p.card_id
+        INNER JOIN "Episode" e
+          ON e.id = c.episode_id
+        WHERE c.artist = ?
+${visibleEpisodeWhereSql}
+      )
       SELECT
-        p.card_id,
-        p.fetched_at,
-        p.cm_en_lowest_nm,
-        p.cm_de_lowest_nm,
-        p.cm_fr_lowest_nm,
-        p.cm_es_lowest_nm,
-        p.cm_it_lowest_nm
-      FROM "Price" p
-      INNER JOIN "Card" c
-        ON c.id = p.card_id
-      WHERE c.artist = ?
-      ORDER BY p.fetched_at ASC, p.card_id ASC
+        card_id,
+        fetched_at,
+        cm_en_lowest_nm,
+        cm_de_lowest_nm,
+        cm_fr_lowest_nm,
+        cm_es_lowest_nm,
+        cm_it_lowest_nm
+      FROM ranked_daily_prices
+      WHERE daily_rank = 1
+      ORDER BY fetched_at ASC, card_id ASC
     `,
     artist
   );
@@ -151,16 +190,7 @@ export default async function IllustratorPage({
     getIllustratorPriceSnapshots(resolvedArtist),
   ]);
 
-  const visibleCards: CardData[] = cards
-    .filter(
-      (card) =>
-        !isHiddenExpansion({
-          id: card.episode_id,
-          code: card.episode_code,
-          name: card.episode_name,
-        })
-    )
-    .map((card) => ({
+  const visibleCards: CardData[] = cards.map((card) => ({
       id: card.id,
       name: card.name,
       card_number: card.card_number,
@@ -205,10 +235,7 @@ export default async function IllustratorPage({
           : null,
     }));
 
-  const visibleCardIds = new Set(visibleCards.map((card) => card.id));
-  const visiblePriceSnapshots = rawPriceSnapshots
-    .filter((snapshot) => visibleCardIds.has(snapshot.card_id))
-    .map((snapshot) => ({
+  const visiblePriceSnapshots = rawPriceSnapshots.map((snapshot) => ({
       ...snapshot,
       fetched_at: toIsoString(snapshot.fetched_at) ?? new Date(0).toISOString(),
     }));

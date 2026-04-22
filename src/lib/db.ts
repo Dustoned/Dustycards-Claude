@@ -8,6 +8,55 @@ function createClient() {
   return new PrismaClient({ adapter } as never);
 }
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+type RuntimeDataModelField = { name: string };
+type RuntimeDataModelModel = { fields?: RuntimeDataModelField[] };
+type PrismaClientWithRuntimeModel = PrismaClient & {
+  _runtimeDataModel?: {
+    models?: Record<string, RuntimeDataModelModel | undefined>;
+  };
+};
+
+const REQUIRED_RUNTIME_FIELDS = {
+  Episode: ["source_status", "source_checked_at", "source_actual_card_count"],
+  Card: ["price_source_status", "price_source_checked_at", "native_history_synced_at"],
+  SealedProduct: ["cm_avg_7d", "cm_avg_30d", "native_history_synced_at"],
+  SealedPriceSnapshot: ["cm_avg_7d", "cm_avg_30d"],
+  Price: ["cm_en_avg_7d", "cm_en_avg_30d"],
+} as const;
+
+function hasRuntimeField(
+  client: PrismaClientWithRuntimeModel,
+  modelName: keyof typeof REQUIRED_RUNTIME_FIELDS,
+  fieldName: string
+): boolean {
+  const model = client._runtimeDataModel?.models?.[modelName];
+  return model?.fields?.some((field) => field.name === fieldName) ?? false;
+}
+
+function isClientSchemaCompatible(client: PrismaClient): boolean {
+  const runtimeClient = client as PrismaClientWithRuntimeModel;
+
+  return Object.entries(REQUIRED_RUNTIME_FIELDS).every(([modelName, fields]) =>
+    fields.every((fieldName) =>
+      hasRuntimeField(
+        runtimeClient,
+        modelName as keyof typeof REQUIRED_RUNTIME_FIELDS,
+        fieldName
+      )
+    )
+  );
+}
+
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const cachedPrisma = globalForPrisma.prisma;
+
+if (cachedPrisma && !isClientSchemaCompatible(cachedPrisma)) {
+  void cachedPrisma.$disconnect().catch(() => undefined);
+  globalForPrisma.prisma = undefined;
+}
+
 export const db = globalForPrisma.prisma ?? createClient();
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = db;
+}

@@ -57,6 +57,13 @@ export const COLLECTION_BINDER_COLORS = [
   "#f97316",
 ] as const;
 
+const COLLECTION_EUR_FORMATTER = new Intl.NumberFormat("nl-NL", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export type CollectionBinderType = "linked_set" | "custom";
 
 export interface CollectionCardValueLike {
@@ -95,12 +102,7 @@ export function parseCollectionTags(input: string): string[] {
 export function formatCollectionCurrency(value: number | null | undefined): string {
   if (value == null) return "--";
 
-  return new Intl.NumberFormat("nl-NL", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+  return COLLECTION_EUR_FORMATTER.format(value);
 }
 
 function normalizeGradeToken(value: string | null | undefined): string | null {

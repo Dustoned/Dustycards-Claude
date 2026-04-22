@@ -16,12 +16,17 @@ model Episode {
   logo_url      String?
   symbol_url    String?
   series        String?
+  source_status String?
+  source_checked_at DateTime?
+  source_actual_card_count Int?
   synced_at     DateTime?
   created_at    DateTime @default(now())
 
   cards          Card[]
   binders        CollectionBinder[]
   sealedProducts SealedProduct[]
+
+  @@index([source_status, source_checked_at])
 }
 
 model SealedProduct {

@@ -1,18 +1,36 @@
+import nextDynamic from "next/dynamic";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { BookOpen, Boxes, Coins, Sparkles, TrendingUp } from "lucide-react";
-import CollectionCardsView, { type CollectionCardViewItem } from "@/components/CollectionCardsView";
-import CollectionOverviewSections, {
-  BinderOverviewTile,
-} from "@/components/CollectionOverviewSections";
-import CollectionSealedView from "@/components/CollectionSealedView";
-import CreateBinderButton from "@/components/CreateBinderButton";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import { formatCollectionCurrency } from "@/lib/collection";
-import { getCollectionOverviewData } from "@/lib/collection-data";
+import {
+  getCollectionOverviewData,
+  type CollectionPageTab,
+} from "@/lib/collection-data";
+import {
+  OVERVIEW_SECTION_ORDER_COOKIE_NAME,
+  parseOverviewSectionOrderCookie,
+} from "@/lib/overview-section-order";
+
+const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"), {
+  loading: () => null,
+});
+const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
+  loading: () => (
+    <section className="h-full rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+  ),
+});
+const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
+const CollectionOverviewSections = nextDynamic(() => import("@/components/CollectionOverviewSections"));
+const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
+const BinderOverviewTile = nextDynamic(() => import("@/components/BinderOverviewTile"));
 
 export const dynamic = "force-dynamic";
 
-function isGradedCollectionCard(item: CollectionCardViewItem) {
+function isGradedCollectionCard(item: {
+  grading_company: string | null;
+  grading_grade: string | null;
+}) {
   return Boolean(item.grading_company && item.grading_grade);
 }
 
@@ -44,6 +62,7 @@ export default async function HomePage({
 }: {
   searchParams: Promise<{ tab?: string; graded?: string }>;
 }) {
+  const cookieStore = await cookies();
   const { tab, graded } = await searchParams;
   const activeTab =
     tab === "cards" ||
@@ -54,7 +73,12 @@ export default async function HomePage({
       : graded === "1"
         ? "graded"
         : "overview";
-  const data = await getCollectionOverviewData();
+  const initialOverviewSectionOrder = parseOverviewSectionOrderCookie(
+    cookieStore.get(OVERVIEW_SECTION_ORDER_COOKIE_NAME)?.value
+  );
+  const data = await getCollectionOverviewData({
+    activeTab: activeTab as CollectionPageTab,
+  });
 
   const summaryCards = [
     {
@@ -90,12 +114,22 @@ export default async function HomePage({
   ];
 
   const hasCollection =
-    data.cards.length > 0 || data.sealed.length > 0 || data.binders.length > 0;
-  const gradedCards = data.cards.filter(isGradedCollectionCard);
-  const gradedLooseSingles = data.looseSingles.filter(isGradedCollectionCard);
-  const rawLooseSingles = data.looseSingles.filter((item) => !isGradedCollectionCard(item));
+    data.overview.totalCards > 0 ||
+    data.overview.totalSealedUnits > 0 ||
+    data.overview.totalBinders > 0;
+  const gradedCards =
+    activeTab === "cards" || activeTab === "graded" || activeTab === "overview"
+      ? data.cards.filter(isGradedCollectionCard)
+      : [];
+  const gradedLooseSingles =
+    activeTab === "overview" ? data.looseSingles.filter(isGradedCollectionCard) : [];
+  const rawLooseSingles =
+    activeTab === "overview"
+      ? data.looseSingles.filter((item) => !isGradedCollectionCard(item))
+      : [];
   const showRawLooseSinglesSection =
-    rawLooseSingles.length > 0 || data.looseSingles.length === 0;
+    activeTab === "overview" &&
+    (rawLooseSingles.length > 0 || data.looseSingles.length === 0);
 
   function buildCollectionHref(tabValue: "overview" | "cards" | "binders" | "sealed" | "graded") {
     const params = new URLSearchParams();
@@ -127,7 +161,7 @@ export default async function HomePage({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <CreateBinderButton episodes={data.episodes} />
+                <CreateBinderButton />
                 <Link
                   href="/expansions"
                   className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
@@ -224,6 +258,7 @@ export default async function HomePage({
               binderCards={data.binderCards}
               sealed={data.sealed}
               binders={data.binders}
+              initialSectionOrder={initialOverviewSectionOrder}
             />
           )}
 

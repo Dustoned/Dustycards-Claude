@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import {
   getEpisodeDisplayCardCount,
   isHiddenExpansion,
+  isPromoExpansion,
   isRedundantSubsetExpansion,
 } from "@/lib/episodes";
 import {
@@ -76,22 +77,6 @@ function getEra(name: string, series: string | null, releaseDate: string | null)
   }
 
   return "Other";
-}
-
-function isPromo(name: string, series: string | null): boolean {
-  const normalizedName = name.toLowerCase();
-
-  return (
-    series === "NP" ||
-    series === "POP" ||
-    normalizedName.includes("promo") ||
-    normalizedName.includes("black star") ||
-    normalizedName.includes("mcdonald") ||
-    normalizedName.includes("futsal") ||
-    normalizedName.includes("best of game") ||
-    normalizedName.includes("trick or trade") ||
-    normalizedName.includes("pop series")
-  );
 }
 
 function getExpansionTileConfig(cardSize: CardSize, widescreen: boolean) {
@@ -202,8 +187,8 @@ export default async function ExpansionsPage() {
       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
     })
     .map(([era, sets]) => {
-      const nonPromos = sets.filter((set) => !isPromo(set.name, set.series));
-      const promos = sets.filter((set) => isPromo(set.name, set.series));
+      const nonPromos = sets.filter((set) => !isPromoExpansion(set));
+      const promos = sets.filter((set) => isPromoExpansion(set));
       return [era, [...nonPromos, ...promos]] as [string, typeof sets];
     });
 

@@ -4,17 +4,16 @@ import { useEffect, useRef, startTransition } from "react";
 import { useRouter } from "next/navigation";
 
 const ACTIVE_SYNC_REFRESH_MS = 3_000;
+const IDLE_SYNC_REFRESH_MS = 15_000;
 
 export default function SyncStatusAutoRefresh({ enabled }: { enabled: boolean }) {
   const router = useRouter();
   const inFlightRef = useRef(false);
+  const releaseTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
-      return;
-    }
-
     let cancelled = false;
+    const refreshIntervalMs = enabled ? ACTIVE_SYNC_REFRESH_MS : IDLE_SYNC_REFRESH_MS;
 
     function refresh() {
       if (cancelled || inFlightRef.current) return;
@@ -27,14 +26,21 @@ export default function SyncStatusAutoRefresh({ enabled }: { enabled: boolean })
         router.refresh();
       });
 
-      window.setTimeout(() => {
+      if (releaseTimerRef.current != null) {
+        window.clearTimeout(releaseTimerRef.current);
+      }
+
+      releaseTimerRef.current = window.setTimeout(() => {
         inFlightRef.current = false;
+        releaseTimerRef.current = null;
       }, 1_000);
     }
 
-    refresh();
+    if (enabled) {
+      refresh();
+    }
 
-    const intervalId = window.setInterval(refresh, ACTIVE_SYNC_REFRESH_MS);
+    const intervalId = window.setInterval(refresh, refreshIntervalMs);
     const visibilityHandler = () => {
       if (document.visibilityState === "visible") {
         refresh();
@@ -47,6 +53,10 @@ export default function SyncStatusAutoRefresh({ enabled }: { enabled: boolean })
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      if (releaseTimerRef.current != null) {
+        window.clearTimeout(releaseTimerRef.current);
+        releaseTimerRef.current = null;
+      }
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", visibilityHandler);
     };

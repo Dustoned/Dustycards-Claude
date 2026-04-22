@@ -22,10 +22,17 @@ export default function SyncEpisodeButton({ episodeId }: { episodeId: string }) 
       const data = await res.json();
 
       if (data.ok) {
+        if (data.preemptedAutoPriceRefresh) {
+          void fetch("/api/price-refresh", {
+            method: "POST",
+            cache: "no-store",
+          }).catch(() => undefined);
+        }
+
         setStatus(
           `Synced ${data.count ?? 0} cards, ${data.newCards ?? 0} new cards, ${
             data.newPrices ?? 0
-          } new price snapshots`
+          } new price snapshots${data.preemptedAutoPriceRefresh ? ". Background queue resumed." : ""}`
         );
         router.refresh();
       } else {

@@ -1,6 +1,7 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useDeferredValue, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,11 +12,10 @@ import CardBrowserToolbar, {
   type CardBrowserToolbarFilterSection,
   type CardBrowserToolbarOption,
 } from "@/components/CardBrowserToolbar";
-import CardModal, { type ModalCardData } from "@/components/CardModal";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
-import CollectionBulkAddCardsModal from "@/components/CollectionBulkAddCardsModal";
 import GradedSlabPreview from "@/components/GradedSlabPreview";
 import { formatCollectionCurrency } from "@/lib/collection";
+import type { CollectionCardViewItem } from "@/types/collection-view";
 import {
   useSettings,
   type CardSize,
@@ -31,34 +31,22 @@ import {
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
+import type { ModalCardData } from "@/components/CardModal";
 
-export interface CollectionCardViewItem {
-  collection_item_id: string | null;
-  collection_item_ids?: string[];
-  binder_id?: string | null;
-  card_id: string;
-  name: string;
-  image_url: string | null;
-  card_number: string | null;
-  rarity: string | null;
-  supertype: string | null;
-  episode_id: string;
-  episode_name: string;
-  episode_code: string | null;
-  cm_value?: number | null;
-  tcp_value?: number | null;
-  current_value: number | null;
-  current_value_label?: string | null;
-  purchase_price: number | null;
-  condition: string | null;
-  language?: string | null;
-  notes?: string | null;
-  tags?: string[];
-  grading_company: string | null;
-  grading_grade: string | null;
-  owned: boolean;
-  owned_count?: number;
-}
+const CardModal = dynamic(() => import("@/components/CardModal"), {
+  ssr: false,
+  loading: () => null,
+});
+
+const CollectionBulkAddCardsModal = dynamic(
+  () => import("@/components/CollectionBulkAddCardsModal"),
+  {
+    ssr: false,
+    loading: () => null,
+  }
+);
+
+export type { CollectionCardViewItem } from "@/types/collection-view";
 
 interface BulkAddBinderTarget {
   id: string;
@@ -109,6 +97,29 @@ interface FilterOption {
 
 type CollectionView = Exclude<CardView, "binder">;
 type CurrencyCode = "EUR" | "USD";
+
+const USD_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const EUR_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+interface PreparedCollectionEntry {
+  item: CollectionCardViewItem;
+  selectionKey: string;
+  searchText: string;
+  normalizedRarity: string | null;
+  isPriced: boolean;
+  isGraded: boolean;
+}
 
 function buildFilterOptions(
   values: Array<string | null | undefined>,
@@ -210,7 +221,7 @@ function rarityFilterChip(rarity: string | null, active: boolean): string {
   const palette = rarityBadge(rarity);
 
   if (active) {
-    return `${palette} border-black/12 dark:border-white/14 opacity-100 shadow-sm shadow-black/10 ring-1 ring-inset ring-black/5 dark:ring-white/10`;
+    return `${palette} border-black/22 dark:border-white/22 opacity-100`;
   }
 
   return `${palette} border-black/8 dark:border-white/8 opacity-80 hover:opacity-100 hover:border-black/15 dark:hover:border-white/16`;
@@ -218,7 +229,7 @@ function rarityFilterChip(rarity: string | null, active: boolean): string {
 
 function neutralFilterChip(active: boolean): string {
   if (active) {
-    return "border-gray-900/90 bg-gray-900 text-white opacity-100 shadow-sm shadow-black/10 dark:border-white/90 dark:bg-white dark:text-gray-900";
+    return "border-gray-900/90 bg-gray-900 text-white opacity-100 dark:border-white/90 dark:bg-white dark:text-gray-900";
   }
 
   return "border-black/8 text-gray-500 opacity-85 hover:border-black/15 hover:opacity-100 hover:text-gray-900 dark:border-white/8 dark:text-white/55 dark:hover:border-white/16 dark:hover:text-white";
@@ -246,12 +257,7 @@ function formatMarketCurrency(
 ): string {
   if (value == null) return "--";
 
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+  return (currency === "USD" ? USD_FORMATTER : EUR_FORMATTER).format(value);
 }
 
 function getCollectionItemPrice(
@@ -508,17 +514,37 @@ export default function CollectionCardsView({
     [settings.defaultSupertypes, availableSupertypeValues]
   );
   const normalizedSearch = search.trim().toLowerCase();
-  const hasAnyPricedCards = useMemo(
-    () => items.some((item) => hasAnyVisiblePrice(item)),
+  const preparedEntries = useMemo<PreparedCollectionEntry[]>(
+    () =>
+      items.map((item, index) => ({
+        item,
+        selectionKey: `${item.card_id}-${index}`,
+        searchText: [
+          item.name,
+          item.card_number ?? "",
+          item.episode_name,
+          item.episode_code ?? "",
+          `${item.episode_code ?? ""}${item.card_number ?? ""}`,
+        ]
+          .join(" ")
+          .toLowerCase(),
+        normalizedRarity: normalizeRarityLabel(item.rarity),
+        isPriced: hasAnyVisiblePrice(item),
+        isGraded: isGradedCollectionCard(item),
+      })),
     [items]
+  );
+  const hasAnyPricedCards = useMemo(
+    () => preparedEntries.some((entry) => entry.isPriced),
+    [preparedEntries]
   );
   const hasAnyGradedCards = useMemo(
-    () => items.some((item) => isGradedCollectionCard(item)),
-    [items]
+    () => preparedEntries.some((entry) => entry.isGraded),
+    [preparedEntries]
   );
   const hasAnyRawCards = useMemo(
-    () => items.some((item) => !isGradedCollectionCard(item)),
-    [items]
+    () => preparedEntries.some((entry) => !entry.isGraded),
+    [preparedEntries]
   );
   const showGradedFilter = hasAnyGradedCards && hasAnyRawCards;
   const applySavedFilters = showFilters;
@@ -532,11 +558,22 @@ export default function CollectionCardsView({
   );
   const effectiveShowOnlyGraded = applySavedFilters && showOnlyGraded && showGradedFilter;
   const effectiveOnlyPriced = applySavedFilters && settings.showOnlyPriced && hasAnyPricedCards;
+  const deferredNormalizedSearch = useDeferredValue(normalizedSearch);
+  const deferredAppliedRarities = useDeferredValue(appliedRarities);
+  const deferredAppliedSupertypes = useDeferredValue(appliedSupertypes);
+  const deferredEffectiveShowOnlyGraded = useDeferredValue(effectiveShowOnlyGraded);
+  const deferredEffectiveOnlyPriced = useDeferredValue(effectiveOnlyPriced);
+  const isFilteringPending =
+    normalizedSearch !== deferredNormalizedSearch ||
+    appliedRarities !== deferredAppliedRarities ||
+    appliedSupertypes !== deferredAppliedSupertypes ||
+    effectiveShowOnlyGraded !== deferredEffectiveShowOnlyGraded ||
+    effectiveOnlyPriced !== deferredEffectiveOnlyPriced;
   const pricedOnlyUnavailable =
     applySavedFilters && settings.showOnlyPriced && !hasAnyPricedCards;
   const validSelectionKeys = useMemo(
-    () => new Set(items.map((item, index) => `${item.card_id}-${index}`)),
-    [items]
+    () => new Set(preparedEntries.map((entry) => entry.selectionKey)),
+    [preparedEntries]
   );
   const activeSelectedKeys = useMemo(
     () => selectedKeys.filter((key) => validSelectionKeys.has(key)),
@@ -545,89 +582,100 @@ export default function CollectionCardsView({
   const selectedKeySet = useMemo(() => new Set(activeSelectedKeys), [activeSelectedKeys]);
   const activeSelectionMode = selectionEnabled && selectionMode;
   const searchMatchedEntries = useMemo(() => {
-    return items.flatMap((item, index) => {
-      if (normalizedSearch) {
-        const compactIdentifier = `${item.episode_code ?? ""}${item.card_number ?? ""}`;
-        const haystack = [
-          item.name,
-          item.card_number ?? "",
-          item.episode_name,
-          item.episode_code ?? "",
-          compactIdentifier,
-        ]
-          .join(" ")
-          .toLowerCase();
+    if (!deferredNormalizedSearch) {
+      return preparedEntries;
+    }
 
-        if (!haystack.includes(normalizedSearch)) return [];
+    return preparedEntries.filter((entry) => entry.searchText.includes(deferredNormalizedSearch));
+  }, [preparedEntries, deferredNormalizedSearch]);
+  const filteredEntries = useMemo(() => {
+    return searchMatchedEntries.filter((entry) => {
+      if (
+        deferredAppliedRarities.length > 0 &&
+        !deferredAppliedRarities.includes(entry.normalizedRarity ?? "")
+      ) {
+        return false;
       }
 
-      return [{ item, index, selectionKey: `${item.card_id}-${index}` }];
+      if (
+        deferredAppliedSupertypes.length > 0 &&
+        !deferredAppliedSupertypes.includes(entry.item.supertype ?? "")
+      ) {
+        return false;
+      }
+
+      if (deferredEffectiveOnlyPriced && !entry.isPriced) {
+        return false;
+      }
+
+      if (deferredEffectiveShowOnlyGraded && !entry.isGraded) {
+        return false;
+      }
+
+      return true;
     });
-  }, [items, normalizedSearch]);
-  const orderedEntries = useMemo(
+  }, [
+    searchMatchedEntries,
+    deferredAppliedRarities,
+    deferredAppliedSupertypes,
+    deferredEffectiveOnlyPriced,
+    deferredEffectiveShowOnlyGraded,
+  ]);
+  const orderedFilteredEntries = useMemo(
     () =>
-      [...searchMatchedEntries].sort((a, b) =>
+      [...filteredEntries].sort((a, b) =>
         compareCollectionCardItems(a.item, b.item, sortBy, sortDir)
       ),
-    [searchMatchedEntries, sortBy, sortDir]
+    [filteredEntries, sortBy, sortDir]
   );
-  const filteredEntries = useMemo(() => {
-    return orderedEntries.filter(({ item }) => {
-        if (
-          appliedRarities.length > 0 &&
-          !appliedRarities.includes(normalizeRarityLabel(item.rarity) ?? "")
-        ) {
-          return false;
-        }
-
-        if (appliedSupertypes.length > 0 && !appliedSupertypes.includes(item.supertype ?? "")) {
-          return false;
-        }
-
-        if (effectiveOnlyPriced && !hasAnyVisiblePrice(item)) {
-          return false;
-        }
-
-        if (effectiveShowOnlyGraded && !isGradedCollectionCard(item)) {
-          return false;
-        }
-
-        return true;
-      });
-  }, [
-    orderedEntries,
-    appliedRarities,
-    appliedSupertypes,
-    effectiveOnlyPriced,
-    effectiveShowOnlyGraded,
-  ]);
   const persistentFiltersHideEverything =
     showFilters &&
-    !normalizedSearch &&
-    !effectiveShowOnlyGraded &&
+    !deferredNormalizedSearch &&
+    !deferredEffectiveShowOnlyGraded &&
     items.length > 0 &&
-    filteredEntries.length === 0 &&
-    (appliedRarities.length > 0 || appliedSupertypes.length > 0 || effectiveOnlyPriced);
+    orderedFilteredEntries.length === 0 &&
+    (
+      deferredAppliedRarities.length > 0 ||
+      deferredAppliedSupertypes.length > 0 ||
+      deferredEffectiveOnlyPriced
+    );
   const visibleEntries = useMemo(
-    () =>
-      persistentFiltersHideEverything
-        ? orderedEntries
-        : filteredEntries,
-    [orderedEntries, persistentFiltersHideEverything, filteredEntries]
+    () => {
+      if (!persistentFiltersHideEverything) {
+        return orderedFilteredEntries;
+      }
+
+      return [...searchMatchedEntries].sort((a, b) =>
+        compareCollectionCardItems(a.item, b.item, sortBy, sortDir)
+      );
+    },
+    [
+      orderedFilteredEntries,
+      persistentFiltersHideEverything,
+      searchMatchedEntries,
+      sortBy,
+      sortDir,
+    ]
   );
   const visibleItems = useMemo(
     () => visibleEntries.map((entry) => entry.item),
     [visibleEntries]
   );
-    const groupedVisibleEntries = useMemo(() => {
+  const groupedVisibleEntries = useMemo(() => {
     if (!splitByGrading) {
       return [{ key: "all", title: null, entries: visibleEntries }];
     }
 
-    const gradedEntries = visibleEntries.filter(({ item }) => isGradedCollectionCard(item));
-    const rawEntries = visibleEntries.filter(
-      ({ item }) => !isGradedCollectionCard(item)
-    );
+    const gradedEntries: typeof visibleEntries = [];
+    const rawEntries: typeof visibleEntries = [];
+
+    for (const entry of visibleEntries) {
+      if (entry.isGraded) {
+        gradedEntries.push(entry);
+      } else {
+        rawEntries.push(entry);
+      }
+    }
 
     const groups: Array<{
       key: string;
@@ -653,32 +701,34 @@ export default function CollectionCardsView({
     selectableKeys.length > 0 && selectableKeys.every((key) => selectedKeySet.has(key));
   const selectedCards = useMemo(
     () =>
-      items.flatMap((item, index) =>
-        selectedKeySet.has(`${item.card_id}-${index}`) && !item.owned
+      preparedEntries.flatMap((entry) =>
+        selectedKeySet.has(entry.selectionKey) && !entry.item.owned
           ? [
               {
-                id: item.card_id,
-                name: item.name,
-                image_url: item.image_url,
+                id: entry.item.card_id,
+                name: entry.item.name,
+                image_url: entry.item.image_url,
                 episode: {
-                  id: item.episode_id,
-                  name: item.episode_name,
-                  code: item.episode_code,
+                  id: entry.item.episode_id,
+                  name: entry.item.episode_name,
+                  code: entry.item.episode_code,
                 },
               },
             ]
           : []
       ),
-    [items, selectedKeySet]
+    [preparedEntries, selectedKeySet]
   );
   const selectedCollectionItemIds = useMemo(
     () => {
       const ids = new Set<string>();
 
-      for (const [index, item] of items.entries()) {
-        if (!selectedKeySet.has(`${item.card_id}-${index}`)) continue;
+      for (const entry of preparedEntries) {
+        if (!selectedKeySet.has(entry.selectionKey)) continue;
 
-        const itemIds = item.collection_item_ids ?? (item.collection_item_id ? [item.collection_item_id] : []);
+        const itemIds =
+          entry.item.collection_item_ids ??
+          (entry.item.collection_item_id ? [entry.item.collection_item_id] : []);
         for (const itemId of itemIds) {
           ids.add(itemId);
         }
@@ -686,7 +736,7 @@ export default function CollectionCardsView({
 
       return [...ids];
     },
-    [items, selectedKeySet]
+    [preparedEntries, selectedKeySet]
   );
 
   async function openCard(item: CollectionCardViewItem) {
@@ -983,7 +1033,7 @@ export default function CollectionCardsView({
       label: pricedOnlyUnavailable ? "No prices yet" : "Priced only",
       active: settings.showOnlyPriced,
       onToggle: () => set("showOnlyPriced", !settings.showOnlyPriced),
-      className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+      className: `inline-flex min-h-[32px] shrink-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs leading-none transition-colors ${
         settings.showOnlyPriced ? "font-semibold" : "font-medium"
       } ${neutralFilterChip(settings.showOnlyPriced)}`,
     },
@@ -994,7 +1044,7 @@ export default function CollectionCardsView({
             label: "Graded only",
             active: effectiveShowOnlyGraded,
             onToggle: () => setShowOnlyGraded((prev) => !prev),
-            className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+            className: `inline-flex min-h-[32px] shrink-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs leading-none transition-colors ${
               effectiveShowOnlyGraded ? "font-semibold" : "font-medium"
             } ${neutralFilterChip(effectiveShowOnlyGraded)}`,
           } satisfies CardBrowserToolbarFilterOption,
@@ -1009,7 +1059,7 @@ export default function CollectionCardsView({
         active,
         count: supertype.count,
         onToggle: () => toggleSupertype(supertype.value),
-        className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+        className: `inline-flex min-h-[32px] shrink-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs leading-none transition-colors ${
           active ? "font-semibold" : "font-medium"
         } ${neutralFilterChip(active)}`,
       };
@@ -1030,7 +1080,7 @@ export default function CollectionCardsView({
           active,
           count: rarity.count,
           onToggle: () => toggleRarity(rarity.value),
-          className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+          className: `inline-flex min-h-[32px] shrink-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs leading-none transition-colors ${
             active ? "font-semibold" : "font-medium"
           } ${rarityFilterChip(rarity.value, active)}`,
         };
@@ -1059,7 +1109,6 @@ export default function CollectionCardsView({
             {sectionCount ?? items.length}
           </span>
           <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-          {sectionTrailing}
           {showInlineSelectionButton && (
             <button
               type="button"
@@ -1069,6 +1118,7 @@ export default function CollectionCardsView({
               Select
             </button>
           )}
+          {sectionTrailing}
         </div>
       )}
 
@@ -1078,7 +1128,7 @@ export default function CollectionCardsView({
             searchValue={search}
             onSearchChange={setSearch}
             searchPlaceholder="Search name, number, set..."
-            resultLabel={`${visibleItems.length} / ${items.length}`}
+            resultLabel={`${visibleItems.length} / ${items.length}${isFilteringPending ? " ..." : ""}`}
             sortSummary={sortSummary}
             priceSourceLabel={
               hideSortControls ? null : primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"
@@ -1469,7 +1519,7 @@ export default function CollectionCardsView({
           <p className="text-sm text-gray-400">Try adjusting or clearing the filters above.</p>
         </div>
       ) : view === "table" ? (
-        <div className={splitByGrading ? "space-y-6" : ""}>
+        <div className={`${splitByGrading ? "space-y-6" : ""} ${isFilteringPending ? "opacity-80" : "opacity-100"} transition-opacity`}>
           {groupedVisibleEntries.map((group) => (
             <section key={group.key}>
               {group.title && (
@@ -1702,7 +1752,7 @@ export default function CollectionCardsView({
           ))}
         </div>
       ) : (
-        <div className={splitByGrading ? "space-y-6" : ""}>
+        <div className={`${splitByGrading ? "space-y-6" : ""} ${isFilteringPending ? "opacity-80" : "opacity-100"} transition-opacity`}>
           {groupedVisibleEntries.map((group) => (
             <section key={group.key}>
               {group.title && (

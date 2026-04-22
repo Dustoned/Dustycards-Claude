@@ -76,7 +76,7 @@ function actionButtonClass(active = false): string {
 }
 
 function sectionCardClass(): string {
-  return "rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20";
+  return "overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20";
 }
 
 function sectionLabelClass(): string {
@@ -98,13 +98,23 @@ function segmentedButtonClass(active: boolean): string {
 function countBadgeClass(active: boolean): string {
   return `rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
     active
-      ? "bg-white/18 text-current dark:bg-black/10"
+      ? "bg-black/12 text-current dark:bg-white/12"
       : "bg-black/6 text-gray-400 dark:bg-white/8 dark:text-white/35"
   }`;
 }
 
 function activeFilterChipClass(): string {
   return "inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-black/[0.035] px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white";
+}
+
+function toolbarFilterButtonClass(className: string): string {
+  return `${className} max-w-full whitespace-nowrap outline-none ring-0 shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0`;
+}
+
+function filterIndicatorClass(active: boolean): string {
+  return `h-1.5 w-1.5 shrink-0 rounded-full bg-current transition-opacity ${
+    active ? "opacity-80" : "opacity-0"
+  }`;
 }
 
 export default function CardBrowserToolbar({
@@ -299,8 +309,9 @@ export default function CardBrowserToolbar({
                     type="button"
                     aria-pressed={filter.active}
                     onClick={filter.onToggle}
-                    className={filter.className}
+                    className={toolbarFilterButtonClass(filter.className)}
                   >
+                    <span aria-hidden="true" className={filterIndicatorClass(filter.active)} />
                     <span>{filter.label}</span>
                     {filter.count != null && (
                       <span className={countBadgeClass(filter.active)}>{filter.count}</span>
@@ -327,8 +338,9 @@ export default function CardBrowserToolbar({
                       type="button"
                       aria-pressed={option.active}
                       onClick={option.onToggle}
-                      className={option.className}
+                      className={toolbarFilterButtonClass(option.className)}
                     >
+                      <span aria-hidden="true" className={filterIndicatorClass(option.active)} />
                       <span>{option.label}</span>
                       {option.count != null && (
                         <span className={countBadgeClass(option.active)}>{option.count}</span>

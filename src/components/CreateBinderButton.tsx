@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import {
@@ -15,11 +15,7 @@ interface EpisodeOption {
   code: string | null;
 }
 
-interface Props {
-  episodes: EpisodeOption[];
-}
-
-export default function CreateBinderButton({ episodes }: Props) {
+export default function CreateBinderButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -31,6 +27,43 @@ export default function CreateBinderButton({ episodes }: Props) {
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [episodes, setEpisodes] = useState<EpisodeOption[]>([]);
+  const [episodesLoaded, setEpisodesLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!open || episodesLoaded) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadEpisodes() {
+      try {
+        const response = await fetch("/api/episodes/options", {
+          cache: "force-cache",
+        });
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as { episodes?: EpisodeOption[] };
+        if (!cancelled) {
+          setEpisodes(Array.isArray(data.episodes) ? data.episodes : []);
+          setEpisodesLoaded(true);
+        }
+      } catch {
+        if (!cancelled) {
+          setEpisodesLoaded(true);
+        }
+      }
+    }
+
+    void loadEpisodes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, episodesLoaded]);
 
   const matchedEpisode = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -124,6 +157,8 @@ export default function CreateBinderButton({ episodes }: Props) {
                   <p className="text-xs text-white/45">
                     {matchedEpisode
                       ? `This will create a set binder for ${matchedEpisode.name}${matchedEpisode.code ? ` (${matchedEpisode.code})` : ""}.`
+                      : !episodesLoaded
+                        ? "Checking set matches..."
                       : "No set match yet, so this will become a custom binder."}
                   </p>
                 </label>

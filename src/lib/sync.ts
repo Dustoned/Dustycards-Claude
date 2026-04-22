@@ -1,13 +1,33 @@
 import { db } from "@/lib/db";
-import { isHiddenExpansion } from "@/lib/episodes";
+import type { Prisma } from "@/generated/prisma";
+import { isHiddenExpansion, isPromoExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
+import { resolveTcgdexSupertype } from "@/lib/tcgdex";
 import {
-  categoryToSupertype,
-  findTcgdexSetIdForEpisode,
-  getTcgdexIllustratorLookupForCards,
-  getTcgdexSupertypeLookupForSet,
-  resolveTcgdexSupertype,
-} from "@/lib/tcgdex";
+  buildCardWriteData,
+  dedupeGradedCreateRows,
+  findExistingCardsForSync,
+  hasAnyMarketplaceId,
+  hasAnyPrice,
+  hasCardChanges,
+  loadEpisodeCardEnrichmentLookups,
+  pricesMatch,
+  syncCardWithEpisodeSelect,
+  type CardWriteData,
+  type ExistingPriceRecord,
+  type GradedCreateRow,
+  type PriceSnapshotData,
+} from "@/lib/sync/card-helpers";
+import {
+  assessEpisodeSourceCheck,
+  buildEpisodeSourceCheckUpdate,
+  createEmptyAutoCatalogSyncSelection,
+  hasEpisodeSourceIssue,
+  mergeKnownEpisodeCardCount,
+  previewAutoCatalogSync,
+  selectAutoCatalogSyncBatch,
+  upsertVisibleRemoteEpisodes,
+} from "@/lib/sync/catalog";
 import {
   extractGradedPrices,
   extractPrices,
@@ -30,6 +50,10 @@ const AUTO_PRICE_REFRESH_MAX_CARDS = 240;
 const AUTO_PRICE_REFRESH_MIN_INTERVAL_MS = 1000 * 60 * 60 * 6;
 const AUTO_PRICE_BACKFILL_MAX_EPISODES = 2;
 const AUTO_PRICE_BACKFILL_MAX_CARDS = 80;
+const AUTO_PRICE_PREEMPT_WAIT_TIMEOUT_MS = 1000 * 60 * 5;
+const AUTO_CATALOG_SYNC_MIN_INTERVAL_MS = 1000 * 60 * 60;
+const AUTO_CATALOG_SYNC_MAX_EPISODES = 2;
+const FULL_SYNC_PROMO_VERIFICATION_LIMIT = 2;
 const PRICE_SOURCE_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 7;
 const HISTORY_BACKFILL_BATCH_SIZE = 12;
 const MANUAL_HISTORY_SYNC_BATCH_SIZE = 2;
@@ -37,6 +61,7 @@ const DB_WRITE_BATCH_SIZE = 60;
 const AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX = 0;
 const AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX = 0;
 const CANCELLATION_CHECK_INTERVAL_MS = 750;
+const SYNC_WAIT_POLL_INTERVAL_MS = 300;
 const MANUAL_HISTORY_EXCLUDED_RARITIES = [
   "Common",
   "Uncommon",
@@ -45,57 +70,6 @@ const MANUAL_HISTORY_EXCLUDED_RARITIES = [
   "uncommon",
   "rare",
 ] as const;
-
-const CARD_FIELDS = [
-  "name",
-  "card_number",
-  "rarity",
-  "hp",
-  "supertype",
-  "subtypes",
-  "artist",
-  "image_url",
-  "tcggo_url",
-  "cardmarket_url",
-  "tcgid",
-  "cardmarket_id",
-  "tcgplayer_id",
-] as const;
-
-const PRICE_FIELDS = [
-  "cm_en_lowest_nm",
-  "cm_de_lowest_nm",
-  "cm_fr_lowest_nm",
-  "cm_es_lowest_nm",
-  "cm_it_lowest_nm",
-  "cm_en_avg_30d",
-  "cm_en_avg_7d",
-  "tcp_market",
-  "tcp_mid",
-  "tcp_low",
-] as const;
-
-type PriceSnapshotData = ReturnType<typeof extractPrices>;
-
-type CardWriteData = {
-  name: string;
-  card_number: string | null;
-  rarity: string | null;
-  hp: number | null;
-  supertype: string | null;
-  subtypes: string | null;
-  artist: string | null;
-  image_url: string | null;
-  tcggo_url: string | null;
-  cardmarket_url: string | null;
-  tcgid: string | null;
-  cardmarket_id: string | null;
-  tcgplayer_id: string | null;
-};
-
-interface ExistingPriceRecord extends PriceSnapshotData {
-  id: string;
-}
 
 interface DueCardCandidate {
   id: string;
@@ -147,6 +121,7 @@ export interface EpisodeSyncResult {
   newPrices: number;
   refreshedPrices: number;
   gradedPricesUpdated: number;
+  preemptedAutoPriceRefresh?: boolean;
 }
 
 export interface FullSyncResult {
@@ -163,12 +138,15 @@ export interface FullSyncResult {
 
 export interface AutoPriceRefreshResult {
   checkedEpisodes: number;
+  catalogSyncedEpisodes: number;
+  newEpisodes: number;
   dueCards: number;
   missingPriceCards: number;
   selectedCards: number;
   backfillCards: number;
   nativeHistoryItems: number;
   remainingDueCards: number;
+  newCards: number;
   updatedCards: number;
   newPrices: number;
   refreshedPrices: number;
@@ -248,55 +226,6 @@ export interface SyncCancellationRequestResult {
   } | null;
 }
 
-function buildCardWriteData(
-  existing: CardWriteData | undefined,
-  card: CardWriteData,
-  fallbackSupertype: string | null = null
-): CardWriteData {
-  const normalizedSupertype = categoryToSupertype(card.supertype);
-
-  return {
-    name: card.name,
-    card_number: card.card_number ?? existing?.card_number ?? null,
-    rarity: card.rarity ?? existing?.rarity ?? null,
-    hp: card.hp ?? existing?.hp ?? null,
-    supertype: normalizedSupertype ?? fallbackSupertype ?? existing?.supertype ?? null,
-    subtypes: card.subtypes ?? existing?.subtypes ?? null,
-    artist: card.artist ?? existing?.artist ?? null,
-    image_url: card.image_url ?? existing?.image_url ?? null,
-    tcggo_url: card.tcggo_url ?? existing?.tcggo_url ?? null,
-    cardmarket_url: card.cardmarket_url ?? existing?.cardmarket_url ?? null,
-    tcgid: card.tcgid ?? existing?.tcgid ?? null,
-    cardmarket_id: card.cardmarket_id ?? existing?.cardmarket_id ?? null,
-    tcgplayer_id: card.tcgplayer_id ?? existing?.tcgplayer_id ?? null,
-  };
-}
-
-function hasCardChanges(existing: CardWriteData, next: CardWriteData): boolean {
-  return CARD_FIELDS.some((field) => existing[field] !== next[field]);
-}
-
-async function getTcgdexSupertypeLookupForEpisode(input: {
-  code?: string | null;
-  name?: string | null;
-  card_count?: number | null;
-}): Promise<ReadonlyMap<string, string>> {
-  const tcgdexSetId = await findTcgdexSetIdForEpisode({
-    code: input.code,
-    name: input.name,
-    cardCount: input.card_count ?? null,
-  });
-  if (!tcgdexSetId) {
-    return new Map();
-  }
-
-  return getTcgdexSupertypeLookupForSet(tcgdexSetId);
-}
-
-function hasAnyPrice(prices: PriceSnapshotData): boolean {
-  return PRICE_FIELDS.some((field) => prices[field] !== null);
-}
-
 function hasAnySealedPrice(
   price: Pick<
     NormalizedSealedProduct["price"],
@@ -322,54 +251,139 @@ function hasAnySealedPrice(
   );
 }
 
-function pricesMatch(existing: ExistingPriceRecord, next: PriceSnapshotData): boolean {
-  return PRICE_FIELDS.every((field) => existing[field] === next[field]);
+function waitForDelay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function waitForSyncToFinish(
+  syncId: string,
+  startedAt: Date,
+  timeoutMs = AUTO_PRICE_PREEMPT_WAIT_TIMEOUT_MS
+) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const sync = await db.syncLog.findUnique({
+      where: { id: syncId },
+      select: { status: true },
+    });
+
+    if (!sync || sync.status !== "running") {
+      return;
+    }
+
+    await waitForDelay(SYNC_WAIT_POLL_INTERVAL_MS);
+  }
+
+  throw new SyncConflictError(AUTO_PRICE_REFRESH_TYPE, startedAt);
+}
+
+interface AcquireSyncLogOptions {
+  interruptAutoPriceRefresh?: boolean;
+  onAutoPriceRefreshInterrupted?: () => void;
+}
+
+async function acquireSyncLogWithOptions(
+  type: string,
+  message: string,
+  options?: AcquireSyncLogOptions
+) {
+  let interruptedAutoPriceRefresh = false;
+
+  while (true) {
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - ACTIVE_SYNC_STALE_MS);
+
+    const result = await db.$transaction(async (tx) => {
+      await tx.syncLog.updateMany({
+        where: {
+          status: "running",
+          started_at: {
+            lt: staleBefore,
+          },
+        },
+        data: {
+          status: "failed",
+          message: STALE_SYNC_MESSAGE,
+          finished_at: now,
+          cancel_requested_at: null,
+        },
+      });
+
+      const activeSync = await tx.syncLog.findFirst({
+        where: { status: "running" },
+        orderBy: { started_at: "desc" },
+        select: {
+          id: true,
+          type: true,
+          started_at: true,
+        },
+      });
+
+      if (activeSync) {
+        return {
+          kind: "conflict" as const,
+          activeSync,
+        };
+      }
+
+      await tx.syncLog.deleteMany({
+        where: {
+          status: { in: ["success", "failed", "cancelled"] },
+          finished_at: { not: null },
+        },
+      });
+
+      const log = await tx.syncLog.create({
+        data: {
+          type,
+          status: "running",
+          message,
+        },
+      });
+
+      return {
+        kind: "created" as const,
+        log,
+      };
+    });
+
+    if (result.kind === "created") {
+      if (interruptedAutoPriceRefresh) {
+        options?.onAutoPriceRefreshInterrupted?.();
+      }
+
+      return result.log;
+    }
+
+    const { activeSync } = result;
+
+    if (
+      options?.interruptAutoPriceRefresh &&
+      type !== AUTO_PRICE_REFRESH_TYPE &&
+      activeSync.type === AUTO_PRICE_REFRESH_TYPE
+    ) {
+      const cancellation = await requestSyncCancellation(activeSync.id);
+
+      if (cancellation.status === "requested" || cancellation.status === "already-requested") {
+        interruptedAutoPriceRefresh = true;
+        await waitForSyncToFinish(activeSync.id, activeSync.started_at);
+        continue;
+      }
+
+      if (cancellation.status === "already-finished" || cancellation.status === "not-found") {
+        continue;
+      }
+    }
+
+    throw new SyncConflictError(activeSync.type, activeSync.started_at);
+  }
 }
 
 async function acquireSyncLog(type: string, message: string) {
-  const now = new Date();
-  const staleBefore = new Date(now.getTime() - ACTIVE_SYNC_STALE_MS);
-
-  return db.$transaction(async (tx) => {
-    await tx.syncLog.updateMany({
-      where: {
-        status: "running",
-        started_at: {
-          lt: staleBefore,
-        },
-      },
-      data: {
-        status: "failed",
-        message: STALE_SYNC_MESSAGE,
-        finished_at: now,
-        cancel_requested_at: null,
-      },
-    });
-
-    const activeSync = await tx.syncLog.findFirst({
-      where: { status: "running" },
-      orderBy: { started_at: "desc" },
-    });
-
-    if (activeSync) {
-      throw new SyncConflictError(activeSync.type, activeSync.started_at);
-    }
-
-    await tx.syncLog.deleteMany({
-      where: {
-        status: { in: ["success", "failed", "cancelled"] },
-        finished_at: { not: null },
-      },
-    });
-
-    return tx.syncLog.create({
-      data: {
-        type,
-        status: "running",
-        message,
-      },
-    });
-  });
+  return acquireSyncLogWithOptions(type, message);
 }
 
 function createSyncCancellationChecker(syncId: string) {
@@ -489,9 +503,10 @@ async function runLoggedSync<T>(
   type: string,
   startMessage: string,
   successMessage: (result: T) => string,
-  work: (progress: SyncProgressController) => Promise<T>
+  work: (progress: SyncProgressController) => Promise<T>,
+  options?: AcquireSyncLogOptions
 ): Promise<T> {
-  const log = await acquireSyncLog(type, startMessage);
+  const log = await acquireSyncLogWithOptions(type, startMessage, options);
   const throwIfCancelled = createSyncCancellationChecker(log.id);
   const progress: SyncProgressController = {
     syncId: log.id,
@@ -541,16 +556,34 @@ function summarizeFullSync(result: FullSyncResult): string {
 }
 
 function summarizeAutoPriceRefresh(result: AutoPriceRefreshResult): string {
-  return [
+  const summary = [
     `Checked ${result.selectedCards} cards`,
     `${result.checkedEpisodes} sets`,
     `${result.backfillCards} first-price checks`,
     `${result.nativeHistoryItems} history backfills`,
+  ];
+
+  if (result.catalogSyncedEpisodes > 0) {
+    summary.push(`${result.catalogSyncedEpisodes} sets synced`);
+  }
+
+  if (result.newEpisodes > 0) {
+    summary.push(`${result.newEpisodes} new sets`);
+  }
+
+  if (result.newCards > 0) {
+    summary.push(`${result.newCards} new cards`);
+  }
+
+  summary.push(
+    `${result.updatedCards} updated cards`,
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
     `${result.gradedPricesUpdated} graded prices updated`,
-    `${result.remainingDueCards} still due`,
-  ].join(" | ");
+    `${result.remainingDueCards} remaining after this batch`
+  );
+
+  return summary.join(" | ");
 }
 
 function summarizeCardPriceRefresh(result: CardPriceRefreshResult): string {
@@ -733,45 +766,48 @@ async function writeInChunks<T>(
   }
 }
 
-function dedupeGradedCreateRows(
-  rows: Array<{
-    card_id: string;
-    label: string;
-    price: number;
-    fetched_at: Date;
-  }>
-): Array<{
-  card_id: string;
-  label: string;
-  price: number;
-  fetched_at: Date;
-}> {
-  const deduped = new Map<
-    string,
-    {
-      card_id: string;
-      label: string;
-      price: number;
-      fetched_at: Date;
-    }
-  >();
-
-  for (const row of rows) {
-    const normalizedLabel = row.label.replace(/\s+/g, " ").trim();
-    if (!normalizedLabel) continue;
-
-    const dedupeKey = `${row.card_id}::${normalizedLabel.toUpperCase()}`;
-    const existing = deduped.get(dedupeKey);
-
-    if (!existing || row.price > existing.price) {
-      deduped.set(dedupeKey, {
-        ...row,
-        label: normalizedLabel,
-      });
-    }
+async function persistCardPriceWrites(
+  tx: Prisma.TransactionClient,
+  input: {
+    fetchedAt: Date;
+    gradedCardIdsToReplace: Set<string>;
+    gradedCreates: GradedCreateRow[];
+    priceRefreshes: string[];
+    priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData>;
+  }
+): Promise<{ gradedPricesUpdated: number }> {
+  if (input.gradedCardIdsToReplace.size > 0) {
+    await tx.cardGradedPrice.deleteMany({
+      where: { card_id: { in: [...input.gradedCardIdsToReplace] } },
+    });
   }
 
-  return [...deduped.values()];
+  const dedupedGradedCreates = dedupeGradedCreateRows(input.gradedCreates);
+
+  if (dedupedGradedCreates.length > 0) {
+    await tx.cardGradedPrice.createMany({
+      data: dedupedGradedCreates,
+    });
+  }
+
+  if (input.priceRefreshes.length > 0) {
+    await writeInChunks([...new Set(input.priceRefreshes)], DB_WRITE_BATCH_SIZE, async (chunk) => {
+      await tx.price.updateMany({
+        where: { id: { in: chunk } },
+        data: { fetched_at: input.fetchedAt },
+      });
+    });
+  }
+
+  if (input.priceCreates.length > 0) {
+    await tx.price.createMany({
+      data: input.priceCreates,
+    });
+  }
+
+  return {
+    gradedPricesUpdated: dedupedGradedCreates.length,
+  };
 }
 
 async function backfillCardNativeHistoryDetailed(
@@ -1143,10 +1179,6 @@ async function selectManualCardHistoryCandidates(): Promise<string[]> {
   return cards.map((card) => card.id);
 }
 
-function hasAnyMarketplaceId(card: Pick<CardWriteData, "cardmarket_id" | "tcgplayer_id">): boolean {
-  return Boolean(card.cardmarket_id || card.tcgplayer_id);
-}
-
 function countSelectedCards(selectedByEpisode: Map<string, string[]>): number {
   let total = 0;
   for (const cardIds of selectedByEpisode.values()) {
@@ -1189,19 +1221,8 @@ async function syncEpisodeCards(
 
   await options.throwIfCancelled?.();
 
-  const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
-    episode ? getTcgdexSupertypeLookupForEpisode(episode) : Promise.resolve(new Map()),
-    episode
-      ? getTcgdexIllustratorLookupForCards(
-          {
-            code: episode.code,
-            name: episode.name,
-            cardCount: episode.card_count,
-          },
-          cards
-        )
-      : Promise.resolve(new Map()),
-  ]);
+  const { tcgdexSupertypeLookup, tcgdexIllustratorLookup } =
+    await loadEpisodeCardEnrichmentLookups(episode, cards);
 
   await options.throwIfCancelled?.();
 
@@ -1213,56 +1234,15 @@ async function syncEpisodeCards(
     .map((card) => card.id);
 
   const result = await db.$transaction(async (tx) => {
-    const existingCards = await tx.card.findMany({
-      where: { episode_id: episodeId },
-      select: {
-        id: true,
-        name: true,
-        card_number: true,
-        rarity: true,
-        hp: true,
-        supertype: true,
-        subtypes: true,
-        artist: true,
-        image_url: true,
-        tcggo_url: true,
-        cardmarket_url: true,
-        tcgid: true,
-        cardmarket_id: true,
-        tcgplayer_id: true,
-        price_source_status: true,
-        price_source_checked_at: true,
-        native_history_synced_at: true,
-        prices: {
-          orderBy: { fetched_at: "desc" },
-          take: 1,
-          select: {
-            id: true,
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-            cm_en_avg_30d: true,
-            cm_en_avg_7d: true,
-            tcp_market: true,
-            tcp_mid: true,
-            tcp_low: true,
-          },
-        },
-      },
+    const existingCards = await findExistingCardsForSync(tx, {
+      episode_id: episodeId,
     });
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
     const priceRefreshes: string[] = [];
     const gradedCardIdsToReplace = new Set<string>();
-    const gradedCreates: Array<{
-      card_id: string;
-      label: string;
-      price: number;
-      fetched_at: Date;
-    }> = [];
+    const gradedCreates: GradedCreateRow[] = [];
 
     let newCards = 0;
     let updatedCards = 0;
@@ -1373,40 +1353,24 @@ async function syncEpisodeCards(
       }
     }
 
-    if (gradedCardIdsToReplace.size > 0) {
-      await tx.cardGradedPrice.deleteMany({
-        where: { card_id: { in: [...gradedCardIdsToReplace] } },
-      });
-    }
-
-    const dedupedGradedCreates = dedupeGradedCreateRows(gradedCreates);
-
-    if (dedupedGradedCreates.length > 0) {
-      await tx.cardGradedPrice.createMany({
-        data: dedupedGradedCreates,
-      });
-    }
-
-    if (priceRefreshes.length > 0) {
-      await writeInChunks([...new Set(priceRefreshes)], DB_WRITE_BATCH_SIZE, async (chunk) => {
-        await tx.price.updateMany({
-          where: { id: { in: chunk } },
-          data: { fetched_at: fetchedAt },
-        });
-      });
-    }
-
-    if (priceCreates.length > 0) {
-      await tx.price.createMany({
-        data: priceCreates,
-      });
-    }
+    const { gradedPricesUpdated } = await persistCardPriceWrites(tx, {
+      fetchedAt,
+      gradedCardIdsToReplace,
+      gradedCreates,
+      priceRefreshes,
+      priceCreates,
+    });
+    const localCardCountAfterSync = existingCards.length + newCards;
 
     await tx.episode.update({
       where: { id: episodeId },
-      data: {
-        synced_at: fetchedAt,
-      },
+      data: buildEpisodeSourceCheckUpdate({
+        catalogCardCount: episode?.card_count ?? null,
+        localCardCount: localCardCountAfterSync,
+        actualCardCount: cards.length,
+        checkedAt: fetchedAt,
+        markSynced: true,
+      }),
     });
 
     return {
@@ -1416,7 +1380,7 @@ async function syncEpisodeCards(
       updatedCards,
       newPrices,
       refreshedPrices,
-      gradedPricesUpdated: dedupedGradedCreates.length,
+      gradedPricesUpdated,
     };
   });
 
@@ -1721,80 +1685,38 @@ async function refreshEpisodeDueCards(
     fetchCardsForEpisode(episodeId),
     db.episode.findUnique({
       where: { id: episodeId },
-      select: { code: true, name: true, card_count: true },
+      select: {
+        code: true,
+        name: true,
+        card_count: true,
+        _count: {
+          select: {
+            cards: true,
+          },
+        },
+      },
     }),
   ]);
 
   await throwIfCancelled?.();
 
-  const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
-    episode ? getTcgdexSupertypeLookupForEpisode(episode) : Promise.resolve(new Map()),
-    episode
-      ? getTcgdexIllustratorLookupForCards(
-          {
-            code: episode.code,
-            name: episode.name,
-            cardCount: episode.card_count,
-          },
-          remoteCards
-        )
-      : Promise.resolve(new Map()),
-  ]);
+  const { tcgdexSupertypeLookup, tcgdexIllustratorLookup } =
+    await loadEpisodeCardEnrichmentLookups(episode, remoteCards);
 
   await throwIfCancelled?.();
 
   const remoteCardMap = new Map(remoteCards.map((card) => [card.id, card]));
 
   return db.$transaction(async (tx) => {
-    const existingCards = await tx.card.findMany({
-      where: { id: { in: cardIds } },
-      select: {
-        id: true,
-        name: true,
-        card_number: true,
-        rarity: true,
-        hp: true,
-        supertype: true,
-        subtypes: true,
-        artist: true,
-        image_url: true,
-        tcggo_url: true,
-        cardmarket_url: true,
-        tcgid: true,
-        cardmarket_id: true,
-        tcgplayer_id: true,
-        price_source_status: true,
-        price_source_checked_at: true,
-        prices: {
-          orderBy: { fetched_at: "desc" },
-          take: 1,
-          select: {
-            id: true,
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-            cm_en_avg_30d: true,
-            cm_en_avg_7d: true,
-            tcp_market: true,
-            tcp_mid: true,
-            tcp_low: true,
-          },
-        },
-      },
+    const existingCards = await findExistingCardsForSync(tx, {
+      id: { in: cardIds },
     });
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
     const priceRefreshes: string[] = [];
     const gradedCardIdsToReplace = new Set<string>();
-    const gradedCreates: Array<{
-      card_id: string;
-      label: string;
-      price: number;
-      fetched_at: Date;
-    }> = [];
+    const gradedCreates: GradedCreateRow[] = [];
 
     let updatedCards = 0;
     let newPrices = 0;
@@ -1890,34 +1812,23 @@ async function refreshEpisodeDueCards(
       }
     }
 
-    if (gradedCardIdsToReplace.size > 0) {
-      await tx.cardGradedPrice.deleteMany({
-        where: { card_id: { in: [...gradedCardIdsToReplace] } },
-      });
-    }
+    const { gradedPricesUpdated } = await persistCardPriceWrites(tx, {
+      fetchedAt,
+      gradedCardIdsToReplace,
+      gradedCreates,
+      priceRefreshes,
+      priceCreates,
+    });
 
-    const dedupedGradedCreates = dedupeGradedCreateRows(gradedCreates);
-
-    if (dedupedGradedCreates.length > 0) {
-      await tx.cardGradedPrice.createMany({
-        data: dedupedGradedCreates,
-      });
-    }
-
-    if (priceRefreshes.length > 0) {
-      await writeInChunks([...new Set(priceRefreshes)], DB_WRITE_BATCH_SIZE, async (chunk) => {
-        await tx.price.updateMany({
-          where: { id: { in: chunk } },
-          data: { fetched_at: fetchedAt },
-        });
-      });
-    }
-
-    if (priceCreates.length > 0) {
-      await tx.price.createMany({
-        data: priceCreates,
-      });
-    }
+    await tx.episode.update({
+      where: { id: episodeId },
+      data: buildEpisodeSourceCheckUpdate({
+        catalogCardCount: episode?.card_count ?? null,
+        localCardCount: episode?._count.cards ?? 0,
+        actualCardCount: remoteCards.length,
+        checkedAt: fetchedAt,
+      }),
+    });
 
     return {
       episodeId,
@@ -1926,7 +1837,7 @@ async function refreshEpisodeDueCards(
       newPrices,
       refreshedPrices,
       refreshedCards,
-      gradedPricesUpdated: dedupedGradedCreates.length,
+      gradedPricesUpdated,
     };
   });
 }
@@ -1941,48 +1852,7 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
 
       const existingCard = await db.card.findUnique({
         where: { id: cardId },
-        select: {
-          id: true,
-          name: true,
-          card_number: true,
-          rarity: true,
-          hp: true,
-          supertype: true,
-          subtypes: true,
-          artist: true,
-          image_url: true,
-          tcggo_url: true,
-          cardmarket_url: true,
-          tcgid: true,
-          cardmarket_id: true,
-          tcgplayer_id: true,
-          price_source_status: true,
-          price_source_checked_at: true,
-          episode: {
-            select: {
-              code: true,
-              name: true,
-              card_count: true,
-            },
-          },
-          prices: {
-            orderBy: { fetched_at: "desc" },
-            take: 1,
-            select: {
-              id: true,
-              cm_en_lowest_nm: true,
-              cm_de_lowest_nm: true,
-              cm_fr_lowest_nm: true,
-              cm_es_lowest_nm: true,
-              cm_it_lowest_nm: true,
-              cm_en_avg_30d: true,
-              cm_en_avg_7d: true,
-              tcp_market: true,
-              tcp_mid: true,
-              tcp_low: true,
-            },
-          },
-        },
+        select: syncCardWithEpisodeSelect,
       });
 
       if (!existingCard) {
@@ -1999,17 +1869,8 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
 
       await progress.throwIfCancelled();
 
-      const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
-        getTcgdexSupertypeLookupForEpisode(existingCard.episode),
-        getTcgdexIllustratorLookupForCards(
-          {
-            code: existingCard.episode.code,
-            name: existingCard.episode.name,
-            cardCount: existingCard.episode.card_count,
-          },
-          [remoteCard]
-        ),
-      ]);
+      const { tcgdexSupertypeLookup, tcgdexIllustratorLookup } =
+        await loadEpisodeCardEnrichmentLookups(existingCard.episode, [remoteCard]);
       const fetchedAt = new Date();
 
       const refreshResult = await db.$transaction(async (tx) => {
@@ -2036,23 +1897,12 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           updatedCard = true;
         }
 
-        const gradedCreates = dedupeGradedCreateRows(
-          extractGradedPrices(remoteCard.prices).map((gradedPrice) => ({
-            card_id: cardId,
-            label: gradedPrice.label,
-            price: gradedPrice.price,
-            fetched_at: fetchedAt,
-          }))
-        );
-
-        if (gradedCreates.length > 0) {
-          await tx.cardGradedPrice.deleteMany({
-            where: { card_id: cardId },
-          });
-          await tx.cardGradedPrice.createMany({
-            data: gradedCreates,
-          });
-        }
+        const gradedCreates = extractGradedPrices(remoteCard.prices).map((gradedPrice) => ({
+          card_id: cardId,
+          label: gradedPrice.label,
+          price: gradedPrice.price,
+          fetched_at: fetchedAt,
+        }));
 
         const latestPrice = existingCard.prices[0] ?? null;
         const nextPrice = extractPrices(remoteCard.prices);
@@ -2100,27 +1950,20 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           });
         }
 
-        if (priceRefreshes.length > 0) {
-          await writeInChunks([...new Set(priceRefreshes)], DB_WRITE_BATCH_SIZE, async (chunk) => {
-            await tx.price.updateMany({
-              where: { id: { in: chunk } },
-              data: { fetched_at: fetchedAt },
-            });
-          });
-        }
-
-        if (priceCreates.length > 0) {
-          await tx.price.createMany({
-            data: priceCreates,
-          });
-        }
+        const { gradedPricesUpdated } = await persistCardPriceWrites(tx, {
+          fetchedAt,
+          gradedCardIdsToReplace: new Set(gradedCreates.length > 0 ? [cardId] : []),
+          gradedCreates,
+          priceRefreshes,
+          priceCreates,
+        });
 
         return {
           cardId,
           updatedCard,
           newPrices,
           refreshedPrices,
-          gradedPricesUpdated: gradedCreates.length,
+          gradedPricesUpdated,
         };
       });
 
@@ -2428,6 +2271,10 @@ export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
 }
 
 export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
+  const previewCatalog = await previewAutoCatalogSync({
+    now: new Date(),
+    minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
+  });
   const previewDueBatch = await selectAutoRefreshBatch(new Date());
   const previewBackfillBatch = await selectMissingPriceBackfillBatch({
     maxCards: Math.min(
@@ -2438,6 +2285,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
   const previewNativeHistoryBatch = await selectNativeHistoryBackfillBatch();
 
   if (
+    !previewCatalog.shouldSync &&
     previewDueBatch.dueCards === 0 &&
     previewBackfillBatch.missingPriceCards === 0 &&
     previewNativeHistoryBatch.cardIds.length === 0 &&
@@ -2445,12 +2293,15 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
   ) {
     return {
       checkedEpisodes: 0,
+      catalogSyncedEpisodes: 0,
+      newEpisodes: 0,
       dueCards: 0,
       missingPriceCards: 0,
       selectedCards: 0,
       backfillCards: 0,
       nativeHistoryItems: 0,
       remainingDueCards: 0,
+      newCards: 0,
       updatedCards: 0,
       newPrices: 0,
       refreshedPrices: 0,
@@ -2466,6 +2317,53 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
     summarizeAutoPriceRefresh,
     async (progress) => {
       await progress.throwIfCancelled();
+
+      const catalogBatch = previewCatalog.shouldSync
+        ? await selectAutoCatalogSyncBatch({
+            now: new Date(),
+            minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
+            maxEpisodes: AUTO_CATALOG_SYNC_MAX_EPISODES,
+            fetchRemoteEpisodes: fetchAllEpisodes,
+          })
+        : createEmptyAutoCatalogSyncSelection();
+      const fetchedAt = new Date();
+      let catalogSyncedEpisodes = 0;
+      let newEpisodes = 0;
+      let newCards = 0;
+      let updatedCards = 0;
+      let newPrices = 0;
+      let refreshedPrices = 0;
+      let refreshedCards = 0;
+      let gradedPricesUpdated = 0;
+
+      if (catalogBatch.remoteEpisodes.length > 0) {
+        await progress.updateMessage(
+          catalogBatch.selectedEpisodes.length > 0
+            ? `Catalog sync ${catalogBatch.selectedEpisodes.length} sets pending | eligible queue preview ${previewDueBatch.dueCards}`
+            : "Refreshing remote set catalog before the background price batch"
+        );
+        await upsertVisibleRemoteEpisodes(catalogBatch.remoteEpisodes);
+        newEpisodes = catalogBatch.newEpisodes;
+      }
+
+      for (const [episodeIndex, episode] of catalogBatch.selectedEpisodes.entries()) {
+        await progress.throwIfCancelled();
+        await progress.updateMessage(
+          `Catalog sync ${catalogBatch.selectedEpisodes.length} sets pending | Refreshing ${episode.name} (${episodeIndex + 1}/${catalogBatch.selectedEpisodes.length}) | finding missing cards`
+        );
+
+        const result = await syncEpisodeCards(episode.id, {
+          refreshAllPrices: false,
+          backfillNativeHistory: false,
+          throwIfCancelled: progress.throwIfCancelled,
+        });
+        catalogSyncedEpisodes += 1;
+        newCards += result.newCards;
+        updatedCards += result.updatedCards;
+        newPrices += result.newPrices;
+        refreshedPrices += result.refreshedPrices;
+        gradedPricesUpdated += result.gradedPricesUpdated;
+      }
 
       const dueBatch = await selectAutoRefreshBatch(new Date());
       const backfillBatch = await selectMissingPriceBackfillBatch({
@@ -2483,16 +2381,21 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       if (
         combinedBatch.size === 0 &&
         nativeHistoryBatch.cardIds.length === 0 &&
-        nativeHistoryBatch.products.length === 0
+        nativeHistoryBatch.products.length === 0 &&
+        catalogSyncedEpisodes === 0 &&
+        newEpisodes === 0
       ) {
         return {
           checkedEpisodes: 0,
+          catalogSyncedEpisodes: 0,
+          newEpisodes: 0,
           dueCards: dueBatch.dueCards,
           missingPriceCards: backfillBatch.missingPriceCards,
           selectedCards: 0,
           backfillCards: 0,
           nativeHistoryItems: 0,
           remainingDueCards: 0,
+          newCards: 0,
           updatedCards: 0,
           newPrices: 0,
           refreshedPrices: 0,
@@ -2503,15 +2406,9 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         };
       }
 
-      const fetchedAt = new Date();
-      let updatedCards = 0;
-      let newPrices = 0;
-      let refreshedPrices = 0;
-      let refreshedCards = 0;
-      let gradedPricesUpdated = 0;
       const episodeEntries = [...combinedBatch.entries()];
       const selectedCards = countSelectedCards(combinedBatch);
-      const batchSummary = `Batch ${selectedCards} cards across ${episodeEntries.length} sets | due backlog ${dueBatch.dueCards}`;
+      const batchSummary = `Batch ${selectedCards} cards across ${episodeEntries.length} sets | eligible queue ${dueBatch.dueCards}`;
       const previewCardRecords = episodeEntries.length
         ? await db.card.findMany({
             where: {
@@ -2583,12 +2480,15 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
 
       return {
         checkedEpisodes: combinedBatch.size,
+        catalogSyncedEpisodes,
+        newEpisodes,
         dueCards: dueBatch.dueCards,
         missingPriceCards: backfillBatch.missingPriceCards,
         selectedCards,
         backfillCards: backfillBatch.selectedCards,
         nativeHistoryItems: nativeHistoryCount,
         remainingDueCards,
+        newCards,
         updatedCards,
         newPrices,
         refreshedPrices,
@@ -2597,8 +2497,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         skipped: false,
         message:
           nativeHistoryCount > 0
-            ? `Checked ${selectedCards} cards across ${combinedBatch.size} sets and backfilled history for ${nativeHistoryCount} items.`
-            : `Checked ${selectedCards} cards across ${combinedBatch.size} sets.`,
+            ? `Checked ${selectedCards} cards across ${combinedBatch.size} sets, synced ${catalogSyncedEpisodes} catalog sets, and backfilled history for ${nativeHistoryCount} items.`
+            : catalogSyncedEpisodes > 0 || newEpisodes > 0
+              ? `Checked ${selectedCards} cards across ${combinedBatch.size} sets after syncing ${catalogSyncedEpisodes} catalog sets and discovering ${newEpisodes} new sets.`
+              : `Checked ${selectedCards} cards across ${combinedBatch.size} sets.`,
       };
     }
   );
@@ -2780,6 +2682,8 @@ async function syncEpisodeSealed(
 }
 
 export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResult> {
+  let preemptedAutoPriceRefresh = false;
+
   return runLoggedSync(
     `episode:${episodeId}`,
     `Syncing cards and all prices for episode ${episodeId}`,
@@ -2805,7 +2709,16 @@ export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResu
           throwIfCancelled: progress.throwIfCancelled,
         }).catch(() => undefined),
       ]);
-      return cardResult;
+      return {
+        ...cardResult,
+        preemptedAutoPriceRefresh,
+      };
+    },
+    {
+      interruptAutoPriceRefresh: true,
+      onAutoPriceRefreshInterrupted: () => {
+        preemptedAutoPriceRefresh = true;
+      },
     }
   );
 }
@@ -2813,61 +2726,36 @@ export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResu
 export async function runFullSync(): Promise<FullSyncResult> {
   return runLoggedSync(
     "full",
-    "Checking new sets, cards, and missing prices",
+    "Checking for new sets and newly added cards",
     summarizeFullSync,
     async (progress) => {
       await progress.throwIfCancelled();
 
-      const [remoteEpisodes, localEpisodes, cardsMissingPrices, cardsMissingMetadata] =
-        await Promise.all([
-          fetchAllEpisodes(),
-          db.episode.findMany({
-            select: {
-              id: true,
-              card_count: true,
-              synced_at: true,
-              _count: {
-                select: { cards: true },
-              },
+      const [remoteEpisodes, localEpisodes] = await Promise.all([
+        fetchAllEpisodes(),
+        db.episode.findMany({
+          select: {
+            id: true,
+            card_count: true,
+            source_status: true,
+            source_checked_at: true,
+            synced_at: true,
+            _count: {
+              select: { cards: true },
             },
-          }),
-          db.card.findMany({
-            where: {
-              prices: {
-                none: {},
-              },
-            },
-            select: { episode_id: true },
-            distinct: ["episode_id"],
-          }),
-          db.card.findMany({
-            where: {
-              OR: [
-                { image_url: null },
-                { tcgid: null },
-                { cardmarket_id: null },
-                { cardmarket_url: null },
-                { tcgplayer_id: null },
-              ],
-            },
-            select: { episode_id: true },
-            distinct: ["episode_id"],
-          }),
-        ]);
+          },
+        }),
+      ]);
 
       const localEpisodeMap = new Map(localEpisodes.map((episode) => [episode.id, episode]));
-      const missingPriceEpisodeIds = new Set(cardsMissingPrices.map((card) => card.episode_id));
-      const metadataBackfillEpisodeIds = new Set(
-        cardsMissingMetadata.map((card) => card.episode_id)
-      );
 
       let newEpisodes = 0;
-      const episodesToSync: string[] = [];
+      const episodesToSync = new Set<string>();
 
       for (const episode of remoteEpisodes) {
         await progress.throwIfCancelled();
 
-        if (isHiddenExpansion(episode)) {
+        if (isHiddenExpansion(episode) || isRedundantSubsetExpansion(episode.name)) {
           continue;
         }
 
@@ -2875,10 +2763,8 @@ export async function runFullSync(): Promise<FullSyncResult> {
         const isNewEpisode = !existingEpisode;
         const localCardCount = existingEpisode?._count.cards ?? 0;
         const mayHaveRemoteCards = episode.card_count == null || episode.card_count > 0;
-        const remoteCardCountChanged =
-          episode.card_count != null ? localCardCount !== episode.card_count : localCardCount === 0;
-        const needsBackfill =
-          missingPriceEpisodeIds.has(episode.id) || metadataBackfillEpisodeIds.has(episode.id);
+        const missingRemoteCards =
+          episode.card_count == null ? localCardCount === 0 : localCardCount < episode.card_count;
 
         if (isNewEpisode) {
           newEpisodes += 1;
@@ -2891,20 +2777,82 @@ export async function runFullSync(): Promise<FullSyncResult> {
             name: episode.name,
             code: episode.code,
             release_date: episode.release_date,
-            card_count: episode.card_count,
+            card_count: mergeKnownEpisodeCardCount(existingEpisode?.card_count, episode.card_count),
             logo_url: episode.logo_url,
             symbol_url: episode.symbol_url,
             series: episode.series,
           },
         });
+        episode.card_count = mergeKnownEpisodeCardCount(existingEpisode?.card_count, episode.card_count);
 
-        if (
-          mayHaveRemoteCards &&
-          (isNewEpisode || localCardCount === 0 || remoteCardCountChanged || needsBackfill)
-        ) {
-          episodesToSync.push(episode.id);
+        if ((mayHaveRemoteCards && missingRemoteCards) || hasEpisodeSourceIssue(existingEpisode?.source_status ?? null)) {
+          episodesToSync.add(episode.id);
         }
       }
+
+      const promoEpisodesToVerify = remoteEpisodes
+        .filter(
+          (episode) =>
+            !isHiddenExpansion(episode) &&
+            !isRedundantSubsetExpansion(episode.name) &&
+            isPromoExpansion(episode) &&
+            !episodesToSync.has(episode.id)
+        )
+        .sort((a, b) => {
+          const releaseDiff =
+            new Date(b.release_date ?? 0).getTime() - new Date(a.release_date ?? 0).getTime();
+          if (releaseDiff !== 0) {
+            return releaseDiff;
+          }
+
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, FULL_SYNC_PROMO_VERIFICATION_LIMIT);
+
+      for (const [promoIndex, episode] of promoEpisodesToVerify.entries()) {
+        await progress.throwIfCancelled();
+        await progress.updateMessage(
+          `Checking promo expansion ${episode.name} (${promoIndex + 1}/${promoEpisodesToVerify.length}) for newly added cards`
+        );
+
+        let remoteActualCount = 0;
+        try {
+          remoteActualCount = (await fetchCardsForEpisode(episode.id)).length;
+        } catch (error) {
+          if (error instanceof Error && error.message.includes("404")) {
+            continue;
+          }
+
+          throw error;
+        }
+        const localCardCount = localEpisodeMap.get(episode.id)?._count.cards ?? 0;
+        const catalogCardCount = episode.card_count;
+        const checkedAt = new Date();
+        const sourceCheck = assessEpisodeSourceCheck({
+          catalogCardCount,
+          localCardCount,
+          actualCardCount: remoteActualCount,
+        });
+
+        episode.card_count = sourceCheck.nextCardCount;
+        await db.episode.update({
+          where: { id: episode.id },
+          data: buildEpisodeSourceCheckUpdate({
+            catalogCardCount,
+            localCardCount,
+            actualCardCount: remoteActualCount,
+            checkedAt,
+          }),
+        });
+
+        if (remoteActualCount > localCardCount) {
+          episodesToSync.add(episode.id);
+        }
+      }
+
+      const orderedEpisodesToSync = remoteEpisodes
+        .filter((episode) => episodesToSync.has(episode.id))
+        .map((episode) => episode.id);
 
       let newCards = 0;
       let updatedCards = 0;
@@ -2912,13 +2860,13 @@ export async function runFullSync(): Promise<FullSyncResult> {
       let refreshedPrices = 0;
       let gradedPricesUpdated = 0;
 
-      for (const [episodeIndex, episodeId] of episodesToSync.entries()) {
+      for (const [episodeIndex, episodeId] of orderedEpisodesToSync.entries()) {
         await progress.throwIfCancelled();
 
         const episodeName =
           remoteEpisodes.find((episode) => episode.id === episodeId)?.name ?? `Set ${episodeId}`;
         await progress.updateMessage(
-          `Syncing ${episodeName} (${episodeIndex + 1}/${episodesToSync.length})`
+          `Syncing ${episodeName} (${episodeIndex + 1}/${orderedEpisodesToSync.length})`
         );
         const [episodeResult] = await Promise.all([
           syncEpisodeCards(episodeId, {
@@ -2942,8 +2890,8 @@ export async function runFullSync(): Promise<FullSyncResult> {
       return {
         count: remoteEpisodes.length,
         newEpisodes,
-        syncedEpisodes: episodesToSync.length,
-        skippedEpisodes: Math.max(remoteEpisodes.length - episodesToSync.length, 0),
+        syncedEpisodes: orderedEpisodesToSync.length,
+        skippedEpisodes: Math.max(remoteEpisodes.length - orderedEpisodesToSync.length, 0),
         newCards,
         updatedCards,
         newPrices,

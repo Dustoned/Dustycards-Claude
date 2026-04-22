@@ -241,21 +241,24 @@ export default async function SettingsPage() {
         entry
       ): entry is NonNullable<ReturnType<typeof toSyncEntry>> => entry !== null
     );
-  const latestSuccessByFailedType = new Map(
-    await Promise.all(
-      [...new Set(recentFailedSyncs.map((log) => log.type))].map(async (type) => {
-        const latestSuccess = await db.syncLog.findFirst({
-          where: {
-            type,
-            status: "success",
-          },
-          orderBy: { finished_at: "desc" },
-        });
-
-        return [type, latestSuccess] as const;
+  const failedTypes = [...new Set(recentFailedSyncs.map((log) => log.type))];
+  const latestSuccessfulFailedTypeLogs = failedTypes.length
+    ? await db.syncLog.findMany({
+        where: {
+          type: { in: failedTypes },
+          status: "success",
+        },
+        orderBy: [{ type: "asc" }, { finished_at: "desc" }, { started_at: "desc" }],
       })
-    )
-  );
+    : [];
+  const latestSuccessByFailedType = new Map<string, (typeof latestSuccessfulFailedTypeLogs)[number]>();
+
+  for (const log of latestSuccessfulFailedTypeLogs) {
+    if (!latestSuccessByFailedType.has(log.type)) {
+      latestSuccessByFailedType.set(log.type, log);
+    }
+  }
+
   const unresolvedRecentFailedSyncs = recentFailedSyncs.filter((log) => {
     const latestSuccess = latestSuccessByFailedType.get(log.type);
     if (!latestSuccess) return true;
@@ -278,6 +281,7 @@ export default async function SettingsPage() {
   const recentAutoFailureCount = recentSyncs.filter(
     (log) => log.status === "failed" && log.type === "auto-prices"
   ).length;
+  const activeScraperLabel = toSyncEntry(activeSync)?.label ?? null;
 
   return (
     <div className={`${widescreen ? "max-w-[2000px]" : "max-w-2xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
@@ -302,6 +306,7 @@ export default async function SettingsPage() {
             observedLabel: formatDateTime(tcggoUsageSnapshot.observedAt),
           }}
           pendingCardHistoryCards={pendingCardHistoryCards}
+          activeScraperLabel={activeScraperLabel}
         />
         <div className={widescreen ? "col-span-3" : ""}>
           <SyncStatusSection

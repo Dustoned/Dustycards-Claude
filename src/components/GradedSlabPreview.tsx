@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
   formatPsaNameLine,
@@ -170,7 +170,7 @@ function clampScale(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export default function GradedSlabPreview({
+function GradedSlabPreview({
   company,
   grade,
   name,
@@ -384,3 +384,9 @@ export default function GradedSlabPreview({
     </div>
   );
 }
+
+const MemoizedGradedSlabPreview = memo(GradedSlabPreview);
+
+MemoizedGradedSlabPreview.displayName = "GradedSlabPreview";
+
+export default MemoizedGradedSlabPreview;

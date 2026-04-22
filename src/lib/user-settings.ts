@@ -1,4 +1,5 @@
 export type Theme = "light" | "dark" | "system";
+export type ResolvedTheme = "light" | "dark";
 export type CardView = "table" | "grid" | "binder";
 export type CardSize = "small" | "medium" | "large";
 export type SortBy = "number" | "cm_en" | "tcp";
@@ -24,6 +25,7 @@ export interface UserSettings {
 
 export const SETTINGS_STORAGE_KEY = "dustycards-settings";
 export const SETTINGS_COOKIE_NAME = "dustycards-settings";
+export const SETTINGS_RESOLVED_THEME_COOKIE_NAME = "dustycards-resolved-theme";
 export const SETTINGS_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -142,6 +144,27 @@ export function buildSettingsCookie(settings: UserSettings): string {
   ].join("; ");
 }
 
+export function resolveTheme(theme: Theme, prefersDark: boolean): ResolvedTheme {
+  if (theme === "dark") return "dark";
+  if (theme === "light") return "light";
+  return prefersDark ? "dark" : "light";
+}
+
+export function parseResolvedThemeCookie(
+  raw: string | null | undefined
+): ResolvedTheme | null {
+  return raw === "dark" || raw === "light" ? raw : null;
+}
+
+export function buildResolvedThemeCookie(theme: ResolvedTheme): string {
+  return [
+    `${SETTINGS_RESOLVED_THEME_COOKIE_NAME}=${theme}`,
+    "Path=/",
+    `Max-Age=${SETTINGS_COOKIE_MAX_AGE}`,
+    "SameSite=Lax",
+  ].join("; ");
+}
+
 export const initSettingsScript = `
 (function(){
   try {
@@ -151,6 +174,7 @@ export const initSettingsScript = `
     document.cookie = '${SETTINGS_COOKIE_NAME}=' + encodeURIComponent(JSON.stringify(s)) + '; Path=/; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; SameSite=Lax';
     var t = s.theme || 'system';
     var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.cookie = '${SETTINGS_RESOLVED_THEME_COOKIE_NAME}=' + (dark ? 'dark' : 'light') + '; Path=/; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; SameSite=Lax';
     document.documentElement.dataset.theme = t;
     document.documentElement.classList.toggle('dark', dark);
     document.documentElement.classList.toggle('widescreen', !!s.widescreen);

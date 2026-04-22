@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -8,14 +9,22 @@ import { Search, X, Layers, Package, Layers3 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { useSettings } from "@/components/SettingsProvider";
-import CardModal, { type ModalCardData } from "@/components/CardModal";
 import {
   clearSearchReturnPath,
   readSearchReturnPath,
 } from "@/lib/search-navigation";
-import SealedProductModal, {
-  type SealedModalProductData,
-} from "@/components/SealedProductModal";
+import type { ModalCardData } from "@/components/CardModal";
+import type { SealedModalProductData } from "@/components/SealedProductModal";
+
+const CardModal = dynamic(() => import("@/components/CardModal"), {
+  ssr: false,
+  loading: () => null,
+});
+
+const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface SingleResult {
   id: string;
@@ -90,6 +99,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const resultsCacheRef = useRef(new Map<string, SearchResults>());
   const trimmedQuery = initialQuery.trim();
 
   useEffect(() => {
@@ -126,6 +136,15 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
         return;
       }
 
+      const cachedResults = resultsCacheRef.current.get(trimmedQuery);
+      if (cachedResults) {
+        abortRef.current?.abort();
+        abortRef.current = null;
+        setResults(cachedResults);
+        setLoading(false);
+        return;
+      }
+
       const controller = new AbortController();
       abortRef.current?.abort();
       abortRef.current = controller;
@@ -141,6 +160,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
           const data: SearchResults = await res.json();
           if (abortRef.current === controller) {
+            resultsCacheRef.current.set(trimmedQuery, data);
             setResults(data);
           }
         } catch (e) {

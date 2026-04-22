@@ -2,11 +2,13 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import {
+  buildResolvedThemeCookie,
   buildSettingsCookie,
   DEFAULT_SETTINGS,
   initSettingsScript,
   mergeSettings,
   parseStoredSettings,
+  resolveTheme,
   SETTINGS_STORAGE_KEY,
   type CardSize,
   type CardView,
@@ -44,17 +46,18 @@ function load(): UserSettings {
 }
 
 function save(s: UserSettings) {
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s));
   document.cookie = buildSettingsCookie(s);
+  document.cookie = buildResolvedThemeCookie(resolveTheme(s.theme, prefersDark));
 }
 
 function applyTheme(theme: Theme) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const resolvedTheme = resolveTheme(theme, prefersDark);
   document.documentElement.dataset.theme = theme;
-  document.documentElement.classList.toggle(
-    "dark",
-    theme === "dark" || (theme === "system" && prefersDark)
-  );
+  document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
+  document.cookie = buildResolvedThemeCookie(resolvedTheme);
 }
 
 function applyWidescreen(on: boolean) {
@@ -92,6 +95,22 @@ export default function SettingsProvider({
       window.cancelAnimationFrame(frame);
     };
   }, [initialSettings]);
+
+  useEffect(() => {
+    if (settings.theme !== "system") {
+      return;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => {
+      applyTheme("system");
+    };
+
+    media.addEventListener("change", handleChange);
+    return () => {
+      media.removeEventListener("change", handleChange);
+    };
+  }, [settings.theme]);
 
   function set<K extends keyof UserSettings>(key: K, value: UserSettings[K]) {
     setSettings((prev) => {

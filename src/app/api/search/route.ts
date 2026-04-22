@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { isHiddenExpansion } from "@/lib/episodes";
+import type { Prisma } from "@/generated/prisma";
+import {
+  HIDDEN_EXPANSION_CODES,
+  HIDDEN_EXPANSION_IDS,
+  HIDDEN_EXPANSION_NAMES,
+} from "@/lib/episodes";
 
 const MAX_RESULTS = 100;
+const FUZZY_CARD_CANDIDATE_LIMIT = 180;
+const FUZZY_SEALED_CANDIDATE_LIMIT = 80;
+const FUZZY_EXPANSION_CANDIDATE_LIMIT = 48;
+const FUZZY_CARD_RESULT_LIMIT = Math.min(MAX_RESULTS, 36);
 
 interface ParsedQuery {
   name: string | null;
@@ -131,6 +140,24 @@ function parseSearchQuery(raw: string): ParsedQuery {
   return { name: q || null, cardNumber: null, setCode: null, rawCardRef: null };
 }
 
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const normalized = value?.trim();
+    if (!normalized) continue;
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
 function nameVariants(name: string): string[] {
   return [...new Set([name, name.replace(/-/g, " "), name.replace(/\s+/g, "-")])];
 }
@@ -163,25 +190,68 @@ function normalizeSearchText(value: string): string {
     .replace(/\s+/g, " ");
 }
 
+function combineWhere<TWhere extends Record<string, unknown>>(
+  operator: "AND" | "OR",
+  conditions: Array<TWhere | undefined>
+): TWhere | undefined {
+  const filtered = conditions.filter((condition): condition is TWhere => Boolean(condition));
+
+  if (filtered.length === 0) {
+    return undefined;
+  }
+
+  if (filtered.length === 1) {
+    return filtered[0];
+  }
+
+  return { [operator]: filtered } as TWhere;
+}
+
+function buildVisibleEpisodeWhere(): Prisma.EpisodeWhereInput {
+  const hiddenConditions: Prisma.EpisodeWhereInput[] = [];
+
+  if (HIDDEN_EXPANSION_IDS.length > 0) {
+    hiddenConditions.push({ id: { in: [...HIDDEN_EXPANSION_IDS] } });
+  }
+
+  if (HIDDEN_EXPANSION_CODES.length > 0) {
+    hiddenConditions.push({
+      OR: HIDDEN_EXPANSION_CODES.map((code) => ({ code: { contains: code } })),
+    });
+  }
+
+  if (HIDDEN_EXPANSION_NAMES.length > 0) {
+    hiddenConditions.push({
+      OR: HIDDEN_EXPANSION_NAMES.map((name) => ({ name: { contains: name } })),
+    });
+  }
+
+  return hiddenConditions.length === 1 ? { NOT: hiddenConditions[0] } : { NOT: hiddenConditions };
+}
+
+const VISIBLE_EPISODE_WHERE = buildVisibleEpisodeWhere();
+
 function episodeMatchesSetCode(setCode: string) {
   return {
     OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }],
-  };
+  } satisfies Prisma.EpisodeWhereInput;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildCardNumberCondition(cardNumber: string): any {
+function containsCondition(field: string, value: string) {
+  return { [field]: { contains: value } } as Record<string, { contains: string }>;
+}
+
+function buildCardNumberCondition(cardNumber: string): Prisma.CardWhereInput {
   return /^\d+$/.test(cardNumber)
     ? { card_number: cardNumber }
     : { card_number: { contains: cardNumber } };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildCardFreeTextCondition(query: string): any {
-  const conditions = [nameContains(query)];
+function buildCardFreeTextCondition(query: string): Prisma.CardWhereInput {
+  const conditions: Prisma.CardWhereInput[] = [nameContains<Prisma.CardWhereInput>(query)];
 
   if (/\d/.test(query)) {
-    conditions.push(fieldContains(query, "card_number"));
+    conditions.push(fieldContains<Prisma.CardWhereInput>(query, "card_number"));
 
     const compactReference = parseCompactCardReference(query);
     if (compactReference) {
@@ -272,51 +342,62 @@ function damerauLevenshteinDistance(a: string, b: string, maxDistance: number): 
   return matrix[a.length][b.length];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function fieldContains(value: string, field = "name"): any {
+function fieldContains<TWhere extends Record<string, unknown>>(
+  value: string,
+  field = "name"
+): TWhere {
   const variants = nameVariants(value);
 
   if (variants.length === 1) {
-    return { [field]: { contains: value } };
+    return containsCondition(field, value) as unknown as TWhere;
   }
 
-  return { OR: variants.map((variant) => ({ [field]: { contains: variant } })) };
+  return {
+    OR: variants.map((variant) => containsCondition(field, variant)),
+  } as unknown as TWhere;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function nameContains(name: string, field = "name"): any {
+function nameContains<TWhere extends Record<string, unknown>>(name: string, field = "name"): TWhere {
   const tokens = searchTokens(name);
 
   if (tokens.length <= 1) {
-    return fieldContains(name, field);
+    return fieldContains<TWhere>(name, field);
   }
 
   return {
     OR: [
-      fieldContains(name, field),
-      { AND: tokens.map((token) => fieldContains(token, field)) },
+      fieldContains<TWhere>(name, field),
+      { AND: tokens.map((token) => fieldContains<Record<string, unknown>>(token, field)) },
     ],
-  };
+  } as unknown as TWhere;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function sealedNameContains(name: string): any {
+function sealedNameContains(name: string): Prisma.SealedProductWhereInput {
   const tokens = searchTokens(name);
 
   if (tokens.length <= 1) {
     return {
-      OR: [fieldContains(name), { episode: fieldContains(name, "name") }],
+      OR: [
+        fieldContains<Prisma.SealedProductWhereInput>(name),
+        { episode: fieldContains<Prisma.EpisodeWhereInput>(name, "name") },
+      ],
     };
   }
 
   return {
     OR: [
       {
-        OR: [fieldContains(name), { episode: fieldContains(name, "name") }],
+        OR: [
+          fieldContains<Prisma.SealedProductWhereInput>(name),
+          { episode: fieldContains<Prisma.EpisodeWhereInput>(name, "name") },
+        ],
       },
       {
         AND: tokens.map((token) => ({
-          OR: [fieldContains(token), { episode: fieldContains(token, "name") }],
+          OR: [
+            fieldContains<Prisma.SealedProductWhereInput>(token),
+            { episode: fieldContains<Prisma.EpisodeWhereInput>(token, "name") },
+          ],
         })),
       },
     ],
@@ -413,6 +494,96 @@ function compareRelevance(aScore: number, bScore: number): number {
   return bScore - aScore;
 }
 
+function buildFuzzyTokenFragments(token: string): string[] {
+  const normalized = token.trim();
+  if (!normalized) return [];
+
+  return uniqueStrings([
+    normalized,
+    normalized.slice(0, Math.min(4, normalized.length)),
+    normalized.slice(0, Math.min(3, normalized.length)),
+    normalized.length > 3 ? normalized.slice(0, 2) : null,
+  ]).filter((fragment) => fragment.length >= 2);
+}
+
+function buildFuzzyTextFragments(rawQuery: string): string[] {
+  const tokens = searchTokens(rawQuery);
+
+  return uniqueStrings([
+    tokens.length > 1 ? tokens.join(" ") : null,
+    ...tokens.flatMap(buildFuzzyTokenFragments),
+  ]).filter((fragment) => fragment.length >= 2);
+}
+
+function buildFuzzyCardCandidateWhere(
+  rawQuery: string,
+  parsed: ParsedQuery
+): Prisma.CardWhereInput | undefined {
+  const textFragments = buildFuzzyTextFragments(rawQuery);
+  const conditions: Prisma.CardWhereInput[] = [];
+
+  if (parsed.setCode && parsed.cardNumber) {
+    conditions.push({
+      AND: [
+        { episode: episodeMatchesSetCode(parsed.setCode) },
+        buildCardNumberCondition(parsed.cardNumber),
+      ],
+    });
+  } else {
+    if (parsed.setCode) {
+      conditions.push({ episode: episodeMatchesSetCode(parsed.setCode) });
+    }
+
+    if (parsed.cardNumber) {
+      conditions.push({ card_number: { contains: parsed.cardNumber } });
+    }
+  }
+
+  for (const fragment of textFragments) {
+    conditions.push(fieldContains<Prisma.CardWhereInput>(fragment));
+    conditions.push({ episode: fieldContains<Prisma.EpisodeWhereInput>(fragment, "name") });
+    conditions.push({
+      episode: fieldContains<Prisma.EpisodeWhereInput>(fragment.toUpperCase(), "code"),
+    });
+  }
+
+  return combineWhere("OR", conditions);
+}
+
+function buildFuzzySealedCandidateWhere(
+  rawQuery: string,
+  parsed: ParsedQuery
+): Prisma.SealedProductWhereInput | undefined {
+  const textFragments = buildFuzzyTextFragments(rawQuery);
+  const conditions: Prisma.SealedProductWhereInput[] = [];
+
+  if (parsed.setCode) {
+    conditions.push({ episode: episodeMatchesSetCode(parsed.setCode) });
+  }
+
+  for (const fragment of textFragments) {
+    conditions.push(fieldContains<Prisma.SealedProductWhereInput>(fragment));
+    conditions.push({ episode: fieldContains<Prisma.EpisodeWhereInput>(fragment, "name") });
+    conditions.push({
+      episode: fieldContains<Prisma.EpisodeWhereInput>(fragment.toUpperCase(), "code"),
+    });
+  }
+
+  return combineWhere("OR", conditions);
+}
+
+function buildFuzzyExpansionCandidateWhere(rawQuery: string): Prisma.EpisodeWhereInput | undefined {
+  const textFragments = buildFuzzyTextFragments(rawQuery);
+  const conditions: Prisma.EpisodeWhereInput[] = [];
+
+  for (const fragment of textFragments) {
+    conditions.push(fieldContains<Prisma.EpisodeWhereInput>(fragment, "name"));
+    conditions.push(fieldContains<Prisma.EpisodeWhereInput>(fragment.toUpperCase(), "code"));
+  }
+
+  return combineWhere("OR", conditions);
+}
+
 function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) {
   return cards
     .map((card) => ({
@@ -486,14 +657,20 @@ function formatExpansionResults(expansions: SearchExpansionRecord[], relevanceQu
   });
 }
 
-async function runFuzzyFallback(rawQuery: string) {
+async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
   const normalizedQuery = normalizeSearchText(rawQuery);
   if (normalizedQuery.length < 4) {
     return { singles: [], sealed: [], expansions: [], total: 0, fuzzy: false };
   }
 
-  const [allCardCandidates, allSealed, allExpansions] = await Promise.all([
+  const [cardCandidates, sealedCandidates, expansionCandidates] = await Promise.all([
     db.card.findMany({
+      where: combineWhere("AND", [
+        { episode: VISIBLE_EPISODE_WHERE },
+        buildFuzzyCardCandidateWhere(rawQuery, parsed),
+      ]),
+      take: FUZZY_CARD_CANDIDATE_LIMIT,
+      orderBy: [{ episode: { release_date: "desc" } }, { name: "asc" }, { card_number: "asc" }],
       select: {
         id: true,
         name: true,
@@ -511,6 +688,12 @@ async function runFuzzyFallback(rawQuery: string) {
       },
     }),
     db.sealedProduct.findMany({
+      where: combineWhere("AND", [
+        { episode: VISIBLE_EPISODE_WHERE },
+        buildFuzzySealedCandidateWhere(rawQuery, parsed),
+      ]),
+      take: FUZZY_SEALED_CANDIDATE_LIMIT,
+      orderBy: [{ episode: { release_date: "desc" } }, { name: "asc" }],
       select: {
         id: true,
         name: true,
@@ -523,41 +706,24 @@ async function runFuzzyFallback(rawQuery: string) {
       },
     }),
     db.episode.findMany({
+      where: combineWhere("AND", [
+        VISIBLE_EPISODE_WHERE,
+        buildFuzzyExpansionCandidateWhere(rawQuery),
+      ]),
       select: { id: true, name: true, code: true, logo_url: true },
-      take: 200,
+      take: FUZZY_EXPANSION_CANDIDATE_LIMIT,
       orderBy: { release_date: "desc" },
     }),
   ]);
 
-  const visibleCards = allCardCandidates.filter(
-    (card) =>
-      !isHiddenExpansion({
-        id: card.episode.id,
-        code: card.episode.code,
-        name: card.episode.name,
-      })
-  );
-  const visibleSealed = allSealed.filter(
-    (product) =>
-      !isHiddenExpansion({
-        id: product.episode.id,
-        code: product.episode.code,
-        name: product.episode.name,
-      })
-  );
-  const visibleExpansions = allExpansions.filter(
-    (episode) =>
-      !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
-  );
-
-  const topCardIds = visibleCards
+  const topCardIds = cardCandidates
     .map((card) => ({
       id: card.id,
       score: fuzzyRelevanceScore(buildCardSearchText(card), rawQuery),
     }))
     .filter((entry) => entry.score > 0)
     .sort((a, b) => compareRelevance(a.score, b.score))
-    .slice(0, Math.min(MAX_RESULTS, 36))
+    .slice(0, FUZZY_CARD_RESULT_LIMIT)
     .map((entry) => entry.id);
 
   const detailedCards = topCardIds.length
@@ -592,7 +758,7 @@ async function runFuzzyFallback(rawQuery: string) {
     .map((id) => detailedCardById.get(id))
     .filter((card): card is SearchCardRecord => Boolean(card));
 
-  const sealed = visibleSealed
+  const sealed = sealedCandidates
     .map((product) => ({
       product,
       score:
@@ -604,7 +770,7 @@ async function runFuzzyFallback(rawQuery: string) {
     .slice(0, 18)
     .map((entry) => entry.product);
 
-  const expansions = visibleExpansions
+  const expansions = expansionCandidates
     .map((episode) => ({
       episode,
       score: fuzzyRelevanceScore(episode.name, rawQuery),
@@ -640,8 +806,6 @@ export async function GET(req: NextRequest) {
     const { name, cardNumber, setCode, rawCardRef } = parsed;
 
     // SQLite LIKE is already case-insensitive for ASCII, so we do not use mode:"insensitive".
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cardWhere: any = {};
     const cardAndConditions: Array<Record<string, unknown>> = [];
 
     if (name) {
@@ -673,32 +837,53 @@ export async function GET(req: NextRequest) {
       cardAndConditions.push({ episode: episodeMatchesSetCode(setCode) });
     }
 
-    if (cardAndConditions.length === 1) {
-      Object.assign(cardWhere, cardAndConditions[0]);
-    } else if (cardAndConditions.length > 1) {
-      cardWhere.AND = cardAndConditions;
-    }
+    const cardWhere: Prisma.CardWhereInput | undefined =
+      cardAndConditions.length === 0
+        ? undefined
+        : cardAndConditions.length === 1
+          ? (cardAndConditions[0] as Prisma.CardWhereInput)
+          : { AND: cardAndConditions as Prisma.CardWhereInput[] };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sealedWhere: any = {};
     const shouldSearchSealed = Boolean((name || setCode) && !cardNumber);
     const shouldSearchExpansions = Boolean(name && !setCode && !cardNumber);
     const expansionQuery = shouldSearchExpansions ? name ?? "" : "";
+    const expansionNameVariants = shouldSearchExpansions ? nameVariants(expansionQuery) : [];
 
-    if (name && setCode) {
-      sealedWhere.AND = [
-        sealedNameContains(name),
-        { episode: episodeMatchesSetCode(setCode) },
-      ];
-    } else if (name) {
-      Object.assign(sealedWhere, sealedNameContains(name));
-    } else if (setCode) {
-      sealedWhere.episode = episodeMatchesSetCode(setCode);
-    }
+    const sealedWhere: Prisma.SealedProductWhereInput | undefined =
+      name && setCode
+        ? {
+            AND: [sealedNameContains(name), { episode: episodeMatchesSetCode(setCode) }],
+          }
+        : name
+          ? sealedNameContains(name)
+          : setCode
+            ? { episode: episodeMatchesSetCode(setCode) }
+            : undefined;
+
+    const visibleCardWhere = combineWhere<Prisma.CardWhereInput>("AND", [
+      { episode: VISIBLE_EPISODE_WHERE },
+      cardWhere,
+    ]);
+    const visibleSealedWhere = combineWhere<Prisma.SealedProductWhereInput>("AND", [
+      { episode: VISIBLE_EPISODE_WHERE },
+      sealedWhere,
+    ]);
+    const visibleExpansionWhere = shouldSearchExpansions
+      ? combineWhere<Prisma.EpisodeWhereInput>("AND", [
+          VISIBLE_EPISODE_WHERE,
+          expansionNameVariants.length === 1
+            ? { name: { contains: expansionQuery } }
+            : {
+                OR: expansionNameVariants.map((variant) => ({
+                  name: { contains: variant },
+                })),
+              },
+        ])
+      : undefined;
 
     const [cards, sealed, expansions] = await Promise.all([
       db.card.findMany({
-        where: cardWhere,
+        where: visibleCardWhere,
         take: MAX_RESULTS,
         select: {
           id: true,
@@ -725,7 +910,7 @@ export async function GET(req: NextRequest) {
 
       shouldSearchSealed
         ? db.sealedProduct.findMany({
-            where: sealedWhere,
+            where: visibleSealedWhere,
             take: MAX_RESULTS,
             select: {
               id: true,
@@ -743,14 +928,7 @@ export async function GET(req: NextRequest) {
 
       shouldSearchExpansions
         ? db.episode.findMany({
-            where:
-              nameVariants(expansionQuery).length === 1
-                ? { name: { contains: expansionQuery } }
-                : {
-                    OR: nameVariants(expansionQuery).map((variant) => ({
-                      name: { contains: variant },
-                    })),
-                  },
+            where: visibleExpansionWhere,
             select: { id: true, name: true, code: true, logo_url: true },
             orderBy: { release_date: "desc" },
             take: 20,
@@ -758,35 +936,14 @@ export async function GET(req: NextRequest) {
         : Promise.resolve([]),
     ]);
 
-    const visibleCards = cards.filter(
-      (card) =>
-        !isHiddenExpansion({
-          id: card.episode.id,
-          code: card.episode.code,
-          name: card.episode.name,
-        })
-    );
-    const visibleSealed = sealed.filter(
-      (product) =>
-        !isHiddenExpansion({
-          id: product.episode.id,
-          code: product.episode.code,
-          name: product.episode.name,
-        })
-    );
-    const visibleExpansions = expansions.filter(
-      (episode) =>
-        !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
-    );
-
     const relevanceQuery = name ?? q;
-    const singles = formatSingleResults(visibleCards, relevanceQuery);
-    const sealedResults = formatSealedResults(visibleSealed, relevanceQuery);
-    const expansionResults = formatExpansionResults(visibleExpansions, relevanceQuery);
+    const singles = formatSingleResults(cards, relevanceQuery);
+    const sealedResults = formatSealedResults(sealed, relevanceQuery);
+    const expansionResults = formatExpansionResults(expansions, relevanceQuery);
     const total = singles.length + sealedResults.length + expansionResults.length;
 
     if (total === 0) {
-      const fuzzyResults = await runFuzzyFallback(q);
+      const fuzzyResults = await runFuzzyFallback(q, parsed);
 
       return NextResponse.json({
         ...fuzzyResults,

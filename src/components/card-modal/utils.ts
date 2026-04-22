@@ -1,0 +1,201 @@
+import type { ModalSize } from "@/components/SettingsProvider";
+import { normalizeRarityLabel } from "@/lib/rarity";
+import type { CurrencyCode } from "./types";
+
+const EUR_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const USD_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const RARITY_BADGE: Record<string, string> = {
+  Common: "bg-black/6 dark:bg-white/8 text-gray-500 dark:text-gray-400",
+  Uncommon: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
+  Rare: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
+  "Rare Holo": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
+  "Rare Ultra": "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
+  "Ultra Rare": "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  "Secret Rare": "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400",
+  "Amazing Rare": "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400",
+  Promo: "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  "Radiant Rare": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  "ACE SPEC Rare": "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
+  "Double Rare": "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300",
+  "Illustration Rare": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
+  "Special Illustration Rare": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
+  "Hyper Rare": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  "Shiny Rare": "bg-lime-50 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300",
+  "Shiny Ultra Rare": "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300",
+  "Rare Rainbow": "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
+  "Rare Holo EX": "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300",
+  "Rare Holo V": "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300",
+  "Rare Holo GX": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  "Trainer Gallery Rare Holo": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
+  "Rare Holo LV.X": "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300",
+  "Rare Holo VSTAR": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  "Rare Shiny": "bg-lime-50 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300",
+  "Rare Shiny GX": "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
+  "Rare BREAK": "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
+  "Rare Prism Star": "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300",
+  "Rare Prime": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
+  "Classic Collection": "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
+  "Rare Holo Star": "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+  LEGEND: "bg-stone-100 dark:bg-stone-800/60 text-stone-700 dark:text-stone-300",
+  "Rare Shining": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  "Rare ACE": "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
+  "Art Rare": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
+  "Special Art Rare": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
+  "Mega Hyper Rare": "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
+  "Black White Rare": "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
+};
+
+export function formatCurrency(
+  value: number | null | undefined,
+  currency: CurrencyCode = "EUR"
+): string {
+  if (value == null) return "--";
+
+  return (currency === "USD" ? USD_FORMATTER : EUR_FORMATTER).format(value);
+}
+
+export function rarityBadge(rarity: string | null): string {
+  return (
+    RARITY_BADGE[normalizeRarityLabel(rarity) ?? ""] ??
+    "bg-black/5 dark:bg-white/6 text-gray-500 dark:text-gray-400"
+  );
+}
+
+function normalizeGradePickerValue(value: string | null | undefined): string {
+  return value?.toUpperCase().replace(/\s+/g, " ").trim() ?? "";
+}
+
+export function getPreferredGradedLabel(
+  prices: Array<{ label: string; price: number }>,
+  company: string | null | undefined,
+  grade: string | null | undefined
+): string | null {
+  if (prices.length === 0) return null;
+
+  const normalizedCompany = normalizeGradePickerValue(company);
+  const normalizedGrade = normalizeGradePickerValue(grade);
+
+  if (normalizedCompany && normalizedGrade) {
+    const preferredKey = `${normalizedCompany} ${normalizedGrade}`;
+    const matchedPrice = prices.find((price) => {
+      const normalizedLabel = normalizeGradePickerValue(price.label);
+      return (
+        normalizedLabel === preferredKey ||
+        normalizedLabel.startsWith(`${preferredKey} `) ||
+        normalizedLabel.includes(preferredKey)
+      );
+    });
+
+    if (matchedPrice) {
+      return matchedPrice.label;
+    }
+  }
+
+  return prices[0]?.label ?? null;
+}
+
+export function getCardModalLayoutClasses(
+  size: ModalSize,
+  widescreen: boolean,
+  hasCollectionItem: boolean
+) {
+  const mediaWidth =
+    size === "small"
+      ? widescreen
+        ? "w-[12.5rem] sm:w-[13.5rem] xl:w-[14.5rem]"
+        : "w-36 sm:w-40 xl:w-44"
+      : size === "large"
+        ? widescreen
+          ? "w-[24rem] sm:w-[27rem] xl:w-[30rem]"
+          : "w-72 sm:w-80 xl:w-[24rem]"
+        : widescreen
+          ? "w-[15.5rem] sm:w-[17rem] xl:w-[18.5rem]"
+          : "w-44 sm:w-52 xl:w-[16rem]";
+  const imageSize =
+    size === "small"
+      ? widescreen
+        ? "224px"
+        : "176px"
+      : size === "large"
+        ? widescreen
+          ? "560px"
+          : "448px"
+        : widescreen
+          ? "304px"
+          : "240px";
+  const maxW =
+    size === "small"
+      ? widescreen
+        ? "max-w-[52rem]"
+        : "max-w-[44rem]"
+      : size === "large"
+        ? widescreen
+          ? "max-w-[104rem]"
+          : "max-w-[90rem]"
+        : widescreen
+          ? "max-w-[68rem]"
+          : "max-w-[58rem]";
+  const pad =
+    size === "small"
+      ? "p-2.5 sm:p-3"
+      : size === "large"
+        ? "p-6 sm:p-7 xl:p-8"
+        : "p-3 sm:p-4";
+  const gridGap =
+    size === "small"
+      ? "gap-2.5 sm:gap-3"
+      : size === "large"
+        ? "gap-6 sm:gap-8 xl:gap-10"
+        : "gap-3 sm:gap-4";
+  const titleClass =
+    size === "small"
+      ? "text-[1.28rem] sm:text-[1.42rem]"
+      : size === "large"
+        ? "text-[2.45rem] sm:text-[2.85rem] xl:text-[3.15rem]"
+        : "text-[1.68rem] sm:text-[1.88rem]";
+  const metaClassName =
+    size === "small"
+      ? "text-[12px]"
+      : size === "large"
+        ? "text-base sm:text-[17px]"
+        : "text-[13px]";
+  const detailStatClass =
+    size === "small"
+      ? "rounded-[15px] border border-white/8 bg-black/18 px-2 py-1.5 backdrop-blur-sm"
+      : size === "large"
+        ? "rounded-[22px] border border-white/8 bg-black/18 px-4 py-3.5 backdrop-blur-sm"
+        : "rounded-[17px] border border-white/8 bg-black/18 px-2.5 py-2 backdrop-blur-sm";
+  const footerPad =
+    size === "small"
+      ? "px-2.5 pb-2.5 sm:px-3 sm:pb-3"
+      : size === "large"
+        ? "px-6 pb-6 sm:px-7 sm:pb-7 xl:px-8 xl:pb-8"
+        : "px-3 pb-3 sm:px-4 sm:pb-4";
+  const footerGridClass = hasCollectionItem
+    ? `grid gap-3 ${footerPad} sm:grid-cols-2 xl:grid-cols-4`
+    : `grid gap-3 ${footerPad} sm:grid-cols-2 xl:grid-cols-3`;
+
+  return {
+    detailStatClass,
+    footerGridClass,
+    gridGap,
+    imageSize,
+    maxW,
+    mediaWidth,
+    metaClassName,
+    pad,
+    titleClass,
+  };
+}

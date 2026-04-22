@@ -104,9 +104,7 @@ function SyncCardHistoryButton({ pendingCards }: { pendingCards: number }) {
         <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         {loading ? "Syncing history..." : "Sync Card History"}
       </button>
-      <p className="max-w-sm text-xs text-gray-400">
-        Manual only. Uses scraper requests and only targets collection cards above Common, Uncommon, and Rare.
-      </p>
+      <p className="max-w-sm text-xs text-gray-400">Manual only.</p>
       {status && <p className="max-w-sm text-xs text-gray-400">{status}</p>}
     </div>
   );
@@ -142,6 +140,7 @@ interface AutomationSectionProps {
     observedLabel: string | null;
   };
   pendingCardHistoryCards: number;
+  activeScraperLabel: string | null;
 }
 
 function formatRequestsUsed(used: number, limit: number | null): string {
@@ -152,6 +151,7 @@ function formatRequestsUsed(used: number, limit: number | null): string {
 export default function AutomationSection({
   scraperUsage,
   pendingCardHistoryCards,
+  activeScraperLabel,
 }: AutomationSectionProps) {
   const { settings, set } = useSettings();
 
@@ -224,9 +224,14 @@ export default function AutomationSection({
             </div>
             {scraperUsage.observedLabel && (
               <p className="mt-2 text-[11px] text-gray-400">
-                Last quota update {scraperUsage.observedLabel}
+                Updated {scraperUsage.observedLabel}
               </p>
             )}
+            {activeScraperLabel ? (
+              <p className="mt-2 max-w-xl text-[11px] text-gray-400">
+                Active now: {activeScraperLabel}
+              </p>
+            ) : null}
           </div>
           <SyncButton />
         </div>

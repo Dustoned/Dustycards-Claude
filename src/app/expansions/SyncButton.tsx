@@ -11,7 +11,7 @@ export default function SyncButton() {
 
   async function handleSync() {
     setLoading(true);
-    setStatus("Checking new sets, cards, and missing prices...");
+    setStatus("Checking for new sets and newly added cards...");
 
     try {
       const res = await fetch("/api/sync", { method: "POST" });
@@ -31,7 +31,7 @@ export default function SyncButton() {
             } sets, ${data.newCards ?? 0} cards, ${data.newPrices ?? 0} prices`
           );
         } else {
-          setStatus(`Up to date across ${data.count} sets`);
+          setStatus(`No new sets or cards across ${data.count} sets`);
         }
         router.refresh();
       } else if (data.cancelled) {

@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from "react";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
-import ExpansionView, { type CardData } from "./ExpansionView";
+import ExpansionView from "./ExpansionView";
 import {
   buildEpisodeSetPriceHistory,
   getCardMarketValue,
   type EpisodePriceHistorySnapshot,
 } from "@/lib/price-history";
+import type { CardData } from "@/types/card-data";
 
 interface Props {
   cards: CardData[];

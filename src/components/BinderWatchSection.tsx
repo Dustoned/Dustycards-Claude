@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
-import CollectionCardsView, { type CollectionCardViewItem } from "@/components/CollectionCardsView";
+import CollectionCardsView from "@/components/CollectionCardsView";
 import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
+import type { CollectionCardViewItem } from "@/types/collection-view";
 
 export default function BinderWatchSection({
   items,

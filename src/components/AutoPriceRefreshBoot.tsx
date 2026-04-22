@@ -73,6 +73,8 @@ export default function AutoPriceRefreshBoot() {
         const data = (await response.json()) as {
           ok?: boolean;
           skipped?: boolean;
+          newEpisodes?: number;
+          newCards?: number;
           updatedCards?: number;
           newPrices?: number;
           refreshedPrices?: number;
@@ -84,6 +86,8 @@ export default function AutoPriceRefreshBoot() {
           !data.ok ||
           data.skipped ||
           !(
+            (data.newEpisodes ?? 0) > 0 ||
+            (data.newCards ?? 0) > 0 ||
             (data.updatedCards ?? 0) > 0 ||
             (data.newPrices ?? 0) > 0 ||
             (data.refreshedPrices ?? 0) > 0 ||

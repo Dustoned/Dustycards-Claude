@@ -19,21 +19,15 @@ import {
 } from "@/lib/sealed-products";
 import { getSealedPriceSnapshotsByEpisode } from "@/lib/sealed-price-snapshots";
 import {
-  fetchSealedAvailabilityForEpisode,
   fetchSealedProductsForEpisode,
+  type NormalizedSealedProduct,
 } from "@/lib/tcggo";
-import { type CardData } from "./ExpansionView";
+import type { CardData } from "@/types/card-data";
 import ExpansionCardsSection from "./ExpansionCardsSection";
 import SealedProductsGrid from "./SealedProductsGrid";
 import SyncEpisodeButton from "./SyncEpisodeButton";
 
 export const dynamic = "force-dynamic";
-
-const getCachedSealedAvailability = unstable_cache(
-  async (episodeId: string) => fetchSealedAvailabilityForEpisode(episodeId),
-  ["episode-sealed-availability"],
-  { revalidate: 3600 }
-);
 
 const getCachedSealedProducts = unstable_cache(
   async (episodeId: string) => fetchSealedProductsForEpisode(episodeId),
@@ -43,6 +37,44 @@ const getCachedSealedProducts = unstable_cache(
 
 function isTcggoEpisodeId(value: string): boolean {
   return /^\d+$/.test(value);
+}
+
+function toNormalizedSealedProduct(product: {
+  id: string;
+  name: string;
+  image_url: string | null;
+  tcggo_url: string | null;
+  cardmarket_url: string | null;
+  cardmarket_id: string | null;
+  tcgplayer_id: string | null;
+  cm_lowest: number | null;
+  cm_lowest_eu: number | null;
+  cm_lowest_de: number | null;
+  cm_lowest_fr: number | null;
+  cm_lowest_es: number | null;
+  cm_lowest_it: number | null;
+  cm_avg_7d: number | null;
+  cm_avg_30d: number | null;
+}): NormalizedSealedProduct {
+  return {
+    id: product.id,
+    name: product.name,
+    image_url: product.image_url,
+    tcggo_url: product.tcggo_url,
+    cardmarket_url: product.cardmarket_url,
+    cardmarket_id: product.cardmarket_id,
+    tcgplayer_id: product.tcgplayer_id,
+    price: {
+      cm_lowest: product.cm_lowest,
+      cm_lowest_eu: product.cm_lowest_eu,
+      cm_lowest_de: product.cm_lowest_de,
+      cm_lowest_fr: product.cm_lowest_fr,
+      cm_lowest_es: product.cm_lowest_es,
+      cm_lowest_it: product.cm_lowest_it,
+      cm_avg_7d: product.cm_avg_7d,
+      cm_avg_30d: product.cm_avg_30d,
+    },
+  };
 }
 
 export default async function ExpansionDetailPage({
@@ -60,7 +92,7 @@ export default async function ExpansionDetailPage({
     where: { id },
     include: {
       _count: {
-        select: { cards: true },
+        select: { cards: true, sealedProducts: true },
       },
     },
   });
@@ -69,9 +101,40 @@ export default async function ExpansionDetailPage({
     notFound();
   }
 
-  const hasSealed = isTcggoEpisodeId(id)
-    ? await getCachedSealedAvailability(id).catch(() => false)
-    : false;
+  const hasLocalSealedProducts = episode._count.sealedProducts > 0;
+  let sealedProducts: NormalizedSealedProduct[] = [];
+
+  if (requestedTab === "sealed") {
+    if (hasLocalSealedProducts) {
+      const localSealedProducts = await db.sealedProduct.findMany({
+        where: { episode_id: id },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          image_url: true,
+          tcggo_url: true,
+          cardmarket_url: true,
+          cardmarket_id: true,
+          tcgplayer_id: true,
+          cm_lowest: true,
+          cm_lowest_eu: true,
+          cm_lowest_de: true,
+          cm_lowest_fr: true,
+          cm_lowest_es: true,
+          cm_lowest_it: true,
+          cm_avg_7d: true,
+          cm_avg_30d: true,
+        },
+      });
+
+      sealedProducts = localSealedProducts.map(toNormalizedSealedProduct);
+    } else if (isTcggoEpisodeId(id)) {
+      sealedProducts = await getCachedSealedProducts(id).catch(() => []);
+    }
+  }
+
+  const hasSealed = hasLocalSealedProducts || sealedProducts.length > 0;
   const activeTab = requestedTab === "sealed" && hasSealed ? "sealed" : "cards";
 
   let cards: CardData[] = [];
@@ -84,10 +147,6 @@ export default async function ExpansionDetailPage({
     cm_es_lowest_nm: number | null;
     cm_it_lowest_nm: number | null;
   }> = [];
-  const sealedProducts =
-    activeTab === "sealed" && isTcggoEpisodeId(id)
-      ? await getCachedSealedProducts(id).catch(() => [])
-      : [];
   const sealedGroups = activeTab === "sealed" ? getGroupedSealedProducts(sealedProducts) : [];
   const activeSealedFilter =
     activeTab === "sealed" ? resolveSealedFilter(sealed, sealedGroups) : "all";
@@ -101,19 +160,32 @@ export default async function ExpansionDetailPage({
   let pricePanelSubtitle = `0/${episode._count.cards} cards priced`;
   let pricePanelEmptyText = "Nog geen setprijzen beschikbaar";
   if (activeTab === "cards") {
-    const rawSetPriceSnapshots = await db.price.findMany({
-      where: { card: { episode_id: id } },
-      orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
-      select: {
-        card_id: true,
-        fetched_at: true,
-        cm_en_lowest_nm: true,
-        cm_de_lowest_nm: true,
-        cm_fr_lowest_nm: true,
-        cm_es_lowest_nm: true,
-        cm_it_lowest_nm: true,
-      },
-    });
+    const [rawSetPriceSnapshots, dbCards] = await Promise.all([
+      db.price.findMany({
+        where: { card: { episode_id: id } },
+        orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
+        select: {
+          card_id: true,
+          fetched_at: true,
+          cm_en_lowest_nm: true,
+          cm_de_lowest_nm: true,
+          cm_fr_lowest_nm: true,
+          cm_es_lowest_nm: true,
+          cm_it_lowest_nm: true,
+        },
+      }),
+      db.card.findMany({
+        where: { episode_id: id },
+        orderBy: [{ card_number: "asc" }, { name: "asc" }],
+        include: {
+          prices: {
+            orderBy: { fetched_at: "desc" },
+            take: 1,
+          },
+        },
+      }),
+    ]);
+
     const setPriceHistory = buildEpisodeSetPriceHistory(rawSetPriceSnapshots);
     const latestSetPricePoint = setPriceHistory[setPriceHistory.length - 1] ?? null;
     setPriceSnapshots = rawSetPriceSnapshots.map((snapshot) => ({
@@ -130,17 +202,6 @@ export default async function ExpansionDetailPage({
     pricePanelSubtitle = latestSetPricePoint
       ? `${latestSetPricePoint.priced_cards}/${episode._count.cards} cards priced`
       : `0/${episode._count.cards} cards priced`;
-
-    const dbCards = await db.card.findMany({
-      where: { episode_id: id },
-      orderBy: [{ card_number: "asc" }, { name: "asc" }],
-      include: {
-        prices: {
-          orderBy: { fetched_at: "desc" },
-          take: 1,
-        },
-      },
-    });
 
     cards = dbCards.map((card) => {
       const price = card.prices[0] ?? null;

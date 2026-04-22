@@ -1,120 +1,34 @@
 "use client";
 
-import { type ReactNode, useMemo, useState } from "react";
-import Image from "next/image";
-import Link from "next/link";
+import dynamic from "next/dynamic";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Minus, Package } from "lucide-react";
-import SealedProductModal, {
-  type SealedModalProductData,
-} from "@/components/SealedProductModal";
-import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
-import { formatCollectionCurrency } from "@/lib/collection";
 import { useSettings } from "@/components/SettingsProvider";
+import {
+  CollectionSealedEmptyState,
+  CollectionSealedGrid,
+  CollectionSealedRemoveDialog,
+  CollectionSealedSectionHeader,
+  CollectionSealedSelectionToolbar,
+} from "./collection-sealed/CollectionSealedSections";
+import type {
+  CollectionSealedViewItem,
+  CollectionSealedViewProps,
+  RemoveDialogState,
+} from "./collection-sealed/types";
+import {
+  buildModalProduct,
+  compareCollectionSealedItems,
+  getCollectionSealedTileMinWidth,
+} from "./collection-sealed/utils";
+import type { SealedModalProductData } from "@/components/SealedProductModal";
 
-export interface CollectionSealedViewItem {
-  id: string;
-  product_id: string;
-  name: string;
-  image_url: string | null;
-  episode_id: string;
-  episode_name: string;
-  episode_code: string | null;
-  cardmarket_url: string | null;
-  quantity: number;
-  purchase_price_per_item: number | null;
-  current_value_per_item: number | null;
-}
+const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
+  ssr: false,
+  loading: () => null,
+});
 
-interface Props {
-  items: CollectionSealedViewItem[];
-  emptyTitle: string;
-  emptyText: string;
-  sectionTitle?: string;
-  sectionCount?: ReactNode;
-  sectionTrailing?: ReactNode;
-}
-
-interface RemoveDialogState {
-  itemIds: string[];
-  title: string;
-  description: string;
-}
-
-const tileMinWidth = {
-  small: { normal: "150px", wide: "190px" },
-  medium: { normal: "220px", wide: "280px" },
-  large: { normal: "280px", wide: "340px" },
-} as const;
-
-function selectionToggleTextClass(active: boolean): string {
-  if (active) {
-    return "shrink-0 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-300 dark:hover:text-blue-200";
-  }
-
-  return "shrink-0 text-xs font-medium text-gray-400 transition-colors hover:text-gray-900 dark:text-white/45 dark:hover:text-white/75";
-}
-
-function buildModalProduct(item: CollectionSealedViewItem): SealedModalProductData {
-  return {
-    id: item.product_id,
-    name: item.name,
-    image_url: item.image_url,
-    cardmarket_url: item.cardmarket_url,
-    episode: {
-      id: item.episode_id,
-      name: item.episode_name,
-      code: item.episode_code,
-    },
-    price: {
-      cm_lowest: item.current_value_per_item,
-      cm_lowest_eu: null,
-      cm_lowest_de: null,
-      cm_lowest_fr: null,
-      cm_lowest_es: null,
-      cm_lowest_it: null,
-      cm_avg_7d: null,
-      cm_avg_30d: null,
-    },
-  };
-}
-
-function getCollectionSealedCurrentTotal(item: CollectionSealedViewItem): number | null {
-  if (item.current_value_per_item == null) {
-    return null;
-  }
-
-  return Number((item.current_value_per_item * item.quantity).toFixed(2));
-}
-
-function getCollectionSealedPaidTotal(item: CollectionSealedViewItem): number | null {
-  if (item.purchase_price_per_item == null) {
-    return null;
-  }
-
-  return Number((item.purchase_price_per_item * item.quantity).toFixed(2));
-}
-
-function compareCollectionSealedItems(
-  a: CollectionSealedViewItem,
-  b: CollectionSealedViewItem
-): number {
-  const currentDiff =
-    (getCollectionSealedCurrentTotal(b) ?? Number.NEGATIVE_INFINITY) -
-    (getCollectionSealedCurrentTotal(a) ?? Number.NEGATIVE_INFINITY);
-  if (currentDiff !== 0) {
-    return currentDiff;
-  }
-
-  const paidDiff =
-    (getCollectionSealedPaidTotal(b) ?? Number.NEGATIVE_INFINITY) -
-    (getCollectionSealedPaidTotal(a) ?? Number.NEGATIVE_INFINITY);
-  if (paidDiff !== 0) {
-    return paidDiff;
-  }
-
-  return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
-}
+export type { CollectionSealedViewItem } from "./collection-sealed/types";
 
 export default function CollectionSealedView({
   items,
@@ -123,7 +37,7 @@ export default function CollectionSealedView({
   sectionTitle,
   sectionCount,
   sectionTrailing,
-}: Props) {
+}: CollectionSealedViewProps) {
   const router = useRouter();
   const { settings } = useSettings();
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
@@ -132,8 +46,8 @@ export default function CollectionSealedView({
   const [removingItems, setRemovingItems] = useState(false);
   const [removeDialog, setRemoveDialog] = useState<RemoveDialogState | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  const sortedItems = useMemo(() => [...items].sort(compareCollectionSealedItems), [items]);
 
+  const sortedItems = useMemo(() => [...items].sort(compareCollectionSealedItems), [items]);
   const selectableIds = useMemo(() => sortedItems.map((item) => item.id), [sortedItems]);
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const activeSelectedIds = useMemo(
@@ -144,13 +58,19 @@ export default function CollectionSealedView({
     selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id));
   const showInlineSelectionButton =
     Boolean(sectionTitle) && !selectionMode && sortedItems.length > 0;
+  const tileMinWidth = getCollectionSealedTileMinWidth(
+    settings.cardSize,
+    settings.widescreen
+  );
 
   function openProduct(item: CollectionSealedViewItem) {
     setSelectedSealed(buildModalProduct(item));
   }
 
   function toggleSelected(id: string) {
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id]));
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id]
+    );
   }
 
   function handleTileActivate(item: CollectionSealedViewItem) {
@@ -237,306 +157,63 @@ export default function CollectionSealedView({
     }
   }
 
+  const resolvedSectionCount = sectionCount ?? sortedItems.length;
+
   if (sortedItems.length === 0) {
     return (
-      <>
-        {sectionTitle && (
-          <div className="mb-2.5 flex items-center gap-3">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-              {sectionTitle}
-            </h2>
-            <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-              {sectionCount ?? sortedItems.length}
-            </span>
-            <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-            {sectionTrailing}
-          </div>
-        )}
-        <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
-          <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">{emptyTitle}</p>
-          <p className="text-sm text-gray-400">{emptyText}</p>
-        </div>
-      </>
+      <CollectionSealedEmptyState
+        sectionTitle={sectionTitle}
+        sectionCount={resolvedSectionCount}
+        sectionTrailing={sectionTrailing}
+        emptyTitle={emptyTitle}
+        emptyText={emptyText}
+      />
     );
   }
 
   return (
     <>
-      {sectionTitle && (
-        <div className="mb-2.5 flex items-center gap-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-            {sectionTitle}
-          </h2>
-          <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-            {sectionCount ?? sortedItems.length}
-          </span>
-          <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-          {sectionTrailing}
-          {showInlineSelectionButton && (
-            <button
-              type="button"
-              onClick={toggleSelectionMode}
-              className={selectionToggleTextClass(false)}
-            >
-              Select
-            </button>
-          )}
-        </div>
-      )}
+      <CollectionSealedSectionHeader
+        sectionTitle={sectionTitle}
+        sectionCount={resolvedSectionCount}
+        sectionTrailing={sectionTrailing}
+        showInlineSelectionButton={showInlineSelectionButton}
+        onToggleSelectionMode={toggleSelectionMode}
+      />
 
-      {(selectionMode || !sectionTitle) && (
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
-          {selectionMode && (
-            <>
-              <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 text-xs font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
-                {activeSelectedIds.length} selected
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedIds(selectableIds)}
-                disabled={selectableIds.length === 0 || allSelectableSelected}
-                className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedIds([])}
-                disabled={activeSelectedIds.length === 0}
-                className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={handleBulkRemove}
-                disabled={removingItems || activeSelectedIds.length === 0}
-                className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
-              >
-                Remove
-              </button>
-            </>
-          )}
+      <CollectionSealedSelectionToolbar
+        visible={selectionMode || !sectionTitle}
+        selectionMode={selectionMode}
+        activeSelectedCount={activeSelectedIds.length}
+        selectableCount={selectableIds.length}
+        allSelectableSelected={allSelectableSelected}
+        removingItems={removingItems}
+        onSelectAll={() => setSelectedIds(selectableIds)}
+        onClear={() => setSelectedIds([])}
+        onRemove={handleBulkRemove}
+        onToggleSelectionMode={toggleSelectionMode}
+      />
 
-          <button
-            type="button"
-            onClick={toggleSelectionMode}
-            className={selectionToggleTextClass(selectionMode)}
-          >
-            {selectionMode ? "Done" : "Select"}
-          </button>
-        </div>
-      )}
+      <CollectionSealedGrid
+        items={sortedItems}
+        minTileWidth={tileMinWidth}
+        selectionMode={selectionMode}
+        selectedIdSet={selectedIdSet}
+        removingItems={removingItems}
+        onActivate={handleTileActivate}
+        onRemove={handleSingleRemove}
+      />
 
-      <div
-        className="grid gap-3"
-        style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(${
-            tileMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"]
-          }, 1fr))`,
+      <CollectionSealedRemoveDialog
+        removeDialog={removeDialog}
+        removingItems={removingItems}
+        removeError={removeError}
+        onConfirm={(itemIds) => void removeItemsFromCollection(itemIds)}
+        onClose={() => {
+          setRemoveDialog(null);
+          setRemoveError(null);
         }}
-      >
-        {sortedItems.map((item, index) => {
-          const isSelected = selectionMode && selectedIdSet.has(item.id);
-          const currentTotal = getCollectionSealedCurrentTotal(item);
-          const paidTotal = getCollectionSealedPaidTotal(item);
-          const pnl =
-            currentTotal != null && paidTotal != null
-              ? Number((currentTotal - paidTotal).toFixed(2))
-              : null;
-
-          return (
-            <div
-              key={item.id}
-              role="button"
-              tabIndex={0}
-              aria-pressed={selectionMode ? isSelected : undefined}
-              onClick={() => handleTileActivate(item)}
-              onKeyDown={(event) => {
-                if (event.target !== event.currentTarget) return;
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  handleTileActivate(item);
-                }
-              }}
-              className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
-            >
-              <div
-                className={`relative aspect-[1.08/1] overflow-hidden rounded-2xl border bg-black/4 shadow-lg shadow-black/20 transition-all duration-200 dark:bg-white/4 ${
-                  isSelected
-                    ? "border-blue-400/80 shadow-blue-500/25 ring-2 ring-blue-400/80"
-                    : "border-transparent group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
-                }`}
-              >
-                {item.image_url ? (
-                  <Image
-                    src={item.image_url}
-                    alt={item.name}
-                    fill
-                    className="object-contain p-4"
-                    sizes="280px"
-                    loading={index < 16 ? "eager" : undefined}
-                    unoptimized
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <Package className="h-10 w-10 text-gray-300 dark:text-gray-600" />
-                  </div>
-                )}
-
-                {isSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
-
-                {item.quantity > 1 && (
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
-                    x{item.quantity}
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-2 px-0.5">
-                <div className="flex items-end justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
-                      {item.name}
-                    </p>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
-                      <Link
-                        href={`/expansions/${item.episode_id}?tab=sealed`}
-                        onClick={(event) => event.stopPropagation()}
-                        className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
-                      >
-                        {item.episode_name}
-                        {item.episode_code ? (
-                          <span className="ml-1 opacity-60">({item.episode_code})</span>
-                        ) : null}
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {currentTotal != null ? (
-                      <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
-                        {formatCollectionCurrency(currentTotal)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
-                    )}
-
-                    {!selectionMode && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={(event) => handleSingleRemove(event, item)}
-                          disabled={removingItems}
-                          className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                          aria-label={`Remove ${item.name} from collection`}
-                          title="Remove from collection"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-
-                        <CollectionAddSealedButton
-                          product={{
-                            id: item.product_id,
-                            name: item.name,
-                            image_url: item.image_url,
-                            episode: {
-                              id: item.episode_id,
-                              name: item.episode_name,
-                              code: item.episode_code,
-                            },
-                          }}
-                          className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                        />
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {(paidTotal != null || pnl != null) && (
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]">
-                    {paidTotal != null && (
-                      <span className="rounded-full bg-black/5 px-2 py-1 text-gray-500 dark:bg-white/8 dark:text-white/55">
-                        Paid {formatCollectionCurrency(paidTotal)}
-                      </span>
-                    )}
-                    {pnl != null && (
-                      <span
-                        className={`rounded-full px-2 py-1 ${
-                          pnl >= 0
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                            : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"
-                        }`}
-                      >
-                        {pnl >= 0 ? "+" : ""}
-                        {formatCollectionCurrency(pnl)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {removeDialog && (
-        <div
-          className="fixed inset-0 z-[73] flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
-          onClick={() => {
-            if (!removingItems) {
-              setRemoveDialog(null);
-              setRemoveError(null);
-            }
-          }}
-        >
-          <div
-            className="glass w-full max-w-md rounded-3xl border border-white/12 bg-[#0d0d10]/90 p-6 text-white shadow-2xl shadow-black/45"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38">
-                Remove From Collection
-              </p>
-              <h2 className="mt-2 text-2xl font-bold leading-tight">{removeDialog.title}</h2>
-              <p className="mt-2 text-sm text-white/55">{removeDialog.description}</p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/68">
-              This removes the saved sealed entry entirely, including its quantity.
-            </div>
-
-            {removeError && <p className="mt-4 text-sm text-rose-300">{removeError}</p>}
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => void removeItemsFromCollection(removeDialog.itemIds)}
-                disabled={removingItems}
-                className="flex-1 rounded-2xl bg-rose-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {removingItems
-                  ? "Removing..."
-                  : removeDialog.itemIds.length > 1
-                    ? "Remove products"
-                    : "Remove product"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRemoveDialog(null);
-                  setRemoveError(null);
-                }}
-                disabled={removingItems}
-                className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      />
 
       {selectedSealed && (
         <SealedProductModal product={selectedSealed} onClose={() => setSelectedSealed(null)} />

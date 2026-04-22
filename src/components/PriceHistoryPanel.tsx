@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 export interface PriceHistoryValuePoint {
@@ -264,9 +264,10 @@ export default function PriceHistoryPanel({
     pointerX: number;
   } | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = chartFrameRef.current;
     if (!element) return;
+    let frameId = 0;
 
     const updateWidth = (nextWidth: number) => {
       const normalizedWidth = Math.max(1, Math.round(nextWidth));
@@ -276,6 +277,9 @@ export default function PriceHistoryPanel({
     };
 
     updateWidth(element.getBoundingClientRect().width);
+    frameId = window.requestAnimationFrame(() => {
+      updateWidth(element.getBoundingClientRect().width);
+    });
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -285,7 +289,10 @@ export default function PriceHistoryPanel({
 
     observer.observe(element);
 
-    return () => observer.disconnect();
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+    };
   }, []);
 
   const parsedPoints = points.map((point) => ({
@@ -496,7 +503,7 @@ export default function PriceHistoryPanel({
         </div>
       ) : (
         <div className={compact ? "mt-3" : "mt-5"}>
-          <div ref={chartFrameRef} className="relative">
+          <div ref={chartFrameRef} className="relative w-full min-w-0">
             {activePoint && (
               <div
                 className={`pointer-events-none absolute z-10 w-max max-w-[calc(100%-8px)] rounded-xl border px-2.5 py-2 text-left ${tooltipClass} ${tooltipAlignmentClass}`}
@@ -513,7 +520,7 @@ export default function PriceHistoryPanel({
 
             <svg
               viewBox={`0 0 ${chartWidth} ${height}`}
-              className="w-full cursor-crosshair overflow-visible touch-none select-none"
+              className="block w-full cursor-crosshair overflow-visible touch-none select-none"
               style={{ height }}
               onPointerMove={updateHoverState}
               onPointerDown={updateHoverState}

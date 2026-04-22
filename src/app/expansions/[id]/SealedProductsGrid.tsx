@@ -1,11 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import SealedProductModal, {
-  type SealedModalProductData,
-} from "@/components/SealedProductModal";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { useSettings } from "@/components/SettingsProvider";
 import {
@@ -16,6 +14,12 @@ import {
   type SealedFilter,
 } from "@/lib/sealed-products";
 import type { NormalizedSealedProduct } from "@/lib/tcggo";
+import type { SealedModalProductData } from "@/components/SealedProductModal";
+
+const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
+  ssr: false,
+  loading: () => null,
+});
 
 function formatCurrency(value: number | null | undefined): string {
   if (value == null) return "--";

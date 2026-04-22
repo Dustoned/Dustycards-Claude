@@ -3,51 +3,57 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, BrushCleaning, LibraryBig, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
-import { isHiddenExpansion } from "@/lib/episodes";
+import IllustratorSortToggle from "@/app/illustrators/IllustratorSortToggle";
+import {
+  buildVisibleEpisodeWhereSql,
+  ILLUSTRATOR_SORT_COOKIE_NAME,
+  normalizeIllustratorSort,
+} from "@/lib/illustrators";
 import {
   DEFAULT_SETTINGS,
   parseCookieSettings,
   SETTINGS_COOKIE_NAME,
   type CardSize,
 } from "@/lib/user-settings";
-import { getCardMarketValue } from "@/lib/price-history";
 
 export const dynamic = "force-dynamic";
 
-type IllustratorSort = "alpha" | "cards";
-
-type IllustratorCardRow = {
-  id: string;
-  name: string;
-  artist: string | null;
-  image_url: string | null;
-  episode_id: string;
-  episode_name: string;
-  episode_code: string | null;
-  cm_en_lowest_nm: number | null;
-  cm_de_lowest_nm: number | null;
-  cm_fr_lowest_nm: number | null;
-  cm_es_lowest_nm: number | null;
-  cm_it_lowest_nm: number | null;
-  tcp_market: number | null;
-};
-
-type IllustratorTileCard = {
-  id: string;
-  name: string;
+type IllustratorSummaryRow = {
   artist: string;
-  image_url: string | null;
-  episode_id: string;
-  episode_name: string;
-  episode_code: string | null;
-  price: {
-    cm_en_lowest_nm: number | null;
-    cm_de_lowest_nm: number | null;
-    cm_fr_lowest_nm: number | null;
-    cm_es_lowest_nm: number | null;
-    cm_it_lowest_nm: number | null;
-  };
+  card_count: number;
+  priced_count: number;
+  expansion_count: number;
+  top_card_id: string | null;
+  top_card_name: string | null;
+  top_card_image_url: string | null;
+  top_card_episode_id: string | null;
+  top_card_episode_name: string | null;
+  top_card_episode_code: string | null;
+  top_price: number | null;
 };
+
+type IllustratorSummary = {
+  artist: string;
+  cardCount: number;
+  pricedCount: number;
+  expansionCount: number;
+  topCard: {
+    id: string;
+    name: string;
+    image_url: string | null;
+    episode_id: string;
+    episode_name: string;
+    episode_code: string | null;
+  } | null;
+  topPrice: number | null;
+};
+
+const EUR_FORMATTER = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 function getTileConfig(cardSize: CardSize, widescreen: boolean) {
   if (cardSize === "small") {
@@ -79,19 +85,10 @@ function getTileConfig(cardSize: CardSize, widescreen: boolean) {
   };
 }
 
-function getCardDisplayPrice(card: IllustratorTileCard): number | null {
-  return getCardMarketValue(card.price);
-}
-
 function formatCurrency(value: number | null): string {
   if (value == null) return "--";
 
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+  return EUR_FORMATTER.format(value);
 }
 
 function getInitialGroup(value: string): string {
@@ -99,44 +96,108 @@ function getInitialGroup(value: string): string {
   return /[A-Z]/.test(initial) ? initial : "#";
 }
 
-function normalizeSort(value: string | undefined): IllustratorSort {
-  return value === "cards" ? "cards" : "alpha";
-}
-
-function buildSortHref(sort: IllustratorSort): string {
-  return sort === "alpha" ? "/illustrators" : `/illustrators?sort=${sort}`;
-}
-
-async function getIllustratorRows(): Promise<IllustratorCardRow[]> {
-  return db.$queryRawUnsafe<IllustratorCardRow[]>(`
+async function getIllustratorSummaries(): Promise<IllustratorSummary[]> {
+  const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e");
+  const rows = await db.$queryRawUnsafe<IllustratorSummaryRow[]>(`
+    WITH latest_price AS (
+      SELECT
+        p.card_id,
+        p.cm_en_lowest_nm,
+        p.cm_de_lowest_nm,
+        p.cm_fr_lowest_nm,
+        p.cm_es_lowest_nm,
+        p.cm_it_lowest_nm,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.card_id
+          ORDER BY p.fetched_at DESC, p.id DESC
+        ) AS price_rank
+      FROM "Price" p
+    ),
+    visible_cards AS (
+      SELECT
+        c.id,
+        c.name,
+        c.artist,
+        c.image_url,
+        e.id AS episode_id,
+        e.name AS episode_name,
+        e.code AS episode_code,
+        COALESCE(
+          lp.cm_en_lowest_nm,
+          lp.cm_de_lowest_nm,
+          lp.cm_fr_lowest_nm,
+          lp.cm_es_lowest_nm,
+          lp.cm_it_lowest_nm
+        ) AS market_price
+      FROM "Card" c
+      INNER JOIN "Episode" e
+        ON e.id = c.episode_id
+      LEFT JOIN latest_price lp
+        ON lp.card_id = c.id
+       AND lp.price_rank = 1
+      WHERE c.artist IS NOT NULL
+        AND TRIM(c.artist) <> ''
+${visibleEpisodeWhereSql}
+    ),
+    ranked_cards AS (
+      SELECT
+        id,
+        name,
+        artist,
+        image_url,
+        episode_id,
+        episode_name,
+        episode_code,
+        market_price,
+        CASE WHEN market_price IS NULL THEN 0 ELSE 1 END AS has_price,
+        ROW_NUMBER() OVER (
+          PARTITION BY artist
+          ORDER BY
+            CASE WHEN market_price IS NULL THEN 1 ELSE 0 END ASC,
+            market_price DESC,
+            CASE WHEN image_url IS NULL OR TRIM(image_url) = '' THEN 1 ELSE 0 END ASC,
+            name ASC
+        ) AS featured_rank
+      FROM visible_cards
+    )
     SELECT
-      c.id,
-      c.name,
-      c.artist,
-      c.image_url,
-      e.id AS episode_id,
-      e.name AS episode_name,
-      e.code AS episode_code,
-      p.cm_en_lowest_nm,
-      p.cm_de_lowest_nm,
-      p.cm_fr_lowest_nm,
-      p.cm_es_lowest_nm,
-      p.cm_it_lowest_nm,
-      p.tcp_market
-    FROM "Card" c
-    INNER JOIN "Episode" e
-      ON e.id = c.episode_id
-    LEFT JOIN "Price" p
-      ON p.id = (
-        SELECT p2.id
-        FROM "Price" p2
-        WHERE p2.card_id = c.id
-        ORDER BY p2.fetched_at DESC, p2.id DESC
-        LIMIT 1
-      )
-    WHERE c.artist IS NOT NULL
-    ORDER BY c.artist ASC, c.name ASC
+      artist,
+      COUNT(*) AS card_count,
+      SUM(has_price) AS priced_count,
+      COUNT(DISTINCT episode_id) AS expansion_count,
+      MAX(CASE WHEN featured_rank = 1 THEN id END) AS top_card_id,
+      MAX(CASE WHEN featured_rank = 1 THEN name END) AS top_card_name,
+      MAX(CASE WHEN featured_rank = 1 THEN image_url END) AS top_card_image_url,
+      MAX(CASE WHEN featured_rank = 1 THEN episode_id END) AS top_card_episode_id,
+      MAX(CASE WHEN featured_rank = 1 THEN episode_name END) AS top_card_episode_name,
+      MAX(CASE WHEN featured_rank = 1 THEN episode_code END) AS top_card_episode_code,
+      MAX(CASE WHEN featured_rank = 1 THEN market_price END) AS top_price
+    FROM ranked_cards
+    GROUP BY artist
+    ORDER BY artist ASC
   `);
+
+  return rows.map((row) => ({
+    artist: row.artist,
+    cardCount: Number(row.card_count ?? 0),
+    pricedCount: Number(row.priced_count ?? 0),
+    expansionCount: Number(row.expansion_count ?? 0),
+    topCard:
+      row.top_card_id &&
+      row.top_card_name &&
+      row.top_card_episode_id &&
+      row.top_card_episode_name
+        ? {
+            id: row.top_card_id,
+            name: row.top_card_name,
+            image_url: row.top_card_image_url,
+            episode_id: row.top_card_episode_id,
+            episode_name: row.top_card_episode_name,
+            episode_code: row.top_card_episode_code,
+          }
+        : null,
+    topPrice: row.top_price,
+  }));
 }
 
 export default async function IllustratorsPage({
@@ -148,81 +209,11 @@ export default async function IllustratorsPage({
   const { sort: rawSort } = await searchParams;
   const settings =
     parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
-  const sort = normalizeSort(rawSort);
+  const sort = rawSort
+    ? normalizeIllustratorSort(rawSort)
+    : normalizeIllustratorSort(cookieStore.get(ILLUSTRATOR_SORT_COOKIE_NAME)?.value);
   const tileConfig = getTileConfig(settings.cardSize, settings.widescreen);
-
-  const allCards = await getIllustratorRows();
-  const cards = allCards.filter(
-    (card) =>
-      card.artist &&
-      !isHiddenExpansion({
-        id: card.episode_id,
-        code: card.episode_code,
-        name: card.episode_name,
-      })
-  );
-
-  const byArtist = new Map<
-    string,
-    {
-      artist: string;
-      cardCount: number;
-      pricedCount: number;
-      expansions: Set<string>;
-      topCard: IllustratorTileCard | null;
-      topPrice: number | null;
-    }
-  >();
-
-  for (const card of cards) {
-    if (!card.artist) continue;
-
-    const entry = byArtist.get(card.artist) ?? {
-      artist: card.artist,
-      cardCount: 0,
-      pricedCount: 0,
-      expansions: new Set<string>(),
-      topCard: null,
-      topPrice: null,
-    };
-
-    const tileCard: IllustratorTileCard = {
-      id: card.id,
-      name: card.name,
-      artist: card.artist,
-      image_url: card.image_url,
-      episode_id: card.episode_id,
-      episode_name: card.episode_name,
-      episode_code: card.episode_code,
-      price: {
-        cm_en_lowest_nm: card.cm_en_lowest_nm,
-        cm_de_lowest_nm: card.cm_de_lowest_nm,
-        cm_fr_lowest_nm: card.cm_fr_lowest_nm,
-        cm_es_lowest_nm: card.cm_es_lowest_nm,
-        cm_it_lowest_nm: card.cm_it_lowest_nm,
-      },
-    };
-    const price = getCardDisplayPrice(tileCard);
-
-    entry.cardCount += 1;
-    if (price != null) {
-      entry.pricedCount += 1;
-    }
-    entry.expansions.add(card.episode_id);
-
-    if (
-      !entry.topCard ||
-      (price != null && (entry.topPrice == null || price > entry.topPrice)) ||
-      (entry.topPrice == null && price == null && !entry.topCard.image_url && card.image_url)
-    ) {
-      entry.topCard = tileCard;
-      entry.topPrice = price;
-    }
-
-    byArtist.set(card.artist, entry);
-  }
-
-  const illustrators = [...byArtist.values()];
+  const illustrators = await getIllustratorSummaries();
 
   const sortedIllustrators =
     sort === "cards"
@@ -230,7 +221,7 @@ export default async function IllustratorsPage({
           const cardCountDiff = b.cardCount - a.cardCount;
           if (cardCountDiff !== 0) return cardCountDiff;
 
-          const setCountDiff = b.expansions.size - a.expansions.size;
+          const setCountDiff = b.expansionCount - a.expansionCount;
           if (setCountDiff !== 0) return setCountDiff;
 
           return a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" });
@@ -340,28 +331,7 @@ export default async function IllustratorsPage({
           <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-white/35">
             Sort
           </span>
-          <div className="flex rounded-xl border border-black/8 bg-black/[0.03] p-1 dark:border-white/8 dark:bg-white/[0.03]">
-            {[
-              { value: "alpha" as const, label: "Alphabetical" },
-              { value: "cards" as const, label: "Most cards" },
-            ].map((option) => {
-              const active = sort === option.value;
-
-              return (
-                <Link
-                  key={option.value}
-                  href={buildSortHref(option.value)}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
-                    active
-                      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                      : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                  }`}
-                >
-                  {option.label}
-                </Link>
-              );
-            })}
-          </div>
+          <IllustratorSortToggle activeSort={sort} />
         </div>
 
         <p className="text-sm text-gray-500 dark:text-white/45">
@@ -406,7 +376,7 @@ export default async function IllustratorsPage({
                         fill
                         className="object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                         sizes={tileConfig.minWidth}
-                        priority={group === "A" && index < 4}
+                        priority={index < 4 && (group === "A" || group === "Most cards")}
                         unoptimized
                       />
                     ) : (
@@ -443,7 +413,7 @@ export default async function IllustratorsPage({
                         Sets
                       </p>
                       <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                        {illustrator.expansions.size}
+                        {illustrator.expansionCount}
                       </p>
                     </div>
                     <div className="col-span-2 rounded-xl border border-black/8 bg-black/[0.03] px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.03]">

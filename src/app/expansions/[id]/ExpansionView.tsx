@@ -1,108 +1,39 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { LineChart, RefreshCw } from "lucide-react";
-import CardThreeViewer from "./CardThreeViewer";
-import {
-  buildCardMarketProductUrl,
-  buildCardMarketProxyUrl,
-  isDirectCardMarketUrl,
-  withCardMarketFilters,
-} from "@/lib/cardmarket";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
-import {
-  CARD_MARKET_HISTORY_SERIES,
-  getCardMarketHistorySeriesCurrentValue,
-  getCardMarketHistorySeriesValue,
-  hasCardMarketHistorySeries,
-  type CardMarketHistorySeriesKey,
-  type CardPriceHistoryPoint,
-} from "@/lib/price-history";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
-import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CardModal, { type ModalCardData } from "@/components/CardModal";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
   type CardBrowserToolbarFilterSection,
   type CardBrowserToolbarOption,
 } from "@/components/CardBrowserToolbar";
-import CollectionBulkAddCardsModal from "@/components/CollectionBulkAddCardsModal";
-import IllustratorLink from "@/components/IllustratorLink";
 import {
   useSettings,
   CardView,
   CardSize,
   SortBy,
   SortDir,
-  ModalSize,
   PriceSource,
 } from "@/components/SettingsProvider";
+import type { CardData } from "@/types/card-data";
 
-interface GradedPriceData {
-  label: string;
-  price: number;
-}
+const CollectionBulkAddCardsModal = dynamic(
+  () => import("@/components/CollectionBulkAddCardsModal"),
+  {
+    ssr: false,
+    loading: () => null,
+  }
+);
 
-export interface CardData {
-  id: string;
-  name: string;
-  card_number: string | null;
-  rarity: string | null;
-  hp: number | string | null;
-  image_url: string | null;
-  supertype: string | null;
-  subtypes: string | null;
-  artist: string | null;
-  cardmarket_id: string | null;
-  cardmarket_url: string | null;
-  tcggo_url: string | null;
-  episode_id?: string;
-  episode_name?: string | null;
-  episode_code?: string | null;
-  price_source_status: string | null;
-  price_source_checked_at: string | null;
-  price_fetched_at: string | null;
-  price: {
-    cm_en_lowest_nm: number | null;
-    cm_de_lowest_nm: number | null;
-    cm_fr_lowest_nm: number | null;
-    cm_es_lowest_nm: number | null;
-    cm_it_lowest_nm: number | null;
-    tcp_market: number | null;
-    tcp_mid: number | null;
-    tcp_low: number | null;
-    cm_en_avg_7d: number | null;
-    cm_en_avg_30d: number | null;
-  } | null;
-  graded_prices?: GradedPriceData[];
-}
+export type { CardData } from "@/types/card-data";
 
-interface CardDetailData {
-  id: string;
-  name: string;
-  card_number: string | null;
-  rarity: string | null;
-  hp: number | string | null;
-  image_url: string | null;
-  supertype: string | null;
-  subtypes: string | null;
-  artist: string | null;
-  cardmarket_id: string | null;
-  cardmarket_url: string | null;
-  tcggo_url: string | null;
-  episode_id: string;
-  episode_name: string;
-  episode_code: string | null;
-  price_source_status: string | null;
-  price_source_checked_at: string | null;
-  price_fetched_at: string | null;
-  price: CardData["price"];
-  graded_prices: GradedPriceData[];
-  price_history: CardPriceHistoryPoint[];
-}
+type CardDetailData = ModalCardData;
 
 type CurrencyCode = "EUR" | "USD";
 
@@ -160,32 +91,6 @@ function hasAnyVisiblePrice(card: CardData): boolean {
     price.tcp_mid,
     price.tcp_low,
   ].some((value) => value != null);
-}
-
-function mergeCardWithDetails(card: CardData, details: CardDetailData): CardData {
-  return {
-    ...card,
-    id: details.id,
-    name: details.name,
-    card_number: details.card_number,
-    rarity: details.rarity,
-    hp: details.hp,
-    image_url: details.image_url,
-    supertype: details.supertype,
-    subtypes: details.subtypes,
-    artist: details.artist,
-    cardmarket_id: details.cardmarket_id,
-    cardmarket_url: details.cardmarket_url,
-    tcggo_url: details.tcggo_url,
-    episode_id: details.episode_id,
-    episode_name: details.episode_name,
-    episode_code: details.episode_code,
-    price_source_status: details.price_source_status,
-    price_source_checked_at: details.price_source_checked_at,
-    price_fetched_at: details.price_fetched_at,
-    price: details.price,
-    graded_prices: details.graded_prices,
-  };
 }
 
 function getPriceSourceCurrency(source: PriceSource): CurrencyCode {
@@ -324,6 +229,7 @@ interface Props {
     code: string | null;
   };
   onVisibleCardsChange?: (cards: CardData[]) => void;
+  warmCardImages?: boolean;
 }
 
 interface FilterOption {
@@ -337,6 +243,41 @@ function hasCardEpisodeMeta(card: CardData): card is CardData & {
   episode_code?: string | null;
 } {
   return Boolean(card.episode_id && card.episode_name);
+}
+
+function buildModalCardData(
+  card: CardData,
+  episodeFallback: { id: string; name: string; code: string | null },
+  details?: CardDetailData | null
+): ModalCardData {
+  if (details) {
+    return details;
+  }
+
+  return {
+    id: card.id,
+    name: card.name,
+    card_number: card.card_number,
+    rarity: card.rarity,
+    hp: card.hp,
+    image_url: card.image_url,
+    supertype: card.supertype,
+    subtypes: card.subtypes,
+    artist: card.artist,
+    cardmarket_id: card.cardmarket_id,
+    cardmarket_url: card.cardmarket_url,
+    tcggo_url: card.tcggo_url,
+    episode_id: card.episode_id ?? episodeFallback.id,
+    episode_name: card.episode_name ?? episodeFallback.name,
+    episode_code: card.episode_code ?? episodeFallback.code,
+    price_source_status: card.price_source_status,
+    price_source_checked_at: card.price_source_checked_at,
+    price_fetched_at: card.price_fetched_at,
+    price: card.price,
+    graded_prices: card.graded_prices ?? [],
+    price_history: [],
+    collection_item: null,
+  };
 }
 
 function rememberWarmedCardImage(url: string): boolean {
@@ -409,23 +350,20 @@ function buildFilterOptions(
     .map(([value, count]) => ({ value, count }));
 }
 
-export default function ExpansionView({ cards, episode, onVisibleCardsChange }: Props) {
+export default function ExpansionView({
+  cards,
+  episode,
+  onVisibleCardsChange,
+  warmCardImages = true,
+}: Props) {
   const { settings, set } = useSettings();
   const [search, setSearch] = useState("");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selected, setSelected] = useState<CardData | null>(null);
-  const [threeDCard, setThreeDCard] = useState<CardData | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
-  const [resolvedCardMarketUrls, setResolvedCardMarketUrls] = useState<Record<string, string>>({});
   const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
-  const [loadingDetailsId, setLoadingDetailsId] = useState<string | null>(null);
-  const [refreshingCardId, setRefreshingCardId] = useState<string | null>(null);
-  const [syncingHistoryCardId, setSyncingHistoryCardId] = useState<string | null>(null);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [cardMarketHistorySeries, setCardMarketHistorySeries] =
-    useState<CardMarketHistorySeriesKey>("cm_market_en");
   const view: Exclude<CardView, "binder"> =
     settings.defaultView === "binder" ? "grid" : settings.defaultView;
   const rarities = settings.defaultRarities;
@@ -434,11 +372,15 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
   const primaryPriceSource = settings.primaryPriceSource;
   const sortBy = settings.sortBy;
   const sortDir = settings.sortDir;
-  const collectionEpisode = episode ?? {
-    id: "",
-    name: "",
-    code: null,
-  };
+  const collectionEpisode = useMemo(
+    () =>
+      episode ?? {
+        id: "",
+        name: "",
+        code: null,
+      },
+    [episode]
+  );
   const showEpisodeMeta = useMemo(
     () => !episode && cards.some((card) => hasCardEpisodeMeta(card)),
     [cards, episode]
@@ -503,6 +445,8 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
   }, [settings.defaultView, set]);
 
   useEffect(() => {
+    if (!warmCardImages) return;
+
     const imageUrls = getUniqueCardImageUrls(cards);
     if (imageUrls.length === 0) return;
 
@@ -537,7 +481,7 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [cards]);
+  }, [cards, warmCardImages]);
 
   useEffect(() => {
     if (!selected || cardDetailsById[selected.id]) return;
@@ -556,8 +500,6 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
         setCardDetailsById((prev) => (prev[cardId] ? prev : { ...prev, [cardId]: data }));
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") return;
-      } finally {
-        setLoadingDetailsId((prev) => (prev === cardId ? null : prev));
       }
     })();
 
@@ -567,72 +509,7 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
   }, [selected, cardDetailsById]);
 
   function openDetails(card: CardData) {
-    setRefreshError(null);
     setSelected(card);
-    setLoadingDetailsId(cardDetailsById[card.id] ? null : card.id);
-  }
-
-  async function runSelectedCardAction(action: "refresh" | "sync-history") {
-    if (!selected) return;
-
-    const cardId = selected.id;
-    if (action === "refresh") {
-      setRefreshingCardId(cardId);
-    } else {
-      setSyncingHistoryCardId(cardId);
-    }
-    setRefreshError(null);
-
-    try {
-      const response = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action }),
-        cache: "no-store",
-      });
-      const data = (await response.json()) as CardDetailData & {
-        error?: string;
-        activeType?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(
-          data.error ??
-            (action === "refresh"
-              ? "Could not refresh this card"
-              : "Could not import price history for this card")
-        );
-      }
-
-      setCardDetailsById((prev) => ({
-        ...prev,
-        [cardId]: data,
-      }));
-      setSelected((prev) => (prev?.id === cardId ? mergeCardWithDetails(prev, data) : prev));
-
-      if (data.cardmarket_url && isDirectCardMarketUrl(data.cardmarket_url)) {
-        const directUrl = withCardMarketFilters(data.cardmarket_url);
-        setResolvedCardMarketUrls((prev) =>
-          prev[cardId] === directUrl ? prev : { ...prev, [cardId]: directUrl }
-        );
-      }
-    } catch (error) {
-      setRefreshError(
-        error instanceof Error
-          ? error.message
-          : action === "refresh"
-            ? "Could not refresh this card"
-            : "Could not import price history for this card"
-      );
-    } finally {
-      if (action === "refresh") {
-        setRefreshingCardId((prev) => (prev === cardId ? null : prev));
-      } else {
-        setSyncingHistoryCardId((prev) => (prev === cardId ? null : prev));
-      }
-    }
   }
 
   function handleCardClick(card: CardData) {
@@ -646,6 +523,22 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
     openDetails(card);
   }
 
+  function closeDetails() {
+    if (selected) {
+      setCardDetailsById((prev) => {
+        if (!(selected.id in prev)) {
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[selected.id];
+        return next;
+      });
+    }
+
+    setSelected(null);
+  }
+
   function toggleSelectionMode() {
     setBulkAddOpen(false);
     setSelectionMode((prev) => {
@@ -654,50 +547,6 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
       }
       return !prev;
     });
-  }
-
-  function getResolvedCardMarketUrl(card: CardData): string | null {
-    const storedUrl = resolvedCardMarketUrls[card.id] ?? card.cardmarket_url;
-    if (isDirectCardMarketUrl(storedUrl)) {
-      return withCardMarketFilters(storedUrl);
-    }
-
-    if (card.cardmarket_id) {
-      return buildCardMarketProductUrl(card.cardmarket_id);
-    }
-
-    return storedUrl;
-  }
-
-  async function openCardMarket(card: CardData) {
-    let targetUrl = getResolvedCardMarketUrl(card) ?? buildCardMarketProxyUrl(card.id);
-    if (!isDirectCardMarketUrl(targetUrl)) {
-      try {
-        const res = await fetch(`/api/cm-url?card_id=${encodeURIComponent(card.id)}`, {
-          cache: "no-store",
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { url?: string };
-          const directUrl = typeof data.url === "string" && isDirectCardMarketUrl(data.url)
-            ? withCardMarketFilters(data.url)
-            : null;
-          if (directUrl) {
-            setResolvedCardMarketUrls((prev) =>
-              prev[card.id] === directUrl ? prev : { ...prev, [card.id]: directUrl }
-            );
-            targetUrl = directUrl;
-            setSelected((prev) =>
-              prev?.id === card.id && prev.cardmarket_url !== directUrl
-                ? { ...prev, cardmarket_url: directUrl }
-                : prev
-            );
-          }
-        }
-      } catch (error) {
-        console.error("Failed to resolve direct CardMarket URL", error);
-      }
-    }
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
   }
 
   function toggleSort(col: SortBy) {
@@ -799,6 +648,17 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
     () => cards.filter((card) => selectedCardIdSet.has(card.id)),
     [cards, selectedCardIdSet]
   );
+  const selectedDetails = selected ? cardDetailsById[selected.id] ?? null : null;
+  const selectedModalCard = useMemo(
+    () =>
+      selected
+        ? buildModalCardData(selected, collectionEpisode, selectedDetails)
+        : null,
+    [collectionEpisode, selected, selectedDetails]
+  );
+  const cardTrackWidth =
+    cardMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"];
+  const gridTemplateColumns = `repeat(auto-fill, minmax(${cardTrackWidth}, ${cardTrackWidth}))`;
 
   useEffect(() => {
     onVisibleCardsChange?.(filtered);
@@ -1241,12 +1101,11 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-black/6 dark:border-white/6 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  <th className="px-5 py-4 w-12">#</th>
-                  <th className="px-2 py-4 w-16">Card</th>
-                  <th className="px-4 py-4">Name</th>
+                  <th className="px-4 py-4">Card</th>
                   <th className="px-4 py-4">Rarity</th>
-                  <th className="px-4 py-4 text-right">CardMarket</th>
-                  <th className="px-5 py-4 text-right">TCGPlayer</th>
+                  <th className="px-4 py-4">CardMarket</th>
+                  <th className="px-4 py-4">TCGPlayer</th>
+                  <th className="px-4 py-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -1257,86 +1116,106 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                     <tr
                       key={card.id}
                       onClick={() => handleCardClick(card)}
-                      className={`group border-b border-black/4 dark:border-white/6 last:border-0 transition-colors cursor-pointer ${
+                      className={`border-b border-black/6 transition-colors last:border-b-0 dark:border-white/6 cursor-pointer ${
                         tableSelected
-                          ? "bg-blue-500/[0.09] dark:bg-blue-400/[0.14]"
-                          : index % 2 === 0
-                            ? "hover:bg-black/3 dark:hover:bg-white/5"
-                            : "bg-black/[0.015] hover:bg-black/[0.03] dark:bg-white/[0.025] dark:hover:bg-white/[0.06]"
+                          ? "bg-blue-500/10"
+                          : "hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
                       }`}
                     >
-                      <td className="px-5 py-3 text-gray-400 dark:text-white/30 tabular-nums text-xs">
-                        <span>{card.card_number ?? "--"}</span>
-                      </td>
-                      <td className="px-2 py-2">
-                        {card.image_url ? (
-                          <div className="relative w-10 h-14 rounded-lg overflow-hidden shadow-sm">
-                            <Image
-                              src={card.image_url}
-                              alt={card.name}
-                              fill
-                              className="object-cover group-hover:scale-105 transition-transform duration-300"
-                              sizes="40px"
-                              loading={index < 10 ? "eager" : undefined}
-                              unoptimized
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-14 bg-black/6 dark:bg-white/6 rounded-lg flex items-center justify-center text-gray-300 text-xs">
-                            ?
-                          </div>
-                        )}
-                      </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-black/8 bg-black/5 dark:border-white/8 dark:bg-white/5">
+                            {card.image_url ? (
+                              <Image
+                                src={card.image_url}
+                                alt={card.name}
+                                fill
+                                className="object-contain"
+                                sizes="48px"
+                                loading={index < 18 ? "eager" : undefined}
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
+                                {card.name.slice(0, 2)}
+                              </div>
+                            )}
+                          </div>
+
                           <div className="min-w-0">
-                            <span className="font-semibold text-gray-900 dark:text-white">{card.name}</span>
-                          </div>
-                          {!selectionMode && (
-                          <CollectionAddCardButton
-                            card={{
-                              id: card.id,
-                              name: card.name,
-                              image_url: card.image_url,
-                              episode: getCollectionEpisodeForCard(card),
-                            }}
-                            className="h-7 w-7 shrink-0 rounded-md"
-                          />
-                        )}
-                        </div>
-                        {showEpisodeMeta && hasCardEpisodeMeta(card) && (
-                          <div className="mt-1">
-                            <Link
-                              href={`/expansions/${card.episode_id}`}
-                              onClick={(event) => event.stopPropagation()}
-                              className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-700 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
-                            >
-                              {card.episode_name}
-                              {card.episode_code ? (
-                                <span className="ml-1 opacity-60">({card.episode_code})</span>
+                            <p className="truncate font-semibold text-gray-900 dark:text-white">
+                              {card.name}
+                            </p>
+                            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-white/50">
+                              <span>{card.card_number ? `#${card.card_number}` : "--"}</span>
+                              {showEpisodeMeta && hasCardEpisodeMeta(card) ? (
+                                <>
+                                  <span className="text-gray-300 dark:text-white/20">•</span>
+                                  <Link
+                                    href={`/expansions/${card.episode_id}`}
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
+                                  >
+                                    {card.episode_name}
+                                    {card.episode_code ? (
+                                      <span className="ml-1 opacity-60">({card.episode_code})</span>
+                                    ) : null}
+                                  </Link>
+                                </>
                               ) : null}
-                            </Link>
+                            </div>
                           </div>
-                        )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         {card.rarity ? (
                           <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${rarityBadge(
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${rarityBadge(
                               card.rarity
                             )}`}
                           >
                             {normalizeRarityLabel(card.rarity) ?? card.rarity}
                           </span>
                         ) : (
-                          <span className="text-gray-200 dark:text-gray-700">--</span>
+                          <span className="text-xs text-gray-400 dark:text-white/35">--</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-gray-900 dark:text-white font-semibold">
-                        {formatCurrency(getCardMarketPrice(card), "EUR")}
+                      <td className="px-4 py-3">
+                        {getCardMarketPrice(card) != null ? (
+                          <p className="font-semibold tabular-nums text-gray-900 dark:text-white">
+                            {formatCurrency(getCardMarketPrice(card), "EUR")}
+                          </p>
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-white/35">
+                            No price
+                          </span>
+                        )}
                       </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-gray-400">
-                        {formatCurrency(card.price?.tcp_market, "USD")}
+                      <td className="px-4 py-3">
+                        {card.price?.tcp_market != null ? (
+                          <p className="font-semibold tabular-nums text-gray-900 dark:text-white">
+                            {formatCurrency(card.price?.tcp_market, "USD")}
+                          </p>
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-white/35">
+                            No price
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1.5">
+                          {!selectionMode && (
+                            <CollectionAddCardButton
+                              card={{
+                                id: card.id,
+                                name: card.name,
+                                image_url: card.image_url,
+                                episode: getCollectionEpisodeForCard(card),
+                              }}
+                              className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                            />
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1351,9 +1230,8 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
         <div
           className="grid gap-2"
           style={{
-            gridTemplateColumns: `repeat(auto-fill, minmax(${
-              cardMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"]
-            }, 1fr))`,
+            gridTemplateColumns,
+            justifyContent: "start",
           }}
         >
           {filtered.map((card, index) => {
@@ -1363,14 +1241,23 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
             return (
               <div
                 key={card.id}
-                className="flex flex-col gap-1.5 cursor-pointer"
+                role="button"
+                tabIndex={0}
+                className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
                 onClick={() => handleCardClick(card)}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleCardClick(card);
+                  }
+                }}
               >
                 <div
                   className={`relative w-full aspect-[63/88] overflow-hidden rounded-xl border transition-all duration-200 ${
                     gridSelected
                       ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
-                      : "border-transparent shadow-md shadow-black/20 hover:scale-[1.03] hover:shadow-xl hover:shadow-black/30"
+                      : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
                   }`}
                 >
                   {card.image_url ? (
@@ -1397,21 +1284,24 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
                       <p className="truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
                         {card.name}
                       </p>
-                      <div className="mt-0.5 space-y-0.5">
-                        <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
+                        <span className="shrink-0 text-gray-500 dark:text-gray-400">
                           {card.card_number ? `#${card.card_number}` : "--"}
                         </span>
                         {showEpisodeMeta && hasCardEpisodeMeta(card) && (
-                          <Link
-                            href={`/expansions/${card.episode_id}`}
-                            onClick={(event) => event.stopPropagation()}
-                            className="block truncate text-[11px] font-medium text-gray-400 transition-colors hover:text-gray-700 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
-                          >
-                            {card.episode_name}
-                            {card.episode_code ? (
-                              <span className="ml-1 opacity-60">({card.episode_code})</span>
-                            ) : null}
-                          </Link>
+                          <>
+                            <span className="text-gray-300 dark:text-white/20">•</span>
+                            <Link
+                              href={`/expansions/${card.episode_id}`}
+                              onClick={(event) => event.stopPropagation()}
+                              className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                            >
+                              {card.episode_name}
+                              {card.episode_code ? (
+                                <span className="ml-1 opacity-60">({card.episode_code})</span>
+                              ) : null}
+                            </Link>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1473,453 +1363,13 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
         </div>
       )}
 
-      {selected &&
-        (() => {
-          const ms: ModalSize = settings.modalSize;
-          const selectedDetails = cardDetailsById[selected.id] ?? null;
-          const selectedPrice = selectedDetails?.price ?? selected.price;
-          const selectedGradedPrices =
-            selectedDetails?.graded_prices ?? selected.graded_prices ?? [];
-          const selectedPriceFetchedAt = selectedDetails?.price_fetched_at ?? selected.price_fetched_at;
-          const selectedPriceSourceStatus =
-            selectedDetails?.price_source_status ?? selected.price_source_status;
-          const selectedPriceSourceCheckedAt =
-            selectedDetails?.price_source_checked_at ?? selected.price_source_checked_at;
-          const selectedCardMarketUrl =
-            selectedDetails?.cardmarket_url != null
-              ? getResolvedCardMarketUrl({
-                  ...selected,
-                  cardmarket_url: selectedDetails.cardmarket_url,
-                })
-              : getResolvedCardMarketUrl(selected);
-          const selectedTcgPlayerHistory = (selectedDetails?.price_history ?? []).map((point) => ({
-            date: point.date,
-            label: point.label,
-            value: point.tcp_market,
-          }));
-          const availableCardMarketHistorySeries = CARD_MARKET_HISTORY_SERIES.filter((series) =>
-            hasCardMarketHistorySeries(selectedDetails?.price_history ?? [], series.key)
-          );
-          const activeCardMarketHistorySeries = availableCardMarketHistorySeries.some(
-            (series) => series.key === cardMarketHistorySeries
-          )
-            ? cardMarketHistorySeries
-            : availableCardMarketHistorySeries[0]?.key ?? "cm_market_en";
-          const selectedLocalizedCardMarketHistory = (
-            selectedDetails?.price_history ?? []
-          ).map((point) => ({
-            date: point.date,
-            label: point.label,
-            value:
-              availableCardMarketHistorySeries.length > 0
-                ? getCardMarketHistorySeriesValue(point, activeCardMarketHistorySeries)
-                : point.cm_market,
-          }));
-          const activeCardMarketCurrentValue =
-            availableCardMarketHistorySeries.length > 0
-              ? getCardMarketHistorySeriesCurrentValue(
-                  selectedPrice,
-                  activeCardMarketHistorySeries
-                )
-              : selectedPrice?.cm_en_lowest_nm ??
-                selectedPrice?.cm_de_lowest_nm ??
-                selectedPrice?.cm_fr_lowest_nm ??
-                selectedPrice?.cm_es_lowest_nm ??
-                selectedPrice?.cm_it_lowest_nm ??
-                null;
-          const wide = settings.widescreen;
-          const imgW =
-            ms === "small"
-              ? wide
-                ? "w-[12.5rem] sm:w-[14rem] xl:w-[15rem]"
-                : "w-36 sm:w-44 xl:w-48"
-              : ms === "large"
-                ? wide
-                  ? "w-[25rem] sm:w-[29rem] xl:w-[33rem]"
-                  : "w-64 sm:w-72 xl:w-[23rem]"
-                : wide
-                  ? "w-[16rem] sm:w-[17.5rem] xl:w-[19rem]"
-                  : "w-40 sm:w-48 xl:w-[15rem]";
-          const imgSize =
-            ms === "small"
-              ? wide
-                ? "232px"
-                : "176px"
-              : ms === "large"
-                ? wide
-                  ? "592px"
-                  : "432px"
-                : wide
-                  ? "320px"
-                  : "240px";
-          const maxW =
-            ms === "small"
-              ? wide
-                ? "max-w-[52rem]"
-                : "max-w-[42rem]"
-              : ms === "large"
-                ? wide
-                  ? "max-w-[100rem]"
-                  : "max-w-[84rem]"
-                : wide
-                  ? "max-w-[64rem]"
-                  : "max-w-[54rem]";
-          const pad =
-            ms === "small"
-              ? wide
-                ? "p-4 sm:p-5"
-                : "p-3 sm:p-4"
-              : ms === "large"
-                ? wide
-                  ? "p-8 sm:p-9 xl:p-10"
-                  : "p-7 sm:p-8"
-                : wide
-                  ? "p-5 sm:p-6"
-                  : "p-4 sm:p-5";
-          const gap =
-            ms === "small"
-              ? wide
-                ? "gap-3 sm:gap-4"
-                : "gap-3 sm:gap-4"
-              : ms === "large"
-                ? wide
-                  ? "gap-8 xl:gap-10"
-                  : "gap-7 sm:gap-8"
-                : wide
-                  ? "gap-4 sm:gap-5"
-                  : "gap-4 sm:gap-5";
-          const contentWidthCls =
-            ms === "small"
-              ? "sm:w-[20rem]"
-              : ms === "large"
-                ? "sm:w-[40rem] xl:w-[44rem]"
-                : "sm:w-[26rem] xl:w-[30rem]";
-          const layoutCls = wide
-            ? "flex flex-col sm:grid sm:grid-cols-[auto_auto] sm:items-start"
-            : "flex flex-col sm:flex-row sm:items-start";
-          const mediaColCls = wide
-            ? `shrink-0 ${imgW} mx-auto sm:mx-0 sm:self-start`
-            : `shrink-0 ${imgW} mx-auto sm:mx-0`;
-          const contentCls = wide
-            ? `w-full min-w-0 flex flex-col gap-3 ${contentWidthCls}`
-            : "flex-1 min-w-0 flex flex-col gap-4";
-          const titleCls =
-            ms === "small"
-              ? "text-[1.35rem] sm:text-[1.5rem]"
-              : ms === "large"
-                ? "text-[2.4rem] sm:text-[3rem] xl:text-[3.35rem]"
-                : "text-[1.72rem] sm:text-[1.92rem]";
-          const priceCls =
-            ms === "small"
-              ? "text-[12px]"
-              : ms === "large"
-                ? "text-base sm:text-[17px]"
-                : "text-[13px]";
-          const metaCls =
-            ms === "small"
-              ? "text-[12px]"
-              : ms === "large"
-                ? "text-base sm:text-[17px]"
-                : "text-[13px]";
-          const footerPad =
-            ms === "small"
-              ? "px-3 pb-3 sm:px-4 sm:pb-4"
-              : ms === "large"
-                ? "px-7 pb-7 sm:px-8 sm:pb-8 xl:px-9 xl:pb-9"
-                : "px-4 pb-4 sm:px-5 sm:pb-5";
-
-          return (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center p-6"
-              style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
-              onClick={() => {
-                setRefreshError(null);
-                setSelected(null);
-              }}
-            >
-              <div
-                className={`${maxW} glass w-full sm:w-auto rounded-3xl shadow-2xl shadow-black/45 overflow-hidden`}
-                style={{
-                  background: "rgba(12,12,14,0.82)",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className={`${layoutCls} ${gap} ${pad}`}>
-                  <div className={mediaColCls}>
-                    {selected.image_url ? (
-                      <button
-                        type="button"
-                        onClick={() => setThreeDCard(selected)}
-                        className={`group relative ${imgW} aspect-[63/88] cursor-grab overflow-hidden rounded-2xl shadow-2xl shadow-black/50 transition-transform hover:scale-[1.015]`}
-                        aria-label={`Open ${selected.name} in 3D`}
-                      >
-                        <Image
-                          src={selected.image_url}
-                          alt={selected.name}
-                          fill
-                          className="object-contain"
-                          sizes={imgSize}
-                          loading="eager"
-                          unoptimized
-                        />
-                      </button>
-                    ) : (
-                      <div
-                        className={`${imgW} aspect-[63/88] bg-white/6 rounded-2xl flex items-center justify-center text-white/30`}
-                      >
-                        ?
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={contentCls}>
-                    <div>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h2 className={`${titleCls} font-bold text-white leading-tight`}>
-                            {selected.name}
-                          </h2>
-                          <div className={`mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-white/50 ${metaCls}`}>
-                            {selected.card_number && <span>#{selected.card_number}</span>}
-                            {selected.supertype && <span>{selected.supertype}</span>}
-                            {selected.subtypes && <span>{selected.subtypes}</span>}
-                          </div>
-                          {selected.rarity && (
-                            <span
-                              className={`inline-block mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold ${rarityBadge(
-                                selected.rarity
-                              )}`}
-                            >
-                              {normalizeRarityLabel(selected.rarity) ?? selected.rarity}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void runSelectedCardAction("sync-history")}
-                            disabled={
-                              refreshingCardId === selected.id ||
-                              syncingHistoryCardId === selected.id
-                            }
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/82 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <LineChart
-                              className={`h-4 w-4 ${syncingHistoryCardId === selected.id ? "animate-pulse" : ""}`}
-                            />
-                            {syncingHistoryCardId === selected.id ? "Syncing..." : "Sync History"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void runSelectedCardAction("refresh")}
-                            disabled={
-                              refreshingCardId === selected.id ||
-                              syncingHistoryCardId === selected.id
-                            }
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/82 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            <RefreshCw
-                              className={`h-4 w-4 ${refreshingCardId === selected.id ? "animate-spin" : ""}`}
-                            />
-                            {refreshingCardId === selected.id ? "Refreshing..." : "Refresh"}
-                          </button>
-                        </div>
-                      </div>
-                      {refreshError && (
-                        <p className="mt-2 text-xs text-rose-300">{refreshError}</p>
-                      )}
-                    </div>
-
-                    <div className={`grid grid-cols-2 gap-2.5 ${priceCls}`}>
-                      <div className="flex flex-col gap-2">
-                        {[
-                          {
-                            label: "CardMarket",
-                            val: selectedPrice?.cm_en_lowest_nm,
-                            currency: "EUR" as const,
-                          },
-                          { label: "7d avg", val: selectedPrice?.cm_en_avg_7d, currency: "EUR" as const },
-                          { label: "30d avg", val: selectedPrice?.cm_en_avg_30d, currency: "EUR" as const },
-                        ].map(
-                          ({ label, val, currency }) =>
-                            val != null && (
-                              <div
-                                key={label}
-                                className="flex justify-between rounded-xl px-3 py-2"
-                                style={{ background: "rgba(255,255,255,0.08)" }}
-                              >
-                                <span className="text-white/50">{label}</span>
-                                <span className="font-bold text-white tabular-nums">
-                                  {formatCurrency(val, currency)}
-                                </span>
-                              </div>
-                            )
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        {[
-                          { label: "TCGPlayer", val: selectedPrice?.tcp_market, currency: "USD" as const },
-                          { label: "TCP Mid", val: selectedPrice?.tcp_mid, currency: "USD" as const },
-                          { label: "TCP Low", val: selectedPrice?.tcp_low, currency: "USD" as const },
-                        ].map(
-                          ({ label, val, currency }) =>
-                            val != null && (
-                              <div
-                                key={label}
-                                className="flex justify-between rounded-xl px-3 py-2"
-                                style={{ background: "rgba(255,255,255,0.08)" }}
-                              >
-                                <span className="text-white/50">{label}</span>
-                                <span className="font-bold text-white tabular-nums">
-                                  {formatCurrency(val, currency)}
-                                </span>
-                              </div>
-                            )
-                        )}
-                      </div>
-                    </div>
-
-                    {selectedGradedPrices.length > 0 && (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
-                          Graded
-                        </p>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {selectedGradedPrices.map((gradedPrice) => (
-                            <div
-                              key={gradedPrice.label}
-                              className="flex items-center justify-between rounded-xl px-3 py-2"
-                              style={{ background: "rgba(255,255,255,0.06)" }}
-                            >
-                              <span className="text-sm text-white/56">{gradedPrice.label}</span>
-                              <span className="text-sm font-bold tabular-nums text-white">
-                                {formatCurrency(gradedPrice.price, "EUR")}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="grid gap-3 lg:grid-cols-2">
-                      <div className="space-y-2">
-                        {availableCardMarketHistorySeries.length > 1 && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {availableCardMarketHistorySeries.map((series) => (
-                              <button
-                                key={series.key}
-                                type="button"
-                                onClick={() => setCardMarketHistorySeries(series.key)}
-                                className={`rounded-full border px-2.5 py-1 text-[11px] leading-none transition-all ${
-                                  activeCardMarketHistorySeries === series.key
-                                    ? "border-white/28 bg-white/14 font-semibold text-white"
-                                    : "border-white/10 text-white/52 hover:border-white/18 hover:text-white/78"
-                                }`}
-                              >
-                                {series.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <PriceHistoryPanel
-                          title={
-                            availableCardMarketHistorySeries.length > 0
-                              ? `CardMarket History (${availableCardMarketHistorySeries.find((series) => series.key === activeCardMarketHistorySeries)?.label ?? "EN"})`
-                              : "CardMarket History"
-                          }
-                          currency="EUR"
-                          points={selectedLocalizedCardMarketHistory}
-                          currentValue={activeCardMarketCurrentValue}
-                          tone="dark"
-                          loading={loadingDetailsId === selected.id && !selectedDetails}
-                          compact
-                        />
-                      </div>
-                      <PriceHistoryPanel
-                        title="TCGPlayer History"
-                        currency="USD"
-                        points={selectedTcgPlayerHistory}
-                        currentValue={selectedPrice?.tcp_market ?? null}
-                        tone="dark"
-                        loading={loadingDetailsId === selected.id && !selectedDetails}
-                        compact
-                      />
-                    </div>
-
-                    <PriceRefreshCountdown
-                      rarity={selected.rarity}
-                      priceFetchedAt={selectedPriceFetchedAt}
-                      priceSourceStatus={selectedPriceSourceStatus}
-                      priceSourceCheckedAt={selectedPriceSourceCheckedAt}
-                    />
-
-                    {selected.artist && (
-                      <p className="text-sm text-white/40">
-                        Illus.{" "}
-                        <IllustratorLink
-                          artist={selected.artist}
-                          className="text-white/70 transition-colors hover:text-white hover:underline underline-offset-2"
-                        />
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className={`flex gap-3 ${footerPad}`}>
-                  <CollectionAddCardButton
-                    card={{
-                      id: selected.id,
-                      name: selected.name,
-                      image_url: selected.image_url,
-                      episode: getCollectionEpisodeForCard(selected),
-                    }}
-                    mode="button"
-                    theme="dark"
-                    label="Add to DustyCards"
-                    className="flex-1 rounded-2xl"
-                  />
-                  {selectedCardMarketUrl ? (
-                    <a
-                      href={selectedCardMarketUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-500"
-                    >
-                      Open CardMarket
-                    </a>
-                  ) : (
-                    <button
-                      onClick={() => openCardMarket(selected)}
-                      className="flex-1 py-3 rounded-2xl font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-                    >
-                      Open CardMarket
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      setRefreshError(null);
-                      setSelected(null);
-                    }}
-                    className="px-6 py-3 rounded-2xl font-semibold text-white/60 hover:text-white transition-colors"
-                    style={{ background: "rgba(255,255,255,0.08)" }}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-      {selected && threeDCard?.image_url && threeDCard.id === selected.id && (
-        <CardThreeViewer
-          key={threeDCard.id}
-          card={cardDetailsById[threeDCard.id] ? mergeCardWithDetails(threeDCard, cardDetailsById[threeDCard.id]) : threeDCard}
-          frontImageUrl={threeDCard.image_url}
-          cardMarketUrl={getResolvedCardMarketUrl(threeDCard)}
-          onClose={() => setThreeDCard(null)}
+      {selectedModalCard && (
+        <CardModal
+          key={`${selectedModalCard.id}:${selectedDetails ? "loaded" : "base"}:${
+            selectedDetails?.collection_item?.id ?? "none"
+          }:${selectedDetails?.price_fetched_at ?? selectedModalCard.price_fetched_at ?? "none"}`}
+          card={selectedModalCard}
+          onClose={closeDetails}
         />
       )}
     </div>
