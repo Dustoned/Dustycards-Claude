@@ -11,6 +11,20 @@ const HIDDEN_EXPANSION_NAMES = new Set([
   "celebrations: classic collection",
 ]);
 
+export function getEpisodeDisplayCardCount(input: {
+  card_count?: number | null;
+  _count?: { cards: number } | null;
+}): number {
+  const remoteCardCount = input.card_count ?? 0;
+  const localCardCount = input._count?.cards ?? 0;
+
+  if (input.card_count == null) {
+    return localCardCount;
+  }
+
+  return Math.max(remoteCardCount, localCardCount);
+}
+
 export function isRedundantSubsetExpansion(name: string): boolean {
   const normalized = name.toLowerCase();
   return REDUNDANT_SUBSET_PATTERNS.some((pattern) => normalized.includes(pattern));

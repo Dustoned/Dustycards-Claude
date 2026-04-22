@@ -3,7 +3,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight, Layers3, LibraryBig, Shapes } from "lucide-react";
 import { db } from "@/lib/db";
-import { isHiddenExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
+import {
+  getEpisodeDisplayCardCount,
+  isHiddenExpansion,
+  isRedundantSubsetExpansion,
+} from "@/lib/episodes";
 import {
   DEFAULT_SETTINGS,
   parseCookieSettings,
@@ -179,7 +183,7 @@ export default async function ExpansionsPage() {
       !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
   );
   const withCards = visibleSets.filter((episode) => {
-    const cardCount = episode.card_count ?? episode._count.cards;
+    const cardCount = getEpisodeDisplayCardCount(episode);
     const era = getEra(episode.name, episode.series, episode.release_date);
     return cardCount > 0 || era === newestEra;
   });
@@ -205,7 +209,7 @@ export default async function ExpansionsPage() {
 
   const eraCount = sortedGroups.length;
   const trackedCardCount = withCards.reduce(
-    (total, episode) => total + (episode.card_count ?? episode._count.cards),
+    (total, episode) => total + getEpisodeDisplayCardCount(episode),
     0
   );
 
@@ -303,7 +307,7 @@ export default async function ExpansionsPage() {
               }}
             >
               {sets.map((episode, index) => {
-                const cardCount = episode.card_count ?? episode._count.cards;
+                const cardCount = getEpisodeDisplayCardCount(episode);
 
                 return (
                   <Link

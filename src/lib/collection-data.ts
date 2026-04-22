@@ -11,6 +11,7 @@ import {
   getCollectionSealedMarketValue,
   sumCollectionPurchasePrices,
 } from "@/lib/collection";
+import { getEpisodeDisplayCardCount } from "@/lib/episodes";
 import type { EpisodePriceHistorySnapshot } from "@/lib/price-history";
 
 export interface CollectionSummaryMetric {
@@ -459,7 +460,7 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
         const investment =
           sumCollectionPurchasePrices(linkedCards.map((item) => item.purchase_price)) +
           (binder.base_purchase_price ?? 0);
-        const totalCards = binder.episode.card_count ?? binder.episode._count.cards;
+        const totalCards = getEpisodeDisplayCardCount(binder.episode);
 
         return {
           id: binder.id,
@@ -735,7 +736,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
       metrics: {
         ...buildMetric(investment, currentValue),
         ownedCount: items.filter((item) => item.owned).length,
-        totalCards: binder.episode.card_count ?? binder.episode._count.cards,
+        totalCards: getEpisodeDisplayCardCount(binder.episode),
       },
     };
   }
