@@ -19,6 +19,7 @@
 
 # production
 /build
+dustycards.db
 
 # misc
 .DS_Store
@@ -30,6 +31,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 devserver*.log
+.next-dev.*
+gcm-diagnose.log
 
 # env files (can opt-in for committing if needed)
 .env*
