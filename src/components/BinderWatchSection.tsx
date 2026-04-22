@@ -50,6 +50,8 @@ export default function BinderWatchSection({
         items={watchedItems}
         emptyTitle="No binder watch hits yet"
         emptyText={`No binder cards above ${formatCollectionCurrency(threshold)} yet.`}
+        forcedSortBy="cm_en"
+        forcedSortDir="desc"
       />
     </section>
   );

@@ -218,43 +218,51 @@ export default function CardBrowserToolbar({
             </div>
           </div>
 
-          <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
+          {sortOptions.length > 0 && (
+            <>
+              <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <p className={sectionLabelClass()}>Sort</p>
-            <div className={compactSegmentedShellClass()}>
-              {sortOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  title={option.title}
-                  onClick={() => onSortChange(option.value)}
-                  className={segmentedButtonClass(activeSort === option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className={sectionLabelClass()}>Sort</p>
+                <div className={compactSegmentedShellClass()}>
+                  {sortOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      title={option.title}
+                      onClick={() => onSortChange(option.value)}
+                      className={segmentedButtonClass(activeSort === option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
 
-          <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
+          {sizeOptions.length > 0 && (
+            <>
+              <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <p className={sectionLabelClass()}>Size</p>
-            <div className={compactSegmentedShellClass()}>
-              {sizeOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  title={option.title}
-                  onClick={() => onSizeChange(option.value)}
-                  className={segmentedButtonClass(activeSize === option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className={sectionLabelClass()}>Size</p>
+                <div className={compactSegmentedShellClass()}>
+                  {sizeOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      title={option.title}
+                      onClick={() => onSizeChange(option.value)}
+                      className={segmentedButtonClass(activeSize === option.value)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </section>
 

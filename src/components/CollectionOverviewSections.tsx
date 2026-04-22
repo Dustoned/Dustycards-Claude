@@ -276,6 +276,8 @@ export default function CollectionOverviewSections({
             emptyText="Graded cards saved without a binder appear here."
             sectionTitle="Graded Cards"
             sectionCount={gradedLooseSingles.length}
+            forcedSortBy="cm_en"
+            forcedSortDir="desc"
             sectionTrailing={
               <DragHandle
                 sectionKey="graded"
@@ -301,6 +303,8 @@ export default function CollectionOverviewSections({
             emptyText="Cards saved without a binder appear here."
             sectionTitle="Loose Singles"
             sectionCount={rawLooseSingles.length}
+            forcedSortBy="cm_en"
+            forcedSortDir="desc"
             sectionTrailing={
               <DragHandle
                 sectionKey="raw"

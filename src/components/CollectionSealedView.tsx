@@ -79,6 +79,43 @@ function buildModalProduct(item: CollectionSealedViewItem): SealedModalProductDa
   };
 }
 
+function getCollectionSealedCurrentTotal(item: CollectionSealedViewItem): number | null {
+  if (item.current_value_per_item == null) {
+    return null;
+  }
+
+  return Number((item.current_value_per_item * item.quantity).toFixed(2));
+}
+
+function getCollectionSealedPaidTotal(item: CollectionSealedViewItem): number | null {
+  if (item.purchase_price_per_item == null) {
+    return null;
+  }
+
+  return Number((item.purchase_price_per_item * item.quantity).toFixed(2));
+}
+
+function compareCollectionSealedItems(
+  a: CollectionSealedViewItem,
+  b: CollectionSealedViewItem
+): number {
+  const currentDiff =
+    (getCollectionSealedCurrentTotal(b) ?? Number.NEGATIVE_INFINITY) -
+    (getCollectionSealedCurrentTotal(a) ?? Number.NEGATIVE_INFINITY);
+  if (currentDiff !== 0) {
+    return currentDiff;
+  }
+
+  const paidDiff =
+    (getCollectionSealedPaidTotal(b) ?? Number.NEGATIVE_INFINITY) -
+    (getCollectionSealedPaidTotal(a) ?? Number.NEGATIVE_INFINITY);
+  if (paidDiff !== 0) {
+    return paidDiff;
+  }
+
+  return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+}
+
 export default function CollectionSealedView({
   items,
   emptyTitle,
@@ -95,8 +132,9 @@ export default function CollectionSealedView({
   const [removingItems, setRemovingItems] = useState(false);
   const [removeDialog, setRemoveDialog] = useState<RemoveDialogState | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const sortedItems = useMemo(() => [...items].sort(compareCollectionSealedItems), [items]);
 
-  const selectableIds = useMemo(() => items.map((item) => item.id), [items]);
+  const selectableIds = useMemo(() => sortedItems.map((item) => item.id), [sortedItems]);
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const activeSelectedIds = useMemo(
     () => selectedIds.filter((id) => selectableIds.includes(id)),
@@ -104,7 +142,8 @@ export default function CollectionSealedView({
   );
   const allSelectableSelected =
     selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id));
-  const showInlineSelectionButton = Boolean(sectionTitle) && !selectionMode && items.length > 0;
+  const showInlineSelectionButton =
+    Boolean(sectionTitle) && !selectionMode && sortedItems.length > 0;
 
   function openProduct(item: CollectionSealedViewItem) {
     setSelectedSealed(buildModalProduct(item));
@@ -198,7 +237,7 @@ export default function CollectionSealedView({
     }
   }
 
-  if (items.length === 0) {
+  if (sortedItems.length === 0) {
     return (
       <>
         {sectionTitle && (
@@ -207,7 +246,7 @@ export default function CollectionSealedView({
               {sectionTitle}
             </h2>
             <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-              {sectionCount ?? items.length}
+              {sectionCount ?? sortedItems.length}
             </span>
             <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
             {sectionTrailing}
@@ -229,7 +268,7 @@ export default function CollectionSealedView({
             {sectionTitle}
           </h2>
           <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-            {sectionCount ?? items.length}
+            {sectionCount ?? sortedItems.length}
           </span>
           <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
           {sectionTrailing}
@@ -297,16 +336,10 @@ export default function CollectionSealedView({
           }, 1fr))`,
         }}
       >
-        {items.map((item, index) => {
+        {sortedItems.map((item, index) => {
           const isSelected = selectionMode && selectedIdSet.has(item.id);
-          const currentTotal =
-            item.current_value_per_item != null
-              ? Number((item.current_value_per_item * item.quantity).toFixed(2))
-              : null;
-          const paidTotal =
-            item.purchase_price_per_item != null
-              ? Number((item.purchase_price_per_item * item.quantity).toFixed(2))
-              : null;
+          const currentTotal = getCollectionSealedCurrentTotal(item);
+          const paidTotal = getCollectionSealedPaidTotal(item);
           const pnl =
             currentTotal != null && paidTotal != null
               ? Number((currentTotal - paidTotal).toFixed(2))

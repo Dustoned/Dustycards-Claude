@@ -78,6 +78,9 @@ interface Props {
   sectionTitle?: string;
   sectionCount?: ReactNode;
   sectionTrailing?: ReactNode;
+  forcedSortBy?: SortBy;
+  forcedSortDir?: SortDir;
+  hideSortControls?: boolean;
 }
 
 interface RemoveDialogState {
@@ -327,6 +330,26 @@ function formatSortSummary(sortBy: SortBy, sortDir: SortDir): string {
   return `${getSortLabel(sortBy)} ${direction}`;
 }
 
+function compareCollectionCardItems(
+  a: CollectionCardViewItem,
+  b: CollectionCardViewItem,
+  sortBy: SortBy,
+  sortDir: SortDir
+): number {
+  if (sortBy === "number") {
+    const diff = compareCollectionCardNumbers(a, b);
+    return sortDir === "asc" ? diff : -diff;
+  }
+
+  const priceDiff = comparePriceValues(
+    getCollectionSortPrice(a, sortBy),
+    getCollectionSortPrice(b, sortBy),
+    sortDir
+  );
+  if (priceDiff !== 0) return priceDiff;
+  return compareCollectionCardNumbers(a, b);
+}
+
 function collectionMetaBadge(
   tone: "neutral" | "positive" | "negative" = "neutral"
 ): string {
@@ -425,13 +448,17 @@ export default function CollectionCardsView({
   sectionTitle,
   sectionCount,
   sectionTrailing,
+  forcedSortBy,
+  forcedSortDir,
+  hideSortControls = false,
 }: Props) {
   const router = useRouter();
   const { settings, set } = useSettings();
   const view: CollectionView =
     settings.defaultView === "binder" ? "grid" : settings.defaultView;
-  const sortBy = settings.sortBy;
-  const sortDir = settings.sortDir;
+  const sortBy = forcedSortBy ?? settings.sortBy;
+  const sortDir = forcedSortDir ?? settings.sortDir;
+  const sortLocked = forcedSortBy != null || forcedSortDir != null;
   const primaryPriceSource = settings.primaryPriceSource;
   const [search, setSearch] = useState("");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
@@ -517,7 +544,7 @@ export default function CollectionCardsView({
   );
   const selectedKeySet = useMemo(() => new Set(activeSelectedKeys), [activeSelectedKeys]);
   const activeSelectionMode = selectionEnabled && selectionMode;
-  const sortedEntries = useMemo(() => {
+  const searchMatchedEntries = useMemo(() => {
     return items.flatMap((item, index) => {
       if (normalizedSearch) {
         const compactIdentifier = `${item.episode_code ?? ""}${item.card_number ?? ""}`;
@@ -537,9 +564,15 @@ export default function CollectionCardsView({
       return [{ item, index, selectionKey: `${item.card_id}-${index}` }];
     });
   }, [items, normalizedSearch]);
+  const orderedEntries = useMemo(
+    () =>
+      [...searchMatchedEntries].sort((a, b) =>
+        compareCollectionCardItems(a.item, b.item, sortBy, sortDir)
+      ),
+    [searchMatchedEntries, sortBy, sortDir]
+  );
   const filteredEntries = useMemo(() => {
-    return [...sortedEntries]
-      .filter(({ item }) => {
+    return orderedEntries.filter(({ item }) => {
         if (
           appliedRarities.length > 0 &&
           !appliedRarities.includes(normalizeRarityLabel(item.rarity) ?? "")
@@ -560,29 +593,13 @@ export default function CollectionCardsView({
         }
 
         return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === "number") {
-          const diff = compareCollectionCardNumbers(a.item, b.item);
-          return sortDir === "asc" ? diff : -diff;
-        }
-
-        const priceDiff = comparePriceValues(
-          getCollectionSortPrice(a.item, sortBy),
-          getCollectionSortPrice(b.item, sortBy),
-          sortDir
-        );
-        if (priceDiff !== 0) return priceDiff;
-        return compareCollectionCardNumbers(a.item, b.item);
       });
   }, [
-    sortedEntries,
+    orderedEntries,
     appliedRarities,
     appliedSupertypes,
     effectiveOnlyPriced,
     effectiveShowOnlyGraded,
-    sortBy,
-    sortDir,
   ]);
   const persistentFiltersHideEverything =
     showFilters &&
@@ -594,13 +611,9 @@ export default function CollectionCardsView({
   const visibleEntries = useMemo(
     () =>
       persistentFiltersHideEverything
-        ? items.map((item, index) => ({
-            item,
-            index,
-            selectionKey: `${item.card_id}-${index}`,
-          }))
+        ? orderedEntries
         : filteredEntries,
-    [items, persistentFiltersHideEverything, filteredEntries]
+    [orderedEntries, persistentFiltersHideEverything, filteredEntries]
   );
   const visibleItems = useMemo(
     () => visibleEntries.map((entry) => entry.item),
@@ -840,7 +853,7 @@ export default function CollectionCardsView({
     appliedRarities.length > 0 ||
     appliedSupertypes.length > 0 ||
     effectiveOnlyPriced;
-  const sortSummary = formatSortSummary(sortBy, sortDir);
+  const sortSummary = hideSortControls ? "Highest price first" : formatSortSummary(sortBy, sortDir);
   const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
     { value: "number", label: "#" },
     { value: "cm_en", label: "CM" },
@@ -857,6 +870,10 @@ export default function CollectionCardsView({
   }, [visibleItems, onVisibleItemsChange]);
 
   function toggleSort(nextSort: SortBy) {
+    if (sortLocked) {
+      return;
+    }
+
     if (nextSort === "cm_en" || nextSort === "tcp") {
       set("primaryPriceSource", nextSort);
     }
@@ -1063,14 +1080,16 @@ export default function CollectionCardsView({
             searchPlaceholder="Search name, number, set..."
             resultLabel={`${visibleItems.length} / ${items.length}`}
             sortSummary={sortSummary}
-            priceSourceLabel={primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+            priceSourceLabel={
+              hideSortControls ? null : primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"
+            }
             viewOptions={[
               { value: "table", label: "Table" },
               { value: "grid", label: "Grid" },
             ]}
             activeView={view}
             onViewChange={(value) => set("defaultView", value as CollectionView)}
-            sortOptions={toolbarSortOptions}
+            sortOptions={hideSortControls ? [] : toolbarSortOptions}
             activeSort={sortBy}
             onSortChange={(value) => toggleSort(value as SortBy)}
             sizeOptions={toolbarSizeOptions}

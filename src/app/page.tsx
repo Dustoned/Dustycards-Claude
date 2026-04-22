@@ -235,6 +235,9 @@ export default async function HomePage({
             emptyText="Use the + button on any card to add it here."
             splitByGrading={gradedCards.length > 0 && gradedCards.length < data.cards.length}
             showFilters
+            forcedSortBy="cm_en"
+            forcedSortDir="desc"
+            hideSortControls
           />
           )}
 
@@ -245,6 +248,9 @@ export default async function HomePage({
               emptyTitle="No graded cards in your collection"
               emptyText="Cards with a grading company and grade will appear here."
               showFilters
+              forcedSortBy="cm_en"
+              forcedSortDir="desc"
+              hideSortControls
             />
           )}
 

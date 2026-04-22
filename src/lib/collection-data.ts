@@ -450,15 +450,35 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
     value: point.total_market,
   }));
 
-  const binderSummaries = binders.map((binder) => {
-    if (binder.type === "linked_set" && binder.episode) {
-      const linkedCards = collectionCards.filter((item) => item.binder_id === binder.id);
-      const uniqueOwned = new Set(linkedCards.map((item) => item.card.id)).size;
-      const currentValue = sumCardCurrentValue(linkedCards);
+  const binderSummaries = binders
+    .map((binder) => {
+      if (binder.type === "linked_set" && binder.episode) {
+        const linkedCards = collectionCards.filter((item) => item.binder_id === binder.id);
+        const uniqueOwned = new Set(linkedCards.map((item) => item.card.id)).size;
+        const currentValue = sumCardCurrentValue(linkedCards);
+        const investment =
+          sumCollectionPurchasePrices(linkedCards.map((item) => item.purchase_price)) +
+          (binder.base_purchase_price ?? 0);
+        const totalCards = binder.episode.card_count ?? binder.episode._count.cards;
+
+        return {
+          id: binder.id,
+          name: binder.name,
+          type: binder.type,
+          accent_color: binder.accent_color,
+          icon_name: binder.icon_name,
+          episode: binder.episode,
+          progressLabel: `${uniqueOwned}/${totalCards}`,
+          subtitle: `${binder.episode.series ?? "Set"} / ${binder.episode.name}`,
+          ...buildMetric(investment, currentValue),
+        };
+      }
+
+      const binderCards = collectionCards.filter((item) => item.binder_id === binder.id);
+      const currentValue = sumCardCurrentValue(binderCards);
       const investment =
-        sumCollectionPurchasePrices(linkedCards.map((item) => item.purchase_price)) +
+        sumCollectionPurchasePrices(binderCards.map((item) => item.purchase_price)) +
         (binder.base_purchase_price ?? 0);
-      const totalCards = binder.episode.card_count ?? binder.episode._count.cards;
 
       return {
         id: binder.id,
@@ -466,31 +486,23 @@ export async function getCollectionOverviewData(): Promise<CollectionOverviewDat
         type: binder.type,
         accent_color: binder.accent_color,
         icon_name: binder.icon_name,
-        episode: binder.episode,
-        progressLabel: `${uniqueOwned}/${totalCards}`,
-        subtitle: `${binder.episode.series ?? "Set"} / ${binder.episode.name}`,
+        episode: null,
+        progressLabel: `${binderCards.length} cards`,
+        subtitle: "Custom binder",
         ...buildMetric(investment, currentValue),
       };
-    }
+    })
+    .sort((a, b) => {
+      if (b.currentValue !== a.currentValue) {
+        return b.currentValue - a.currentValue;
+      }
 
-    const binderCards = collectionCards.filter((item) => item.binder_id === binder.id);
-    const currentValue = sumCardCurrentValue(binderCards);
-    const investment =
-      sumCollectionPurchasePrices(binderCards.map((item) => item.purchase_price)) +
-      (binder.base_purchase_price ?? 0);
+      if (b.pnl !== a.pnl) {
+        return b.pnl - a.pnl;
+      }
 
-    return {
-      id: binder.id,
-      name: binder.name,
-      type: binder.type,
-      accent_color: binder.accent_color,
-      icon_name: binder.icon_name,
-      episode: null,
-      progressLabel: `${binderCards.length} cards`,
-      subtitle: "Custom binder",
-      ...buildMetric(investment, currentValue),
-    };
-  });
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+    });
 
   return {
     overview: {
