@@ -190,71 +190,71 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const mediaWidth =
     ms === "small"
       ? wide
-        ? "w-[13.5rem] sm:w-[14.5rem] xl:w-[15.5rem]"
-        : "w-36 sm:w-44 xl:w-48"
+        ? "w-[12rem] sm:w-[13rem] xl:w-[14rem]"
+        : "w-32 sm:w-40 xl:w-44"
       : ms === "large"
         ? wide
           ? "w-[22rem] sm:w-[25rem] xl:w-[28rem]"
           : "w-72 sm:w-80 xl:w-[22rem]"
         : wide
-          ? "w-[16.5rem] sm:w-[18rem] xl:w-[20rem]"
-          : "w-48 sm:w-56 xl:w-[17rem]";
+          ? "w-[15rem] sm:w-[16.5rem] xl:w-[18rem]"
+          : "w-40 sm:w-48 xl:w-[15rem]";
   const imageSize =
     ms === "small"
       ? wide
-        ? "248px"
-        : "176px"
+        ? "216px"
+        : "160px"
       : ms === "large"
         ? wide
           ? "520px"
           : "416px"
         : wide
-          ? "328px"
-          : "256px";
+          ? "288px"
+          : "224px";
   const maxW =
     ms === "small"
       ? wide
-        ? "max-w-[56rem]"
-        : "max-w-[48rem]"
+        ? "max-w-[50rem]"
+        : "max-w-[42rem]"
       : ms === "large"
         ? wide
           ? "max-w-[98rem]"
           : "max-w-[84rem]"
         : wide
-          ? "max-w-[72rem]"
-          : "max-w-[62rem]";
+          ? "max-w-[64rem]"
+          : "max-w-[54rem]";
   const pad =
     ms === "small"
-      ? "p-3 sm:p-4"
+      ? "p-2.5 sm:p-3"
       : ms === "large"
         ? "p-6 sm:p-7 xl:p-8"
-        : "p-4 sm:p-5";
+        : "p-3 sm:p-4";
   const gridGap =
     ms === "small"
-      ? "gap-3 sm:gap-4"
+      ? "gap-2.5 sm:gap-3"
       : ms === "large"
         ? "gap-6 sm:gap-8 xl:gap-10"
-        : "gap-4 sm:gap-5";
+        : "gap-3 sm:gap-4";
   const titleCls =
     ms === "small"
-      ? "text-[1.45rem] sm:text-[1.6rem]"
+      ? "text-[1.25rem] sm:text-[1.4rem]"
       : ms === "large"
         ? "text-[2.4rem] sm:text-[2.8rem] xl:text-[3.05rem]"
-        : "text-[1.85rem] sm:text-[2.05rem]";
+        : "text-[1.62rem] sm:text-[1.82rem]";
   const metaCls =
     ms === "small"
-      ? "text-[13px]"
+      ? "text-[12px]"
       : ms === "large"
         ? "text-base sm:text-[17px]"
-        : "text-sm sm:text-[14px]";
+        : "text-[13px]";
   const imagePadding =
-    ms === "small" ? "p-2.5" : ms === "large" ? "p-5 sm:p-6" : "p-3 sm:p-4";
+    ms === "small" ? "p-2" : ms === "large" ? "p-5 sm:p-6" : "p-2.5 sm:p-3";
   const footerPad =
     ms === "small"
-      ? "px-3 pb-3 sm:px-4 sm:pb-4"
+      ? "px-2.5 pb-2.5 sm:px-3 sm:pb-3"
       : ms === "large"
         ? "px-6 pb-6 sm:px-7 sm:pb-7 xl:px-8 xl:pb-8"
-        : "px-4 pb-4 sm:px-5 sm:pb-5";
+        : "px-3 pb-3 sm:px-4 sm:pb-4";
 
   const primaryPrice = getSealedProductPrice(modalProduct);
   const priceHistory = modalProduct.price_history;

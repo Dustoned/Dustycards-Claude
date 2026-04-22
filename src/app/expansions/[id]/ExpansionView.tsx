@@ -1531,69 +1531,69 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
           const imgW =
             ms === "small"
               ? wide
-                ? "w-[14.5rem] sm:w-[16rem] xl:w-[17.5rem]"
-                : "w-40 sm:w-48 xl:w-52"
+                ? "w-[12.5rem] sm:w-[14rem] xl:w-[15rem]"
+                : "w-36 sm:w-44 xl:w-48"
               : ms === "large"
                 ? wide
                   ? "w-[25rem] sm:w-[29rem] xl:w-[33rem]"
                   : "w-64 sm:w-72 xl:w-[23rem]"
                 : wide
-                  ? "w-[18rem] sm:w-[20rem] xl:w-[22rem]"
-                  : "w-48 sm:w-56 xl:w-[18rem]";
+                  ? "w-[16rem] sm:w-[17.5rem] xl:w-[19rem]"
+                  : "w-40 sm:w-48 xl:w-[15rem]";
           const imgSize =
             ms === "small"
               ? wide
-                ? "272px"
-                : "208px"
+                ? "232px"
+                : "176px"
               : ms === "large"
                 ? wide
                   ? "592px"
                   : "432px"
                 : wide
-                  ? "384px"
-                  : "288px";
+                  ? "320px"
+                  : "240px";
           const maxW =
             ms === "small"
               ? wide
-                ? "max-w-[58rem]"
-                : "max-w-[48rem]"
+                ? "max-w-[52rem]"
+                : "max-w-[42rem]"
               : ms === "large"
                 ? wide
                   ? "max-w-[100rem]"
                   : "max-w-[84rem]"
                 : wide
-                  ? "max-w-[72rem]"
-                  : "max-w-[62rem]";
+                  ? "max-w-[64rem]"
+                  : "max-w-[54rem]";
           const pad =
             ms === "small"
               ? wide
-                ? "p-5 sm:p-6"
-                : "p-4 sm:p-5"
+                ? "p-4 sm:p-5"
+                : "p-3 sm:p-4"
               : ms === "large"
                 ? wide
                   ? "p-8 sm:p-9 xl:p-10"
                   : "p-7 sm:p-8"
                 : wide
-                  ? "p-6 sm:p-7"
-                  : "p-5 sm:p-6";
+                  ? "p-5 sm:p-6"
+                  : "p-4 sm:p-5";
           const gap =
             ms === "small"
               ? wide
-                ? "gap-4 sm:gap-5"
-                : "gap-4 sm:gap-5"
+                ? "gap-3 sm:gap-4"
+                : "gap-3 sm:gap-4"
               : ms === "large"
                 ? wide
                   ? "gap-8 xl:gap-10"
                   : "gap-7 sm:gap-8"
                 : wide
-                  ? "gap-5 sm:gap-6"
-                  : "gap-5 sm:gap-6";
+                  ? "gap-4 sm:gap-5"
+                  : "gap-4 sm:gap-5";
           const contentWidthCls =
             ms === "small"
-              ? "sm:w-[24rem]"
+              ? "sm:w-[20rem]"
               : ms === "large"
                 ? "sm:w-[40rem] xl:w-[44rem]"
-                : "sm:w-[30rem] xl:w-[34rem]";
+                : "sm:w-[26rem] xl:w-[30rem]";
           const layoutCls = wide
             ? "flex flex-col sm:grid sm:grid-cols-[auto_auto] sm:items-start"
             : "flex flex-col sm:flex-row sm:items-start";
@@ -1605,28 +1605,28 @@ export default function ExpansionView({ cards, episode, onVisibleCardsChange }: 
             : "flex-1 min-w-0 flex flex-col gap-4";
           const titleCls =
             ms === "small"
-              ? "text-[1.6rem] sm:text-[1.8rem]"
+              ? "text-[1.35rem] sm:text-[1.5rem]"
               : ms === "large"
                 ? "text-[2.4rem] sm:text-[3rem] xl:text-[3.35rem]"
-                : "text-[2rem] sm:text-[2.2rem]";
+                : "text-[1.72rem] sm:text-[1.92rem]";
           const priceCls =
             ms === "small"
-              ? "text-[13px]"
+              ? "text-[12px]"
               : ms === "large"
                 ? "text-base sm:text-[17px]"
-                : "text-sm sm:text-[14px]";
+                : "text-[13px]";
           const metaCls =
             ms === "small"
-              ? "text-[13px]"
+              ? "text-[12px]"
               : ms === "large"
                 ? "text-base sm:text-[17px]"
-                : "text-sm sm:text-[14px]";
+                : "text-[13px]";
           const footerPad =
             ms === "small"
-              ? "px-4 pb-4 sm:px-5 sm:pb-5"
+              ? "px-3 pb-3 sm:px-4 sm:pb-4"
               : ms === "large"
                 ? "px-7 pb-7 sm:px-8 sm:pb-8 xl:px-9 xl:pb-9"
-                : "px-5 pb-5 sm:px-6 sm:pb-6";
+                : "px-4 pb-4 sm:px-5 sm:pb-5";
 
           return (
             <div
