@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
-import { getAutoPriceRefreshSnapshot } from "@/lib/sync";
+import {
+  countManualCardHistoryCandidates,
+  getAutoPriceRefreshSnapshot,
+  reconcileStaleSyncLogs,
+} from "@/lib/sync";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { parseCookieSettings, SETTINGS_COOKIE_NAME } from "@/lib/user-settings";
 import ThemeSection from "./ThemeSection";
@@ -57,6 +61,8 @@ function parseSyncType(type: string): {
 export default async function SettingsPage() {
   const cookieStore = await cookies();
   const widescreen = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value)?.widescreen ?? false;
+
+  await reconcileStaleSyncLogs();
 
   const [
     activeSync,
@@ -129,24 +135,7 @@ export default async function SettingsPage() {
     }),
     getAutoPriceRefreshSnapshot(),
     getTcggoUsageSnapshot(),
-    db.card.count({
-      where: {
-        collectionItems: {
-          some: {},
-        },
-        native_history_synced_at: null,
-        NOT: {
-          rarity: {
-            in: ["Common", "Uncommon", "Rare", "common", "uncommon", "rare"],
-          },
-        },
-        OR: [
-          { prices: { some: {} } },
-          { cardmarket_id: { not: null } },
-          { tcgplayer_id: { not: null } },
-        ],
-      },
-    }),
+    countManualCardHistoryCandidates(),
   ]);
 
   const relevantLogs = [

@@ -3,6 +3,9 @@ const TCGDEX_CARDS_ENDPOINT = `${TCGDEX_API_BASE}/cards`;
 const HIGH_RES_IMAGE_SUFFIX = "/high.webp";
 const IMAGE_REVALIDATE_SECONDS = 60 * 60 * 24;
 const TCGDEX_REQUEST_BATCH_SIZE = 20;
+const TCGDEX_REQUEST_TIMEOUT_MS = 15_000;
+const TCGDEX_MAX_RETRY_ATTEMPTS = 1;
+const TCGDEX_RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 interface TcgdexCardBrief {
   id: string;
@@ -234,18 +237,63 @@ async function tcgdexFetch<T>(
   path: string,
   options?: { revalidateSeconds?: number }
 ): Promise<T> {
-  const init: RequestInit & { next?: { revalidate: number } } =
-    options?.revalidateSeconds != null
-      ? { next: { revalidate: options.revalidateSeconds } }
-      : { cache: "no-store" };
+  let attempt = 0;
+  let lastError: Error | null = null;
 
-  const response = await fetch(path.startsWith("http") ? path : `${TCGDEX_API_BASE}${path}`, init);
+  while (attempt <= TCGDEX_MAX_RETRY_ATTEMPTS) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TCGDEX_REQUEST_TIMEOUT_MS);
+    const init: RequestInit & { next?: { revalidate: number } } =
+      options?.revalidateSeconds != null
+        ? {
+            next: { revalidate: options.revalidateSeconds },
+            signal: controller.signal,
+          }
+        : { cache: "no-store", signal: controller.signal };
 
-  if (!response.ok) {
-    throw new Error(`TCGdex API ${response.status}: ${path}`);
+    try {
+      const response = await fetch(
+        path.startsWith("http") ? path : `${TCGDEX_API_BASE}${path}`,
+        init
+      );
+
+      if (!response.ok) {
+        const statusError = new Error(`TCGdex API ${response.status}: ${path}`);
+
+        if (
+          attempt < TCGDEX_MAX_RETRY_ATTEMPTS &&
+          TCGDEX_RETRYABLE_STATUS_CODES.has(response.status)
+        ) {
+          lastError = statusError;
+          attempt += 1;
+          await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+          continue;
+        }
+
+        throw statusError;
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error) {
+      const isAbortError =
+        error instanceof Error &&
+        (error.name === "AbortError" || error.message.includes("aborted"));
+      const isRetryableNetworkError = error instanceof TypeError || isAbortError;
+
+      if (attempt < TCGDEX_MAX_RETRY_ATTEMPTS && isRetryableNetworkError) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        attempt += 1;
+        await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+        continue;
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
-  return response.json() as Promise<T>;
+  throw lastError ?? new Error(`TCGdex API request failed: ${path}`);
 }
 
 async function mapInBatches<T, TResult>(

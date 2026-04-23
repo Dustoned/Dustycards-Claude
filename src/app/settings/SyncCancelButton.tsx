@@ -3,22 +3,32 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Square } from "lucide-react";
+import { AUTO_PRICE_REFRESH_CANCEL_COOLDOWN_LABEL } from "@/lib/auto-price-refresh-pause";
 
 interface SyncCancelButtonProps {
   syncId: string;
   syncLabel: string;
   cancellationRequested: boolean;
+  pauseAutoRefreshOnCancel?: boolean;
 }
 
-function resolveStatusMessage(status: string, syncLabel: string): string {
+function resolveStatusMessage(
+  status: string,
+  syncLabel: string,
+  pauseAutoRefreshOnCancel: boolean
+): string {
+  const pauseSuffix = pauseAutoRefreshOnCancel
+    ? ` New background batches will stay paused for ${AUTO_PRICE_REFRESH_CANCEL_COOLDOWN_LABEL}.`
+    : "";
+
   switch (status) {
     case "requested":
     case "already-requested":
-      return `Stop requested for ${syncLabel}. Waiting for a safe checkpoint.`;
+      return `Stop requested for ${syncLabel}. Waiting for a safe checkpoint.${pauseSuffix}`;
     case "already-finished":
       return `${syncLabel} was already finished.`;
     default:
-      return `Stop requested for ${syncLabel}.`;
+      return `Stop requested for ${syncLabel}.${pauseSuffix}`;
   }
 }
 
@@ -26,11 +36,18 @@ export default function SyncCancelButton({
   syncId,
   syncLabel,
   cancellationRequested,
+  pauseAutoRefreshOnCancel = false,
 }: SyncCancelButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(
-    cancellationRequested ? "Stop requested. Waiting for a safe checkpoint." : null
+    cancellationRequested
+      ? `Stop requested. Waiting for a safe checkpoint${
+          pauseAutoRefreshOnCancel
+            ? `. New background batches will stay paused for ${AUTO_PRICE_REFRESH_CANCEL_COOLDOWN_LABEL}.`
+            : "."
+        }`
+      : null
   );
 
   async function handleCancel() {
@@ -39,7 +56,13 @@ export default function SyncCancelButton({
     }
 
     setLoading(true);
-    setStatus(`Stop requested for ${syncLabel}. Waiting for a safe checkpoint.`);
+    setStatus(
+      `Stop requested for ${syncLabel}. Waiting for a safe checkpoint${
+        pauseAutoRefreshOnCancel
+          ? `. New background batches will stay paused for ${AUTO_PRICE_REFRESH_CANCEL_COOLDOWN_LABEL}.`
+          : "."
+      }`
+    );
 
     try {
       const response = await fetch(`/api/syncs/${syncId}/cancel`, {
@@ -50,7 +73,7 @@ export default function SyncCancelButton({
       if (!response.ok || !data.ok) {
         setStatus(data.error ?? `Could not stop ${syncLabel}.`);
       } else {
-        setStatus(resolveStatusMessage(data.status, syncLabel));
+        setStatus(resolveStatusMessage(data.status, syncLabel, pauseAutoRefreshOnCancel));
       }
     } catch {
       setStatus(`Network error while stopping ${syncLabel}.`);

@@ -52,13 +52,16 @@ export default function SyncStatusSection({
               <p className="mt-0.5 text-xs text-gray-400">
                 {activeSync.cancel_requested_at
                   ? "The running job will stop at the next safe checkpoint."
-                  : "Use stop if you want the current job to finish its in-flight batch and then exit cleanly."}
+                  : activeSync.type === "auto-prices"
+                    ? "Use stop if you want the current batch to finish cleanly and pause background price refresh for a bit."
+                    : "Use stop if you want the current job to finish its in-flight batch and then exit cleanly."}
               </p>
             </div>
             <SyncCancelButton
               syncId={activeSync.id}
               syncLabel={activeSync.label}
               cancellationRequested={Boolean(activeSync.cancel_requested_at)}
+              pauseAutoRefreshOnCancel={activeSync.type === "auto-prices"}
             />
           </div>
         </div>

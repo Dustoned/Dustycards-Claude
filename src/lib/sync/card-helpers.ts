@@ -221,6 +221,7 @@ export async function loadEpisodeCardEnrichmentLookups(
     };
   }
 
+  const episodeLabel = episode.name ?? episode.code ?? "unknown episode";
   const [tcgdexSupertypeLookup, tcgdexIllustratorLookup] = await Promise.all([
     getTcgdexSupertypeLookupForEpisode(episode),
     getTcgdexIllustratorLookupForCards(
@@ -230,7 +231,10 @@ export async function loadEpisodeCardEnrichmentLookups(
         cardCount: episode.card_count,
       },
       cards
-    ),
+    ).catch((error) => {
+      console.error(`Failed to load TCGdex illustrator lookup for ${episodeLabel}`, error);
+      return new Map<string, string>();
+    }),
   ]);
 
   return {

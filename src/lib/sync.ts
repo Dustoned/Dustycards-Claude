@@ -1,5 +1,9 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
+import {
+  formatAutoPriceRefreshPauseRemaining,
+  getAutoPriceRefreshPauseRemainingMs,
+} from "@/lib/auto-price-refresh-pause";
 import { isHiddenExpansion, isPromoExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
 import { resolveTcgdexSupertype } from "@/lib/tcgdex";
@@ -41,7 +45,9 @@ import {
 } from "@/lib/tcggo";
 
 const ACTIVE_SYNC_STALE_MS = 1000 * 60 * 60 * 2;
+const CANCEL_REQUEST_STALE_MS = 1000 * 60 * 5;
 const STALE_SYNC_MESSAGE = "Marked stale after exceeding sync timeout";
+const STALE_CANCELLED_SYNC_MESSAGE = "Marked cancelled after stop request exceeded timeout";
 const SYNC_CANCELLED_MESSAGE = "Cancelled by user after the current batch finished.";
 const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
 const CARD_HISTORY_SYNC_TYPE = "card-history";
@@ -280,6 +286,51 @@ async function waitForSyncToFinish(
   throw new SyncConflictError(AUTO_PRICE_REFRESH_TYPE, startedAt);
 }
 
+async function reconcileStaleSyncLogsTx(
+  tx: Prisma.TransactionClient,
+  now: Date
+): Promise<void> {
+  const staleBefore = new Date(now.getTime() - ACTIVE_SYNC_STALE_MS);
+  const staleCancellationBefore = new Date(now.getTime() - CANCEL_REQUEST_STALE_MS);
+
+  await tx.syncLog.updateMany({
+    where: {
+      status: "running",
+      cancel_requested_at: {
+        not: null,
+        lt: staleCancellationBefore,
+      },
+    },
+    data: {
+      status: "cancelled",
+      message: STALE_CANCELLED_SYNC_MESSAGE,
+      finished_at: now,
+    },
+  });
+
+  await tx.syncLog.updateMany({
+    where: {
+      status: "running",
+      cancel_requested_at: null,
+      started_at: {
+        lt: staleBefore,
+      },
+    },
+    data: {
+      status: "failed",
+      message: STALE_SYNC_MESSAGE,
+      finished_at: now,
+      cancel_requested_at: null,
+    },
+  });
+}
+
+export async function reconcileStaleSyncLogs(now = new Date()): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await reconcileStaleSyncLogsTx(tx, now);
+  });
+}
+
 interface AcquireSyncLogOptions {
   interruptAutoPriceRefresh?: boolean;
   onAutoPriceRefreshInterrupted?: () => void;
@@ -294,23 +345,9 @@ async function acquireSyncLogWithOptions(
 
   while (true) {
     const now = new Date();
-    const staleBefore = new Date(now.getTime() - ACTIVE_SYNC_STALE_MS);
 
     const result = await db.$transaction(async (tx) => {
-      await tx.syncLog.updateMany({
-        where: {
-          status: "running",
-          started_at: {
-            lt: staleBefore,
-          },
-        },
-        data: {
-          status: "failed",
-          message: STALE_SYNC_MESSAGE,
-          finished_at: now,
-          cancel_requested_at: null,
-        },
-      });
+      await reconcileStaleSyncLogsTx(tx, now);
 
       const activeSync = await tx.syncLog.findFirst({
         where: { status: "running" },
@@ -1154,24 +1191,31 @@ async function selectNativeHistoryBackfillBatch(): Promise<{
   };
 }
 
+function buildManualCardHistoryCardWhere(): Prisma.CardWhereInput {
+  return {
+    native_history_synced_at: null,
+    NOT: {
+      rarity: {
+        in: [...MANUAL_HISTORY_EXCLUDED_RARITIES],
+      },
+    },
+    OR: [
+      { prices: { some: {} } },
+      { cardmarket_id: { not: null } },
+      { tcgplayer_id: { not: null } },
+    ],
+  };
+}
+
+export async function countManualCardHistoryCandidates(): Promise<number> {
+  return db.card.count({
+    where: buildManualCardHistoryCardWhere(),
+  });
+}
+
 async function selectManualCardHistoryCandidates(): Promise<string[]> {
   const cards = await db.card.findMany({
-    where: {
-      collectionItems: {
-        some: {},
-      },
-      native_history_synced_at: null,
-      NOT: {
-        rarity: {
-          in: [...MANUAL_HISTORY_EXCLUDED_RARITIES],
-        },
-      },
-      OR: [
-        { prices: { some: {} } },
-        { cardmarket_id: { not: null } },
-        { tcgplayer_id: { not: null } },
-      ],
-    },
+    where: buildManualCardHistoryCardWhere(),
     orderBy: [{ updated_at: "desc" }],
     select: { id: true },
   });
@@ -2229,7 +2273,7 @@ export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
       newHistorySnapshots: 0,
       remainingCards: 0,
       skipped: true,
-      message: "All eligible collection cards already have imported history.",
+      message: "All eligible cards across expansions already have imported history.",
     };
   }
 
@@ -2240,7 +2284,7 @@ export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
     async (progress) => {
       await progress.throwIfCancelled();
       await progress.updateMessage(
-        `Syncing TCGGO card history for ${candidateCards.length} collection cards (excluding Common, Uncommon, and Rare). This uses scraper requests.`
+        `Syncing TCGGO card history for ${candidateCards.length} cards across expansions (excluding Common, Uncommon, and Rare). This uses scraper requests.`
       );
 
       const syncedAt = new Date();
@@ -2266,16 +2310,58 @@ export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
             ? `Imported history for ${result.syncedCards} cards.`
             : "No new history was imported.",
       };
+    },
+    {
+      interruptAutoPriceRefresh: true,
     }
   );
 }
 
 export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
+  const now = new Date();
+  const latestCancelledAutoRefresh = await db.syncLog.findFirst({
+    where: {
+      type: AUTO_PRICE_REFRESH_TYPE,
+      status: "cancelled",
+      finished_at: { not: null },
+    },
+    orderBy: { finished_at: "desc" },
+    select: { finished_at: true },
+  });
+  const pauseRemainingMs = getAutoPriceRefreshPauseRemainingMs({
+    cancelledAt: latestCancelledAutoRefresh?.finished_at ?? null,
+    now,
+  });
+
+  if (pauseRemainingMs > 0) {
+    return {
+      checkedEpisodes: 0,
+      catalogSyncedEpisodes: 0,
+      newEpisodes: 0,
+      dueCards: 0,
+      missingPriceCards: 0,
+      selectedCards: 0,
+      backfillCards: 0,
+      nativeHistoryItems: 0,
+      remainingDueCards: 0,
+      newCards: 0,
+      updatedCards: 0,
+      newPrices: 0,
+      refreshedPrices: 0,
+      refreshedCards: 0,
+      gradedPricesUpdated: 0,
+      skipped: true,
+      message: `Background price refresh is paused for about ${formatAutoPriceRefreshPauseRemaining(
+        pauseRemainingMs
+      )} after a manual stop.`,
+    };
+  }
+
   const previewCatalog = await previewAutoCatalogSync({
-    now: new Date(),
+    now,
     minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
   });
-  const previewDueBatch = await selectAutoRefreshBatch(new Date());
+  const previewDueBatch = await selectAutoRefreshBatch(now);
   const previewBackfillBatch = await selectMissingPriceBackfillBatch({
     maxCards: Math.min(
       AUTO_PRICE_BACKFILL_MAX_CARDS,

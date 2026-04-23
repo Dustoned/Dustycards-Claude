@@ -242,10 +242,10 @@ export default function AutomationSection({
           <div>
             <p className="text-sm font-medium text-gray-900 dark:text-white">Card history import</p>
             <p className="mt-0.5 text-xs text-gray-400">
-              Import full TCGGO history for collection cards, excluding Common, Uncommon, and Rare.
+              Import full TCGGO history for cards across all expansions, excluding Common, Uncommon, and Rare.
             </p>
             <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-              Pending eligible collection cards:{" "}
+              Pending eligible expansion cards:{" "}
               <span className="font-semibold text-gray-900 dark:text-white">
                 {pendingCardHistoryCards}
               </span>
