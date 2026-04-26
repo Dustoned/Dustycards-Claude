@@ -1,15 +1,18 @@
 export type Theme = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
 export type CardView = "table" | "grid" | "binder";
-export type CardSize = "small" | "medium" | "large";
+export type DisplaySize = "small" | "medium" | "large";
+export type CardSize = DisplaySize;
 export type SortBy = "number" | "cm_en" | "tcp";
 export type SortDir = "asc" | "desc";
-export type ModalSize = "small" | "medium" | "large";
+export type ModalSize = DisplaySize;
+export type UiScale = DisplaySize;
 export type PriceSource = "cm_en" | "tcp";
 
 export interface UserSettings {
   theme: Theme;
   widescreen: boolean;
+  uiScale: UiScale;
   autoPriceRefresh: boolean;
   binderWatchMinPrice: number;
   defaultView: CardView;
@@ -31,6 +34,7 @@ export const SETTINGS_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 export const DEFAULT_SETTINGS: UserSettings = {
   theme: "system",
   widescreen: false,
+  uiScale: "medium",
   autoPriceRefresh: true,
   binderWatchMinPrice: 50,
   defaultView: "table",
@@ -76,6 +80,7 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
     theme: pickEnumValue(source.theme, ["light", "dark", "system"], DEFAULT_SETTINGS.theme),
     widescreen:
       typeof source.widescreen === "boolean" ? source.widescreen : DEFAULT_SETTINGS.widescreen,
+    uiScale: pickEnumValue(source.uiScale, ["small", "medium", "large"], DEFAULT_SETTINGS.uiScale),
     autoPriceRefresh:
       typeof source.autoPriceRefresh === "boolean"
         ? source.autoPriceRefresh
@@ -175,7 +180,11 @@ export const initSettingsScript = `
     var t = s.theme || 'system';
     var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.cookie = '${SETTINGS_RESOLVED_THEME_COOKIE_NAME}=' + (dark ? 'dark' : 'light') + '; Path=/; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; SameSite=Lax';
+    var ui = ['small', 'medium', 'large'].indexOf(s.uiScale) >= 0 ? s.uiScale : 'medium';
     document.documentElement.dataset.theme = t;
+    document.documentElement.dataset.uiScale = ui;
+    document.documentElement.classList.remove('ui-scale-small', 'ui-scale-medium', 'ui-scale-large');
+    document.documentElement.classList.add('ui-scale-' + ui);
     document.documentElement.classList.toggle('dark', dark);
     document.documentElement.classList.toggle('widescreen', !!s.widescreen);
   } catch(e){}

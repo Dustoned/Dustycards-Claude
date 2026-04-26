@@ -2,18 +2,22 @@
 
 import { useEffect, useRef, startTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useSettings } from "@/components/SettingsProvider";
 
 const ACTIVE_SYNC_REFRESH_MS = 3_000;
 const IDLE_SYNC_REFRESH_MS = 15_000;
 
 export default function SyncStatusAutoRefresh({ enabled }: { enabled: boolean }) {
   const router = useRouter();
+  const { settings, isLoaded } = useSettings();
   const inFlightRef = useRef(false);
   const releaseTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const refreshIntervalMs = enabled ? ACTIVE_SYNC_REFRESH_MS : IDLE_SYNC_REFRESH_MS;
+    const watchBackgroundRefresh = isLoaded && settings.autoPriceRefresh;
+    const refreshIntervalMs =
+      enabled || watchBackgroundRefresh ? ACTIVE_SYNC_REFRESH_MS : IDLE_SYNC_REFRESH_MS;
 
     function refresh() {
       if (cancelled || inFlightRef.current) return;
@@ -36,7 +40,7 @@ export default function SyncStatusAutoRefresh({ enabled }: { enabled: boolean })
       }, 1_000);
     }
 
-    if (enabled) {
+    if (enabled || watchBackgroundRefresh) {
       refresh();
     }
 
@@ -60,7 +64,7 @@ export default function SyncStatusAutoRefresh({ enabled }: { enabled: boolean })
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", visibilityHandler);
     };
-  }, [enabled, router]);
+  }, [enabled, isLoaded, router, settings.autoPriceRefresh]);
 
   return null;
 }

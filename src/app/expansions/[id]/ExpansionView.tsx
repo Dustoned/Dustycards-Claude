@@ -6,7 +6,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
-import CardModal, { type ModalCardData } from "@/components/CardModal";
+import type { ModalCardData } from "@/components/card-modal/types";
+import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -23,6 +24,10 @@ import {
 } from "@/components/SettingsProvider";
 import type { CardData } from "@/types/card-data";
 
+const CardModal = dynamic(() => import("@/components/CardModal"), {
+  ssr: false,
+  loading: () => null,
+});
 const CollectionBulkAddCardsModal = dynamic(
   () => import("@/components/CollectionBulkAddCardsModal"),
   {
@@ -207,17 +212,11 @@ function neutralFilterChip(active: boolean): string {
   return "border-black/8 text-gray-500 opacity-80 hover:border-black/20 hover:opacity-100 hover:text-gray-900 hover:shadow-sm dark:border-white/8 dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white";
 }
 
-const cardMinWidth: Record<CardSize, Record<"normal" | "wide", string>> = {
-  small: { normal: "120px", wide: "160px" },
-  medium: { normal: "160px", wide: "220px" },
-  large: { normal: "220px", wide: "300px" },
-};
-
 const KNOWN_SUPERTYPE_ORDER = ["Pokémon", "Trainer", "Energy"];
-const INITIAL_IMAGE_PRELOAD_COUNT = 18;
-const BACKGROUND_IMAGE_PRELOAD_BATCH = 18;
-const BACKGROUND_IMAGE_PRELOAD_DELAY_MS = 180;
-const WARMED_CARD_IMAGE_CACHE_LIMIT = 1200;
+const INITIAL_IMAGE_PRELOAD_COUNT = 8;
+const BACKGROUND_IMAGE_PRELOAD_BATCH = 8;
+const BACKGROUND_IMAGE_PRELOAD_DELAY_MS = 240;
+const WARMED_CARD_IMAGE_CACHE_LIMIT = 600;
 const warmedCardImageUrls = new Set<string>();
 const warmedCardImageQueue: string[] = [];
 
@@ -656,9 +655,8 @@ export default function ExpansionView({
         : null,
     [collectionEpisode, selected, selectedDetails]
   );
-  const cardTrackWidth =
-    cardMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"];
-  const gridTemplateColumns = `repeat(auto-fill, minmax(${cardTrackWidth}, ${cardTrackWidth}))`;
+  const cardTrackWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
+  const gridTemplateColumns = getFixedTrackGridTemplate(cardTrackWidth);
 
   useEffect(() => {
     onVisibleCardsChange?.(filtered);
@@ -1266,7 +1264,7 @@ export default function ExpansionView({
                       alt={card.name}
                       fill
                       className="object-contain"
-                      sizes="160px"
+                      sizes={cardTrackWidth}
                       loading={index < 18 ? "eager" : undefined}
                       unoptimized
                     />
@@ -1306,9 +1304,9 @@ export default function ExpansionView({
                       </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-1.5">
+                    <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
                       {gridPrice != null ? (
-                        <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                        <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
                           {primaryPriceSource === "tcp"
                             ? `TCP ${formatCurrency(gridPrice, gridCurrency)}`
                             : formatCurrency(gridPrice, gridCurrency)}

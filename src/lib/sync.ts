@@ -5,7 +5,15 @@ import {
   getAutoPriceRefreshPauseRemainingMs,
 } from "@/lib/auto-price-refresh-pause";
 import { isHiddenExpansion, isPromoExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
+import { startPerformanceTimer, timeAsync } from "@/lib/performance-timing";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
+import {
+  decodeSyncLogMessage,
+  encodeSyncLogDetailsJson,
+  type AutoPriceRefreshCurrentSetDetails,
+  type CardHistoryLogDetails,
+  type SyncLogDetails,
+} from "@/lib/sync-log-details";
 import { resolveTcgdexSupertype } from "@/lib/tcgdex";
 import {
   buildCardWriteData,
@@ -43,6 +51,22 @@ import {
   isTcggoQuotaExceededError,
   type NormalizedSealedProduct,
 } from "@/lib/tcggo";
+import {
+  createAutoPriceRefreshBatchId,
+  createAutoPriceRefreshLogDetails,
+  createAutoPriceRefreshResultDetails,
+  createCardHistoryLogDetails,
+  createCardHistoryResultDetails,
+  createEpisodeSyncLogDetails,
+  createEpisodeSyncResultDetails,
+  createFullSyncLogDetails,
+  createFullSyncResultDetails,
+  createSealedSyncLogDetails,
+  createSealedSyncResultDetails,
+  getQuotaPauseMessage,
+  getTcggoQuotaResultFields,
+  markSyncLogDetailsStatus,
+} from "@/lib/sync/progress-details";
 
 const ACTIVE_SYNC_STALE_MS = 1000 * 60 * 60 * 2;
 const CANCEL_REQUEST_STALE_MS = 1000 * 60 * 5;
@@ -51,18 +75,21 @@ const STALE_CANCELLED_SYNC_MESSAGE = "Marked cancelled after stop request exceed
 const SYNC_CANCELLED_MESSAGE = "Cancelled by user after the current batch finished.";
 const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
 const CARD_HISTORY_SYNC_TYPE = "card-history";
-const AUTO_PRICE_REFRESH_MAX_EPISODES = 6;
-const AUTO_PRICE_REFRESH_MAX_CARDS = 240;
+const AUTO_PRICE_REFRESH_MAX_EPISODES = 12;
+const AUTO_PRICE_REFRESH_MAX_CARDS = 1200;
 const AUTO_PRICE_REFRESH_MIN_INTERVAL_MS = 1000 * 60 * 60 * 6;
-const AUTO_PRICE_BACKFILL_MAX_EPISODES = 2;
-const AUTO_PRICE_BACKFILL_MAX_CARDS = 80;
+const AUTO_PRICE_BACKFILL_MAX_EPISODES = 6;
+const AUTO_PRICE_BACKFILL_MAX_CARDS = 400;
 const AUTO_PRICE_PREEMPT_WAIT_TIMEOUT_MS = 1000 * 60 * 5;
 const AUTO_CATALOG_SYNC_MIN_INTERVAL_MS = 1000 * 60 * 60;
-const AUTO_CATALOG_SYNC_MAX_EPISODES = 2;
+const AUTO_CATALOG_SYNC_MAX_EPISODES = 6;
+const EPISODE_SYNC_CONCURRENCY = 4;
 const FULL_SYNC_PROMO_VERIFICATION_LIMIT = 2;
 const PRICE_SOURCE_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 7;
+const NATIVE_HISTORY_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 30;
 const HISTORY_BACKFILL_BATCH_SIZE = 12;
-const MANUAL_HISTORY_SYNC_BATCH_SIZE = 2;
+const MANUAL_HISTORY_SYNC_BATCH_SIZE = 6;
+const MANUAL_HISTORY_SYNC_MAX_CARDS_PER_RUN = 48;
 const DB_WRITE_BATCH_SIZE = 60;
 const AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX = 0;
 const AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX = 0;
@@ -82,6 +109,8 @@ interface DueCardCandidate {
   episodeId: string;
   rarity: string | null;
   latestFetchedAt: string;
+  priceSourceStatus: string | null;
+  priceSourceCheckedAt: Date | string | null;
   tier: PriceRefreshTier;
 }
 
@@ -115,7 +144,8 @@ async function getHiddenEpisodeIds(): Promise<string[]> {
 
 interface SyncProgressController {
   syncId: string;
-  updateMessage: (message: string) => Promise<void>;
+  batchId?: string;
+  updateMessage: (message: string, details?: SyncLogDetails | null) => Promise<void>;
   throwIfCancelled: () => Promise<void>;
 }
 
@@ -128,6 +158,9 @@ export interface EpisodeSyncResult {
   refreshedPrices: number;
   gradedPricesUpdated: number;
   preemptedAutoPriceRefresh?: boolean;
+  quotaExceeded?: boolean;
+  requestsRemaining?: number | null;
+  requestConcurrency?: number;
 }
 
 export interface FullSyncResult {
@@ -140,6 +173,9 @@ export interface FullSyncResult {
   newPrices: number;
   refreshedPrices: number;
   gradedPricesUpdated: number;
+  quotaExceeded?: boolean;
+  requestsRemaining?: number | null;
+  requestConcurrency?: number;
 }
 
 export interface AutoPriceRefreshResult {
@@ -160,6 +196,9 @@ export interface AutoPriceRefreshResult {
   gradedPricesUpdated: number;
   skipped: boolean;
   message: string;
+  quotaExceeded: boolean;
+  requestsRemaining: number | null;
+  requestConcurrency: number;
 }
 
 export interface CardPriceRefreshResult {
@@ -188,13 +227,28 @@ export interface SealedProductHistorySyncResult {
   newHistorySnapshots: number;
 }
 
+export interface SealedSyncResult {
+  synced: number;
+  products: number;
+  quotaExceeded?: boolean;
+  requestsRemaining?: number | null;
+  requestConcurrency?: number;
+}
+
 export interface CardHistorySyncResult {
   candidateCards: number;
+  selectedCards: number;
+  processedCards: number;
   syncedCards: number;
+  failedCards: number;
   newHistorySnapshots: number;
   remainingCards: number;
+  hasMore: boolean;
   skipped: boolean;
   message: string;
+  quotaExceeded?: boolean;
+  requestsRemaining?: number | null;
+  requestConcurrency?: number;
 }
 
 export class SyncConflictError extends Error {
@@ -255,6 +309,65 @@ function hasAnySealedPrice(
     price.cm_avg_7d != null ||
     price.cm_avg_30d != null
   );
+}
+
+function withAutoQuotaFields(
+  result: Omit<
+    AutoPriceRefreshResult,
+    "quotaExceeded" | "requestsRemaining" | "requestConcurrency"
+  >,
+  quotaExceeded = false
+): AutoPriceRefreshResult {
+  return {
+    ...result,
+    ...getTcggoQuotaResultFields(quotaExceeded),
+  };
+}
+
+let dbWriteQueue = Promise.resolve();
+
+async function runExclusiveDbWrite<T>(work: () => Promise<T>): Promise<T> {
+  const previousWrite = dbWriteQueue;
+  let releaseWrite: () => void = () => {};
+  dbWriteQueue = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
+
+  await previousWrite;
+
+  try {
+    return await work();
+  } finally {
+    releaseWrite();
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  const workers = Array.from(
+    { length: Math.min(Math.max(concurrency, 1), items.length) },
+    async () => {
+      while (true) {
+        const currentIndex = nextIndex;
+        nextIndex += 1;
+
+        if (currentIndex >= items.length) {
+          return;
+        }
+
+        results[currentIndex] = await worker(items[currentIndex], currentIndex);
+      }
+    }
+  );
+
+  await Promise.all(workers);
+  return results;
 }
 
 function waitForDelay(ms: number) {
@@ -334,6 +447,10 @@ export async function reconcileStaleSyncLogs(now = new Date()): Promise<void> {
 interface AcquireSyncLogOptions {
   interruptAutoPriceRefresh?: boolean;
   onAutoPriceRefreshInterrupted?: () => void;
+}
+
+interface RunLoggedSyncOptions<T> extends AcquireSyncLogOptions {
+  successDetails?: (result: T, syncId: string) => SyncLogDetails | null;
 }
 
 async function acquireSyncLogWithOptions(
@@ -457,23 +574,34 @@ function createSyncCancellationChecker(syncId: string) {
 async function finalizeSyncLog(
   id: string,
   status: "success" | "failed" | "cancelled",
-  message: string
+  message: string,
+  details?: SyncLogDetails | null
 ) {
+  const humanMessage = decodeSyncLogMessage(message).message ?? message;
   await db.syncLog.update({
     where: { id },
     data: {
       status,
-      message,
+      message: humanMessage,
+      ...(details !== undefined ? { details_json: encodeSyncLogDetailsJson(details) } : {}),
       finished_at: new Date(),
       ...(status === "cancelled" ? {} : { cancel_requested_at: null }),
     },
   });
 }
 
-async function updateSyncLogMessage(id: string, message: string) {
+async function updateSyncLogMessage(
+  id: string,
+  message: string,
+  details?: SyncLogDetails | null
+) {
+  const humanMessage = decodeSyncLogMessage(message).message ?? message;
   await db.syncLog.update({
     where: { id },
-    data: { message },
+    data: {
+      message: humanMessage,
+      ...(details !== undefined ? { details_json: encodeSyncLogDetailsJson(details) } : {}),
+    },
   });
 }
 
@@ -541,45 +669,71 @@ async function runLoggedSync<T>(
   startMessage: string,
   successMessage: (result: T) => string,
   work: (progress: SyncProgressController) => Promise<T>,
-  options?: AcquireSyncLogOptions
+  options?: RunLoggedSyncOptions<T>
 ): Promise<T> {
   const log = await acquireSyncLogWithOptions(type, startMessage, options);
   const throwIfCancelled = createSyncCancellationChecker(log.id);
+  let latestDetails: SyncLogDetails | null = null;
   const progress: SyncProgressController = {
     syncId: log.id,
-    updateMessage: (message) => updateSyncLogMessage(log.id, message),
+    updateMessage: async (message, details) => {
+      if (details) {
+        latestDetails = details;
+      }
+      await updateSyncLogMessage(log.id, message, details ?? latestDetails);
+    },
     throwIfCancelled,
   };
 
   try {
     await progress.throwIfCancelled();
     const result = await work(progress);
-    await finalizeSyncLog(log.id, "success", successMessage(result));
+    const details = options?.successDetails?.(result, log.id) ?? latestDetails;
+    await finalizeSyncLog(log.id, "success", successMessage(result), details);
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const failureDetails = markSyncLogDetailsStatus(
+      latestDetails,
+      error instanceof SyncCancelledError ? "cancelled" : "failed"
+    );
     await finalizeSyncLog(
       log.id,
       error instanceof SyncCancelledError ? "cancelled" : "failed",
-      message
+      message,
+      failureDetails
     );
     throw error;
   }
 }
 
 function summarizeEpisodeSync(result: EpisodeSyncResult): string {
-  return [
+  const summary = [
     `Synced ${result.count} cards`,
     `${result.newCards} new cards`,
     `${result.updatedCards} updated cards`,
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
     `${result.gradedPricesUpdated} graded prices updated`,
-  ].join(" | ");
+  ];
+
+  if (result.quotaExceeded) {
+    summary.unshift(getQuotaPauseMessage());
+  }
+
+  if (result.requestsRemaining != null) {
+    summary.push(`${result.requestsRemaining} scraper requests remaining`);
+  }
+
+  if (result.requestConcurrency != null) {
+    summary.push(`${result.requestConcurrency} request concurrency`);
+  }
+
+  return summary.join(" | ");
 }
 
 function summarizeFullSync(result: FullSyncResult): string {
-  return [
+  const summary = [
     `Checked ${result.count} sets`,
     `${result.syncedEpisodes} synced`,
     `${result.skippedEpisodes} skipped`,
@@ -589,7 +743,21 @@ function summarizeFullSync(result: FullSyncResult): string {
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
     `${result.gradedPricesUpdated} graded prices updated`,
-  ].join(" | ");
+  ];
+
+  if (result.quotaExceeded) {
+    summary.unshift(getQuotaPauseMessage());
+  }
+
+  if (result.requestsRemaining != null) {
+    summary.push(`${result.requestsRemaining} scraper requests remaining`);
+  }
+
+  if (result.requestConcurrency != null) {
+    summary.push(`${result.requestConcurrency} request concurrency`);
+  }
+
+  return summary.join(" | ");
 }
 
 function summarizeAutoPriceRefresh(result: AutoPriceRefreshResult): string {
@@ -599,6 +767,10 @@ function summarizeAutoPriceRefresh(result: AutoPriceRefreshResult): string {
     `${result.backfillCards} first-price checks`,
     `${result.nativeHistoryItems} history backfills`,
   ];
+
+  if (result.quotaExceeded) {
+    summary.unshift(getQuotaPauseMessage());
+  }
 
   if (result.catalogSyncedEpisodes > 0) {
     summary.push(`${result.catalogSyncedEpisodes} sets synced`);
@@ -617,8 +789,13 @@ function summarizeAutoPriceRefresh(result: AutoPriceRefreshResult): string {
     `${result.newPrices} new price snapshots`,
     `${result.refreshedPrices} refreshed prices`,
     `${result.gradedPricesUpdated} graded prices updated`,
-    `${result.remainingDueCards} remaining after this batch`
+    `${result.remainingDueCards} remaining after this batch`,
+    `${result.requestConcurrency} request concurrency`
   );
+
+  if (result.requestsRemaining != null) {
+    summary.push(`${result.requestsRemaining} scraper requests remaining`);
+  }
 
   return summary.join(" | ");
 }
@@ -658,23 +835,48 @@ function summarizeSealedProductHistorySync(result: SealedProductHistorySyncResul
   ].join(" | ");
 }
 
-function summarizeSealedSync(result: { synced: number; products: number }): string {
-  return [
+function summarizeSealedSync(result: SealedSyncResult): string {
+  const summary = [
     `${result.synced} sets synced`,
     `${result.products} sealed products updated`,
-  ].join(" | ");
+  ];
+
+  if (result.quotaExceeded) {
+    summary.unshift(getQuotaPauseMessage());
+  }
+
+  if (result.requestsRemaining != null) {
+    summary.push(`${result.requestsRemaining} scraper requests remaining`);
+  }
+
+  if (result.requestConcurrency != null) {
+    summary.push(`${result.requestConcurrency} request concurrency`);
+  }
+
+  return summary.join(" | ");
 }
 
 function summarizeCardHistorySync(result: CardHistorySyncResult): string {
   const summary = [
     `Eligible ${result.candidateCards} cards`,
+    `Selected ${result.selectedCards} cards`,
+    `${result.processedCards} processed`,
     `${result.syncedCards} cards synced`,
+    `${result.failedCards} unavailable`,
     `${result.newHistorySnapshots} history snapshots`,
     `${result.remainingCards} still pending`,
   ];
 
   if (result.skipped && result.candidateCards > 0) {
     summary.push("paused for quota reset");
+  }
+
+  if (result.requestsRemaining != null) {
+    summary.push(`${result.requestsRemaining} scraper requests remaining`);
+  }
+
+  if (result.requestConcurrency != null) {
+    summary.push(`${result.requestConcurrency} request concurrency`);
   }
 
   return summary.join(" | ");
@@ -693,28 +895,54 @@ async function pruneAutoPriceRefreshLogs(keepId: string) {
 async function runAutoLoggedSync<T>(
   startMessage: string,
   successMessage: (result: T) => string,
-  work: (progress: SyncProgressController) => Promise<T>
+  work: (progress: SyncProgressController) => Promise<T>,
+  options?: {
+    recoverError?: (error: unknown) => T | null;
+    successDetails?: (result: T, batchId: string) => SyncLogDetails | null;
+  }
 ): Promise<T> {
   const log = await acquireSyncLog(AUTO_PRICE_REFRESH_TYPE, startMessage);
   const throwIfCancelled = createSyncCancellationChecker(log.id);
+  const batchId = createAutoPriceRefreshBatchId(log.id);
+  let latestDetails: SyncLogDetails | null = null;
   const progress: SyncProgressController = {
     syncId: log.id,
-    updateMessage: (message) => updateSyncLogMessage(log.id, message),
+    batchId,
+    updateMessage: async (message, details) => {
+      if (details) {
+        latestDetails = details;
+      }
+      await updateSyncLogMessage(log.id, message, details ?? latestDetails);
+    },
     throwIfCancelled,
   };
 
   try {
     await progress.throwIfCancelled();
     const result = await work(progress);
-    await finalizeSyncLog(log.id, "success", successMessage(result));
+    const details = options?.successDetails?.(result, batchId) ?? latestDetails;
+    await finalizeSyncLog(log.id, "success", successMessage(result), details);
     await pruneAutoPriceRefreshLogs(log.id);
     return result;
   } catch (error) {
+    const recovered = options?.recoverError?.(error);
+    if (recovered) {
+      const details = options?.successDetails?.(recovered, batchId) ?? latestDetails;
+      await finalizeSyncLog(log.id, "success", successMessage(recovered), details);
+      await pruneAutoPriceRefreshLogs(log.id);
+      return recovered;
+    }
+
     const message = error instanceof Error ? error.message : String(error);
+    const failureDetails = markSyncLogDetailsStatus(
+      latestDetails,
+      error instanceof SyncCancelledError ? "cancelled" : "failed"
+    );
     await finalizeSyncLog(
       log.id,
       error instanceof SyncCancelledError ? "cancelled" : "failed",
-      message
+      message,
+      failureDetails
     );
     throw error;
   }
@@ -852,22 +1080,31 @@ async function backfillCardNativeHistoryDetailed(
   syncedAt: Date,
   options?: {
     batchSize?: number;
+    markFailedAsSynced?: boolean;
     throwIfCancelled?: () => Promise<void>;
     onProgress?: (progress: {
       totalCards: number;
       processedCards: number;
       syncedCards: number;
+      failedCards: number;
       snapshotsCreated: number;
     }) => Promise<void> | void;
   }
 ): Promise<{
   syncedCards: number;
+  failedCards: number;
   snapshotsCreated: number;
   processedCards: number;
   quotaExceeded: boolean;
 }> {
   if (cardIds.length === 0) {
-    return { syncedCards: 0, snapshotsCreated: 0, processedCards: 0, quotaExceeded: false };
+    return {
+      syncedCards: 0,
+      failedCards: 0,
+      snapshotsCreated: 0,
+      processedCards: 0,
+      quotaExceeded: false,
+    };
   }
 
   await options?.throwIfCancelled?.();
@@ -891,6 +1128,7 @@ async function backfillCardNativeHistoryDetailed(
   const batchSize = options?.batchSize ?? HISTORY_BACKFILL_BATCH_SIZE;
   let processedCards = 0;
   let totalSyncedCards = 0;
+  let totalFailedCards = 0;
   let totalSnapshotsCreated = 0;
   let quotaExceeded = false;
 
@@ -904,6 +1142,19 @@ async function backfillCardNativeHistoryDetailed(
 
         try {
           const history = await fetchHistoryPricesByItemId(cardId);
+          if (history.length === 0) {
+            return {
+              cardId,
+              synced: false,
+              failed: true,
+              creates: [] as Array<{
+                card_id: string;
+                fetched_at: Date;
+              } & PriceSnapshotData>,
+              quotaExceeded: false,
+            };
+          }
+
           const existing = existingByCard.get(cardId) ?? new Set<string>();
           const creates: Array<{
             card_id: string;
@@ -939,6 +1190,7 @@ async function backfillCardNativeHistoryDetailed(
           return {
             cardId,
             synced: true,
+            failed: false,
             creates,
             quotaExceeded: false,
           };
@@ -947,6 +1199,7 @@ async function backfillCardNativeHistoryDetailed(
             return {
               cardId,
               synced: false,
+              failed: false,
               creates: [] as Array<{
                 card_id: string;
                 fetched_at: Date;
@@ -958,6 +1211,7 @@ async function backfillCardNativeHistoryDetailed(
           return {
             cardId,
             synced: false,
+            failed: true,
             creates: [] as Array<{
               card_id: string;
               fetched_at: Date;
@@ -974,6 +1228,9 @@ async function backfillCardNativeHistoryDetailed(
     const batchSyncedCardIds = batchResults
       .filter((result) => result.synced)
       .map((result) => result.cardId);
+    const batchFailedCardIds = batchResults
+      .filter((result) => result.failed)
+      .map((result) => result.cardId);
 
     await db.$transaction(async (tx) => {
       if (batchCreates.length > 0) {
@@ -987,13 +1244,29 @@ async function backfillCardNativeHistoryDetailed(
       if (batchSyncedCardIds.length > 0) {
         await tx.card.updateMany({
           where: { id: { in: batchSyncedCardIds } },
-          data: { native_history_synced_at: syncedAt },
+          data: {
+            native_history_synced_at: syncedAt,
+            native_history_status: "synced",
+            native_history_checked_at: syncedAt,
+          },
+        });
+      }
+
+      if (options?.markFailedAsSynced && batchFailedCardIds.length > 0) {
+        await tx.card.updateMany({
+          where: { id: { in: batchFailedCardIds } },
+          data: {
+            native_history_synced_at: null,
+            native_history_status: "unavailable",
+            native_history_checked_at: syncedAt,
+          },
         });
       }
     });
 
     processedCards += batchIds.length;
     totalSyncedCards += batchSyncedCardIds.length;
+    totalFailedCards += batchFailedCardIds.length;
     totalSnapshotsCreated += batchCreates.length;
 
     if (options?.onProgress) {
@@ -1001,6 +1274,7 @@ async function backfillCardNativeHistoryDetailed(
         totalCards: cardIds.length,
         processedCards,
         syncedCards: totalSyncedCards,
+        failedCards: totalFailedCards,
         snapshotsCreated: totalSnapshotsCreated,
       });
     }
@@ -1015,6 +1289,7 @@ async function backfillCardNativeHistoryDetailed(
 
   return {
     syncedCards: totalSyncedCards,
+    failedCards: totalFailedCards,
     snapshotsCreated: totalSnapshotsCreated,
     processedCards,
     quotaExceeded,
@@ -1122,7 +1397,11 @@ async function backfillSealedNativeHistory(
     if (syncedProductIds.length > 0) {
       await tx.sealedProduct.updateMany({
         where: { id: { in: syncedProductIds } },
-        data: { native_history_synced_at: syncedAt },
+        data: {
+          native_history_synced_at: syncedAt,
+          native_history_status: "synced",
+          native_history_checked_at: syncedAt,
+        },
       });
     }
   });
@@ -1147,6 +1426,12 @@ async function selectNativeHistoryBackfillBatch(): Promise<{
     db.card.findMany({
       where: {
         native_history_synced_at: null,
+        NOT: {
+          native_history_status: "unavailable",
+          native_history_checked_at: {
+            gte: new Date(Date.now() - NATIVE_HISTORY_UNAVAILABLE_RETRY_MS),
+          },
+        },
         OR: [
           { prices: { some: {} } },
           { cardmarket_id: { not: null } },
@@ -1160,6 +1445,12 @@ async function selectNativeHistoryBackfillBatch(): Promise<{
     db.sealedProduct.findMany({
       where: {
         native_history_synced_at: null,
+        NOT: {
+          native_history_status: "unavailable",
+          native_history_checked_at: {
+            gte: new Date(Date.now() - NATIVE_HISTORY_UNAVAILABLE_RETRY_MS),
+          },
+        },
         OR: [
           { cm_lowest: { not: null } },
           { cm_lowest_eu: { not: null } },
@@ -1191,14 +1482,32 @@ async function selectNativeHistoryBackfillBatch(): Promise<{
   };
 }
 
+function buildNativeHistoryRetryWindowWhere(retryBefore: Date): Prisma.CardWhereInput {
+  return {
+    OR: [
+      { native_history_status: null },
+      { native_history_status: { not: "unavailable" } },
+      { native_history_checked_at: null },
+      { native_history_checked_at: { lt: retryBefore } },
+    ],
+  };
+}
+
 function buildManualCardHistoryCardWhere(): Prisma.CardWhereInput {
+  const retryBefore = new Date(Date.now() - NATIVE_HISTORY_UNAVAILABLE_RETRY_MS);
+
   return {
     native_history_synced_at: null,
-    NOT: {
-      rarity: {
-        in: [...MANUAL_HISTORY_EXCLUDED_RARITIES],
+    AND: [
+      {
+        NOT: {
+          rarity: {
+            in: [...MANUAL_HISTORY_EXCLUDED_RARITIES],
+          },
+        },
       },
-    },
+      buildNativeHistoryRetryWindowWhere(retryBefore),
+    ],
     OR: [
       { prices: { some: {} } },
       { cardmarket_id: { not: null } },
@@ -1208,16 +1517,19 @@ function buildManualCardHistoryCardWhere(): Prisma.CardWhereInput {
 }
 
 export async function countManualCardHistoryCandidates(): Promise<number> {
-  return db.card.count({
-    where: buildManualCardHistoryCardWhere(),
-  });
+  return timeAsync("sync.card-history-candidates.count", () =>
+    db.card.count({
+      where: buildManualCardHistoryCardWhere(),
+    })
+  );
 }
 
-async function selectManualCardHistoryCandidates(): Promise<string[]> {
+async function selectManualCardHistoryCandidates(options?: { take?: number }): Promise<string[]> {
   const cards = await db.card.findMany({
     where: buildManualCardHistoryCardWhere(),
     orderBy: [{ updated_at: "desc" }],
     select: { id: true },
+    ...(options?.take ? { take: options.take } : {}),
   });
 
   return cards.map((card) => card.id);
@@ -1277,7 +1589,7 @@ async function syncEpisodeCards(
     )
     .map((card) => card.id);
 
-  const result = await db.$transaction(async (tx) => {
+  const result = await runExclusiveDbWrite(() => db.$transaction(async (tx) => {
     const existingCards = await findExistingCardsForSync(tx, {
       episode_id: episodeId,
     });
@@ -1426,7 +1738,7 @@ async function syncEpisodeCards(
       refreshedPrices,
       gradedPricesUpdated,
     };
-  });
+  }));
 
   if (options.backfillNativeHistory) {
     await options.throwIfCancelled?.();
@@ -1454,12 +1766,15 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
   selectedByEpisode: Map<string, string[]>;
 }> {
   const potentialCutoff = new Date(now.getTime() - AUTO_PRICE_REFRESH_MIN_INTERVAL_MS);
+  const retryBefore = new Date(now.getTime() - PRICE_SOURCE_UNAVAILABLE_RETRY_MS);
   const candidates = await db.$queryRaw<
     Array<{
       id: string;
       episode_id: string;
       rarity: string | null;
       latest_fetched_at: Date | string;
+      price_source_status: string | null;
+      price_source_checked_at: Date | string | null;
     }>
   >`
     WITH latest_prices AS (
@@ -1471,11 +1786,14 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
       c.id,
       c.episode_id,
       c.rarity,
+      c.price_source_status,
+      c.price_source_checked_at,
       latest_prices.latest_fetched_at
     FROM "Card" c
     INNER JOIN latest_prices ON latest_prices.card_id = c.id
     WHERE c.tcggo_url IS NOT NULL
       AND latest_prices.latest_fetched_at <= ${potentialCutoff}
+      AND (c.price_source_status IS NULL OR c.price_source_status <> 'unavailable')
   `;
   const hiddenEpisodeIds = new Set(await getHiddenEpisodeIds());
 
@@ -1483,6 +1801,14 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
 
   for (const candidate of candidates) {
     if (hiddenEpisodeIds.has(candidate.episode_id)) continue;
+    // A card can have an old snapshot but no current marketplace price. Do not spin on it.
+    if (
+      candidate.price_source_status === "unavailable" &&
+      candidate.price_source_checked_at &&
+      new Date(candidate.price_source_checked_at).getTime() > retryBefore.getTime()
+    ) {
+      continue;
+    }
 
     const latestFetchedAt = normalizeTimestamp(candidate.latest_fetched_at);
     if (!latestFetchedAt) continue;
@@ -1496,6 +1822,8 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
       episodeId: candidate.episode_id,
       rarity: candidate.rarity,
       latestFetchedAt,
+      priceSourceStatus: candidate.price_source_status,
+      priceSourceCheckedAt: candidate.price_source_checked_at,
       tier: refreshInfo.tier,
     });
   }
@@ -1596,30 +1924,34 @@ async function selectMissingPriceBackfillBatch(options?: {
   const visibleEpisodeFilter =
     hiddenEpisodeIds.length > 0 ? { episode_id: { notIn: hiddenEpisodeIds } } : {};
   const retryBefore = new Date(Date.now() - PRICE_SOURCE_UNAVAILABLE_RETRY_MS);
-
-  const [missingPriceCards, cards] = await Promise.all([
-    db.card.count({
-      where: {
-        ...visibleEpisodeFilter,
-        tcggo_url: { not: null },
-        prices: {
-          none: {},
-        },
-      },
-    }),
-    db.card.findMany({
-      where: {
-        ...visibleEpisodeFilter,
-        tcggo_url: { not: null },
-        prices: {
-          none: {},
-        },
+  const retryableMissingPriceWhere: Prisma.CardWhereInput = {
+    ...visibleEpisodeFilter,
+    tcggo_url: { not: null },
+    prices: {
+      none: {},
+    },
+    AND: [
+      {
         OR: [
           { price_source_status: null },
+          { price_source_status: { not: "unavailable" } },
+        ],
+      },
+      {
+        OR: [
           { price_source_checked_at: null },
           { price_source_checked_at: { lt: retryBefore } },
         ],
       },
+    ],
+  };
+
+  const [missingPriceCards, cards] = await Promise.all([
+    db.card.count({
+      where: retryableMissingPriceWhere,
+    }),
+    db.card.findMany({
+      where: retryableMissingPriceWhere,
       select: {
         id: true,
         episode_id: true,
@@ -1693,12 +2025,16 @@ async function selectMissingPriceBackfillBatch(options?: {
 export async function getAutoPriceRefreshSnapshot(): Promise<{
   dueCards: number;
   missingPriceCards: number;
+  unavailableCooldownCards: number;
+  nextUnavailableRetryAt: Date | null;
   nextBatchCards: number;
   nextBatchEpisodes: number;
   nextBatchEpisodeIds: string[];
   nextBatchCardIds: string[];
 }> {
-  const dueBatch = await selectAutoRefreshBatch(new Date());
+  const timer = startPerformanceTimer("sync.auto-price-refresh.snapshot");
+  const now = new Date();
+  const dueBatch = await selectAutoRefreshBatch(now);
   const backfillBatch = await selectMissingPriceBackfillBatch({
     maxCards: Math.min(
       AUTO_PRICE_BACKFILL_MAX_CARDS,
@@ -1706,15 +2042,38 @@ export async function getAutoPriceRefreshSnapshot(): Promise<{
     ),
   });
   const combinedBatch = mergeSelectedByEpisode(dueBatch.selectedByEpisode, backfillBatch.selectedByEpisode);
+  const hiddenEpisodeIds = await getHiddenEpisodeIds();
+  const visibleEpisodeFilter =
+    hiddenEpisodeIds.length > 0 ? { episode_id: { notIn: hiddenEpisodeIds } } : {};
 
-  return {
+  const unavailableCooldownCards = await db.card.count({
+    where: {
+      ...visibleEpisodeFilter,
+      tcggo_url: { not: null },
+      price_source_status: "unavailable",
+    },
+  });
+
+  const result = {
     dueCards: dueBatch.dueCards,
     missingPriceCards: backfillBatch.missingPriceCards,
+    unavailableCooldownCards,
+    nextUnavailableRetryAt: null,
     nextBatchCards: countSelectedCards(combinedBatch),
     nextBatchEpisodes: combinedBatch.size,
     nextBatchEpisodeIds: [...combinedBatch.keys()].slice(0, 6),
     nextBatchCardIds: [...new Set([...combinedBatch.values()].flat())].slice(0, 8),
   };
+
+  timer.finish({
+    dueCards: result.dueCards,
+    missingPriceCards: result.missingPriceCards,
+    cooldownCards: result.unavailableCooldownCards,
+    nextBatchCards: result.nextBatchCards,
+    nextBatchEpisodes: result.nextBatchEpisodes,
+  });
+
+  return result;
 }
 
 async function refreshEpisodeDueCards(
@@ -1751,7 +2110,7 @@ async function refreshEpisodeDueCards(
 
   const remoteCardMap = new Map(remoteCards.map((card) => [card.id, card]));
 
-  return db.$transaction(async (tx) => {
+  return runExclusiveDbWrite(() => db.$transaction(async (tx) => {
     const existingCards = await findExistingCardsForSync(tx, {
       id: { in: cardIds },
     });
@@ -1883,7 +2242,7 @@ async function refreshEpisodeDueCards(
       refreshedCards,
       gradedPricesUpdated,
     };
-  });
+  }));
 }
 
 export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefreshResult> {
@@ -2094,7 +2453,9 @@ export async function runSingleCardHistoryImport(
         await tx.card.update({
           where: { id: cardId },
           data: {
-            native_history_synced_at: syncedAt,
+            native_history_synced_at: history.length > 0 ? syncedAt : null,
+            native_history_status: history.length > 0 ? "synced" : "unavailable",
+            native_history_checked_at: syncedAt,
           },
         });
       });
@@ -2103,7 +2464,7 @@ export async function runSingleCardHistoryImport(
         cardId,
         historyPointsFetched: history.length,
         newHistorySnapshots: priceCreates.length,
-        historySynced: true,
+        historySynced: history.length > 0,
       };
     }
   );
@@ -2249,7 +2610,9 @@ export async function runSealedProductHistorySync(
         await tx.sealedProduct.update({
           where: { id: product.id },
           data: {
-            native_history_synced_at: syncedAt,
+            native_history_synced_at: history.length > 0 ? syncedAt : null,
+            native_history_status: history.length > 0 ? "synced" : "unavailable",
+            native_history_checked_at: syncedAt,
           },
         });
       });
@@ -2264,55 +2627,105 @@ export async function runSealedProductHistorySync(
 }
 
 export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
-  const candidateCards = await selectManualCardHistoryCandidates();
+  const candidateCardCount = await countManualCardHistoryCandidates();
 
-  if (candidateCards.length === 0) {
+  if (candidateCardCount === 0) {
     return {
       candidateCards: 0,
+      selectedCards: 0,
+      processedCards: 0,
       syncedCards: 0,
+      failedCards: 0,
       newHistorySnapshots: 0,
       remainingCards: 0,
+      hasMore: false,
       skipped: true,
       message: "All eligible cards across expansions already have imported history.",
     };
   }
 
+  const candidateCards = await selectManualCardHistoryCandidates({
+    take: MANUAL_HISTORY_SYNC_MAX_CARDS_PER_RUN,
+  });
+
   return runLoggedSync(
     CARD_HISTORY_SYNC_TYPE,
-    `Syncing full TCGGO card history for ${candidateCards.length} cards`,
+    `Syncing TCGGO card history for ${candidateCards.length} of ${candidateCardCount} cards`,
     summarizeCardHistorySync,
     async (progress) => {
       await progress.throwIfCancelled();
+      const updateHistoryProgress = (
+        message: string,
+        input: Partial<Omit<CardHistoryLogDetails, "version" | "kind" | "runId" | "status">>
+      ) =>
+        progress.updateMessage(
+          message,
+          createCardHistoryLogDetails(progress.syncId, "running", {
+            candidateCards: candidateCardCount,
+            selectedCards: candidateCards.length,
+            remainingCards: candidateCardCount,
+            hasMore: candidateCardCount > candidateCards.length,
+            ...input,
+          })
+        );
+
       await progress.updateMessage(
-        `Syncing TCGGO card history for ${candidateCards.length} cards across expansions (excluding Common, Uncommon, and Rare). This uses scraper requests.`
+        `Syncing TCGGO card history for ${candidateCards.length}/${candidateCardCount} cards across expansions (excluding Common, Uncommon, and Rare). This uses scraper requests.`,
+        createCardHistoryLogDetails(progress.syncId, "running", {
+          candidateCards: candidateCardCount,
+          selectedCards: candidateCards.length,
+          remainingCards: candidateCardCount,
+          hasMore: candidateCardCount > candidateCards.length,
+        })
       );
 
       const syncedAt = new Date();
       const result = await backfillCardNativeHistoryDetailed(candidateCards, syncedAt, {
         batchSize: MANUAL_HISTORY_SYNC_BATCH_SIZE,
+        markFailedAsSynced: true,
         throwIfCancelled: progress.throwIfCancelled,
-        onProgress: async ({ totalCards, processedCards, syncedCards, snapshotsCreated }) => {
-          await progress.updateMessage(
-            `Syncing card history ${processedCards}/${totalCards} | ${syncedCards} synced | ${snapshotsCreated} history snapshots | ${Math.max(totalCards - syncedCards, 0)} still pending`
+        onProgress: async ({
+          totalCards,
+          processedCards,
+          syncedCards,
+          failedCards,
+          snapshotsCreated,
+        }) => {
+          await updateHistoryProgress(
+            `Syncing card history ${processedCards}/${totalCards} | ${syncedCards} synced | ${failedCards} unavailable | ${snapshotsCreated} history snapshots | ${Math.max(totalCards - processedCards, 0)} left in this batch`,
+            {
+              processedCards,
+              syncedCards,
+              failedCards,
+              newHistorySnapshots: snapshotsCreated,
+              remainingCards: Math.max(candidateCardCount - processedCards, 0),
+            }
           );
         },
       });
+      const remainingCards = await countManualCardHistoryCandidates();
 
       return {
-        candidateCards: candidateCards.length,
+        candidateCards: candidateCardCount,
+        selectedCards: candidateCards.length,
+        processedCards: result.processedCards,
         syncedCards: result.syncedCards,
+        failedCards: result.failedCards,
         newHistorySnapshots: result.snapshotsCreated,
-        remainingCards: Math.max(candidateCards.length - result.syncedCards, 0),
+        remainingCards,
+        hasMore: remainingCards > 0 && !result.quotaExceeded,
         skipped: result.quotaExceeded,
+        ...getTcggoQuotaResultFields(result.quotaExceeded),
         message: result.quotaExceeded
           ? `Paused after ${result.processedCards} cards because scraper requests are exhausted. Resume after the quota reset.`
-          : result.syncedCards > 0
-            ? `Imported history for ${result.syncedCards} cards.`
-            : "No new history was imported.",
+          : remainingCards > 0
+            ? `Imported history for ${result.syncedCards} cards and skipped ${result.failedCards} unavailable cards. Continuing with ${remainingCards} remaining.`
+            : `History import complete. Imported ${result.syncedCards} cards and skipped ${result.failedCards} unavailable cards.`,
       };
     },
     {
       interruptAutoPriceRefresh: true,
+      successDetails: (result, syncId) => createCardHistoryResultDetails(syncId, result),
     }
   );
 }
@@ -2334,7 +2747,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
   });
 
   if (pauseRemainingMs > 0) {
-    return {
+    return withAutoQuotaFields({
       checkedEpisodes: 0,
       catalogSyncedEpisodes: 0,
       newEpisodes: 0,
@@ -2354,7 +2767,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       message: `Background price refresh is paused for about ${formatAutoPriceRefreshPauseRemaining(
         pauseRemainingMs
       )} after a manual stop.`,
-    };
+    });
   }
 
   const previewCatalog = await previewAutoCatalogSync({
@@ -2377,7 +2790,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
     previewNativeHistoryBatch.cardIds.length === 0 &&
     previewNativeHistoryBatch.products.length === 0
   ) {
-    return {
+    return withAutoQuotaFields({
       checkedEpisodes: 0,
       catalogSyncedEpisodes: 0,
       newEpisodes: 0,
@@ -2395,7 +2808,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       gradedPricesUpdated: 0,
       skipped: true,
       message: "No cards are due or waiting for a first price sync.",
-    };
+    });
   }
 
   return runAutoLoggedSync(
@@ -2421,9 +2834,50 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       let refreshedPrices = 0;
       let refreshedCards = 0;
       let gradedPricesUpdated = 0;
+      let quotaExceeded = false;
+      const batchId = progress.batchId ?? progress.syncId;
+      const previewCombinedBatch = mergeSelectedByEpisode(
+        previewDueBatch.selectedByEpisode,
+        previewBackfillBatch.selectedByEpisode
+      );
+      let activeDueCards = previewDueBatch.dueCards;
+      let activeMissingPriceCards = previewBackfillBatch.missingPriceCards;
+      let activeSelectedCards = countSelectedCards(previewCombinedBatch);
+      let activeBackfillCards = previewBackfillBatch.selectedCards;
+      let activeEpisodeCount = previewCombinedBatch.size;
+      let activeRemainingDueCards = Math.max(
+        previewDueBatch.dueCards - previewDueBatch.selectedCards,
+        0
+      );
+      const updateAutoProgress = (
+        message: string,
+        currentSet?: AutoPriceRefreshCurrentSetDetails | null
+      ) =>
+        progress.updateMessage(
+          message,
+          createAutoPriceRefreshLogDetails(batchId, "running", {
+            checkedEpisodes: activeEpisodeCount,
+            catalogSyncedEpisodes,
+            dueCards: activeDueCards,
+            missingPriceCards: activeMissingPriceCards,
+            selectedCards: activeSelectedCards,
+            backfillCards: activeBackfillCards,
+            nativeHistoryItems: 0,
+            remainingDueCards: activeRemainingDueCards,
+            newEpisodes,
+            newCards,
+            updatedCards,
+            newPrices,
+            refreshedPrices,
+            refreshedCards,
+            gradedPricesUpdated,
+            quotaExceeded,
+            currentSet: currentSet ?? null,
+          })
+        );
 
       if (catalogBatch.remoteEpisodes.length > 0) {
-        await progress.updateMessage(
+        await updateAutoProgress(
           catalogBatch.selectedEpisodes.length > 0
             ? `Catalog sync ${catalogBatch.selectedEpisodes.length} sets pending | eligible queue preview ${previewDueBatch.dueCards}`
             : "Refreshing remote set catalog before the background price batch"
@@ -2432,17 +2886,52 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         newEpisodes = catalogBatch.newEpisodes;
       }
 
-      for (const [episodeIndex, episode] of catalogBatch.selectedEpisodes.entries()) {
-        await progress.throwIfCancelled();
-        await progress.updateMessage(
-          `Catalog sync ${catalogBatch.selectedEpisodes.length} sets pending | Refreshing ${episode.name} (${episodeIndex + 1}/${catalogBatch.selectedEpisodes.length}) | finding missing cards`
-        );
+      let completedCatalogEpisodes = 0;
+      const catalogResults = await mapWithConcurrency(
+        catalogBatch.selectedEpisodes,
+        EPISODE_SYNC_CONCURRENCY,
+        async (episode, episodeIndex) => {
+          if (quotaExceeded) return null;
 
-        const result = await syncEpisodeCards(episode.id, {
-          refreshAllPrices: false,
-          backfillNativeHistory: false,
-          throwIfCancelled: progress.throwIfCancelled,
-        });
+          await progress.throwIfCancelled();
+          await updateAutoProgress(
+            `Catalog sync ${catalogBatch.selectedEpisodes.length} sets pending | Refreshing ${episode.name} (${episodeIndex + 1}/${catalogBatch.selectedEpisodes.length}) | finding missing cards`,
+            {
+              index: episodeIndex + 1,
+              total: catalogBatch.selectedEpisodes.length,
+              name: episode.name,
+              cards: 0,
+              previewCards: [],
+            }
+          );
+
+          try {
+            const result = await syncEpisodeCards(episode.id, {
+              refreshAllPrices: false,
+              backfillNativeHistory: false,
+              throwIfCancelled: progress.throwIfCancelled,
+            });
+
+            completedCatalogEpisodes += 1;
+            await updateAutoProgress(
+              `Catalog sync ${catalogBatch.selectedEpisodes.length} sets pending | Completed ${completedCatalogEpisodes}/${catalogBatch.selectedEpisodes.length} sets`
+            );
+
+            return result;
+          } catch (error) {
+            if (isTcggoQuotaExceededError(error)) {
+              quotaExceeded = true;
+              return null;
+            }
+
+            throw error;
+          }
+        }
+      );
+
+      for (const result of catalogResults) {
+        if (!result) continue;
+
         catalogSyncedEpisodes += 1;
         newCards += result.newCards;
         updatedCards += result.updatedCards;
@@ -2463,6 +2952,12 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         dueBatch.selectedByEpisode,
         backfillBatch.selectedByEpisode
       );
+      activeDueCards = dueBatch.dueCards;
+      activeMissingPriceCards = backfillBatch.missingPriceCards;
+      activeSelectedCards = countSelectedCards(combinedBatch);
+      activeBackfillCards = backfillBatch.selectedCards;
+      activeEpisodeCount = combinedBatch.size;
+      activeRemainingDueCards = Math.max(dueBatch.dueCards - dueBatch.selectedCards, 0);
 
       if (
         combinedBatch.size === 0 &&
@@ -2471,7 +2966,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         catalogSyncedEpisodes === 0 &&
         newEpisodes === 0
       ) {
-        return {
+        return withAutoQuotaFields({
           checkedEpisodes: 0,
           catalogSyncedEpisodes: 0,
           newEpisodes: 0,
@@ -2488,8 +2983,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           refreshedCards: 0,
           gradedPricesUpdated: 0,
           skipped: true,
-          message: "No cards are due or waiting for a first price sync.",
-        };
+          message: quotaExceeded
+            ? getQuotaPauseMessage()
+            : "No cards are due or waiting for a first price sync.",
+        }, quotaExceeded);
       }
 
       const episodeEntries = [...combinedBatch.entries()];
@@ -2522,27 +3019,63 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       );
 
       await progress.throwIfCancelled();
-      await progress.updateMessage(batchSummary);
+      await updateAutoProgress(batchSummary);
 
-      for (const [episodeIndex, [episodeId, cardIds]] of episodeEntries.entries()) {
-        await progress.throwIfCancelled();
+      let completedPriceEpisodes = 0;
+      const priceResults = await mapWithConcurrency(
+        episodeEntries,
+        EPISODE_SYNC_CONCURRENCY,
+        async ([episodeId, cardIds], episodeIndex) => {
+          if (quotaExceeded) return null;
 
-        const episodeName = episodeNameById[episodeId] ?? `Set ${episodeId}`;
-        const previewNames = cardIds
-          .slice(0, 4)
-          .map((id) => previewCardNameById[id])
-          .filter((name): name is string => Boolean(name));
-        const previewLabel = previewNames.length > 0 ? ` | cards: ${previewNames.join(", ")}` : "";
-        await progress.updateMessage(
-          `${batchSummary} | Refreshing ${episodeName} (${episodeIndex + 1}/${episodeEntries.length}) | ${cardIds.length} cards${previewLabel}`
-        );
+          await progress.throwIfCancelled();
 
-        const result = await refreshEpisodeDueCards(
-          episodeId,
-          cardIds,
-          fetchedAt,
-          progress.throwIfCancelled
-        );
+          const episodeName = episodeNameById[episodeId] ?? `Set ${episodeId}`;
+          const previewNames = cardIds
+            .slice(0, 4)
+            .map((id) => previewCardNameById[id])
+            .filter((name): name is string => Boolean(name));
+          const previewLabel =
+            previewNames.length > 0 ? ` | cards: ${previewNames.join(", ")}` : "";
+          await updateAutoProgress(
+            `${batchSummary} | Refreshing ${episodeName} (${episodeIndex + 1}/${episodeEntries.length}) | ${cardIds.length} cards${previewLabel}`,
+            {
+              index: episodeIndex + 1,
+              total: episodeEntries.length,
+              name: episodeName,
+              cards: cardIds.length,
+              previewCards: previewNames,
+            }
+          );
+
+          try {
+            const result = await refreshEpisodeDueCards(
+              episodeId,
+              cardIds,
+              fetchedAt,
+              progress.throwIfCancelled
+            );
+
+            completedPriceEpisodes += 1;
+            await updateAutoProgress(
+              `${batchSummary} | Completed ${completedPriceEpisodes}/${episodeEntries.length} sets`
+            );
+
+            return result;
+          } catch (error) {
+            if (isTcggoQuotaExceededError(error)) {
+              quotaExceeded = true;
+              return null;
+            }
+
+            throw error;
+          }
+        }
+      );
+
+      for (const result of priceResults) {
+        if (!result) continue;
+
         updatedCards += result.updatedCards;
         newPrices += result.newPrices;
         refreshedPrices += result.refreshedPrices;
@@ -2552,19 +3085,35 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
 
       await progress.throwIfCancelled();
 
-      const [syncedCardHistoryItems, syncedSealedHistoryItems] = await Promise.all([
-        backfillCardNativeHistory(nativeHistoryBatch.cardIds, fetchedAt, progress.throwIfCancelled),
-        backfillSealedNativeHistory(
-          nativeHistoryBatch.products,
-          fetchedAt,
-          progress.throwIfCancelled
-        ),
-      ]);
+      let syncedCardHistoryItems = 0;
+      let syncedSealedHistoryItems = 0;
+
+      try {
+        [syncedCardHistoryItems, syncedSealedHistoryItems] = await Promise.all([
+          backfillCardNativeHistory(
+            nativeHistoryBatch.cardIds,
+            fetchedAt,
+            progress.throwIfCancelled
+          ),
+          backfillSealedNativeHistory(
+            nativeHistoryBatch.products,
+            fetchedAt,
+            progress.throwIfCancelled
+          ),
+        ]);
+      } catch (error) {
+        if (isTcggoQuotaExceededError(error)) {
+          quotaExceeded = true;
+        } else {
+          throw error;
+        }
+      }
 
       const remainingDueCards = Math.max(dueBatch.dueCards - dueBatch.selectedCards, 0);
       const nativeHistoryCount = syncedCardHistoryItems + syncedSealedHistoryItems;
+      activeRemainingDueCards = remainingDueCards;
 
-      return {
+      return withAutoQuotaFields({
         checkedEpisodes: combinedBatch.size,
         catalogSyncedEpisodes,
         newEpisodes,
@@ -2587,7 +3136,39 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
             : catalogSyncedEpisodes > 0 || newEpisodes > 0
               ? `Checked ${selectedCards} cards across ${combinedBatch.size} sets after syncing ${catalogSyncedEpisodes} catalog sets and discovering ${newEpisodes} new sets.`
               : `Checked ${selectedCards} cards across ${combinedBatch.size} sets.`,
-      };
+      }, quotaExceeded);
+    },
+    {
+      successDetails: (result, batchId) =>
+        createAutoPriceRefreshResultDetails(batchId, result as AutoPriceRefreshResult),
+      recoverError: (error) => {
+        if (!isTcggoQuotaExceededError(error)) {
+          return null;
+        }
+
+        return withAutoQuotaFields(
+          {
+            checkedEpisodes: 0,
+            catalogSyncedEpisodes: 0,
+            newEpisodes: 0,
+            dueCards: previewDueBatch.dueCards,
+            missingPriceCards: previewBackfillBatch.missingPriceCards,
+            selectedCards: 0,
+            backfillCards: 0,
+            nativeHistoryItems: 0,
+            remainingDueCards: previewDueBatch.dueCards,
+            newCards: 0,
+            updatedCards: 0,
+            newPrices: 0,
+            refreshedPrices: 0,
+            refreshedCards: 0,
+            gradedPricesUpdated: 0,
+            skipped: true,
+            message: getQuotaPauseMessage(),
+          },
+          true
+        );
+      },
     }
   );
 }
@@ -2603,7 +3184,7 @@ async function persistEpisodeSealedProducts(
   const fetchedIds = products.map((product) => product.id);
   const replaceMissingEpisodeProducts = options?.replaceMissingEpisodeProducts ?? true;
 
-  await db.$transaction(async (tx) => {
+  await runExclusiveDbWrite(() => db.$transaction(async (tx) => {
     for (const product of products) {
       await tx.sealedProduct.upsert({
         where: { id: product.id },
@@ -2671,10 +3252,10 @@ async function persistEpisodeSealedProducts(
         },
       });
     }
-  });
+  }));
 }
 
-export async function runSealedSync(): Promise<{ synced: number; products: number }> {
+export async function runSealedSync(): Promise<SealedSyncResult> {
   return runLoggedSync(
     "sealed",
     "Syncing sealed products for all expansions",
@@ -2687,32 +3268,52 @@ export async function runSealedSync(): Promise<{ synced: number; products: numbe
       ).filter((episode) => !isHiddenExpansion(episode));
       let synced = 0;
       let products = 0;
+      let quotaExceeded = false;
 
-      // Process in batches of 5 to avoid overwhelming the API
-      const BATCH = 5;
-      for (let i = 0; i < episodes.length; i += BATCH) {
+      await mapWithConcurrency(episodes, EPISODE_SYNC_CONCURRENCY, async (ep, index) => {
+        if (quotaExceeded) return;
+
         await progress.throwIfCancelled();
-
-        const batch = episodes.slice(i, i + BATCH);
-        await Promise.all(
-          batch.map(async (ep) => {
-            await progress.throwIfCancelled();
-
-            try {
-              const fetched = await fetchSealedProductsForEpisode(ep.id);
-              if (fetched.length === 0) return;
-              const syncedAt = new Date();
-              await persistEpisodeSealedProducts(ep.id, fetched, syncedAt);
-              synced += 1;
-              products += fetched.length;
-            } catch {
-              // skip failed episodes silently
-            }
+        await progress.updateMessage(
+          `Syncing sealed products ${index + 1}/${episodes.length} | ${ep.name}`,
+          createSealedSyncLogDetails(progress.syncId, "running", {
+            synced,
+            products,
+            quotaExceeded,
+            currentEpisode: {
+              index: index + 1,
+              total: episodes.length,
+              id: ep.id,
+              name: ep.name,
+            },
           })
         );
-      }
 
-      return { synced, products };
+        try {
+          const fetched = await fetchSealedProductsForEpisode(ep.id);
+          if (fetched.length === 0) return;
+
+          const syncedAt = new Date();
+          await persistEpisodeSealedProducts(ep.id, fetched, syncedAt);
+          synced += 1;
+          products += fetched.length;
+        } catch (error) {
+          if (isTcggoQuotaExceededError(error)) {
+            quotaExceeded = true;
+            return;
+          }
+          // Skip failed episodes silently, matching the previous sealed sync behavior.
+        }
+      });
+
+      return {
+        synced,
+        products,
+        ...getTcggoQuotaResultFields(quotaExceeded),
+      };
+    },
+    {
+      successDetails: (result, syncId) => createSealedSyncResultDetails(syncId, result),
     }
   );
 }
@@ -2782,29 +3383,63 @@ export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResu
         select: { name: true },
       });
       if (episode?.name) {
-        await progress.updateMessage(`Syncing ${episode.name}`);
+        await progress.updateMessage(
+          `Syncing ${episode.name}`,
+          createEpisodeSyncLogDetails(progress.syncId, "running", {
+            episodeId,
+            preemptedAutoPriceRefresh,
+          })
+        );
       }
-      const [cardResult] = await Promise.all([
-        syncEpisodeCards(episodeId, {
-          refreshAllPrices: true,
-          backfillNativeHistory: false,
-          throwIfCancelled: progress.throwIfCancelled,
-        }),
-        syncEpisodeSealed(episodeId, {
-          backfillNativeHistory: false,
-          throwIfCancelled: progress.throwIfCancelled,
-        }).catch(() => undefined),
-      ]);
-      return {
-        ...cardResult,
-        preemptedAutoPriceRefresh,
-      };
+
+      try {
+        let sealedQuotaExceeded = false;
+        const [cardResult] = await Promise.all([
+          syncEpisodeCards(episodeId, {
+            refreshAllPrices: true,
+            backfillNativeHistory: false,
+            throwIfCancelled: progress.throwIfCancelled,
+          }),
+          syncEpisodeSealed(episodeId, {
+            backfillNativeHistory: false,
+            throwIfCancelled: progress.throwIfCancelled,
+          }).catch((error) => {
+            if (isTcggoQuotaExceededError(error)) {
+              sealedQuotaExceeded = true;
+              return undefined;
+            }
+            return undefined;
+          }),
+        ]);
+        return {
+          ...cardResult,
+          preemptedAutoPriceRefresh,
+          ...getTcggoQuotaResultFields(sealedQuotaExceeded),
+        };
+      } catch (error) {
+        if (!isTcggoQuotaExceededError(error)) {
+          throw error;
+        }
+
+        return {
+          episodeId,
+          count: 0,
+          newCards: 0,
+          updatedCards: 0,
+          newPrices: 0,
+          refreshedPrices: 0,
+          gradedPricesUpdated: 0,
+          preemptedAutoPriceRefresh,
+          ...getTcggoQuotaResultFields(true),
+        };
+      }
     },
     {
       interruptAutoPriceRefresh: true,
       onAutoPriceRefreshInterrupted: () => {
         preemptedAutoPriceRefresh = true;
       },
+      successDetails: (result, syncId) => createEpisodeSyncResultDetails(syncId, result),
     }
   );
 }
@@ -2945,26 +3580,95 @@ export async function runFullSync(): Promise<FullSyncResult> {
       let newPrices = 0;
       let refreshedPrices = 0;
       let gradedPricesUpdated = 0;
+      let quotaExceeded = false;
+      let syncedEpisodes = 0;
+      const episodeNameById = Object.fromEntries(
+        remoteEpisodes.map((episode) => [episode.id, episode.name])
+      );
+      const buildFullSyncRunningDetails = (
+        currentEpisode?: {
+          index: number;
+          total: number;
+          id: string;
+          name: string;
+        } | null
+      ) =>
+        createFullSyncLogDetails(progress.syncId, "running", {
+          count: remoteEpisodes.length,
+          newEpisodes,
+          syncedEpisodes,
+          skippedEpisodes: Math.max(remoteEpisodes.length - syncedEpisodes, 0),
+          newCards,
+          updatedCards,
+          newPrices,
+          refreshedPrices,
+          gradedPricesUpdated,
+          quotaExceeded,
+          currentEpisode: currentEpisode ?? null,
+        });
 
-      for (const [episodeIndex, episodeId] of orderedEpisodesToSync.entries()) {
-        await progress.throwIfCancelled();
+      const episodeResults = await mapWithConcurrency(
+        orderedEpisodesToSync,
+        EPISODE_SYNC_CONCURRENCY,
+        async (episodeId, episodeIndex) => {
+          if (quotaExceeded) return null;
 
-        const episodeName =
-          remoteEpisodes.find((episode) => episode.id === episodeId)?.name ?? `Set ${episodeId}`;
-        await progress.updateMessage(
-          `Syncing ${episodeName} (${episodeIndex + 1}/${orderedEpisodesToSync.length})`
-        );
-        const [episodeResult] = await Promise.all([
-          syncEpisodeCards(episodeId, {
-            refreshAllPrices: false,
-            backfillNativeHistory: false,
-            throwIfCancelled: progress.throwIfCancelled,
-          }),
-          syncEpisodeSealed(episodeId, {
-            backfillNativeHistory: false,
-            throwIfCancelled: progress.throwIfCancelled,
-          }).catch(() => undefined),
-        ]);
+          await progress.throwIfCancelled();
+
+          const episodeName = episodeNameById[episodeId] ?? `Set ${episodeId}`;
+          await progress.updateMessage(
+            `Syncing ${episodeName} (${episodeIndex + 1}/${orderedEpisodesToSync.length})`,
+            buildFullSyncRunningDetails({
+              index: episodeIndex + 1,
+              total: orderedEpisodesToSync.length,
+              id: episodeId,
+              name: episodeName,
+            })
+          );
+
+          try {
+            const [episodeResult] = await Promise.all([
+              syncEpisodeCards(episodeId, {
+                refreshAllPrices: false,
+                backfillNativeHistory: false,
+                throwIfCancelled: progress.throwIfCancelled,
+              }),
+              syncEpisodeSealed(episodeId, {
+                backfillNativeHistory: false,
+                throwIfCancelled: progress.throwIfCancelled,
+              }).catch((error) => {
+                if (isTcggoQuotaExceededError(error)) {
+                  quotaExceeded = true;
+                }
+                return undefined;
+              }),
+            ]);
+
+            syncedEpisodes += 1;
+            await progress.updateMessage(
+              `Syncing episodes | Completed ${syncedEpisodes}/${orderedEpisodesToSync.length}`,
+              buildFullSyncRunningDetails({
+                index: episodeIndex + 1,
+                total: orderedEpisodesToSync.length,
+                id: episodeId,
+                name: episodeName,
+              })
+            );
+
+            return episodeResult;
+          } catch (error) {
+            if (isTcggoQuotaExceededError(error)) {
+              quotaExceeded = true;
+              return null;
+            }
+
+            throw error;
+          }
+        }
+      );
+
+      for (const episodeResult of episodeResults) {
+        if (!episodeResult) continue;
 
         newCards += episodeResult.newCards;
         updatedCards += episodeResult.updatedCards;
@@ -2976,14 +3680,18 @@ export async function runFullSync(): Promise<FullSyncResult> {
       return {
         count: remoteEpisodes.length,
         newEpisodes,
-        syncedEpisodes: orderedEpisodesToSync.length,
-        skippedEpisodes: Math.max(remoteEpisodes.length - orderedEpisodesToSync.length, 0),
+        syncedEpisodes,
+        skippedEpisodes: Math.max(remoteEpisodes.length - syncedEpisodes, 0),
         newCards,
         updatedCards,
         newPrices,
         refreshedPrices,
         gradedPricesUpdated,
+        ...getTcggoQuotaResultFields(quotaExceeded),
       };
+    },
+    {
+      successDetails: (result, syncId) => createFullSyncResultDetails(syncId, result),
     }
   );
 }

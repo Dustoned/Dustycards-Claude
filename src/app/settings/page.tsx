@@ -1,10 +1,14 @@
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
+import { decodeSyncLogDetailsJson, decodeSyncLogMessage } from "@/lib/sync-log-details";
+import { timeAsync } from "@/lib/performance-timing";
+import { areScraperRequestsDisabled, SCRAPER_DISABLED_ENV } from "@/lib/scraper-guard";
 import {
   countManualCardHistoryCandidates,
   getAutoPriceRefreshSnapshot,
   reconcileStaleSyncLogs,
 } from "@/lib/sync";
+import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { parseCookieSettings, SETTINGS_COOKIE_NAME } from "@/lib/user-settings";
 import ThemeSection from "./ThemeSection";
@@ -60,7 +64,9 @@ function parseSyncType(type: string): {
 
 export default async function SettingsPage() {
   const cookieStore = await cookies();
-  const widescreen = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value)?.widescreen ?? false;
+  const settings = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value);
+  const widescreen = settings?.widescreen ?? false;
+  const scraperDisabled = areScraperRequestsDisabled();
 
   await reconcileStaleSyncLogs();
 
@@ -77,7 +83,7 @@ export default async function SettingsPage() {
     autoRefreshSnapshot,
     tcggoUsageSnapshot,
     pendingCardHistoryCards,
-  ] = await Promise.all([
+  ] = await timeAsync("settings.summary-data", () => Promise.all([
     db.syncLog.findFirst({
       where: {
         status: "running",
@@ -136,7 +142,7 @@ export default async function SettingsPage() {
     getAutoPriceRefreshSnapshot(),
     getTcggoUsageSnapshot(),
     countManualCardHistoryCandidates(),
-  ]);
+  ]));
 
   const relevantLogs = [
     activeSync,
@@ -169,7 +175,7 @@ export default async function SettingsPage() {
     }
   }
 
-  const [episodes, cards] = await Promise.all([
+  const [episodes, cards] = await timeAsync("settings.label-lookups", () => Promise.all([
     episodeIds.length
       ? db.episode.findMany({
           where: { id: { in: episodeIds } },
@@ -182,13 +188,18 @@ export default async function SettingsPage() {
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
-  ]);
+  ]), {
+    episodes: episodeIds.length,
+    cards: cardIds.length,
+  });
 
   const episodeNameById = Object.fromEntries(episodes.map((episode) => [episode.id, episode.name]));
   const cardNameById = Object.fromEntries(cards.map((card) => [card.id, card.name]));
 
   const toSyncEntry = (log: NonNullable<typeof activeSync> | null) => {
     if (!log) return null;
+    const decodedMessage = decodeSyncLogMessage(log.message);
+    const detailsFromColumn = decodeSyncLogDetailsJson(log.details_json);
 
     const parsedType = parseSyncType(log.type);
     let label = "Sync";
@@ -216,7 +227,8 @@ export default async function SettingsPage() {
       type: log.type,
       label,
       status: log.status,
-      message: log.message,
+      message: decodedMessage.message,
+      details: detailsFromColumn ?? decodedMessage.details,
       started_at: log.started_at,
       finished_at: log.finished_at,
       cancel_requested_at: log.cancel_requested_at,
@@ -273,10 +285,10 @@ export default async function SettingsPage() {
   const activeScraperLabel = toSyncEntry(activeSync)?.label ?? null;
 
   return (
-    <div className={`${widescreen ? "max-w-[2000px]" : "max-w-2xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-8">Settings</h1>
+    <div className={`settings-page ${widescreen ? "max-w-[2000px]" : "max-w-2xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
+      <h1 className="settings-page-title text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-8">Settings</h1>
 
-      <div className={`grid gap-4 ${widescreen ? "grid-cols-3" : "grid-cols-1"}`}>
+      <div className={`grid gap-4 ${widescreen ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1"}`}>
         <ThemeSection />
         <LayoutSection />
         <CardDefaultsSection />
@@ -296,8 +308,10 @@ export default async function SettingsPage() {
           }}
           pendingCardHistoryCards={pendingCardHistoryCards}
           activeScraperLabel={activeScraperLabel}
+          scraperDisabled={scraperDisabled}
+          scraperDisabledLabel={SCRAPER_DISABLED_ENV}
         />
-        <div className={widescreen ? "col-span-3" : ""}>
+        <div className={widescreen ? "xl:col-span-3" : ""}>
           <SyncStatusSection
             activeSync={toSyncEntry(activeSync)}
             lastSuccessfulSync={toSyncEntry(lastSuccessfulSync)}
@@ -315,6 +329,8 @@ export default async function SettingsPage() {
               lastFailure: toSyncEntry(lastAutoRefreshFailure),
               dueCards: autoRefreshSnapshot.dueCards,
               missingPriceCards: autoRefreshSnapshot.missingPriceCards,
+              unavailableCooldownCards: autoRefreshSnapshot.unavailableCooldownCards,
+              nextUnavailableRetryLabel: formatDateTime(autoRefreshSnapshot.nextUnavailableRetryAt),
               nextBatchCards: autoRefreshSnapshot.nextBatchCards,
               nextBatchEpisodes: autoRefreshSnapshot.nextBatchEpisodes,
               nextBatchSetLabels: autoRefreshSnapshot.nextBatchEpisodeIds.map(
@@ -323,6 +339,15 @@ export default async function SettingsPage() {
               nextBatchCardLabels: autoRefreshSnapshot.nextBatchCardIds.map(
                 (cardId) => cardNameById[cardId] ?? cardId
               ),
+              requestsRemaining: tcggoUsageSnapshot.requestsRemaining,
+              requestConcurrency: TCGGO_REQUEST_CONCURRENCY,
+              quotaPaused:
+                tcggoUsageSnapshot.hasLiveWindow &&
+                tcggoUsageSnapshot.requestsRemaining === 0,
+              quotaResetLabel: tcggoUsageSnapshot.hasLiveWindow
+                ? formatDateTime(tcggoUsageSnapshot.quotaResetsAt)
+                : null,
+              scraperDisabled,
             }}
             recentSyncs={recentSyncEntries}
             recentFailures={recentFailedEntries}

@@ -1,11 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { GripVertical } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import BinderOverviewTile from "@/components/BinderOverviewTile";
-import BinderWatchSection from "@/components/BinderWatchSection";
-import CollectionCardsView from "@/components/CollectionCardsView";
-import CollectionSealedView from "@/components/CollectionSealedView";
+import { useSettings } from "@/components/SettingsProvider";
+import { getFixedTrackGridTemplate, getSupportTileTrackWidth } from "@/lib/display-scale";
 import {
   buildOverviewSectionOrderCookie,
   DEFAULT_OVERVIEW_SECTION_ORDER,
@@ -15,6 +14,19 @@ import {
   parseStoredOverviewSectionOrder,
 } from "@/lib/overview-section-order";
 import type { CollectionCardViewItem, CollectionSealedViewItem } from "@/types/collection-view";
+
+const BinderOverviewTile = dynamic(() => import("@/components/BinderOverviewTile"), {
+  loading: () => null,
+});
+const BinderWatchSection = dynamic(() => import("@/components/BinderWatchSection"), {
+  loading: () => null,
+});
+const CollectionCardsView = dynamic(() => import("@/components/CollectionCardsView"), {
+  loading: () => null,
+});
+const CollectionSealedView = dynamic(() => import("@/components/CollectionSealedView"), {
+  loading: () => null,
+});
 
 interface BinderOverviewItem {
   id: string;
@@ -129,6 +141,8 @@ export default function CollectionOverviewSections({
   binders,
   initialSectionOrder = null,
 }: Props) {
+  const { settings } = useSettings();
+  const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
   const [sectionOrder, setSectionOrder] = useState<OverviewSectionKey[]>(
     initialSectionOrder ?? DEFAULT_OVERVIEW_SECTION_ORDER
   );
@@ -305,7 +319,9 @@ export default function CollectionOverviewSections({
             ) : (
               <div
                 className="grid justify-start gap-4"
-                style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 360px))" }}
+                style={{
+                  gridTemplateColumns: getFixedTrackGridTemplate(binderTileTrackWidth),
+                }}
               >
                 {binders.map((binder) => (
                   <BinderOverviewTile key={binder.id} binder={binder} />
@@ -318,7 +334,15 @@ export default function CollectionOverviewSections({
     ];
 
     return new Map(sections.map((section) => [section.key, section] as const));
-  }, [binderCards, binders, gradedLooseSingles, rawLooseSingles, sealed, showRawLooseSinglesSection]);
+  }, [
+    binderCards,
+    binderTileTrackWidth,
+    binders,
+    gradedLooseSingles,
+    rawLooseSingles,
+    sealed,
+    showRawLooseSinglesSection,
+  ]);
 
   const orderedVisibleSections = useMemo(() => {
     const visibleSections = [...sectionMap.values()].filter((section) => section.show);

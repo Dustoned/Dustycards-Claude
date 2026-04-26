@@ -7,7 +7,7 @@ export default function HomePageSection() {
   const { settings, set } = useSettings();
 
   return (
-    <div className="glass rounded-2xl p-6 shadow-md shadow-black/5">
+    <div className="settings-panel glass rounded-2xl p-6 shadow-md shadow-black/5">
       <div className="mb-5">
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">Home Page</h2>
         <p className="mt-0.5 text-sm text-gray-400">

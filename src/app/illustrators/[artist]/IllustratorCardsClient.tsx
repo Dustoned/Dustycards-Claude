@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useDeferredValue, useMemo, useState, useTransition } from "react";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import {
   buildEpisodeSetPriceHistory,
   getCardMarketValue,
@@ -18,6 +17,11 @@ const ExpansionView = dynamic(() => import("@/app/expansions/[id]/ExpansionView"
     <div className="glass rounded-3xl p-8 text-sm text-gray-500 shadow-md shadow-black/5 dark:text-white/45">
       Loading illustrator cards...
     </div>
+  ),
+});
+const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
+  loading: () => (
+    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
   ),
 });
 

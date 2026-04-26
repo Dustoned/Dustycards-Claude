@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight, Layers3, LibraryBig, Shapes } from "lucide-react";
 import { db } from "@/lib/db";
+import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import {
   getEpisodeDisplayCardCount,
   isHiddenExpansion,
@@ -13,7 +14,6 @@ import {
   DEFAULT_SETTINGS,
   parseCookieSettings,
   SETTINGS_COOKIE_NAME,
-  type CardSize,
 } from "@/lib/user-settings";
 
 export const dynamic = "force-dynamic";
@@ -79,39 +79,6 @@ function getEra(name: string, series: string | null, releaseDate: string | null)
   return "Other";
 }
 
-function getExpansionTileConfig(cardSize: CardSize, widescreen: boolean) {
-  if (cardSize === "small") {
-    return {
-      minWidth: widescreen ? "165px" : "150px",
-      tileClass: "rounded-2xl p-3 gap-2.5",
-      logoHeightClass: "h-12",
-      fallbackHeightClass: "h-12",
-      titleClass: "text-xs",
-      metaClass: "text-xs",
-    };
-  }
-
-  if (cardSize === "large") {
-    return {
-      minWidth: widescreen ? "320px" : "250px",
-      tileClass: "rounded-2xl p-5 gap-4",
-      logoHeightClass: "h-20",
-      fallbackHeightClass: "h-20",
-      titleClass: "text-sm",
-      metaClass: "text-sm",
-    };
-  }
-
-  return {
-    minWidth: widescreen ? "215px" : "175px",
-    tileClass: "rounded-2xl p-3.5 gap-3",
-    logoHeightClass: "h-14",
-    fallbackHeightClass: "h-14",
-    titleClass: "text-xs",
-    metaClass: "text-xs",
-  };
-}
-
 function shouldReplaceEpisode(existingId: string, nextId: string): boolean {
   const existingNumericId = Number(existingId);
   const nextNumericId = Number(nextId);
@@ -127,7 +94,7 @@ export default async function ExpansionsPage() {
   const cookieStore = await cookies();
   const settings =
     parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
-  const tileConfig = getExpansionTileConfig(settings.cardSize, settings.widescreen);
+  const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
 
   const episodes = await db.episode.findMany({
     orderBy: [{ release_date: "desc" }, { name: "asc" }],
@@ -288,7 +255,8 @@ export default async function ExpansionsPage() {
             <div
               className="grid gap-3"
               style={{
-                gridTemplateColumns: `repeat(auto-fill, minmax(${tileConfig.minWidth}, 1fr))`,
+                gridTemplateColumns: getFixedTrackGridTemplate(tileConfig.minWidth),
+                justifyContent: "start",
               }}
             >
               {sets.map((episode, index) => {

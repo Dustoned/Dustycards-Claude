@@ -77,6 +77,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     "antialiased",
     serverDark ? "dark" : "",
     initialSettings?.widescreen ? "widescreen" : "",
+    `ui-scale-${initialSettings?.uiScale ?? "medium"}`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -86,6 +87,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang="en"
       className={htmlClassName}
       data-theme={initialTheme}
+      data-ui-scale={initialSettings?.uiScale ?? "medium"}
       suppressHydrationWarning
     >
       <head>
@@ -101,24 +103,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             data-app-header
             className="sticky top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8"
           >
-            <nav className="page-container mx-auto flex h-14 items-center gap-3 px-4 sm:px-6 lg:px-8">
-              <Link href="/" className="shrink-0 font-semibold text-base text-gray-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity">
+            <nav className="page-container mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-4 sm:px-6 lg:px-8">
+              <Link href="/" className="shrink-0 font-semibold text-gray-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity [font-size:var(--ui-brand-size)]">
                 DustyCards
               </Link>
-              <div className="hidden shrink-0 items-center gap-5 md:flex">
-                <Link href="/expansions" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
+              <div className="hidden shrink-0 items-center gap-[var(--ui-header-gap)] lg:flex">
+                <Link href="/expansions" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
                   Expansions
                 </Link>
-                <Link href="/movers" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
+                <Link href="/movers" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
                   Movers
                 </Link>
-                <Link href="/illustrators" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
+                <Link href="/illustrators" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
                   Illustrators
                 </Link>
               </div>
               <HeaderSearch />
               <div className="flex-1 md:hidden" />
-              <Link href="/settings" className="shrink-0 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium">
+              <Link href="/settings" className="shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
                 Settings
               </Link>
             </nav>

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, BrushCleaning, LibraryBig, Sparkles } from "lucide-react";
 import { db } from "@/lib/db";
+import { getFixedTrackGridTemplate, getIllustratorTileScale } from "@/lib/display-scale";
 import IllustratorSortToggle from "@/app/illustrators/IllustratorSortToggle";
 import {
   buildVisibleEpisodeWhereSql,
@@ -13,7 +14,6 @@ import {
   DEFAULT_SETTINGS,
   parseCookieSettings,
   SETTINGS_COOKIE_NAME,
-  type CardSize,
 } from "@/lib/user-settings";
 
 export const dynamic = "force-dynamic";
@@ -54,36 +54,6 @@ const EUR_FORMATTER = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
-
-function getTileConfig(cardSize: CardSize, widescreen: boolean) {
-  if (cardSize === "small") {
-    return {
-      minWidth: widescreen ? "190px" : "170px",
-      tileClass: "rounded-2xl p-3 gap-3",
-      imageWrapClass: "aspect-[63/88]",
-      titleClass: "text-sm",
-      metaClass: "text-xs",
-    };
-  }
-
-  if (cardSize === "large") {
-    return {
-      minWidth: widescreen ? "340px" : "270px",
-      tileClass: "rounded-2xl p-5 gap-4",
-      imageWrapClass: "aspect-[63/88]",
-      titleClass: "text-base",
-      metaClass: "text-sm",
-    };
-  }
-
-  return {
-    minWidth: widescreen ? "250px" : "210px",
-    tileClass: "rounded-2xl p-4 gap-3.5",
-    imageWrapClass: "aspect-[63/88]",
-    titleClass: "text-sm",
-    metaClass: "text-xs",
-  };
-}
 
 function formatCurrency(value: number | null): string {
   if (value == null) return "--";
@@ -212,7 +182,7 @@ export default async function IllustratorsPage({
   const sort = rawSort
     ? normalizeIllustratorSort(rawSort)
     : normalizeIllustratorSort(cookieStore.get(ILLUSTRATOR_SORT_COOKIE_NAME)?.value);
-  const tileConfig = getTileConfig(settings.cardSize, settings.widescreen);
+  const tileConfig = getIllustratorTileScale(settings.uiScale, settings.widescreen);
   const illustrators = await getIllustratorSummaries();
 
   const sortedIllustrators =
@@ -357,7 +327,8 @@ export default async function IllustratorsPage({
             <div
               className="grid gap-3"
               style={{
-                gridTemplateColumns: `repeat(auto-fill, minmax(${tileConfig.minWidth}, 1fr))`,
+                gridTemplateColumns: getFixedTrackGridTemplate(tileConfig.minWidth),
+                justifyContent: "start",
               }}
             >
               {entries.map((illustrator, index) => (

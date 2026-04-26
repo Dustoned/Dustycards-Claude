@@ -1,20 +1,28 @@
 "use client";
 
 import type { ReactNode } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, LineChart, RefreshCw } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
-import GradedSlabPreview from "@/components/GradedSlabPreview";
 import IllustratorLink from "@/components/IllustratorLink";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import { type SupportedGradedSlabCompany } from "@/lib/graded-slabs";
 import { type CardMarketHistorySeriesKey } from "@/lib/price-history";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { formatCurrency, rarityBadge } from "./utils";
 import type { ModalCardCollectionItem, ModalCardData } from "./types";
+
+const GradedSlabPreview = dynamic(() => import("@/components/GradedSlabPreview"), {
+  ssr: false,
+  loading: () => null,
+});
+const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface SectionShellProps {
   eyebrow?: string;
@@ -92,9 +100,9 @@ function MetricTile({
           : "border-white/10 bg-black/22";
 
   return (
-    <div className={`rounded-2xl border px-3 py-3 ${accentClass} ${className}`}>
+    <div className={`min-w-0 rounded-2xl border px-3 py-3 ${accentClass} ${className}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/38">{label}</p>
-      <p className="mt-2 text-lg font-semibold tabular-nums text-white">{value}</p>
+      <p className="mt-2 break-words text-lg font-semibold tabular-nums text-white">{value}</p>
       {hint && <p className="mt-1 text-xs text-white/42">{hint}</p>}
     </div>
   );
@@ -102,12 +110,12 @@ function MetricTile({
 
 function MarketRow({ label, value, hint }: MarketRowProps) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/20 px-3 py-3">
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-white/8 bg-black/20 px-3 py-3">
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">{label}</p>
         {hint && <p className="mt-1 text-xs text-white/40">{hint}</p>}
       </div>
-      <p className="shrink-0 text-base font-semibold tabular-nums text-white">{value}</p>
+      <p className="min-w-0 break-words text-right text-base font-semibold tabular-nums text-white">{value}</p>
     </div>
   );
 }
@@ -311,7 +319,9 @@ export function CardModalHeroSection({
       <div className="relative">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
           <div className="min-w-0">
-            <h2 className={`${titleClass} leading-[0.98] font-bold text-white`}>{card.name}</h2>
+            <h2 className={`${titleClass} break-words leading-tight font-bold text-white`}>
+              {card.name}
+            </h2>
 
             <div className={`mt-3 flex flex-wrap items-center gap-2.5 text-white/54 ${metaClassName}`}>
               {headerMetaLabel && (
@@ -343,7 +353,7 @@ export function CardModalHeroSection({
               type="button"
               onClick={onSyncHistory}
               disabled={isBusy}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[40px] items-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <LineChart className={`h-4 w-4 ${syncingHistory ? "animate-pulse" : ""}`} />
               {syncingHistory ? "Syncing..." : "Sync History"}
@@ -352,7 +362,7 @@ export function CardModalHeroSection({
               type="button"
               onClick={onRefresh}
               disabled={isBusy}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[40px] items-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Refreshing..." : "Refresh"}
@@ -362,11 +372,13 @@ export function CardModalHeroSection({
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {headerDetailStats.map((stat) => (
-            <div key={stat.label} className={detailStatClass}>
+            <div key={stat.label} className={`${detailStatClass} min-w-0`}>
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/36">
                 {stat.label}
               </p>
-              <div className="mt-1.5 text-sm font-medium text-white/84">{stat.value}</div>
+              <div className="mt-1.5 min-w-0 break-words text-sm font-medium text-white/84">
+                {stat.value}
+              </div>
             </div>
           ))}
         </div>

@@ -21,7 +21,7 @@ import {
   compareCollectionSealedItems,
   getCollectionSealedTileMinWidth,
 } from "./collection-sealed/utils";
-import type { SealedModalProductData } from "@/components/SealedProductModal";
+import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,

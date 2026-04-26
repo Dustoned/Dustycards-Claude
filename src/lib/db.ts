@@ -18,10 +18,24 @@ type PrismaClientWithRuntimeModel = PrismaClient & {
 
 const REQUIRED_RUNTIME_FIELDS = {
   Episode: ["source_status", "source_checked_at", "source_actual_card_count"],
-  Card: ["price_source_status", "price_source_checked_at", "native_history_synced_at"],
-  SealedProduct: ["cm_avg_7d", "cm_avg_30d", "native_history_synced_at"],
+  Card: [
+    "price_source_status",
+    "price_source_checked_at",
+    "native_history_synced_at",
+    "native_history_status",
+    "native_history_checked_at",
+  ],
+  SealedProduct: [
+    "cm_avg_7d",
+    "cm_avg_30d",
+    "native_history_synced_at",
+    "native_history_status",
+    "native_history_checked_at",
+  ],
   SealedPriceSnapshot: ["cm_avg_7d", "cm_avg_30d"],
   Price: ["cm_en_avg_7d", "cm_en_avg_30d"],
+  SyncLog: ["details_json"],
+  SyncJob: ["details_json", "heartbeat_at"],
 } as const;
 
 function hasRuntimeField(

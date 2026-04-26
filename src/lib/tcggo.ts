@@ -1,4 +1,5 @@
 import { buildCardMarketProductUrl } from "@/lib/cardmarket";
+import { assertScraperRequestsEnabled } from "@/lib/scraper-guard";
 import { getTcgdexImageLookup, resolveTcgdexImageUrl } from "@/lib/tcgdex";
 import { recordTcggoQuotaSnapshot } from "@/lib/tcggo-usage";
 
@@ -6,7 +7,9 @@ const BASE_URL = "https://cardmarket-api-tcg.p.rapidapi.com";
 const REQUEST_TIMEOUT_MS = 20_000;
 const MAX_RETRY_ATTEMPTS = 2;
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 500, 502, 503, 504]);
-const HISTORY_PAGE_FETCH_DELAY_MS = 120;
+const HISTORY_PAGE_FETCH_DELAY_MS = 250;
+const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
+export const TCGGO_REQUEST_CONCURRENCY = 8;
 
 const headers = {
   "x-rapidapi-key": process.env.RAPIDAPI_KEY!,
@@ -180,6 +183,28 @@ export function isTcggoQuotaExceededError(
   return error instanceof TcggoQuotaExceededError;
 }
 
+interface RuntimeQuotaSnapshot {
+  requestsLimit: number | null;
+  requestsRemaining: number | null;
+  quotaResetsAt: Date | null;
+  observedAt: Date | null;
+}
+
+interface TcggoRequestRuntimeSnapshot extends RuntimeQuotaSnapshot {
+  requestConcurrency: number;
+  activeRequests: number;
+  queuedRequests: number;
+}
+
+let runtimeQuotaSnapshot: RuntimeQuotaSnapshot = {
+  requestsLimit: null,
+  requestsRemaining: null,
+  quotaResetsAt: null,
+  observedAt: null,
+};
+let activeTcggoRequests = 0;
+const tcggoRequestQueue: Array<() => void> = [];
+
 function parseHeaderInt(value: string | null): number | null {
   if (value == null) return null;
 
@@ -193,20 +218,155 @@ function parseQuotaResetAt(headers: Headers): Date | null {
   return new Date(Date.now() + resetSeconds * 1000);
 }
 
+function normalizeRuntimeQuotaSnapshot() {
+  if (
+    runtimeQuotaSnapshot.requestsRemaining === 0 &&
+    runtimeQuotaSnapshot.quotaResetsAt != null &&
+    runtimeQuotaSnapshot.quotaResetsAt.getTime() <= Date.now()
+  ) {
+    runtimeQuotaSnapshot = {
+      ...runtimeQuotaSnapshot,
+      requestsRemaining: null,
+      quotaResetsAt: null,
+      observedAt: new Date(),
+    };
+  }
+}
+
+function getRuntimeQuotaError(path: string): TcggoQuotaExceededError | null {
+  normalizeRuntimeQuotaSnapshot();
+
+  if (runtimeQuotaSnapshot.requestsRemaining === 0) {
+    return new TcggoQuotaExceededError(path, runtimeQuotaSnapshot.quotaResetsAt);
+  }
+
+  return null;
+}
+
+function reserveRuntimeQuotaRequest() {
+  if (runtimeQuotaSnapshot.requestsRemaining == null) return;
+
+  runtimeQuotaSnapshot = {
+    ...runtimeQuotaSnapshot,
+    requestsRemaining: Math.max(runtimeQuotaSnapshot.requestsRemaining - 1, 0),
+    observedAt: new Date(),
+  };
+}
+
+function updateRuntimeQuotaSnapshot(headers: Headers) {
+  const requestsLimit = parseHeaderInt(headers.get("x-ratelimit-requests-limit"));
+  const requestsRemaining = parseHeaderInt(headers.get("x-ratelimit-requests-remaining"));
+  const quotaResetsAt = parseQuotaResetAt(headers);
+
+  if (requestsLimit == null && requestsRemaining == null && quotaResetsAt == null) {
+    return;
+  }
+
+  runtimeQuotaSnapshot = {
+    requestsLimit: requestsLimit ?? runtimeQuotaSnapshot.requestsLimit,
+    requestsRemaining:
+      requestsRemaining == null
+        ? runtimeQuotaSnapshot.requestsRemaining
+        : Math.max(requestsRemaining, 0),
+    quotaResetsAt: quotaResetsAt ?? runtimeQuotaSnapshot.quotaResetsAt,
+    observedAt: new Date(),
+  };
+}
+
+function drainTcggoRequestQueue() {
+  while (
+    activeTcggoRequests < TCGGO_REQUEST_CONCURRENCY &&
+    tcggoRequestQueue.length > 0
+  ) {
+    const run = tcggoRequestQueue.shift();
+    run?.();
+  }
+}
+
+function runQueuedTcggoRequest<T>(path: string, work: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const run = () => {
+      const quotaError = getRuntimeQuotaError(path);
+      if (quotaError) {
+        reject(quotaError);
+        return;
+      }
+
+      reserveRuntimeQuotaRequest();
+      activeTcggoRequests += 1;
+
+      work()
+        .then(resolve, reject)
+        .finally(() => {
+          activeTcggoRequests -= 1;
+          drainTcggoRequestQueue();
+        });
+    };
+
+    tcggoRequestQueue.push(run);
+    drainTcggoRequestQueue();
+  });
+}
+
+export function getTcggoRequestRuntimeSnapshot(): TcggoRequestRuntimeSnapshot {
+  normalizeRuntimeQuotaSnapshot();
+
+  return {
+    ...runtimeQuotaSnapshot,
+    requestConcurrency: TCGGO_REQUEST_CONCURRENCY,
+    activeRequests: activeTcggoRequests,
+    queuedRequests: tcggoRequestQueue.length,
+  };
+}
+
+function resetTcggoRequestRuntimeForTests() {
+  runtimeQuotaSnapshot = {
+    requestsLimit: null,
+    requestsRemaining: null,
+    quotaResetsAt: null,
+    observedAt: null,
+  };
+  activeTcggoRequests = 0;
+  tcggoRequestQueue.splice(0, tcggoRequestQueue.length);
+}
+
+function setTcggoRuntimeQuotaForTests(snapshot: Partial<RuntimeQuotaSnapshot>) {
+  runtimeQuotaSnapshot = {
+    ...runtimeQuotaSnapshot,
+    ...snapshot,
+  };
+}
+
+export const __tcggoTestUtils = {
+  resetRequestRuntime: resetTcggoRequestRuntimeForTests,
+  setRuntimeQuota: setTcggoRuntimeQuotaForTests,
+  runQueuedRequest: runQueuedTcggoRequest,
+};
+
 async function apiFetch<T>(path: string): Promise<T> {
+  assertScraperRequestsEnabled();
+
   let attempt = 0;
   let lastError: Error | null = null;
 
   while (attempt <= MAX_RETRY_ATTEMPTS) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
     try {
-      const res = await fetch(`${BASE_URL}${path}`, {
-        headers,
-        cache: "no-store",
-        signal: controller.signal,
+      const res = await runQueuedTcggoRequest(path, async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+        try {
+          return await fetch(`${BASE_URL}${path}`, {
+            headers,
+            cache: "no-store",
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
       });
+
+      updateRuntimeQuotaSnapshot(res.headers);
 
       try {
         await recordTcggoQuotaSnapshot(res.headers);
@@ -216,7 +376,22 @@ async function apiFetch<T>(path: string): Promise<T> {
 
       if (!res.ok) {
         if (res.status === 429) {
-          throw new TcggoQuotaExceededError(path, parseQuotaResetAt(res.headers));
+          const requestsRemaining = parseHeaderInt(
+            res.headers.get("x-ratelimit-requests-remaining")
+          );
+          if (requestsRemaining === 0) {
+            throw new TcggoQuotaExceededError(path, parseQuotaResetAt(res.headers));
+          }
+
+          const rateLimitError = new Error(`TCGGO API 429 rate limited: ${path}`);
+          if (attempt < MAX_RETRY_ATTEMPTS) {
+            lastError = rateLimitError;
+            attempt += 1;
+            await sleep(RATE_LIMIT_RETRY_DELAY_MS * attempt);
+            continue;
+          }
+
+          throw rateLimitError;
         }
 
         const statusError = new Error(`TCGGO API ${res.status}: ${path}`);
@@ -232,6 +407,10 @@ async function apiFetch<T>(path: string): Promise<T> {
 
       return res.json() as Promise<T>;
     } catch (error) {
+      if (isTcggoQuotaExceededError(error)) {
+        throw error;
+      }
+
       const isAbortError =
         error instanceof Error &&
         (error.name === "AbortError" || error.message.includes("aborted"));
@@ -245,8 +424,6 @@ async function apiFetch<T>(path: string): Promise<T> {
       }
 
       throw error;
-    } finally {
-      clearTimeout(timeout);
     }
   }
 

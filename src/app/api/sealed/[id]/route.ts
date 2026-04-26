@@ -10,6 +10,7 @@ import {
 } from "@/lib/sync";
 import { buildCardMarketProductUrl } from "@/lib/cardmarket";
 import { isTcggoQuotaExceededError } from "@/lib/tcggo";
+import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 
 type SealedAction = "refresh" | "sync-history";
 
@@ -96,6 +97,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const scraperDisabled = getScraperDisabledResponse();
+  if (scraperDisabled) return scraperDisabled;
 
   let action: SealedAction = "refresh";
 

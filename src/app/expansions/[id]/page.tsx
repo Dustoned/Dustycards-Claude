@@ -1,11 +1,11 @@
 import { unstable_cache } from "next/cache";
+import nextDynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import {
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
@@ -28,6 +28,12 @@ import SealedProductsGrid from "./SealedProductsGrid";
 import SyncEpisodeButton from "./SyncEpisodeButton";
 
 export const dynamic = "force-dynamic";
+
+const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
+  loading: () => (
+    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+  ),
+});
 
 const getCachedSealedProducts = unstable_cache(
   async (episodeId: string) => fetchSealedProductsForEpisode(episodeId),
@@ -161,19 +167,45 @@ export default async function ExpansionDetailPage({
   let pricePanelEmptyText = "Nog geen setprijzen beschikbaar";
   if (activeTab === "cards") {
     const [rawSetPriceSnapshots, dbCards] = await Promise.all([
-      db.price.findMany({
-        where: { card: { episode_id: id } },
-        orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
-        select: {
-          card_id: true,
-          fetched_at: true,
-          cm_en_lowest_nm: true,
-          cm_de_lowest_nm: true,
-          cm_fr_lowest_nm: true,
-          cm_es_lowest_nm: true,
-          cm_it_lowest_nm: true,
-        },
-      }),
+      db.$queryRaw<
+        Array<{
+          card_id: string;
+          fetched_at: Date | string;
+          cm_en_lowest_nm: number | null;
+          cm_de_lowest_nm: number | null;
+          cm_fr_lowest_nm: number | null;
+          cm_es_lowest_nm: number | null;
+          cm_it_lowest_nm: number | null;
+        }>
+      >`
+        SELECT
+          card_id,
+          fetched_at,
+          cm_en_lowest_nm,
+          cm_de_lowest_nm,
+          cm_fr_lowest_nm,
+          cm_es_lowest_nm,
+          cm_it_lowest_nm
+        FROM (
+          SELECT
+            p.card_id,
+            p.fetched_at,
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm,
+            ROW_NUMBER() OVER (
+              PARTITION BY p.card_id, DATE(p.fetched_at)
+              ORDER BY p.fetched_at DESC, p.id DESC
+            ) AS row_num
+          FROM "Price" p
+          INNER JOIN "Card" c ON c.id = p.card_id
+          WHERE c.episode_id = ${id}
+        )
+        WHERE row_num = 1
+        ORDER BY fetched_at ASC, card_id ASC
+      `,
       db.card.findMany({
         where: { episode_id: id },
         orderBy: [{ card_number: "asc" }, { name: "asc" }],
@@ -190,7 +222,7 @@ export default async function ExpansionDetailPage({
     const latestSetPricePoint = setPriceHistory[setPriceHistory.length - 1] ?? null;
     setPriceSnapshots = rawSetPriceSnapshots.map((snapshot) => ({
       ...snapshot,
-      fetched_at: snapshot.fetched_at.toISOString(),
+      fetched_at: new Date(snapshot.fetched_at).toISOString(),
     }));
 
     pricePanelPoints = setPriceHistory.map((point) => ({

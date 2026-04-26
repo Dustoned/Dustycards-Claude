@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SyncCancelledError, SyncConflictError, runEpisodeSync } from "@/lib/sync";
+import { runEpisodeSync } from "@/lib/sync";
+import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
+import { getSyncErrorResponse } from "@/app/api/sync-error-response";
 
 export async function POST(request: NextRequest) {
+  const scraperDisabled = getScraperDisabledResponse();
+  if (scraperDisabled) return scraperDisabled;
+
   const { episodeId } = await request.json();
   if (!episodeId) {
     return NextResponse.json({ ok: false, error: "episodeId required" }, { status: 400 });
@@ -14,30 +19,6 @@ export async function POST(request: NextRequest) {
       ...result,
     });
   } catch (error) {
-    if (error instanceof SyncCancelledError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          cancelled: true,
-          error: error.message,
-        },
-        { status: 409 }
-      );
-    }
-
-    if (error instanceof SyncConflictError) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: error.message,
-          activeType: error.activeType,
-          startedAt: error.startedAt.toISOString(),
-        },
-        { status: 409 }
-      );
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    return getSyncErrorResponse(error);
   }
 }

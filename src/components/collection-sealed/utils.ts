@@ -1,12 +1,7 @@
 import type { CardSize } from "@/components/SettingsProvider";
-import type { SealedModalProductData } from "@/components/SealedProductModal";
+import type { SealedModalProductData } from "@/components/sealed-modal/types";
+import { getSealedProductTrackWidth } from "@/lib/display-scale";
 import type { CollectionSealedViewItem } from "./types";
-
-const TILE_MIN_WIDTH = {
-  small: { normal: "150px", wide: "190px" },
-  medium: { normal: "220px", wide: "280px" },
-  large: { normal: "280px", wide: "340px" },
-} as const;
 
 export function selectionToggleTextClass(active: boolean): string {
   if (active) {
@@ -102,5 +97,5 @@ export function compareCollectionSealedItems(
 }
 
 export function getCollectionSealedTileMinWidth(cardSize: CardSize, widescreen: boolean): string {
-  return TILE_MIN_WIDTH[cardSize][widescreen ? "wide" : "normal"];
+  return getSealedProductTrackWidth(cardSize, widescreen);
 }

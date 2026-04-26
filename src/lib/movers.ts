@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { startPerformanceTimer } from "@/lib/performance-timing";
 import {
   buildCardPriceHistory,
   getCardMarketValue,
@@ -109,9 +110,16 @@ interface EvaluatedMoverSource {
   currency: "EUR" | "USD";
   currentPrice: number;
   historyPoints: number;
+  series: MoverSeriesPoint[];
   change7d: MoverWindowMetric | null;
   change30d: MoverWindowMetric | null;
   lifetime: LifetimeMoverMetrics;
+}
+
+export interface MoverRecentPricePoint {
+  date: string;
+  label: string;
+  value: number;
 }
 
 export interface CollectionMoverItem {
@@ -129,9 +137,14 @@ export interface CollectionMoverItem {
   sourceLabel: "CardMarket" | "TCGPlayer";
   currency: "EUR" | "USD";
   currentPrice: number;
+  cardmarketPrice: number | null;
+  tcgplayerPrice: number | null;
   latestFetchedAt: string;
   historyPoints: number;
+  cardmarketHistoryPoints: number;
+  tcgplayerHistoryPoints: number;
   lifetimeHistoryPoints: number;
+  recentPriceSeries: MoverRecentPricePoint[];
   trackedDays: number | null;
   change7d: number | null;
   change7dPct: number | null;
@@ -198,6 +211,13 @@ function clamp(value: number, min: number, max: number): number {
 
 function toDateKey(value: Date | string): string {
   return new Date(value).toISOString().slice(0, 10);
+}
+
+function toDateLabel(dateKey: string): string {
+  return new Intl.DateTimeFormat("nl-NL", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${dateKey}T00:00:00.000Z`));
 }
 
 function toIsoOrNull(value: Date | string | null | undefined): string | null {
@@ -268,6 +288,14 @@ function buildSeries(
   }
 
   return series.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+function buildRecentPriceSeries(series: MoverSeriesPoint[]): MoverRecentPricePoint[] {
+  return series.slice(-28).map((point) => ({
+    date: point.date,
+    label: toDateLabel(point.date),
+    value: round(point.value),
+  }));
 }
 
 function computeWindowMetric(
@@ -501,6 +529,7 @@ function evaluateSource(
     currency: source === "tcgplayer" ? "USD" : "EUR",
     currentPrice,
     historyPoints: series.length,
+    series,
     change7d: computeWindowMetric(series, 7),
     change30d: computeWindowMetric(series, 30),
     lifetime: buildLifetimeMetrics(currentPrice, latestPrice?.fetched_at ?? new Date(), allTimeSummary),
@@ -620,6 +649,7 @@ async function fetchOwnedCards(): Promise<OwnedCardRecord[]> {
 export async function getCollectionMovers(
   preferredSource: PriceSource
 ): Promise<CollectionMoversData> {
+  const timer = startPerformanceTimer("movers.collection", { preferredSource });
   const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS);
 
   const [ownedCards, recentHistoryRows, allTimeHistorySummaries] = await Promise.all([
@@ -630,20 +660,38 @@ export async function getCollectionMovers(
         FROM "CollectionCard"
       )
       SELECT
-        p.card_id,
-        p.fetched_at,
-        p.cm_en_lowest_nm,
-        p.cm_de_lowest_nm,
-        p.cm_fr_lowest_nm,
-        p.cm_es_lowest_nm,
-        p.cm_it_lowest_nm,
-        p.tcp_market,
-        p.cm_en_avg_7d,
-        p.cm_en_avg_30d
-      FROM "Price" p
-      INNER JOIN owned_cards oc ON oc.card_id = p.card_id
-      WHERE p.fetched_at >= ${historyCutoff}
-      ORDER BY p.card_id ASC, p.fetched_at ASC
+        card_id,
+        fetched_at,
+        cm_en_lowest_nm,
+        cm_de_lowest_nm,
+        cm_fr_lowest_nm,
+        cm_es_lowest_nm,
+        cm_it_lowest_nm,
+        tcp_market,
+        cm_en_avg_7d,
+        cm_en_avg_30d
+      FROM (
+        SELECT
+          p.card_id,
+          p.fetched_at,
+          p.cm_en_lowest_nm,
+          p.cm_de_lowest_nm,
+          p.cm_fr_lowest_nm,
+          p.cm_es_lowest_nm,
+          p.cm_it_lowest_nm,
+          p.tcp_market,
+          p.cm_en_avg_7d,
+          p.cm_en_avg_30d,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id, DATE(p.fetched_at)
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        INNER JOIN owned_cards oc ON oc.card_id = p.card_id
+        WHERE p.fetched_at >= ${historyCutoff}
+      )
+      WHERE row_num = 1
+      ORDER BY card_id ASC, fetched_at ASC
     `,
     db.$queryRaw<AllTimeHistorySummaryRow[]>`
       WITH owned_cards AS (
@@ -890,6 +938,8 @@ export async function getCollectionMovers(
 
     const rarityWeight = getRarityWeight(card.rarity);
     const cheapnessWeight = getCheapnessWeight(resolvedSource.currentPrice);
+    const cardmarketPrice = getCurrentSourceValue(latestPrice, "cardmarket");
+    const tcgplayerPrice = getCurrentSourceValue(latestPrice, "tcgplayer");
     const recentPositive =
       (resolvedSource.change7d?.change ?? 0) > 0 || (resolvedSource.change30d?.change ?? 0) > 0;
     const moverScore = round(
@@ -914,11 +964,16 @@ export async function getCollectionMovers(
       sourceLabel: resolvedSource.label,
       currency: resolvedSource.currency,
       currentPrice: round(resolvedSource.currentPrice),
+      cardmarketPrice: cardmarketPrice != null ? round(cardmarketPrice) : null,
+      tcgplayerPrice: tcgplayerPrice != null ? round(tcgplayerPrice) : null,
       latestFetchedAt: latestPrice
         ? new Date(latestPrice.fetched_at).toISOString()
         : new Date().toISOString(),
       historyPoints: resolvedSource.historyPoints,
+      cardmarketHistoryPoints: allTimeSummary.cardmarket.historyPoints,
+      tcgplayerHistoryPoints: allTimeSummary.tcgplayer.historyPoints,
       lifetimeHistoryPoints: resolvedSource.lifetime.lifetimeHistoryPoints,
+      recentPriceSeries: buildRecentPriceSeries(resolvedSource.series),
       trackedDays: resolvedSource.lifetime.trackedDays,
       change7d: resolvedSource.change7d?.change ?? null,
       change7dPct: resolvedSource.change7d?.changePct ?? null,
@@ -1004,7 +1059,7 @@ export async function getCollectionMovers(
       .filter((item) => (item.change30dPct ?? 0) > 0)
       .sort((a, b) => (b.change30dPct ?? 0) - (a.change30dPct ?? 0))[0] ?? null;
 
-  return {
+  const result = {
     preferredSource,
     trackedCards: ownedCards.length,
     eligibleCards: sortedMovers.length,
@@ -1015,4 +1070,12 @@ export async function getCollectionMovers(
     strongest7d,
     strongest30d,
   };
+
+  timer.finish({
+    trackedCards: result.trackedCards,
+    eligibleCards: result.eligibleCards,
+    historyRows: recentHistoryRows.length,
+  });
+
+  return result;
 }

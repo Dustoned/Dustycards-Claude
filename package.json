@@ -4,10 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean-cache": "node scripts/clean-next-dev-cache.mjs",
+    "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "smoke": "playwright test",
     "backfill:tcgdex-artists": "node scripts/backfill-tcgdex-artists.mjs",
     "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs"
   },
@@ -23,6 +26,7 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20",

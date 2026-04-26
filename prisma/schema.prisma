@@ -47,6 +47,8 @@ model SealedProduct {
   cm_avg_7d       Float?
   cm_avg_30d      Float?
   native_history_synced_at DateTime?
+  native_history_status     String?
+  native_history_checked_at DateTime?
   synced_at       DateTime @default(now())
 
   episode         Episode  @relation(fields: [episode_id], references: [id])
@@ -54,6 +56,8 @@ model SealedProduct {
 
   @@index([episode_id])
   @@index([name])
+  @@index([native_history_synced_at])
+  @@index([native_history_status, native_history_checked_at])
 }
 
 model SealedPriceSnapshot {
@@ -94,6 +98,8 @@ model Card {
   price_source_status     String?
   price_source_checked_at DateTime?
   native_history_synced_at DateTime?
+  native_history_status     String?
+  native_history_checked_at DateTime?
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
@@ -105,6 +111,9 @@ model Card {
   @@index([episode_id])
   @@index([episode_id, card_number])
   @@index([price_source_status, price_source_checked_at])
+  @@index([native_history_synced_at])
+  @@index([native_history_status, native_history_checked_at])
+  @@index([tcggo_url, price_source_status, price_source_checked_at])
 }
 
 model CardGradedPrice {
@@ -158,7 +167,9 @@ model CollectionCard {
   tags            CollectionCardTag[]
 
   @@index([card_id])
+  @@index([card_id, added_at])
   @@index([binder_id])
+  @@index([binder_id, added_at])
   @@index([added_at])
 }
 
@@ -186,6 +197,7 @@ model CollectionSealed {
   tags                    CollectionSealedTag[]
 
   @@index([product_id])
+  @@index([product_id, added_at])
   @@index([added_at])
 }
 
@@ -223,6 +235,7 @@ model Price {
 
   @@index([card_id])
   @@index([card_id, fetched_at])
+  @@index([fetched_at])
 }
 
 model SyncLog {
@@ -230,12 +243,30 @@ model SyncLog {
   type        String
   status      String
   message     String?
+  details_json String?
   started_at  DateTime @default(now())
   finished_at DateTime?
   cancel_requested_at DateTime?
 
   @@index([status, started_at])
+  @@index([type, status, started_at])
+  @@index([type, status, finished_at])
   @@index([cancel_requested_at])
+}
+
+model SyncJob {
+  id           String   @id @default(cuid())
+  type         String   @unique
+  status       String
+  details_json String?
+  started_at   DateTime?
+  finished_at  DateTime?
+  heartbeat_at DateTime?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@index([status, updated_at])
+  @@index([type, status])
 }
 
 model ApiQuotaSnapshot {

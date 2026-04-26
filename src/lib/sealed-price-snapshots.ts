@@ -19,9 +19,47 @@ function getSnapshotDelegate(): SealedSnapshotDelegate | null {
 export async function getSealedPriceSnapshotsByEpisode(
   episodeId: string
 ): Promise<EpisodeSealedPriceHistorySnapshot[]> {
-  const delegate = getSnapshotDelegate();
+  try {
+    return await db.$queryRawUnsafe<EpisodeSealedPriceHistorySnapshot[]>(
+      `SELECT
+        product_id,
+        fetched_at,
+        cm_lowest,
+        cm_lowest_eu,
+        cm_lowest_de,
+        cm_lowest_fr,
+        cm_lowest_es,
+        cm_lowest_it,
+        cm_avg_7d,
+        cm_avg_30d
+      FROM (
+        SELECT
+          product_id,
+          fetched_at,
+          cm_lowest,
+          cm_lowest_eu,
+          cm_lowest_de,
+          cm_lowest_fr,
+          cm_lowest_es,
+          cm_lowest_it,
+          cm_avg_7d,
+          cm_avg_30d,
+          ROW_NUMBER() OVER (
+            PARTITION BY product_id, DATE(fetched_at)
+            ORDER BY fetched_at DESC, id DESC
+          ) AS row_num
+        FROM "SealedPriceSnapshot"
+        WHERE episode_id = ?
+      )
+      WHERE row_num = 1
+      ORDER BY fetched_at ASC, product_id ASC`,
+      episodeId
+    );
+  } catch {
+    const delegate = getSnapshotDelegate();
 
-  if (delegate) {
+    if (!delegate) return [];
+
     return (await delegate.findMany({
       where: { episode_id: episodeId },
       orderBy: [{ fetched_at: "asc" }, { product_id: "asc" }],
@@ -39,11 +77,14 @@ export async function getSealedPriceSnapshotsByEpisode(
       },
     })) as EpisodeSealedPriceHistorySnapshot[];
   }
+}
 
+export async function getSealedPriceSnapshotsByProduct(
+  productId: string
+): Promise<SealedPriceHistorySnapshot[]> {
   try {
-    return await db.$queryRawUnsafe<EpisodeSealedPriceHistorySnapshot[]>(
+    return await db.$queryRawUnsafe<SealedPriceHistorySnapshot[]>(
       `SELECT
-        product_id,
         fetched_at,
         cm_lowest,
         cm_lowest_eu,
@@ -53,22 +94,33 @@ export async function getSealedPriceSnapshotsByEpisode(
         cm_lowest_it,
         cm_avg_7d,
         cm_avg_30d
-      FROM "SealedPriceSnapshot"
-      WHERE episode_id = ?
-      ORDER BY fetched_at ASC, product_id ASC`,
-      episodeId
+      FROM (
+        SELECT
+          fetched_at,
+          cm_lowest,
+          cm_lowest_eu,
+          cm_lowest_de,
+          cm_lowest_fr,
+          cm_lowest_es,
+          cm_lowest_it,
+          cm_avg_7d,
+          cm_avg_30d,
+          ROW_NUMBER() OVER (
+            PARTITION BY DATE(fetched_at)
+            ORDER BY fetched_at DESC, id DESC
+          ) AS row_num
+        FROM "SealedPriceSnapshot"
+        WHERE product_id = ?
+      )
+      WHERE row_num = 1
+      ORDER BY fetched_at ASC`,
+      productId
     );
   } catch {
-    return [];
-  }
-}
+    const delegate = getSnapshotDelegate();
 
-export async function getSealedPriceSnapshotsByProduct(
-  productId: string
-): Promise<SealedPriceHistorySnapshot[]> {
-  const delegate = getSnapshotDelegate();
+    if (!delegate) return [];
 
-  if (delegate) {
     return (await delegate.findMany({
       where: { product_id: productId },
       orderBy: { fetched_at: "asc" },
@@ -84,26 +136,5 @@ export async function getSealedPriceSnapshotsByProduct(
         cm_avg_30d: true,
       },
     })) as SealedPriceHistorySnapshot[];
-  }
-
-  try {
-    return await db.$queryRawUnsafe<SealedPriceHistorySnapshot[]>(
-      `SELECT
-        fetched_at,
-        cm_lowest,
-        cm_lowest_eu,
-        cm_lowest_de,
-        cm_lowest_fr,
-        cm_lowest_es,
-        cm_lowest_it,
-        cm_avg_7d,
-        cm_avg_30d
-      FROM "SealedPriceSnapshot"
-      WHERE product_id = ?
-      ORDER BY fetched_at ASC`,
-      productId
-    );
-  } catch {
-    return [];
   }
 }

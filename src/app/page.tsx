@@ -7,10 +7,16 @@ import {
   getCollectionOverviewData,
   type CollectionPageTab,
 } from "@/lib/collection-data";
+import { getFixedTrackGridTemplate, getSupportTileTrackWidth } from "@/lib/display-scale";
 import {
   OVERVIEW_SECTION_ORDER_COOKIE_NAME,
   parseOverviewSectionOrderCookie,
 } from "@/lib/overview-section-order";
+import {
+  DEFAULT_SETTINGS,
+  parseCookieSettings,
+  SETTINGS_COOKIE_NAME,
+} from "@/lib/user-settings";
 
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"), {
   loading: () => null,
@@ -63,6 +69,9 @@ export default async function HomePage({
   searchParams: Promise<{ tab?: string; graded?: string }>;
 }) {
   const cookieStore = await cookies();
+  const settings =
+    parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
+  const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
   const { tab, graded } = await searchParams;
   const activeTab =
     tab === "cards" ||
@@ -210,7 +219,7 @@ export default async function HomePage({
 
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex w-fit rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+            <div className="inline-flex max-w-full flex-wrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
               <TabLink
                 href={buildCollectionHref("overview")}
                 active={activeTab === "overview"}
@@ -303,7 +312,9 @@ export default async function HomePage({
               ) : (
                 <div
                   className="grid justify-start gap-4"
-                  style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 360px))" }}
+                  style={{
+                    gridTemplateColumns: getFixedTrackGridTemplate(binderTileTrackWidth),
+                  }}
                 >
                   {data.binders.map((binder) => (
                     <BinderOverviewTile key={binder.id} binder={binder} />

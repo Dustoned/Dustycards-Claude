@@ -289,26 +289,42 @@ export function buildOwnedSealedValueHistory(
 export function combineValueHistories(
   ...histories: EpisodeSetPriceHistoryPoint[][]
 ): EpisodeSetPriceHistoryPoint[] {
-  const totalsByDate = new Map<string, number>();
+  const sortedHistories = histories.map((history) =>
+    [...history].sort((a, b) => a.date.localeCompare(b.date))
+  );
+  const dates = [
+    ...new Set(sortedHistories.flatMap((history) => history.map((point) => point.date))),
+  ].sort((a, b) => a.localeCompare(b));
+  const indexes = sortedHistories.map(() => 0);
+  const latestValues = sortedHistories.map<number | null>(() => null);
+  const latestPricedCards = sortedHistories.map<number>(() => 0);
 
-  for (const history of histories) {
-    for (const point of history) {
-      totalsByDate.set(
-        point.date,
-        Number(((totalsByDate.get(point.date) ?? 0) + point.total_market).toFixed(2))
-      );
+  return dates.map((date) => {
+    for (const [historyIndex, history] of sortedHistories.entries()) {
+      let index = indexes[historyIndex];
+
+      while (index < history.length && history[index].date <= date) {
+        latestValues[historyIndex] = history[index].total_market;
+        latestPricedCards[historyIndex] = history[index].priced_cards;
+        index += 1;
+      }
+
+      indexes[historyIndex] = index;
     }
-  }
 
-  return [...totalsByDate.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, total_market]) => ({
+    const totalMarket = latestValues.reduce<number>(
+      (total, value) => total + (value ?? 0),
+      0
+    );
+
+    return {
       date,
       label: new Intl.DateTimeFormat("nl-NL", {
         day: "numeric",
         month: "short",
       }).format(new Date(`${date}T00:00:00.000Z`)),
-      total_market,
-      priced_cards: 0,
-    }));
+      total_market: Number(totalMarket.toFixed(2)),
+      priced_cards: latestPricedCards.reduce((total, count) => total + count, 0),
+    };
+  });
 }

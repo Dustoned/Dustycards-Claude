@@ -30,15 +30,17 @@ export function SyncEntryCard({
     <div
       className={
         isFailure
-          ? "rounded-xl border border-rose-200/60 bg-rose-50/45 px-4 py-3 dark:border-rose-400/20 dark:bg-rose-900/10"
-          : "rounded-xl border border-black/6 bg-black/[0.02] px-4 py-3 dark:border-white/8 dark:bg-white/[0.03]"
+          ? "min-w-0 rounded-xl border border-rose-200/60 bg-rose-50/45 px-4 py-3 dark:border-rose-400/20 dark:bg-rose-900/10"
+          : "min-w-0 rounded-xl border border-black/6 bg-black/[0.02] px-4 py-3 dark:border-white/8 dark:bg-white/[0.03]"
       }
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(entryStatus)}`}>
           {humanStatus(entryStatus)}
         </span>
-        <span className="text-sm font-semibold text-gray-900 dark:text-white">{entry.label}</span>
+        <span className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-white">
+          {entry.label}
+        </span>
         {repeatCount > 1 && (
           <span className="rounded-full border border-black/8 bg-black/[0.03] px-2.5 py-1 text-[11px] font-semibold text-gray-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55">
             x{repeatCount}
@@ -88,7 +90,7 @@ export function SummaryTile({
   const entryStatus = entry ? visualStatus(entry) : null;
 
   return (
-    <div className="rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
+    <div className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
       <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{title}</p>
       {entry ? (
         <div className="mt-3 space-y-2">
@@ -96,14 +98,16 @@ export function SummaryTile({
             <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(entryStatus ?? entry.status)}`}>
               {humanStatus(entryStatus ?? entry.status)}
             </span>
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">{entry.label}</span>
+            <span className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-white">
+              {entry.label}
+            </span>
           </div>
           <p className="text-xs text-gray-400">
             Started {formatDateTime(entry.started_at)}
             {entry.finished_at ? ` | Finished ${formatDateTime(entry.finished_at)}` : ""}
             {duration ? ` | ${entry.finished_at ? duration : `Running ${duration}`}` : ""}
           </p>
-          {summary && <p className="text-sm text-gray-500 dark:text-gray-400">{summary}</p>}
+          {summary && <p className="break-words text-sm text-gray-500 dark:text-gray-400">{summary}</p>}
         </div>
       ) : (
         <p className="mt-3 text-sm text-gray-400">{emptyLabel}</p>
@@ -114,7 +118,7 @@ export function SummaryTile({
 
 export function OverviewTile({ overview }: { overview: OverviewStatus }) {
   return (
-    <div className="rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
+    <div className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
       <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recent Overview</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
@@ -154,36 +158,56 @@ export function AutoRefreshCard({
   lastFailure,
   dueCards,
   missingPriceCards,
+  unavailableCooldownCards,
+  nextUnavailableRetryLabel,
   nextBatchCards,
   nextBatchEpisodes,
   nextBatchSetLabels,
   nextBatchCardLabels,
+  requestsRemaining,
+  requestConcurrency,
+  quotaPaused,
+  quotaResetLabel,
+  scraperDisabled,
 }: AutoRefreshStatus) {
   const isRunning = Boolean(active);
-  const activeProgress = parseAutoRefreshProgress(active?.message ?? null);
+  const activeDetails =
+    active?.details?.kind === "auto-price-refresh" ? active.details : null;
+  const activeProgress = parseAutoRefreshProgress(active?.message ?? null, activeDetails);
   const batchCards = activeProgress.batchCards ?? nextBatchCards;
   const batchSets = activeProgress.batchSets ?? nextBatchEpisodes;
-  const remainingAfterBatch = Math.max(dueCards - batchCards, 0);
+  const remainingAfterBatch =
+    activeDetails?.remainingDueCards ?? Math.max(dueCards - batchCards, 0);
   const currentSummary = compactMessage(active?.message ?? null, 220);
   const lastSuccessSummary = compactMessage(lastSuccess?.message ?? null, 220);
-  const activeStatus = active ? visualStatus(active) : "success";
+  const activeStatus = active
+    ? visualStatus(active)
+    : quotaPaused || scraperDisabled
+      ? "paused"
+      : "success";
 
   return (
-    <div className="rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
+    <div className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(
-            isRunning ? activeStatus : "success"
+            activeStatus
           )}`}
         >
-          {isRunning ? humanStatus(activeStatus) : "Idle"}
+          {isRunning
+            ? humanStatus(activeStatus)
+            : scraperDisabled
+              ? "Scraper disabled"
+              : quotaPaused
+                ? "Paused at quota"
+                : "Idle"}
         </span>
         <span className="text-sm font-semibold text-gray-900 dark:text-white">
           Background Price Refresh
         </span>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
             Eligible Now
@@ -197,6 +221,19 @@ export function AutoRefreshCard({
           </p>
           <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
             {missingPriceCards}
+          </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            Known Unavailable
+          </p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+            {unavailableCooldownCards}
+          </p>
+          <p className="text-xs text-gray-400">
+            {nextUnavailableRetryLabel
+              ? `skipped until ${nextUnavailableRetryLabel}`
+              : "skipped by background refresh"}
           </p>
         </div>
         <div>
@@ -242,25 +279,43 @@ export function AutoRefreshCard({
           <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
             Last Completed Batch
           </p>
-          <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+          <p className="mt-1 break-words text-sm font-medium text-gray-900 dark:text-white">
             {lastSuccess ? formatDateTime(lastSuccess.finished_at) : "--"}
           </p>
         </div>
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Last Failure</p>
-          <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+          <p className="mt-1 break-words text-sm font-medium text-gray-900 dark:text-white">
             {lastFailure ? formatDateTime(lastFailure.finished_at) : "--"}
           </p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            Scraper Requests
+          </p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+            {requestsRemaining ?? "--"}
+          </p>
+          <p className="text-xs text-gray-400">remaining in current quota window</p>
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            Request Concurrency
+          </p>
+          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+            {requestConcurrency}
+          </p>
+          <p className="text-xs text-gray-400">parallel scraper request slots</p>
         </div>
       </div>
 
       {currentSummary && (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-3 break-words text-sm text-gray-500 dark:text-gray-400">
           Active batch: {currentSummary}
         </p>
       )}
       {!currentSummary && lastSuccessSummary && (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-3 break-words text-sm text-gray-500 dark:text-gray-400">
           Last completed batch: {lastSuccessSummary}
         </p>
       )}
@@ -273,8 +328,18 @@ export function AutoRefreshCard({
           Stop requested. The current in-flight batch will finish before this run exits.
         </p>
       )}
+      {quotaPaused && !active && (
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
+          Paused at scraper quota{quotaResetLabel ? ` until ${quotaResetLabel}` : ""}.
+        </p>
+      )}
+      {scraperDisabled && !active && (
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
+          Scraper requests are disabled in this environment, so background refresh will stay paused.
+        </p>
+      )}
       {nextBatchSetLabels.length > 0 && (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-3 break-words text-sm text-gray-500 dark:text-gray-400">
           {isRunning ? "Current batch sets:" : "Preview sets:"}{" "}
           <span className="font-medium text-gray-700 dark:text-gray-200">
             {nextBatchSetLabels.join(", ")}
@@ -282,7 +347,7 @@ export function AutoRefreshCard({
         </p>
       )}
       {nextBatchCardLabels.length > 0 && (
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 break-words text-sm text-gray-500 dark:text-gray-400">
           {isRunning ? "Current batch sample cards:" : "Preview cards:"}{" "}
           <span className="font-medium text-gray-700 dark:text-gray-200">
             {nextBatchCardLabels.join(", ")}

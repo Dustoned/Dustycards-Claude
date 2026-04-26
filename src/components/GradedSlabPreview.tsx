@@ -158,11 +158,12 @@ const DETAIL_METRICS = {
   glare: "inset-x-[15%] top-[4%] h-[4.7%]",
 } as const;
 
+const TILE_LABEL_BASE_WIDTH = 176;
 const DETAIL_LABEL_BASE_WIDTH = 420;
 
-function getTileLabelScale(tileSize: "small" | "medium" | "large"): number {
-  if (tileSize === "small") return 0.84;
-  if (tileSize === "large") return 1.28;
+function getTileLabelFallbackScale(tileSize: "small" | "medium" | "large"): number {
+  if (tileSize === "small") return 0.64;
+  if (tileSize === "large") return 1.6;
   return 1;
 }
 
@@ -191,10 +192,6 @@ function GradedSlabPreview({
   const [slabWidth, setSlabWidth] = useState(0);
 
   useEffect(() => {
-    if (variant !== "detail") {
-      return;
-    }
-
     const element = rootRef.current;
     if (!element) {
       return;
@@ -208,6 +205,10 @@ function GradedSlabPreview({
     };
 
     updateWidth(element.getBoundingClientRect().width);
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
@@ -224,8 +225,12 @@ function GradedSlabPreview({
   const isPsa = company === "PSA";
   const metrics = variant === "detail" ? DETAIL_METRICS : TILE_METRICS;
   const detailLabelScale =
-    slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.72, 1.02) : 0.88;
-  const labelScale = variant === "detail" ? detailLabelScale : getTileLabelScale(tileSize);
+    slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.52, 1.12) : 0.72;
+  const tileLabelScale =
+    slabWidth > 0
+      ? clampScale(slabWidth / TILE_LABEL_BASE_WIDTH, 0.58, 2.05)
+      : getTileLabelFallbackScale(tileSize);
+  const labelScale = variant === "detail" ? detailLabelScale : tileLabelScale;
   const scaledLabelContentStyle =
     labelScale === 1
       ? undefined

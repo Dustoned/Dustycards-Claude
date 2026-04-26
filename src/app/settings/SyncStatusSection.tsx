@@ -19,7 +19,7 @@ export default function SyncStatusSection({
   recentFailures,
 }: SyncStatusSectionProps) {
   return (
-    <div className="glass rounded-2xl p-6 shadow-md shadow-black/5">
+    <div className="settings-panel glass rounded-2xl p-6 shadow-md shadow-black/5">
       <SyncStatusAutoRefresh enabled={Boolean(activeSync)} />
 
       <div className="mb-5">

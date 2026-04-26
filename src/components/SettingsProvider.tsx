@@ -17,6 +17,7 @@ import {
   type SortBy,
   type SortDir,
   type Theme,
+  type UiScale,
   type UserSettings,
 } from "@/lib/user-settings";
 
@@ -29,6 +30,7 @@ export type {
   ModalSize,
   PriceSource,
   UserSettings,
+  UiScale,
 };
 
 const SettingsContext = createContext<{
@@ -64,6 +66,12 @@ function applyWidescreen(on: boolean) {
   document.documentElement.classList.toggle("widescreen", on);
 }
 
+function applyUiScale(scale: UiScale) {
+  document.documentElement.dataset.uiScale = scale;
+  document.documentElement.classList.remove("ui-scale-small", "ui-scale-medium", "ui-scale-large");
+  document.documentElement.classList.add(`ui-scale-${scale}`);
+}
+
 export default function SettingsProvider({
   children,
   initialSettings,
@@ -81,6 +89,7 @@ export default function SettingsProvider({
     const initialRaw = JSON.stringify(initial);
     applyTheme(s.theme);
     applyWidescreen(s.widescreen);
+    applyUiScale(s.uiScale);
     save(s);
     const frame = window.requestAnimationFrame(() => {
       if (nextRaw !== initialRaw) {
@@ -118,6 +127,7 @@ export default function SettingsProvider({
       save(next);
       if (key === "theme") applyTheme(value as Theme);
       if (key === "widescreen") applyWidescreen(value as boolean);
+      if (key === "uiScale") applyUiScale(value as UiScale);
       return next;
     });
   }

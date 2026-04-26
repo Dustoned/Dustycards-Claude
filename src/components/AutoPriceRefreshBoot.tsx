@@ -2,6 +2,15 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import {
+  AUTO_PRICE_REFRESH_TAB_LOCK_TTL_MS,
+  createAutoPriceRefreshTabOwnerId,
+  hasVisibleRefreshChanges,
+  releaseAutoPriceRefreshTabLock,
+  shouldQueueAutoPriceRefreshFollowUp,
+  tryAcquireAutoPriceRefreshTabLock,
+  type AutoPriceRefreshClientResponse,
+} from "@/lib/auto-price-refresh-client";
 import { useSettings } from "@/components/SettingsProvider";
 
 const AUTO_PRICE_REFRESH_POLL_MS = 30_000;
@@ -9,6 +18,8 @@ const AUTO_PRICE_REFRESH_START_DELAY_MS = 3_000;
 const AUTO_PRICE_REFRESH_MIN_TRIGGER_GAP_MS = 25_000;
 const AUTO_PRICE_REFRESH_FORCE_GAP_MS = 5_000;
 const AUTO_PRICE_REFRESH_REFRESH_COOLDOWN_MS = 15_000;
+const AUTO_PRICE_REFRESH_CHAIN_DELAY_MS = 2_000;
+const AUTO_PRICE_REFRESH_TAB_LOCK_RENEW_MS = 30_000;
 const AUTO_PRICE_REFRESH_STORAGE_KEY = "dustycards-auto-price-refresh-last-trigger";
 
 function readLastTriggerAt(): number {
@@ -32,6 +43,9 @@ export default function AutoPriceRefreshBoot() {
   const router = useRouter();
   const inFlightRef = useRef(false);
   const lastRouterRefreshAtRef = useRef(0);
+  const followUpTimeoutRef = useRef<number | null>(null);
+  const chainedFollowUpsRef = useRef(0);
+  const tabOwnerIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isLoaded || !settings.autoPriceRefresh) {
@@ -40,10 +54,39 @@ export default function AutoPriceRefreshBoot() {
 
     let cancelled = false;
 
+    function clearFollowUpTimer() {
+      if (followUpTimeoutRef.current == null) return;
+
+      window.clearTimeout(followUpTimeoutRef.current);
+      followUpTimeoutRef.current = null;
+    }
+
+    function scheduleFollowUp() {
+      if (cancelled) return;
+
+      clearFollowUpTimer();
+
+      const now = Date.now();
+      const gapRemaining = Math.max(
+        AUTO_PRICE_REFRESH_FORCE_GAP_MS - (now - readLastTriggerAt()),
+        0
+      );
+      const delay = Math.max(AUTO_PRICE_REFRESH_CHAIN_DELAY_MS, gapRemaining + 100);
+
+      followUpTimeoutRef.current = window.setTimeout(() => {
+        followUpTimeoutRef.current = null;
+        void trigger(true);
+      }, delay);
+    }
+
     async function trigger(force = false) {
       if (cancelled || inFlightRef.current) return;
       if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
       if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+      if (!force) {
+        chainedFollowUpsRef.current = 0;
+      }
 
       const now = Date.now();
       const lastTriggerAt = readLastTriggerAt();
@@ -51,6 +94,27 @@ export default function AutoPriceRefreshBoot() {
 
       if (now - lastTriggerAt < minGap) {
         return;
+      }
+
+      const ownerId =
+        tabOwnerIdRef.current ?? (tabOwnerIdRef.current = createAutoPriceRefreshTabOwnerId());
+      let lockRenewInterval: number | null = null;
+
+      try {
+        if (!tryAcquireAutoPriceRefreshTabLock(localStorage, ownerId, now)) {
+          return;
+        }
+
+        lockRenewInterval = window.setInterval(() => {
+          tryAcquireAutoPriceRefreshTabLock(
+            localStorage,
+            ownerId,
+            Date.now(),
+            AUTO_PRICE_REFRESH_TAB_LOCK_TTL_MS
+          );
+        }, AUTO_PRICE_REFRESH_TAB_LOCK_RENEW_MS);
+      } catch {
+        // If browser storage is blocked, keep the server-side sync conflict guard as fallback.
       }
 
       inFlightRef.current = true;
@@ -70,30 +134,21 @@ export default function AutoPriceRefreshBoot() {
           return;
         }
 
-        const data = (await response.json()) as {
-          ok?: boolean;
-          skipped?: boolean;
-          newEpisodes?: number;
-          newCards?: number;
-          updatedCards?: number;
-          newPrices?: number;
-          refreshedPrices?: number;
-          nativeHistoryItems?: number;
-        };
+        const data = (await response.json()) as AutoPriceRefreshClientResponse;
 
-        if (
-          cancelled ||
-          !data.ok ||
-          data.skipped ||
-          !(
-            (data.newEpisodes ?? 0) > 0 ||
-            (data.newCards ?? 0) > 0 ||
-            (data.updatedCards ?? 0) > 0 ||
-            (data.newPrices ?? 0) > 0 ||
-            (data.refreshedPrices ?? 0) > 0 ||
-            (data.nativeHistoryItems ?? 0) > 0
-          )
-        ) {
+        if (cancelled || !data.ok || data.skipped) {
+          chainedFollowUpsRef.current = 0;
+          return;
+        }
+
+        if (shouldQueueAutoPriceRefreshFollowUp(data, chainedFollowUpsRef.current)) {
+          chainedFollowUpsRef.current += 1;
+          scheduleFollowUp();
+        } else {
+          chainedFollowUpsRef.current = 0;
+        }
+
+        if (!hasVisibleRefreshChanges(data)) {
           return;
         }
 
@@ -107,6 +162,12 @@ export default function AutoPriceRefreshBoot() {
       } catch {
         return;
       } finally {
+        if (lockRenewInterval != null) {
+          window.clearInterval(lockRenewInterval);
+        }
+        try {
+          releaseAutoPriceRefreshTabLock(localStorage, ownerId);
+        } catch {}
         inFlightRef.current = false;
       }
     }
@@ -134,6 +195,7 @@ export default function AutoPriceRefreshBoot() {
 
     return () => {
       cancelled = true;
+      clearFollowUpTimer();
       window.clearTimeout(initialTimeout);
       window.clearInterval(pollInterval);
       window.removeEventListener("focus", handleFocus);

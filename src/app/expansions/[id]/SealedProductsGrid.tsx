@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { useSettings } from "@/components/SettingsProvider";
+import { getFixedTrackGridTemplate, getSealedProductTrackWidth } from "@/lib/display-scale";
 import {
   getActiveSealedGroup,
   getActiveSealedProducts,
@@ -14,7 +15,7 @@ import {
   type SealedFilter,
 } from "@/lib/sealed-products";
 import type { NormalizedSealedProduct } from "@/lib/tcggo";
-import type { SealedModalProductData } from "@/components/SealedProductModal";
+import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
@@ -29,21 +30,6 @@ function formatCurrency(value: number | null | undefined): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
-}
-
-function getSealedGridMinWidth(
-  cardSize: "small" | "medium" | "large",
-  compact: boolean
-): string {
-  if (compact) {
-    if (cardSize === "small") return "170px";
-    if (cardSize === "large") return "236px";
-    return "210px";
-  }
-
-  if (cardSize === "small") return "198px";
-  if (cardSize === "large") return "296px";
-  return "248px";
 }
 
 function SealedProductCard({
@@ -62,6 +48,7 @@ function SealedProductCard({
   const productPrice = getSealedProductPrice(product);
   const isLarge = cardSize === "large";
   const isSmall = cardSize === "small";
+  const trackWidth = getSealedProductTrackWidth(cardSize, compact);
 
   const cardClass = compact
     ? isLarge
@@ -142,19 +129,7 @@ function SealedProductCard({
             alt={product.name}
             fill
             className="object-contain"
-            sizes={
-              compact
-                ? isLarge
-                  ? "236px"
-                  : isSmall
-                    ? "170px"
-                    : "210px"
-                : isLarge
-                  ? "320px"
-                  : isSmall
-                    ? "198px"
-                    : "248px"
-            }
+            sizes={trackWidth}
             unoptimized
           />
         ) : (
@@ -187,10 +162,10 @@ function SealedProductCard({
 
       <div className={`space-y-2 ${bodyTextClass}`}>
         <div
-          className={`flex items-center justify-between bg-black/4 dark:bg-white/6 ${blockClass}`}
+          className={`flex min-w-0 items-center justify-between gap-3 bg-black/4 dark:bg-white/6 ${blockClass}`}
         >
-          <span className="text-gray-500 dark:text-white/55">CardMarket</span>
-          <span className="font-semibold tabular-nums text-gray-900 dark:text-white">
+          <span className="min-w-0 truncate text-gray-500 dark:text-white/55">CardMarket</span>
+          <span className="shrink-0 font-semibold tabular-nums text-gray-900 dark:text-white">
             {formatCurrency(productPrice)}
           </span>
         </div>
@@ -202,7 +177,7 @@ function SealedProductCard({
                 7d avg
               </p>
               <p
-                className={`mt-1 font-semibold tabular-nums text-gray-900 dark:text-white ${bodyTextClass}`}
+                className={`mt-1 min-w-0 truncate font-semibold tabular-nums text-gray-900 dark:text-white ${bodyTextClass}`}
               >
                 {formatCurrency(product.price.cm_avg_7d)}
               </p>
@@ -213,7 +188,7 @@ function SealedProductCard({
                 30d avg
               </p>
               <p
-                className={`mt-1 font-semibold tabular-nums text-gray-900 dark:text-white ${bodyTextClass}`}
+                className={`mt-1 min-w-0 truncate font-semibold tabular-nums text-gray-900 dark:text-white ${bodyTextClass}`}
               >
                 {formatCurrency(product.price.cm_avg_30d)}
               </p>
@@ -367,10 +342,10 @@ export default function SealedProductsGrid({
           <div
             className="grid gap-3"
             style={{
-              gridTemplateColumns: `repeat(auto-fill, minmax(${getSealedGridMinWidth(
-                settings.cardSize,
-                true
-              )}, 1fr))`,
+              gridTemplateColumns: getFixedTrackGridTemplate(
+                getSealedProductTrackWidth(settings.cardSize, true)
+              ),
+              justifyContent: "start",
             }}
           >
             {activeProducts.map((product) => (
@@ -416,10 +391,10 @@ export default function SealedProductsGrid({
             <div
               className="grid gap-4"
               style={{
-                gridTemplateColumns: `repeat(auto-fill, minmax(${getSealedGridMinWidth(
-                  settings.cardSize,
-                  false
-                )}, 1fr))`,
+                gridTemplateColumns: getFixedTrackGridTemplate(
+                  getSealedProductTrackWidth(settings.cardSize, false)
+                ),
+                justifyContent: "start",
               }}
             >
               {group.products.map((product) => (

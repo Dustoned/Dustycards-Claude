@@ -1,11 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
-import CollectionCardsView from "@/components/CollectionCardsView";
 import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
 import type { CollectionCardViewItem } from "@/types/collection-view";
+
+const CollectionCardsView = dynamic(() => import("@/components/CollectionCardsView"), {
+  loading: () => null,
+});
 
 export default function BinderWatchSection({
   items,

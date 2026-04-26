@@ -8,6 +8,7 @@ import {
   SyncConflictError,
 } from "@/lib/sync";
 import { isTcggoQuotaExceededError } from "@/lib/tcggo";
+import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 
 type CardAction = "refresh" | "sync-history";
 
@@ -157,6 +158,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const scraperDisabled = getScraperDisabledResponse();
+  if (scraperDisabled) return scraperDisabled;
 
   let action: CardAction = "refresh";
 

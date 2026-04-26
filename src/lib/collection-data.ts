@@ -13,6 +13,7 @@ import {
   sumCollectionPurchasePrices,
 } from "@/lib/collection";
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
+import { startPerformanceTimer } from "@/lib/performance-timing";
 import type { EpisodePriceHistorySnapshot } from "@/lib/price-history";
 
 export interface CollectionSummaryMetric {
@@ -405,24 +406,44 @@ function chunkValues<T>(values: T[], size = SQLITE_SAFE_CHUNK_SIZE): T[][] {
   return chunks;
 }
 
+function placeholdersFor(values: unknown[]): string {
+  return values.map(() => "?").join(", ");
+}
+
 async function getCardHistoryRows(cardIds: string[]) {
   if (cardIds.length === 0) return [];
 
   const rows = await Promise.all(
     chunkValues(cardIds).map((chunk) =>
-      db.price.findMany({
-        where: { card_id: { in: chunk } },
-        orderBy: [{ fetched_at: "asc" }, { card_id: "asc" }],
-        select: {
-          card_id: true,
-          fetched_at: true,
-          cm_en_lowest_nm: true,
-          cm_de_lowest_nm: true,
-          cm_fr_lowest_nm: true,
-          cm_es_lowest_nm: true,
-          cm_it_lowest_nm: true,
-        },
-      })
+      db.$queryRawUnsafe<EpisodePriceHistorySnapshot[]>(
+        `SELECT
+          card_id,
+          fetched_at,
+          cm_en_lowest_nm,
+          cm_de_lowest_nm,
+          cm_fr_lowest_nm,
+          cm_es_lowest_nm,
+          cm_it_lowest_nm
+        FROM (
+          SELECT
+            p.card_id,
+            p.fetched_at,
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm,
+            ROW_NUMBER() OVER (
+              PARTITION BY p.card_id, DATE(p.fetched_at)
+              ORDER BY p.fetched_at DESC, p.id DESC
+            ) AS row_num
+          FROM "Price" p
+          WHERE p.card_id IN (${placeholdersFor(chunk)})
+        )
+        WHERE row_num = 1
+        ORDER BY fetched_at ASC, card_id ASC`,
+        ...chunk
+      )
     )
   );
 
@@ -434,22 +455,54 @@ async function getSealedHistoryRows(productIds: string[]) {
 
   const rows = await Promise.all(
     chunkValues(productIds).map((chunk) =>
-      db.sealedPriceSnapshot.findMany({
-        where: { product_id: { in: chunk } },
-        orderBy: [{ fetched_at: "asc" }, { product_id: "asc" }],
-        select: {
-          product_id: true,
-          fetched_at: true,
-          cm_lowest: true,
-          cm_lowest_eu: true,
-          cm_lowest_de: true,
-          cm_lowest_fr: true,
-          cm_lowest_es: true,
-          cm_lowest_it: true,
-          cm_avg_7d: true,
-          cm_avg_30d: true,
-        },
-      })
+      db.$queryRawUnsafe<
+        Array<{
+          product_id: string;
+          fetched_at: Date | string;
+          cm_lowest: number | null;
+          cm_lowest_eu: number | null;
+          cm_lowest_de: number | null;
+          cm_lowest_fr: number | null;
+          cm_lowest_es: number | null;
+          cm_lowest_it: number | null;
+          cm_avg_7d: number | null;
+          cm_avg_30d: number | null;
+        }>
+      >(
+        `SELECT
+          product_id,
+          fetched_at,
+          cm_lowest,
+          cm_lowest_eu,
+          cm_lowest_de,
+          cm_lowest_fr,
+          cm_lowest_es,
+          cm_lowest_it,
+          cm_avg_7d,
+          cm_avg_30d
+        FROM (
+          SELECT
+            s.product_id,
+            s.fetched_at,
+            s.cm_lowest,
+            s.cm_lowest_eu,
+            s.cm_lowest_de,
+            s.cm_lowest_fr,
+            s.cm_lowest_es,
+            s.cm_lowest_it,
+            s.cm_avg_7d,
+            s.cm_avg_30d,
+            ROW_NUMBER() OVER (
+              PARTITION BY s.product_id, DATE(s.fetched_at)
+              ORDER BY s.fetched_at DESC, s.id DESC
+            ) AS row_num
+          FROM "SealedPriceSnapshot" s
+          WHERE s.product_id IN (${placeholdersFor(chunk)})
+        )
+        WHERE row_num = 1
+        ORDER BY fetched_at ASC, product_id ASC`,
+        ...chunk
+      )
     )
   );
 
@@ -615,6 +668,12 @@ export async function getCollectionOverviewData(
   const loadDetailedCards = shouldLoadDetailedCards(activeTab);
   const loadDetailedSealed = shouldLoadDetailedSealed(activeTab);
   const loadDetailedBinders = shouldLoadDetailedBinders(activeTab);
+  const timer = startPerformanceTimer("collection.overview", {
+    activeTab,
+    detailedCards: loadDetailedCards,
+    detailedSealed: loadDetailedSealed,
+    detailedBinders: loadDetailedBinders,
+  });
 
   const [collectionCards, collectionSealed, binders] = await Promise.all([
     loadDetailedCards ? getCollectionCards() : getCollectionCardMetrics(),
@@ -737,7 +796,7 @@ export async function getCollectionOverviewData(
         })
     : [];
 
-  return {
+  const result = {
     overview: {
       ...overviewMetric,
       totalCards: metricCards.length,
@@ -751,6 +810,15 @@ export async function getCollectionOverviewData(
     sealed: loadDetailedSealed ? (collectionSealed as CollectionSealedRecord[]).map(buildSealedViewItem) : [],
     binders: binderSummaries,
   };
+
+  timer.finish({
+    cards: metricCards.length,
+    sealedItems: metricSealed.length,
+    binders: binders.length,
+    historyPoints: combinedHistory.length,
+  });
+
+  return result;
 }
 
 export async function getBinderPageData(binderId: string): Promise<BinderPageData | null> {

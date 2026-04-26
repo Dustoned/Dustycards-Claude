@@ -1,13 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { LineChart, Package, RefreshCw } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import { formatCurrency } from "./utils";
 import type { SealedDetailResponse } from "./types";
+
+const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface SectionShellProps {
   eyebrow?: string;
@@ -67,9 +72,9 @@ function MetricTile({
           : "border-white/10 bg-black/22";
 
   return (
-    <div className={`rounded-2xl border px-3 py-3 ${accentClass} ${className}`}>
+    <div className={`min-w-0 rounded-2xl border px-3 py-3 ${accentClass} ${className}`}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/38">{label}</p>
-      <p className="mt-2 text-lg font-semibold tabular-nums text-white">{value}</p>
+      <p className="mt-2 break-words text-lg font-semibold tabular-nums text-white">{value}</p>
       {hint && <p className="mt-1 text-xs text-white/42">{hint}</p>}
     </div>
   );
@@ -201,7 +206,9 @@ export function SealedModalHeroSection({
     <SectionShell className="overflow-hidden">
       <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
-          <h2 className={`${titleClass} leading-[0.98] font-bold text-white`}>{product.name}</h2>
+          <h2 className={`${titleClass} break-words leading-tight font-bold text-white`}>
+            {product.name}
+          </h2>
 
           <div className={`mt-3 flex flex-wrap items-center gap-2.5 text-white/54 ${metaClassName}`}>
             <span>Sealed product</span>
@@ -229,7 +236,7 @@ export function SealedModalHeroSection({
             type="button"
             onClick={onSyncHistory}
             disabled={isBusy}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[40px] items-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <LineChart className={`h-4 w-4 ${syncingHistory ? "animate-pulse" : ""}`} />
             {syncingHistory ? "Syncing..." : "Sync History"}
@@ -238,7 +245,7 @@ export function SealedModalHeroSection({
             type="button"
             onClick={onRefresh}
             disabled={isBusy}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-[40px] items-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "Refreshing..." : "Refresh"}

@@ -10,11 +10,18 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { useSettings } from "@/components/SettingsProvider";
 import {
+  getCardGridTrackWidth,
+  getExpansionTileScale,
+  getFixedTrackGridTemplate,
+  getSearchLogoHeightClass,
+  getSealedProductTrackWidth,
+} from "@/lib/display-scale";
+import {
   clearSearchReturnPath,
   readSearchReturnPath,
 } from "@/lib/search-navigation";
-import type { ModalCardData } from "@/components/CardModal";
-import type { SealedModalProductData } from "@/components/SealedProductModal";
+import type { ModalCardData } from "@/components/card-modal/types";
+import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
 const CardModal = dynamic(() => import("@/components/CardModal"), {
   ssr: false,
@@ -77,18 +84,6 @@ function formatEur(value: number | null | undefined): string {
     maximumFractionDigits: 2,
   }).format(value);
 }
-
-const cardMinWidth: Record<"small" | "medium" | "large", Record<"normal" | "wide", string>> = {
-  small: { normal: "120px", wide: "160px" },
-  medium: { normal: "160px", wide: "220px" },
-  large: { normal: "220px", wide: "300px" },
-};
-
-const expansionMinWidth: Record<"small" | "medium" | "large", Record<"normal" | "wide", string>> = {
-  small: { normal: "150px", wide: "165px" },
-  medium: { normal: "175px", wide: "215px" },
-  large: { normal: "250px", wide: "320px" },
-};
 
 function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   const router = useRouter();
@@ -218,11 +213,10 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
   const allExpansions: ExpansionResult[] = results?.expansions ?? [];
 
-  const minWidth = cardMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"];
-  const expMinWidth = expansionMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"];
-
-  const logoHeight =
-    settings.cardSize === "small" ? "h-12" : settings.cardSize === "large" ? "h-20" : "h-14";
+  const minWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
+  const sealedMinWidth = getSealedProductTrackWidth(settings.cardSize, settings.widescreen);
+  const expansionScale = getExpansionTileScale(settings.uiScale, settings.widescreen);
+  const logoHeight = getSearchLogoHeightClass(settings.uiScale);
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
@@ -302,14 +296,15 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
               <div
                 className="grid gap-3"
                 style={{
-                  gridTemplateColumns: `repeat(auto-fill, minmax(${expMinWidth}, 1fr))`,
+                  gridTemplateColumns: getFixedTrackGridTemplate(expansionScale.minWidth),
+                  justifyContent: "start",
                 }}
               >
                 {allExpansions.map((ep) => (
                   <Link
                     key={ep.id}
                     href={`/expansions/${ep.id}`}
-                    className="group glass flex flex-col items-center rounded-2xl p-3.5 gap-3 transition-all duration-200 hover:scale-[1.03] hover:bg-white/8 active:scale-[0.98] dark:hover:bg-white/6"
+                    className={`group glass flex flex-col items-center transition-all duration-200 hover:scale-[1.03] hover:bg-white/8 active:scale-[0.98] dark:hover:bg-white/6 ${expansionScale.tileClass}`}
                   >
                     {ep.logo_url ? (
                       <div className={`relative w-full ${logoHeight}`}>
@@ -318,7 +313,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           alt={ep.name}
                           fill
                           className="object-contain drop-shadow-sm"
-                          sizes={expMinWidth}
+                          sizes={expansionScale.minWidth}
                           unoptimized
                         />
                       </div>
@@ -332,11 +327,11 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                       </div>
                     )}
                     <div className="text-center">
-                      <p className="text-xs font-semibold leading-snug line-clamp-2 text-gray-800 dark:text-white group-hover:text-black dark:group-hover:text-white transition-colors">
+                      <p className={`font-semibold leading-snug line-clamp-2 text-gray-800 dark:text-white group-hover:text-black dark:group-hover:text-white transition-colors ${expansionScale.titleClass}`}>
                         {ep.name}
                       </p>
                       {ep.code && (
-                        <p className="mt-0.5 text-xs text-gray-400 dark:text-white/40">{ep.code}</p>
+                        <p className={`mt-0.5 text-gray-400 dark:text-white/40 ${expansionScale.metaClass}`}>{ep.code}</p>
                       )}
                     </div>
                   </Link>
@@ -361,7 +356,8 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
               <div
                 className="grid gap-2"
                 style={{
-                  gridTemplateColumns: `repeat(auto-fill, minmax(${minWidth}, 1fr))`,
+                  gridTemplateColumns: getFixedTrackGridTemplate(minWidth),
+                  justifyContent: "start",
                 }}
               >
                 {results.singles.map((card, index) => (
@@ -386,7 +382,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           alt={card.name}
                           fill
                           className="object-contain"
-                          sizes="160px"
+                          sizes={minWidth}
                           loading={index < 18 ? "eager" : undefined}
                           unoptimized
                         />
@@ -421,9 +417,9 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-1.5">
+                        <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
                           {card.cm_en_lowest_nm != null ? (
-                            <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                            <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
                               {formatEur(card.cm_en_lowest_nm)}
                             </span>
                           ) : (
@@ -468,7 +464,8 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
               <div
                 className="grid gap-2"
                 style={{
-                  gridTemplateColumns: `repeat(auto-fill, minmax(${minWidth}, 1fr))`,
+                  gridTemplateColumns: getFixedTrackGridTemplate(sealedMinWidth),
+                  justifyContent: "start",
                 }}
               >
                 {results.sealed.map((product, index) => (
@@ -493,7 +490,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           alt={product.name}
                           fill
                           className="object-contain p-3"
-                          sizes="160px"
+                          sizes={sealedMinWidth}
                           loading={index < 18 ? "eager" : undefined}
                           unoptimized
                         />
@@ -523,9 +520,9 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           </div>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-1.5">
+                        <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
                           {product.cm_lowest != null ? (
-                            <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                            <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
                               {formatEur(product.cm_lowest)}
                             </span>
                           ) : (

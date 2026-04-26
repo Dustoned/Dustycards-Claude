@@ -1,9 +1,5 @@
-import Image from "next/image";
-import Link from "next/link";
 import { Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
-import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import MoversBrowser from "@/app/movers/MoversBrowser";
-import type { CollectionMoverItem } from "@/lib/movers";
 import {
   buildMoversSourceHref,
   getDisplayedCheapHighRarityMovers,
@@ -11,22 +7,6 @@ import {
 } from "@/app/movers/page-data";
 
 export const dynamic = "force-dynamic";
-
-function formatPercent(value: number | null | undefined): string {
-  if (value == null) {
-    return "--";
-  }
-
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
-}
-
-function formatDelta(value: number | null | undefined, currency: "EUR" | "USD"): string {
-  if (value == null) {
-    return "--";
-  }
-
-  return `${value >= 0 ? "+" : ""}${formatCurrency(value, currency)}`;
-}
 
 function formatShortDate(value: string): string {
   return new Intl.DateTimeFormat("nl-NL", {
@@ -73,94 +53,6 @@ function StatTile({
         </span>
       </div>
       <p className="mt-3 text-sm text-gray-500 dark:text-white/48">{hint}</p>
-    </div>
-  );
-}
-
-function SpotlightCard({
-  title,
-  item,
-  windowKey,
-}: {
-  title: string;
-  item: CollectionMoverItem | null;
-  windowKey: "7d" | "30d";
-}) {
-  const pct = windowKey === "7d" ? item?.change7dPct ?? null : item?.change30dPct ?? null;
-  const delta = windowKey === "7d" ? item?.change7d ?? null : item?.change30d ?? null;
-  const coveredDays =
-    windowKey === "7d" ? item?.change7dCoveredDays ?? null : item?.change30dCoveredDays ?? null;
-
-  return (
-    <div className="rounded-[24px] border border-black/8 bg-black/[0.03] p-4 shadow-lg shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/38">
-        {title}
-      </p>
-
-      {item ? (
-        <div className="mt-3 flex items-start gap-3">
-          <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 dark:border-white/10 dark:bg-white/[0.05]">
-            {item.imageUrl ? (
-              <Image
-                src={item.imageUrl}
-                alt={item.name}
-                fill
-                className="object-contain"
-                sizes="48px"
-                unoptimized
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
-                {item.name.slice(0, 2)}
-              </div>
-            )}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-semibold text-gray-900 dark:text-white">
-              {item.name}
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-white/46">
-              <span>{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
-              <span>/</span>
-              <Link
-                href={`/expansions/${item.episodeId}`}
-                className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
-              >
-                {item.episodeName}
-                {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
-              </Link>
-            </div>
-            {item.normalizedRarity && (
-              <span
-                className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${rarityBadge(
-                  item.normalizedRarity
-                )}`}
-              >
-                {item.normalizedRarity}
-              </span>
-            )}
-          </div>
-
-          <div className="shrink-0 text-right">
-            <p className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-300">
-              {formatPercent(pct)}
-            </p>
-            <p className="mt-1 text-sm font-medium text-gray-500 dark:text-white/48">
-              {formatDelta(delta, item.currency)}
-            </p>
-            {coveredDays != null && (
-              <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-gray-400 dark:text-white/32">
-                {coveredDays}d used
-              </p>
-            )}
-          </div>
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-gray-500 dark:text-white/48">
-          Nog niet genoeg recente history om hier een duidelijke winnaar te tonen.
-        </p>
-      )}
     </div>
   );
 }
@@ -241,11 +133,6 @@ export default async function MoversPage({
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <SpotlightCard title="Strongest 7D Move" item={data.strongest7d} windowKey="7d" />
-          <SpotlightCard title="Strongest 30D Move" item={data.strongest30d} windowKey="30d" />
-        </div>
-
         {data.eligibleCards === 0 ? (
           <div className="rounded-[28px] border border-black/8 bg-black/[0.03] p-8 text-center shadow-lg shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
             <p className="text-lg font-semibold text-gray-900 dark:text-white">Nog geen movers gevonden</p>
@@ -258,6 +145,10 @@ export default async function MoversPage({
           <MoversBrowser
             movers={data.movers}
             activePriceSource={activePriceSource}
+            spotlights={[
+              { title: "Strongest 7D Move", item: data.strongest7d, windowKey: "7d" },
+              { title: "Strongest 30D Move", item: data.strongest30d, windowKey: "30d" },
+            ]}
             previewCards={[
               {
                 eyebrow: "Secondary Pocket",

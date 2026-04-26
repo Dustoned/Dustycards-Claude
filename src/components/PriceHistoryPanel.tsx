@@ -257,14 +257,25 @@ export default function PriceHistoryPanel({
   const height = compact ? 126 : isHeroLayout ? 232 : 184;
   const chartId = useId().replace(/:/g, "");
   const chartFrameRef = useRef<HTMLDivElement | null>(null);
-  const [chartWidth, setChartWidth] = useState(CHART_FALLBACK_WIDTH);
+  const [chartWidth, setChartWidth] = useState<number | null>(null);
   const [selectedRange, setSelectedRange] = useState<RangeKey>("3M");
   const [activeHover, setActiveHover] = useState<{
     index: number;
     pointerX: number;
   } | null>(null);
 
+  const parsedPoints = points.map((point) => ({
+    ...point,
+    timestamp: parsePointTimestamp(point),
+  }));
+  const filteredPoints = filterPointsByRange(parsedPoints, selectedRange);
+  const hasDrawablePoints = filteredPoints.some((point) => point.value != null);
+
   useLayoutEffect(() => {
+    if (loading || !hasDrawablePoints) {
+      return;
+    }
+
     const element = chartFrameRef.current;
     if (!element) return;
     let frameId = 0;
@@ -293,14 +304,10 @@ export default function PriceHistoryPanel({
       window.cancelAnimationFrame(frameId);
       observer.disconnect();
     };
-  }, []);
+  }, [hasDrawablePoints, loading]);
 
-  const parsedPoints = points.map((point) => ({
-    ...point,
-    timestamp: parsePointTimestamp(point),
-  }));
-  const filteredPoints = filterPointsByRange(parsedPoints, selectedRange);
-  const chart = buildChart(filteredPoints, chartWidth, height, axisHeight);
+  const measuredChartWidth = chartWidth ?? CHART_FALLBACK_WIDTH;
+  const chart = chartWidth == null ? null : buildChart(filteredPoints, chartWidth, height, axisHeight);
   const visibleCoordinates = chart?.coordinates ?? [];
   const latestPoint = visibleCoordinates[visibleCoordinates.length - 1] ?? null;
   const activePoint =
@@ -380,9 +387,9 @@ export default function PriceHistoryPanel({
   const accentFillEnd =
     currency === "USD" ? "rgba(245, 158, 11, 0.02)" : "rgba(16, 185, 129, 0.02)";
   const dotFill = currency === "USD" ? "#fbbf24" : "#34d399";
-  const tooltipRawLeft = activeHover?.pointerX ?? activePoint?.x ?? chartWidth / 2;
-  const tooltipLeft = clamp(tooltipRawLeft, 12, Math.max(chartWidth - 12, 12));
-  const tooltipLeftRatio = chartWidth > 0 ? tooltipLeft / chartWidth : 0.5;
+  const tooltipRawLeft = activeHover?.pointerX ?? activePoint?.x ?? measuredChartWidth / 2;
+  const tooltipLeft = clamp(tooltipRawLeft, 12, Math.max(measuredChartWidth - 12, 12));
+  const tooltipLeftRatio = measuredChartWidth > 0 ? tooltipLeft / measuredChartWidth : 0.5;
   const tooltipTop = activePoint
     ? clamp(activePoint.y - (compact ? 56 : isHeroLayout ? 76 : 64), 8, height - 64)
     : 8;
@@ -399,7 +406,7 @@ export default function PriceHistoryPanel({
       : "px-2.5 py-1 text-[11px]";
 
   function updateHoverState(event: ReactPointerEvent<SVGSVGElement>) {
-    const pointerX = getPointerChartX(event, chartWidth);
+    const pointerX = getPointerChartX(event, measuredChartWidth);
     setActiveHover({
       index: getNearestCoordinateIndex(pointerX, visibleCoordinates),
       pointerX,
@@ -497,13 +504,17 @@ export default function PriceHistoryPanel({
         <div className={compact ? "mt-3" : "mt-4"}>
           <div className={emptyClass}>Grafiek laden...</div>
         </div>
-      ) : !chart ? (
+      ) : !hasDrawablePoints ? (
         <div className={compact ? "mt-3" : "mt-4"}>
           <div className={emptyClass}>{emptyText}</div>
         </div>
       ) : (
         <div className={compact ? "mt-3" : "mt-5"}>
           <div ref={chartFrameRef} className="relative w-full min-w-0">
+            {!chart ? (
+              <div className={emptyClass}>Grafiek laden...</div>
+            ) : (
+              <>
             {activePoint && (
               <div
                 className={`pointer-events-none absolute z-10 w-max max-w-[calc(100%-8px)] rounded-xl border px-2.5 py-2 text-left ${tooltipClass} ${tooltipAlignmentClass}`}
@@ -519,7 +530,7 @@ export default function PriceHistoryPanel({
             )}
 
             <svg
-              viewBox={`0 0 ${chartWidth} ${height}`}
+              viewBox={`0 0 ${measuredChartWidth} ${height}`}
               className="block w-full cursor-crosshair overflow-visible touch-none select-none"
               style={{ height }}
               onPointerMove={updateHoverState}
@@ -537,7 +548,7 @@ export default function PriceHistoryPanel({
                 <line
                   key={y}
                   x1={CHART_PADDING_X}
-                  x2={chartWidth - CHART_PADDING_X}
+                  x2={measuredChartWidth - CHART_PADDING_X}
                   y1={y}
                   y2={y}
                   strokeDasharray="4 5"
@@ -633,6 +644,8 @@ export default function PriceHistoryPanel({
                 );
               })}
             </svg>
+              </>
+            )}
           </div>
         </div>
       )}

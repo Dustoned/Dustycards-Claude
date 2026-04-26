@@ -218,6 +218,9 @@ export default function CardModal({ card, onClose }: Props) {
         onClick={onClose}
       >
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={modalCard.name}
           className={`${layout.maxW} glass max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] shadow-[0_32px_90px_rgba(0,0,0,0.52)]`}
           style={{
             background: "rgba(10,10,12,0.92)",

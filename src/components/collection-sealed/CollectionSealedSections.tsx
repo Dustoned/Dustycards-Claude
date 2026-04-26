@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Minus, Package } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import type { CollectionSealedViewItem, RemoveDialogState } from "./types";
 import {
   buildCollectionAddProduct,
@@ -182,6 +183,7 @@ export function CollectionSealedSelectionToolbar({
 function CollectionSealedTile({
   item,
   index,
+  minTileWidth,
   selectionMode,
   isSelected,
   removingItems,
@@ -190,6 +192,7 @@ function CollectionSealedTile({
 }: {
   item: CollectionSealedViewItem;
   index: number;
+  minTileWidth: string;
   selectionMode: boolean;
   isSelected: boolean;
   removingItems: boolean;
@@ -230,7 +233,7 @@ function CollectionSealedTile({
             alt={item.name}
             fill
             className="object-contain p-4"
-            sizes="280px"
+            sizes={minTileWidth}
             loading={index < 16 ? "eager" : undefined}
             unoptimized
           />
@@ -269,9 +272,9 @@ function CollectionSealedTile({
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
             {currentTotal != null ? (
-              <span className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+              <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
                 {formatCollectionCurrency(currentTotal)}
               </span>
             ) : (
@@ -347,7 +350,8 @@ export function CollectionSealedGrid({
     <div
       className="grid gap-3"
       style={{
-        gridTemplateColumns: `repeat(auto-fill, minmax(${minTileWidth}, 1fr))`,
+        gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
+        justifyContent: "start",
       }}
     >
       {items.map((item, index) => (
@@ -355,6 +359,7 @@ export function CollectionSealedGrid({
           key={item.id}
           item={item}
           index={index}
+          minTileWidth={minTileWidth}
           selectionMode={selectionMode}
           isSelected={selectionMode && selectedIdSet.has(item.id)}
           removingItems={removingItems}

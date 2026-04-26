@@ -6,7 +6,13 @@ import { Package, RefreshCw } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import SyncButton from "../expansions/SyncButton";
 
-function SyncSealedButton() {
+function SyncSealedButton({
+  scraperDisabled,
+  disabledReason,
+}: {
+  scraperDisabled: boolean;
+  disabledReason: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -34,21 +40,34 @@ function SyncSealedButton() {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex w-full flex-col gap-2 sm:w-auto">
       <button
         onClick={handleSync}
-        disabled={loading}
-        className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08]"
+        disabled={loading || scraperDisabled}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08] sm:w-auto"
       >
         <Package className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
         {loading ? "Syncing sealed..." : "Sync Sealed Products"}
       </button>
-      {status && <p className="max-w-sm text-xs text-gray-400">{status}</p>}
+      {scraperDisabled && (
+        <p className="max-w-sm break-words text-xs text-amber-600 dark:text-amber-300">
+          {disabledReason}
+        </p>
+      )}
+      {status && <p className="max-w-sm break-words text-xs text-gray-400">{status}</p>}
     </div>
   );
 }
 
-function SyncCardHistoryButton({ pendingCards }: { pendingCards: number }) {
+function SyncCardHistoryButton({
+  pendingCards,
+  scraperDisabled,
+  disabledReason,
+}: {
+  pendingCards: number;
+  scraperDisabled: boolean;
+  disabledReason: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -56,56 +75,88 @@ function SyncCardHistoryButton({ pendingCards }: { pendingCards: number }) {
   useEffect(() => {
     if (!loading) return;
 
+    let cancelled = false;
+
+    async function pollStatus() {
+      try {
+        const res = await fetch("/api/sync-card-history", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (cancelled || !data.ok) return;
+
+        router.refresh();
+
+        if (!data.running) {
+          setLoading(false);
+          setStatus(
+            data.error
+              ? `History sync stopped: ${data.error}`
+              : data.pendingCards > 0
+                ? `History sync paused with ${data.pendingCards} cards remaining.`
+                : "History import complete."
+          );
+        }
+      } catch {
+        // Keep the local running state; the next poll can recover.
+      }
+    }
+
     const interval = window.setInterval(() => {
-      router.refresh();
+      void pollStatus();
     }, 2500);
 
-    return () => window.clearInterval(interval);
+    void pollStatus();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [loading, router]);
 
   async function handleSync() {
     setLoading(true);
-    setStatus("Syncing full TCGGO card history...");
+    setStatus("Starting server-side history sync...");
     try {
       const res = await fetch("/api/sync-card-history", { method: "POST" });
       const data = await res.json();
-      if (data.ok) {
-        setStatus(
-          data.message ??
-            `Done - ${data.syncedCards} cards synced, ${data.newHistorySnapshots} history snapshots imported`
-        );
-        router.refresh();
-      } else if (data.cancelled) {
-        setStatus(data.error ?? "Card history sync stopped.");
-        router.refresh();
-      } else {
-        const activeLabel =
-          data.activeType === "card-history"
-            ? "Card history sync is still running"
-            : data.activeType
-              ? `Another sync is running: ${data.activeType}`
-              : null;
-        setStatus(activeLabel ?? `Error: ${data.error}`);
+
+      if (!data.ok) {
+        setStatus(`Error: ${data.error}`);
+        setLoading(false);
+        return;
       }
+
+      setStatus(
+        data.started ? "History sync is running server-side." : "History sync is already running."
+      );
+      router.refresh();
     } catch {
       setStatus("Network error");
-    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex w-full flex-col gap-2 sm:w-auto">
       <button
         onClick={handleSync}
-        disabled={loading || pendingCards === 0}
-        className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08]"
+        disabled={loading || pendingCards === 0 || scraperDisabled}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08] sm:w-auto"
       >
         <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        {loading ? "Syncing history..." : "Sync Card History"}
+        {loading ? "History sync running..." : "Sync Card History"}
       </button>
-      <p className="max-w-sm text-xs text-gray-400">Manual only.</p>
-      {status && <p className="max-w-sm text-xs text-gray-400">{status}</p>}
+      <p className="max-w-sm text-xs text-gray-400">
+        Runs server-side in chunks, so it keeps going while this page refreshes.
+      </p>
+      {scraperDisabled && (
+        <p className="max-w-sm break-words text-xs text-amber-600 dark:text-amber-300">
+          {disabledReason}
+        </p>
+      )}
+      {status && <p className="max-w-sm break-words text-xs text-gray-400">{status}</p>}
     </div>
   );
 }
@@ -141,6 +192,8 @@ interface AutomationSectionProps {
   };
   pendingCardHistoryCards: number;
   activeScraperLabel: string | null;
+  scraperDisabled: boolean;
+  scraperDisabledLabel: string;
 }
 
 function formatRequestsUsed(used: number, limit: number | null): string {
@@ -148,15 +201,37 @@ function formatRequestsUsed(used: number, limit: number | null): string {
   return `${used} / ${limit}`;
 }
 
+function UsageStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-black/6 px-3 py-2 dark:border-white/8">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+        {label}
+      </p>
+      <p className="mt-1 break-words text-sm font-semibold leading-snug text-gray-900 dark:text-white">
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export default function AutomationSection({
   scraperUsage,
   pendingCardHistoryCards,
   activeScraperLabel,
+  scraperDisabled,
+  scraperDisabledLabel,
 }: AutomationSectionProps) {
   const { settings, set } = useSettings();
+  const scraperDisabledReason = `Scraper requests are disabled by ${scraperDisabledLabel}.`;
 
   return (
-    <div className="glass rounded-2xl p-6 shadow-md shadow-black/5">
+    <div className="settings-panel glass min-w-0 rounded-2xl p-6 shadow-md shadow-black/5">
       <div className="mb-5">
         <h2 className="text-base font-semibold text-gray-900 dark:text-white">Automation</h2>
         <p className="mt-0.5 text-sm text-gray-400">
@@ -164,8 +239,8 @@ export default function AutomationSection({
         </p>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-white">
             Background price refresh
           </p>
@@ -175,6 +250,7 @@ export default function AutomationSection({
         </div>
         <button
           onClick={() => set("autoPriceRefresh", !settings.autoPriceRefresh)}
+          type="button"
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
             settings.autoPriceRefresh ? "bg-gray-900 dark:bg-white" : "bg-black/10 dark:bg-white/10"
           }`}
@@ -190,37 +266,24 @@ export default function AutomationSection({
       </div>
 
       <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
+        {scraperDisabled && (
+          <div className="mb-4 rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-3 text-sm text-amber-800 dark:border-amber-400/20 dark:bg-amber-900/20 dark:text-amber-100">
+            {scraperDisabledReason} Background and manual scraper refreshes are paused.
+          </div>
+        )}
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-white">Refresh tools</p>
             <p className="mt-0.5 text-xs text-gray-400">
               Check for new sets, new cards, and missing first prices.
             </p>
-            <div className="mt-3 grid max-w-xl gap-2 sm:grid-cols-3">
-              <div className="rounded-lg border border-black/6 px-3 py-2 dark:border-white/8">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Scraper Requests
-                </p>
-                <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                  {formatRequestsUsed(scraperUsage.requestsUsed, scraperUsage.requestsLimit)}
-                </p>
-              </div>
-              <div className="rounded-lg border border-black/6 px-3 py-2 dark:border-white/8">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Remaining
-                </p>
-                <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                  {scraperUsage.requestsRemaining ?? "--"}
-                </p>
-              </div>
-              <div className="rounded-lg border border-black/6 px-3 py-2 dark:border-white/8">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-                  Reset
-                </p>
-                <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                  {scraperUsage.resetLabel ?? "--"}
-                </p>
-              </div>
+            <div className="mt-3 grid w-full grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2">
+              <UsageStat
+                label="Scraper requests"
+                value={formatRequestsUsed(scraperUsage.requestsUsed, scraperUsage.requestsLimit)}
+              />
+              <UsageStat label="Remaining" value={scraperUsage.requestsRemaining ?? "--"} />
+              <UsageStat label="Reset" value={scraperUsage.resetLabel ?? "--"} />
             </div>
             {scraperUsage.observedLabel && (
               <p className="mt-2 text-[11px] text-gray-400">
@@ -233,13 +296,13 @@ export default function AutomationSection({
               </p>
             ) : null}
           </div>
-          <SyncButton />
+          <SyncButton disabled={scraperDisabled} disabledReason={scraperDisabledReason} />
         </div>
       </div>
 
       <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-white">Card history import</p>
             <p className="mt-0.5 text-xs text-gray-400">
               Import full TCGGO history for cards across all expansions, excluding Common, Uncommon, and Rare.
@@ -251,13 +314,17 @@ export default function AutomationSection({
               </span>
             </p>
           </div>
-          <SyncCardHistoryButton pendingCards={pendingCardHistoryCards} />
+          <SyncCardHistoryButton
+            pendingCards={pendingCardHistoryCards}
+            scraperDisabled={scraperDisabled}
+            disabledReason={scraperDisabledReason}
+          />
         </div>
       </div>
 
       <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-white">
               Sync sealed products
             </p>
@@ -265,7 +332,10 @@ export default function AutomationSection({
               Fetch booster boxes, tins, and other sealed products for all expansions.
             </p>
           </div>
-          <SyncSealedButton />
+          <SyncSealedButton
+            scraperDisabled={scraperDisabled}
+            disabledReason={scraperDisabledReason}
+          />
         </div>
       </div>
 
@@ -279,11 +349,11 @@ export default function AutomationSection({
               key={tier.label}
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/6 bg-black/[0.02] px-4 py-3 dark:border-white/8 dark:bg-white/[0.03]"
             >
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tier.badge}`}>
                   {tier.label}
                 </span>
-                <span className="text-sm text-gray-600 dark:text-gray-300">
+                <span className="min-w-0 break-words text-sm text-gray-600 dark:text-gray-300">
                   {tier.description}
                 </span>
               </div>

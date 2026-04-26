@@ -1,4 +1,5 @@
 import type { ModalSize } from "@/components/SettingsProvider";
+import { getDetailModalScale } from "@/lib/display-scale";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import type { CurrencyCode } from "./types";
 
@@ -111,91 +112,26 @@ export function getCardModalLayoutClasses(
   widescreen: boolean,
   hasCollectionItem: boolean
 ) {
-  const mediaWidth =
-    size === "small"
-      ? widescreen
-        ? "w-[12.5rem] sm:w-[13.5rem] xl:w-[14.5rem]"
-        : "w-36 sm:w-40 xl:w-44"
-      : size === "large"
-        ? widescreen
-          ? "w-[24rem] sm:w-[27rem] xl:w-[30rem]"
-          : "w-72 sm:w-80 xl:w-[24rem]"
-        : widescreen
-          ? "w-[15.5rem] sm:w-[17rem] xl:w-[18.5rem]"
-          : "w-44 sm:w-52 xl:w-[16rem]";
-  const imageSize =
-    size === "small"
-      ? widescreen
-        ? "224px"
-        : "176px"
-      : size === "large"
-        ? widescreen
-          ? "560px"
-          : "448px"
-        : widescreen
-          ? "304px"
-          : "240px";
-  const maxW =
-    size === "small"
-      ? widescreen
-        ? "max-w-[52rem]"
-        : "max-w-[44rem]"
-      : size === "large"
-        ? widescreen
-          ? "max-w-[104rem]"
-          : "max-w-[90rem]"
-        : widescreen
-          ? "max-w-[68rem]"
-          : "max-w-[58rem]";
-  const pad =
-    size === "small"
-      ? "p-2.5 sm:p-3"
-      : size === "large"
-        ? "p-6 sm:p-7 xl:p-8"
-        : "p-3 sm:p-4";
-  const gridGap =
-    size === "small"
-      ? "gap-2.5 sm:gap-3"
-      : size === "large"
-        ? "gap-6 sm:gap-8 xl:gap-10"
-        : "gap-3 sm:gap-4";
-  const titleClass =
-    size === "small"
-      ? "text-[1.28rem] sm:text-[1.42rem]"
-      : size === "large"
-        ? "text-[2.45rem] sm:text-[2.85rem] xl:text-[3.15rem]"
-        : "text-[1.68rem] sm:text-[1.88rem]";
-  const metaClassName =
-    size === "small"
-      ? "text-[12px]"
-      : size === "large"
-        ? "text-base sm:text-[17px]"
-        : "text-[13px]";
+  const scale = getDetailModalScale(size, widescreen);
   const detailStatClass =
     size === "small"
       ? "rounded-[15px] border border-white/8 bg-black/18 px-2 py-1.5 backdrop-blur-sm"
       : size === "large"
-        ? "rounded-[22px] border border-white/8 bg-black/18 px-4 py-3.5 backdrop-blur-sm"
+        ? "rounded-[20px] border border-white/8 bg-black/18 px-3.5 py-3 backdrop-blur-sm"
         : "rounded-[17px] border border-white/8 bg-black/18 px-2.5 py-2 backdrop-blur-sm";
-  const footerPad =
-    size === "small"
-      ? "px-2.5 pb-2.5 sm:px-3 sm:pb-3"
-      : size === "large"
-        ? "px-6 pb-6 sm:px-7 sm:pb-7 xl:px-8 xl:pb-8"
-        : "px-3 pb-3 sm:px-4 sm:pb-4";
   const footerGridClass = hasCollectionItem
-    ? `grid gap-3 ${footerPad} sm:grid-cols-2 xl:grid-cols-4`
-    : `grid gap-3 ${footerPad} sm:grid-cols-2 xl:grid-cols-3`;
+    ? `grid gap-3 ${scale.footerPad} sm:grid-cols-2 xl:grid-cols-4`
+    : `grid gap-3 ${scale.footerPad} sm:grid-cols-2 xl:grid-cols-3`;
 
   return {
     detailStatClass,
     footerGridClass,
-    gridGap,
-    imageSize,
-    maxW,
-    mediaWidth,
-    metaClassName,
-    pad,
-    titleClass,
+    gridGap: scale.gridGap,
+    imageSize: scale.imageSize,
+    maxW: scale.maxW,
+    mediaWidth: scale.mediaWidth,
+    metaClassName: scale.metaClassName,
+    pad: scale.pad,
+    titleClass: scale.titleClass,
   };
 }

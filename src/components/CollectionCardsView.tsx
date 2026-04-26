@@ -13,8 +13,9 @@ import CardBrowserToolbar, {
   type CardBrowserToolbarOption,
 } from "@/components/CardBrowserToolbar";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
-import GradedSlabPreview from "@/components/GradedSlabPreview";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { useIncrementalItems } from "@/lib/use-incremental-items";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 import {
   useSettings,
@@ -31,7 +32,7 @@ import {
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
-import type { ModalCardData } from "@/components/CardModal";
+import type { ModalCardData } from "@/components/card-modal/types";
 
 const CardModal = dynamic(() => import("@/components/CardModal"), {
   ssr: false,
@@ -45,6 +46,10 @@ const CollectionBulkAddCardsModal = dynamic(
     loading: () => null,
   }
 );
+const GradedSlabPreview = dynamic(() => import("@/components/GradedSlabPreview"), {
+  ssr: false,
+  loading: () => null,
+});
 
 export type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -77,11 +82,9 @@ interface RemoveDialogState {
   description: string;
 }
 
-const cardMinWidth = {
-  small: { normal: "120px", wide: "160px" },
-  medium: { normal: "160px", wide: "220px" },
-  large: { normal: "220px", wide: "300px" },
-} as const;
+const INITIAL_COLLECTION_RENDER_COUNT = 72;
+const COLLECTION_RENDER_BATCH_SIZE = 96;
+const INITIAL_COLLECTION_EAGER_IMAGE_COUNT = 12;
 
 const KNOWN_SUPERTYPE_ORDER = ["pokemon", "trainer", "energy"] as const;
 const CARD_NUMBER_FALLBACK = "999999";
@@ -693,6 +696,25 @@ export default function CollectionCardsView({
 
     return groups;
   }, [visibleEntries, splitByGrading]);
+  const renderedVisibleEntries = useIncrementalItems(visibleEntries, {
+    initialCount: INITIAL_COLLECTION_RENDER_COUNT,
+    batchSize: COLLECTION_RENDER_BATCH_SIZE,
+  });
+  const renderedSelectionKeys = useMemo(
+    () => new Set(renderedVisibleEntries.map((entry) => entry.selectionKey)),
+    [renderedVisibleEntries]
+  );
+  const renderedGroupedVisibleEntries = useMemo(
+    () =>
+      groupedVisibleEntries
+        .map((group) => ({
+          ...group,
+          totalCount: group.entries.length,
+          entries: group.entries.filter((entry) => renderedSelectionKeys.has(entry.selectionKey)),
+        }))
+        .filter((group) => group.entries.length > 0),
+    [groupedVisibleEntries, renderedSelectionKeys]
+  );
   const selectableKeys = useMemo(
     () => visibleEntries.map(({ selectionKey }) => selectionKey),
     [visibleEntries]
@@ -954,9 +976,8 @@ export default function CollectionCardsView({
     );
   }
 
-  const cardTrackWidth =
-    cardMinWidth[settings.cardSize][settings.widescreen ? "wide" : "normal"];
-  const gridTemplateColumns = `repeat(auto-fill, minmax(${cardTrackWidth}, ${cardTrackWidth}))`;
+  const cardTrackWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
+  const gridTemplateColumns = getFixedTrackGridTemplate(cardTrackWidth);
   const showInlineSelectionButton =
     Boolean(sectionTitle) && !showFilters && selectionEnabled && !activeSelectionMode;
   const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
@@ -1520,7 +1541,7 @@ export default function CollectionCardsView({
         </div>
       ) : view === "table" ? (
         <div className={`${splitByGrading ? "space-y-6" : ""} ${isFilteringPending ? "opacity-80" : "opacity-100"} transition-opacity`}>
-          {groupedVisibleEntries.map((group) => (
+          {renderedGroupedVisibleEntries.map((group) => (
             <section key={group.key}>
               {group.title && (
                 <div className="mb-2.5 flex items-center gap-3">
@@ -1528,7 +1549,7 @@ export default function CollectionCardsView({
                     {group.title}
                   </h2>
                   <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                    {group.entries.length}
+                    {group.totalCount}
                   </span>
                   <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
                 </div>
@@ -1605,7 +1626,7 @@ export default function CollectionCardsView({
                                         : ""
                                     }`}
                                     sizes="48px"
-                                    loading={index < 18 ? "eager" : undefined}
+                                    loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
                                     unoptimized
                                   />
                                 ) : (
@@ -1753,7 +1774,7 @@ export default function CollectionCardsView({
         </div>
       ) : (
         <div className={`${splitByGrading ? "space-y-6" : ""} ${isFilteringPending ? "opacity-80" : "opacity-100"} transition-opacity`}>
-          {groupedVisibleEntries.map((group) => (
+          {renderedGroupedVisibleEntries.map((group) => (
             <section key={group.key}>
               {group.title && (
                 <div className="mb-2.5 flex items-center gap-3">
@@ -1761,7 +1782,7 @@ export default function CollectionCardsView({
                     {group.title}
                   </h2>
                   <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                    {group.entries.length}
+                    {group.totalCount}
                   </span>
                   <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
                 </div>
@@ -1836,8 +1857,8 @@ export default function CollectionCardsView({
                             className="absolute inset-0"
                             imageClassName={imageClass}
                             tileSize={settings.cardSize}
-                            sizes="220px"
-                            loading={index < 18 ? "eager" : undefined}
+                            sizes={cardTrackWidth}
+                            loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
                           />
                         ) : item.image_url ? (
                           <Image
@@ -1845,8 +1866,8 @@ export default function CollectionCardsView({
                             alt={item.name}
                             fill
                             className={imageClass}
-                            sizes="180px"
-                            loading={index < 18 ? "eager" : undefined}
+                            sizes={cardTrackWidth}
+                            loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
                             unoptimized
                           />
                         ) : (
@@ -1898,7 +1919,7 @@ export default function CollectionCardsView({
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
                     {displayPrice != null ? (
                       <span
                         title={
@@ -1906,7 +1927,7 @@ export default function CollectionCardsView({
                             ? `Using ${item.current_value_label} graded price`
                             : undefined
                         }
-                        className="text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white"
+                        className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white"
                       >
                         {formatMarketCurrency(displayPrice, displayPriceCurrency)}
                       </span>

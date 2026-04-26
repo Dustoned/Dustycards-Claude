@@ -1,9 +1,20 @@
+import {
+  decodeSyncLogMessage,
+  type AutoPriceRefreshLogDetails,
+  type CardHistoryLogDetails,
+  type EpisodeSyncLogDetails,
+  type FullSyncLogDetails,
+  type SealedSyncLogDetails,
+  type SyncLogDetails,
+} from "@/lib/sync-log-details";
+
 export interface SyncStatusEntry {
   id: string;
   type: string;
   label: string;
   status: string;
   message: string | null;
+  details?: SyncLogDetails | null;
   started_at: Date;
   finished_at: Date | null;
   cancel_requested_at: Date | null;
@@ -15,10 +26,17 @@ export interface AutoRefreshStatus {
   lastFailure: SyncStatusEntry | null;
   dueCards: number;
   missingPriceCards: number;
+  unavailableCooldownCards: number;
+  nextUnavailableRetryLabel: string | null;
   nextBatchCards: number;
   nextBatchEpisodes: number;
   nextBatchSetLabels: string[];
   nextBatchCardLabels: string[];
+  requestsRemaining: number | null;
+  requestConcurrency: number;
+  quotaPaused: boolean;
+  quotaResetLabel: string | null;
+  scraperDisabled: boolean;
 }
 
 export interface OverviewStatus {
@@ -51,6 +69,7 @@ export interface GroupedSyncStatusEntry {
   label: string;
   status: string;
   message: string | null;
+  details?: SyncLogDetails | null;
   started_at: Date;
   finished_at: Date | null;
   cancel_requested_at: Date | null;
@@ -94,6 +113,8 @@ export function statusBadge(status: string): string {
       return "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
     case "cancelled":
       return "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300";
+    case "paused":
+      return "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
     case "failed":
       return "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
     default:
@@ -111,6 +132,8 @@ export function humanStatus(status: string): string {
       return "Success";
     case "cancelled":
       return "Cancelled";
+    case "paused":
+      return "Paused";
     case "failed":
       return "Failed";
     default:
@@ -131,7 +154,8 @@ export function visualStatus(
 export function compactMessage(message: string | null, maxLength = 220): string | null {
   if (!message) return null;
 
-  const normalized = message.replace(/\s+/g, " ").trim();
+  const decoded = decodeSyncLogMessage(message);
+  const normalized = (decoded.message ?? "").replace(/\s+/g, " ").trim();
   if (!normalized) return null;
 
   const uniqueConstraintMatch = normalized.match(
@@ -148,7 +172,10 @@ export function compactMessage(message: string | null, maxLength = 220): string 
   return `${normalized.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
-export function parseAutoRefreshProgress(message: string | null): {
+export function parseAutoRefreshProgress(
+  message: string | null,
+  explicitDetails?: SyncLogDetails | null
+): {
   batchCards: number | null;
   batchSets: number | null;
   dueBacklog: number | null;
@@ -157,6 +184,26 @@ export function parseAutoRefreshProgress(message: string | null): {
   currentSetTotal: number | null;
   currentSetCards: number | null;
 } {
+  const decoded = decodeSyncLogMessage(message);
+  const details =
+    explicitDetails?.kind === "auto-price-refresh"
+      ? explicitDetails
+      : decoded.details?.kind === "auto-price-refresh"
+        ? decoded.details
+        : null;
+
+  if (details) {
+    return {
+      batchCards: details.selectedCards,
+      batchSets: details.currentSet?.total ?? details.checkedEpisodes,
+      dueBacklog: details.remainingDueCards,
+      currentSet: details.currentSet?.name ?? null,
+      currentSetIndex: details.currentSet?.index ?? null,
+      currentSetTotal: details.currentSet?.total ?? null,
+      currentSetCards: details.currentSet?.cards ?? null,
+    };
+  }
+
   const normalized = compactMessage(message, 500);
   if (!normalized) {
     return {
@@ -211,6 +258,51 @@ export function parseAutoRefreshProgress(message: string | null): {
   return result;
 }
 
+function getAutoRefreshDetails(entry: SyncStatusEntry): AutoPriceRefreshLogDetails | null {
+  if (entry.details?.kind === "auto-price-refresh") {
+    return entry.details;
+  }
+
+  const decoded = decodeSyncLogMessage(entry.message);
+  return decoded.details?.kind === "auto-price-refresh" ? decoded.details : null;
+}
+
+function getCardHistoryDetails(entry: SyncStatusEntry): CardHistoryLogDetails | null {
+  if (entry.details?.kind === "card-history") {
+    return entry.details;
+  }
+
+  const decoded = decodeSyncLogMessage(entry.message);
+  return decoded.details?.kind === "card-history" ? decoded.details : null;
+}
+
+function getEpisodeSyncDetails(entry: SyncStatusEntry): EpisodeSyncLogDetails | null {
+  if (entry.details?.kind === "episode-sync") {
+    return entry.details;
+  }
+
+  const decoded = decodeSyncLogMessage(entry.message);
+  return decoded.details?.kind === "episode-sync" ? decoded.details : null;
+}
+
+function getFullSyncDetails(entry: SyncStatusEntry): FullSyncLogDetails | null {
+  if (entry.details?.kind === "full-sync") {
+    return entry.details;
+  }
+
+  const decoded = decodeSyncLogMessage(entry.message);
+  return decoded.details?.kind === "full-sync" ? decoded.details : null;
+}
+
+function getSealedSyncDetails(entry: SyncStatusEntry): SealedSyncLogDetails | null {
+  if (entry.details?.kind === "sealed-sync") {
+    return entry.details;
+  }
+
+  const decoded = decodeSyncLogMessage(entry.message);
+  return decoded.details?.kind === "sealed-sync" ? decoded.details : null;
+}
+
 export function metricBadgeTone(tone: ActivityMetric["tone"] = "default"): string {
   switch (tone) {
     case "success":
@@ -226,6 +318,159 @@ export function parseActivityMetrics(entry: SyncStatusEntry): {
   metrics: ActivityMetric[];
   detail: string | null;
 } {
+  const autoDetails = getAutoRefreshDetails(entry);
+  if (autoDetails) {
+    const metrics: ActivityMetric[] = [
+      { label: "cards checked", value: String(autoDetails.selectedCards) },
+      { label: "sets checked", value: String(autoDetails.checkedEpisodes) },
+      { label: "first prices", value: String(autoDetails.backfillCards) },
+      { label: "history", value: String(autoDetails.nativeHistoryItems) },
+      { label: "updated cards", value: String(autoDetails.updatedCards) },
+      { label: "new snapshots", value: String(autoDetails.newPrices), tone: "success" },
+      { label: "refreshed", value: String(autoDetails.refreshedPrices) },
+      {
+        label: "remaining after batch",
+        value: String(autoDetails.remainingDueCards),
+        tone: autoDetails.remainingDueCards > 0 ? "warning" : "default",
+      },
+    ];
+
+    if (autoDetails.requestsRemaining != null) {
+      metrics.push({
+        label: "requests left",
+        value: String(autoDetails.requestsRemaining),
+        tone: "warning",
+      });
+    }
+
+    if (autoDetails.quotaExceeded) {
+      return {
+        metrics: metrics.slice(0, 8),
+        detail: "Paused at scraper quota.",
+      };
+    }
+
+    return {
+      metrics: metrics.slice(0, 8),
+      detail: compactMessage(entry.message, 320),
+    };
+  }
+
+  const cardHistoryDetails = getCardHistoryDetails(entry);
+  if (cardHistoryDetails) {
+    const metrics: ActivityMetric[] = [
+      { label: "eligible", value: String(cardHistoryDetails.candidateCards) },
+      { label: "selected", value: String(cardHistoryDetails.selectedCards) },
+      { label: "processed", value: String(cardHistoryDetails.processedCards) },
+      { label: "cards synced", value: String(cardHistoryDetails.syncedCards), tone: "success" },
+      { label: "unavailable", value: String(cardHistoryDetails.failedCards), tone: "warning" },
+      { label: "history snapshots", value: String(cardHistoryDetails.newHistorySnapshots) },
+      {
+        label: "pending",
+        value: String(cardHistoryDetails.remainingCards),
+        tone: cardHistoryDetails.remainingCards > 0 ? "warning" : "default",
+      },
+    ];
+
+    if (cardHistoryDetails.requestsRemaining != null) {
+      metrics.push({
+        label: "requests left",
+        value: String(cardHistoryDetails.requestsRemaining),
+        tone: "warning",
+      });
+    }
+
+    return {
+      metrics: metrics.slice(0, 8),
+      detail: cardHistoryDetails.quotaExceeded
+        ? "Paused at scraper quota."
+        : compactMessage(entry.message, 320),
+    };
+  }
+
+  const episodeDetails = getEpisodeSyncDetails(entry);
+  if (episodeDetails) {
+    const metrics: ActivityMetric[] = [
+      { label: "cards synced", value: String(episodeDetails.count) },
+      { label: "new cards", value: String(episodeDetails.newCards), tone: "success" },
+      { label: "updated cards", value: String(episodeDetails.updatedCards) },
+      { label: "new snapshots", value: String(episodeDetails.newPrices), tone: "success" },
+      { label: "refreshed", value: String(episodeDetails.refreshedPrices) },
+      { label: "graded", value: String(episodeDetails.gradedPricesUpdated) },
+    ];
+
+    if (episodeDetails.requestsRemaining != null) {
+      metrics.push({
+        label: "requests left",
+        value: String(episodeDetails.requestsRemaining),
+        tone: "warning",
+      });
+    }
+
+    return {
+      metrics: metrics.slice(0, 8),
+      detail: episodeDetails.quotaExceeded
+        ? "Paused at scraper quota."
+        : compactMessage(entry.message, 320),
+    };
+  }
+
+  const fullDetails = getFullSyncDetails(entry);
+  if (fullDetails) {
+    const metrics: ActivityMetric[] = [
+      { label: "sets checked", value: String(fullDetails.count) },
+      { label: "sets synced", value: String(fullDetails.syncedEpisodes) },
+      { label: "skipped", value: String(fullDetails.skippedEpisodes) },
+      { label: "new sets", value: String(fullDetails.newEpisodes), tone: "success" },
+      { label: "new cards", value: String(fullDetails.newCards), tone: "success" },
+      { label: "updated cards", value: String(fullDetails.updatedCards) },
+      { label: "new snapshots", value: String(fullDetails.newPrices), tone: "success" },
+      { label: "refreshed", value: String(fullDetails.refreshedPrices) },
+    ];
+
+    if (fullDetails.requestsRemaining != null) {
+      metrics.push({
+        label: "requests left",
+        value: String(fullDetails.requestsRemaining),
+        tone: "warning",
+      });
+    }
+
+    return {
+      metrics: metrics.slice(0, 8),
+      detail: fullDetails.quotaExceeded
+        ? "Paused at scraper quota."
+        : fullDetails.currentEpisode
+          ? `Current set: ${fullDetails.currentEpisode.name}.`
+          : compactMessage(entry.message, 320),
+    };
+  }
+
+  const sealedDetails = getSealedSyncDetails(entry);
+  if (sealedDetails) {
+    const metrics: ActivityMetric[] = [
+      { label: "sets synced", value: String(sealedDetails.synced) },
+      { label: "sealed updated", value: String(sealedDetails.products), tone: "success" },
+    ];
+
+    if (sealedDetails.requestsRemaining != null) {
+      metrics.push({
+        label: "requests left",
+        value: String(sealedDetails.requestsRemaining),
+        tone: "warning",
+      });
+    }
+
+    return {
+      metrics: metrics.slice(0, 8),
+      detail: sealedDetails.quotaExceeded
+        ? "Paused at scraper quota."
+        : sealedDetails.currentEpisode
+          ? `Current set: ${sealedDetails.currentEpisode.name}.`
+          : compactMessage(entry.message, 320),
+    };
+  }
+
   const normalized = compactMessage(entry.message, 320);
   if (!normalized) {
     return { metrics: [], detail: null };
@@ -251,9 +496,33 @@ export function parseActivityMetrics(entry: SyncStatusEntry): {
       continue;
     }
 
+    match = part.match(/^Selected (\d+) cards$/i);
+    if (match) {
+      metrics.push({ label: "selected", value: match[1] });
+      continue;
+    }
+
+    match = part.match(/^(\d+) processed$/i);
+    if (match) {
+      metrics.push({ label: "processed", value: match[1] });
+      continue;
+    }
+
     match = part.match(/^Synced (\d+) cards$/i);
     if (match) {
       metrics.push({ label: "cards synced", value: match[1] });
+      continue;
+    }
+
+    match = part.match(/^(\d+) cards synced$/i);
+    if (match) {
+      metrics.push({ label: "cards synced", value: match[1] });
+      continue;
+    }
+
+    match = part.match(/^(\d+) unavailable$/i);
+    if (match) {
+      metrics.push({ label: "unavailable", value: match[1], tone: "warning" });
       continue;
     }
 
@@ -342,6 +611,23 @@ export function parseActivityMetrics(entry: SyncStatusEntry): {
         value: match[1] ?? match[2],
         tone: "warning",
       });
+      continue;
+    }
+
+    match = part.match(/^(\d+) scraper requests remaining$/i);
+    if (match) {
+      metrics.push({ label: "requests left", value: match[1], tone: "warning" });
+      continue;
+    }
+
+    match = part.match(/^(\d+) request concurrency$/i);
+    if (match) {
+      metrics.push({ label: "concurrency", value: match[1] });
+      continue;
+    }
+
+    if (/^Paused because scraper requests are exhausted/i.test(part)) {
+      details.push("Paused at scraper quota.");
       continue;
     }
 

@@ -1,17 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import CollectionCardsView from "@/components/CollectionCardsView";
 import EditBinderButton from "@/components/EditBinderButton";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import {
   buildOwnedCardValueHistory,
   formatCollectionCurrency,
 } from "@/lib/collection";
 import type { BinderPageData } from "@/lib/collection-data";
 import type { CollectionCardViewItem } from "@/types/collection-view";
+
+const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
+  loading: () => (
+    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+  ),
+});
 
 function buildVisibleQuantityMap(
   items: CollectionCardViewItem[]
