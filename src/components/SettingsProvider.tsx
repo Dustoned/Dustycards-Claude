@@ -10,6 +10,7 @@ import {
   parseStoredSettings,
   resolveTheme,
   SETTINGS_STORAGE_KEY,
+  type Card3dSize,
   type CardSize,
   type CardView,
   type ModalSize,
@@ -24,6 +25,7 @@ import {
 export type {
   Theme,
   CardView,
+  Card3dSize,
   CardSize,
   SortBy,
   SortDir,

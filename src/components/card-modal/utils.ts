@@ -115,13 +115,13 @@ export function getCardModalLayoutClasses(
   const scale = getDetailModalScale(size, widescreen);
   const detailStatClass =
     size === "small"
-      ? "rounded-[15px] border border-white/8 bg-black/18 px-2 py-1.5 backdrop-blur-sm"
+      ? "rounded-[16px] border border-white/8 bg-black/18 px-3 py-2.5 backdrop-blur-sm"
       : size === "large"
-        ? "rounded-[20px] border border-white/8 bg-black/18 px-3.5 py-3 backdrop-blur-sm"
-        : "rounded-[17px] border border-white/8 bg-black/18 px-2.5 py-2 backdrop-blur-sm";
+        ? "rounded-[22px] border border-white/8 bg-black/18 px-5 py-4 backdrop-blur-sm"
+        : "rounded-[19px] border border-white/8 bg-black/18 px-4 py-3 backdrop-blur-sm";
   const footerGridClass = hasCollectionItem
-    ? `grid gap-3 ${scale.footerPad} sm:grid-cols-2 xl:grid-cols-4`
-    : `grid gap-3 ${scale.footerPad} sm:grid-cols-2 xl:grid-cols-3`;
+    ? `grid gap-3 ${scale.footerPad} sm:grid-cols-2 xl:grid-cols-3`
+    : `grid gap-3 ${scale.footerPad} sm:grid-cols-2`;
 
   return {
     detailStatClass,

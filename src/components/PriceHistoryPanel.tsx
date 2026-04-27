@@ -400,10 +400,10 @@ export default function PriceHistoryPanel({
         ? "-translate-x-full"
         : "-translate-x-1/2";
   const rangeButtonClass = compact
-    ? "px-2.5 py-1 text-[11px]"
+    ? "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)]"
     : isHeroLayout
-      ? "px-3 py-1.5 text-xs"
-      : "px-2.5 py-1 text-[11px]";
+      ? "min-h-[var(--ui-chip-min-height)] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)]"
+      : "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)]";
 
   function updateHoverState(event: ReactPointerEvent<SVGSVGElement>) {
     const pointerX = getPointerChartX(event, measuredChartWidth);
@@ -473,7 +473,7 @@ export default function PriceHistoryPanel({
 
       {showRangeControls && (
         <div className={compact ? "mt-3" : "mt-4"}>
-          <div className={`flex flex-wrap items-center ${isHeroLayout ? "gap-1.5" : "gap-1"}`}>
+          <div className={`flex flex-wrap items-center ${isHeroLayout ? "gap-[var(--ui-chip-gap)]" : "gap-1"}`}>
             {RANGE_PRESETS.map((range) => (
               <button
                 key={range.key}
@@ -483,7 +483,7 @@ export default function PriceHistoryPanel({
                   setSelectedRange(range.key);
                 }}
                 aria-pressed={selectedRange === range.key}
-                className={`rounded-full border font-semibold transition-colors ${rangeButtonClass} ${
+                className={`inline-flex items-center rounded-full border font-semibold leading-none transition-colors ${rangeButtonClass} ${
                   selectedRange === range.key
                     ? tone === "dark"
                       ? "border-white/24 bg-white/14 text-white"

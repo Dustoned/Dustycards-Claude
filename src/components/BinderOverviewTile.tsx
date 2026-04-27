@@ -28,6 +28,7 @@ export default function BinderOverviewTile({
   return (
     <Link
       href={`/binders/${binder.id}`}
+      prefetch={false}
       className="glass group relative flex h-full flex-col gap-4 overflow-hidden rounded-3xl p-5 shadow-lg shadow-black/5 transition-transform hover:scale-[1.01] hover:bg-white/8 dark:hover:bg-white/6"
       style={
         binder.accent_color

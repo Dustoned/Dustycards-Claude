@@ -135,6 +135,7 @@ export default function HeaderSearch() {
 
       <Link
         href="/search"
+        prefetch={false}
         aria-label="Open search"
         onClick={() => {
           rememberSearchReturnPath(currentHref);

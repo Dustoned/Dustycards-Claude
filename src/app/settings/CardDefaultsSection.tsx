@@ -1,6 +1,13 @@
 "use client";
 
-import { useSettings, CardView, CardSize, ModalSize, PriceSource } from "@/components/SettingsProvider";
+import {
+  useSettings,
+  Card3dSize,
+  CardView,
+  CardSize,
+  ModalSize,
+  PriceSource,
+} from "@/components/SettingsProvider";
 
 const VIEWS: { value: CardView; label: string; icon: React.ReactNode }[] = [
   {
@@ -90,7 +97,7 @@ export default function CardDefaultsSection() {
         </div>
       </div>
 
-      <div>
+      <div className="mt-5">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Card Detail Size</p>
         <div className="grid grid-cols-3 gap-3">
           {(["small", "medium", "large"] as ModalSize[]).map((v) => {
@@ -99,6 +106,28 @@ export default function CardDefaultsSection() {
               <button
                 key={v}
                 onClick={() => set("modalSize", v)}
+                className={`flex flex-col items-center gap-1.5 py-3 px-3 rounded-xl border transition-all capitalize ${
+                  active
+                    ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md"
+                    : "border-black/8 dark:border-white/8 text-gray-500 dark:text-gray-400 hover:border-black/20 dark:hover:border-white/20 hover:text-gray-900 dark:hover:text-white"
+                }`}
+              >
+                <span className="text-sm font-semibold capitalize">{v}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">3D Card Size</p>
+        <div className="grid grid-cols-3 gap-3">
+          {(["small", "medium", "large"] as Card3dSize[]).map((v) => {
+            const active = settings.card3dSize === v;
+            return (
+              <button
+                key={v}
+                onClick={() => set("card3dSize", v)}
                 className={`flex flex-col items-center gap-1.5 py-3 px-3 rounded-xl border transition-all capitalize ${
                   active
                     ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md"

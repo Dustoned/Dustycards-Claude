@@ -1,4 +1,7 @@
-import type { CardPriceHistoryPoint } from "@/lib/price-history";
+import type {
+  CardGradedPriceHistorySeries,
+  CardPriceHistoryPoint,
+} from "@/lib/price-history";
 
 export interface ModalCardData {
   id: string;
@@ -32,7 +35,16 @@ export interface ModalCardData {
     label: string;
     price: number;
   }>;
+  graded_price_history?: CardGradedPriceHistorySeries[];
   price_history: CardPriceHistoryPoint[];
+  pull_rate_info?: {
+    source: string;
+    rarity_name: string;
+    pull_rate_odds: string | null;
+    specific_pull_odds: string | null;
+    pull_rate_weight: number | null;
+    psa_avg_gem_pct: number | null;
+  } | null;
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
@@ -40,6 +52,9 @@ export interface ModalCardData {
     id: string;
     binder_id: string | null;
     purchase_price: number | null;
+    cost_basis_value: number | null;
+    cost_basis_label: "Paid" | "Set Spend";
+    cost_basis_source: "direct" | "linked_binder_allocation";
     condition: string | null;
     language: string | null;
     notes: string | null;

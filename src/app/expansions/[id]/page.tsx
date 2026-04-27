@@ -1,15 +1,24 @@
-import { unstable_cache } from "next/cache";
 import nextDynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import {
+  HeaderAction,
+  HeaderMetricChip,
+  HeaderProgressMeter,
+  HeaderStackedProgressMeter,
+  PageHeroHeader,
+} from "@/components/PageHeader";
+import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
 import {
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
 } from "@/lib/price-history";
+import { buildPullRateInfoFromRarity } from "@/lib/pull-rates";
+import { normalizeRarityLabel } from "@/lib/rarity";
 import {
   getActiveSealedGroup,
   getActiveSealedProducts,
@@ -18,12 +27,10 @@ import {
   resolveSealedFilter,
 } from "@/lib/sealed-products";
 import { getSealedPriceSnapshotsByEpisode } from "@/lib/sealed-price-snapshots";
-import {
-  fetchSealedProductsForEpisode,
-  type NormalizedSealedProduct,
-} from "@/lib/tcggo";
+import type { NormalizedSealedProduct } from "@/lib/tcggo";
 import type { CardData } from "@/types/card-data";
 import ExpansionCardsSection from "./ExpansionCardsSection";
+import PullRateHoverTable from "./PullRateHoverTable";
 import SealedProductsGrid from "./SealedProductsGrid";
 import SyncEpisodeButton from "./SyncEpisodeButton";
 
@@ -34,16 +41,6 @@ const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPan
     <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
   ),
 });
-
-const getCachedSealedProducts = unstable_cache(
-  async (episodeId: string) => fetchSealedProductsForEpisode(episodeId),
-  ["episode-sealed-products"],
-  { revalidate: 3600 }
-);
-
-function isTcggoEpisodeId(value: string): boolean {
-  return /^\d+$/.test(value);
-}
 
 function toNormalizedSealedProduct(product: {
   id: string;
@@ -83,6 +80,27 @@ function toNormalizedSealedProduct(product: {
   };
 }
 
+function formatReleaseLabel(value: string | null): string | null {
+  if (!value) return null;
+
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{4})(?:-(\d{2}))?/);
+  if (!match) return raw || null;
+
+  const year = match[1];
+  const month = match[2];
+  if (!month) return year;
+
+  const parsedMonth = Number(month);
+  if (!Number.isInteger(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) return year;
+
+  const monthLabel = new Intl.DateTimeFormat("nl-NL", {
+    month: "short",
+  }).format(new Date(Date.UTC(Number(year), parsedMonth - 1, 1)));
+
+  return `${monthLabel} ${year}`;
+}
+
 export default async function ExpansionDetailPage({
   params,
   searchParams,
@@ -107,6 +125,18 @@ export default async function ExpansionDetailPage({
     notFound();
   }
 
+  const pullRateProfile = episode.code
+    ? await db.setPullRateProfile.findFirst({
+      where: {
+        source: "collectrics",
+        set_code: episode.code.toUpperCase(),
+        rarity_buckets: { gt: 0 },
+      },
+        include: {
+          rarities: true,
+        },
+      })
+    : null;
   const hasLocalSealedProducts = episode._count.sealedProducts > 0;
   let sealedProducts: NormalizedSealedProduct[] = [];
 
@@ -135,8 +165,6 @@ export default async function ExpansionDetailPage({
       });
 
       sealedProducts = localSealedProducts.map(toNormalizedSealedProduct);
-    } else if (isTcggoEpisodeId(id)) {
-      sealedProducts = await getCachedSealedProducts(id).catch(() => []);
     }
   }
 
@@ -165,6 +193,14 @@ export default async function ExpansionDetailPage({
   let pricePanelCurrentValue: number | null = null;
   let pricePanelSubtitle = `0/${episode._count.cards} cards priced`;
   let pricePanelEmptyText = "Nog geen setprijzen beschikbaar";
+  let headerProgressLabel = "Card Pricing";
+  let headerProgressValue = `0 / ${episode._count.cards}`;
+  let headerProgressPercent = 0;
+  let headerHistoryProgressValue: string | null = null;
+  let headerHistoryProgressPercent = 0;
+  let headerValueLabel = "Set Value";
+  let headerCountLabel = "Cards";
+  let headerCountValue = episode._count.cards;
   if (activeTab === "cards") {
     const [rawSetPriceSnapshots, dbCards] = await Promise.all([
       db.$queryRaw<
@@ -234,9 +270,42 @@ export default async function ExpansionDetailPage({
     pricePanelSubtitle = latestSetPricePoint
       ? `${latestSetPricePoint.priced_cards}/${episode._count.cards} cards priced`
       : `0/${episode._count.cards} cards priced`;
+    headerProgressLabel = "Card Pricing";
+    headerProgressValue = `${latestSetPricePoint?.priced_cards ?? 0} / ${episode._count.cards}`;
+    headerProgressPercent =
+      episode._count.cards > 0
+        ? ((latestSetPricePoint?.priced_cards ?? 0) / episode._count.cards) * 100
+        : 0;
+    const historySyncedCards = dbCards.reduce(
+      (total, card) => total + (card.native_history_status === "synced" ? 1 : 0),
+      0
+    );
+    headerHistoryProgressValue = `${historySyncedCards}/${episode._count.cards}`;
+    headerHistoryProgressPercent =
+      episode._count.cards > 0 ? (historySyncedCards / episode._count.cards) * 100 : 0;
+    headerValueLabel = "Set Value";
+    headerCountLabel = "Cards";
+    headerCountValue = episode._count.cards;
+    const pullRateByRarity = new Map(
+      (pullRateProfile?.rarities ?? []).map((rarity) => [
+        rarity.normalized_rarity,
+        buildPullRateInfoFromRarity({
+          source: rarity.source,
+          setCode: rarity.set_code,
+          normalizedRarity: rarity.normalized_rarity,
+          rarityName: rarity.rarity_name,
+          pullRateOdds: rarity.pull_rate_odds,
+          pullRateDenominator: rarity.pull_rate_denominator,
+          specificPullDenominator: rarity.specific_pull_denominator,
+          psaAvgGemPct: rarity.psa_avg_gem_pct,
+        }),
+      ])
+    );
 
     cards = dbCards.map((card) => {
       const price = card.prices[0] ?? null;
+      const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
+      const pullRateInfo = normalizedRarity ? pullRateByRarity.get(normalizedRarity) : null;
 
       return {
         id: card.id,
@@ -268,6 +337,16 @@ export default async function ExpansionDetailPage({
               tcp_low: price.tcp_low,
               cm_en_avg_7d: price.cm_en_avg_7d,
               cm_en_avg_30d: price.cm_en_avg_30d,
+            }
+          : null,
+        pull_rate_info: pullRateInfo
+          ? {
+              source: pullRateInfo.source,
+              rarity_name: pullRateInfo.rarityName,
+              pull_rate_odds: pullRateInfo.pullRateOdds,
+              specific_pull_odds: pullRateInfo.specificPullOdds,
+              pull_rate_weight: pullRateInfo.pullRateWeight,
+              psa_avg_gem_pct: pullRateInfo.psaAvgGemPct,
             }
           : null,
       };
@@ -307,63 +386,140 @@ export default async function ExpansionDetailPage({
     pricePanelCurrentValue = currentSealedTotal ?? latestSealedPricePoint?.total_market ?? null;
     pricePanelSubtitle = `${currentSealedTotals.priced}/${filteredSealedProducts.length} sealed priced`;
     pricePanelEmptyText = "Nog geen sealed prijzen beschikbaar";
+    headerProgressLabel =
+      activeSealedFilter === "all"
+        ? "Sealed Pricing"
+        : `${activeSealedGroup?.label ?? "Sealed"} Pricing`;
+    headerProgressValue = `${currentSealedTotals.priced} / ${filteredSealedProducts.length}`;
+    headerProgressPercent =
+      filteredSealedProducts.length > 0
+        ? (currentSealedTotals.priced / filteredSealedProducts.length) * 100
+        : 0;
+    headerValueLabel =
+      activeSealedFilter === "all"
+        ? "Sealed Value"
+        : `${activeSealedGroup?.label ?? "Sealed"} Value`;
+    headerCountLabel = "Products";
+    headerCountValue = filteredSealedProducts.length;
   }
+
+  const expansionContext = [episode.series, episode.code].filter(Boolean).join(" / ");
+  const releaseLabel = formatReleaseLabel(episode.release_date);
+  const headerCountFormatted = headerCountValue.toLocaleString("nl-NL");
+  const sealedCountFormatted = episode._count.sealedProducts.toLocaleString("nl-NL");
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <Link
         href="/expansions"
+        prefetch={false}
         className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to expansions
       </Link>
 
-      <div className="glass mb-8 flex flex-col gap-6 rounded-3xl px-6 py-6 shadow-lg shadow-black/5 sm:px-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-          {episode.logo_url && (
-            <div className="relative h-16 w-36 shrink-0">
-              <Image
-                src={episode.logo_url}
-                alt={episode.name}
-                fill
-                className="object-contain drop-shadow"
-                priority
-                unoptimized
-              />
-            </div>
-          )}
-
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-              {episode.name}
-            </h1>
-            <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-gray-500 dark:text-white/50">
-              {episode.code && (
-                <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 dark:border-white/8 dark:bg-white/[0.04]">
-                  {episode.code}
-                </span>
+      <PageHeroHeader
+        className="mb-8"
+        style={{ overflow: "visible" }}
+        eyebrow="Expansion"
+        title={episode.name}
+        gridClassName="xl:grid-cols-[minmax(0,1.2fr)_minmax(28rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.24fr)_minmax(28rem,0.76fr)]"
+        leadingVisual={
+          <div className="flex h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-black/8 bg-white/80 p-[var(--ui-binder-header-logo-padding)] text-center text-[length:var(--ui-section-header-title-size)] font-bold text-gray-500 shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/8 dark:text-white/70">
+            {episode.logo_url ? (
+              <div className="relative h-full w-full">
+                <Image
+                  src={episode.logo_url}
+                  alt={episode.name}
+                  fill
+                  className="object-contain drop-shadow"
+                  priority
+                  unoptimized
+                />
+              </div>
+            ) : (
+              <span className="leading-none tracking-tight">{episode.code ?? "SET"}</span>
+            )}
+          </div>
+        }
+        description={
+          <div className="space-y-5">
+            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-gray-600 dark:text-white/62">
+              {expansionContext || "Expansion"}
+            </p>
+            <div className="grid items-start gap-3 lg:grid-cols-[minmax(13.5rem,0.82fr)_minmax(20rem,1.18fr)]">
+              {headerHistoryProgressValue ? (
+                <HeaderStackedProgressMeter
+                  label={headerProgressLabel}
+                  value={headerProgressValue}
+                  percent={headerProgressPercent}
+                  secondaryLabel="History Prices"
+                  secondaryValue={headerHistoryProgressValue}
+                  secondaryPercent={headerHistoryProgressPercent}
+                  secondaryAccentColor="#38bdf8"
+                  className="sm:!min-w-0 sm:!w-full"
+                />
+              ) : (
+                <HeaderProgressMeter
+                  label={headerProgressLabel}
+                  value={headerProgressValue}
+                  percent={headerProgressPercent}
+                  className="sm:!min-w-0 sm:!w-full"
+                />
               )}
-              {episode.release_date && (
-                <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 dark:border-white/8 dark:bg-white/[0.04]">
-                  {episode.release_date}
-                </span>
-              )}
-              {episode.series && (
-                <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 dark:border-white/8 dark:bg-white/[0.04]">
-                  {episode.series}
-                </span>
-              )}
-              <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 dark:border-white/8 dark:bg-white/[0.04]">
-                {episode._count.cards} cards
-              </span>
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <HeaderMetricChip
+                  label={headerValueLabel}
+                  value={formatCollectionCurrency(pricePanelCurrentValue)}
+                  tone="emerald"
+                  className="!min-w-0"
+                />
+                <HeaderMetricChip
+                  label={headerCountLabel}
+                  value={headerCountFormatted}
+                  tone="sky"
+                  className="!min-w-0"
+                />
+                {hasSealed && activeTab !== "sealed" ? (
+                  <Link
+                    href={`/expansions/${id}?tab=sealed`}
+                    prefetch={false}
+                    className="group min-w-0 rounded-[var(--ui-binder-metric-radius)] no-underline outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300/45"
+                    aria-label={`Open sealed products for ${episode.name}`}
+                  >
+                    <HeaderMetricChip
+                      label="Sealed"
+                      value={sealedCountFormatted}
+                      tone="violet"
+                      className="h-full w-full !min-w-0 transition-colors group-hover:border-violet-300/35 group-hover:bg-violet-400/[0.12]"
+                    />
+                  </Link>
+                ) : null}
+                {releaseLabel ? (
+                  <HeaderMetricChip
+                    label="Released"
+                    value={releaseLabel}
+                    tone="slate"
+                    className="!min-w-0"
+                  />
+                ) : null}
+                {pullRateProfile ? (
+                  <PullRateHoverTable
+                    profile={pullRateProfile}
+                    className="sm:col-span-2 xl:col-span-2"
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
-
-          <SyncEpisodeButton episodeId={id} />
-        </div>
-
-        {activeTab === "sealed" && (
+        }
+        titleActions={
+          <HeaderAction>
+            <SyncEpisodeButton episodeId={id} />
+          </HeaderAction>
+        }
+        accessory={
           <PriceHistoryPanel
             title={pricePanelTitle}
             currency="EUR"
@@ -372,14 +528,15 @@ export default async function ExpansionDetailPage({
             subtitle={pricePanelSubtitle}
             emptyText={pricePanelEmptyText}
           />
-        )}
-      </div>
+        }
+        sideClassName="[&>section]:h-full"
+      />
 
-      <div className="mb-6 inline-flex rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+      <div className="mb-6 inline-flex rounded-[calc(var(--ui-segment-radius)+0.25rem)] border border-black/8 bg-black/3 p-[var(--ui-segment-shell-padding)] dark:border-white/8 dark:bg-white/5">
         <Link
           href={`/expansions/${id}`}
-          prefetch
-          className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+          prefetch={false}
+          className={`rounded-[var(--ui-segment-radius)] px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
             activeTab === "cards"
               ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
               : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
@@ -390,8 +547,8 @@ export default async function ExpansionDetailPage({
         {hasSealed && (
           <Link
             href={`/expansions/${id}?tab=sealed`}
-            prefetch
-            className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+            prefetch={false}
+            className={`rounded-[var(--ui-segment-radius)] px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
               activeTab === "sealed"
                 ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                 : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
@@ -415,6 +572,7 @@ export default async function ExpansionDetailPage({
             totalCards={episode._count.cards}
             episode={{ id: episode.id, name: episode.name, code: episode.code }}
             priceSnapshots={setPriceSnapshots}
+            showPriceHistory={false}
           />
         )
       ) : (

@@ -4,7 +4,9 @@ import type { CollectionCardViewItem, CollectionSealedViewItem } from "@/types/c
 import {
   buildOwnedCardValueHistory,
   buildOwnedSealedValueHistory,
+  buildLinkedBinderCostBasis,
   combineValueHistories,
+  type CollectionCostBasis,
   type CollectionCardValueLike,
   type CollectionSealedValueLike,
   getCollectionMatchedGradedPrice,
@@ -147,6 +149,7 @@ const collectionCardMetricSelect = {
   card: {
     select: {
       id: true,
+      episode_id: true,
       prices: {
         orderBy: { fetched_at: "desc" },
         take: 1,
@@ -218,6 +221,7 @@ const collectionBinderSelect = {
   id: true,
   name: true,
   type: true,
+  episode_id: true,
   accent_color: true,
   icon_name: true,
   base_purchase_price: true,
@@ -236,6 +240,8 @@ const collectionBinderSelect = {
 
 const collectionBinderMetricSelect = {
   id: true,
+  type: true,
+  episode_id: true,
   base_purchase_price: true,
 } satisfies Prisma.CollectionBinderSelect;
 
@@ -294,6 +300,7 @@ type CollectionCardMetricRecord = {
   grading_grade: string | null;
   card: CollectionCardValueLike & {
     id: string;
+    episode_id: string;
     prices: Array<{
       cm_en_lowest_nm: number | null;
       cm_de_lowest_nm: number | null;
@@ -354,6 +361,7 @@ type CollectionBinderRecord = {
   id: string;
   name: string;
   type: string;
+  episode_id: string | null;
   accent_color: string | null;
   icon_name: string | null;
   base_purchase_price: number | null;
@@ -366,6 +374,13 @@ type CollectionBinderRecord = {
     card_count: number | null;
     _count: { cards: number };
   } | null;
+};
+
+type CollectionBinderCostBasisRecord = {
+  id: string;
+  type: string;
+  episode_id: string | null;
+  base_purchase_price: number | null;
 };
 
 async function getCollectionCards(options?: { binderId?: string }) {
@@ -509,7 +524,68 @@ async function getSealedHistoryRows(productIds: string[]) {
   return rows.flat();
 }
 
-function buildCardViewItem(record: CollectionCardRecord): CollectionCardViewItem {
+function buildDirectCostBasis(purchasePrice: number | null | undefined): CollectionCostBasis | null {
+  return purchasePrice == null
+    ? null
+    : {
+        value: purchasePrice,
+        label: "Paid",
+        source: "direct",
+      };
+}
+
+function buildCostBasisFields(costBasis: CollectionCostBasis | null | undefined) {
+  return {
+    cost_basis_value: costBasis?.value ?? null,
+    cost_basis_label: costBasis?.label ?? "Paid",
+    cost_basis_source: costBasis?.source ?? "direct",
+  } as const;
+}
+
+function buildCollectionCostBasisMap(
+  records: CollectionCardMetricRecord[],
+  binders: CollectionBinderCostBasisRecord[]
+): Map<string, CollectionCostBasis> {
+  const allocations = new Map<string, CollectionCostBasis>();
+  const recordsByBinderId = new Map<string, CollectionCardMetricRecord[]>();
+
+  for (const record of records) {
+    if (!record.binder_id) continue;
+    const existing = recordsByBinderId.get(record.binder_id);
+    if (existing) {
+      existing.push(record);
+    } else {
+      recordsByBinderId.set(record.binder_id, [record]);
+    }
+  }
+
+  for (const binder of binders) {
+    if (binder.type !== "linked_set" || !binder.episode_id) continue;
+    const binderRecords = recordsByBinderId.get(binder.id) ?? [];
+    const binderAllocation = buildLinkedBinderCostBasis({
+      binderType: binder.type,
+      binderEpisodeId: binder.episode_id,
+      binderBasePurchasePrice: binder.base_purchase_price,
+      items: binderRecords.map((record) => ({
+        itemId: record.id,
+        episodeId: record.card.episode_id,
+        directPurchasePrice: record.purchase_price,
+        currentValue: getCollectionCardCurrentValue(record),
+      })),
+    });
+
+    for (const [itemId, costBasis] of binderAllocation) {
+      allocations.set(itemId, costBasis);
+    }
+  }
+
+  return allocations;
+}
+
+function buildCardViewItem(
+  record: CollectionCardRecord,
+  costBasis?: CollectionCostBasis | null
+): CollectionCardViewItem {
   const cmValue = getCollectionCardMarketValue(record.card);
   const tcpValue = record.card.prices[0]?.tcp_market ?? null;
   const currentValue = getCollectionCardCurrentValue(record);
@@ -536,6 +612,7 @@ function buildCardViewItem(record: CollectionCardRecord): CollectionCardViewItem
     current_value: currentValue,
     current_value_label: matchedGradedPrice?.label ?? null,
     purchase_price: record.purchase_price,
+    ...buildCostBasisFields(costBasis ?? buildDirectCostBasis(record.purchase_price)),
     condition: record.condition,
     language: record.language,
     notes: record.notes,
@@ -712,9 +789,15 @@ export async function getCollectionOverviewData(
     label: point.label,
     value: point.total_market,
   }));
+  const costBasisByItemId = buildCollectionCostBasisMap(
+    metricCards,
+    binders as CollectionBinderCostBasisRecord[]
+  );
 
   const collectionCardViewItems = loadDetailedCards
-    ? (collectionCards as CollectionCardRecord[]).map(buildCardViewItem)
+    ? (collectionCards as CollectionCardRecord[]).map((record) =>
+        buildCardViewItem(record, costBasisByItemId.get(record.id))
+      )
     : [];
   const looseSingleViewItems: CollectionCardViewItem[] = [];
   const binderCardViewItems: CollectionCardViewItem[] = [];
@@ -902,6 +985,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
           card: {
             select: {
               id: true,
+              episode_id: true,
             },
           },
         },
@@ -923,10 +1007,31 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         currentValue: number;
         cmValue: number;
         tcpValue: number;
+        costBasisValue: number;
       }
     >();
 
     const allSetCardById = new Map(allSetCards.map((card) => [card.id, card]));
+    const costBasisByItemId = buildLinkedBinderCostBasis({
+      binderType: binder.type,
+      binderEpisodeId: binder.episode.id,
+      binderBasePurchasePrice: binder.base_purchase_price,
+      items: ownedCards.map((item) => {
+        const currentCard = allSetCardById.get(item.card.id);
+
+        return {
+          itemId: item.id,
+          episodeId: item.card.episode_id,
+          directPurchasePrice: item.purchase_price,
+          currentValue: currentCard
+            ? getCollectionCardMarketValue(currentCard, {
+                gradingCompany: item.grading_company,
+                gradingGrade: item.grading_grade,
+              })
+            : null,
+        };
+      }),
+    });
 
     for (const item of ownedCards) {
       const currentCard = allSetCardById.get(item.card.id);
@@ -937,6 +1042,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         }) ?? 0;
       const itemCmValue = getCollectionCardMarketValue(currentCard) ?? 0;
       const itemTcpValue = currentCard?.prices[0]?.tcp_market ?? 0;
+      const itemCostBasis = costBasisByItemId.get(item.id)?.value ?? 0;
       const existing = ownedByCardId.get(item.card.id);
       if (existing) {
         existing.count += 1;
@@ -945,6 +1051,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         existing.currentValue += itemCurrentValue;
         existing.cmValue += itemCmValue;
         existing.tcpValue += itemTcpValue;
+        existing.costBasisValue += itemCostBasis;
       } else {
         ownedByCardId.set(item.card.id, {
           count: 1,
@@ -959,6 +1066,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
           currentValue: itemCurrentValue,
           cmValue: itemCmValue,
           tcpValue: itemTcpValue,
+          costBasisValue: itemCostBasis,
         });
       }
     }
@@ -1006,6 +1114,9 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
               })?.label ?? null
             : null,
         purchase_price: owned ? Number(owned.purchasePrice.toFixed(2)) : null,
+        cost_basis_value: owned ? Number(owned.costBasisValue.toFixed(2)) : null,
+        cost_basis_label: owned ? "Set Spend" : "Paid",
+        cost_basis_source: owned ? "linked_binder_allocation" : "direct",
         condition: owned?.condition ?? null,
         language: owned?.language ?? null,
         notes: owned?.notes ?? null,
@@ -1042,7 +1153,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
 
   const binderCards = await getCollectionCards({ binderId });
   const metricBinderCards = binderCards as CollectionCardMetricRecord[];
-  const items = (binderCards as CollectionCardRecord[]).map(buildCardViewItem);
+  const items = (binderCards as CollectionCardRecord[]).map((record) => buildCardViewItem(record));
   const currentValue = sumCardCurrentValue(metricBinderCards);
   const investment =
     sumCollectionPurchasePrices(binderCards.map((item) => item.purchase_price)) +

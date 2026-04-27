@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { combineValueHistories } from "@/lib/collection";
+import { buildLinkedBinderCostBasis, combineValueHistories } from "@/lib/collection";
 
 describe("combineValueHistories", () => {
   it("carries sealed value forward when card history has a newer point", () => {
@@ -59,5 +59,85 @@ describe("combineValueHistories", () => {
       ["2026-04-20", 100],
       ["2026-04-22", 150],
     ]);
+  });
+});
+
+describe("buildLinkedBinderCostBasis", () => {
+  it("gives expensive cards a larger share than cheap commons", () => {
+    const allocation = buildLinkedBinderCostBasis({
+      binderType: "linked_set",
+      binderEpisodeId: "set-1",
+      binderBasePurchasePrice: 110,
+      items: [
+        { itemId: "hit", episodeId: "set-1", currentValue: 100 },
+        { itemId: "common", episodeId: "set-1", currentValue: 10 },
+      ],
+    });
+
+    expect(allocation.get("hit")?.value).toBe(100);
+    expect(allocation.get("common")?.value).toBe(10);
+  });
+
+  it("distributes binder base spend and direct card prices exactly", () => {
+    const allocation = buildLinkedBinderCostBasis({
+      binderType: "linked_set",
+      binderEpisodeId: "set-1",
+      binderBasePurchasePrice: 50,
+      items: [
+        { itemId: "a", episodeId: "set-1", directPurchasePrice: 10, currentValue: 70 },
+        { itemId: "b", episodeId: "set-1", directPurchasePrice: 5, currentValue: 30 },
+      ],
+    });
+    const total = [...allocation.values()].reduce((sum, item) => sum + item.value, 0);
+
+    expect(Number(total.toFixed(2))).toBe(65);
+  });
+
+  it("uses an equal fallback weight for unpriced owned cards", () => {
+    const allocation = buildLinkedBinderCostBasis({
+      binderType: "linked_set",
+      binderEpisodeId: "set-1",
+      binderBasePurchasePrice: 30,
+      items: [
+        { itemId: "priced", episodeId: "set-1", currentValue: 15 },
+        { itemId: "unpriced-a", episodeId: "set-1", currentValue: null },
+        { itemId: "unpriced-b", episodeId: "set-1", currentValue: null },
+      ],
+    });
+
+    expect(allocation.get("unpriced-a")?.value).toBeGreaterThan(0);
+    expect(allocation.get("unpriced-a")?.value).toBe(allocation.get("unpriced-b")?.value);
+  });
+
+  it("ignores cards outside the linked set", () => {
+    const allocation = buildLinkedBinderCostBasis({
+      binderType: "linked_set",
+      binderEpisodeId: "set-1",
+      binderBasePurchasePrice: 20,
+      items: [
+        { itemId: "inside", episodeId: "set-1", currentValue: 10 },
+        { itemId: "outside", episodeId: "set-2", currentValue: 1000 },
+      ],
+    });
+
+    expect(allocation.get("inside")?.value).toBe(20);
+    expect(allocation.has("outside")).toBe(false);
+  });
+
+  it("keeps rounding exact to cents", () => {
+    const allocation = buildLinkedBinderCostBasis({
+      binderType: "linked_set",
+      binderEpisodeId: "set-1",
+      binderBasePurchasePrice: 10,
+      items: [
+        { itemId: "a", episodeId: "set-1", currentValue: 1 },
+        { itemId: "b", episodeId: "set-1", currentValue: 1 },
+        { itemId: "c", episodeId: "set-1", currentValue: 1 },
+      ],
+    });
+    const values = [...allocation.values()].map((item) => item.value);
+
+    expect(values.reduce((sum, value) => sum + value, 0)).toBeCloseTo(10, 2);
+    expect(values).toEqual([3.34, 3.33, 3.33]);
   });
 });

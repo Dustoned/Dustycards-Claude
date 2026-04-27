@@ -7,6 +7,7 @@ export type SortBy = "number" | "cm_en" | "tcp";
 export type SortDir = "asc" | "desc";
 export type ModalSize = DisplaySize;
 export type UiScale = DisplaySize;
+export type Card3dSize = DisplaySize;
 export type PriceSource = "cm_en" | "tcp";
 
 export interface UserSettings {
@@ -24,6 +25,7 @@ export interface UserSettings {
   sortBy: SortBy;
   sortDir: SortDir;
   modalSize: ModalSize;
+  card3dSize: Card3dSize;
 }
 
 export const SETTINGS_STORAGE_KEY = "dustycards-settings";
@@ -46,6 +48,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   sortBy: "number",
   sortDir: "asc",
   modalSize: "medium",
+  card3dSize: "medium",
 };
 
 function pickEnumValue<T extends string>(
@@ -112,6 +115,11 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       source.modalSize,
       ["small", "medium", "large"],
       DEFAULT_SETTINGS.modalSize
+    ),
+    card3dSize: pickEnumValue(
+      source.card3dSize,
+      ["small", "medium", "large"],
+      DEFAULT_SETTINGS.card3dSize
     ),
   };
 }

@@ -197,6 +197,7 @@ export default function CollectionSealedView({
       <CollectionSealedGrid
         items={sortedItems}
         minTileWidth={tileMinWidth}
+        cardSize={settings.cardSize}
         selectionMode={selectionMode}
         selectedIdSet={selectedIdSet}
         removingItems={removingItems}

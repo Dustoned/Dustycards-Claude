@@ -104,23 +104,23 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             className="sticky top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8"
           >
             <nav className="page-container mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-4 sm:px-6 lg:px-8">
-              <Link href="/" className="shrink-0 font-semibold text-gray-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity [font-size:var(--ui-brand-size)]">
+              <Link href="/" prefetch={false} className="shrink-0 font-semibold text-gray-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity [font-size:var(--ui-brand-size)]">
                 DustyCards
               </Link>
               <div className="hidden shrink-0 items-center gap-[var(--ui-header-gap)] lg:flex">
-                <Link href="/expansions" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
+                <Link href="/expansions" prefetch={false} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
                   Expansions
                 </Link>
-                <Link href="/movers" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
+                <Link href="/movers" prefetch={false} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
                   Movers
                 </Link>
-                <Link href="/illustrators" className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
+                <Link href="/illustrators" prefetch={false} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
                   Illustrators
                 </Link>
               </div>
               <HeaderSearch />
               <div className="flex-1 md:hidden" />
-              <Link href="/settings" className="shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
+              <Link href="/settings" prefetch={false} className="shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
                 Settings
               </Link>
             </nav>

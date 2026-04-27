@@ -275,6 +275,7 @@ function buildModalCardData(
     price: card.price,
     graded_prices: card.graded_prices ?? [],
     price_history: [],
+    pull_rate_info: card.pull_rate_info ?? null,
     collection_item: null,
   };
 }
@@ -744,7 +745,7 @@ export default function ExpansionView({
       label: pricedOnlyUnavailable ? "No prices yet" : "Priced only",
       active: onlyPriced,
       onToggle: () => set("showOnlyPriced", !onlyPriced),
-      className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+      className: `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
         onlyPriced ? "font-semibold" : "font-medium"
       } ${neutralFilterChip(onlyPriced)}`,
     },
@@ -757,7 +758,7 @@ export default function ExpansionView({
         active,
         count: supertype.count,
         onToggle: () => toggleSupertype(supertype.value),
-        className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+        className: `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
           active ? "font-semibold" : "font-medium"
         } ${neutralFilterChip(active)}`,
       };
@@ -778,7 +779,7 @@ export default function ExpansionView({
           active,
           count: rarity.count,
           onToggle: () => toggleRarity(rarity.value),
-          className: `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-all ${
+          className: `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
             active ? "font-semibold" : "font-medium"
           } ${rarityFilterChip(rarity.value, active)}`,
         };
@@ -837,14 +838,14 @@ export default function ExpansionView({
           <div className="flex flex-wrap items-center gap-2">
             {selectionMode && (
               <>
-                <span className="inline-flex items-center gap-2 rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-blue-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-blue-700 dark:text-blue-300">
                   {selectedCardIds.length} selected
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedCardIds(filtered.map((card) => card.id))}
                   disabled={filtered.length === 0 || selectedCardIds.length === filtered.length}
-                  className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
                 >
                   Select all
                 </button>
@@ -852,7 +853,7 @@ export default function ExpansionView({
                   type="button"
                   onClick={() => setSelectedCardIds([])}
                   disabled={selectedCardIds.length === 0}
-                  className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
                 >
                   Clear
                 </button>
@@ -860,7 +861,7 @@ export default function ExpansionView({
                   type="button"
                   onClick={() => setBulkAddOpen(true)}
                   disabled={selectedCardIds.length === 0}
-                  className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-blue-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   Bulk add
                 </button>
@@ -869,7 +870,7 @@ export default function ExpansionView({
             <button
               type="button"
               onClick={toggleSelectionMode}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors ${
                 selectionMode
                   ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
                   : "border-black/8 bg-white/70 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
@@ -1036,7 +1037,7 @@ export default function ExpansionView({
                 type="button"
                 aria-pressed={active}
                 onClick={() => toggleRarity(rarity.value)}
-                className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+                className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
                   active ? "font-semibold" : "font-medium"
                 } ${rarityFilterChip(rarity.value, active)}`}
               >
@@ -1056,7 +1057,7 @@ export default function ExpansionView({
                 type="button"
                 aria-pressed={active}
                 onClick={() => toggleSupertype(supertype.value)}
-                className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+                className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
                   active ? "font-semibold" : "font-medium"
                 } ${neutralFilterChip(active)}`}
               >
@@ -1073,7 +1074,7 @@ export default function ExpansionView({
             onClick={() => {
               set("showOnlyPriced", !onlyPriced);
             }}
-            className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+            className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
               effectiveOnlyPriced ? "font-semibold" : "font-medium"
             } ${neutralFilterChip(effectiveOnlyPriced)}`}
           >
@@ -1151,6 +1152,7 @@ export default function ExpansionView({
                                   <span className="text-gray-300 dark:text-white/20">•</span>
                                   <Link
                                     href={`/expansions/${card.episode_id}`}
+                                    prefetch={false}
                                     onClick={(event) => event.stopPropagation()}
                                     className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
                                   >
@@ -1168,7 +1170,7 @@ export default function ExpansionView({
                       <td className="px-4 py-3">
                         {card.rarity ? (
                           <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${rarityBadge(
+                            className={`inline-flex items-center rounded-full px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none ${rarityBadge(
                               card.rarity
                             )}`}
                           >
@@ -1291,6 +1293,7 @@ export default function ExpansionView({
                             <span className="text-gray-300 dark:text-white/20">•</span>
                             <Link
                               href={`/expansions/${card.episode_id}`}
+                              prefetch={false}
                               onClick={(event) => event.stopPropagation()}
                               className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
                             >

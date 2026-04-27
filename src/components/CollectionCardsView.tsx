@@ -13,6 +13,7 @@ import CardBrowserToolbar, {
   type CardBrowserToolbarOption,
 } from "@/components/CardBrowserToolbar";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import { SectionHeader } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
@@ -306,6 +307,14 @@ function hasAnyVisiblePrice(item: CollectionCardViewItem): boolean {
   return [item.current_value, item.cm_value, item.tcp_value].some((value) => value != null);
 }
 
+function getCollectionItemCostBasis(item: CollectionCardViewItem): number | null {
+  return item.cost_basis_value ?? item.purchase_price ?? null;
+}
+
+function getCollectionItemCostBasisLabel(item: CollectionCardViewItem): string {
+  return item.cost_basis_label ?? "Paid";
+}
+
 function comparePriceValues(a: number | null, b: number | null, sortDir: SortDir): number {
   if (a == null && b == null) return 0;
   if (a == null) return 1;
@@ -360,17 +369,152 @@ function compareCollectionCardItems(
 }
 
 function collectionMetaBadge(
+  cardSize: CardSize,
   tone: "neutral" | "positive" | "negative" = "neutral"
 ): string {
+  const scale =
+    cardSize === "large"
+      ? "inline-flex h-[38px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-[11px] text-[13px] font-medium leading-none shadow-sm shadow-black/5 dark:shadow-black/20"
+      : cardSize === "medium"
+        ? "inline-flex h-[33px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-[13px] text-[11px] font-medium leading-none shadow-sm shadow-black/5 dark:shadow-black/20"
+        : "inline-flex h-[29px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-[12px] text-[10px] font-medium leading-none shadow-sm shadow-black/5 dark:shadow-black/20";
+
   if (tone === "positive") {
-    return "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-full border border-emerald-200/60 bg-emerald-50/90 px-[11px] text-[9px] font-medium leading-none text-emerald-700 shadow-sm shadow-black/5 dark:border-emerald-500/20 dark:bg-emerald-900/25 dark:text-emerald-300 dark:shadow-black/20";
+    return `${scale} border-emerald-200/60 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-900/25 dark:text-emerald-300`;
   }
 
   if (tone === "negative") {
-    return "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-full border border-rose-200/60 bg-rose-50/90 px-[11px] text-[9px] font-medium leading-none text-rose-700 shadow-sm shadow-black/5 dark:border-rose-500/20 dark:bg-rose-900/25 dark:text-rose-300 dark:shadow-black/20";
+    return `${scale} border-rose-200/60 bg-rose-50/90 text-rose-700 dark:border-rose-500/20 dark:bg-rose-900/25 dark:text-rose-300`;
   }
 
-  return "inline-flex h-[26px] items-center gap-[5px] whitespace-nowrap rounded-full border border-black/8 bg-black/[0.035] px-[11px] text-[9px] font-medium leading-none text-gray-600 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/60 dark:shadow-black/20";
+  return `${scale} border-black/8 bg-black/[0.035] text-gray-600 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/60`;
+}
+
+function collectionMetaLabelClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "text-[10px] font-semibold uppercase tracking-[0.12em]";
+  }
+
+  if (cardSize === "medium") {
+    return "text-[9px] font-semibold uppercase tracking-[0.12em]";
+  }
+
+  return "text-[8px] font-semibold uppercase tracking-[0.12em]";
+}
+
+function collectionMetaWrapClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "mt-3 flex min-h-[86px] flex-wrap content-start items-center gap-1";
+  }
+
+  if (cardSize === "medium") {
+    return "mt-2.5 flex min-h-[72px] flex-wrap content-start items-center gap-1.5";
+  }
+
+  return "mt-2 flex min-h-[62px] flex-wrap content-start items-center gap-1.5";
+}
+
+function collectionMissingMetaClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "text-xs font-medium text-gray-400 dark:text-gray-500";
+  }
+
+  if (cardSize === "medium") {
+    return "text-[11px] font-medium text-gray-400 dark:text-gray-500";
+  }
+
+  return "text-[10px] font-medium text-gray-400 dark:text-gray-500";
+}
+
+function collectionOverlayBadgeClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "rounded-full bg-black/70 px-3.5 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur";
+  }
+
+  if (cardSize === "medium") {
+    return "rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur";
+  }
+
+  return "rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur";
+}
+
+function collectionTileInfoClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "mt-3 px-1";
+  }
+
+  if (cardSize === "medium") {
+    return "mt-2.5 px-0.5";
+  }
+
+  return "mt-2 px-0.5";
+}
+
+function collectionTileTitleClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "truncate text-[18px] font-semibold leading-snug text-gray-900 dark:text-white";
+  }
+
+  if (cardSize === "medium") {
+    return "truncate text-[15px] font-semibold leading-snug text-gray-900 dark:text-white";
+  }
+
+  return "truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white";
+}
+
+function collectionTileMetaLineClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "mt-1 flex items-center gap-2 text-[14px] font-medium";
+  }
+
+  if (cardSize === "medium") {
+    return "mt-0.5 flex items-center gap-1.5 text-[12px] font-medium";
+  }
+
+  return "mt-0.5 flex items-center gap-1.5 text-[11px] font-medium";
+}
+
+function collectionTilePriceClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "min-w-0 truncate text-[20px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white";
+  }
+
+  if (cardSize === "medium") {
+    return "min-w-0 truncate text-[16px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white";
+  }
+
+  return "min-w-0 truncate text-[14px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white";
+}
+
+function collectionTileNoPriceClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "text-[13px] text-gray-400 dark:text-gray-500";
+  }
+
+  if (cardSize === "medium") {
+    return "text-xs text-gray-400 dark:text-gray-500";
+  }
+
+  return "text-[11px] text-gray-400 dark:text-gray-500";
+}
+
+function collectionTileActionButtonClass(cardSize: CardSize): string {
+  const size =
+    cardSize === "large"
+      ? "h-[26px] w-[26px] rounded-lg"
+      : cardSize === "medium"
+        ? "h-[24px] w-[24px] rounded-md"
+        : "h-[22px] w-[22px] rounded-md";
+
+  return `inline-flex ${size} shrink-0 items-center justify-center border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12`;
+}
+
+function collectionTileActionIconClass(cardSize: CardSize): string {
+  if (cardSize === "large") {
+    return "h-4 w-4";
+  }
+
+  return "h-3.5 w-3.5";
 }
 
 function normalizeConditionLabel(condition: string | null | undefined): string | null {
@@ -389,7 +533,7 @@ function normalizeConditionLabel(condition: string | null | undefined): string |
   return condition.trim() || null;
 }
 
-function getConditionBadge(condition: string | null | undefined): {
+function getConditionBadge(condition: string | null | undefined, cardSize: CardSize): {
   label: string;
   title: string;
   className: string;
@@ -397,41 +541,48 @@ function getConditionBadge(condition: string | null | undefined): {
   const normalized = normalizeConditionLabel(condition);
   if (!normalized) return null;
 
-  const palette: Record<string, { label: string; className: string }> = {
+  const scale =
+    cardSize === "large"
+      ? "inline-flex h-[38px] min-w-[44px] shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-[11px] text-[13px] font-semibold leading-none shadow-sm shadow-black/5 dark:shadow-black/20"
+      : cardSize === "medium"
+        ? "inline-flex h-[33px] min-w-[46px] shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-[13px] text-[11px] font-semibold leading-none shadow-sm shadow-black/5 dark:shadow-black/20"
+        : "inline-flex h-[29px] min-w-[42px] shrink-0 items-center justify-center whitespace-nowrap rounded-full border px-[12px] text-[10px] font-semibold leading-none shadow-sm shadow-black/5 dark:shadow-black/20";
+
+  const palette: Record<string, { label: string; toneClass: string }> = {
     Mint: {
       label: "M",
-      className:
-        "inline-flex h-[26px] min-w-[40px] items-center justify-center whitespace-nowrap rounded-full border border-emerald-200/70 bg-emerald-50/90 px-[11px] text-[9px] font-semibold leading-none text-emerald-700 shadow-sm shadow-black/5 dark:border-emerald-500/20 dark:bg-emerald-900/25 dark:text-emerald-300 dark:shadow-black/20",
+      toneClass:
+        "border-emerald-200/70 bg-emerald-50/90 text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-900/25 dark:text-emerald-300",
     },
     "Near Mint": {
       label: "NM",
-      className:
-        "inline-flex h-[26px] min-w-[40px] items-center justify-center whitespace-nowrap rounded-full border border-green-200/70 bg-green-50/90 px-[11px] text-[9px] font-semibold leading-none text-green-700 shadow-sm shadow-black/5 dark:border-green-500/20 dark:bg-green-900/25 dark:text-green-300 dark:shadow-black/20",
+      toneClass:
+        "border-green-200/70 bg-green-50/90 text-green-700 dark:border-green-500/20 dark:bg-green-900/25 dark:text-green-300",
     },
     Excellent: {
       label: "EX",
-      className:
-        "inline-flex h-[26px] min-w-[40px] items-center justify-center whitespace-nowrap rounded-full border border-sky-200/70 bg-sky-50/90 px-[11px] text-[9px] font-semibold leading-none text-sky-700 shadow-sm shadow-black/5 dark:border-sky-500/20 dark:bg-sky-900/25 dark:text-sky-300 dark:shadow-black/20",
+      toneClass:
+        "border-sky-200/70 bg-sky-50/90 text-sky-700 dark:border-sky-500/20 dark:bg-sky-900/25 dark:text-sky-300",
     },
     Good: {
       label: "GD",
-      className:
-        "inline-flex h-[26px] min-w-[40px] items-center justify-center whitespace-nowrap rounded-full border border-amber-200/70 bg-amber-50/90 px-[11px] text-[9px] font-semibold leading-none text-amber-700 shadow-sm shadow-black/5 dark:border-amber-500/20 dark:bg-amber-900/25 dark:text-amber-300 dark:shadow-black/20",
+      toneClass:
+        "border-amber-200/70 bg-amber-50/90 text-amber-700 dark:border-amber-500/20 dark:bg-amber-900/25 dark:text-amber-300",
     },
     "Light Played": {
       label: "LP",
-      className:
-        "inline-flex h-[26px] min-w-[40px] items-center justify-center whitespace-nowrap rounded-full border border-orange-200/70 bg-orange-50/90 px-[11px] text-[9px] font-semibold leading-none text-orange-700 shadow-sm shadow-black/5 dark:border-orange-500/20 dark:bg-orange-900/25 dark:text-orange-300 dark:shadow-black/20",
+      toneClass:
+        "border-orange-200/70 bg-orange-50/90 text-orange-700 dark:border-orange-500/20 dark:bg-orange-900/25 dark:text-orange-300",
     },
     Played: {
       label: "PL",
-      className:
-        "inline-flex h-[26px] min-w-[40px] items-center justify-center whitespace-nowrap rounded-full border border-rose-200/70 bg-rose-50/90 px-[11px] text-[9px] font-semibold leading-none text-rose-700 shadow-sm shadow-black/5 dark:border-rose-500/20 dark:bg-rose-900/25 dark:text-rose-300 dark:shadow-black/20",
+      toneClass:
+        "border-rose-200/70 bg-rose-50/90 text-rose-700 dark:border-rose-500/20 dark:bg-rose-900/25 dark:text-rose-300",
     },
     Poor: {
       label: "PR",
-      className:
-        "inline-flex h-[26px] min-w-[40px] items-center justify-center whitespace-nowrap rounded-full border border-red-200/70 bg-red-50/90 px-[11px] text-[9px] font-semibold leading-none text-red-700 shadow-sm shadow-black/5 dark:border-red-500/20 dark:bg-red-900/25 dark:text-red-300 dark:shadow-black/20",
+      toneClass:
+        "border-red-200/70 bg-red-50/90 text-red-700 dark:border-red-500/20 dark:bg-red-900/25 dark:text-red-300",
     },
   };
 
@@ -440,7 +591,9 @@ function getConditionBadge(condition: string | null | undefined): {
   return {
     label: match?.label ?? normalized.slice(0, 3).toUpperCase(),
     title: normalized,
-    className: match?.className ?? collectionMetaBadge(),
+    className: match
+      ? `${scale} ${match.toneClass}`
+      : collectionMetaBadge(cardSize),
   };
 }
 
@@ -482,7 +635,6 @@ export default function CollectionCardsView({
   const selectionEnabled = Boolean(bulkAddBinder) || allowCollectionRemoval;
   const canBulkAddToBinder = Boolean(bulkAddBinder) && blurMissing;
   const canRemoveFromCollection = Boolean(bulkAddBinder) || allowCollectionRemoval;
-  const compactMode = Boolean(bulkAddBinder);
   const availableRarities = useMemo(
     () =>
       buildFilterOptions(items.map((item) => item.rarity), KNOWN_RARITY_ORDER, normalizeRarityLabel),
@@ -776,6 +928,9 @@ export default function CollectionCardsView({
                 id: item.collection_item_id,
                 binder_id: item.binder_id ?? null,
                 purchase_price: item.purchase_price,
+                cost_basis_value: item.cost_basis_value,
+                cost_basis_label: item.cost_basis_label,
+                cost_basis_source: item.cost_basis_source,
                 condition: item.condition,
                 language: item.language ?? null,
                 notes: item.notes ?? null,
@@ -1054,7 +1209,7 @@ export default function CollectionCardsView({
       label: pricedOnlyUnavailable ? "No prices yet" : "Priced only",
       active: settings.showOnlyPriced,
       onToggle: () => set("showOnlyPriced", !settings.showOnlyPriced),
-      className: `inline-flex min-h-[32px] shrink-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs leading-none transition-colors ${
+      className: `inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center gap-[var(--ui-chip-gap)] overflow-hidden rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-colors ${
         settings.showOnlyPriced ? "font-semibold" : "font-medium"
       } ${neutralFilterChip(settings.showOnlyPriced)}`,
     },
@@ -1065,7 +1220,7 @@ export default function CollectionCardsView({
             label: "Graded only",
             active: effectiveShowOnlyGraded,
             onToggle: () => setShowOnlyGraded((prev) => !prev),
-            className: `inline-flex min-h-[32px] shrink-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs leading-none transition-colors ${
+            className: `inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center gap-[var(--ui-chip-gap)] overflow-hidden rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-colors ${
               effectiveShowOnlyGraded ? "font-semibold" : "font-medium"
             } ${neutralFilterChip(effectiveShowOnlyGraded)}`,
           } satisfies CardBrowserToolbarFilterOption,
@@ -1080,7 +1235,7 @@ export default function CollectionCardsView({
         active,
         count: supertype.count,
         onToggle: () => toggleSupertype(supertype.value),
-        className: `inline-flex min-h-[32px] shrink-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs leading-none transition-colors ${
+        className: `inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center gap-[var(--ui-chip-gap)] overflow-hidden rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-colors ${
           active ? "font-semibold" : "font-medium"
         } ${neutralFilterChip(active)}`,
       };
@@ -1101,7 +1256,7 @@ export default function CollectionCardsView({
           active,
           count: rarity.count,
           onToggle: () => toggleRarity(rarity.value),
-          className: `inline-flex min-h-[32px] shrink-0 items-center gap-2 overflow-hidden rounded-full border px-3 py-1.5 text-xs leading-none transition-colors ${
+          className: `inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center gap-[var(--ui-chip-gap)] overflow-hidden rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-colors ${
             active ? "font-semibold" : "font-medium"
           } ${rarityFilterChip(rarity.value, active)}`,
         };
@@ -1122,25 +1277,26 @@ export default function CollectionCardsView({
   return (
     <>
       {sectionTitle && (
-        <div className="mb-2.5 flex items-center gap-3">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-            {sectionTitle}
-          </h2>
-          <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-            {sectionCount ?? items.length}
-          </span>
-          <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-          {showInlineSelectionButton && (
-            <button
-              type="button"
-              onClick={toggleSelectionMode}
-              className={selectionToggleTextClass(false)}
-            >
-              Select
-            </button>
-          )}
-          {sectionTrailing}
-        </div>
+        <SectionHeader
+          title={sectionTitle}
+          count={sectionCount ?? items.length}
+          compact
+          className="mb-2.5"
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {showInlineSelectionButton && (
+                <button
+                  type="button"
+                  onClick={toggleSelectionMode}
+                  className={selectionToggleTextClass(false)}
+                >
+                  Select
+                </button>
+              )}
+              {sectionTrailing}
+            </div>
+          }
+        />
       )}
 
       {showFilters ? (
@@ -1180,14 +1336,14 @@ export default function CollectionCardsView({
                 <div className="flex flex-wrap items-center gap-2">
                   {activeSelectionMode && (
                     <>
-                      <span className="inline-flex items-center gap-2 rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                      <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-blue-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-blue-700 dark:text-blue-300">
                         {activeSelectedKeys.length} selected
                       </span>
                       <button
                         type="button"
                         onClick={() => setSelectedKeys(selectableKeys)}
                         disabled={selectableKeys.length === 0 || allSelectableSelected}
-                        className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                        className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
                       >
                         Select all
                       </button>
@@ -1195,7 +1351,7 @@ export default function CollectionCardsView({
                         type="button"
                         onClick={() => setSelectedKeys([])}
                         disabled={activeSelectedKeys.length === 0}
-                        className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                        className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
                       >
                         Clear
                       </button>
@@ -1204,7 +1360,7 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={handleBulkAdd}
                           disabled={selectedCards.length === 0}
-                          className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-blue-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
                         >
                           Bulk add
                         </button>
@@ -1214,7 +1370,7 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={handleBulkRemove}
                           disabled={removingItems || selectedCollectionItemIds.length === 0}
-                          className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
                         >
                           Remove
                         </button>
@@ -1224,7 +1380,7 @@ export default function CollectionCardsView({
                   <button
                     type="button"
                     onClick={toggleSelectionMode}
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors ${
                       activeSelectionMode
                         ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
                         : "border-black/8 bg-white/70 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
@@ -1407,7 +1563,7 @@ export default function CollectionCardsView({
                   type="button"
                   aria-pressed={active}
                   onClick={() => toggleRarity(rarity.value)}
-                  className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+                  className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
                     active ? "font-semibold" : "font-medium"
                   } ${rarityFilterChip(rarity.value, active)}`}
                 >
@@ -1427,7 +1583,7 @@ export default function CollectionCardsView({
                   type="button"
                   aria-pressed={active}
                   onClick={() => toggleSupertype(supertype.value)}
-                  className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+                  className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
                     active ? "font-semibold" : "font-medium"
                   } ${neutralFilterChip(active)}`}
                 >
@@ -1442,7 +1598,7 @@ export default function CollectionCardsView({
               type="button"
               aria-pressed={settings.showOnlyPriced}
               onClick={() => set("showOnlyPriced", !settings.showOnlyPriced)}
-              className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+              className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
                 effectiveOnlyPriced ? "font-semibold" : "font-medium"
               } ${neutralFilterChip(effectiveOnlyPriced)}`}
             >
@@ -1453,7 +1609,7 @@ export default function CollectionCardsView({
                 type="button"
                 aria-pressed={effectiveShowOnlyGraded}
                 onClick={() => setShowOnlyGraded((prev) => !prev)}
-                className={`rounded-full border px-2.5 py-1 text-xs leading-none transition-all ${
+                className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
                   effectiveShowOnlyGraded ? "font-semibold" : "font-medium"
                 } ${neutralFilterChip(effectiveShowOnlyGraded)}`}
               >
@@ -1480,14 +1636,14 @@ export default function CollectionCardsView({
         <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           {activeSelectionMode && (
             <>
-              <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 text-xs font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
+              <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-black/[0.03] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
                 {activeSelectedKeys.length} selected
               </span>
               <button
                 type="button"
                 onClick={() => setSelectedKeys(selectableKeys)}
                 disabled={selectableKeys.length === 0 || allSelectableSelected}
-                className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+                className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
               >
                 Select all
               </button>
@@ -1495,7 +1651,7 @@ export default function CollectionCardsView({
                 type="button"
                 onClick={() => setSelectedKeys([])}
                 disabled={activeSelectedKeys.length === 0}
-                className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+                className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
               >
                 Clear
               </button>
@@ -1504,7 +1660,7 @@ export default function CollectionCardsView({
                   type="button"
                   onClick={handleBulkAdd}
                   disabled={selectedCards.length === 0}
-                  className="rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full bg-blue-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Bulk add
                 </button>
@@ -1514,7 +1670,7 @@ export default function CollectionCardsView({
                   type="button"
                   onClick={handleBulkRemove}
                   disabled={removingItems || selectedCollectionItemIds.length === 0}
-                  className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
                 >
                   Remove
                 </button>
@@ -1544,15 +1700,12 @@ export default function CollectionCardsView({
           {renderedGroupedVisibleEntries.map((group) => (
             <section key={group.key}>
               {group.title && (
-                <div className="mb-2.5 flex items-center gap-3">
-                  <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-                    {group.title}
-                  </h2>
-                  <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                    {group.totalCount}
-                  </span>
-                  <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-                </div>
+                <SectionHeader
+                  title={group.title}
+                  count={group.totalCount}
+                  compact
+                  className="mb-2.5"
+                />
               )}
 
               <div className="overflow-x-auto rounded-2xl border border-black/8 bg-white/70 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
@@ -1564,12 +1717,8 @@ export default function CollectionCardsView({
                       <th className="px-4 py-3 text-left font-semibold">
                         {primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
                       </th>
-                      {!compactMode && (
-                        <th className="px-4 py-3 text-left font-semibold">Paid</th>
-                      )}
-                      {!compactMode && (
-                        <th className="px-4 py-3 text-left font-semibold">P&amp;L</th>
-                      )}
+                      <th className="px-4 py-3 text-left font-semibold">Cost Basis</th>
+                      <th className="px-4 py-3 text-left font-semibold">P&amp;L</th>
                       <th className="px-4 py-3 text-left font-semibold">Status</th>
                       <th className="px-4 py-3 text-right font-semibold">Action</th>
                     </tr>
@@ -1584,9 +1733,11 @@ export default function CollectionCardsView({
                         item,
                         primaryPriceSource
                       );
+                      const costBasis = getCollectionItemCostBasis(item);
+                      const costBasisLabel = getCollectionItemCostBasisLabel(item);
                       const pnl =
-                        item.current_value != null && item.purchase_price != null
-                          ? Number((item.current_value - item.purchase_price).toFixed(2))
+                        item.current_value != null && costBasis != null
+                          ? Number((item.current_value - costBasis).toFixed(2))
                           : null;
 
                       return (
@@ -1643,6 +1794,7 @@ export default function CollectionCardsView({
                                   <span>•</span>
                                   <Link
                                     href={`/expansions/${item.episode_id}`}
+                                    prefetch={false}
                                     onClick={(event) => event.stopPropagation()}
                                     className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
                                   >
@@ -1659,7 +1811,7 @@ export default function CollectionCardsView({
                           <td className="px-4 py-3">
                             {item.rarity ? (
                               <span
-                                className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${rarityBadge(item.rarity)}`}
+                                className={`inline-flex items-center rounded-full px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none ${rarityBadge(item.rarity)}`}
                               >
                                 {normalizeRarityLabel(item.rarity) ?? item.rarity}
                               </span>
@@ -1687,32 +1839,39 @@ export default function CollectionCardsView({
                             )}
                           </td>
 
-                          {!compactMode && (
-                            <td className="px-4 py-3 text-sm text-gray-500 dark:text-white/55">
-                              {item.purchase_price != null
-                                ? formatCollectionCurrency(item.purchase_price)
-                                : "--"}
-                            </td>
-                          )}
+                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-white/55">
+                            {costBasis != null ? (
+                              <div className="space-y-0.5">
+                                <p className="tabular-nums">
+                                  {formatCollectionCurrency(costBasis)}
+                                </p>
+                                {item.cost_basis_source === "linked_binder_allocation" && (
+                                  <p className="text-[11px] text-gray-400 dark:text-white/35">
+                                    {costBasisLabel}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              "--"
+                            )}
+                          </td>
 
-                          {!compactMode && (
-                            <td className="px-4 py-3">
-                              {pnl != null ? (
-                                <span
-                                  className={
-                                    pnl >= 0
-                                      ? "font-semibold text-emerald-600 dark:text-emerald-300"
-                                      : "font-semibold text-rose-600 dark:text-rose-300"
-                                  }
-                                >
-                                  {pnl >= 0 ? "+" : ""}
-                                  {formatCollectionCurrency(pnl)}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-gray-400 dark:text-white/35">--</span>
-                              )}
-                            </td>
-                          )}
+                          <td className="px-4 py-3">
+                            {pnl != null ? (
+                              <span
+                                className={
+                                  pnl >= 0
+                                    ? "font-semibold text-emerald-600 dark:text-emerald-300"
+                                    : "font-semibold text-rose-600 dark:text-rose-300"
+                                }
+                              >
+                                {pnl >= 0 ? "+" : ""}
+                                {formatCollectionCurrency(pnl)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-white/35">--</span>
+                            )}
+                          </td>
 
                           <td className="px-4 py-3 text-xs text-gray-500 dark:text-white/55">
                             {missing && blurMissing ? (
@@ -1777,15 +1936,12 @@ export default function CollectionCardsView({
           {renderedGroupedVisibleEntries.map((group) => (
             <section key={group.key}>
               {group.title && (
-                <div className="mb-2.5 flex items-center gap-3">
-                  <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-                    {group.title}
-                  </h2>
-                  <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                    {group.totalCount}
-                  </span>
-                  <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-                </div>
+                <SectionHeader
+                  title={group.title}
+                  count={group.totalCount}
+                  compact
+                  className="mb-2.5"
+                />
               )}
               <div
                 className="grid gap-2"
@@ -1798,7 +1954,7 @@ export default function CollectionCardsView({
                   const missing = !item.owned;
                   const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
                   const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
-                  const conditionBadge = getConditionBadge(item.condition);
+                  const conditionBadge = getConditionBadge(item.condition, settings.cardSize);
                   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
                   const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
                   const isGradedCard = Boolean(item.owned && gradingCompanyLabel && gradingGradeLabel);
@@ -1815,10 +1971,45 @@ export default function CollectionCardsView({
                     item,
                     primaryPriceSource
                   );
+                  const costBasis = getCollectionItemCostBasis(item);
+                  const costBasisLabel = getCollectionItemCostBasisLabel(item);
                   const pnl =
-                    item.current_value != null && item.purchase_price != null
-                      ? Number((item.current_value - item.purchase_price).toFixed(2))
+                    item.current_value != null && costBasis != null
+                      ? Number((item.current_value - costBasis).toFixed(2))
                       : null;
+                  const tileAction = !activeSelectionMode ? (
+                    item.owned ? (
+                      canRemoveFromCollection &&
+                      (item.collection_item_id || (item.collection_item_ids?.length ?? 0) > 0) ? (
+                        <button
+                          type="button"
+                          onClick={(event) => handleSingleRemove(event, item)}
+                          disabled={removingItems}
+                          className={`${collectionTileActionButtonClass(settings.cardSize)} ml-auto`}
+                          aria-label={`Remove ${item.name} from collection`}
+                          title="Remove from collection"
+                        >
+                          <Minus className={collectionTileActionIconClass(settings.cardSize)} />
+                        </button>
+                      ) : null
+                    ) : (
+                      <CollectionAddCardButton
+                        card={{
+                          id: item.card_id,
+                          name: item.name,
+                          image_url: item.image_url,
+                          episode: {
+                            id: item.episode_id,
+                            name: item.episode_name,
+                            code: item.episode_code,
+                          },
+                        }}
+                        initialBinderId={bulkAddBinder?.id ?? null}
+                        lockedBinderName={bulkAddBinder?.name ?? null}
+                        className={`${collectionTileActionButtonClass(settings.cardSize)} ml-auto`}
+                      />
+                    )
+                  ) : null;
 
                   return (
                     <div
@@ -1884,32 +2075,33 @@ export default function CollectionCardsView({
 
                         {blurMissing && missing && (
                           <div className="absolute left-2 top-2">
-                            <span className="rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
+                            <span className={collectionOverlayBadgeClass(settings.cardSize)}>
                               Missing
                             </span>
                           </div>
                         )}
 
                 {item.owned_count && item.owned_count > 1 && (
-                  <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
+                  <span className={`absolute bottom-2 right-2 ${collectionOverlayBadgeClass(settings.cardSize)}`}>
                     x{item.owned_count}
                   </span>
                 )}
               </div>
 
-              <div className="mt-2 px-0.5">
+              <div className={collectionTileInfoClass(settings.cardSize)}>
                 <div className="flex items-end justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
+                    <p className={collectionTileTitleClass(settings.cardSize)}>
                       {item.name}
                     </p>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
+                    <div className={collectionTileMetaLineClass(settings.cardSize)}>
                       <span className="shrink-0 text-gray-500 dark:text-gray-400">
                         {item.card_number ? `#${item.card_number}` : "--"}
                       </span>
                       <span className="text-gray-300 dark:text-white/20">•</span>
                       <Link
                         href={`/expansions/${item.episode_id}`}
+                        prefetch={false}
                         onClick={(event) => event.stopPropagation()}
                         className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
                       >
@@ -1927,64 +2119,31 @@ export default function CollectionCardsView({
                             ? `Using ${item.current_value_label} graded price`
                             : undefined
                         }
-                        className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white"
+                        className={collectionTilePriceClass(settings.cardSize)}
                       >
                         {formatMarketCurrency(displayPrice, displayPriceCurrency)}
                       </span>
                     ) : (
-                      <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
+                      <span className={collectionTileNoPriceClass(settings.cardSize)}>No price</span>
                     )}
-
-                    {!activeSelectionMode &&
-                      (item.owned ? (
-                        canRemoveFromCollection &&
-                        (item.collection_item_id || (item.collection_item_ids?.length ?? 0) > 0) ? (
-                          <button
-                            type="button"
-                            onClick={(event) => handleSingleRemove(event, item)}
-                            disabled={removingItems}
-                            className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                            aria-label={`Remove ${item.name} from collection`}
-                            title="Remove from collection"
-                          >
-                            <Minus className="h-3.5 w-3.5" />
-                          </button>
-                        ) : null
-                      ) : (
-                        <CollectionAddCardButton
-                          card={{
-                            id: item.card_id,
-                            name: item.name,
-                            image_url: item.image_url,
-                            episode: {
-                              id: item.episode_id,
-                              name: item.episode_name,
-                              code: item.episode_code,
-                            },
-                          }}
-                          initialBinderId={bulkAddBinder?.id ?? null}
-                          lockedBinderName={bulkAddBinder?.name ?? null}
-                          className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                        />
-                      ))}
                   </div>
                 </div>
 
-                {item.owned && !compactMode ? (
-                  <div className="mt-2 flex min-h-[54px] flex-wrap content-start items-center gap-[5px]">
-                    {item.purchase_price != null && (
-                      <span className={collectionMetaBadge()}>
-                        <span className="text-[8px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-                          Paid
+                {item.owned ? (
+                  <div className={collectionMetaWrapClass(settings.cardSize)}>
+                    {costBasis != null && (
+                      <span className={collectionMetaBadge(settings.cardSize)}>
+                        <span className={`${collectionMetaLabelClass(settings.cardSize)} text-gray-400 dark:text-white/35`}>
+                          {costBasisLabel}
                         </span>
                         <span className="tabular-nums text-gray-700 dark:text-white/80">
-                          {formatCollectionCurrency(item.purchase_price)}
+                          {formatCollectionCurrency(costBasis)}
                         </span>
                       </span>
                     )}
                     {pnl != null && (
-                      <span className={collectionMetaBadge(pnl >= 0 ? "positive" : "negative")}>
-                        <span className="text-[8px] font-semibold uppercase tracking-[0.12em] opacity-70">
+                      <span className={collectionMetaBadge(settings.cardSize, pnl >= 0 ? "positive" : "negative")}>
+                        <span className={`${collectionMetaLabelClass(settings.cardSize)} opacity-70`}>
                           P&amp;L
                         </span>
                         <span className="tabular-nums">
@@ -1998,12 +2157,14 @@ export default function CollectionCardsView({
                         {conditionBadge.label}
                       </span>
                     )}
+                    {tileAction}
                   </div>
-                ) : !item.owned && !compactMode ? (
-                  <div className="mt-2 flex min-h-[56px] items-center">
-                    <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500">
+                ) : !item.owned ? (
+                  <div className={collectionMetaWrapClass(settings.cardSize)}>
+                    <p className={collectionMissingMetaClass(settings.cardSize)}>
                       Not in your collection yet
                     </p>
+                    {tileAction}
                   </div>
                 ) : null}
                       </div>

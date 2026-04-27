@@ -92,7 +92,7 @@ export default function PriceRefreshCountdown({
 
     return (
       <div
-        className={`rounded-[22px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] px-3.5 py-3 backdrop-blur-md ${
+        className={`rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] px-4 py-4 backdrop-blur-md ${
           className ?? ""
         }`}
       >
@@ -100,20 +100,20 @@ export default function PriceRefreshCountdown({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span
-                className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                className={`inline-flex rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] ${
                   TIER_STYLES[refreshInfo.tier]
                 }`}
               >
                 {refreshInfo.tierLabel}
               </span>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/34">
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/34">
                 {cadenceText}
               </span>
             </div>
 
-            <p className="mt-2 text-sm font-semibold text-white/86">{compactSummary}</p>
+            <p className="mt-3 text-base font-semibold text-white/86">{compactSummary}</p>
 
-            {compactDetail && <p className="mt-1 text-[11px] text-white/42">{compactDetail}</p>}
+            {compactDetail && <p className="mt-1.5 text-sm text-white/42">{compactDetail}</p>}
           </div>
         </div>
       </div>

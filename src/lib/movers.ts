@@ -6,18 +6,30 @@ import {
   type CardPriceHistoryPoint,
   type CardPriceHistorySnapshot,
 } from "@/lib/price-history";
+import {
+  buildPullRateInfoFromRarity,
+  DEFAULT_PULL_RATE_SOURCE,
+  type PullRateInfo,
+} from "@/lib/pull-rates";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { PriceSource } from "@/lib/user-settings";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 const HISTORY_LOOKBACK_DAYS = 45;
 const MIN_PERCENT_BASE_VALUE = 1;
+const RECENT_PRICE_SERIES_POINT_LIMIT = 16;
+const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("nl-NL", {
+  day: "numeric",
+  month: "short",
+});
+const dateLabelCache = new Map<string, string>();
 
 type MoverSource = "cardmarket" | "tcgplayer";
+export type MoversScope = "collection" | "all";
 
 type LatestPriceSnapshot = CardPriceHistorySnapshot;
 
-interface OwnedCardRecord {
+interface MoverCandidateCardRecord {
   id: string;
   name: string;
   card_number: string | null;
@@ -30,6 +42,27 @@ interface OwnedCardRecord {
   };
   prices: LatestPriceSnapshot[];
   ownedCount: number;
+}
+
+interface MoverCandidateCardRow {
+  id: string;
+  name: string;
+  card_number: string | null;
+  rarity: string | null;
+  image_url: string | null;
+  episode_id: string;
+  episode_name: string;
+  episode_code: string | null;
+  owned_count: number | bigint | null;
+  fetched_at: Date | string | null;
+  cm_en_lowest_nm: number | null;
+  cm_de_lowest_nm: number | null;
+  cm_fr_lowest_nm: number | null;
+  cm_es_lowest_nm: number | null;
+  cm_it_lowest_nm: number | null;
+  tcp_market: number | null;
+  cm_en_avg_7d: number | null;
+  cm_en_avg_30d: number | null;
 }
 
 interface RecentHistoryRow {
@@ -61,6 +94,17 @@ interface AllTimeHistorySummaryRow {
   tcp_high_fetched_at: Date | null;
   tcp_high_value: number | null;
   tcp_history_points: number | null;
+}
+
+interface PullRateRarityRow {
+  source: string;
+  set_code: string;
+  normalized_rarity: string;
+  rarity_name: string;
+  pull_rate_odds: string | null;
+  pull_rate_denominator: number | null;
+  specific_pull_denominator: number | null;
+  psa_avg_gem_pct: number | null;
 }
 
 interface MoverSeriesPoint {
@@ -167,11 +211,16 @@ export interface CollectionMoverItem {
   highAt: string | null;
   highPrice: number | null;
   rarityWeight: number;
+  pullRateOdds: string | null;
+  specificPullOdds: string | null;
+  pullRateWeight: number | null;
+  pullRateSource: string | null;
   cheapnessWeight: number;
   moverScore: number;
 }
 
 export interface CollectionMoversData {
+  scope: MoversScope;
   preferredSource: PriceSource;
   trackedCards: number;
   eligibleCards: number;
@@ -181,24 +230,6 @@ export interface CollectionMoversData {
   discountedHighRarity: CollectionMoverItem[];
   strongest7d: CollectionMoverItem | null;
   strongest30d: CollectionMoverItem | null;
-}
-
-const SQLITE_SAFE_CHUNK_SIZE = 200;
-
-interface OwnedCollectionCardRow {
-  card: {
-    id: string;
-    name: string;
-    card_number: string | null;
-    rarity: string | null;
-    image_url: string | null;
-    episode: {
-      id: string;
-      name: string;
-      code: string | null;
-    };
-    prices: LatestPriceSnapshot[];
-  };
 }
 
 function round(value: number, decimals = 2): number {
@@ -214,10 +245,12 @@ function toDateKey(value: Date | string): string {
 }
 
 function toDateLabel(dateKey: string): string {
-  return new Intl.DateTimeFormat("nl-NL", {
-    day: "numeric",
-    month: "short",
-  }).format(new Date(`${dateKey}T00:00:00.000Z`));
+  const cached = dateLabelCache.get(dateKey);
+  if (cached) return cached;
+
+  const label = SHORT_DATE_FORMATTER.format(new Date(`${dateKey}T00:00:00.000Z`));
+  dateLabelCache.set(dateKey, label);
+  return label;
 }
 
 function toIsoOrNull(value: Date | string | null | undefined): string | null {
@@ -291,7 +324,7 @@ function buildSeries(
 }
 
 function buildRecentPriceSeries(series: MoverSeriesPoint[]): MoverRecentPricePoint[] {
-  return series.slice(-28).map((point) => ({
+  return series.slice(-RECENT_PRICE_SERIES_POINT_LIMIT).map((point) => ({
     date: point.date,
     label: toDateLabel(point.date),
     value: round(point.value),
@@ -392,6 +425,13 @@ function getRarityWeight(rarity: string | null): number {
   }
 
   return round(0.7 + (index / Math.max(KNOWN_RARITY_ORDER.length - 1, 1)) * 1.45, 2);
+}
+
+export function resolveMoverRarityWeight(
+  rarity: string | null,
+  pullRateWeight: number | null | undefined
+): number {
+  return pullRateWeight ?? getRarityWeight(rarity);
 }
 
 function getCheapnessWeight(currentPrice: number): number {
@@ -560,104 +600,104 @@ function resolveBestSource(
   );
 }
 
-async function fetchOwnedCards(): Promise<OwnedCardRecord[]> {
-  const records: OwnedCollectionCardRow[] = [];
-  let skip = 0;
-
-  while (true) {
-    const page = await db.collectionCard.findMany({
-      orderBy: [{ id: "asc" }],
-      skip,
-      take: SQLITE_SAFE_CHUNK_SIZE,
-      select: {
-        card: {
-          select: {
-            id: true,
-            name: true,
-            card_number: true,
-            rarity: true,
-            image_url: true,
-            episode: {
-              select: {
-                id: true,
-                name: true,
-                code: true,
-              },
-            },
-            prices: {
-              orderBy: {
-                fetched_at: "desc",
-              },
-              take: 1,
-              select: {
-                fetched_at: true,
-                cm_en_lowest_nm: true,
-                cm_de_lowest_nm: true,
-                cm_fr_lowest_nm: true,
-                cm_es_lowest_nm: true,
-                cm_it_lowest_nm: true,
-                tcp_market: true,
-                cm_en_avg_7d: true,
-                cm_en_avg_30d: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    records.push(...(page as OwnedCollectionCardRow[]));
-
-    if (page.length < SQLITE_SAFE_CHUNK_SIZE) {
-      break;
-    }
-
-    skip += page.length;
-  }
-
-  const byCardId = new Map<string, OwnedCardRecord>();
-
-  for (const record of records) {
-    const existing = byCardId.get(record.card.id);
-
-    if (existing) {
-      existing.ownedCount += 1;
-      continue;
-    }
-
-    byCardId.set(record.card.id, {
-      id: record.card.id,
-      name: record.card.name,
-      card_number: record.card.card_number,
-      rarity: record.card.rarity,
-      image_url: record.card.image_url,
-      episode: {
-        id: record.card.episode.id,
-        name: record.card.episode.name,
-        code: record.card.episode.code,
-      },
-      prices: record.card.prices,
-      ownedCount: 1,
-    });
-  }
-
-  return [...byCardId.values()].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
-  );
+function getMoverCandidateCardsCte(scope: MoversScope): string {
+  return scope === "all"
+    ? `SELECT DISTINCT card_id FROM "Price"`
+    : `SELECT DISTINCT card_id FROM "CollectionCard"`;
 }
 
-export async function getCollectionMovers(
-  preferredSource: PriceSource
-): Promise<CollectionMoversData> {
-  const timer = startPerformanceTimer("movers.collection", { preferredSource });
-  const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS);
+async function fetchMoverCandidateCards(
+  scope: MoversScope
+): Promise<MoverCandidateCardRecord[]> {
+  const candidateCardsCte = getMoverCandidateCardsCte(scope);
+  const rows = await db.$queryRawUnsafe<MoverCandidateCardRow[]>(
+    `
+    WITH candidate_cards AS (
+      ${candidateCardsCte}
+    ),
+    owned_counts AS (
+      SELECT card_id, COUNT(*) AS owned_count
+      FROM "CollectionCard"
+      GROUP BY card_id
+    )
+    SELECT
+      c.id,
+      c.name,
+      c.card_number,
+      c.rarity,
+      c.image_url,
+      e.id AS episode_id,
+      e.name AS episode_name,
+      e.code AS episode_code,
+      COALESCE(oc.owned_count, 0) AS owned_count,
+      lp.fetched_at,
+      lp.cm_en_lowest_nm,
+      lp.cm_de_lowest_nm,
+      lp.cm_fr_lowest_nm,
+      lp.cm_es_lowest_nm,
+      lp.cm_it_lowest_nm,
+      lp.tcp_market,
+      lp.cm_en_avg_7d,
+      lp.cm_en_avg_30d
+    FROM candidate_cards cc
+    INNER JOIN "Card" c ON c.id = cc.card_id
+    INNER JOIN "Episode" e ON e.id = c.episode_id
+    LEFT JOIN owned_counts oc ON oc.card_id = c.id
+    LEFT JOIN "Price" lp ON lp.id = (
+      SELECT p2.id
+      FROM "Price" p2
+      WHERE p2.card_id = c.id
+      ORDER BY p2.fetched_at DESC, p2.id DESC
+      LIMIT 1
+    )
+    ORDER BY c.name ASC
+  `
+  );
 
-  const [ownedCards, recentHistoryRows, allTimeHistorySummaries] = await Promise.all([
-    fetchOwnedCards(),
-    db.$queryRaw<RecentHistoryRow[]>`
-      WITH owned_cards AS (
-        SELECT DISTINCT card_id
-        FROM "CollectionCard"
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    card_number: row.card_number,
+    rarity: row.rarity,
+    image_url: row.image_url,
+    episode: {
+      id: row.episode_id,
+      name: row.episode_name,
+      code: row.episode_code,
+    },
+    prices: row.fetched_at
+      ? [
+          {
+            fetched_at: row.fetched_at,
+            cm_en_lowest_nm: row.cm_en_lowest_nm,
+            cm_de_lowest_nm: row.cm_de_lowest_nm,
+            cm_fr_lowest_nm: row.cm_fr_lowest_nm,
+            cm_es_lowest_nm: row.cm_es_lowest_nm,
+            cm_it_lowest_nm: row.cm_it_lowest_nm,
+            tcp_market: row.tcp_market,
+            cm_en_avg_7d: row.cm_en_avg_7d,
+            cm_en_avg_30d: row.cm_en_avg_30d,
+          },
+        ]
+      : [],
+    ownedCount: Number(row.owned_count ?? 0),
+  }));
+}
+
+export async function getMovers(
+  preferredSource: PriceSource,
+  scope: MoversScope = "collection"
+): Promise<CollectionMoversData> {
+  const timer = startPerformanceTimer(`movers.${scope}`, { preferredSource, scope });
+  const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS).toISOString();
+  const candidateCardsCte = getMoverCandidateCardsCte(scope);
+
+  const [candidateCards, recentHistoryRows, allTimeHistorySummaries, pullRateRows] = await Promise.all([
+    fetchMoverCandidateCards(scope),
+    db.$queryRawUnsafe<RecentHistoryRow[]>(
+      `
+      WITH candidate_cards AS (
+        ${candidateCardsCte}
       )
       SELECT
         card_id,
@@ -687,174 +727,210 @@ export async function getCollectionMovers(
             ORDER BY p.fetched_at DESC, p.id DESC
           ) AS row_num
         FROM "Price" p
-        INNER JOIN owned_cards oc ON oc.card_id = p.card_id
-        WHERE p.fetched_at >= ${historyCutoff}
+        INNER JOIN candidate_cards cc ON cc.card_id = p.card_id
+        WHERE p.fetched_at >= ?
       )
       WHERE row_num = 1
       ORDER BY card_id ASC, fetched_at ASC
     `,
-    db.$queryRaw<AllTimeHistorySummaryRow[]>`
-      WITH owned_cards AS (
-        SELECT DISTINCT card_id
-        FROM "CollectionCard"
+      historyCutoff
+    ),
+    db.$queryRawUnsafe<AllTimeHistorySummaryRow[]>(
+      `
+      WITH candidate_cards AS (
+        ${candidateCardsCte}
       ),
-      price_points AS (
+      cm_summary AS (
         SELECT
           p.card_id,
-          p.id,
-          p.fetched_at,
-          COALESCE(
+          COUNT(DISTINCT DATE(p.fetched_at)) AS cm_history_points,
+          MIN(COALESCE(
             p.cm_en_lowest_nm,
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
             p.cm_it_lowest_nm
-          ) AS cm_market,
-          p.tcp_market
+          )) AS cm_low_value,
+          MAX(COALESCE(
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm
+          )) AS cm_high_value
         FROM "Price" p
-        INNER JOIN owned_cards oc ON oc.card_id = p.card_id
+        INNER JOIN candidate_cards cc ON cc.card_id = p.card_id
+        WHERE COALESCE(
+          p.cm_en_lowest_nm,
+          p.cm_de_lowest_nm,
+          p.cm_fr_lowest_nm,
+          p.cm_es_lowest_nm,
+          p.cm_it_lowest_nm
+        ) IS NOT NULL
+        GROUP BY p.card_id
       ),
-      cm_points AS (
-        SELECT *
-        FROM price_points
-        WHERE cm_market IS NOT NULL
-      ),
-      cm_first AS (
-        SELECT card_id, fetched_at AS cm_first_fetched_at, cm_market AS cm_first_value
-        FROM (
-          SELECT
-            card_id,
-            fetched_at,
-            cm_market,
-            ROW_NUMBER() OVER (
-              PARTITION BY card_id
-              ORDER BY fetched_at ASC, id ASC
-            ) AS row_num
-          FROM cm_points
-        )
-        WHERE row_num = 1
-      ),
-      cm_low AS (
-        SELECT card_id, fetched_at AS cm_low_fetched_at, cm_market AS cm_low_value
-        FROM (
-          SELECT
-            card_id,
-            fetched_at,
-            cm_market,
-            ROW_NUMBER() OVER (
-              PARTITION BY card_id
-              ORDER BY cm_market ASC, fetched_at ASC, id ASC
-            ) AS row_num
-          FROM cm_points
-        )
-        WHERE row_num = 1
-      ),
-      cm_high AS (
-        SELECT card_id, fetched_at AS cm_high_fetched_at, cm_market AS cm_high_value
-        FROM (
-          SELECT
-            card_id,
-            fetched_at,
-            cm_market,
-            ROW_NUMBER() OVER (
-              PARTITION BY card_id
-              ORDER BY cm_market DESC, fetched_at ASC, id ASC
-            ) AS row_num
-          FROM cm_points
-        )
-        WHERE row_num = 1
-      ),
-      cm_counts AS (
+      tcp_summary AS (
         SELECT
-          card_id,
-          COUNT(DISTINCT DATE(fetched_at)) AS cm_history_points
-        FROM cm_points
-        GROUP BY card_id
-      ),
-      tcp_points AS (
-        SELECT *
-        FROM price_points
-        WHERE tcp_market IS NOT NULL
-      ),
-      tcp_first AS (
-        SELECT card_id, fetched_at AS tcp_first_fetched_at, tcp_market AS tcp_first_value
-        FROM (
-          SELECT
-            card_id,
-            fetched_at,
-            tcp_market,
-            ROW_NUMBER() OVER (
-              PARTITION BY card_id
-              ORDER BY fetched_at ASC, id ASC
-            ) AS row_num
-          FROM tcp_points
-        )
-        WHERE row_num = 1
-      ),
-      tcp_low AS (
-        SELECT card_id, fetched_at AS tcp_low_fetched_at, tcp_market AS tcp_low_value
-        FROM (
-          SELECT
-            card_id,
-            fetched_at,
-            tcp_market,
-            ROW_NUMBER() OVER (
-              PARTITION BY card_id
-              ORDER BY tcp_market ASC, fetched_at ASC, id ASC
-            ) AS row_num
-          FROM tcp_points
-        )
-        WHERE row_num = 1
-      ),
-      tcp_high AS (
-        SELECT card_id, fetched_at AS tcp_high_fetched_at, tcp_market AS tcp_high_value
-        FROM (
-          SELECT
-            card_id,
-            fetched_at,
-            tcp_market,
-            ROW_NUMBER() OVER (
-              PARTITION BY card_id
-              ORDER BY tcp_market DESC, fetched_at ASC, id ASC
-            ) AS row_num
-          FROM tcp_points
-        )
-        WHERE row_num = 1
-      ),
-      tcp_counts AS (
-        SELECT
-          card_id,
-          COUNT(DISTINCT DATE(fetched_at)) AS tcp_history_points
-        FROM tcp_points
-        GROUP BY card_id
+          p.card_id,
+          COUNT(DISTINCT DATE(p.fetched_at)) AS tcp_history_points,
+          MIN(p.tcp_market) AS tcp_low_value,
+          MAX(p.tcp_market) AS tcp_high_value
+        FROM "Price" p
+        INNER JOIN candidate_cards cc ON cc.card_id = p.card_id
+        WHERE p.tcp_market IS NOT NULL
+        GROUP BY p.card_id
       )
       SELECT
-        oc.card_id,
-        cm_first.cm_first_fetched_at,
-        cm_first.cm_first_value,
-        cm_low.cm_low_fetched_at,
-        cm_low.cm_low_value,
-        cm_high.cm_high_fetched_at,
-        cm_high.cm_high_value,
-        cm_counts.cm_history_points,
-        tcp_first.tcp_first_fetched_at,
-        tcp_first.tcp_first_value,
-        tcp_low.tcp_low_fetched_at,
-        tcp_low.tcp_low_value,
-        tcp_high.tcp_high_fetched_at,
-        tcp_high.tcp_high_value,
-        tcp_counts.tcp_history_points
-      FROM owned_cards oc
-      LEFT JOIN cm_first ON cm_first.card_id = oc.card_id
-      LEFT JOIN cm_low ON cm_low.card_id = oc.card_id
-      LEFT JOIN cm_high ON cm_high.card_id = oc.card_id
-      LEFT JOIN cm_counts ON cm_counts.card_id = oc.card_id
-      LEFT JOIN tcp_first ON tcp_first.card_id = oc.card_id
-      LEFT JOIN tcp_low ON tcp_low.card_id = oc.card_id
-      LEFT JOIN tcp_high ON tcp_high.card_id = oc.card_id
-      LEFT JOIN tcp_counts ON tcp_counts.card_id = oc.card_id
-      ORDER BY oc.card_id ASC
+        cc.card_id,
+        (
+          SELECT p.fetched_at
+          FROM "Price" p
+          WHERE p.card_id = cc.card_id
+            AND COALESCE(
+              p.cm_en_lowest_nm,
+              p.cm_de_lowest_nm,
+              p.cm_fr_lowest_nm,
+              p.cm_es_lowest_nm,
+              p.cm_it_lowest_nm
+            ) IS NOT NULL
+          ORDER BY p.fetched_at ASC, p.id ASC
+          LIMIT 1
+        ) AS cm_first_fetched_at,
+        (
+          SELECT COALESCE(
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm
+          )
+          FROM "Price" p
+          WHERE p.card_id = cc.card_id
+            AND COALESCE(
+              p.cm_en_lowest_nm,
+              p.cm_de_lowest_nm,
+              p.cm_fr_lowest_nm,
+              p.cm_es_lowest_nm,
+              p.cm_it_lowest_nm
+            ) IS NOT NULL
+          ORDER BY p.fetched_at ASC, p.id ASC
+          LIMIT 1
+        ) AS cm_first_value,
+        (
+          SELECT p.fetched_at
+          FROM "Price" p
+          WHERE p.card_id = cc.card_id
+            AND COALESCE(
+              p.cm_en_lowest_nm,
+              p.cm_de_lowest_nm,
+              p.cm_fr_lowest_nm,
+              p.cm_es_lowest_nm,
+              p.cm_it_lowest_nm
+            ) IS NOT NULL
+          ORDER BY
+            COALESCE(
+              p.cm_en_lowest_nm,
+              p.cm_de_lowest_nm,
+              p.cm_fr_lowest_nm,
+              p.cm_es_lowest_nm,
+              p.cm_it_lowest_nm
+            ) ASC,
+            p.fetched_at ASC,
+            p.id ASC
+          LIMIT 1
+        ) AS cm_low_fetched_at,
+        cm_summary.cm_low_value,
+        (
+          SELECT p.fetched_at
+          FROM "Price" p
+          WHERE p.card_id = cc.card_id
+            AND COALESCE(
+              p.cm_en_lowest_nm,
+              p.cm_de_lowest_nm,
+              p.cm_fr_lowest_nm,
+              p.cm_es_lowest_nm,
+              p.cm_it_lowest_nm
+            ) IS NOT NULL
+          ORDER BY
+            COALESCE(
+              p.cm_en_lowest_nm,
+              p.cm_de_lowest_nm,
+              p.cm_fr_lowest_nm,
+              p.cm_es_lowest_nm,
+              p.cm_it_lowest_nm
+            ) DESC,
+            p.fetched_at ASC,
+            p.id ASC
+          LIMIT 1
+        ) AS cm_high_fetched_at,
+        cm_summary.cm_high_value,
+        cm_summary.cm_history_points,
+        (
+          SELECT p.fetched_at
+          FROM "Price" p
+          WHERE p.card_id = cc.card_id
+            AND p.tcp_market IS NOT NULL
+          ORDER BY p.fetched_at ASC, p.id ASC
+          LIMIT 1
+        ) AS tcp_first_fetched_at,
+        (
+          SELECT p.tcp_market
+          FROM "Price" p
+          WHERE p.card_id = cc.card_id
+            AND p.tcp_market IS NOT NULL
+          ORDER BY p.fetched_at ASC, p.id ASC
+          LIMIT 1
+        ) AS tcp_first_value,
+        (
+          SELECT p.fetched_at
+          FROM "Price" p
+          WHERE p.card_id = cc.card_id
+            AND p.tcp_market IS NOT NULL
+          ORDER BY p.tcp_market ASC, p.fetched_at ASC, p.id ASC
+          LIMIT 1
+        ) AS tcp_low_fetched_at,
+        tcp_summary.tcp_low_value,
+        (
+          SELECT p.fetched_at
+          FROM "Price" p
+          WHERE p.card_id = cc.card_id
+            AND p.tcp_market IS NOT NULL
+          ORDER BY p.tcp_market DESC, p.fetched_at ASC, p.id ASC
+          LIMIT 1
+        ) AS tcp_high_fetched_at,
+        tcp_summary.tcp_high_value,
+        tcp_summary.tcp_history_points
+      FROM candidate_cards cc
+      LEFT JOIN cm_summary ON cm_summary.card_id = cc.card_id
+      LEFT JOIN tcp_summary ON tcp_summary.card_id = cc.card_id
+      ORDER BY cc.card_id ASC
+    `
+    ),
+    db.$queryRawUnsafe<PullRateRarityRow[]>(
+      `
+      WITH candidate_cards AS (
+        ${candidateCardsCte}
+      )
+      SELECT DISTINCT
+        spr.source,
+        spr.set_code,
+        spr.normalized_rarity,
+        spr.rarity_name,
+        spr.pull_rate_odds,
+        spr.pull_rate_denominator,
+        spr.specific_pull_denominator,
+        spr.psa_avg_gem_pct
+      FROM candidate_cards cc
+      INNER JOIN "Card" c ON c.id = cc.card_id
+      INNER JOIN "Episode" e ON e.id = c.episode_id
+      INNER JOIN "SetPullRateRarity" spr
+        ON spr.source = ?
+        AND spr.set_code = UPPER(e.code)
+      WHERE e.code IS NOT NULL
+      ORDER BY spr.set_code ASC, spr.normalized_rarity ASC
     `,
+      DEFAULT_PULL_RATE_SOURCE
+    ),
   ]);
 
   const historyRowsByCardId = new Map<string, CardPriceHistorySnapshot[]>();
@@ -894,9 +970,27 @@ export async function getCollectionMovers(
     });
   }
 
+  const pullRateBySetAndRarity = new Map<string, PullRateInfo>();
+  for (const row of pullRateRows) {
+    const key = `${row.set_code.toUpperCase()}::${row.normalized_rarity}`;
+    pullRateBySetAndRarity.set(
+      key,
+      buildPullRateInfoFromRarity({
+        source: row.source,
+        setCode: row.set_code,
+        normalizedRarity: row.normalized_rarity,
+        rarityName: row.rarity_name,
+        pullRateOdds: row.pull_rate_odds,
+        pullRateDenominator: row.pull_rate_denominator,
+        specificPullDenominator: row.specific_pull_denominator,
+        psaAvgGemPct: row.psa_avg_gem_pct,
+      })
+    );
+  }
+
   const movers: CollectionMoverItem[] = [];
 
-  for (const card of ownedCards as OwnedCardRecord[]) {
+  for (const card of candidateCards) {
     const latestPrice = card.prices[0] ?? null;
     const historyPoints = buildCardPriceHistory(historyRowsByCardId.get(card.id) ?? []);
     const allTimeSummary =
@@ -936,7 +1030,13 @@ export async function getCollectionMovers(
       continue;
     }
 
-    const rarityWeight = getRarityWeight(card.rarity);
+    const normalizedRarity = normalizeRarityLabel(card.rarity);
+    const pullRateInfo =
+      card.episode.code && normalizedRarity
+        ? pullRateBySetAndRarity.get(`${card.episode.code.toUpperCase()}::${normalizedRarity}`) ??
+          null
+        : null;
+    const rarityWeight = resolveMoverRarityWeight(card.rarity, pullRateInfo?.pullRateWeight);
     const cheapnessWeight = getCheapnessWeight(resolvedSource.currentPrice);
     const cardmarketPrice = getCurrentSourceValue(latestPrice, "cardmarket");
     const tcgplayerPrice = getCurrentSourceValue(latestPrice, "tcgplayer");
@@ -955,7 +1055,7 @@ export async function getCollectionMovers(
       imageUrl: card.image_url,
       cardNumber: card.card_number,
       rarity: card.rarity,
-      normalizedRarity: normalizeRarityLabel(card.rarity),
+      normalizedRarity,
       episodeId: card.episode.id,
       episodeName: card.episode.name,
       episodeCode: card.episode.code,
@@ -996,6 +1096,10 @@ export async function getCollectionMovers(
       highAt: resolvedSource.lifetime.highAt,
       highPrice: resolvedSource.lifetime.highPrice,
       rarityWeight,
+      pullRateOdds: pullRateInfo?.pullRateOdds ?? null,
+      specificPullOdds: pullRateInfo?.specificPullOdds ?? null,
+      pullRateWeight: pullRateInfo?.pullRateWeight ?? null,
+      pullRateSource: pullRateInfo?.source ?? null,
       cheapnessWeight,
       moverScore,
     });
@@ -1060,8 +1164,9 @@ export async function getCollectionMovers(
       .sort((a, b) => (b.change30dPct ?? 0) - (a.change30dPct ?? 0))[0] ?? null;
 
   const result = {
+    scope,
     preferredSource,
-    trackedCards: ownedCards.length,
+    trackedCards: candidateCards.length,
     eligibleCards: sortedMovers.length,
     movers: sortedMovers,
     topOpportunities,
@@ -1078,4 +1183,10 @@ export async function getCollectionMovers(
   });
 
   return result;
+}
+
+export async function getCollectionMovers(
+  preferredSource: PriceSource
+): Promise<CollectionMoversData> {
+  return getMovers(preferredSource, "collection");
 }

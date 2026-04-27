@@ -103,6 +103,14 @@ export default function CollectionBulkAddCardsModal({
       ),
     [binders, sharedEpisode]
   );
+  const selectedBinder = useMemo(
+    () => binders.find((binder) => binder.id === binderId) ?? null,
+    [binders, binderId]
+  );
+  const purchasePriceLabel =
+    selectedBinder?.type === "linked_set" || binderLocked
+      ? "Card paid (adds to set spend)"
+      : "Purchase price per card";
 
   const previewNames = useMemo(() => {
     const names = cards.slice(0, 3).map((card) => card.name);
@@ -223,7 +231,7 @@ export default function CollectionBulkAddCardsModal({
             )}
 
             <label className="space-y-1.5 text-sm">
-              <span className="text-white/60">Purchase price per card</span>
+              <span className="text-white/60">{purchasePriceLabel}</span>
               <input
                 type="number"
                 min="0"

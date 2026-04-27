@@ -27,6 +27,23 @@ export interface CardPriceHistoryPoint {
   cm_avg_30d: number | null;
 }
 
+export interface CardGradedPriceHistorySnapshot {
+  fetched_at: Date | string;
+  label: string;
+  price: number;
+}
+
+export interface CardGradedPriceHistoryPoint {
+  date: string;
+  label: string;
+  value: number | null;
+}
+
+export interface CardGradedPriceHistorySeries {
+  label: string;
+  points: CardGradedPriceHistoryPoint[];
+}
+
 export const CARD_MARKET_HISTORY_SERIES = [
   { key: "cm_market_en", label: "EN" },
   { key: "cm_market_de", label: "DE" },
@@ -74,6 +91,12 @@ export interface SealedPriceHistoryPoint {
   cm_avg_30d: number | null;
 }
 
+const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("nl-NL", {
+  day: "numeric",
+  month: "short",
+});
+const dateLabelCache = new Map<string, string>();
+
 function toMillis(value: Date | string): number {
   return value instanceof Date ? value.getTime() : new Date(value).getTime();
 }
@@ -83,10 +106,12 @@ function toDateKey(value: Date | string): string {
 }
 
 function toDateLabel(dateKey: string): string {
-  return new Intl.DateTimeFormat("nl-NL", {
-    day: "numeric",
-    month: "short",
-  }).format(new Date(`${dateKey}T00:00:00.000Z`));
+  const cached = dateLabelCache.get(dateKey);
+  if (cached) return cached;
+
+  const label = SHORT_DATE_FORMATTER.format(new Date(`${dateKey}T00:00:00.000Z`));
+  dateLabelCache.set(dateKey, label);
+  return label;
 }
 
 export function getCardMarketValue(snapshot: CardMarketPriceSnapshot | null | undefined): number | null {
@@ -125,6 +150,50 @@ export function buildCardPriceHistory(
     cm_avg_7d: price.cm_en_avg_7d ?? null,
     cm_avg_30d: price.cm_en_avg_30d ?? null,
   }));
+}
+
+export function buildCardGradedPriceHistory(
+  snapshots: CardGradedPriceHistorySnapshot[]
+): CardGradedPriceHistorySeries[] {
+  const snapshotsByLabel = new Map<string, CardGradedPriceHistorySnapshot[]>();
+
+  for (const snapshot of snapshots) {
+    const label = snapshot.label.replace(/\s+/g, " ").trim();
+    if (!label || snapshot.price == null) continue;
+
+    const existing = snapshotsByLabel.get(label) ?? [];
+    existing.push({
+      ...snapshot,
+      label,
+    });
+    snapshotsByLabel.set(label, existing);
+  }
+
+  return [...snapshotsByLabel.entries()]
+    .map(([label, labelSnapshots]) => {
+      const byDay = new Map<string, CardGradedPriceHistorySnapshot>();
+      const sorted = [...labelSnapshots].sort(
+        (a, b) => toMillis(a.fetched_at) - toMillis(b.fetched_at)
+      );
+
+      for (const snapshot of sorted) {
+        byDay.set(toDateKey(snapshot.fetched_at), snapshot);
+      }
+
+      return {
+        label,
+        points: [...byDay.entries()].map(([date, snapshot]) => ({
+          date,
+          label: toDateLabel(date),
+          value: snapshot.price,
+        })),
+      };
+    })
+    .sort((a, b) => {
+      const latestA = a.points[a.points.length - 1]?.value ?? 0;
+      const latestB = b.points[b.points.length - 1]?.value ?? 0;
+      return latestB - latestA || a.label.localeCompare(b.label);
+    });
 }
 
 export function getCardMarketHistorySeriesValue(

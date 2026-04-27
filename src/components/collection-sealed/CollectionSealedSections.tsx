@@ -5,8 +5,26 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus, Package } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import { SectionHeader } from "@/components/PageHeader";
+import {
+  sealedTileActionButtonClass,
+  sealedTileActionIconClass,
+  sealedTileBubbleClass,
+  sealedTileBubbleLabelClass,
+  sealedTileBubbleWrapClass,
+  sealedTileGridGapClass,
+  sealedTileImageClass,
+  sealedTileImagePaddingClass,
+  sealedTileInfoClass,
+  sealedTileMetaLineClass,
+  sealedTileNoPriceClass,
+  sealedTilePriceClass,
+  sealedTileRootClass,
+  sealedTileTitleClass,
+} from "@/components/sealed-tile-styles";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
+import type { CardSize } from "@/lib/user-settings";
 import type { CollectionSealedViewItem, RemoveDialogState } from "./types";
 import {
   buildCollectionAddProduct,
@@ -26,16 +44,7 @@ function SectionHeaderBar({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="mb-2.5 flex items-center gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-        {title}
-      </h2>
-      <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-        {count}
-      </span>
-      <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-      {trailing}
-    </div>
+    <SectionHeader title={title} count={count} actions={trailing} compact className="mb-2.5" />
   );
 }
 
@@ -139,14 +148,14 @@ export function CollectionSealedSelectionToolbar({
     <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
       {selectionMode && (
         <>
-          <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 text-xs font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
+          <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-black/[0.03] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
             {activeSelectedCount} selected
           </span>
           <button
             type="button"
             onClick={onSelectAll}
             disabled={selectableCount === 0 || allSelectableSelected}
-            className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
           >
             Select all
           </button>
@@ -154,7 +163,7 @@ export function CollectionSealedSelectionToolbar({
             type="button"
             onClick={onClear}
             disabled={activeSelectedCount === 0}
-            className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
           >
             Clear
           </button>
@@ -162,7 +171,7 @@ export function CollectionSealedSelectionToolbar({
             type="button"
             onClick={onRemove}
             disabled={removingItems || activeSelectedCount === 0}
-            className="rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
           >
             Remove
           </button>
@@ -184,6 +193,7 @@ function CollectionSealedTile({
   item,
   index,
   minTileWidth,
+  cardSize,
   selectionMode,
   isSelected,
   removingItems,
@@ -193,6 +203,7 @@ function CollectionSealedTile({
   item: CollectionSealedViewItem;
   index: number;
   minTileWidth: string;
+  cardSize: CardSize;
   selectionMode: boolean;
   isSelected: boolean;
   removingItems: boolean;
@@ -218,21 +229,15 @@ function CollectionSealedTile({
       aria-pressed={selectionMode ? isSelected : undefined}
       onClick={() => onActivate(item)}
       onKeyDown={handleKeyDown}
-      className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
+      className={sealedTileRootClass()}
     >
-      <div
-        className={`relative aspect-[1.08/1] overflow-hidden rounded-2xl border bg-black/4 shadow-lg shadow-black/20 transition-all duration-200 dark:bg-white/4 ${
-          isSelected
-            ? "border-blue-400/80 shadow-blue-500/25 ring-2 ring-blue-400/80"
-            : "border-transparent group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
-        }`}
-      >
+      <div className={sealedTileImageClass(cardSize, isSelected)}>
         {item.image_url ? (
           <Image
             src={item.image_url}
             alt={item.name}
             fill
-            className="object-contain p-4"
+            className={`object-contain ${sealedTileImagePaddingClass(cardSize)}`}
             sizes={minTileWidth}
             loading={index < 16 ? "eager" : undefined}
             unoptimized
@@ -244,23 +249,16 @@ function CollectionSealedTile({
         )}
 
         {isSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
-
-        {item.quantity > 1 && (
-          <span className="absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur">
-            x{item.quantity}
-          </span>
-        )}
       </div>
 
-      <div className="mt-2 px-0.5">
-        <div className="flex items-end justify-between gap-3">
+      <div className={sealedTileInfoClass(cardSize)}>
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
-              {item.name}
-            </p>
-            <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
+            <p className={sealedTileTitleClass(cardSize)}>{item.name}</p>
+            <div className={sealedTileMetaLineClass(cardSize)}>
               <Link
                 href={`/expansions/${item.episode_id}?tab=sealed`}
+                prefetch={false}
                 onClick={(event) => event.stopPropagation()}
                 className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
               >
@@ -274,11 +272,11 @@ function CollectionSealedTile({
 
           <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
             {currentTotal != null ? (
-              <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+              <span className={sealedTilePriceClass(cardSize)}>
                 {formatCollectionCurrency(currentTotal)}
               </span>
             ) : (
-              <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
+              <span className={sealedTileNoPriceClass(cardSize)}>No price</span>
             )}
 
             {!selectionMode && (
@@ -287,39 +285,49 @@ function CollectionSealedTile({
                   type="button"
                   onClick={(event) => onRemove(event, item)}
                   disabled={removingItems}
-                  className="inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                  className={sealedTileActionButtonClass()}
                   aria-label={`Remove ${item.name} from collection`}
                   title="Remove from collection"
                 >
-                  <Minus className="h-3.5 w-3.5" />
+                  <Minus className={sealedTileActionIconClass()} />
                 </button>
 
                 <CollectionAddSealedButton
                   product={buildCollectionAddProduct(item)}
-                  className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                  className={sealedTileActionButtonClass()}
                 />
               </>
             )}
           </div>
         </div>
 
-        {(paidTotal != null || pnl != null) && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px]">
+        {(currentTotal != null || paidTotal != null || pnl != null || item.quantity > 1) && (
+          <div className={sealedTileBubbleWrapClass(cardSize)}>
+            {currentTotal != null && (
+              <span className={sealedTileBubbleClass("market")}>
+                <span className={sealedTileBubbleLabelClass()}>CardMarket</span>
+                <span className="tabular-nums">{formatCollectionCurrency(currentTotal)}</span>
+              </span>
+            )}
             {paidTotal != null && (
-              <span className="rounded-full bg-black/5 px-2 py-1 text-gray-500 dark:bg-white/8 dark:text-white/55">
-                Paid {formatCollectionCurrency(paidTotal)}
+              <span className={sealedTileBubbleClass()}>
+                <span className={sealedTileBubbleLabelClass()}>Paid</span>
+                <span className="tabular-nums">{formatCollectionCurrency(paidTotal)}</span>
               </span>
             )}
             {pnl != null && (
-              <span
-                className={`rounded-full px-2 py-1 ${
-                  pnl >= 0
-                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                    : "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300"
-                }`}
-              >
-                {pnl >= 0 ? "+" : ""}
-                {formatCollectionCurrency(pnl)}
+              <span className={sealedTileBubbleClass(pnl >= 0 ? "positive" : "negative")}>
+                <span className={sealedTileBubbleLabelClass()}>P&amp;L</span>
+                <span className="tabular-nums">
+                  {pnl >= 0 ? "+" : ""}
+                  {formatCollectionCurrency(pnl)}
+                </span>
+              </span>
+            )}
+            {item.quantity > 1 && (
+              <span className={sealedTileBubbleClass("quantity")}>
+                <span className={sealedTileBubbleLabelClass()}>Qty</span>
+                <span className="tabular-nums">x{item.quantity}</span>
               </span>
             )}
           </div>
@@ -332,6 +340,7 @@ function CollectionSealedTile({
 export function CollectionSealedGrid({
   items,
   minTileWidth,
+  cardSize,
   selectionMode,
   selectedIdSet,
   removingItems,
@@ -340,6 +349,7 @@ export function CollectionSealedGrid({
 }: {
   items: CollectionSealedViewItem[];
   minTileWidth: string;
+  cardSize: CardSize;
   selectionMode: boolean;
   selectedIdSet: Set<string>;
   removingItems: boolean;
@@ -348,7 +358,7 @@ export function CollectionSealedGrid({
 }) {
   return (
     <div
-      className="grid gap-3"
+      className={`grid ${sealedTileGridGapClass(cardSize)}`}
       style={{
         gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
         justifyContent: "start",
@@ -360,6 +370,7 @@ export function CollectionSealedGrid({
           item={item}
           index={index}
           minTileWidth={minTileWidth}
+          cardSize={cardSize}
           selectionMode={selectionMode}
           isSelected={selectionMode && selectedIdSet.has(item.id)}
           removingItems={removingItems}

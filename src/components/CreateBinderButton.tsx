@@ -164,7 +164,7 @@ export default function CreateBinderButton() {
                 </label>
 
                 <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">Binder base cost</span>
+                  <span className="text-white/60">Binder spend</span>
                   <input
                     type="number"
                     min="0"

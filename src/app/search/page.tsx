@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { Search, X, Layers, Package, Layers3 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import { PageHeroHeader, SectionHeader, type HeaderStat } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import {
   getCardGridTrackWidth,
@@ -212,6 +213,14 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
     !loading && results !== null && results.total === 0 && trimmedQuery.length >= MIN_SEARCH_LENGTH;
 
   const allExpansions: ExpansionResult[] = results?.expansions ?? [];
+  const headerStats = results
+    ? ([
+        { label: "Results", value: results.total.toLocaleString(), Icon: Search, tone: "sky" },
+        { label: "Cards", value: results.singles.length.toLocaleString(), Icon: Layers, tone: "emerald" },
+        { label: "Sealed", value: results.sealed.length.toLocaleString(), Icon: Package, tone: "amber" },
+        { label: "Expansions", value: allExpansions.length.toLocaleString(), Icon: Layers3, tone: "violet" },
+      ] satisfies HeaderStat[])
+    : undefined;
 
   const minWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
   const sealedMinWidth = getSealedProductTrackWidth(settings.cardSize, settings.widescreen);
@@ -220,18 +229,21 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6 flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-          Search
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-white/50">
+      <PageHeroHeader
+        eyebrow="DustyCards"
+        title="Search"
+        className="mb-6"
+        stats={headerStats}
+        description={
+          <>
           {trimmedQuery
             ? results?.fuzzy
               ? `Beste matches voor "${trimmedQuery}" met typo-tolerantie.`
               : `Live resultaten voor "${trimmedQuery}".`
             : "Typ bovenin om direct kaarten, sealed en expansions te zoeken."}
-        </p>
-      </div>
+          </>
+        }
+      />
 
       <div className="relative mb-8 max-w-2xl md:hidden">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
@@ -283,15 +295,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
           {/* Expansions grid */}
           {allExpansions.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Layers3 className="w-4 h-4 text-gray-400" />
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Expansions
-                </h2>
-                <span className="text-xs text-gray-400 tabular-nums">
-                  {allExpansions.length}
-                </span>
-              </div>
+              <SectionHeader title="Expansions" count={allExpansions.length} compact className="mb-4" />
 
               <div
                 className="grid gap-3"
@@ -304,6 +308,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                   <Link
                     key={ep.id}
                     href={`/expansions/${ep.id}`}
+                    prefetch={false}
                     className={`group glass flex flex-col items-center transition-all duration-200 hover:scale-[1.03] hover:bg-white/8 active:scale-[0.98] dark:hover:bg-white/6 ${expansionScale.tileClass}`}
                   >
                     {ep.logo_url ? (
@@ -343,15 +348,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
           {/* Singles grid */}
           {results.singles.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Layers className="w-4 h-4 text-gray-400" />
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Singles
-                </h2>
-                <span className="text-xs text-gray-400 tabular-nums">
-                  {results.singles.length}
-                </span>
-              </div>
+              <SectionHeader title="Singles" count={results.singles.length} compact className="mb-4" />
 
               <div
                 className="grid gap-2"
@@ -406,6 +403,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                             <span className="text-gray-300 dark:text-white/20">•</span>
                             <Link
                               href={`/expansions/${card.episode_id}`}
+                              prefetch={false}
                               onClick={(e) => e.stopPropagation()}
                               className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
                             >
@@ -451,15 +449,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
           {/* Sealed grid */}
           {results.sealed.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Package className="w-4 h-4 text-gray-400" />
-                <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Sealed
-                </h2>
-                <span className="text-xs text-gray-400 tabular-nums">
-                  {results.sealed.length}
-                </span>
-              </div>
+              <SectionHeader title="Sealed" count={results.sealed.length} compact className="mb-4" />
 
               <div
                 className="grid gap-2"
@@ -509,6 +499,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
                             <Link
                               href={`/expansions/${product.episode.id}?tab=sealed`}
+                              prefetch={false}
                               onClick={(e) => e.stopPropagation()}
                               className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
                             >

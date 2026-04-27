@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import {
   buildCardMarketProductUrl,
@@ -56,6 +57,7 @@ export default function CardModal({ card, onClose }: Props) {
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [historyChartsOpen, setHistoryChartsOpen] = useState(false);
+  const [historyChartMode, setHistoryChartMode] = useState<"market" | "graded">("market");
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
   const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(() =>
@@ -73,6 +75,7 @@ export default function CardModal({ card, onClose }: Props) {
     Boolean(collectionItem)
   );
   const gradedPrices = modalCard.graded_prices ?? [];
+  const gradedPriceHistory = modalCard.graded_price_history ?? [];
   const gradingCompanyLabel = normalizeGradingCompanyLabel(collectionItem?.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(collectionItem?.grading_grade);
   const showGradedPreview = Boolean(gradingCompanyLabel && gradingGradeLabel);
@@ -122,6 +125,19 @@ export default function CardModal({ card, onClose }: Props) {
     gradedPrices.find((price) => price.label === selectedGradedLabel) ??
     gradedPrices.find((price) => price.label === preferredGradedLabel) ??
     null;
+  const selectedGradedHistory =
+    gradedPriceHistory.find((series) => series.label === selectedGradedLabel) ??
+    gradedPriceHistory.find((series) => series.label === preferredGradedLabel) ??
+    gradedPriceHistory[0] ??
+    null;
+  const selectedGradedHistoryCurrentValue =
+    selectedGradedPrice?.price ??
+    selectedGradedHistory?.points[selectedGradedHistory.points.length - 1]?.value ??
+    null;
+  const hasGradedHistory = gradedPriceHistory.some((series) =>
+    series.points.some((point) => point.value != null)
+  );
+  const effectiveHistoryChartMode = hasGradedHistory ? historyChartMode : "market";
 
   async function runCardAction(action: "refresh" | "sync-history") {
     if (action === "refresh") {
@@ -218,86 +234,107 @@ export default function CardModal({ card, onClose }: Props) {
         onClick={onClose}
       >
         <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={modalCard.name}
-          className={`${layout.maxW} glass max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] shadow-[0_32px_90px_rgba(0,0,0,0.52)]`}
-          style={{
-            background: "rgba(10,10,12,0.92)",
-            border: "1px solid rgba(255,255,255,0.12)",
-          }}
+          className="relative w-full"
+          style={{ maxWidth: layout.maxW }}
           onClick={(event) => event.stopPropagation()}
         >
-          <div className={layout.pad}>
-            <div
-              className={`grid ${layout.gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-stretch`}
-            >
-              <CardModalPreview
-                card={modalCard}
-                mediaWidth={layout.mediaWidth}
-                imageSize={layout.imageSize}
-                previewAspectClass={previewAspectClass}
-                showGradedPreview={showGradedPreview}
-                gradingCompanyLabel={gradingCompanyLabel}
-                gradingGradeLabel={gradingGradeLabel}
-                onOpenThreeD={() => setThreeDOpen(true)}
-              />
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-2.5 top-2.5 z-40 inline-flex h-8 w-8 items-center justify-center rounded-xl text-white/42 transition-colors hover:bg-white/[0.055] hover:text-white/86 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:right-3 sm:top-3"
+            aria-label="Close card details"
+            title="Close"
+          >
+            <X className="h-[18px] w-[18px] stroke-[1.8]" />
+          </button>
 
-              <div className="min-w-0 space-y-3">
-                <CardModalHeroSection
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={modalCard.name}
+            className="glass relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)]"
+            style={{
+              background: "rgba(10,10,12,0.92)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
+            <div className={layout.pad}>
+              <div
+                className={`grid ${layout.gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-stretch`}
+              >
+                <CardModalPreview
                   card={modalCard}
-                  collectionItem={collectionItem}
-                  titleClass={layout.titleClass}
-                  metaClassName={layout.metaClassName}
-                  detailStatClass={layout.detailStatClass}
+                  mediaWidth={layout.mediaWidth}
+                  imageSize={layout.imageSize}
+                  previewAspectClass={previewAspectClass}
+                  showGradedPreview={showGradedPreview}
                   gradingCompanyLabel={gradingCompanyLabel}
                   gradingGradeLabel={gradingGradeLabel}
-                  isBusy={isBusy}
-                  refreshing={refreshing}
-                  syncingHistory={syncingHistory}
-                  refreshError={refreshError}
-                  onRefresh={() => void runCardAction("refresh")}
-                  onSyncHistory={() => void runCardAction("sync-history")}
-                  onClose={onClose}
+                  onOpenThreeD={() => setThreeDOpen(true)}
                 />
 
-                <CardModalPricingSection
-                  card={modalCard}
-                  availableCardMarketHistorySeries={availableCardMarketHistorySeries}
-                  activeCardMarketHistorySeries={activeCardMarketHistorySeries}
-                  activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
-                  activeCardMarketCurrentValue={activeCardMarketCurrentValue}
-                  gradedPrices={gradedPrices}
-                  gradingCompanyLabel={gradingCompanyLabel}
-                  gradingGradeLabel={gradingGradeLabel}
-                  selectedGradedPrice={selectedGradedPrice}
-                  onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
-                  onSelectGradedLabel={setSelectedGradedLabel}
-                />
+                <div className="min-w-0 space-y-3">
+                  <CardModalHeroSection
+                    card={modalCard}
+                    collectionItem={collectionItem}
+                    titleClass={layout.titleClass}
+                    metaClassName={layout.metaClassName}
+                    detailStatClass={layout.detailStatClass}
+                    gradingCompanyLabel={gradingCompanyLabel}
+                    gradingGradeLabel={gradingGradeLabel}
+                    isBusy={isBusy}
+                    refreshing={refreshing}
+                    syncingHistory={syncingHistory}
+                    refreshError={refreshError}
+                    onRefresh={() => void runCardAction("refresh")}
+                    onSyncHistory={() => void runCardAction("sync-history")}
+                    onClose={onClose}
+                  />
 
-                <CardModalHistorySection
-                  cardId={modalCard.id}
-                  historyChartsOpen={historyChartsOpen}
-                  cardMarketHistory={cardMarketHistory}
-                  activeCardMarketCurrentValue={activeCardMarketCurrentValue}
-                  onToggleHistoryCharts={() =>
-                    setHistoryChartsOpen((current) => !current)
-                  }
-                  tcgPlayerHistory={tcgPlayerHistory}
-                  tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
-                />
+                  <CardModalPricingSection
+                    card={modalCard}
+                    availableCardMarketHistorySeries={availableCardMarketHistorySeries}
+                    activeCardMarketHistorySeries={activeCardMarketHistorySeries}
+                    activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
+                    activeCardMarketCurrentValue={activeCardMarketCurrentValue}
+                    gradedPrices={gradedPrices}
+                    gradingCompanyLabel={gradingCompanyLabel}
+                    gradingGradeLabel={gradingGradeLabel}
+                    selectedGradedPrice={selectedGradedPrice}
+                    onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
+                    onSelectGradedLabel={setSelectedGradedLabel}
+                  />
+
+                  <CardModalHistorySection
+                    cardId={modalCard.id}
+                    historyChartsOpen={historyChartsOpen}
+                    historyChartMode={effectiveHistoryChartMode}
+                    cardMarketHistory={cardMarketHistory}
+                    activeCardMarketCurrentValue={activeCardMarketCurrentValue}
+                    onToggleHistoryCharts={() =>
+                      setHistoryChartsOpen((current) => !current)
+                    }
+                    onSelectHistoryChartMode={setHistoryChartMode}
+                    tcgPlayerHistory={tcgPlayerHistory}
+                    tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
+                    gradedPriceHistory={gradedPriceHistory}
+                    selectedGradedHistory={selectedGradedHistory}
+                    selectedGradedHistoryCurrentValue={selectedGradedHistoryCurrentValue}
+                    onSelectGradedLabel={setSelectedGradedLabel}
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          <CardModalFooter
-            card={modalCard}
-            collectionItem={collectionItem}
-            footerGridClass={layout.footerGridClass}
-            storedCardMarketUrl={storedCardMarketUrl}
-            onOpenCardMarket={openCardMarket}
-            onClose={onClose}
-          />
+            <CardModalFooter
+              card={modalCard}
+              collectionItem={collectionItem}
+              footerGridClass={layout.footerGridClass}
+              storedCardMarketUrl={storedCardMarketUrl}
+              onOpenCardMarket={openCardMarket}
+              onClose={onClose}
+            />
+          </div>
         </div>
       </div>
 

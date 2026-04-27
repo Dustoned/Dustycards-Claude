@@ -5,11 +5,12 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
+import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { rarityBadge } from "@/components/card-modal/utils";
 import { KNOWN_RARITY_ORDER } from "@/lib/rarity";
-import type { CollectionMoverItem } from "@/lib/movers";
+import type { CollectionMoverItem, MoversScope } from "@/lib/movers";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
 import type { PriceSource } from "@/lib/user-settings";
 import {
@@ -58,6 +59,7 @@ interface SpotlightConfig {
 interface Props {
   movers: CollectionMoverItem[];
   activePriceSource: PriceSource;
+  activeScope: MoversScope;
   eyebrow?: string;
   title?: string;
   description?: string;
@@ -105,6 +107,7 @@ function MoverGridFallback() {
 export default function MoversBrowser({
   movers,
   activePriceSource,
+  activeScope,
   eyebrow = "Main Movers",
   title = "Full collection movers",
   description,
@@ -134,10 +137,23 @@ export default function MoversBrowser({
   const moverTileMinWidth = getMoverTileMinWidth(settings.cardSize, settings.widescreen);
   const visiblePreviewCards = previewCards.filter((card) => card.items.length > 0);
   const visibleSpotlights = spotlights.filter((spotlight) => spotlight.item);
-  const priceSourceHref = useMemo(() => {
-    const params = new URLSearchParams(searchParams.toString());
+  const scopeHref = useMemo(() => {
+    return (scope: MoversScope) => {
+      const params = new URLSearchParams(searchParams.toString());
 
+      if (scope === "collection") {
+        params.delete("scope");
+      } else {
+        params.set("scope", scope);
+      }
+
+      const query = params.toString();
+      return query ? `${pathname}?${query}` : pathname;
+    };
+  }, [pathname, searchParams]);
+  const priceSourceHref = useMemo(() => {
     return (source: PriceSource) => {
+      const params = new URLSearchParams(searchParams.toString());
       params.set("source", source);
       const query = params.toString();
       return query ? `${pathname}?${query}` : pathname;
@@ -315,6 +331,31 @@ export default function MoversBrowser({
 
   return (
     <div className="space-y-10">
+      <div className="flex flex-wrap items-center gap-2 rounded-[24px] border border-black/8 bg-black/[0.03] p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
+        {[
+          { key: "collection" as const, label: "Collection Movers" },
+          { key: "all" as const, label: "All Card Movers" },
+        ].map((option) => {
+          const active = activeScope === option.key;
+
+          return (
+            <Link
+              key={option.key}
+              href={scopeHref(option.key)}
+              prefetch={false}
+              className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-2xl px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold transition-colors ${
+                active
+                  ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
+                  : "text-gray-500 hover:bg-white/70 hover:text-gray-900 dark:text-white/54 dark:hover:bg-white/[0.06] dark:hover:text-white"
+              }`}
+              aria-current={active ? "page" : undefined}
+            >
+              {option.label}
+            </Link>
+          );
+        })}
+      </div>
+
       {visibleSpotlights.length > 0 || visiblePreviewCards.length > 0 ? (
         <MoverSpotlightSections
           spotlights={visibleSpotlights}
@@ -325,22 +366,16 @@ export default function MoversBrowser({
       ) : null}
 
       <section>
-        <div className="mb-4 flex items-end justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-400 dark:text-white/36">
-              {eyebrow}
+        <SectionHeader
+          eyebrow={eyebrow}
+          title={title}
+          description={description}
+          actions={
+            <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
+              {visibleMovers.length.toLocaleString()} / {movers.length.toLocaleString()} visible
             </p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-              {title}
-            </h2>
-            {description ? (
-              <p className="mt-2 max-w-3xl text-sm text-gray-500 dark:text-white/48">{description}</p>
-            ) : null}
-          </div>
-          <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
-            {visibleMovers.length.toLocaleString()} / {movers.length.toLocaleString()} visible
-          </p>
-        </div>
+          }
+        />
 
         {detailError ? (
           <div className="mb-4 rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] px-4 py-3 text-sm text-rose-700 dark:text-rose-200">
@@ -474,6 +509,7 @@ export default function MoversBrowser({
                     <Link
                       key={option.key}
                       href={priceSourceHref(option.key as PriceSource)}
+                      prefetch={false}
                       className={`shrink-0 px-3 py-1.5 text-xs font-semibold transition-colors ${
                         active
                           ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"

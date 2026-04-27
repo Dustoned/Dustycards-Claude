@@ -25,6 +25,7 @@ interface Props {
     code: string | null;
   };
   priceSnapshots: EpisodePriceHistorySnapshot[];
+  showPriceHistory?: boolean;
 }
 
 export default function ExpansionCardsSection({
@@ -32,6 +33,7 @@ export default function ExpansionCardsSection({
   totalCards,
   episode,
   priceSnapshots,
+  showPriceHistory = true,
 }: Props) {
   const [visibleCards, setVisibleCards] = useState<CardData[]>(cards);
 
@@ -82,14 +84,16 @@ export default function ExpansionCardsSection({
 
   return (
     <div className="space-y-6">
-      <PriceHistoryPanel
-        title={showingFilteredSubset ? "Filtered Total" : "Set Total"}
-        currency="EUR"
-        points={chartPoints}
-        currentValue={currentValue}
-        subtitle={showingFilteredSubset ? subtitle : `${currentTotals.priced}/${totalCards} cards priced`}
-        emptyText="Nog geen setprijzen beschikbaar"
-      />
+      {showPriceHistory ? (
+        <PriceHistoryPanel
+          title={showingFilteredSubset ? "Filtered Total" : "Set Total"}
+          currency="EUR"
+          points={chartPoints}
+          currentValue={currentValue}
+          subtitle={showingFilteredSubset ? subtitle : `${currentTotals.priced}/${totalCards} cards priced`}
+          emptyText="Nog geen setprijzen beschikbaar"
+        />
+      ) : null}
 
       <ExpansionView
         cards={cards}

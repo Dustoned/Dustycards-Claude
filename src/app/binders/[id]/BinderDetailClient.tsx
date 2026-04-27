@@ -6,6 +6,7 @@ import Image from "next/image";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import CollectionCardsView from "@/components/CollectionCardsView";
 import EditBinderButton from "@/components/EditBinderButton";
+import { HeaderMetricChip, HeaderProgressMeter, PageHeroHeader } from "@/components/PageHeader";
 import {
   buildOwnedCardValueHistory,
   formatCollectionCurrency,
@@ -43,6 +44,11 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
       ? `${data.metrics.ownedCount}/${data.metrics.totalCards}`
       : `${data.metrics.ownedCount}`;
   const accentColor = data.binder.accent_color;
+  const pnlTone = data.metrics.pnl >= 0 ? "emerald" : "rose";
+  const progressPercent =
+    data.metrics.totalCards != null && data.metrics.totalCards > 0
+      ? Math.round((data.metrics.ownedCount / data.metrics.totalCards) * 100)
+      : null;
 
   const visibleOwnedItems = useMemo(
     () => visibleItems.filter((item) => item.owned),
@@ -101,29 +107,24 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
 
   return (
     <>
-      <div
-        className="glass relative mb-8 overflow-hidden rounded-3xl px-6 py-6 shadow-lg shadow-black/5 sm:px-8"
+      <PageHeroHeader
+        className="mb-8"
+        eyebrow={data.binder.episode ? "Linked Binder" : "Collection Binder"}
+        title={data.binder.name}
+        accentColor={accentColor}
+        gridClassName="xl:grid-cols-[minmax(0,1.2fr)_minmax(28rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.24fr)_minmax(28rem,0.76fr)]"
         style={
           data.binder.accent_color
             ? { boxShadow: `inset 0 0 0 1px ${data.binder.accent_color}2f` }
             : undefined
         }
-      >
-        {data.binder.accent_color && (
-          <div
-            className="absolute inset-x-8 top-0 h-1 rounded-b-full"
-            style={{ backgroundColor: accentColor ?? undefined }}
-          />
-        )}
-
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+        leadingVisual={
             <div
-              className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl border border-black/8 bg-white/80 text-gray-500 dark:border-white/10 dark:bg-white/8 dark:text-white/70"
+              className="flex h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-black/8 bg-white/80 p-[var(--ui-binder-header-logo-padding)] text-gray-500 shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/8 dark:text-white/70"
               style={accentColor ? { color: accentColor } : undefined}
             >
               {data.binder.episode?.logo_url ? (
-                <div className="relative h-12 w-12">
+                <div className="relative h-full w-full">
                   <Image
                     src={data.binder.episode.logo_url}
                     alt={data.binder.name}
@@ -133,34 +134,47 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
                   />
                 </div>
               ) : (
-                <CollectionBinderIcon iconName={data.binder.icon_name} className="h-8 w-8" />
+                <CollectionBinderIcon iconName={data.binder.icon_name} className="h-[45%] w-[45%]" />
               )}
             </div>
-
-            <div className="min-w-0 flex-1">
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                {data.binder.name}
-              </h1>
-              <p className="mt-2 text-sm text-gray-500 dark:text-white/50">
-                {data.binder.episode
-                  ? `${data.binder.episode.series ?? "Set"} / ${data.binder.episode.name}`
-                  : "Custom binder"}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-gray-500 dark:text-white/50">
-                <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 dark:border-white/8 dark:bg-white/[0.04]">
-                  {data.metrics.totalCards != null ? "Set progress" : "Cards"} {totalCardsLabel}
-                </span>
-                <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 dark:border-white/8 dark:bg-white/[0.04]">
-                  Invested {formatCollectionCurrency(data.metrics.investment)}
-                </span>
-                <span className="rounded-full border border-black/8 bg-black/[0.03] px-3 py-1 dark:border-white/8 dark:bg-white/[0.04]">
-                  P&amp;L {data.metrics.pnl >= 0 ? "+" : ""}
-                  {formatCollectionCurrency(data.metrics.pnl)}
-                </span>
-              </div>
+        }
+        description={
+          <div className="space-y-5">
+            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-gray-600 dark:text-white/62">
+              {data.binder.episode
+                ? `${data.binder.episode.series ?? "Set"} / ${data.binder.episode.name}`
+                : "Custom binder"}
+            </p>
+            <div className="flex flex-wrap items-stretch gap-3">
+              {data.metrics.totalCards != null ? (
+                <HeaderProgressMeter
+                  label="Set Progress"
+                  value={`${data.metrics.ownedCount} / ${data.metrics.totalCards}`}
+                  percent={progressPercent ?? 0}
+                  accentColor={accentColor}
+                />
+              ) : (
+                <HeaderMetricChip label="Cards" value={totalCardsLabel} tone="sky" />
+              )}
+              <HeaderMetricChip
+                label="Set Spend"
+                value={formatCollectionCurrency(data.metrics.investment)}
+                tone="amber"
+              />
+              <HeaderMetricChip
+                label="P&L"
+                value={`${data.metrics.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
+                  data.metrics.pnl
+                )}`}
+                tone={pnlTone}
+              />
+              {progressPercent != null && (
+                <HeaderMetricChip label="Complete" value={`${progressPercent}%`} tone="emerald" />
+              )}
             </div>
           </div>
-
+        }
+        titleActions={
           <EditBinderButton
             binder={{
               id: data.binder.id,
@@ -178,9 +192,8 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
                 : null,
             }}
           />
-        </div>
-
-        <div className="mt-6">
+        }
+        accessory={
           <PriceHistoryPanel
             title={showingFilteredSubset ? "Filtered Collection Value" : "Binder Value"}
             currency="EUR"
@@ -189,8 +202,9 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
             subtitle={priceSubtitle}
             emptyText="Add cards to start tracking this binder"
           />
-        </div>
-      </div>
+        }
+        sideClassName="[&>section]:h-full"
+      />
 
       <CollectionCardsView
         items={data.items}

@@ -1053,6 +1053,10 @@ async function persistCardPriceWrites(
     await tx.cardGradedPrice.createMany({
       data: dedupedGradedCreates,
     });
+
+    await tx.cardGradedPriceSnapshot.createMany({
+      data: dedupedGradedCreates,
+    });
   }
 
   if (input.priceRefreshes.length > 0) {
@@ -2783,13 +2787,13 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
   });
   const previewNativeHistoryBatch = await selectNativeHistoryBackfillBatch();
 
-  if (
-    !previewCatalog.shouldSync &&
-    previewDueBatch.dueCards === 0 &&
-    previewBackfillBatch.missingPriceCards === 0 &&
-    previewNativeHistoryBatch.cardIds.length === 0 &&
-    previewNativeHistoryBatch.products.length === 0
-  ) {
+  const hasAutoRefreshWork =
+    previewDueBatch.dueCards > 0 ||
+    previewBackfillBatch.missingPriceCards > 0 ||
+    previewNativeHistoryBatch.cardIds.length > 0 ||
+    previewNativeHistoryBatch.products.length > 0;
+
+  if (!hasAutoRefreshWork) {
     return withAutoQuotaFields({
       checkedEpisodes: 0,
       catalogSyncedEpisodes: 0,
@@ -2811,13 +2815,17 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
     });
   }
 
+  const shouldRunCatalogWithAutoBatch =
+    previewCatalog.shouldSync &&
+    (previewDueBatch.dueCards > 0 || previewBackfillBatch.missingPriceCards > 0);
+
   return runAutoLoggedSync(
     "Refreshing due cards and backfilling missing first prices in the background",
     summarizeAutoPriceRefresh,
     async (progress) => {
       await progress.throwIfCancelled();
 
-      const catalogBatch = previewCatalog.shouldSync
+      const catalogBatch = shouldRunCatalogWithAutoBatch
         ? await selectAutoCatalogSyncBatch({
             now: new Date(),
             minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,

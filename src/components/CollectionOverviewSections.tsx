@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { GripVertical } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import { getFixedTrackGridTemplate, getSupportTileTrackWidth } from "@/lib/display-scale";
 import {
@@ -88,16 +89,7 @@ function SectionHeader({
   trailing?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex items-center gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-        {label}
-      </h2>
-      <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-        {count}
-      </span>
-      <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-      {trailing}
-    </div>
+    <SharedSectionHeader title={label} count={count} actions={trailing} compact className="mb-4" />
   );
 }
 

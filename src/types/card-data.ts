@@ -35,4 +35,12 @@ export interface CardData {
     cm_en_avg_30d: number | null;
   } | null;
   graded_prices?: GradedPriceData[];
+  pull_rate_info?: {
+    source: string;
+    rarity_name: string;
+    pull_rate_odds: string | null;
+    specific_pull_odds: string | null;
+    pull_rate_weight: number | null;
+    psa_avg_gem_pct: number | null;
+  } | null;
 }

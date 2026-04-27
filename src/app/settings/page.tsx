@@ -1,4 +1,6 @@
 import { cookies } from "next/headers";
+import { Activity, AlertTriangle, RefreshCw, Settings2 } from "lucide-react";
+import { PageHeroHeader, type HeaderStat } from "@/components/PageHeader";
 import { db } from "@/lib/db";
 import { decodeSyncLogDetailsJson, decodeSyncLogMessage } from "@/lib/sync-log-details";
 import { timeAsync } from "@/lib/performance-timing";
@@ -17,6 +19,7 @@ import AutomationSection from "./AutomationSection";
 import CardDefaultsSection from "./CardDefaultsSection";
 import FiltersSection from "./FiltersSection";
 import HomePageSection from "./HomePageSection";
+import PullRateImportSection from "./PullRateImportSection";
 import SyncStatusSection from "./SyncStatusSection";
 
 export const dynamic = "force-dynamic";
@@ -83,6 +86,9 @@ export default async function SettingsPage() {
     autoRefreshSnapshot,
     tcggoUsageSnapshot,
     pendingCardHistoryCards,
+    pullRateSetCount,
+    pullRateRarityRowCount,
+    latestPullRateProfile,
   ] = await timeAsync("settings.summary-data", () => Promise.all([
     db.syncLog.findFirst({
       where: {
@@ -142,6 +148,18 @@ export default async function SettingsPage() {
     getAutoPriceRefreshSnapshot(),
     getTcggoUsageSnapshot(),
     countManualCardHistoryCandidates(),
+    db.setPullRateProfile.count({
+      where: { rarity_buckets: { gt: 0 } },
+    }),
+    db.setPullRateRarity.count(),
+    db.setPullRateProfile.findFirst({
+      where: { rarity_buckets: { gt: 0 } },
+      orderBy: { imported_at: "desc" },
+      select: {
+        imported_at: true,
+        generated_at: true,
+      },
+    }),
   ]));
 
   const relevantLogs = [
@@ -283,10 +301,22 @@ export default async function SettingsPage() {
     (log) => log.status === "failed" && log.type === "auto-prices"
   ).length;
   const activeScraperLabel = toSyncEntry(activeSync)?.label ?? null;
+  const headerStats = [
+    { label: "Running", value: runningNowCount.toLocaleString(), Icon: Activity, tone: "sky" },
+    { label: "Success 24h", value: recentSuccessCount.toLocaleString(), Icon: RefreshCw, tone: "emerald" },
+    { label: "Failed 24h", value: recentFailureCount.toLocaleString(), Icon: AlertTriangle, tone: "rose" },
+    { label: "Due cards", value: autoRefreshSnapshot.dueCards.toLocaleString(), Icon: Settings2, tone: "amber" },
+  ] satisfies HeaderStat[];
 
   return (
     <div className={`settings-page ${widescreen ? "max-w-[2000px]" : "max-w-2xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
-      <h1 className="settings-page-title text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-8">Settings</h1>
+      <PageHeroHeader
+        eyebrow="DustyCards"
+        title="Settings"
+        description="Tune appearance, layout, defaults and background sync behavior."
+        className="mb-8"
+        stats={headerStats}
+      />
 
       <div className={`grid gap-4 ${widescreen ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1"}`}>
         <ThemeSection />
@@ -294,6 +324,14 @@ export default async function SettingsPage() {
         <CardDefaultsSection />
         <HomePageSection />
         <FiltersSection />
+        <PullRateImportSection
+          summary={{
+            setCount: pullRateSetCount,
+            rarityRowCount: pullRateRarityRowCount,
+            lastImportedLabel: formatDateTime(latestPullRateProfile?.imported_at ?? null),
+            lastGeneratedAt: latestPullRateProfile?.generated_at ?? null,
+          }}
+        />
         <AutomationSection
           scraperUsage={{
             requestsUsed: tcggoUsageSnapshot.requestsUsed,

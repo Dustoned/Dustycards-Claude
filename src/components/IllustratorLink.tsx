@@ -12,6 +12,7 @@ export default function IllustratorLink({ artist, className, onClick }: Props) {
   return (
     <Link
       href={`/illustrators/${encodeURIComponent(artist)}`}
+      prefetch={false}
       onClick={onClick}
       className={className}
     >

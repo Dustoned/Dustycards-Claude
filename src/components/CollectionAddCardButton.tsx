@@ -127,6 +127,14 @@ export default function CollectionAddCardButton({
       ),
     [binders, card.episode.id]
   );
+  const selectedBinder = useMemo(
+    () => binders.find((binder) => binder.id === binderId) ?? null,
+    [binders, binderId]
+  );
+  const purchasePriceLabel =
+    selectedBinder?.type === "linked_set" || binderLocked
+      ? "Card paid (adds to set spend)"
+      : "Purchase price";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -257,7 +265,7 @@ export default function CollectionAddCardButton({
                 )}
 
                 <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">Purchase price</span>
+                  <span className="text-white/60">{purchasePriceLabel}</span>
                   <input
                     type="number"
                     min="0"

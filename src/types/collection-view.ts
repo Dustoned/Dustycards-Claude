@@ -16,6 +16,9 @@ export interface CollectionCardViewItem {
   current_value: number | null;
   current_value_label?: string | null;
   purchase_price: number | null;
+  cost_basis_value: number | null;
+  cost_basis_label: "Paid" | "Set Spend";
+  cost_basis_source: "direct" | "linked_binder_allocation";
   condition: string | null;
   language?: string | null;
   notes?: string | null;

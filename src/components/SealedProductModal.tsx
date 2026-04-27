@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import { buildCardMarketProductUrl, withCardMarketFilters } from "@/lib/cardmarket";
 import { getSealedProductPrice } from "@/lib/sealed-products";
@@ -40,6 +41,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const [detailsLoading, setDetailsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
+  const [historyChartsOpen, setHistoryChartsOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const layout = getSealedModalLayoutClasses(settings.modalSize, settings.widescreen);
@@ -147,6 +149,10 @@ export default function SealedProductModal({ product, onClose }: Props) {
     }
   }
 
+  function toggleHistoryCharts() {
+    setHistoryChartsOpen((current) => !current);
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
@@ -154,63 +160,85 @@ export default function SealedProductModal({ product, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className={`${layout.maxW} glass max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] shadow-[0_32px_90px_rgba(0,0,0,0.52)]`}
-        style={{
-          background: "rgba(10,10,12,0.92)",
-          border: "1px solid rgba(255,255,255,0.12)",
-        }}
+        className="relative w-full"
+        style={{ maxWidth: layout.maxW }}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className={layout.pad}>
-          <div className={`grid ${layout.gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start`}>
-            <SealedModalPreview
-              product={modalProduct}
-              mediaWidth={layout.mediaWidth}
-              imageSize={layout.imageSize}
-              imagePadding={layout.imagePadding}
-              priceHistoryCount={priceHistory.length}
-              priceFetchedAtLabel={priceFetchedAtLabel}
-              onClose={onClose}
-            />
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-2.5 top-2.5 z-40 inline-flex h-8 w-8 items-center justify-center rounded-xl text-white/42 transition-colors hover:bg-white/[0.055] hover:text-white/86 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:right-3 sm:top-3"
+          aria-label="Close sealed product details"
+          title="Close"
+        >
+          <X className="h-[18px] w-[18px] stroke-[1.8]" />
+        </button>
 
-            <div className="min-w-0 space-y-4">
-              <SealedModalHeroSection
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={modalProduct.name}
+          className="glass relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] [overflow-anchor:none] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)]"
+          style={{
+            background: "rgba(10,10,12,0.92)",
+            border: "1px solid rgba(255,255,255,0.12)",
+          }}
+        >
+          <div className={layout.pad}>
+            <div
+              className={`grid ${layout.gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start`}
+            >
+              <SealedModalPreview
                 product={modalProduct}
-                titleClass={layout.titleClass}
-                metaClassName={layout.metaClassName}
+                mediaWidth={layout.mediaWidth}
+                imageSize={layout.imageSize}
+                imagePadding={layout.imagePadding}
                 priceHistoryCount={priceHistory.length}
-                isBusy={isBusy}
-                refreshing={refreshing}
-                syncingHistory={syncingHistory}
-                actionError={actionError}
-                onRefresh={() => void runSealedAction("refresh")}
-                onSyncHistory={() => void runSealedAction("sync-history")}
+                priceFetchedAtLabel={priceFetchedAtLabel}
                 onClose={onClose}
               />
 
-              <SealedModalPricingSection
-                product={modalProduct}
-                primaryPrice={primaryPrice}
-                priceFetchedAtLabel={priceFetchedAtLabel}
-              />
+              <div className="min-w-0 space-y-3">
+                <SealedModalHeroSection
+                  product={modalProduct}
+                  titleClass={layout.titleClass}
+                  metaClassName={layout.metaClassName}
+                  detailStatClass={layout.detailStatClass}
+                  priceHistoryCount={priceHistory.length}
+                  priceFetchedAtLabel={priceFetchedAtLabel}
+                  isBusy={isBusy}
+                  refreshing={refreshing}
+                  syncingHistory={syncingHistory}
+                  actionError={actionError}
+                  onRefresh={() => void runSealedAction("refresh")}
+                  onSyncHistory={() => void runSealedAction("sync-history")}
+                  onClose={onClose}
+                />
+
+                <SealedModalPricingSection
+                  product={modalProduct}
+                  primaryPrice={primaryPrice}
+                  priceFetchedAtLabel={priceFetchedAtLabel}
+                />
+
+                <SealedModalHistorySection
+                  productId={modalProduct.id}
+                  historyChartsOpen={historyChartsOpen}
+                  chartPoints={chartPoints}
+                  currentValue={primaryPrice}
+                  loading={detailsLoading && priceHistory.length === 0}
+                  onToggleHistoryCharts={toggleHistoryCharts}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="mt-4 sm:mt-5">
-            <SealedModalHistorySection
-              chartPoints={chartPoints}
-              currentValue={primaryPrice}
-              loading={detailsLoading && priceHistory.length === 0}
-            />
-          </div>
+          <SealedModalFooter
+            product={modalProduct}
+            footerGridClass={layout.footerGridClass}
+            cardMarketUrl={cardMarketUrl}
+          />
         </div>
-
-        <SealedModalFooter
-          product={modalProduct}
-          footerGridClass={layout.footerGridClass}
-          cardMarketUrl={cardMarketUrl}
-          onClose={onClose}
-        />
       </div>
     </div>
   );

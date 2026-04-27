@@ -24,6 +24,8 @@ interface SpotlightConfig {
   windowKey: "7d" | "30d";
 }
 
+type TrendTone = "negative" | "positive" | "neutral";
+
 function formatPercent(value: number | null | undefined): string {
   if (value == null) {
     return "--";
@@ -54,7 +56,19 @@ function formatShortDate(value: string): string {
   }).format(new Date(value));
 }
 
-function sourcePillClasses(source: CollectionMoverItem["source"]) {
+function getTrendTone(value: number | null | undefined): TrendTone {
+  if (value == null || value === 0) {
+    return "neutral";
+  }
+
+  return value < 0 ? "negative" : "positive";
+}
+
+function sourcePillClasses(source: CollectionMoverItem["source"], toneValue?: number | null) {
+  if (getTrendTone(toneValue) === "negative") {
+    return "border-rose-400/18 bg-rose-400/[0.08] text-rose-700 dark:text-rose-200";
+  }
+
   return source === "tcgplayer"
     ? "border-blue-400/18 bg-blue-400/[0.08] text-blue-700 dark:text-blue-200"
     : "border-emerald-400/18 bg-emerald-400/[0.08] text-emerald-700 dark:text-emerald-200";
@@ -77,11 +91,63 @@ function getToneClass(value: number | null | undefined): string {
 }
 
 function getSparklineColor(value: number | null | undefined): string {
-  if (value != null && value < 0) {
+  if (getTrendTone(value) === "negative") {
     return "#fb7185";
   }
 
   return "#10b981";
+}
+
+function getCurrentPanelClasses(tone: TrendTone): {
+  panel: string;
+  label: string;
+  icon: string;
+} {
+  if (tone === "negative") {
+    return {
+      panel: "border-rose-400/14 bg-rose-400/[0.08]",
+      label: "text-rose-700/80 dark:text-rose-200/72",
+      icon: "text-rose-700/60 dark:text-rose-200/60",
+    };
+  }
+
+  if (tone === "positive") {
+    return {
+      panel: "border-emerald-400/14 bg-emerald-400/[0.08]",
+      label: "text-emerald-700/80 dark:text-emerald-200/72",
+      icon: "text-emerald-700/60 dark:text-emerald-200/60",
+    };
+  }
+
+  return {
+    panel: "border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.04]",
+    label: "text-gray-400 dark:text-white/34",
+    icon: "text-gray-400 dark:text-white/34",
+  };
+}
+
+function getActiveSourceClasses(tone: TrendTone): {
+  row: string;
+  pill: string;
+} {
+  if (tone === "negative") {
+    return {
+      row: "border-rose-400/20 bg-rose-400/[0.08]",
+      pill: "bg-rose-500/12 text-rose-700 dark:text-rose-200",
+    };
+  }
+
+  if (tone === "positive") {
+    return {
+      row: "border-emerald-400/20 bg-emerald-400/[0.08]",
+      pill: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-200",
+    };
+  }
+
+  return {
+    row: "border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.04]",
+    pill: "bg-black/6 text-gray-500 dark:bg-white/8 dark:text-white/45",
+  };
 }
 
 function getScorePillClass(value: number): string {
@@ -191,19 +257,21 @@ function PriceSourceRow({
   currency,
   points,
   active,
+  trendTone,
 }: {
   label: string;
   value: number | null;
   currency: "EUR" | "USD";
   points: number;
   active: boolean;
+  trendTone: TrendTone;
 }) {
+  const activeClasses = getActiveSourceClasses(trendTone);
+
   return (
     <div
       className={`rounded-xl border px-3 py-2 ${
-        active
-          ? "border-emerald-400/20 bg-emerald-400/[0.08]"
-          : "border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.04]"
+        active ? activeClasses.row : "border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.04]"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -216,7 +284,9 @@ function PriceSourceRow({
           </p>
         </div>
         {active ? (
-          <span className="shrink-0 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-200">
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${activeClasses.pill}`}
+          >
             Active
           </span>
         ) : null}
@@ -271,6 +341,8 @@ const MoverTile = memo(function MoverTile({
   onOpen: (cardId: string) => void;
 }) {
   const open = () => onOpen(item.cardId);
+  const trendTone = getTrendTone(item.moverScore);
+  const currentPanelClasses = getCurrentPanelClasses(trendTone);
 
   return (
     <article
@@ -316,6 +388,7 @@ const MoverTile = memo(function MoverTile({
                 <span>/</span>
                 <Link
                   href={`/expansions/${item.episodeId}`}
+                  prefetch={false}
                   onClick={stopCardOpen}
                   className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
                 >
@@ -327,7 +400,8 @@ const MoverTile = memo(function MoverTile({
 
             <span
               className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${sourcePillClasses(
-                item.source
+                item.source,
+                item.moverScore
               )}`}
             >
               {item.sourceLabel}
@@ -344,8 +418,14 @@ const MoverTile = memo(function MoverTile({
                 {item.normalizedRarity}
               </span>
             ) : null}
-            <span className="inline-flex rounded-full border border-black/8 bg-white/80 px-2.5 py-1 text-[11px] font-medium text-gray-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/60">
-              x{item.ownedCount} owned
+            <span
+              className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                item.ownedCount > 0
+                  ? "border-black/8 bg-white/80 text-gray-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/60"
+                  : "border-black/8 bg-black/[0.035] text-gray-400 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/40"
+              }`}
+            >
+              {item.ownedCount > 0 ? `x${item.ownedCount} owned` : "Not owned"}
             </span>
             <span
               className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${getScorePillClass(
@@ -354,20 +434,27 @@ const MoverTile = memo(function MoverTile({
             >
               Score {item.moverScore.toFixed(1)}
             </span>
+            {item.specificPullOdds ? (
+              <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-amber-700 dark:text-amber-200">
+                Pull {item.specificPullOdds}
+              </span>
+            ) : null}
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <div className="rounded-2xl border border-emerald-400/14 bg-emerald-400/[0.08] px-3 py-3">
+            <div className={`rounded-2xl border px-3 py-3 ${currentPanelClasses.panel}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700/80 dark:text-emerald-200/72">
+                  <p
+                    className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${currentPanelClasses.label}`}
+                  >
                     Current
                   </p>
                   <p className="mt-2 truncate text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
                     {formatCurrency(item.currentPrice, item.currency)}
                   </p>
                 </div>
-                <BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700/60 dark:text-emerald-200/60" />
+                <BarChart3 className={`mt-0.5 h-4 w-4 shrink-0 ${currentPanelClasses.icon}`} />
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-white/46">
                 Updated {formatShortDate(item.latestFetchedAt)}
@@ -387,6 +474,7 @@ const MoverTile = memo(function MoverTile({
               currency="EUR"
               points={item.cardmarketHistoryPoints}
               active={item.source === "cardmarket"}
+              trendTone={trendTone}
             />
             <PriceSourceRow
               label="TCGPlayer"
@@ -394,6 +482,7 @@ const MoverTile = memo(function MoverTile({
               currency="USD"
               points={item.tcgplayerHistoryPoints}
               active={item.source === "tcgplayer"}
+              trendTone={trendTone}
             />
           </div>
 
@@ -458,6 +547,16 @@ const MoverTile = memo(function MoverTile({
                 Weight
               </p>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-white/46">
+                {item.pullRateWeight != null ? (
+                  <span className="rounded-lg bg-amber-400/[0.08] px-2 py-1 text-amber-700 dark:text-amber-200">
+                    Odds {item.pullRateWeight.toFixed(2)}
+                  </span>
+                ) : null}
+                {item.specificPullOdds ? (
+                  <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
+                    Pull {item.specificPullOdds}
+                  </span>
+                ) : null}
                 <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
                   Rarity {item.rarityWeight.toFixed(2)}
                 </span>
@@ -546,6 +645,7 @@ function MoverSpotlightCard({
               <span>/</span>
               <Link
                 href={`/expansions/${item.episodeId}`}
+                prefetch={false}
                 onClick={stopCardOpen}
                 className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
               >
@@ -668,6 +768,7 @@ function PocketPreviewCard({
       <div className="mt-4">
         <Link
           href={href}
+          prefetch={false}
           className="inline-flex items-center rounded-full border border-black/8 bg-white/80 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:border-black/16 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/75 dark:hover:border-white/16 dark:hover:text-white"
         >
           {hrefLabel}

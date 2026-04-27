@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { buildCardPriceHistory } from "@/lib/price-history";
+import {
+  buildLinkedBinderCostBasis,
+  getCollectionCardMarketValue,
+  type CollectionCostBasis,
+} from "@/lib/collection";
+import { buildCardGradedPriceHistory, buildCardPriceHistory } from "@/lib/price-history";
+import { getPullRateInfoForSetRarity } from "@/lib/pull-rates";
 import {
   runCardPriceRefresh,
   runSingleCardHistoryImport,
@@ -11,6 +17,92 @@ import { isTcggoQuotaExceededError } from "@/lib/tcggo";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 
 type CardAction = "refresh" | "sync-history";
+
+type CardDetailCollectionItem = {
+  id: string;
+  binder_id: string | null;
+  purchase_price: number | null;
+  grading_company: string | null;
+  grading_grade: string | null;
+  binder: {
+    id: string;
+    type: string;
+    episode_id: string | null;
+    base_purchase_price: number | null;
+  } | null;
+};
+
+function buildDirectCostBasis(purchasePrice: number | null): CollectionCostBasis | null {
+  return purchasePrice == null
+    ? null
+    : {
+        value: purchasePrice,
+        label: "Paid",
+        source: "direct",
+      };
+}
+
+async function getCardDetailCostBasis(
+  collectionItem: CardDetailCollectionItem | null
+): Promise<CollectionCostBasis | null> {
+  if (!collectionItem) return null;
+
+  const binder = collectionItem.binder;
+  if (binder?.type === "linked_set" && binder.episode_id) {
+    const binderCards = await db.collectionCard.findMany({
+      where: { binder_id: binder.id },
+      select: {
+        id: true,
+        purchase_price: true,
+        grading_company: true,
+        grading_grade: true,
+        card: {
+          select: {
+            episode_id: true,
+            prices: {
+              orderBy: { fetched_at: "desc" },
+              take: 1,
+              select: {
+                cm_en_lowest_nm: true,
+                cm_de_lowest_nm: true,
+                cm_fr_lowest_nm: true,
+                cm_es_lowest_nm: true,
+                cm_it_lowest_nm: true,
+              },
+            },
+            gradedPrices: {
+              orderBy: [{ price: "desc" }, { label: "asc" }],
+              select: {
+                label: true,
+                price: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    const allocation = buildLinkedBinderCostBasis({
+      binderType: binder.type,
+      binderEpisodeId: binder.episode_id,
+      binderBasePurchasePrice: binder.base_purchase_price,
+      items: binderCards.map((item) => ({
+        itemId: item.id,
+        episodeId: item.card.episode_id,
+        directPurchasePrice: item.purchase_price,
+        currentValue: getCollectionCardMarketValue(item.card, {
+          gradingCompany: item.grading_company,
+          gradingGrade: item.grading_grade,
+        }),
+      })),
+    });
+    const allocated = allocation.get(collectionItem.id);
+    if (allocated) {
+      return allocated;
+    }
+  }
+
+  return buildDirectCostBasis(collectionItem.purchase_price);
+}
 
 async function getCardDetailPayload(id: string) {
   const card = await db.card.findUnique({
@@ -50,6 +142,14 @@ async function getCardDetailPayload(id: string) {
               label: true,
             },
           },
+          binder: {
+            select: {
+              id: true,
+              type: true,
+              episode_id: true,
+              base_purchase_price: true,
+            },
+          },
         },
       },
       gradedPrices: {
@@ -57,6 +157,14 @@ async function getCardDetailPayload(id: string) {
         select: {
           label: true,
           price: true,
+        },
+      },
+      gradedPriceSnapshots: {
+        orderBy: [{ label: "asc" }, { fetched_at: "asc" }],
+        select: {
+          label: true,
+          price: true,
+          fetched_at: true,
         },
       },
       prices: {
@@ -84,7 +192,13 @@ async function getCardDetailPayload(id: string) {
 
   const latestPrice = card.prices[card.prices.length - 1] ?? null;
   const priceHistory = buildCardPriceHistory(card.prices);
+  const gradedPriceHistory = buildCardGradedPriceHistory(card.gradedPriceSnapshots);
+  const pullRateInfo = await getPullRateInfoForSetRarity({
+    setCode: card.episode.code,
+    rarity: card.rarity,
+  });
   const collectionItem = card.collectionItems[0] ?? null;
+  const collectionCostBasis = await getCardDetailCostBasis(collectionItem);
 
   return {
     id: card.id,
@@ -119,7 +233,18 @@ async function getCardDetailPayload(id: string) {
         }
       : null,
     graded_prices: card.gradedPrices,
+    graded_price_history: gradedPriceHistory,
     price_history: priceHistory,
+    pull_rate_info: pullRateInfo
+      ? {
+          source: pullRateInfo.source,
+          rarity_name: pullRateInfo.rarityName,
+          pull_rate_odds: pullRateInfo.pullRateOdds,
+          specific_pull_odds: pullRateInfo.specificPullOdds,
+          pull_rate_weight: pullRateInfo.pullRateWeight,
+          psa_avg_gem_pct: pullRateInfo.psaAvgGemPct,
+        }
+      : null,
     episode_id: card.episode.id,
     episode_name: card.episode.name,
     episode_code: card.episode.code,
@@ -128,6 +253,9 @@ async function getCardDetailPayload(id: string) {
           id: collectionItem.id,
           binder_id: collectionItem.binder_id,
           purchase_price: collectionItem.purchase_price,
+          cost_basis_value: collectionCostBasis?.value ?? null,
+          cost_basis_label: collectionCostBasis?.label ?? "Paid",
+          cost_basis_source: collectionCostBasis?.source ?? "direct",
           condition: collectionItem.condition,
           language: collectionItem.language,
           notes: collectionItem.notes,

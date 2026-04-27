@@ -1,7 +1,13 @@
 import nextDynamic from "next/dynamic";
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { BookOpen, Boxes, Coins, Sparkles, TrendingUp } from "lucide-react";
+import { BookOpen, Boxes, Coins, Sparkles } from "lucide-react";
+import {
+  HeaderAction,
+  HeaderStatCard,
+  PageHeroHeader,
+  type HeaderStat,
+} from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
   getCollectionOverviewData,
@@ -52,6 +58,7 @@ function TabLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
         active
           ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
@@ -91,36 +98,30 @@ export default async function HomePage({
 
   const summaryCards = [
     {
-      label: "Collection Value",
-      value: formatCollectionCurrency(data.overview.currentValue),
-      Icon: TrendingUp,
-      iconClass: "text-emerald-500 dark:text-emerald-300",
-    },
-    {
       label: "Spent",
       value: formatCollectionCurrency(data.overview.investment),
       Icon: Coins,
-      iconClass: "text-amber-500 dark:text-amber-300",
+      tone: "amber",
     },
     {
       label: "Cards",
       value: data.overview.totalCards.toLocaleString(),
       Icon: Sparkles,
-      iconClass: "text-sky-500 dark:text-sky-300",
+      tone: "sky",
     },
     {
       label: "Sealed",
       value: data.overview.totalSealedUnits.toLocaleString(),
       Icon: Boxes,
-      iconClass: "text-rose-500 dark:text-rose-300",
+      tone: "rose",
     },
     {
       label: "Binders",
       value: data.overview.totalBinders.toLocaleString(),
       Icon: BookOpen,
-      iconClass: "text-violet-500 dark:text-violet-300",
+      tone: "violet",
     },
-  ];
+  ] satisfies HeaderStat[];
 
   const hasCollection =
     data.overview.totalCards > 0 ||
@@ -152,70 +153,47 @@ export default async function HomePage({
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="flex w-full flex-col gap-8">
-        <section className="grid gap-4 xl:grid-cols-12 xl:items-stretch">
-          <div className="relative overflow-hidden rounded-[28px] border border-black/8 bg-black/[0.03] px-5 py-6 shadow-lg shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] sm:px-6 sm:py-7 xl:col-span-4 xl:min-h-[272px] xl:px-7 xl:py-7">
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.03),transparent_38%,rgba(255,255,255,0.02))]" />
-
-            <div className="relative flex flex-col gap-6 xl:min-h-[212px] xl:justify-between">
-              <div className="max-w-3xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gray-400 dark:text-white/35">
-                  DustyCards
-                </p>
-                <h1 className="mt-3 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-                  DustyCards Collection
-                </h1>
-                <p className="mt-2 max-w-2xl text-sm text-gray-500 dark:text-white/50">
-                  Keep track of your singles, binders and sealed with the same live market data you already use everywhere else.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
+        <PageHeroHeader
+          eyebrow="DustyCards"
+          title="DustyCards Collection"
+          description="Keep track of your singles, binders and sealed with the same live market data you already use everywhere else."
+          gridClassName="xl:grid-cols-[minmax(19rem,0.6fr)_minmax(0,1.7fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.58fr)_minmax(0,2.15fr)] 2xl:items-stretch"
+          sideClassName="xl:space-y-0"
+          actions={
+            <HeaderAction>
                 <CreateBinderButton />
                 <Link
                   href="/expansions"
+                  prefetch={false}
                   className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
                 >
                   Browse Expansions
                 </Link>
+            </HeaderAction>
+          }
+          accessory={
+            <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(30rem,1.45fr)_minmax(20rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(42rem,1.55fr)_minmax(28rem,0.9fr)]">
+              <div className="min-w-0 [&>section]:h-full">
+                <PriceHistoryPanel
+                  layout="hero"
+                  title="Collection Value"
+                  currency="EUR"
+                  points={data.overview.chart}
+                  currentValue={data.overview.currentValue}
+                  subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
+                    data.overview.pnl
+                  )}`}
+                  emptyText="Add cards or sealed to start tracking your value"
+                />
+              </div>
+              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:auto-rows-fr">
+                {summaryCards.map((stat) => (
+                  <HeaderStatCard key={stat.label} {...stat} />
+                ))}
               </div>
             </div>
-          </div>
-
-          <div className="xl:col-span-5 xl:min-h-[272px] [&>section]:h-full">
-            <PriceHistoryPanel
-              title="Collection Value"
-              currency="EUR"
-              points={data.overview.chart}
-              currentValue={data.overview.currentValue}
-              layout="hero"
-              subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
-                data.overview.pnl
-              )}`}
-              emptyText="Add cards or sealed to start tracking your value"
-            />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:col-span-3 xl:auto-rows-fr">
-            {summaryCards.map(({ label, value, Icon, iconClass }, index) => (
-              <div
-                key={label}
-                className={`flex h-full flex-col justify-between rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.03] dark:shadow-none ${
-                  index === summaryCards.length - 1 ? "sm:col-span-2" : ""
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Icon className={`h-4 w-4 ${iconClass}`} />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-white/35">
-                    {label}
-                  </span>
-                </div>
-                <p className="mt-3 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                  {value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
+          }
+        />
 
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">

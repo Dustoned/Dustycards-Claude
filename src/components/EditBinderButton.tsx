@@ -124,7 +124,7 @@ export default function EditBinderButton({ binder }: { binder: BinderRef }) {
                 </label>
 
                 <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">Binder paid</span>
+                  <span className="text-white/60">Binder spend</span>
                   <input
                     type="number"
                     min="0"

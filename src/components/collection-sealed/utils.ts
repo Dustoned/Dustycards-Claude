@@ -5,10 +5,10 @@ import type { CollectionSealedViewItem } from "./types";
 
 export function selectionToggleTextClass(active: boolean): string {
   if (active) {
-    return "shrink-0 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-300 dark:hover:text-blue-200";
+    return "shrink-0 text-[length:var(--ui-chip-font-size)] font-semibold text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-300 dark:hover:text-blue-200";
   }
 
-  return "shrink-0 text-xs font-medium text-gray-400 transition-colors hover:text-gray-900 dark:text-white/45 dark:hover:text-white/75";
+  return "shrink-0 text-[length:var(--ui-chip-font-size)] font-medium text-gray-400 transition-colors hover:text-gray-900 dark:text-white/45 dark:hover:text-white/75";
 }
 
 export function buildModalProduct(item: CollectionSealedViewItem): SealedModalProductData {

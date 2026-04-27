@@ -29,6 +29,54 @@ model Episode {
   @@index([source_status, source_checked_at])
 }
 
+model SetPullRateProfile {
+  id                    String   @id @default(cuid())
+  source                String   @default("collectrics")
+  set_code              String
+  set_name              String?
+  generated_at          String?
+  release_date          String?
+  promo_flag            String?
+  rarity_buckets        Int?
+  cards_counted         Int?
+  psa_pop_10_base       Int?
+  psa_pop_total_base    Int?
+  psa_avg_gem_pct       Float?
+  imported_at           DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  rarities              SetPullRateRarity[]
+
+  @@unique([source, set_code])
+  @@index([set_code])
+  @@index([imported_at])
+}
+
+model SetPullRateRarity {
+  id                         String   @id @default(cuid())
+  profile_id                 String
+  source                     String
+  set_code                   String
+  normalized_rarity          String
+  rarity_code                String?
+  rarity_name                String
+  card_count                 Int?
+  pull_rate                  Float?
+  pull_rate_odds             String?
+  pull_rate_denominator      Float?
+  specific_pull_denominator  Float?
+  psa_pop_10_base            Int?
+  psa_pop_total_base         Int?
+  psa_avg_gem_pct            Float?
+  imported_at                DateTime @default(now())
+
+  profile                    SetPullRateProfile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([profile_id, normalized_rarity])
+  @@index([source, set_code])
+  @@index([source, set_code, normalized_rarity])
+}
+
 model SealedProduct {
   id              String   @id
   episode_id      String
@@ -106,6 +154,7 @@ model Card {
   episode         Episode  @relation(fields: [episode_id], references: [id])
   collectionItems CollectionCard[]
   gradedPrices    CardGradedPrice[]
+  gradedPriceSnapshots CardGradedPriceSnapshot[]
   prices          Price[]
 
   @@index([episode_id])
@@ -127,6 +176,20 @@ model CardGradedPrice {
 
   @@index([card_id])
   @@unique([card_id, label])
+}
+
+model CardGradedPriceSnapshot {
+  id         String   @id @default(cuid())
+  card_id    String
+  label      String
+  price      Float
+  fetched_at DateTime @default(now())
+
+  card       Card     @relation(fields: [card_id], references: [id], onDelete: Cascade)
+
+  @@index([card_id])
+  @@index([card_id, label, fetched_at])
+  @@index([fetched_at])
 }
 
 model CollectionBinder {

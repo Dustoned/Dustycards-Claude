@@ -63,12 +63,12 @@ interface Props {
 
 function metaChipClass(accent = false): string {
   return accent
-    ? "inline-flex items-center gap-2 rounded-full border border-blue-500/25 bg-blue-500/10 px-3 py-1.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300"
-    : "inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55";
+    ? "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-blue-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-blue-700 dark:text-blue-300"
+    : "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55";
 }
 
 function actionButtonClass(active = false): string {
-  return `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+  return `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors ${
     active
       ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
       : "border-black/8 bg-white/70 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
@@ -80,15 +80,15 @@ function sectionCardClass(): string {
 }
 
 function sectionLabelClass(): string {
-  return "text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35";
+  return "text-[length:var(--ui-chip-count-font-size)] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35";
 }
 
 function compactSegmentedShellClass(): string {
-  return "inline-flex overflow-hidden rounded-xl border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.03]";
+  return "inline-flex overflow-hidden rounded-[var(--ui-segment-radius)] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.03]";
 }
 
 function segmentedButtonClass(active: boolean): string {
-  return `px-3 py-1.5 text-xs font-semibold transition-colors ${
+  return `px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
     active
       ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
       : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
@@ -96,7 +96,7 @@ function segmentedButtonClass(active: boolean): string {
 }
 
 function countBadgeClass(active: boolean): string {
-  return `rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+  return `inline-flex min-h-[var(--ui-chip-count-min-height)] items-center rounded-full px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)] font-semibold leading-none ${
     active
       ? "bg-black/12 text-current dark:bg-white/12"
       : "bg-black/6 text-gray-400 dark:bg-white/8 dark:text-white/35"
@@ -104,7 +104,7 @@ function countBadgeClass(active: boolean): string {
 }
 
 function activeFilterChipClass(): string {
-  return "inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-black/[0.035] px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white";
+  return "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-black/[0.035] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white";
 }
 
 function toolbarFilterButtonClass(className: string): string {
@@ -298,7 +298,7 @@ export default function CardBrowserToolbar({
             <section className={sectionCardClass()}>
               <div className="flex items-center justify-between gap-2">
                 <p className={sectionLabelClass()}>Quick Filters</p>
-                <span className="text-[11px] text-gray-400 dark:text-white/35">
+                <span className="text-[length:var(--ui-chip-count-font-size)] text-gray-400 dark:text-white/35">
                   {quickFilters.filter((filter) => filter.active).length} active
                 </span>
               </div>
@@ -326,7 +326,7 @@ export default function CardBrowserToolbar({
             <section key={section.key} className={`${sectionCardClass()} ${section.className ?? ""}`}>
               <div className="flex items-center justify-between gap-2">
                 <p className={sectionLabelClass()}>{section.title}</p>
-                <span className="text-[11px] text-gray-400 dark:text-white/35">
+                <span className="text-[length:var(--ui-chip-count-font-size)] text-gray-400 dark:text-white/35">
                   {section.summary}
                 </span>
               </div>

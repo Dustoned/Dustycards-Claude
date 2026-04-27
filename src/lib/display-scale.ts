@@ -5,33 +5,33 @@ type DisplayMode = "normal" | "wide";
 type TrackScale = Record<CardSize, Record<DisplayMode, number>>;
 
 const CARD_GRID_TRACK: TrackScale = {
-  small: { normal: 112, wide: 136 },
-  medium: { normal: 176, wide: 226 },
-  large: { normal: 280, wide: 360 },
+  small: { normal: 160, wide: 192 },
+  medium: { normal: 220, wide: 280 },
+  large: { normal: 340, wide: 430 },
 };
 
 const SUPPORT_TILE_TRACK: TrackScale = {
-  small: { normal: 150, wide: 170 },
-  medium: { normal: 230, wide: 270 },
-  large: { normal: 360, wide: 440 },
+  small: { normal: 200, wide: 230 },
+  medium: { normal: 285, wide: 340 },
+  large: { normal: 430, wide: 520 },
 };
 
 const SEALED_PRODUCT_TRACK: TrackScale = {
-  small: { normal: 160, wide: 190 },
-  medium: { normal: 260, wide: 310 },
-  large: { normal: 380, wide: 460 },
+  small: { normal: 220, wide: 250 },
+  medium: { normal: 320, wide: 380 },
+  large: { normal: 470, wide: 560 },
 };
 
 const RICH_MOVER_TRACK: TrackScale = {
-  small: { normal: 280, wide: 320 },
-  medium: { normal: 360, wide: 420 },
-  large: { normal: 500, wide: 580 },
+  small: { normal: 360, wide: 420 },
+  medium: { normal: 460, wide: 540 },
+  large: { normal: 620, wide: 720 },
 };
 
 const DETAIL_MODAL_MEDIA: Record<ModalSize, { imagePx: number; mediaWidth: string }> = {
-  small: { imagePx: 168, mediaWidth: "w-[10.5rem]" },
-  medium: { imagePx: 264, mediaWidth: "w-[16.5rem]" },
-  large: { imagePx: 420, mediaWidth: "w-[26.25rem]" },
+  small: { imagePx: 224, mediaWidth: "14rem" },
+  medium: { imagePx: 320, mediaWidth: "20rem" },
+  large: { imagePx: 448, mediaWidth: "28rem" },
 };
 
 function displayMode(widescreen: boolean): DisplayMode {
@@ -69,10 +69,12 @@ export function getExpansionTileScale(uiScale: UiScale, widescreen: boolean) {
     return {
       minWidth,
       tileClass: "rounded-2xl p-3 gap-2.5",
-      logoHeightClass: "h-12",
-      fallbackHeightClass: "h-12",
+      logoHeightClass: "h-14",
+      fallbackHeightClass: "h-14",
       titleClass: "text-xs",
       metaClass: "text-xs",
+      valueClass: "text-sm",
+      progressHeightClass: "h-1",
     };
   }
 
@@ -80,20 +82,24 @@ export function getExpansionTileScale(uiScale: UiScale, widescreen: boolean) {
     return {
       minWidth,
       tileClass: "rounded-[24px] p-6 gap-5",
-      logoHeightClass: "h-24",
-      fallbackHeightClass: "h-24",
-      titleClass: "text-base",
+      logoHeightClass: "h-28",
+      fallbackHeightClass: "h-28",
+      titleClass: "text-lg",
       metaClass: "text-sm",
+      valueClass: "text-xl",
+      progressHeightClass: "h-2",
     };
   }
 
   return {
     minWidth,
     tileClass: "rounded-2xl p-3.5 gap-3",
-    logoHeightClass: "h-14",
-    fallbackHeightClass: "h-14",
-    titleClass: "text-xs",
+    logoHeightClass: "h-[4.5rem]",
+    fallbackHeightClass: "h-[4.5rem]",
+    titleClass: "text-sm",
     metaClass: "text-xs",
+    valueClass: "text-base",
+    progressHeightClass: "h-1.5",
   };
 }
 
@@ -141,38 +147,38 @@ export function getDetailModalScale(size: ModalSize, widescreen: boolean) {
 
   if (size === "small") {
     return {
-      footerPad: "px-2.5 pb-2.5 sm:px-3 sm:pb-3",
-      gridGap: "gap-2.5 sm:gap-3",
+      footerPad: "px-3 pb-3 sm:px-4 sm:pb-4",
+      gridGap: "gap-3 sm:gap-4",
       imageSize,
-      maxW: widescreen ? "max-w-[50rem]" : "max-w-[44rem]",
+      maxW: widescreen ? "66rem" : "62rem",
       mediaWidth: media.mediaWidth,
-      metaClassName: "text-[12px]",
-      pad: "p-2.5 sm:p-3",
-      titleClass: "text-[1.25rem] sm:text-[1.4rem]",
+      metaClassName: "text-[13px]",
+      pad: "p-3 sm:p-4",
+      titleClass: "text-[1.55rem] sm:text-[1.75rem]",
     };
   }
 
   if (size === "large") {
     return {
-      footerPad: "px-4 pb-4 sm:px-5 sm:pb-5 xl:px-6 xl:pb-6",
-      gridGap: "gap-5 sm:gap-6 xl:gap-8",
+      footerPad: "px-6 pb-6 sm:px-7 sm:pb-7 xl:px-8 xl:pb-8",
+      gridGap: "gap-7 sm:gap-8",
       imageSize,
-      maxW: widescreen ? "max-w-[96rem]" : "max-w-[88rem]",
+      maxW: widescreen ? "112rem" : "104rem",
       mediaWidth: media.mediaWidth,
-      metaClassName: "text-[15px] sm:text-base",
-      pad: "p-5 sm:p-6 xl:p-8",
-      titleClass: "text-[2.15rem] sm:text-[2.5rem] xl:text-[2.85rem]",
+      metaClassName: "text-[17px] sm:text-lg",
+      pad: "p-7 sm:p-8",
+      titleClass: "text-[2.75rem] sm:text-[3.1rem]",
     };
   }
 
   return {
-    footerPad: "px-3 pb-3 sm:px-4 sm:pb-4",
-    gridGap: "gap-3 sm:gap-4",
+    footerPad: "px-5 pb-5 sm:px-6 sm:pb-6",
+    gridGap: "gap-5 sm:gap-6",
     imageSize,
-    maxW: widescreen ? "max-w-[72rem]" : "max-w-[62rem]",
+    maxW: widescreen ? "88rem" : "82rem",
     mediaWidth: media.mediaWidth,
-    metaClassName: "text-[13px]",
-    pad: "p-3 sm:p-4",
-    titleClass: "text-[1.55rem] sm:text-[1.75rem]",
+    metaClassName: "text-[15px] sm:text-base",
+    pad: "p-5 sm:p-6",
+    titleClass: "text-[2.1rem] sm:text-[2.4rem]",
   };
 }

@@ -113,7 +113,13 @@ export default function CollectionAddSealedButton({
         className={buttonClasses(mode, theme, className)}
         aria-label={`Add ${product.name} to collection`}
       >
-        <Plus className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        <Plus
+          className={
+            mode === "icon"
+              ? "h-[calc(var(--ui-chip-font-size)+0.25rem)] w-[calc(var(--ui-chip-font-size)+0.25rem)]"
+              : "h-4 w-4"
+          }
+        />
         {mode === "button" && <span>{flashAdded ? "Added" : label}</span>}
       </button>
 

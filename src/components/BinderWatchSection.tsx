@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
+import { HeaderPill, SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
 import type { CollectionCardViewItem } from "@/types/collection-view";
@@ -31,25 +32,25 @@ export default function BinderWatchSection({
 
   return (
     <section>
-      <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-          Binder Watch
-        </h2>
-        <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-          {watchedItems.length}
-        </span>
-        <span className="rounded-full border border-black/8 px-2 py-0.5 text-xs font-medium text-gray-500 dark:border-white/8 dark:text-white/45">
-          {formatCollectionCurrency(threshold)}+
-        </span>
-        <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-        {sectionTrailing}
-        <Link
-          href="/settings"
-          className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-700 dark:text-white/45 dark:hover:text-white/75"
-        >
-          Change threshold
-        </Link>
-      </div>
+      <SectionHeader
+        title="Binder Watch"
+        count={watchedItems.length}
+        compact
+        className="mb-4"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <HeaderPill>{formatCollectionCurrency(threshold)}+</HeaderPill>
+            {sectionTrailing}
+            <Link
+              href="/settings"
+              prefetch={false}
+              className="text-xs font-medium text-gray-400 transition-colors hover:text-gray-700 dark:text-white/45 dark:hover:text-white/75"
+            >
+              Change threshold
+            </Link>
+          </div>
+        }
+      />
 
       <CollectionCardsView
         items={watchedItems}

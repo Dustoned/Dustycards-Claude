@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { RotateCcw, X } from "lucide-react";
+import { useSettings, type Card3dSize } from "@/components/SettingsProvider";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import IllustratorLink from "@/components/IllustratorLink";
 import { withCardMarketFilters } from "@/lib/cardmarket";
@@ -86,7 +87,36 @@ const PSA_CARD_COVER_Z = PSA_FRONT_RECESS_Z + 0.0015;
 const PSA_LABEL_COVER_Z = PSA_FRONT_RECESS_Z + 0.0015;
 const DEFAULT_CAMERA_DISTANCE = 8.55;
 const MIN_CAMERA_DISTANCE = 4.4;
-const MAX_CAMERA_DISTANCE = 10.8;
+const MAX_CAMERA_DISTANCE = 22;
+const CAMERA_TARGET_FOLLOW = 0.16;
+
+interface Card3dSizeConfig {
+  resetDistanceScale: number;
+  minimumFitScale: number;
+  offsetScale: number;
+}
+
+const CARD_3D_SIZE_CONFIG: Record<Card3dSize, Card3dSizeConfig> = {
+  small: {
+    resetDistanceScale: 1.28,
+    minimumFitScale: 1.16,
+    offsetScale: 1.22,
+  },
+  medium: {
+    resetDistanceScale: 1.04,
+    minimumFitScale: 0.98,
+    offsetScale: 1.14,
+  },
+  large: {
+    resetDistanceScale: 0.86,
+    minimumFitScale: 0.86,
+    offsetScale: 1.08,
+  },
+};
+
+function getCard3dSizeConfig(size: Card3dSize): Card3dSizeConfig {
+  return CARD_3D_SIZE_CONFIG[size] ?? CARD_3D_SIZE_CONFIG.medium;
+}
 
 function formatCurrency(value: number | null | undefined, currency: CurrencyCode = "EUR"): string {
   if (value == null) return "--";
@@ -900,29 +930,37 @@ function getSafeCameraDistance(
 }
 
 function getBaseFramingOffset(viewportWidth: number) {
-  if (viewportWidth >= 1536) return 0.78;
-  if (viewportWidth >= 1280) return 0.68;
+  if (viewportWidth >= 1536) return 0.94;
+  if (viewportWidth >= 1280) return 0.62;
   if (viewportWidth >= 1024) return 0.5;
-  if (viewportWidth >= 768) return 0.22;
+  if (viewportWidth >= 768) return 0.28;
   return 0;
 }
 
-function getFramingOffset(viewportWidth: number, cameraDistance: number) {
+function getFramingOffset(
+  viewportWidth: number,
+  cameraDistance: number,
+  resetCameraDistance: number,
+  offsetScale: number
+) {
   const baseOffset = getBaseFramingOffset(viewportWidth);
   if (baseOffset === 0) return 0;
 
   const minOffset = 0;
-  const zoomRange = Math.max(DEFAULT_CAMERA_DISTANCE - MIN_CAMERA_DISTANCE, 0.001);
+  const zoomRange = Math.max(resetCameraDistance - MIN_CAMERA_DISTANCE, 0.001);
   const zoomProgress = clamp(
-    (DEFAULT_CAMERA_DISTANCE - cameraDistance) / zoomRange,
+    (resetCameraDistance - cameraDistance) / zoomRange,
     0,
     1
   );
 
-  return baseOffset + (minOffset - baseOffset) * zoomProgress;
+  const scaledBaseOffset = baseOffset * offsetScale;
+  return scaledBaseOffset + (minOffset - scaledBaseOffset) * zoomProgress;
 }
 
 export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, onClose }: Props) {
+  const { settings } = useSettings();
+  const card3dSize = settings.card3dSize;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const detailsRef = useRef<HTMLDivElement | null>(null);
@@ -970,6 +1008,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     if (!renderHostElement) return;
     const renderHost: HTMLDivElement = renderHostElement;
     const host: HTMLDivElement = renderHostElement;
+    const sizeConfig = getCard3dSizeConfig(card3dSize);
 
     setIsReady(false);
     setHasError(false);
@@ -1336,8 +1375,19 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
         const objectBoundingRadius = Math.max(objectSize.length() / 2, CARD_WIDTH * 0.8);
 
         const targetRotation = { ...initialRotationRef.current };
-        const getResetCameraDistance = () =>
+        const getFitCameraDistance = () =>
           Math.max(DEFAULT_CAMERA_DISTANCE, getSafeCameraDistance(camera, objectBoundingRadius));
+        const getResetCameraDistance = () => {
+          const fitDistance = getFitCameraDistance();
+          return clamp(
+            Math.max(
+              fitDistance * sizeConfig.resetDistanceScale,
+              fitDistance * sizeConfig.minimumFitScale
+            ),
+            MIN_CAMERA_DISTANCE,
+            MAX_CAMERA_DISTANCE
+          );
+        };
 
         let targetCameraDistance = getResetCameraDistance();
         const activePointers = new Map<number, { x: number; y: number }>();
@@ -1355,9 +1405,14 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
         };
 
         const updateFraming = () => {
-          const offsetX = getFramingOffset(host.clientWidth, camera.position.z);
+          const offsetX = getFramingOffset(
+            host.clientWidth,
+            camera.position.z,
+            getResetCameraDistance(),
+            sizeConfig.offsetScale
+          );
           cardGroup.position.x = offsetX;
-          cameraTarget.set(offsetX, 0, 0);
+          cameraTarget.set(offsetX * CAMERA_TARGET_FOLLOW, 0, 0);
           camera.lookAt(cameraTarget);
         };
 
@@ -1545,9 +1600,15 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
           cardGroup.rotation.z = 0;
           camera.position.z += (targetCameraDistance - camera.position.z) * 0.18;
           camera.position.z = clamp(camera.position.z, minCameraDistance, MAX_CAMERA_DISTANCE);
+          const offsetX = getFramingOffset(
+            host.clientWidth,
+            camera.position.z,
+            getResetCameraDistance(),
+            sizeConfig.offsetScale
+          );
           cardGroup.position.x +=
-            (getFramingOffset(host.clientWidth, camera.position.z) - cardGroup.position.x) * 0.18;
-          cameraTarget.set(cardGroup.position.x, 0, 0);
+            (offsetX - cardGroup.position.x) * 0.18;
+          cameraTarget.set(cardGroup.position.x * CAMERA_TARGET_FOLLOW, 0, 0);
           camera.lookAt(cameraTarget);
           renderer?.render(scene, camera);
         };
@@ -1588,6 +1649,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     card.episode_name,
     gradingGradeLabel,
     isPsaSlabViewer,
+    card3dSize,
   ]);
 
   const cardMarketPriceRows = [

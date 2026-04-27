@@ -2,6 +2,12 @@ import { cookies } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight, BrushCleaning, LibraryBig, Sparkles } from "lucide-react";
+import {
+  HeaderAction,
+  PageHeroHeader,
+  SectionHeader,
+  type HeaderStat,
+} from "@/components/PageHeader";
 import { db } from "@/lib/db";
 import { getFixedTrackGridTemplate, getIllustratorTileScale } from "@/lib/display-scale";
 import IllustratorSortToggle from "@/app/illustrators/IllustratorSortToggle";
@@ -229,72 +235,48 @@ export default async function IllustratorsPage({
     (total, illustrator) => total + illustrator.pricedCount,
     0
   );
+  const headerStats = [
+    {
+      label: "Illustrators",
+      value: totalIllustrators.toLocaleString(),
+      Icon: BrushCleaning,
+      tone: "amber",
+    },
+    {
+      label: "Tracked cards",
+      value: trackedCards.toLocaleString(),
+      Icon: LibraryBig,
+      tone: "emerald",
+    },
+    {
+      label: "Priced cards",
+      value: pricedCards.toLocaleString(),
+      Icon: Sparkles,
+      tone: "rose",
+    },
+  ] satisfies HeaderStat[];
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="relative mb-10 overflow-hidden rounded-[28px] border border-black/8 bg-black/[0.03] px-5 py-6 shadow-lg shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] sm:px-6 sm:py-7">
-        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.03),transparent_38%,rgba(255,255,255,0.02))]" />
-
-        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gray-400 dark:text-white/35">
-              Dusty Cards Collection
-            </p>
-            <h1 className="mt-3 text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-              Illustrators
-            </h1>
-            <p className="mt-2 max-w-xl text-sm text-gray-500 dark:text-white/50">
-              {totalIllustrators.toLocaleString()} illustrators across {trackedCards.toLocaleString()} tracked
-              cards.
-            </p>
+      <PageHeroHeader
+        eyebrow="Dusty Cards Collection"
+        title="Illustrators"
+        description={`${totalIllustrators.toLocaleString()} illustrators across ${trackedCards.toLocaleString()} tracked cards.`}
+        className="mb-10"
+        stats={headerStats}
+        actions={
+          <HeaderAction>
             <Link
               href="/settings"
-              className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+              prefetch={false}
+              className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/75 px-3 py-1.5 font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/58 dark:hover:border-white/18 dark:hover:text-white"
             >
               Display tools in Settings
               <ArrowUpRight className="h-4 w-4" />
             </Link>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[32rem]">
-            {[
-              {
-                label: "Illustrators",
-                value: totalIllustrators.toLocaleString(),
-                Icon: BrushCleaning,
-                iconClass: "text-amber-500 dark:text-amber-300",
-              },
-              {
-                label: "Tracked cards",
-                value: trackedCards.toLocaleString(),
-                Icon: LibraryBig,
-                iconClass: "text-emerald-500 dark:text-emerald-300",
-              },
-              {
-                label: "Priced cards",
-                value: pricedCards.toLocaleString(),
-                Icon: Sparkles,
-                iconClass: "text-rose-500 dark:text-rose-300",
-              },
-            ].map(({ label, value, Icon, iconClass }) => (
-              <div
-                key={label}
-                className="rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-4 dark:border-white/8 dark:bg-white/[0.03]"
-              >
-                <div className="flex items-center gap-2">
-                  <Icon className={`h-4 w-4 ${iconClass}`} />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-white/35">
-                    {label}
-                  </span>
-                </div>
-                <p className="mt-3 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                  {value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+          </HeaderAction>
+        }
+      />
 
       <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -314,15 +296,7 @@ export default async function IllustratorsPage({
       <div className="space-y-12">
         {sortedGroups.map(([group, entries]) => (
           <section key={group}>
-            <div className="mb-5 flex items-center gap-3">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-                {group}
-              </h2>
-              <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                {entries.length}
-              </span>
-              <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-            </div>
+            <SectionHeader title={group} count={entries.length} compact />
 
             <div
               className="grid gap-3"
@@ -335,6 +309,7 @@ export default async function IllustratorsPage({
                 <Link
                   key={illustrator.artist}
                   href={`/illustrators/${encodeURIComponent(illustrator.artist)}`}
+                  prefetch={false}
                   className={`group glass flex flex-col transition-all duration-200 hover:scale-[1.02] hover:bg-white/8 active:scale-[0.98] dark:hover:bg-white/6 ${tileConfig.tileClass}`}
                 >
                   <div

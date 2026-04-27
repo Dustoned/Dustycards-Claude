@@ -229,6 +229,109 @@ export function sumCollectionPurchasePrices(
   return Number(total.toFixed(2));
 }
 
+export type CollectionCostBasisLabel = "Paid" | "Set Spend";
+export type CollectionCostBasisSource = "direct" | "linked_binder_allocation";
+
+export interface CollectionCostBasis {
+  value: number;
+  label: CollectionCostBasisLabel;
+  source: CollectionCostBasisSource;
+}
+
+export interface LinkedBinderCostBasisItem {
+  itemId: string;
+  episodeId: string | null;
+  directPurchasePrice?: number | null;
+  currentValue?: number | null;
+}
+
+function toCentValue(value: number | null | undefined): number {
+  if (value == null || !Number.isFinite(value)) return 0;
+  return Math.round((value + Number.EPSILON) * 100);
+}
+
+function fromCentValue(value: number): number {
+  return Number((value / 100).toFixed(2));
+}
+
+export function buildLinkedBinderCostBasis({
+  binderType,
+  binderEpisodeId,
+  binderBasePurchasePrice,
+  items,
+}: {
+  binderType: string | null | undefined;
+  binderEpisodeId: string | null | undefined;
+  binderBasePurchasePrice?: number | null;
+  items: LinkedBinderCostBasisItem[];
+}): Map<string, CollectionCostBasis> {
+  const result = new Map<string, CollectionCostBasis>();
+
+  if (binderType !== "linked_set" || !binderEpisodeId) {
+    return result;
+  }
+
+  const eligibleItems = items.filter((item) => item.episodeId === binderEpisodeId);
+  if (eligibleItems.length === 0) {
+    return result;
+  }
+
+  const poolCents =
+    toCentValue(binderBasePurchasePrice) +
+    eligibleItems.reduce((total, item) => total + toCentValue(item.directPurchasePrice), 0);
+
+  if (poolCents <= 0) {
+    return result;
+  }
+
+  const positiveValues = eligibleItems
+    .map((item) => item.currentValue)
+    .filter((value): value is number => value != null && Number.isFinite(value) && value > 0);
+  const fallbackWeight = positiveValues.length > 0 ? Math.min(...positiveValues) : 1;
+  const weightedItems = eligibleItems.map((item, index) => ({
+    item,
+    index,
+    weight:
+      item.currentValue != null && Number.isFinite(item.currentValue) && item.currentValue > 0
+        ? item.currentValue
+        : fallbackWeight,
+  }));
+  const totalWeight = weightedItems.reduce((total, item) => total + item.weight, 0);
+
+  if (totalWeight <= 0) {
+    return result;
+  }
+
+  const allocations = weightedItems.map((item) => {
+    const rawCents = (poolCents * item.weight) / totalWeight;
+    return {
+      ...item,
+      cents: Math.floor(rawCents),
+    };
+  });
+  let remainder =
+    poolCents - allocations.reduce((total, allocation) => total + allocation.cents, 0);
+
+  for (const allocation of [...allocations].sort((a, b) => {
+    if (b.weight !== a.weight) return b.weight - a.weight;
+    return a.index - b.index;
+  })) {
+    if (remainder <= 0) break;
+    allocation.cents += 1;
+    remainder -= 1;
+  }
+
+  for (const allocation of allocations) {
+    result.set(allocation.item.itemId, {
+      value: fromCentValue(allocation.cents),
+      label: "Set Spend",
+      source: "linked_binder_allocation",
+    });
+  }
+
+  return result;
+}
+
 export function buildOwnedCardValueHistory(
   prices: EpisodePriceHistorySnapshot[],
   quantitiesByCardId: ReadonlyMap<string, number>

@@ -4,9 +4,27 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Package } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
+import {
+  sealedTileActionButtonClass,
+  sealedTileBubbleClass,
+  sealedTileBubbleLabelClass,
+  sealedTileBubbleWrapClass,
+  sealedTileGridGapClass,
+  sealedTileImageClass,
+  sealedTileImagePaddingClass,
+  sealedTileInfoClass,
+  sealedTileMetaLineClass,
+  sealedTileNoPriceClass,
+  sealedTilePriceClass,
+  sealedTileRootClass,
+  sealedTileTitleClass,
+} from "@/components/sealed-tile-styles";
 import { getFixedTrackGridTemplate, getSealedProductTrackWidth } from "@/lib/display-scale";
+import type { CardSize } from "@/lib/user-settings";
 import {
   getActiveSealedGroup,
   getActiveSealedProducts,
@@ -36,75 +54,17 @@ function SealedProductCard({
   product,
   onOpen,
   episode,
-  compact = false,
   cardSize = "medium",
+  widescreen = false,
 }: {
   product: NormalizedSealedProduct;
   onOpen: () => void;
   episode?: SealedEpisodeRef;
-  compact?: boolean;
-  cardSize?: "small" | "medium" | "large";
+  cardSize?: CardSize;
+  widescreen?: boolean;
 }) {
   const productPrice = getSealedProductPrice(product);
-  const isLarge = cardSize === "large";
-  const isSmall = cardSize === "small";
-  const trackWidth = getSealedProductTrackWidth(cardSize, compact);
-
-  const cardClass = compact
-    ? isLarge
-      ? "gap-3.5 rounded-[18px] p-3.5"
-      : isSmall
-        ? "gap-2 rounded-2xl p-2.5"
-        : "gap-3 rounded-[18px] p-3.5"
-    : isLarge
-      ? "gap-5 rounded-3xl p-5"
-      : isSmall
-        ? "gap-3 rounded-2xl p-3"
-        : "gap-4 rounded-3xl p-4";
-
-  const mediaClass = compact
-    ? isLarge
-      ? "rounded-2xl"
-      : "rounded-xl"
-    : "rounded-2xl";
-
-  const titleClass = compact
-    ? isLarge
-      ? "text-sm"
-      : isSmall
-        ? "text-[11px]"
-        : "text-[13px]"
-    : isLarge
-      ? "text-base"
-      : isSmall
-        ? "text-xs"
-        : "text-sm";
-
-  const bodyTextClass = compact
-    ? isLarge
-      ? "text-[13px]"
-      : isSmall
-        ? "text-[11px]"
-        : "text-xs"
-    : isLarge
-      ? "text-base"
-      : "text-sm";
-
-  const blockClass = compact
-    ? isLarge
-      ? "rounded-2xl px-3 py-2"
-      : isSmall
-        ? "rounded-xl px-2 py-1.5"
-        : "rounded-2xl px-3 py-2"
-    : "rounded-2xl px-3 py-2";
-
-  const labelClass = compact
-    ? isLarge
-      ? "text-[10px]"
-      : isSmall
-        ? "text-[9px]"
-        : "text-[10px]"
-    : "text-[11px]";
+  const trackWidth = getSealedProductTrackWidth(cardSize, widescreen);
 
   return (
     <div
@@ -118,83 +78,73 @@ function SealedProductCard({
           onOpen();
         }
       }}
-      className={`glass group flex cursor-pointer flex-col text-left shadow-md shadow-black/5 transition-transform hover:scale-[1.015] hover:bg-white/8 active:scale-[0.99] dark:hover:bg-white/6 ${cardClass}`}
+      className={sealedTileRootClass()}
     >
-      <div
-        className={`relative aspect-square overflow-hidden bg-black/4 dark:bg-white/4 ${mediaClass}`}
-      >
+      <div className={sealedTileImageClass(cardSize)}>
         {product.image_url ? (
           <Image
             src={product.image_url}
             alt={product.name}
             fill
-            className="object-contain"
+            className={`object-contain ${sealedTileImagePaddingClass(cardSize)}`}
             sizes={trackWidth}
             unoptimized
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs font-medium text-gray-400 dark:text-white/35">
-            No image
+          <div className="flex h-full items-center justify-center">
+            <Package className="h-10 w-10 text-gray-300 dark:text-gray-600" />
           </div>
         )}
+      </div>
 
-        <div className="absolute right-2 top-2">
-          <CollectionAddSealedButton
-            product={{
-              id: product.id,
-              name: product.name,
-              image_url: product.image_url,
-              episode,
-            }}
-            theme="dark"
-            className="h-7 w-7 rounded-md bg-black/65 text-white hover:bg-black/78"
-          />
+      <div className={sealedTileInfoClass(cardSize)}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className={sealedTileTitleClass(cardSize)}>{product.name}</h2>
+            <div className={sealedTileMetaLineClass(cardSize)}>
+              <span className="text-gray-400 dark:text-white/42">Sealed product</span>
+            </div>
+          </div>
+
+          <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5">
+            {productPrice != null ? (
+              <span className={sealedTilePriceClass(cardSize)}>
+                {formatCurrency(productPrice)}
+              </span>
+            ) : (
+              <span className={sealedTileNoPriceClass(cardSize)}>No price</span>
+            )}
+
+            <CollectionAddSealedButton
+              product={{
+                id: product.id,
+                name: product.name,
+                image_url: product.image_url,
+                episode,
+              }}
+              className={sealedTileActionButtonClass()}
+            />
+          </div>
         </div>
-      </div>
 
-      <div className="min-w-0">
-        <h2
-          className={`font-semibold leading-snug text-gray-900 dark:text-white line-clamp-2 ${titleClass}`}
-        >
-          {product.name}
-        </h2>
-      </div>
-
-      <div className={`space-y-2 ${bodyTextClass}`}>
-        <div
-          className={`flex min-w-0 items-center justify-between gap-3 bg-black/4 dark:bg-white/6 ${blockClass}`}
-        >
-          <span className="min-w-0 truncate text-gray-500 dark:text-white/55">CardMarket</span>
-          <span className="shrink-0 font-semibold tabular-nums text-gray-900 dark:text-white">
-            {formatCurrency(productPrice)}
+        <div className={sealedTileBubbleWrapClass(cardSize)}>
+          <span className={sealedTileBubbleClass("market")}>
+            <span className={sealedTileBubbleLabelClass()}>CardMarket</span>
+            <span className="tabular-nums">{formatCurrency(productPrice)}</span>
           </span>
+          {product.price.cm_avg_7d != null && (
+            <span className={sealedTileBubbleClass()}>
+              <span className={sealedTileBubbleLabelClass()}>7D Avg</span>
+              <span className="tabular-nums">{formatCurrency(product.price.cm_avg_7d)}</span>
+            </span>
+          )}
+          {product.price.cm_avg_30d != null && (
+            <span className={sealedTileBubbleClass()}>
+              <span className={sealedTileBubbleLabelClass()}>30D Avg</span>
+              <span className="tabular-nums">{formatCurrency(product.price.cm_avg_30d)}</span>
+            </span>
+          )}
         </div>
-
-        {(product.price.cm_avg_7d != null || product.price.cm_avg_30d != null) && (
-          <div className="grid grid-cols-2 gap-2">
-            <div className={`bg-black/4 dark:bg-white/6 ${blockClass}`}>
-              <p className={`uppercase tracking-wide text-gray-400 dark:text-white/35 ${labelClass}`}>
-                7d avg
-              </p>
-              <p
-                className={`mt-1 min-w-0 truncate font-semibold tabular-nums text-gray-900 dark:text-white ${bodyTextClass}`}
-              >
-                {formatCurrency(product.price.cm_avg_7d)}
-              </p>
-            </div>
-
-            <div className={`bg-black/4 dark:bg-white/6 ${blockClass}`}>
-              <p className={`uppercase tracking-wide text-gray-400 dark:text-white/35 ${labelClass}`}>
-                30d avg
-              </p>
-              <p
-                className={`mt-1 min-w-0 truncate font-semibold tabular-nums text-gray-900 dark:text-white ${bodyTextClass}`}
-              >
-                {formatCurrency(product.price.cm_avg_30d)}
-              </p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -274,11 +224,11 @@ export default function SealedProductsGrid({
 
   const filterBar = (
     <div className="overflow-x-auto pb-1">
-      <div className="inline-flex min-w-max gap-2">
+      <div className="inline-flex min-w-max gap-[var(--ui-chip-gap)]">
         <button
           type="button"
           onClick={() => updateFilter("all")}
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+          className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-all ${
             activeFilter === "all"
               ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
               : "border-black/8 text-gray-500 hover:border-black/20 hover:text-gray-900 dark:border-white/8 dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white"
@@ -302,7 +252,7 @@ export default function SealedProductsGrid({
               key={group.category}
               type="button"
               onClick={() => updateFilter(group.category)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-all ${
                 active
                   ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
                   : "border-black/8 text-gray-500 hover:border-black/20 hover:text-gray-900 dark:border-white/8 dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white"
@@ -329,18 +279,10 @@ export default function SealedProductsGrid({
         {filterBar}
 
         <section className="space-y-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/40">
-              {activeLabel}
-            </h2>
-            <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-              {activeProducts.length}
-            </span>
-            <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-          </div>
+          <SectionHeader title={activeLabel} count={activeProducts.length} compact className="mb-0" />
 
           <div
-            className="grid gap-3"
+            className={`grid ${sealedTileGridGapClass(settings.cardSize)}`}
             style={{
               gridTemplateColumns: getFixedTrackGridTemplate(
                 getSealedProductTrackWidth(settings.cardSize, true)
@@ -354,8 +296,8 @@ export default function SealedProductsGrid({
                 product={product}
                 onOpen={() => setSelectedProduct(product)}
                 episode={episode}
-                compact
                 cardSize={settings.cardSize}
+                widescreen
               />
             ))}
           </div>
@@ -378,18 +320,10 @@ export default function SealedProductsGrid({
       <div className="space-y-10">
         {visibleGroups.map((group) => (
           <section key={group.category}>
-            <div className="mb-4 flex items-center gap-3">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">
-                {group.label}
-              </h2>
-              <span className="rounded-full bg-black/6 px-2 py-0.5 text-xs text-gray-400 dark:bg-white/6 dark:text-white/40">
-                {group.products.length}
-              </span>
-              <div className="h-px flex-1 bg-black/8 dark:bg-white/10" />
-            </div>
+            <SectionHeader title={group.label} count={group.products.length} compact className="mb-4" />
 
             <div
-              className="grid gap-4"
+              className={`grid ${sealedTileGridGapClass(settings.cardSize)}`}
               style={{
                 gridTemplateColumns: getFixedTrackGridTemplate(
                   getSealedProductTrackWidth(settings.cardSize, false)

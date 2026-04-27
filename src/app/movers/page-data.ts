@@ -1,24 +1,22 @@
 import { cookies } from "next/headers";
-import { getCollectionMovers, type CollectionMoversData } from "@/lib/movers";
+import { getMovers, type CollectionMoversData, type MoversScope } from "@/lib/movers";
 import {
   DEFAULT_SETTINGS,
   parseCookieSettings,
   SETTINGS_COOKIE_NAME,
-  type PriceSource,
 } from "@/lib/user-settings";
+import {
+  buildMoversSourceHref,
+  normalizeMoversPriceSource,
+  normalizeMoversScope,
+} from "@/app/movers/routing";
 
-export function normalizeMoversPriceSource(
-  value: string | null | undefined,
-  fallback: PriceSource
-): PriceSource {
-  return value === "cm_en" || value === "tcp" ? value : fallback;
-}
+export { buildMoversSourceHref, normalizeMoversPriceSource, normalizeMoversScope };
 
-export function buildMoversSourceHref(pathname: string, source: PriceSource): string {
-  return `${pathname}?source=${source}`;
-}
-
-export async function loadMoversPageData(sourceOverride?: string | null) {
+export async function loadMoversPageData(
+  sourceOverride?: string | null,
+  scopeOverride?: string | null
+) {
   const cookieStore = await cookies();
   const settings =
     parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
@@ -26,9 +24,10 @@ export async function loadMoversPageData(sourceOverride?: string | null) {
     sourceOverride,
     settings.primaryPriceSource
   );
-  const data = await getCollectionMovers(activePriceSource);
+  const activeScope: MoversScope = normalizeMoversScope(scopeOverride);
+  const data = await getMovers(activePriceSource, activeScope);
 
-  return { settings, data, activePriceSource };
+  return { settings, data, activePriceSource, activeScope };
 }
 
 export function getDisplayedCheapHighRarityMovers(data: CollectionMoversData) {

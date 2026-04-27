@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCardGradedPriceHistory,
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
 } from "@/lib/price-history";
@@ -89,6 +90,45 @@ describe("daily set price history", () => {
       date: "2026-04-25",
       total_market: 65,
       priced_cards: 2,
+    });
+  });
+});
+
+describe("graded card price history", () => {
+  it("groups snapshots per label and uses the latest graded price per day", () => {
+    const history = buildCardGradedPriceHistory([
+      {
+        label: "PSA 10",
+        price: 100,
+        fetched_at: "2026-04-25T09:00:00.000Z",
+      },
+      {
+        label: "PSA 10",
+        price: 125,
+        fetched_at: "2026-04-25T21:00:00.000Z",
+      },
+      {
+        label: "PSA 9",
+        price: 60,
+        fetched_at: "2026-04-25T10:00:00.000Z",
+      },
+      {
+        label: "PSA 10",
+        price: 130,
+        fetched_at: "2026-04-26T09:00:00.000Z",
+      },
+    ]);
+
+    expect(history[0]).toMatchObject({
+      label: "PSA 10",
+      points: [
+        { date: "2026-04-25", value: 125 },
+        { date: "2026-04-26", value: 130 },
+      ],
+    });
+    expect(history[1]).toMatchObject({
+      label: "PSA 9",
+      points: [{ date: "2026-04-25", value: 60 }],
     });
   });
 });

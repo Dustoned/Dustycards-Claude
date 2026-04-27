@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { useDeferredValue, useMemo, useState, useTransition } from "react";
+import { PageHeroHeader } from "@/components/PageHeader";
 import {
   buildEpisodeSetPriceHistory,
   getCardMarketValue,
@@ -117,25 +118,21 @@ export default function IllustratorCardsClient({
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <Link
-          href="/illustrators"
-          className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to illustrators
-        </Link>
-
-        <div className="glass rounded-3xl px-6 py-6 shadow-lg shadow-black/5 sm:px-8">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-400 dark:text-white/35">
-            Illustrator
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-            {artist}
-          </h1>
-          <p className="mt-2 text-sm text-gray-500 dark:text-white/50">
-            {cards.length} {cards.length === 1 ? "card" : "cards"}
-          </p>
-        </div>
+        <PageHeroHeader
+          eyebrow="Illustrator"
+          title={artist}
+          description={`${cards.length} ${cards.length === 1 ? "card" : "cards"}`}
+          backLinks={
+            <Link
+              href="/illustrators"
+              prefetch={false}
+              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to illustrators
+            </Link>
+          }
+        />
       </div>
 
       <PriceHistoryPanel
