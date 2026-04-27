@@ -14,7 +14,6 @@ import type { CollectionMoverItem, MoversScope } from "@/lib/movers";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
 import type { PriceSource } from "@/lib/user-settings";
 import {
-  buildSortSummary,
   compareMoverItems,
   getMoverTileMinWidth,
   matchesDirection,
@@ -91,6 +90,18 @@ function countBadgeClass(active: boolean): string {
   }`;
 }
 
+function formatMoverSourceLabel(source: string): string {
+  if (source === "tcgplayer") {
+    return "TCGPlayer";
+  }
+
+  if (source === "graded") {
+    return "Graded";
+  }
+
+  return "CardMarket";
+}
+
 function MoverGridFallback() {
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -120,13 +131,16 @@ export default function MoversBrowser({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("move");
+  const [sortKey, setSortKey] = useState<SortKey>(
+    activeScope === "grading" ? "grade_score" : "move"
+  );
   const [direction, setDirection] = useState<DirectionFilter>("all");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
   const [cheapOnly, setCheapOnly] = useState(false);
   const [highRarityOnly, setHighRarityOnly] = useState(false);
+  const [highGradingUpsideOnly, setHighGradingUpsideOnly] = useState(false);
   const [ownedMultipleOnly, setOwnedMultipleOnly] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
@@ -134,6 +148,9 @@ export default function MoversBrowser({
   const [detailError, setDetailError] = useState<string | null>(null);
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const isGradingScope = activeScope === "grading";
+  const isGradedScope = activeScope === "graded";
+  const isRawScope = !isGradedScope && !isGradingScope;
   const moverTileMinWidth = getMoverTileMinWidth(settings.cardSize, settings.widescreen);
   const visiblePreviewCards = previewCards.filter((card) => card.items.length > 0);
   const visibleSpotlights = spotlights.filter((spotlight) => spotlight.item);
@@ -159,6 +176,49 @@ export default function MoversBrowser({
       return query ? `${pathname}?${query}` : pathname;
     };
   }, [pathname, searchParams]);
+  const modeHref = useMemo(() => {
+    return (mode: "raw" | "graded" | "targets") => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      if (mode === "raw") {
+        params.delete("scope");
+      } else if (mode === "graded") {
+        params.set("scope", "graded");
+      } else {
+        params.set("scope", "grading");
+      }
+
+      const query = params.toString();
+      return query ? `${pathname}?${query}` : pathname;
+    };
+  }, [pathname, searchParams]);
+
+  const sortOptions = useMemo(() => {
+    if (activeScope === "grading") {
+      return [
+        { key: "grade_score" as const, label: "Grade Score" },
+        { key: "grade_multiplier" as const, label: "Multiplier" },
+        { key: "grade_gap" as const, label: "Gap" },
+        { key: "raw_price_low" as const, label: "Raw Cheap" },
+        { key: "price_high" as const, label: "Graded High" },
+        { key: "7d" as const, label: "7D" },
+        { key: "30d" as const, label: "30D" },
+        { key: "name" as const, label: "Name" },
+      ];
+    }
+
+    return [
+      { key: "move" as const, label: "Move" },
+      { key: "7d" as const, label: "7D" },
+      { key: "30d" as const, label: "30D" },
+      { key: "tracked" as const, label: "Tracked" },
+      { key: "low_rebound" as const, label: "Low" },
+      { key: "peak_gap" as const, label: "Peak" },
+      { key: "price_low" as const, label: "Cheap" },
+      { key: "price_high" as const, label: "Expensive" },
+      { key: "name" as const, label: "Name" },
+    ];
+  }, [activeScope]);
 
   const sourceOptions = useMemo<FilterChipOption[]>(() => {
     const counts = new Map<string, number>();
@@ -166,12 +226,26 @@ export default function MoversBrowser({
       counts.set(item.source, (counts.get(item.source) ?? 0) + 1);
     }
 
-    return ["cardmarket", "tcgplayer"].map((source) => ({
-      key: source,
-      label: source === "tcgplayer" ? "TCGPlayer" : "CardMarket",
-      count: counts.get(source) ?? 0,
-    }));
+    return [...counts.entries()]
+      .sort(([a], [b]) => {
+        const order = ["cardmarket", "tcgplayer", "graded"];
+        const aIndex = order.indexOf(a);
+        const bIndex = order.indexOf(b);
+        if (aIndex !== -1 || bIndex !== -1) {
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        }
+
+        return a.localeCompare(b, undefined, { sensitivity: "base" });
+      })
+      .map(([source, count]) => ({
+        key: source,
+        label: formatMoverSourceLabel(source),
+        count,
+      }));
   }, [movers]);
+  const showSourceFilter = sourceOptions.length > 1;
 
   const rarityOptions = useMemo<FilterChipOption[]>(() => {
     const counts = new Map<string, number>();
@@ -198,7 +272,7 @@ export default function MoversBrowser({
 
   const visibleMovers = useMemo(() => {
     const filtered = movers.filter((item) => {
-      if (direction !== "all" && !matchesDirection(item, direction)) {
+      if (!isGradingScope && direction !== "all" && !matchesDirection(item, direction)) {
         return false;
       }
 
@@ -213,11 +287,22 @@ export default function MoversBrowser({
         return false;
       }
 
-      if (cheapOnly && item.currentPrice > 15) {
-        return false;
+      if (cheapOnly) {
+        const cheapReferencePrice = isGradingScope ? item.grading?.rawPrice : item.currentPrice;
+        if (cheapReferencePrice == null || cheapReferencePrice > 15) {
+          return false;
+        }
       }
 
       if (highRarityOnly && item.rarityWeight < 1.15) {
+        return false;
+      }
+
+      if (
+        isGradingScope &&
+        highGradingUpsideOnly &&
+        ((item.grading?.valueMultiplier ?? 0) < 3 || (item.grading?.valueGap ?? 0) < 20)
+      ) {
         return false;
       }
 
@@ -234,6 +319,7 @@ export default function MoversBrowser({
         item.cardNumber,
         item.episodeName,
         item.episodeCode,
+        item.gradedLabel,
         item.normalizedRarity,
       ]
         .filter(Boolean)
@@ -251,6 +337,8 @@ export default function MoversBrowser({
     selectedRarities,
     cheapOnly,
     highRarityOnly,
+    highGradingUpsideOnly,
+    isGradingScope,
     ownedMultipleOnly,
     normalizedSearch,
     sortKey,
@@ -259,21 +347,24 @@ export default function MoversBrowser({
     initialCount: INITIAL_MOVER_RENDER_COUNT,
     batchSize: MOVER_RENDER_BATCH_SIZE,
   });
+  const hasDirectionFilter = !isGradingScope && direction !== "all";
 
   const filterBadgeCount =
     selectedSources.length +
     selectedRarities.length +
-    (direction === "all" ? 0 : 1) +
+    (hasDirectionFilter ? 1 : 0) +
     (cheapOnly ? 1 : 0) +
     (highRarityOnly ? 1 : 0) +
+    (isGradingScope && highGradingUpsideOnly ? 1 : 0) +
     (ownedMultipleOnly ? 1 : 0);
 
   const activeFilterLabels = [
-    ...(direction === "all" ? [] : [direction === "risers" ? "Risers" : "Fallers"]),
-    ...(cheapOnly ? ["Cheap <= 15"] : []),
+    ...(hasDirectionFilter ? [direction === "risers" ? "Risers" : "Fallers"] : []),
+    ...(cheapOnly ? [isGradingScope ? "Raw <= 15" : "Cheap <= 15"] : []),
     ...(highRarityOnly ? ["High rarity"] : []),
+    ...(isGradingScope && highGradingUpsideOnly ? ["3x+ graded"] : []),
     ...(ownedMultipleOnly ? ["Owned x2+"] : []),
-    ...selectedSources.map((source) => (source === "tcgplayer" ? "TCGPlayer" : "CardMarket")),
+    ...selectedSources.map(formatMoverSourceLabel),
     ...selectedRarities,
   ];
 
@@ -289,6 +380,7 @@ export default function MoversBrowser({
     setSelectedRarities([]);
     setCheapOnly(false);
     setHighRarityOnly(false);
+    setHighGradingUpsideOnly(false);
     setOwnedMultipleOnly(false);
     setSearch("");
   }
@@ -331,29 +423,80 @@ export default function MoversBrowser({
 
   return (
     <div className="space-y-10">
-      <div className="flex flex-wrap items-center gap-2 rounded-[24px] border border-black/8 bg-black/[0.03] p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-        {[
-          { key: "collection" as const, label: "Collection Movers" },
-          { key: "all" as const, label: "All Card Movers" },
-        ].map((option) => {
-          const active = activeScope === option.key;
-
-          return (
+      <div className="space-y-3 rounded-2xl border border-black/8 bg-white/70 p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
+        <div className="grid gap-2 sm:grid-cols-3">
+          {[
+            { key: "raw" as const, label: "Raw Movers", active: isRawScope },
+            { key: "graded" as const, label: "Graded Market", active: isGradedScope },
+            { key: "targets" as const, label: "Grade Targets", active: isGradingScope },
+          ].map((option) => (
             <Link
               key={option.key}
-              href={scopeHref(option.key)}
+              href={modeHref(option.key)}
               prefetch={false}
-              className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-2xl px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold transition-colors ${
-                active
+              className={`inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                option.active
                   ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
-                  : "text-gray-500 hover:bg-white/70 hover:text-gray-900 dark:text-white/54 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                  : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/54 dark:hover:bg-white/[0.06] dark:hover:text-white"
               }`}
-              aria-current={active ? "page" : undefined}
+              aria-current={option.active ? "page" : undefined}
             >
               {option.label}
             </Link>
-          );
-        })}
+          ))}
+        </div>
+
+        {isRawScope ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 px-2 pt-3 dark:border-white/8">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                Scope
+              </span>
+              {[
+                { key: "collection" as const, label: "Collection" },
+                { key: "all" as const, label: "All Cards" },
+              ].map((option) => {
+                const active = activeScope === option.key;
+
+                return (
+                  <Link
+                    key={option.key}
+                    href={scopeHref(option.key)}
+                    prefetch={false}
+                    className={filterButtonClass(active)}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {option.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                Source
+              </span>
+              {[
+                { key: "cm_en", label: "CardMarket" },
+                { key: "tcp", label: "TCGPlayer" },
+              ].map((option) => {
+                const active = activePriceSource === option.key;
+
+                return (
+                  <Link
+                    key={option.key}
+                    href={priceSourceHref(option.key as PriceSource)}
+                    prefetch={false}
+                    className={filterButtonClass(active)}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {option.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {visibleSpotlights.length > 0 || visiblePreviewCards.length > 0 ? (
@@ -407,9 +550,20 @@ export default function MoversBrowser({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <span className="inline-flex min-w-0 max-w-full items-center gap-2 truncate rounded-full border border-black/8 bg-white/70 px-3 py-1.5 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55">
-                {buildSortSummary(sortKey, direction)}
-              </span>
+              <label className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-black/8 bg-white/78 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/58">
+                Sort
+                <select
+                  value={sortKey}
+                  onChange={(event) => setSortKey(event.target.value as SortKey)}
+                  className="bg-transparent text-sm font-semibold text-gray-900 outline-none dark:text-white"
+                >
+                  {sortOptions.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button
                 type="button"
                 onClick={() => setFiltersExpanded((current) => !current)}
@@ -431,46 +585,12 @@ export default function MoversBrowser({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                Sort
-              </span>
-              <div className="inline-flex min-w-0 max-w-full overflow-x-auto rounded-xl border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.03]">
-                {[
-                  { key: "move", label: "Move" },
-                  { key: "7d", label: "7D" },
-                  { key: "30d", label: "30D" },
-                  { key: "tracked", label: "Tracked" },
-                  { key: "low_rebound", label: "Low" },
-                  { key: "peak_gap", label: "Peak" },
-                  { key: "price_low", label: "Cheap" },
-                  { key: "price_high", label: "Expensive" },
-                  { key: "name", label: "Name" },
-                ].map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setSortKey(option.key as SortKey)}
-                    className={`shrink-0 px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      sortKey === option.key
-                        ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                        : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
-
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                Direction
-              </span>
-              <div className="inline-flex min-w-0 max-w-full overflow-x-auto rounded-xl border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.03]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
+              Quick
+            </span>
+            {!isGradingScope ? (
+              <>
                 {[
                   { key: "all", label: "All" },
                   { key: "risers", label: "Risers" },
@@ -480,48 +600,36 @@ export default function MoversBrowser({
                     key={option.key}
                     type="button"
                     onClick={() => setDirection(option.key as DirectionFilter)}
-                    className={`shrink-0 px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      direction === option.key
-                        ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                        : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                    }`}
+                    className={filterButtonClass(direction === option.key)}
                   >
                     {option.label}
                   </button>
                 ))}
-              </div>
-            </div>
-
-            <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
-
-            <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                Source
-              </span>
-              <div className="inline-flex min-w-0 max-w-full overflow-x-auto rounded-xl border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.03]">
-                {[
-                  { key: "cm_en", label: "CM" },
-                  { key: "tcp", label: "TCP" },
-                ].map((option) => {
-                  const active = activePriceSource === option.key;
-
-                  return (
-                    <Link
-                      key={option.key}
-                      href={priceSourceHref(option.key as PriceSource)}
-                      prefetch={false}
-                      className={`shrink-0 px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        active
-                          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                          : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                      }`}
-                    >
-                      {option.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
+              </>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setCheapOnly((current) => !current)}
+              className={filterButtonClass(cheapOnly)}
+            >
+              {isGradingScope ? "Raw <= 15" : "Cheap <= 15"}
+            </button>
+            {isGradingScope ? (
+              <button
+                type="button"
+                onClick={() => setHighGradingUpsideOnly((current) => !current)}
+                className={filterButtonClass(highGradingUpsideOnly)}
+              >
+                3x+ graded
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setHighRarityOnly((current) => !current)}
+              className={filterButtonClass(highRarityOnly)}
+            >
+              High rarity
+            </button>
           </div>
 
           {activeFilterLabels.length > 0 ? (
@@ -538,14 +646,24 @@ export default function MoversBrowser({
           ) : null}
 
           {filtersExpanded ? (
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.4fr)]">
+            <div
+              className={`grid gap-3 ${
+                showSourceFilter
+                  ? "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.4fr)]"
+                  : "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)]"
+              }`}
+            >
               <section className="overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
                     Quick Filters
                   </p>
                   <span className="text-[11px] text-gray-400 dark:text-white/35">
-                    {Number(cheapOnly) + Number(highRarityOnly) + Number(ownedMultipleOnly)} active
+                    {Number(cheapOnly) +
+                      Number(highRarityOnly) +
+                      Number(isGradingScope && highGradingUpsideOnly) +
+                      Number(ownedMultipleOnly)}{" "}
+                    active
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -554,8 +672,17 @@ export default function MoversBrowser({
                     onClick={() => setCheapOnly((current) => !current)}
                     className={filterButtonClass(cheapOnly)}
                   >
-                    Cheap &lt;= 15
+                    {isGradingScope ? "Raw <= 15" : "Cheap <= 15"}
                   </button>
+                  {isGradingScope ? (
+                    <button
+                      type="button"
+                      onClick={() => setHighGradingUpsideOnly((current) => !current)}
+                      className={filterButtonClass(highGradingUpsideOnly)}
+                    >
+                      3x+ graded
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setHighRarityOnly((current) => !current)}
@@ -573,34 +700,36 @@ export default function MoversBrowser({
                 </div>
               </section>
 
-              <section className="overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                    Source
-                  </p>
-                  <span className="text-[11px] text-gray-400 dark:text-white/35">
-                    {selectedSources.length || sourceOptions.length} selected
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {sourceOptions.map((option) => {
-                    const active = selectedSources.includes(option.key);
-                    return (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() =>
-                          setSelectedSources((current) => toggleArrayValue(current, option.key))
-                        }
-                        className={filterButtonClass(active)}
-                      >
-                        {option.label}
-                        <span className={countBadgeClass(active)}>{option.count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
+              {showSourceFilter ? (
+                <section className="overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
+                      Source
+                    </p>
+                    <span className="text-[11px] text-gray-400 dark:text-white/35">
+                      {selectedSources.length || sourceOptions.length} selected
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {sourceOptions.map((option) => {
+                      const active = selectedSources.includes(option.key);
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() =>
+                            setSelectedSources((current) => toggleArrayValue(current, option.key))
+                          }
+                          className={filterButtonClass(active)}
+                        >
+                          {option.label}
+                          <span className={countBadgeClass(active)}>{option.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
 
               <section className="overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20">
                 <div className="flex items-center justify-between gap-2">
@@ -650,6 +779,7 @@ export default function MoversBrowser({
             movers={renderedMovers}
             minTileWidth={moverTileMinWidth}
             loadingCardId={loadingCardId}
+            displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
             onOpenCard={handleOpenMoverCard}
           />
         )}

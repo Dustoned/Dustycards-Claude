@@ -4,6 +4,10 @@ import type { CardSize } from "@/lib/user-settings";
 
 export type SortKey =
   | "move"
+  | "grade_score"
+  | "grade_multiplier"
+  | "grade_gap"
+  | "raw_price_low"
   | "7d"
   | "30d"
   | "tracked"
@@ -24,6 +28,14 @@ export function getMoverTileMinWidth(
 
 export function buildSortSummary(sortKey: SortKey, direction: DirectionFilter): string {
   switch (sortKey) {
+    case "grade_score":
+      return "Grade score best target -> weakest target";
+    case "grade_multiplier":
+      return "Raw-to-graded multiplier high -> low";
+    case "grade_gap":
+      return "Raw-to-graded gap high -> low";
+    case "raw_price_low":
+      return "Raw CardMarket price low -> high";
     case "7d":
       return direction === "fallers"
         ? "7D biggest drop -> smallest drop"
@@ -110,6 +122,22 @@ export function compareMoverItems(
     if (a.currentPrice !== b.currentPrice) {
       return b.currentPrice - a.currentPrice;
     }
+  } else if (sortKey === "grade_score") {
+    const diff = compareMetricValues(a.grading?.score, b.grading?.score, "desc");
+    if (diff !== 0) return diff;
+  } else if (sortKey === "grade_multiplier") {
+    const diff = compareMetricValues(
+      a.grading?.valueMultiplier,
+      b.grading?.valueMultiplier,
+      "desc"
+    );
+    if (diff !== 0) return diff;
+  } else if (sortKey === "grade_gap") {
+    const diff = compareMetricValues(a.grading?.valueGap, b.grading?.valueGap, "desc");
+    if (diff !== 0) return diff;
+  } else if (sortKey === "raw_price_low") {
+    const diff = compareMetricValues(a.grading?.rawPrice, b.grading?.rawPrice, "asc");
+    if (diff !== 0) return diff;
   } else if (sortKey === "7d") {
     const diff = compareMetricValues(
       a.change7dPct,

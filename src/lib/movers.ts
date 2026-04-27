@@ -24,8 +24,9 @@ const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("nl-NL", {
 });
 const dateLabelCache = new Map<string, string>();
 
-type MoverSource = "cardmarket" | "tcgplayer";
-export type MoversScope = "collection" | "all";
+type RawMoverSource = "cardmarket" | "tcgplayer";
+type MoverSource = RawMoverSource | "graded";
+export type MoversScope = "collection" | "all" | "graded" | "grading";
 
 type LatestPriceSnapshot = CardPriceHistorySnapshot;
 
@@ -107,6 +108,55 @@ interface PullRateRarityRow {
   psa_avg_gem_pct: number | null;
 }
 
+interface GradedPriceRow {
+  card_id: string;
+  label: string;
+  price: number;
+}
+
+interface GradedMoverCandidateRow {
+  card_id: string;
+  name: string;
+  card_number: string | null;
+  rarity: string | null;
+  image_url: string | null;
+  episode_id: string;
+  episode_name: string;
+  episode_code: string | null;
+  owned_count: number | bigint | null;
+  graded_label: string;
+  graded_price: number;
+  graded_fetched_at: Date | string;
+  raw_fetched_at: Date | string | null;
+  cm_en_lowest_nm: number | null;
+  cm_de_lowest_nm: number | null;
+  cm_fr_lowest_nm: number | null;
+  cm_es_lowest_nm: number | null;
+  cm_it_lowest_nm: number | null;
+  tcp_market: number | null;
+  cm_en_avg_7d: number | null;
+  cm_en_avg_30d: number | null;
+}
+
+interface GradedHistoryRow {
+  card_id: string;
+  label: string;
+  fetched_at: Date | string;
+  price: number;
+}
+
+interface AllTimeGradedHistorySummaryRow {
+  card_id: string;
+  label: string;
+  first_fetched_at: Date | null;
+  first_value: number | null;
+  low_fetched_at: Date | null;
+  low_value: number | null;
+  high_fetched_at: Date | null;
+  high_value: number | null;
+  history_points: number | null;
+}
+
 interface MoverSeriesPoint {
   date: string;
   timestamp: number;
@@ -150,7 +200,7 @@ interface LifetimeMoverMetrics {
 
 interface EvaluatedMoverSource {
   key: MoverSource;
-  label: "CardMarket" | "TCGPlayer";
+  label: "CardMarket" | "TCGPlayer" | "Graded";
   currency: "EUR" | "USD";
   currentPrice: number;
   historyPoints: number;
@@ -166,6 +216,19 @@ export interface MoverRecentPricePoint {
   value: number;
 }
 
+export interface MoverGradedPrice {
+  label: string;
+  price: number;
+}
+
+export interface MoverGradingInsight {
+  rawPrice: number;
+  gradedPrice: number;
+  valueGap: number;
+  valueMultiplier: number;
+  score: number;
+}
+
 export interface CollectionMoverItem {
   cardId: string;
   name: string;
@@ -178,11 +241,14 @@ export interface CollectionMoverItem {
   episodeCode: string | null;
   ownedCount: number;
   source: MoverSource;
-  sourceLabel: "CardMarket" | "TCGPlayer";
+  sourceLabel: "CardMarket" | "TCGPlayer" | "Graded";
   currency: "EUR" | "USD";
   currentPrice: number;
   cardmarketPrice: number | null;
   tcgplayerPrice: number | null;
+  gradedLabel: string | null;
+  gradedPrices: MoverGradedPrice[];
+  grading: MoverGradingInsight | null;
   latestFetchedAt: string;
   historyPoints: number;
   cardmarketHistoryPoints: number;
@@ -263,7 +329,7 @@ function toIsoOrNull(value: Date | string | null | undefined): string | null {
 
 function getCurrentSourceValue(
   snapshot: LatestPriceSnapshot | null | undefined,
-  source: MoverSource
+  source: RawMoverSource
 ): number | null {
   if (!snapshot) {
     return null;
@@ -274,7 +340,7 @@ function getCurrentSourceValue(
 
 function getHistorySourceValue(
   point: CardPriceHistoryPoint,
-  source: MoverSource
+  source: RawMoverSource
 ): number | null {
   return source === "tcgplayer" ? point.tcp_market ?? null : point.cm_market ?? null;
 }
@@ -282,7 +348,7 @@ function getHistorySourceValue(
 function buildSeries(
   points: CardPriceHistoryPoint[],
   latestPrice: LatestPriceSnapshot | null,
-  source: MoverSource
+  source: RawMoverSource
 ): MoverSeriesPoint[] {
   const series = points
     .map((point) => {
@@ -321,6 +387,34 @@ function buildSeries(
   }
 
   return series.sort((a, b) => a.timestamp - b.timestamp);
+}
+
+function buildGradedSeries(
+  snapshots: GradedHistoryRow[],
+  current: { fetched_at: Date | string; price: number }
+): MoverSeriesPoint[] {
+  const byDay = new Map<string, MoverSeriesPoint>();
+  const sorted = [...snapshots].sort(
+    (a, b) => new Date(a.fetched_at).getTime() - new Date(b.fetched_at).getTime()
+  );
+
+  for (const snapshot of sorted) {
+    const date = toDateKey(snapshot.fetched_at);
+    byDay.set(date, {
+      date,
+      timestamp: new Date(`${date}T00:00:00.000Z`).getTime(),
+      value: snapshot.price,
+    });
+  }
+
+  const currentDate = toDateKey(current.fetched_at);
+  byDay.set(currentDate, {
+    date: currentDate,
+    timestamp: new Date(`${currentDate}T00:00:00.000Z`).getTime(),
+    value: current.price,
+  });
+
+  return [...byDay.values()].sort((a, b) => a.timestamp - b.timestamp);
 }
 
 function buildRecentPriceSeries(series: MoverSeriesPoint[]): MoverRecentPricePoint[] {
@@ -449,6 +543,50 @@ function getCheapnessWeight(currentPrice: number): number {
   return 0.8;
 }
 
+function buildGradingInsight(
+  rawPrice: number | null,
+  gradedPrice: number | null,
+  rarityWeight: number
+): MoverGradingInsight | null {
+  if (rawPrice == null || gradedPrice == null || rawPrice <= 0 || gradedPrice <= 0) {
+    return null;
+  }
+
+  const valueGap = gradedPrice - rawPrice;
+  const valueMultiplier = gradedPrice / rawPrice;
+  const positiveGap = Math.max(valueGap, 0);
+  const positiveMultiplier = Math.max(valueMultiplier, 1);
+  const rawAffordabilityBoost =
+    rawPrice <= 5
+      ? 1.45
+      : rawPrice <= 10
+        ? 1.35
+        : rawPrice <= 20
+          ? 1.24
+          : rawPrice <= 40
+            ? 1.12
+            : rawPrice <= 75
+              ? 1
+              : rawPrice <= 120
+                ? 0.84
+                : 0.68;
+  const multiplierScore = Math.log2(positiveMultiplier) * 42;
+  const gapScore = Math.min(positiveGap, 700) / 6;
+  const score = round(
+    Math.max(0, multiplierScore + gapScore) *
+      rawAffordabilityBoost *
+      clamp(rarityWeight, 0.75, 1.85)
+  );
+
+  return {
+    rawPrice: round(rawPrice),
+    gradedPrice: round(gradedPrice),
+    valueGap: round(valueGap),
+    valueMultiplier: round(valueMultiplier, 2),
+    score,
+  };
+}
+
 function getMomentumScore(
   change7d: MoverWindowMetric | null,
   change30d: MoverWindowMetric | null
@@ -550,7 +688,7 @@ function buildLifetimeMetrics(
 function evaluateSource(
   latestPrice: LatestPriceSnapshot | null,
   historyPoints: CardPriceHistoryPoint[],
-  source: MoverSource,
+  source: RawMoverSource,
   allTimeSummary: AllTimeSourceSummary
 ): EvaluatedMoverSource | null {
   const currentPrice = getCurrentSourceValue(latestPrice, source);
@@ -580,9 +718,9 @@ function resolveBestSource(
   latestPrice: LatestPriceSnapshot | null,
   historyPoints: CardPriceHistoryPoint[],
   preferredSource: PriceSource,
-  allTimeSummaries: Record<MoverSource, AllTimeSourceSummary>
+  allTimeSummaries: Record<RawMoverSource, AllTimeSourceSummary>
 ): EvaluatedMoverSource | null {
-  const sourceOrder: MoverSource[] =
+  const sourceOrder: RawMoverSource[] =
     preferredSource === "tcp"
       ? ["tcgplayer", "cardmarket"]
       : ["cardmarket", "tcgplayer"];
@@ -601,7 +739,7 @@ function resolveBestSource(
 }
 
 function getMoverCandidateCardsCte(scope: MoversScope): string {
-  return scope === "all"
+  return scope === "all" || scope === "graded" || scope === "grading"
     ? `SELECT DISTINCT card_id FROM "Price"`
     : `SELECT DISTINCT card_id FROM "CollectionCard"`;
 }
@@ -684,15 +822,513 @@ async function fetchMoverCandidateCards(
   }));
 }
 
+function buildGradedMoverKey(cardId: string, label: string): string {
+  return `${cardId}\u0000${label}`;
+}
+
+function buildLatestRawPriceFromGradedRow(
+  row: GradedMoverCandidateRow
+): LatestPriceSnapshot | null {
+  if (!row.raw_fetched_at) {
+    return null;
+  }
+
+  return {
+    fetched_at: row.raw_fetched_at,
+    cm_en_lowest_nm: row.cm_en_lowest_nm,
+    cm_de_lowest_nm: row.cm_de_lowest_nm,
+    cm_fr_lowest_nm: row.cm_fr_lowest_nm,
+    cm_es_lowest_nm: row.cm_es_lowest_nm,
+    cm_it_lowest_nm: row.cm_it_lowest_nm,
+    tcp_market: row.tcp_market,
+    cm_en_avg_7d: row.cm_en_avg_7d,
+    cm_en_avg_30d: row.cm_en_avg_30d,
+  };
+}
+
+function buildGradedPricesByCardId(
+  rows: GradedMoverCandidateRow[]
+): Map<string, MoverGradedPrice[]> {
+  const pricesByCardId = new Map<string, MoverGradedPrice[]>();
+
+  for (const row of rows) {
+    const existing = pricesByCardId.get(row.card_id) ?? [];
+    existing.push({
+      label: row.graded_label,
+      price: row.graded_price,
+    });
+    pricesByCardId.set(row.card_id, existing);
+  }
+
+  for (const [cardId, prices] of pricesByCardId) {
+    pricesByCardId.set(
+      cardId,
+      [...prices].sort((a, b) => b.price - a.price || a.label.localeCompare(b.label))
+    );
+  }
+
+  return pricesByCardId;
+}
+
+async function buildGradedMoversData(
+  preferredSource: PriceSource,
+  scope: Extract<MoversScope, "graded" | "grading"> = "graded"
+): Promise<{ result: CollectionMoversData; historyRows: number }> {
+  const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS).toISOString();
+
+  const [currentRows, recentHistoryRows, allTimeHistorySummaries, pullRateRows] =
+    await Promise.all([
+      db.$queryRawUnsafe<GradedMoverCandidateRow[]>(
+        `
+        WITH owned_counts AS (
+          SELECT card_id, COUNT(*) AS owned_count
+          FROM "CollectionCard"
+          GROUP BY card_id
+        )
+        SELECT
+          gp.card_id,
+          c.name,
+          c.card_number,
+          c.rarity,
+          c.image_url,
+          e.id AS episode_id,
+          e.name AS episode_name,
+          e.code AS episode_code,
+          COALESCE(oc.owned_count, 0) AS owned_count,
+          gp.label AS graded_label,
+          gp.price AS graded_price,
+          gp.fetched_at AS graded_fetched_at,
+          lp.fetched_at AS raw_fetched_at,
+          lp.cm_en_lowest_nm,
+          lp.cm_de_lowest_nm,
+          lp.cm_fr_lowest_nm,
+          lp.cm_es_lowest_nm,
+          lp.cm_it_lowest_nm,
+          lp.tcp_market,
+          lp.cm_en_avg_7d,
+          lp.cm_en_avg_30d
+        FROM "CardGradedPrice" gp
+        INNER JOIN "Card" c ON c.id = gp.card_id
+        INNER JOIN "Episode" e ON e.id = c.episode_id
+        LEFT JOIN owned_counts oc ON oc.card_id = c.id
+        LEFT JOIN "Price" lp ON lp.id = (
+          SELECT p2.id
+          FROM "Price" p2
+          WHERE p2.card_id = c.id
+          ORDER BY p2.fetched_at DESC, p2.id DESC
+          LIMIT 1
+        )
+        ORDER BY gp.price DESC, c.name ASC, gp.label ASC
+      `
+      ),
+      db.$queryRawUnsafe<GradedHistoryRow[]>(
+        `
+        WITH current_graded AS (
+          SELECT card_id, label
+          FROM "CardGradedPrice"
+        )
+        SELECT
+          card_id,
+          label,
+          fetched_at,
+          price
+        FROM (
+          SELECT
+            s.card_id,
+            s.label,
+            s.fetched_at,
+            s.price,
+            ROW_NUMBER() OVER (
+              PARTITION BY s.card_id, s.label, DATE(s.fetched_at)
+              ORDER BY s.fetched_at DESC, s.id DESC
+            ) AS row_num
+          FROM "CardGradedPriceSnapshot" s
+          INNER JOIN current_graded cg
+            ON cg.card_id = s.card_id
+            AND cg.label = s.label
+          WHERE s.fetched_at >= ?
+        )
+        WHERE row_num = 1
+        ORDER BY card_id ASC, label ASC, fetched_at ASC
+      `,
+        historyCutoff
+      ),
+      db.$queryRawUnsafe<AllTimeGradedHistorySummaryRow[]>(
+        `
+        WITH current_graded AS (
+          SELECT card_id, label
+          FROM "CardGradedPrice"
+        ),
+        graded_summary AS (
+          SELECT
+            s.card_id,
+            s.label,
+            COUNT(DISTINCT DATE(s.fetched_at)) AS history_points,
+            MIN(s.price) AS low_value,
+            MAX(s.price) AS high_value
+          FROM "CardGradedPriceSnapshot" s
+          INNER JOIN current_graded cg
+            ON cg.card_id = s.card_id
+            AND cg.label = s.label
+          GROUP BY s.card_id, s.label
+        )
+        SELECT
+          cg.card_id,
+          cg.label,
+          (
+            SELECT s.fetched_at
+            FROM "CardGradedPriceSnapshot" s
+            WHERE s.card_id = cg.card_id
+              AND s.label = cg.label
+            ORDER BY s.fetched_at ASC, s.id ASC
+            LIMIT 1
+          ) AS first_fetched_at,
+          (
+            SELECT s.price
+            FROM "CardGradedPriceSnapshot" s
+            WHERE s.card_id = cg.card_id
+              AND s.label = cg.label
+            ORDER BY s.fetched_at ASC, s.id ASC
+            LIMIT 1
+          ) AS first_value,
+          (
+            SELECT s.fetched_at
+            FROM "CardGradedPriceSnapshot" s
+            WHERE s.card_id = cg.card_id
+              AND s.label = cg.label
+            ORDER BY s.price ASC, s.fetched_at ASC, s.id ASC
+            LIMIT 1
+          ) AS low_fetched_at,
+          graded_summary.low_value,
+          (
+            SELECT s.fetched_at
+            FROM "CardGradedPriceSnapshot" s
+            WHERE s.card_id = cg.card_id
+              AND s.label = cg.label
+            ORDER BY s.price DESC, s.fetched_at ASC, s.id ASC
+            LIMIT 1
+          ) AS high_fetched_at,
+          graded_summary.high_value,
+          graded_summary.history_points
+        FROM current_graded cg
+        LEFT JOIN graded_summary
+          ON graded_summary.card_id = cg.card_id
+          AND graded_summary.label = cg.label
+        ORDER BY cg.card_id ASC, cg.label ASC
+      `
+      ),
+      db.$queryRawUnsafe<PullRateRarityRow[]>(
+        `
+        SELECT DISTINCT
+          spr.source,
+          spr.set_code,
+          spr.normalized_rarity,
+          spr.rarity_name,
+          spr.pull_rate_odds,
+          spr.pull_rate_denominator,
+          spr.specific_pull_denominator,
+          spr.psa_avg_gem_pct
+        FROM "CardGradedPrice" gp
+        INNER JOIN "Card" c ON c.id = gp.card_id
+        INNER JOIN "Episode" e ON e.id = c.episode_id
+        INNER JOIN "SetPullRateRarity" spr
+          ON spr.source = ?
+          AND spr.set_code = UPPER(e.code)
+        WHERE e.code IS NOT NULL
+        ORDER BY spr.set_code ASC, spr.normalized_rarity ASC
+      `,
+        DEFAULT_PULL_RATE_SOURCE
+      ),
+    ]);
+
+  const recentHistoryRowsByKey = new Map<string, GradedHistoryRow[]>();
+  for (const row of recentHistoryRows) {
+    const key = buildGradedMoverKey(row.card_id, row.label);
+    const existing = recentHistoryRowsByKey.get(key) ?? [];
+    existing.push(row);
+    recentHistoryRowsByKey.set(key, existing);
+  }
+
+  const allTimeSummaryByKey = new Map<string, AllTimeSourceSummary>();
+  for (const row of allTimeHistorySummaries) {
+    allTimeSummaryByKey.set(buildGradedMoverKey(row.card_id, row.label), {
+      firstFetchedAt: row.first_fetched_at,
+      firstValue: row.first_value,
+      lowFetchedAt: row.low_fetched_at,
+      lowValue: row.low_value,
+      highFetchedAt: row.high_fetched_at,
+      highValue: row.high_value,
+      historyPoints: Number(row.history_points ?? 0),
+    });
+  }
+
+  const pullRateBySetAndRarity = new Map<string, PullRateInfo>();
+  for (const row of pullRateRows) {
+    const key = `${row.set_code.toUpperCase()}::${row.normalized_rarity}`;
+    pullRateBySetAndRarity.set(
+      key,
+      buildPullRateInfoFromRarity({
+        source: row.source,
+        setCode: row.set_code,
+        normalizedRarity: row.normalized_rarity,
+        rarityName: row.rarity_name,
+        pullRateOdds: row.pull_rate_odds,
+        pullRateDenominator: row.pull_rate_denominator,
+        specificPullDenominator: row.specific_pull_denominator,
+        psaAvgGemPct: row.psa_avg_gem_pct,
+      })
+    );
+  }
+
+  const gradedPricesByCardId = buildGradedPricesByCardId(currentRows);
+  const movers: CollectionMoverItem[] = [];
+
+  for (const row of currentRows) {
+    const key = buildGradedMoverKey(row.card_id, row.graded_label);
+    const currentPrice = row.graded_price;
+    const currentAt = row.graded_fetched_at;
+    const series = buildGradedSeries(recentHistoryRowsByKey.get(key) ?? [], {
+      fetched_at: currentAt,
+      price: currentPrice,
+    });
+    const change7d = computeWindowMetric(series, 7);
+    const change30d = computeWindowMetric(series, 30);
+    const allTimeSummary =
+      allTimeSummaryByKey.get(key) ?? {
+        firstFetchedAt: currentAt instanceof Date ? currentAt : new Date(currentAt),
+        firstValue: currentPrice,
+        lowFetchedAt: currentAt instanceof Date ? currentAt : new Date(currentAt),
+        lowValue: currentPrice,
+        highFetchedAt: currentAt instanceof Date ? currentAt : new Date(currentAt),
+        highValue: currentPrice,
+        historyPoints: series.length,
+      };
+    const lifetime = buildLifetimeMetrics(currentPrice, currentAt, allTimeSummary);
+    const normalizedRarity = normalizeRarityLabel(row.rarity);
+    const pullRateInfo =
+      row.episode_code && normalizedRarity
+        ? pullRateBySetAndRarity.get(`${row.episode_code.toUpperCase()}::${normalizedRarity}`) ??
+          null
+        : null;
+    const rarityWeight = resolveMoverRarityWeight(row.rarity, pullRateInfo?.pullRateWeight);
+    const cheapnessWeight = getCheapnessWeight(currentPrice);
+    const rawLatestPrice = buildLatestRawPriceFromGradedRow(row);
+    const cardmarketPrice = getCurrentSourceValue(rawLatestPrice, "cardmarket");
+    const tcgplayerPrice = getCurrentSourceValue(rawLatestPrice, "tcgplayer");
+    const grading = buildGradingInsight(cardmarketPrice, currentPrice, rarityWeight);
+    const recentPositive = (change7d?.change ?? 0) > 0 || (change30d?.change ?? 0) > 0;
+    const movementScore = round(
+      (getMomentumScore(change7d, change30d) + getLifetimeScore(lifetime, recentPositive)) *
+        rarityWeight *
+        cheapnessWeight
+    );
+    const moverScore = scope === "grading" ? grading?.score ?? 0 : movementScore;
+
+    movers.push({
+      cardId: row.card_id,
+      name: row.name,
+      imageUrl: row.image_url,
+      cardNumber: row.card_number,
+      rarity: row.rarity,
+      normalizedRarity,
+      episodeId: row.episode_id,
+      episodeName: row.episode_name,
+      episodeCode: row.episode_code,
+      ownedCount: Number(row.owned_count ?? 0),
+      source: "graded",
+      sourceLabel: "Graded",
+      currency: "EUR",
+      currentPrice: round(currentPrice),
+      cardmarketPrice: cardmarketPrice != null ? round(cardmarketPrice) : null,
+      tcgplayerPrice: tcgplayerPrice != null ? round(tcgplayerPrice) : null,
+      gradedLabel: row.graded_label,
+      gradedPrices: gradedPricesByCardId.get(row.card_id) ?? [],
+      grading,
+      latestFetchedAt: new Date(currentAt).toISOString(),
+      historyPoints: series.length,
+      cardmarketHistoryPoints: 0,
+      tcgplayerHistoryPoints: 0,
+      lifetimeHistoryPoints: lifetime.lifetimeHistoryPoints,
+      recentPriceSeries: buildRecentPriceSeries(series),
+      trackedDays: lifetime.trackedDays,
+      change7d: change7d?.change ?? null,
+      change7dPct: change7d?.changePct ?? null,
+      change7dCoveredDays: change7d?.coveredDays ?? null,
+      change30d: change30d?.change ?? null,
+      change30dPct: change30d?.changePct ?? null,
+      change30dCoveredDays: change30d?.coveredDays ?? null,
+      changeSinceTracked: lifetime.changeSinceTracked?.change ?? null,
+      changeSinceTrackedPct: lifetime.changeSinceTracked?.changePct ?? null,
+      changeSinceTrackedCoveredDays: lifetime.changeSinceTracked?.coveredDays ?? null,
+      changeFromLow: lifetime.changeFromLow?.change ?? null,
+      changeFromLowPct: lifetime.changeFromLow?.changePct ?? null,
+      changeFromLowCoveredDays: lifetime.changeFromLow?.coveredDays ?? null,
+      gapToPeak: lifetime.gapToPeak?.change ?? null,
+      gapToPeakPct: lifetime.gapToPeak?.changePct ?? null,
+      firstTrackedAt: lifetime.firstTrackedAt,
+      firstPrice: lifetime.firstPrice,
+      lowAt: lifetime.lowAt,
+      lowPrice: lifetime.lowPrice,
+      highAt: lifetime.highAt,
+      highPrice: lifetime.highPrice,
+      rarityWeight,
+      pullRateOdds: pullRateInfo?.pullRateOdds ?? null,
+      specificPullOdds: pullRateInfo?.specificPullOdds ?? null,
+      pullRateWeight: pullRateInfo?.pullRateWeight ?? null,
+      pullRateSource: pullRateInfo?.source ?? null,
+      cheapnessWeight,
+      moverScore,
+    });
+  }
+
+  const sortedMovers =
+    scope === "grading"
+      ? [...movers]
+          .filter((item) => item.grading && item.grading.valueGap > 0)
+          .sort((a, b) => {
+            const scoreDiff = (b.grading?.score ?? 0) - (a.grading?.score ?? 0);
+            if (scoreDiff !== 0) return scoreDiff;
+
+            const multiplierDiff =
+              (b.grading?.valueMultiplier ?? 0) - (a.grading?.valueMultiplier ?? 0);
+            if (multiplierDiff !== 0) return multiplierDiff;
+
+            const gapDiff = (b.grading?.valueGap ?? 0) - (a.grading?.valueGap ?? 0);
+            if (gapDiff !== 0) return gapDiff;
+
+            return `${a.name} ${a.gradedLabel ?? ""}`.localeCompare(
+              `${b.name} ${b.gradedLabel ?? ""}`,
+              undefined,
+              { sensitivity: "base", numeric: true }
+            );
+          })
+      : [...movers].sort((a, b) => {
+          if (b.moverScore !== a.moverScore) {
+            return b.moverScore - a.moverScore;
+          }
+
+          const changeDiff =
+            (b.change7dPct ?? b.change30dPct ?? -Infinity) -
+            (a.change7dPct ?? a.change30dPct ?? -Infinity);
+          if (changeDiff !== 0) {
+            return changeDiff;
+          }
+
+          if (b.currentPrice !== a.currentPrice) {
+            return b.currentPrice - a.currentPrice;
+          }
+
+          return `${a.name} ${a.gradedLabel ?? ""}`.localeCompare(
+            `${b.name} ${b.gradedLabel ?? ""}`,
+            undefined,
+            { sensitivity: "base", numeric: true }
+          );
+        });
+
+  const topOpportunities =
+    scope === "grading"
+      ? sortedMovers.slice(0, 12)
+      : sortedMovers
+          .filter(
+            (item) => item.moverScore > 0 && item.currentPrice <= 120 && item.rarityWeight >= 1.15
+          )
+          .slice(0, 12);
+  const cheapestHighRarityMovers =
+    scope === "grading"
+      ? sortedMovers
+          .filter((item) => {
+            const rawPrice = item.grading?.rawPrice;
+            return rawPrice != null && rawPrice <= 15 && item.rarityWeight >= 1.15;
+          })
+          .slice(0, 16)
+      : sortedMovers
+          .filter(
+            (item) => item.moverScore > 0 && item.currentPrice <= 80 && item.rarityWeight >= 1.15
+          )
+          .slice(0, 16);
+  const discountedHighRarity =
+    scope === "grading"
+      ? [...sortedMovers]
+          .filter((item) => (item.grading?.valueMultiplier ?? 0) >= 3)
+          .sort((a, b) => {
+            const multiplierDiff =
+              (b.grading?.valueMultiplier ?? 0) - (a.grading?.valueMultiplier ?? 0);
+            if (multiplierDiff !== 0) return multiplierDiff;
+
+            return (b.grading?.valueGap ?? 0) - (a.grading?.valueGap ?? 0);
+          })
+      : [...sortedMovers]
+          .filter((item) => {
+            const hasDeepDiscount = (item.gapToPeakPct ?? 0) <= -25;
+            const hasRecentWeakness =
+              (item.change7dPct ?? 0) < 0 || (item.change30dPct ?? 0) < 0 || item.moverScore < 0;
+
+            return item.rarityWeight >= 1.15 && hasDeepDiscount && hasRecentWeakness;
+          })
+          .sort((a, b) => {
+            const peakGapDiff = (a.gapToPeakPct ?? 0) - (b.gapToPeakPct ?? 0);
+            if (peakGapDiff !== 0) {
+              return peakGapDiff;
+            }
+
+            if (a.currentPrice !== b.currentPrice) {
+              return a.currentPrice - b.currentPrice;
+            }
+
+            return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+          });
+  const strongest7d =
+    [...sortedMovers]
+      .filter((item) => (item.change7dPct ?? 0) > 0)
+      .sort((a, b) => (b.change7dPct ?? 0) - (a.change7dPct ?? 0))[0] ?? null;
+  const strongest30d =
+    [...sortedMovers]
+      .filter((item) => (item.change30dPct ?? 0) > 0)
+      .sort((a, b) => (b.change30dPct ?? 0) - (a.change30dPct ?? 0))[0] ?? null;
+
+  return {
+    result: {
+      scope,
+      preferredSource,
+      trackedCards: currentRows.length,
+      eligibleCards: sortedMovers.length,
+      movers: sortedMovers,
+      topOpportunities,
+      cheapestHighRarityMovers,
+      discountedHighRarity,
+      strongest7d,
+      strongest30d,
+    },
+    historyRows: recentHistoryRows.length,
+  };
+}
+
 export async function getMovers(
   preferredSource: PriceSource,
   scope: MoversScope = "collection"
 ): Promise<CollectionMoversData> {
   const timer = startPerformanceTimer(`movers.${scope}`, { preferredSource, scope });
+
+  if (scope === "graded" || scope === "grading") {
+    const { result, historyRows } = await buildGradedMoversData(preferredSource, scope);
+    timer.finish({
+      trackedCards: result.trackedCards,
+      eligibleCards: result.eligibleCards,
+      historyRows,
+    });
+    return result;
+  }
+
   const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS).toISOString();
   const candidateCardsCte = getMoverCandidateCardsCte(scope);
 
-  const [candidateCards, recentHistoryRows, allTimeHistorySummaries, pullRateRows] = await Promise.all([
+  const [
+    candidateCards,
+    recentHistoryRows,
+    allTimeHistorySummaries,
+    pullRateRows,
+    gradedPriceRows,
+  ] = await Promise.all([
     fetchMoverCandidateCards(scope),
     db.$queryRawUnsafe<RecentHistoryRow[]>(
       `
@@ -931,6 +1567,20 @@ export async function getMovers(
     `,
       DEFAULT_PULL_RATE_SOURCE
     ),
+    db.$queryRawUnsafe<GradedPriceRow[]>(
+      `
+      WITH candidate_cards AS (
+        ${candidateCardsCte}
+      )
+      SELECT
+        gp.card_id,
+        gp.label,
+        gp.price
+      FROM "CardGradedPrice" gp
+      INNER JOIN candidate_cards cc ON cc.card_id = gp.card_id
+      ORDER BY gp.card_id ASC, gp.price DESC, gp.label ASC
+    `
+    ),
   ]);
 
   const historyRowsByCardId = new Map<string, CardPriceHistorySnapshot[]>();
@@ -945,7 +1595,7 @@ export async function getMovers(
 
   const allTimeSummariesByCardId = new Map<
     string,
-    Record<MoverSource, AllTimeSourceSummary>
+    Record<RawMoverSource, AllTimeSourceSummary>
   >();
   for (const row of allTimeHistorySummaries) {
     allTimeSummariesByCardId.set(row.card_id, {
@@ -985,7 +1635,17 @@ export async function getMovers(
         specificPullDenominator: row.specific_pull_denominator,
         psaAvgGemPct: row.psa_avg_gem_pct,
       })
-    );
+      );
+  }
+
+  const gradedPricesByCardId = new Map<string, MoverGradedPrice[]>();
+  for (const row of gradedPriceRows) {
+    const existing = gradedPricesByCardId.get(row.card_id) ?? [];
+    existing.push({
+      label: row.label,
+      price: row.price,
+    });
+    gradedPricesByCardId.set(row.card_id, existing);
   }
 
   const movers: CollectionMoverItem[] = [];
@@ -1014,7 +1674,7 @@ export async function getMovers(
           highValue: null,
           historyPoints: 0,
         },
-      } satisfies Record<MoverSource, AllTimeSourceSummary>);
+      } satisfies Record<RawMoverSource, AllTimeSourceSummary>);
     const resolvedSource = resolveBestSource(
       latestPrice,
       historyPoints,
@@ -1066,6 +1726,9 @@ export async function getMovers(
       currentPrice: round(resolvedSource.currentPrice),
       cardmarketPrice: cardmarketPrice != null ? round(cardmarketPrice) : null,
       tcgplayerPrice: tcgplayerPrice != null ? round(tcgplayerPrice) : null,
+      gradedLabel: null,
+      gradedPrices: gradedPricesByCardId.get(card.id) ?? [],
+      grading: null,
       latestFetchedAt: latestPrice
         ? new Date(latestPrice.fetched_at).toISOString()
         : new Date().toISOString(),

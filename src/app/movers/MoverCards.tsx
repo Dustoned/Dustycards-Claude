@@ -2,12 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
-import { BarChart3, Loader2 } from "lucide-react";
+import { BarChart3, ChevronDown, Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
-import type { CollectionMoverItem, MoverRecentPricePoint } from "@/lib/movers";
+import type { CollectionMoverItem, MoverGradedPrice, MoverRecentPricePoint } from "@/lib/movers";
 
 interface PreviewCardConfig {
   title: string;
@@ -49,6 +49,51 @@ function formatOptionalCurrency(
   return value == null ? "--" : formatCurrency(value, currency);
 }
 
+function formatTileCurrency(value: number, currency: "EUR" | "USD"): string {
+  if (Math.abs(value) >= 1000) {
+    const symbol = currency === "EUR" ? "€" : "$";
+    const sign = value < 0 ? "-" : "";
+    const thousands = Math.abs(value) / 1000;
+    const formatted =
+      thousands >= 100
+        ? thousands.toFixed(0)
+        : thousands >= 10
+          ? thousands.toFixed(0)
+          : thousands.toFixed(1);
+
+    return `${sign}${symbol}${formatted}K`;
+  }
+
+  if (Math.abs(value) >= 100) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  return formatCurrency(value, currency);
+}
+
+function formatTileDelta(value: number | null | undefined, currency: "EUR" | "USD"): string {
+  if (value == null) {
+    return "--";
+  }
+
+  return `${value >= 0 ? "+" : ""}${formatTileCurrency(value, currency)}`;
+}
+
+function formatScoreValue(value: number): string {
+  if (Math.abs(value) >= 100) {
+    return new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  return value.toFixed(1);
+}
+
 function formatShortDate(value: string): string {
   return new Intl.DateTimeFormat("nl-NL", {
     day: "numeric",
@@ -67,6 +112,10 @@ function getTrendTone(value: number | null | undefined): TrendTone {
 function sourcePillClasses(source: CollectionMoverItem["source"], toneValue?: number | null) {
   if (getTrendTone(toneValue) === "negative") {
     return "border-rose-400/18 bg-rose-400/[0.08] text-rose-700 dark:text-rose-200";
+  }
+
+  if (source === "graded") {
+    return "border-amber-400/18 bg-amber-400/[0.08] text-amber-700 dark:text-amber-200";
   }
 
   return source === "tcgplayer"
@@ -148,18 +197,6 @@ function getActiveSourceClasses(tone: TrendTone): {
     row: "border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.04]",
     pill: "bg-black/6 text-gray-500 dark:bg-white/8 dark:text-white/45",
   };
-}
-
-function getScorePillClass(value: number): string {
-  if (value < 0) {
-    return "border-rose-400/16 bg-rose-400/[0.08] text-rose-700 dark:text-rose-200";
-  }
-
-  if (value > 0) {
-    return "border-violet-400/16 bg-violet-400/[0.08] text-violet-700 dark:text-violet-200";
-  }
-
-  return "border-black/8 bg-black/[0.04] text-gray-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/60";
 }
 
 function stopCardOpen(event: MouseEvent<HTMLElement>) {
@@ -298,6 +335,106 @@ function PriceSourceRow({
   );
 }
 
+function GradedPriceStats({
+  prices,
+  activeLabel,
+}: {
+  prices: MoverGradedPrice[];
+  activeLabel?: string | null;
+}) {
+  if (prices.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-amber-400/14 bg-amber-400/[0.07] px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700/75 dark:text-amber-200/70">
+          Graded
+        </p>
+        <span className="shrink-0 rounded-full bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-200">
+          {prices.length} {prices.length === 1 ? "label" : "labels"}
+        </span>
+      </div>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {prices.map((gradedPrice) => {
+          const active = activeLabel === gradedPrice.label;
+
+          return (
+            <div
+              key={gradedPrice.label}
+              className={`min-w-0 rounded-lg px-2.5 py-2 ${
+                active
+                  ? "bg-amber-500/14 ring-1 ring-amber-500/20"
+                  : "bg-white/72 dark:bg-white/[0.055]"
+              }`}
+            >
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-[11px] font-semibold text-amber-800/75 dark:text-amber-100/70">
+                  {gradedPrice.label}
+                </span>
+                <span className="shrink-0 text-xs font-bold tabular-nums text-gray-900 dark:text-white">
+                  {formatCurrency(gradedPrice.price, "EUR")}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GradingOpportunityStats({ item }: { item: CollectionMoverItem }) {
+  if (!item.grading) {
+    return null;
+  }
+
+  const stats = [
+    {
+      label: "Raw CM",
+      value: formatCurrency(item.grading.rawPrice, "EUR"),
+    },
+    {
+      label: item.gradedLabel ?? "Graded",
+      value: formatCurrency(item.grading.gradedPrice, "EUR"),
+    },
+    {
+      label: "Gap",
+      value: formatDelta(item.grading.valueGap, "EUR"),
+    },
+    {
+      label: "Multiplier",
+      value: `${item.grading.valueMultiplier.toFixed(2)}x`,
+    },
+  ];
+
+  return (
+    <div className="mt-3 rounded-xl border border-emerald-400/14 bg-emerald-400/[0.075] px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700/75 dark:text-emerald-200/70">
+          Grade Target
+        </p>
+        <span className="shrink-0 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-200">
+          Score {item.grading.score.toFixed(1)}
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {stats.map((stat) => (
+          <div key={stat.label} className="min-w-0 rounded-lg bg-white/72 px-2.5 py-2 dark:bg-white/[0.055]">
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-800/60 dark:text-emerald-100/55">
+              {stat.label}
+            </p>
+            <p className="mt-1 truncate text-sm font-bold tabular-nums text-gray-900 dark:text-white">
+              {stat.value}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MoverMetricCard({
   label,
   percent,
@@ -331,27 +468,141 @@ function MoverMetricCard({
   );
 }
 
+type MoverDisplayMode = "raw" | "graded" | "target";
+
+function CompactMetric({
+  label,
+  value,
+  toneValue,
+}: {
+  label: string;
+  value: string;
+  toneValue?: number | null;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-black/8 bg-white/74 px-3 py-2 dark:border-white/8 dark:bg-white/[0.045]">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
+        {label}
+      </p>
+      <p className={`mt-1 truncate text-sm font-bold tabular-nums ${getToneClass(toneValue)}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function buildCompactMetrics(
+  item: CollectionMoverItem,
+  mode: MoverDisplayMode
+): Array<{
+  label: string;
+  value: string;
+  toneValue?: number | null;
+}> {
+  if (mode === "target" && item.grading) {
+    return [
+      {
+        label: "Raw CM",
+        value: formatCurrency(item.grading.rawPrice, "EUR"),
+      },
+      {
+        label: item.gradedLabel ?? "Graded",
+        value: formatTileCurrency(item.grading.gradedPrice, "EUR"),
+      },
+      {
+        label: "Gap",
+        value: formatTileDelta(item.grading.valueGap, "EUR"),
+        toneValue: item.grading.valueGap,
+      },
+      {
+        label: "Multiplier",
+        value: `${item.grading.valueMultiplier.toFixed(2)}x`,
+        toneValue: item.grading.valueMultiplier - 1,
+      },
+    ];
+  }
+
+  if (mode === "graded") {
+    return [
+      {
+        label: "7D",
+        value: formatPercent(item.change7dPct),
+        toneValue: item.change7dPct,
+      },
+      {
+        label: "30D",
+        value: formatPercent(item.change30dPct),
+        toneValue: item.change30dPct,
+      },
+      {
+        label: "Since Tracked",
+        value: formatPercent(item.changeSinceTrackedPct),
+        toneValue: item.changeSinceTrackedPct,
+      },
+      {
+        label: "Raw CM",
+        value: formatOptionalCurrency(item.cardmarketPrice, "EUR"),
+      },
+    ];
+  }
+
+  return [
+    {
+      label: "7D",
+      value: formatPercent(item.change7dPct),
+      toneValue: item.change7dPct,
+    },
+    {
+      label: "30D",
+      value: formatPercent(item.change30dPct),
+      toneValue: item.change30dPct,
+    },
+    {
+      label: "Since",
+      value: formatPercent(item.changeSinceTrackedPct),
+      toneValue: item.changeSinceTrackedPct,
+    },
+    {
+      label: "Score",
+      value: formatScoreValue(item.moverScore),
+      toneValue: item.moverScore,
+    },
+  ];
+}
+
 const MoverTile = memo(function MoverTile({
   item,
   isLoading,
+  displayMode,
   onOpen,
 }: {
   item: CollectionMoverItem;
   isLoading: boolean;
+  displayMode: MoverDisplayMode;
   onOpen: (cardId: string) => void;
 }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const open = () => onOpen(item.cardId);
+  const mode = displayMode;
   const trendTone = getTrendTone(item.moverScore);
   const currentPanelClasses = getCurrentPanelClasses(trendTone);
+  const compactMetrics = buildCompactMetrics(item, mode);
+  const primaryLabel =
+    mode === "target" ? "Grade Score" : item.gradedLabel ? `Current ${item.gradedLabel}` : "Current";
+  const primaryValue =
+    mode === "target" ? formatScoreValue(item.moverScore) : formatTileCurrency(item.currentPrice, item.currency);
+  const primaryHint =
+    mode === "target" && item.grading
+      ? `${formatCurrency(item.grading.rawPrice, "EUR")} raw to ${formatTileCurrency(
+          item.grading.gradedPrice,
+          "EUR"
+        )} graded`
+      : `${item.historyPoints} recent / ${item.lifetimeHistoryPoints} lifetime points`;
+  const detailsId = `mover-details-${item.cardId}-${item.gradedLabel ?? item.source}`;
 
   return (
     <article
-      role="button"
-      tabIndex={0}
-      onClick={open}
-      onKeyDown={(event) => handleOpenKey(event, open)}
-      aria-label={`Open details for ${item.name}`}
-      className="group relative cursor-pointer rounded-[24px] border border-black/8 bg-black/[0.03] p-4 shadow-lg shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-black/[0.045] focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+      className="group relative rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
     >
       {isLoading ? (
         <div className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/8 bg-white/90 text-gray-700 shadow-sm dark:border-white/10 dark:bg-black/80 dark:text-white">
@@ -360,7 +611,12 @@ const MoverTile = memo(function MoverTile({
       ) : null}
 
       <div className="flex items-start gap-3">
-        <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-2xl border border-black/8 bg-black/5 dark:border-white/10 dark:bg-white/[0.05]">
+        <button
+          type="button"
+          onClick={open}
+          className="relative h-24 w-[4.4rem] shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/10 dark:bg-white/[0.05]"
+          aria-label={`Open details for ${item.name}`}
+        >
           {item.imageUrl ? (
             <Image
               src={item.imageUrl}
@@ -375,14 +631,18 @@ const MoverTile = memo(function MoverTile({
               {item.name.slice(0, 2)}
             </div>
           )}
-        </div>
+        </button>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate pr-1 text-lg font-semibold leading-tight text-gray-900 dark:text-white">
+              <button
+                type="button"
+                onClick={open}
+                className="block max-w-full truncate pr-1 text-left text-base font-semibold leading-tight text-gray-900 outline-none transition-colors hover:text-emerald-700 focus-visible:rounded focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:text-white dark:hover:text-emerald-200"
+              >
                 {item.name}
-              </p>
+              </button>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-white/46">
                 <span>{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
                 <span>/</span>
@@ -399,12 +659,12 @@ const MoverTile = memo(function MoverTile({
             </div>
 
             <span
-              className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${sourcePillClasses(
+              className={`inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sourcePillClasses(
                 item.source,
                 item.moverScore
               )}`}
             >
-              {item.sourceLabel}
+              {mode === "target" ? "Target" : item.sourceLabel}
             </span>
           </div>
 
@@ -415,7 +675,7 @@ const MoverTile = memo(function MoverTile({
                   item.normalizedRarity
                 )}`}
               >
-                {item.normalizedRarity}
+              {item.normalizedRarity}
               </span>
             ) : null}
             <span
@@ -427,31 +687,29 @@ const MoverTile = memo(function MoverTile({
             >
               {item.ownedCount > 0 ? `x${item.ownedCount} owned` : "Not owned"}
             </span>
-            <span
-              className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${getScorePillClass(
-                item.moverScore
-              )}`}
-            >
-              Score {item.moverScore.toFixed(1)}
-            </span>
-            {item.specificPullOdds ? (
+            {item.gradedLabel ? (
               <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-amber-700 dark:text-amber-200">
-                Pull {item.specificPullOdds}
+                {item.gradedLabel}
+              </span>
+            ) : null}
+            {mode === "raw" && item.gradedPrices.length > 0 ? (
+              <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:text-amber-200">
+                {item.gradedPrices.length} graded
               </span>
             ) : null}
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
             <div className={`rounded-2xl border px-3 py-3 ${currentPanelClasses.panel}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p
                     className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${currentPanelClasses.label}`}
                   >
-                    Current
+                    {primaryLabel}
                   </p>
-                  <p className="mt-2 truncate text-2xl font-bold tabular-nums text-gray-900 dark:text-white">
-                    {formatCurrency(item.currentPrice, item.currency)}
+                  <p className="mt-2 break-words text-xl font-bold leading-tight tabular-nums text-gray-900 dark:text-white sm:text-2xl">
+                    {primaryValue}
                   </p>
                 </div>
                 <BarChart3 className={`mt-0.5 h-4 w-4 shrink-0 ${currentPanelClasses.icon}`} />
@@ -459,113 +717,157 @@ const MoverTile = memo(function MoverTile({
               <p className="mt-1 text-xs text-gray-500 dark:text-white/46">
                 Updated {formatShortDate(item.latestFetchedAt)}
               </p>
-              <p className="mt-2 text-[11px] text-gray-500 dark:text-white/42">
-                {item.historyPoints} recent / {item.lifetimeHistoryPoints} lifetime points
+              <p className="mt-2 line-clamp-2 text-[11px] text-gray-500 dark:text-white/42">
+                {primaryHint}
               </p>
             </div>
 
-            <MiniPriceSparkline series={item.recentPriceSeries} toneValue={item.moverScore} />
+            <div className="grid gap-2 sm:grid-cols-2">
+              {compactMetrics.map((metric) => (
+                <CompactMetric
+                  key={metric.label}
+                  label={metric.label}
+                  value={metric.value}
+                  toneValue={metric.toneValue}
+                />
+              ))}
+            </div>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <PriceSourceRow
-              label="CardMarket"
-              value={item.cardmarketPrice}
-              currency="EUR"
-              points={item.cardmarketHistoryPoints}
-              active={item.source === "cardmarket"}
-              trendTone={trendTone}
-            />
-            <PriceSourceRow
-              label="TCGPlayer"
-              value={item.tcgplayerPrice}
-              currency="USD"
-              points={item.tcgplayerHistoryPoints}
-              active={item.source === "tcgplayer"}
-              trendTone={trendTone}
-            />
+          <div className="mt-3 flex items-center justify-end gap-3 border-t border-black/8 pt-3 dark:border-white/8">
+            <button
+              type="button"
+              aria-expanded={detailsOpen}
+              aria-controls={detailsId}
+              onClick={(event) => {
+                event.stopPropagation();
+                setDetailsOpen((current) => !current);
+              }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-black/8 bg-white/82 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:border-black/14 hover:text-gray-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:hover:border-white/16 dark:hover:text-white"
+            >
+              More metrics
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`}
+              />
+            </button>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <MoverMetricCard
-              label="7D"
-              percent={item.change7dPct}
-              delta={item.change7d}
-              currency={item.currency}
-              hint={item.change7dCoveredDays ? `${item.change7dCoveredDays}d window` : "Recent window"}
-            />
-            <MoverMetricCard
-              label="30D"
-              percent={item.change30dPct}
-              delta={item.change30d}
-              currency={item.currency}
-              hint={item.change30dCoveredDays ? `${item.change30dCoveredDays}d window` : "Recent window"}
-            />
-            <MoverMetricCard
-              label="Since Tracked"
-              percent={item.changeSinceTrackedPct}
-              delta={item.changeSinceTracked}
-              currency={item.currency}
-              hint={
-                item.firstTrackedAt
-                  ? `Started ${formatShortDate(item.firstTrackedAt)}${
-                      item.trackedDays != null ? ` / ${item.trackedDays}d` : ""
-                    }`
-                  : item.trackedDays != null
-                    ? `${item.trackedDays}d tracked`
-                    : "No lifetime window"
-              }
-            />
-            <MoverMetricCard
-              label="From Low"
-              percent={item.changeFromLowPct}
-              delta={item.changeFromLow}
-              currency={item.currency}
-              hint={
-                item.lowPrice != null
-                  ? `Low ${formatCurrency(item.lowPrice, item.currency)}${
-                      item.lowAt ? ` / ${formatShortDate(item.lowAt)}` : ""
-                    }`
-                  : "No low recorded"
-              }
-            />
-            <MoverMetricCard
-              label="Vs Peak"
-              percent={item.gapToPeakPct}
-              delta={item.gapToPeak}
-              currency={item.currency}
-              hint={
-                item.highPrice != null
-                  ? `Peak ${formatCurrency(item.highPrice, item.currency)}${
-                      item.highAt ? ` / ${formatShortDate(item.highAt)}` : ""
-                    }`
-                  : "No peak recorded"
-              }
-            />
-            <div className="min-w-0 border-t border-black/8 pt-3 dark:border-white/8">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] leading-tight text-gray-400 dark:text-white/34">
-                Weight
-              </p>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-white/46">
-                {item.pullRateWeight != null ? (
-                  <span className="rounded-lg bg-amber-400/[0.08] px-2 py-1 text-amber-700 dark:text-amber-200">
-                    Odds {item.pullRateWeight.toFixed(2)}
-                  </span>
-                ) : null}
-                {item.specificPullOdds ? (
-                  <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
-                    Pull {item.specificPullOdds}
-                  </span>
-                ) : null}
-                <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
-                  Rarity {item.rarityWeight.toFixed(2)}
-                </span>
-                <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
-                  Price {item.cheapnessWeight.toFixed(2)}
-                </span>
+          {detailsOpen ? (
+            <div id={detailsId} className="mt-4 space-y-3 border-t border-black/8 pt-4 dark:border-white/8">
+              <MiniPriceSparkline series={item.recentPriceSeries} toneValue={item.moverScore} />
+
+              {item.source !== "graded" ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <PriceSourceRow
+                    label="CardMarket"
+                    value={item.cardmarketPrice}
+                    currency="EUR"
+                    points={item.cardmarketHistoryPoints}
+                    active={item.source === "cardmarket"}
+                    trendTone={trendTone}
+                  />
+                  <PriceSourceRow
+                    label="TCGPlayer"
+                    value={item.tcgplayerPrice}
+                    currency="USD"
+                    points={item.tcgplayerHistoryPoints}
+                    active={item.source === "tcgplayer"}
+                    trendTone={trendTone}
+                  />
+                </div>
+              ) : null}
+
+              <GradingOpportunityStats item={item} />
+              <GradedPriceStats prices={item.gradedPrices} activeLabel={item.gradedLabel} />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <MoverMetricCard
+                  label="7D"
+                  percent={item.change7dPct}
+                  delta={item.change7d}
+                  currency={item.currency}
+                  hint={
+                    item.change7dCoveredDays ? `${item.change7dCoveredDays}d window` : "Recent window"
+                  }
+                />
+                <MoverMetricCard
+                  label="30D"
+                  percent={item.change30dPct}
+                  delta={item.change30d}
+                  currency={item.currency}
+                  hint={
+                    item.change30dCoveredDays
+                      ? `${item.change30dCoveredDays}d window`
+                      : "Recent window"
+                  }
+                />
+                <MoverMetricCard
+                  label="Since Tracked"
+                  percent={item.changeSinceTrackedPct}
+                  delta={item.changeSinceTracked}
+                  currency={item.currency}
+                  hint={
+                    item.firstTrackedAt
+                      ? `Started ${formatShortDate(item.firstTrackedAt)}${
+                          item.trackedDays != null ? ` / ${item.trackedDays}d` : ""
+                        }`
+                      : item.trackedDays != null
+                        ? `${item.trackedDays}d tracked`
+                        : "No lifetime window"
+                  }
+                />
+                <MoverMetricCard
+                  label="From Low"
+                  percent={item.changeFromLowPct}
+                  delta={item.changeFromLow}
+                  currency={item.currency}
+                  hint={
+                    item.lowPrice != null
+                      ? `Low ${formatCurrency(item.lowPrice, item.currency)}${
+                          item.lowAt ? ` / ${formatShortDate(item.lowAt)}` : ""
+                        }`
+                      : "No low recorded"
+                  }
+                />
+                <MoverMetricCard
+                  label="Vs Peak"
+                  percent={item.gapToPeakPct}
+                  delta={item.gapToPeak}
+                  currency={item.currency}
+                  hint={
+                    item.highPrice != null
+                      ? `Peak ${formatCurrency(item.highPrice, item.currency)}${
+                          item.highAt ? ` / ${formatShortDate(item.highAt)}` : ""
+                        }`
+                      : "No peak recorded"
+                  }
+                />
+                <div className="min-w-0 border-t border-black/8 pt-3 dark:border-white/8">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] leading-tight text-gray-400 dark:text-white/34">
+                    Weight
+                  </p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-white/46">
+                    {item.pullRateWeight != null ? (
+                      <span className="rounded-lg bg-amber-400/[0.08] px-2 py-1 text-amber-700 dark:text-amber-200">
+                        Odds {item.pullRateWeight.toFixed(2)}
+                      </span>
+                    ) : null}
+                    {item.specificPullOdds ? (
+                      <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
+                        Pull {item.specificPullOdds}
+                      </span>
+                    ) : null}
+                    <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
+                      Rarity {item.rarityWeight.toFixed(2)}
+                    </span>
+                    <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
+                      Price {item.cheapnessWeight.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </article>
@@ -666,6 +968,11 @@ function MoverSpotlightCard({
               <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${sourcePillClasses(item.source)}`}>
                 {item.sourceLabel}
               </span>
+              {item.gradedLabel ? (
+                <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:text-amber-200">
+                  {item.gradedLabel}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -831,11 +1138,13 @@ export function MoverGrid({
   movers,
   minTileWidth,
   loadingCardId,
+  displayMode,
   onOpenCard,
 }: {
   movers: readonly CollectionMoverItem[];
   minTileWidth: string;
   loadingCardId: string | null;
+  displayMode: MoverDisplayMode;
   onOpenCard: (cardId: string) => void;
 }) {
   return (
@@ -848,9 +1157,10 @@ export function MoverGrid({
     >
       {movers.map((item) => (
         <MoverTile
-          key={item.cardId}
+          key={`${item.cardId}:${item.gradedLabel ?? item.source}`}
           item={item}
           isLoading={loadingCardId === item.cardId}
+          displayMode={displayMode}
           onOpen={onOpenCard}
         />
       ))}
