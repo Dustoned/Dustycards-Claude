@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextRequest, NextResponse } from "next/server";
@@ -8,7 +9,19 @@ import { CACHEABLE_IMAGE_HOSTS } from "@/lib/image-cache";
 
 export const dynamic = "force-dynamic";
 
-const IMAGE_CACHE_DIR = path.resolve(process.cwd(), "data", "image-cache");
+function resolveImageCacheDir() {
+  if (process.env.DUSTYCARDS_IMAGE_CACHE_DIR) {
+    return path.resolve(process.env.DUSTYCARDS_IMAGE_CACHE_DIR);
+  }
+
+  if (process.env.LOCALAPPDATA) {
+    return path.join(process.env.LOCALAPPDATA, "DustyCards", "image-cache");
+  }
+
+  return path.join(os.homedir(), ".dustycards", "image-cache");
+}
+
+const IMAGE_CACHE_DIR = resolveImageCacheDir();
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 30_000;
 const MAX_REMOTE_IMAGE_FETCHES = 3;

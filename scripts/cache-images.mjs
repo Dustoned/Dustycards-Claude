@@ -1,9 +1,22 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 
-const IMAGE_CACHE_DIR = path.resolve(process.cwd(), "data", "image-cache");
+function resolveImageCacheDir() {
+  if (process.env.DUSTYCARDS_IMAGE_CACHE_DIR) {
+    return path.resolve(process.env.DUSTYCARDS_IMAGE_CACHE_DIR);
+  }
+
+  if (process.env.LOCALAPPDATA) {
+    return path.join(process.env.LOCALAPPDATA, "DustyCards", "image-cache");
+  }
+
+  return path.join(os.homedir(), ".dustycards", "image-cache");
+}
+
+const IMAGE_CACHE_DIR = resolveImageCacheDir();
 const DB_PATH = path.resolve(process.cwd(), "dustycards.db");
 const CACHEABLE_IMAGE_HOSTS = new Set(["assets.tcgdex.net", "images.tcggo.com"]);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -109,6 +122,8 @@ function loadImageUrls() {
 }
 
 async function run() {
+  console.log(`Using image cache: ${IMAGE_CACHE_DIR}`);
+
   const urls = loadImageUrls();
   let nextIndex = 0;
   let cached = 0;
