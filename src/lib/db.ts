@@ -24,6 +24,8 @@ const REQUIRED_RUNTIME_FIELDS = {
     "native_history_synced_at",
     "native_history_status",
     "native_history_checked_at",
+    "tcggo_score",
+    "tcggo_score_tier",
   ],
   SealedProduct: [
     "cm_avg_7d",

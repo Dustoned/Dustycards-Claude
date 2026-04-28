@@ -94,6 +94,10 @@ function formatScoreValue(value: number): string {
   return value.toFixed(1);
 }
 
+function formatOptionalScore(value: number | null | undefined): string {
+  return value == null ? "--" : formatScoreValue(value);
+}
+
 function formatShortDate(value: string): string {
   return new Intl.DateTimeFormat("nl-NL", {
     day: "numeric",
@@ -329,7 +333,7 @@ function PriceSourceRow({
         ) : null}
       </div>
       <p className="mt-1 text-[11px] text-gray-500 dark:text-white/42">
-        {points.toLocaleString()} history points
+        {points.toLocaleString("nl-NL")} history points
       </p>
     </div>
   );
@@ -435,6 +439,56 @@ function GradingOpportunityStats({ item }: { item: CollectionMoverItem }) {
   );
 }
 
+function TcggoScoreStats({ item }: { item: CollectionMoverItem }) {
+  if (!item.tcggoScore) {
+    return null;
+  }
+
+  const metrics = [
+    { label: "Momentum", value: item.tcggoScore.momentum },
+    { label: "Stability", value: item.tcggoScore.stability },
+    { label: "Liquidity", value: item.tcggoScore.liquidity },
+    { label: "Demand", value: item.tcggoScore.demand },
+    { label: "Depth", value: item.tcggoScore.marketDepth },
+    { label: "Premium", value: item.tcggoScore.gradePremium },
+    { label: "RSI", value: item.tcggoScore.rsi },
+  ].filter((metric) => metric.value != null);
+
+  return (
+    <div className="rounded-xl border border-sky-400/14 bg-sky-400/[0.07] px-3 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-700/75 dark:text-sky-200/70">
+          TCGGO Score
+        </p>
+        <span className="shrink-0 rounded-full bg-sky-500/12 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-sky-700 dark:text-sky-200">
+          {formatOptionalScore(item.tcggoScore.score)}
+          {item.tcggoScore.tier ? ` / ${item.tcggoScore.tier}` : ""}
+        </span>
+      </div>
+      {metrics.length > 0 ? (
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {metrics.map((metric) => (
+            <div key={metric.label} className="min-w-0 rounded-lg bg-white/72 px-2.5 py-2 dark:bg-white/[0.055]">
+              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-800/60 dark:text-sky-100/55">
+                {metric.label}
+              </p>
+              <p className="mt-1 truncate text-sm font-bold tabular-nums text-gray-900 dark:text-white">
+                {formatOptionalScore(metric.value)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {item.tcggoScore.ath != null || item.tcggoScore.atl != null ? (
+        <div className="mt-2 flex flex-wrap gap-2 text-xs text-sky-800/70 dark:text-sky-100/65">
+          {item.tcggoScore.ath != null ? <span>ATH {formatCurrency(item.tcggoScore.ath, "EUR")}</span> : null}
+          {item.tcggoScore.atl != null ? <span>ATL {formatCurrency(item.tcggoScore.atl, "EUR")}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MoverMetricCard({
   label,
   percent,
@@ -502,6 +556,10 @@ function buildCompactMetrics(
   if (mode === "target" && item.grading) {
     return [
       {
+        label: "TCGGO",
+        value: formatOptionalScore(item.tcggoScore?.score),
+      },
+      {
         label: "Raw CM",
         value: formatCurrency(item.grading.rawPrice, "EUR"),
       },
@@ -525,6 +583,10 @@ function buildCompactMetrics(
   if (mode === "graded") {
     return [
       {
+        label: "TCGGO",
+        value: formatOptionalScore(item.tcggoScore?.score),
+      },
+      {
         label: "7D",
         value: formatPercent(item.change7dPct),
         toneValue: item.change7dPct,
@@ -547,6 +609,10 @@ function buildCompactMetrics(
   }
 
   return [
+    {
+      label: "TCGGO",
+      value: formatOptionalScore(item.tcggoScore?.score),
+    },
     {
       label: "7D",
       value: formatPercent(item.change7dPct),
@@ -697,6 +763,12 @@ const MoverTile = memo(function MoverTile({
                 {item.gradedPrices.length} graded
               </span>
             ) : null}
+            {item.tcggoScore?.score != null ? (
+              <span className="inline-flex rounded-full border border-sky-400/16 bg-sky-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-sky-700 dark:text-sky-200">
+                TCGGO {formatScoreValue(item.tcggoScore.score)}
+                {item.tcggoScore.tier ? ` ${item.tcggoScore.tier}` : ""}
+              </span>
+            ) : null}
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
@@ -778,6 +850,7 @@ const MoverTile = memo(function MoverTile({
               ) : null}
 
               <GradingOpportunityStats item={item} />
+              <TcggoScoreStats item={item} />
               <GradedPriceStats prices={item.gradedPrices} activeLabel={item.gradedLabel} />
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1031,7 +1104,7 @@ function PocketPreviewCard({
 
         <div className="shrink-0 text-right">
           <p className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-            {items.length.toLocaleString()}
+            {items.length.toLocaleString("nl-NL")}
           </p>
           <p className="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
             cards
@@ -1149,7 +1222,7 @@ export function MoverGrid({
 }) {
   return (
     <div
-      className="grid gap-4"
+      className="grid items-start gap-4"
       style={{
         gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
         justifyContent: "start",

@@ -1621,6 +1621,7 @@ async function syncEpisodeCards(
         existingCard,
         {
           ...card,
+          ...card.score,
           artist: card.artist ?? fallbackArtist,
         },
         fallbackSupertype
@@ -2148,6 +2149,7 @@ async function refreshEpisodeDueCards(
         existingCard,
         {
           ...remoteCard,
+          ...remoteCard.score,
           artist: remoteCard.artist ?? fallbackArtist,
         },
         fallbackSupertype
@@ -2287,6 +2289,7 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           existingCard,
           {
             ...remoteCard,
+            ...remoteCard.score,
             artist: remoteCard.artist ?? fallbackArtist,
           },
           fallbackSupertype

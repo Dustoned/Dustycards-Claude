@@ -10,7 +10,7 @@ import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { rarityBadge } from "@/components/card-modal/utils";
 import { KNOWN_RARITY_ORDER } from "@/lib/rarity";
-import type { CollectionMoverItem, MoversScope } from "@/lib/movers";
+import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/movers";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
 import type { PriceSource } from "@/lib/user-settings";
 import {
@@ -59,6 +59,7 @@ interface Props {
   movers: CollectionMoverItem[];
   activePriceSource: PriceSource;
   activeScope: MoversScope;
+  activeItemScope: MoversItemScope;
   eyebrow?: string;
   title?: string;
   description?: string;
@@ -119,6 +120,7 @@ export default function MoversBrowser({
   movers,
   activePriceSource,
   activeScope,
+  activeItemScope,
   eyebrow = "Main Movers",
   title = "Full collection movers",
   description,
@@ -155,19 +157,29 @@ export default function MoversBrowser({
   const visiblePreviewCards = previewCards.filter((card) => card.items.length > 0);
   const visibleSpotlights = spotlights.filter((spotlight) => spotlight.item);
   const scopeHref = useMemo(() => {
-    return (scope: MoversScope) => {
+    return (itemScope: MoversItemScope) => {
       const params = new URLSearchParams(searchParams.toString());
 
-      if (scope === "collection") {
-        params.delete("scope");
+      if (isRawScope) {
+        params.delete("view");
+        if (itemScope === "collection") {
+          params.delete("scope");
+        } else {
+          params.set("scope", "all");
+        }
       } else {
-        params.set("scope", scope);
+        params.set("scope", isGradingScope ? "grading" : "graded");
+        if (itemScope === "collection") {
+          params.set("view", "collection");
+        } else {
+          params.delete("view");
+        }
       }
 
       const query = params.toString();
       return query ? `${pathname}?${query}` : pathname;
     };
-  }, [pathname, searchParams]);
+  }, [isGradingScope, isRawScope, pathname, searchParams]);
   const priceSourceHref = useMemo(() => {
     return (source: PriceSource) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -181,22 +193,38 @@ export default function MoversBrowser({
       const params = new URLSearchParams(searchParams.toString());
 
       if (mode === "raw") {
-        params.delete("scope");
+        params.delete("view");
+        if (activeItemScope === "all") {
+          params.set("scope", "all");
+        } else {
+          params.delete("scope");
+        }
       } else if (mode === "graded") {
         params.set("scope", "graded");
+        if (activeItemScope === "collection") {
+          params.set("view", "collection");
+        } else {
+          params.delete("view");
+        }
       } else {
         params.set("scope", "grading");
+        if (activeItemScope === "collection") {
+          params.set("view", "collection");
+        } else {
+          params.delete("view");
+        }
       }
 
       const query = params.toString();
       return query ? `${pathname}?${query}` : pathname;
     };
-  }, [pathname, searchParams]);
+  }, [activeItemScope, pathname, searchParams]);
 
   const sortOptions = useMemo(() => {
     if (activeScope === "grading") {
       return [
         { key: "grade_score" as const, label: "Grade Score" },
+        { key: "tcggo_score" as const, label: "TCGGO" },
         { key: "grade_multiplier" as const, label: "Multiplier" },
         { key: "grade_gap" as const, label: "Gap" },
         { key: "raw_price_low" as const, label: "Raw Cheap" },
@@ -209,6 +237,7 @@ export default function MoversBrowser({
 
     return [
       { key: "move" as const, label: "Move" },
+      { key: "tcggo_score" as const, label: "TCGGO" },
       { key: "7d" as const, label: "7D" },
       { key: "30d" as const, label: "30D" },
       { key: "tracked" as const, label: "Tracked" },
@@ -446,8 +475,7 @@ export default function MoversBrowser({
           ))}
         </div>
 
-        {isRawScope ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 px-2 pt-3 dark:border-white/8">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 px-2 pt-3 dark:border-white/8">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
                 Scope
@@ -456,7 +484,7 @@ export default function MoversBrowser({
                 { key: "collection" as const, label: "Collection" },
                 { key: "all" as const, label: "All Cards" },
               ].map((option) => {
-                const active = activeScope === option.key;
+                const active = activeItemScope === option.key;
 
                 return (
                   <Link
@@ -472,6 +500,7 @@ export default function MoversBrowser({
               })}
             </div>
 
+            {isRawScope ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
                 Source
@@ -495,8 +524,8 @@ export default function MoversBrowser({
                 );
               })}
             </div>
+            ) : null}
           </div>
-        ) : null}
       </div>
 
       {visibleSpotlights.length > 0 || visiblePreviewCards.length > 0 ? (
@@ -515,7 +544,8 @@ export default function MoversBrowser({
           description={description}
           actions={
             <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
-              {visibleMovers.length.toLocaleString()} / {movers.length.toLocaleString()} visible
+              {visibleMovers.length.toLocaleString("nl-NL")} /{" "}
+              {movers.length.toLocaleString("nl-NL")} visible
             </p>
           }
         />

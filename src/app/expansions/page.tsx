@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
-import nextDynamic from "next/dynamic";
 import { ArrowUpRight, Layers3, LibraryBig, Shapes } from "lucide-react";
 import {
   HeaderAction,
@@ -13,6 +12,7 @@ import {
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { getExpansionCurrentValues } from "@/lib/expansions-overview";
 import {
   getEpisodeDisplayCardCount,
   isHiddenExpansion,
@@ -24,17 +24,9 @@ import {
   parseCookieSettings,
   SETTINGS_COOKIE_NAME,
 } from "@/lib/user-settings";
+import ExpansionsOverviewChart from "./ExpansionsOverviewChart";
 
 export const dynamic = "force-dynamic";
-
-const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
-  loading: () => (
-    <section className="h-full rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
-  ),
-});
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const OVERVIEW_HISTORY_DAYS = 365;
 
 const ERA_ORDER = [
   "Mega Evolution",
@@ -54,25 +46,6 @@ const ERA_ORDER = [
   "Base",
   "Other",
 ];
-
-interface ExpansionsOverviewHistoryRow {
-  date: string;
-  total_market: number | null;
-  priced_cards: number | null;
-}
-
-interface ExpansionCurrentValueRow {
-  episode_id: string;
-  total_market: number | null;
-  priced_cards: number | bigint | null;
-}
-
-function toDateLabel(dateKey: string): string {
-  return new Intl.DateTimeFormat("nl-NL", {
-    day: "numeric",
-    month: "short",
-  }).format(new Date(`${dateKey}T00:00:00.000Z`));
-}
 
 function getEra(name: string, series: string | null, releaseDate: string | null): string {
   const normalizedName = name.toLowerCase();
@@ -125,186 +98,6 @@ function shouldReplaceEpisode(existingId: string, nextId: string): boolean {
   }
 
   return nextId.localeCompare(existingId, undefined, { numeric: true, sensitivity: "base" }) < 0;
-}
-
-function placeholdersFor(values: unknown[]): string {
-  return values.map(() => "?").join(", ");
-}
-
-async function getExpansionsOverviewHistory(episodeIds: string[]) {
-  if (episodeIds.length === 0) {
-    return [];
-  }
-
-  const cutoff = new Date(Date.now() - OVERVIEW_HISTORY_DAYS * DAY_MS).toISOString();
-  const episodePlaceholders = placeholdersFor(episodeIds);
-
-  return db.$queryRawUnsafe<ExpansionsOverviewHistoryRow[]>(
-    `
-    WITH visible_cards AS (
-      SELECT c.id AS card_id
-      FROM "Card" c
-      WHERE c.episode_id IN (${episodePlaceholders})
-    ),
-    latest_before AS (
-      SELECT
-        card_id,
-        DATE(?) AS day,
-        0 AS sort_order,
-        cm_market
-      FROM (
-        SELECT
-          p.card_id,
-          COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
-          ) AS cm_market,
-          ROW_NUMBER() OVER (
-            PARTITION BY p.card_id
-            ORDER BY p.fetched_at DESC, p.id DESC
-          ) AS row_num
-        FROM "Price" p
-        INNER JOIN visible_cards vc ON vc.card_id = p.card_id
-        WHERE p.fetched_at < ?
-      )
-      WHERE row_num = 1
-    ),
-    recent_daily AS (
-      SELECT
-        card_id,
-        DATE(fetched_at) AS day,
-        1 AS sort_order,
-        cm_market
-      FROM (
-        SELECT
-          p.card_id,
-          p.fetched_at,
-          COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
-          ) AS cm_market,
-          ROW_NUMBER() OVER (
-            PARTITION BY p.card_id, DATE(p.fetched_at)
-            ORDER BY p.fetched_at DESC, p.id DESC
-          ) AS row_num
-        FROM "Price" p
-        INNER JOIN visible_cards vc ON vc.card_id = p.card_id
-        WHERE p.fetched_at >= ?
-      )
-      WHERE row_num = 1
-    ),
-    points AS (
-      SELECT * FROM latest_before
-      UNION ALL
-      SELECT * FROM recent_daily
-    ),
-    deduped AS (
-      SELECT card_id, day, cm_market
-      FROM (
-        SELECT
-          card_id,
-          day,
-          cm_market,
-          ROW_NUMBER() OVER (
-            PARTITION BY card_id, day
-            ORDER BY sort_order DESC
-          ) AS row_num
-        FROM points
-      )
-      WHERE row_num = 1
-    ),
-    changes AS (
-      SELECT
-        day,
-        COALESCE(cm_market, 0) - COALESCE(
-          LAG(cm_market) OVER (PARTITION BY card_id ORDER BY day),
-          0
-        ) AS value_delta,
-        CASE WHEN cm_market IS NOT NULL THEN 1 ELSE 0 END - COALESCE(
-          LAG(CASE WHEN cm_market IS NOT NULL THEN 1 ELSE 0 END) OVER (
-            PARTITION BY card_id ORDER BY day
-          ),
-          0
-        ) AS priced_delta
-      FROM deduped
-    ),
-    daily_changes AS (
-      SELECT
-        day,
-        SUM(value_delta) AS value_delta,
-        SUM(priced_delta) AS priced_delta
-      FROM changes
-      GROUP BY day
-    )
-    SELECT
-      day AS date,
-      ROUND(
-        SUM(value_delta) OVER (
-          ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        ),
-        2
-      ) AS total_market,
-      SUM(priced_delta) OVER (
-        ORDER BY day ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-      ) AS priced_cards
-    FROM daily_changes
-    ORDER BY day ASC
-  `,
-    ...episodeIds,
-    cutoff,
-    cutoff,
-    cutoff
-  );
-}
-
-async function getExpansionCurrentValues(episodeIds: string[]) {
-  if (episodeIds.length === 0) {
-    return [];
-  }
-
-  return db.$queryRawUnsafe<ExpansionCurrentValueRow[]>(
-    `
-    WITH latest_card_prices AS (
-      SELECT
-        episode_id,
-        card_id,
-        cm_market
-      FROM (
-        SELECT
-          c.episode_id,
-          p.card_id,
-          COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
-          ) AS cm_market,
-          ROW_NUMBER() OVER (
-            PARTITION BY p.card_id
-            ORDER BY p.fetched_at DESC, p.id DESC
-          ) AS row_num
-        FROM "Price" p
-        INNER JOIN "Card" c ON c.id = p.card_id
-        WHERE c.episode_id IN (${placeholdersFor(episodeIds)})
-      )
-      WHERE row_num = 1 AND cm_market IS NOT NULL
-    )
-    SELECT
-      episode_id,
-      ROUND(SUM(cm_market), 2) AS total_market,
-      COUNT(*) AS priced_cards
-    FROM latest_card_prices
-    GROUP BY episode_id
-  `,
-    ...episodeIds
-  );
 }
 
 export default async function ExpansionsPage() {
@@ -382,10 +175,7 @@ export default async function ExpansionsPage() {
     0
   );
   const visibleEpisodeIds = withCards.map((episode) => episode.id);
-  const [overviewHistoryRows, currentValueRows] = await Promise.all([
-    getExpansionsOverviewHistory(visibleEpisodeIds),
-    getExpansionCurrentValues(visibleEpisodeIds),
-  ]);
+  const currentValueRows = await getExpansionCurrentValues(visibleEpisodeIds);
   const currentValueByEpisodeId = new Map(
     currentValueRows.map((row) => [
       row.episode_id,
@@ -395,17 +185,16 @@ export default async function ExpansionsPage() {
       },
     ])
   );
-  const latestOverviewHistoryRow = overviewHistoryRows[overviewHistoryRows.length - 1] ?? null;
-  const overviewHistoryPoints = overviewHistoryRows.map((point) => ({
-    date: point.date,
-    label: toDateLabel(point.date),
-    value: point.total_market == null ? null : Number(point.total_market),
-  }));
+  const overviewCurrentValueTotal = currentValueRows.reduce(
+    (total, row) => total + Number(row.total_market ?? 0),
+    0
+  );
+  const overviewPricedCardCount = currentValueRows.reduce(
+    (total, row) => total + Number(row.priced_cards ?? 0),
+    0
+  );
   const overviewCurrentValue =
-    latestOverviewHistoryRow?.total_market == null
-      ? null
-      : Number(latestOverviewHistoryRow.total_market);
-  const overviewPricedCardCount = Number(latestOverviewHistoryRow?.priced_cards ?? 0);
+    overviewPricedCardCount > 0 ? Number(overviewCurrentValueTotal.toFixed(2)) : null;
   const headerStats = [
     {
       label: "Sets",
@@ -451,13 +240,11 @@ export default async function ExpansionsPage() {
         accessory={
           <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(28rem,1.35fr)_minmax(12rem,0.65fr)] xl:items-stretch 2xl:grid-cols-[minmax(38rem,1.45fr)_minmax(18rem,0.72fr)]">
             <div className="min-w-0 [&>section]:h-full">
-              <PriceHistoryPanel
-                title="All Sets Value"
-                currency="EUR"
-                points={overviewHistoryPoints}
-                currentValue={overviewCurrentValue}
-                subtitle={`${overviewPricedCardCount.toLocaleString()} / ${trackedCardCount.toLocaleString()} cards priced`}
-                emptyText="Nog geen setprijzen beschikbaar"
+              <ExpansionsOverviewChart
+                episodeIds={visibleEpisodeIds}
+                initialCurrentValue={overviewCurrentValue}
+                initialPricedCardCount={overviewPricedCardCount}
+                trackedCardCount={trackedCardCount}
               />
             </div>
             <div className="grid min-w-0 gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:auto-rows-fr">
@@ -496,9 +283,6 @@ export default async function ExpansionsPage() {
                   priced: 0,
                   value: null,
                 };
-                const pricedCount = Math.min(currentValue.priced, cardCount);
-                const pricedPercent =
-                  cardCount > 0 ? Math.min(100, (pricedCount / cardCount) * 100) : 0;
                 const releaseYear = episode.release_date?.slice(0, 4) ?? null;
                 const setCode = episode.code?.trim().toUpperCase() ?? null;
                 const metaParts = [setCode, releaseYear].filter(Boolean);
@@ -547,8 +331,13 @@ export default async function ExpansionsPage() {
                           >
                             {metaParts.length > 0 ? metaParts.join(" / ") : "Expansion"}
                           </p>
-                          <p className={`mt-0.5 text-gray-400 dark:text-white/32 ${tileConfig.metaClass}`}>
-                            {cardCount > 0 ? `${cardCount.toLocaleString("nl-NL")} cards` : "--"}
+                          <p
+                            className={`mt-2 inline-flex items-baseline gap-1.5 rounded-full border border-black/7 bg-black/[0.035] px-2 py-1 font-semibold text-gray-600 dark:border-white/8 dark:bg-white/[0.055] dark:text-white/68 ${tileConfig.metaClass}`}
+                          >
+                            <span className="font-bold text-gray-900 tabular-nums dark:text-white">
+                              {cardCount > 0 ? cardCount.toLocaleString("nl-NL") : "--"}
+                            </span>
+                            <span>cards</span>
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
@@ -562,24 +351,6 @@ export default async function ExpansionsPage() {
                           >
                             {formatCollectionCurrency(currentValue.value)}
                           </p>
-                        </div>
-                      </div>
-                      <div className="mt-3 border-t border-black/6 pt-2 dark:border-white/8">
-                        <div
-                          className={`mb-1.5 flex items-center justify-between gap-2 font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/35 ${tileConfig.metaClass}`}
-                        >
-                          <span>Priced</span>
-                          <span className="tabular-nums">
-                            {cardCount > 0 ? `${pricedCount}/${cardCount}` : "--"}
-                          </span>
-                        </div>
-                        <div
-                          className={`overflow-hidden rounded-full bg-black/7 dark:bg-white/8 ${tileConfig.progressHeightClass}`}
-                        >
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-300 to-sky-300 shadow-[0_0_14px_rgba(16,185,129,0.28)]"
-                            style={{ width: `${pricedPercent}%` }}
-                          />
                         </div>
                       </div>
                     </div>

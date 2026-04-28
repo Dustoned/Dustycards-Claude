@@ -143,6 +143,19 @@ model Card {
   tcgid           String?
   cardmarket_id   String?
   tcgplayer_id    String?
+  tcggo_score      Float?
+  tcggo_score_tier String?
+  tcggo_score_momentum Float?
+  tcggo_score_stability Float?
+  tcggo_score_liquidity Float?
+  tcggo_score_demand Float?
+  tcggo_score_market_depth Float?
+  tcggo_score_grade_premium Float?
+  tcggo_score_rsi Float?
+  tcggo_score_ath Float?
+  tcggo_score_atl Float?
+  tcggo_score_synced_at DateTime?
+  tcggo_score_updated_at DateTime?
   price_source_status     String?
   price_source_checked_at DateTime?
   native_history_synced_at DateTime?

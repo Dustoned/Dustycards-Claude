@@ -3,6 +3,7 @@ import {
   buildCardGradedPriceHistory,
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
+  getSaneCardMarketHistorySeriesCurrentValue,
 } from "@/lib/price-history";
 
 describe("daily set price history", () => {
@@ -130,5 +131,93 @@ describe("graded card price history", () => {
       label: "PSA 9",
       points: [{ date: "2026-04-25", value: 60 }],
     });
+  });
+});
+
+describe("sane cardmarket current values", () => {
+  it("ignores extreme low current outliers when recent history is much higher", () => {
+    const current = getSaneCardMarketHistorySeriesCurrentValue(
+      {
+        cm_en_lowest_nm: 0.05,
+        cm_de_lowest_nm: 0.09,
+        cm_fr_lowest_nm: 525,
+        cm_es_lowest_nm: 0.1,
+        cm_it_lowest_nm: 0.05,
+      },
+      "cm_market_en",
+      [
+        {
+          date: "2026-04-14",
+          label: "14 apr",
+          cm_market: 480,
+          cm_market_en: 480,
+          cm_market_de: 213,
+          cm_market_fr: 525,
+          cm_market_es: 700,
+          cm_market_it: 500,
+          tcp_market: null,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        },
+        {
+          date: "2026-04-15",
+          label: "15 apr",
+          cm_market: 480,
+          cm_market_en: 480,
+          cm_market_de: 213,
+          cm_market_fr: 525,
+          cm_market_es: 700,
+          cm_market_it: 500,
+          tcp_market: null,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        },
+        {
+          date: "2026-04-16",
+          label: "16 apr",
+          cm_market: 0.05,
+          cm_market_en: 0.05,
+          cm_market_de: 0.09,
+          cm_market_fr: 525,
+          cm_market_es: 0.1,
+          cm_market_it: 0.05,
+          tcp_market: null,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        },
+      ]
+    );
+
+    expect(current).toEqual({ value: 480, ignoredValue: 0.05 });
+  });
+
+  it("keeps genuinely cheap cards unchanged", () => {
+    const current = getSaneCardMarketHistorySeriesCurrentValue(
+      {
+        cm_en_lowest_nm: 0.2,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+      },
+      "cm_market_en",
+      [
+        {
+          date: "2026-04-15",
+          label: "15 apr",
+          cm_market: 0.25,
+          cm_market_en: 0.25,
+          cm_market_de: null,
+          cm_market_fr: null,
+          cm_market_es: null,
+          cm_market_it: null,
+          tcp_market: null,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        },
+      ]
+    );
+
+    expect(current).toEqual({ value: 0.2, ignoredValue: null });
   });
 });

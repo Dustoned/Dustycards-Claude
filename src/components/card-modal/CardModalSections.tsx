@@ -457,6 +457,7 @@ export function CardModalPricingSection({
   activeCardMarketHistorySeries,
   activeCardMarketSeriesLabel,
   activeCardMarketCurrentValue,
+  ignoredCardMarketCurrentValue,
   gradedPrices,
   gradingCompanyLabel,
   gradingGradeLabel,
@@ -472,6 +473,7 @@ export function CardModalPricingSection({
   activeCardMarketHistorySeries: CardMarketHistorySeriesKey;
   activeCardMarketSeriesLabel: string;
   activeCardMarketCurrentValue: number | null;
+  ignoredCardMarketCurrentValue: number | null;
   gradedPrices: Array<{ label: string; price: number }>;
   gradingCompanyLabel: string | null;
   gradingGradeLabel: string | null;
@@ -485,7 +487,11 @@ export function CardModalPricingSection({
       label: "Current",
       value: formatCurrency(activeCardMarketCurrentValue, "EUR"),
       hint:
-        hasMultipleCardMarketSeries ? `Using ${activeCardMarketSeriesLabel}` : null,
+        ignoredCardMarketCurrentValue != null
+          ? `Ignored suspicious ${formatCurrency(ignoredCardMarketCurrentValue, "EUR")}`
+          : hasMultipleCardMarketSeries
+            ? `Using ${activeCardMarketSeriesLabel}`
+            : null,
     },
     {
       label: "7D Avg",

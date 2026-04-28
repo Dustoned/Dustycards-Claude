@@ -3,6 +3,7 @@ import {
   buildMoversModeHref,
   buildMoversSourceHref,
   getMoversMode,
+  normalizeMoversItemScope,
   normalizeMoversPriceSource,
   normalizeMoversScope,
 } from "./routing";
@@ -21,6 +22,12 @@ describe("movers routing", () => {
     expect(normalizeMoversPriceSource("tcp", "cm_en")).toBe("tcp");
     expect(normalizeMoversPriceSource("cm_en", "tcp")).toBe("cm_en");
     expect(normalizeMoversPriceSource("bad", "tcp")).toBe("tcp");
+  });
+
+  it("normalizes mover item scope", () => {
+    expect(normalizeMoversItemScope("collection", "all")).toBe("collection");
+    expect(normalizeMoversItemScope("all", "collection")).toBe("all");
+    expect(normalizeMoversItemScope("bad", "all")).toBe("all");
   });
 
   it("maps existing scopes to the simplified mover modes", () => {
@@ -49,6 +56,9 @@ describe("movers routing", () => {
     );
     expect(buildMoversSourceHref("/movers", "cm_en", "grading")).toBe(
       "/movers?source=cm_en&scope=grading"
+    );
+    expect(buildMoversSourceHref("/movers", "cm_en", "grading", "collection")).toBe(
+      "/movers?source=cm_en&scope=grading&view=collection"
     );
   });
 });

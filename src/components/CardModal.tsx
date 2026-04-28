@@ -18,8 +18,8 @@ import {
 } from "@/lib/graded-slabs";
 import {
   CARD_MARKET_HISTORY_SERIES,
-  getCardMarketHistorySeriesCurrentValue,
   getCardMarketHistorySeriesValue,
+  getSaneCardMarketHistorySeriesCurrentValue,
   hasCardMarketHistorySeries,
   type CardMarketHistorySeriesKey,
 } from "@/lib/price-history";
@@ -107,15 +107,24 @@ export default function CardModal({ card, onClose }: Props) {
     label: point.label,
     value: point.tcp_market,
   }));
-  const activeCardMarketCurrentValue =
+  const saneActiveCardMarketCurrent =
     availableCardMarketHistorySeries.length > 0
-      ? getCardMarketHistorySeriesCurrentValue(modalCard.price, activeCardMarketHistorySeries)
-      : modalCard.price?.cm_en_lowest_nm ??
-        modalCard.price?.cm_de_lowest_nm ??
-        modalCard.price?.cm_fr_lowest_nm ??
-        modalCard.price?.cm_es_lowest_nm ??
-        modalCard.price?.cm_it_lowest_nm ??
-        null;
+      ? getSaneCardMarketHistorySeriesCurrentValue(
+          modalCard.price,
+          activeCardMarketHistorySeries,
+          modalCard.price_history
+        )
+      : {
+          value:
+            modalCard.price?.cm_en_lowest_nm ??
+            modalCard.price?.cm_de_lowest_nm ??
+            modalCard.price?.cm_fr_lowest_nm ??
+            modalCard.price?.cm_es_lowest_nm ??
+            modalCard.price?.cm_it_lowest_nm ??
+            null,
+          ignoredValue: null,
+        };
+  const activeCardMarketCurrentValue = saneActiveCardMarketCurrent.value;
   const preferredGradedLabel = getPreferredGradedLabel(
     gradedPrices,
     gradingCompanyLabel,
@@ -297,6 +306,7 @@ export default function CardModal({ card, onClose }: Props) {
                     activeCardMarketHistorySeries={activeCardMarketHistorySeries}
                     activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
                     activeCardMarketCurrentValue={activeCardMarketCurrentValue}
+                    ignoredCardMarketCurrentValue={saneActiveCardMarketCurrent.ignoredValue}
                     gradedPrices={gradedPrices}
                     gradingCompanyLabel={gradingCompanyLabel}
                     gradingGradeLabel={gradingGradeLabel}

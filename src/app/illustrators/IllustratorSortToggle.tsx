@@ -12,6 +12,7 @@ import {
 const SORT_OPTIONS: Array<{ value: IllustratorSort; label: string }> = [
   { value: "alpha", label: "Alphabetical" },
   { value: "cards", label: "Most cards" },
+  { value: "value", label: "Most value" },
 ];
 
 function persistIllustratorSort(sort: IllustratorSort) {
@@ -49,7 +50,7 @@ export default function IllustratorSortToggle({
   }
 
   return (
-    <div className="flex rounded-xl border border-black/8 bg-black/[0.03] p-1 dark:border-white/8 dark:bg-white/[0.03]">
+    <div className="inline-flex rounded-2xl border border-black/8 bg-white/75 p-1 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.04]">
       {SORT_OPTIONS.map((option) => {
         const active = activeSort === option.value;
 
@@ -60,10 +61,10 @@ export default function IllustratorSortToggle({
             onClick={() => handleSortChange(option.value)}
             disabled={isPending && !active}
             aria-pressed={active}
-            className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${
+            className={`min-h-9 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ${
               active
-                ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                : "text-gray-500 hover:text-gray-900 disabled:opacity-60 dark:text-gray-400 dark:hover:text-white"
+                ? "bg-gray-900 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-900"
+                : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 disabled:opacity-60 dark:text-white/45 dark:hover:bg-white/[0.06] dark:hover:text-white"
             }`}
           >
             {option.label}

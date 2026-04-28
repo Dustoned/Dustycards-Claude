@@ -4,6 +4,7 @@ import type { CardSize } from "@/lib/user-settings";
 
 export type SortKey =
   | "move"
+  | "tcggo_score"
   | "grade_score"
   | "grade_multiplier"
   | "grade_gap"
@@ -28,6 +29,8 @@ export function getMoverTileMinWidth(
 
 export function buildSortSummary(sortKey: SortKey, direction: DirectionFilter): string {
   switch (sortKey) {
+    case "tcggo_score":
+      return "TCGGO Score high -> low";
     case "grade_score":
       return "Grade score best target -> weakest target";
     case "grade_multiplier":
@@ -124,6 +127,9 @@ export function compareMoverItems(
     }
   } else if (sortKey === "grade_score") {
     const diff = compareMetricValues(a.grading?.score, b.grading?.score, "desc");
+    if (diff !== 0) return diff;
+  } else if (sortKey === "tcggo_score") {
+    const diff = compareMetricValues(a.tcggoScore?.score, b.tcggoScore?.score, "desc");
     if (diff !== 0) return diff;
   } else if (sortKey === "grade_multiplier") {
     const diff = compareMetricValues(

@@ -18,19 +18,20 @@ export const dynamic = "force-dynamic";
 export default async function CheapHighRarityMoversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; scope?: string }>;
+  searchParams: Promise<{ source?: string; scope?: string; view?: string }>;
 }) {
-  const { source, scope } = await searchParams;
-  const { data, activePriceSource, activeScope } = await loadMoversPageData(source, scope);
+  const { source, scope, view } = await searchParams;
+  const { data, activePriceSource, activeScope, activeItemScope } =
+    await loadMoversPageData(source, scope, view);
   const movers = getDisplayedCheapHighRarityMovers(data);
-  const isAllScope = activeScope === "all";
+  const isAllScope = activeItemScope === "all";
   const scopeLabel = isAllScope ? "All Cards" : "Collection";
   const ownedMultipleCount = movers.filter((item) => item.ownedCount >= 2).length;
   const underTenCount = movers.filter((item) => item.currentPrice <= 10).length;
   const headerStats = [
-    { label: "Cards", value: movers.length.toLocaleString(), Icon: Sparkles, tone: "amber" },
-    { label: "Under 10", value: underTenCount.toLocaleString(), Icon: Gem, tone: "sky" },
-    { label: "Owned x2+", value: ownedMultipleCount.toLocaleString(), Icon: TrendingUp, tone: "emerald" },
+    { label: "Cards", value: movers.length.toLocaleString("nl-NL"), Icon: Sparkles, tone: "amber" },
+    { label: "Under 10", value: underTenCount.toLocaleString("nl-NL"), Icon: Gem, tone: "sky" },
+    { label: "Owned x2+", value: ownedMultipleCount.toLocaleString("nl-NL"), Icon: TrendingUp, tone: "emerald" },
   ] satisfies HeaderStat[];
 
   return (
@@ -48,7 +49,12 @@ export default async function CheapHighRarityMoversPage({
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-white/50">
                 <Link
-                  href={buildMoversSourceHref("/movers", activePriceSource, activeScope)}
+                  href={buildMoversSourceHref(
+                    "/movers",
+                    activePriceSource,
+                    activeScope,
+                    activeItemScope
+                  )}
                   prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
                 >
@@ -59,7 +65,8 @@ export default async function CheapHighRarityMoversPage({
                   href={buildMoversSourceHref(
                     "/movers/discount-watch",
                     activePriceSource,
-                    activeScope
+                    activeScope,
+                    activeItemScope
                   )}
                   prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
@@ -98,6 +105,7 @@ export default async function CheapHighRarityMoversPage({
           movers={movers}
           activePriceSource={activePriceSource}
           activeScope={activeScope}
+          activeItemScope={activeItemScope}
           eyebrow="Secondary Pocket"
           title="Cheap movers with strong rarity"
           description="Gebruik deze page om alleen de goedkope high-rarity movers te zoeken, filteren en sorteren."

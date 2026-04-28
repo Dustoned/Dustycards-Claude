@@ -74,7 +74,6 @@ export function getExpansionTileScale(uiScale: UiScale, widescreen: boolean) {
       titleClass: "text-xs",
       metaClass: "text-xs",
       valueClass: "text-sm",
-      progressHeightClass: "h-1",
     };
   }
 
@@ -87,7 +86,6 @@ export function getExpansionTileScale(uiScale: UiScale, widescreen: boolean) {
       titleClass: "text-lg",
       metaClass: "text-sm",
       valueClass: "text-xl",
-      progressHeightClass: "h-2",
     };
   }
 
@@ -99,7 +97,6 @@ export function getExpansionTileScale(uiScale: UiScale, widescreen: boolean) {
     titleClass: "text-sm",
     metaClass: "text-xs",
     valueClass: "text-base",
-    progressHeightClass: "h-1.5",
   };
 }
 

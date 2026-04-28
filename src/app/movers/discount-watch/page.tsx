@@ -14,19 +14,20 @@ export const dynamic = "force-dynamic";
 export default async function DiscountWatchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; scope?: string }>;
+  searchParams: Promise<{ source?: string; scope?: string; view?: string }>;
 }) {
-  const { source, scope } = await searchParams;
-  const { data, activePriceSource, activeScope } = await loadMoversPageData(source, scope);
+  const { source, scope, view } = await searchParams;
+  const { data, activePriceSource, activeScope, activeItemScope } =
+    await loadMoversPageData(source, scope, view);
   const movers = data.discountedHighRarity;
-  const isAllScope = activeScope === "all";
+  const isAllScope = activeItemScope === "all";
   const scopeLabel = isAllScope ? "All Cards" : "Collection";
   const deepDiscountCount = movers.filter((item) => (item.gapToPeakPct ?? 0) <= -50).length;
   const negativeMomentumCount = movers.filter((item) => item.moverScore < 0).length;
   const headerStats = [
-    { label: "Cards", value: movers.length.toLocaleString(), Icon: BadgePercent, tone: "amber" },
-    { label: "Peak -50%", value: deepDiscountCount.toLocaleString(), Icon: TrendingDown, tone: "rose" },
-    { label: "Negative Move", value: negativeMomentumCount.toLocaleString(), Icon: TriangleAlert, tone: "sky" },
+    { label: "Cards", value: movers.length.toLocaleString("nl-NL"), Icon: BadgePercent, tone: "amber" },
+    { label: "Peak -50%", value: deepDiscountCount.toLocaleString("nl-NL"), Icon: TrendingDown, tone: "rose" },
+    { label: "Negative Move", value: negativeMomentumCount.toLocaleString("nl-NL"), Icon: TriangleAlert, tone: "sky" },
   ] satisfies HeaderStat[];
 
   return (
@@ -44,7 +45,12 @@ export default async function DiscountWatchPage({
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-white/50">
                 <Link
-                  href={buildMoversSourceHref("/movers", activePriceSource, activeScope)}
+                  href={buildMoversSourceHref(
+                    "/movers",
+                    activePriceSource,
+                    activeScope,
+                    activeItemScope
+                  )}
                   prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
                 >
@@ -55,7 +61,8 @@ export default async function DiscountWatchPage({
                   href={buildMoversSourceHref(
                     "/movers/cheap-high-rarity",
                     activePriceSource,
-                    activeScope
+                    activeScope,
+                    activeItemScope
                   )}
                   prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
@@ -94,6 +101,7 @@ export default async function DiscountWatchPage({
           movers={movers}
           activePriceSource={activePriceSource}
           activeScope={activeScope}
+          activeItemScope={activeItemScope}
           eyebrow="Discount Watch"
           title="High rarity cards that fell hard"
           description="Gebruik deze page om alleen high-rarity kaarten te bekijken die ver onder hun piek staan en recent zwakker ogen."

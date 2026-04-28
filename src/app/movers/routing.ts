@@ -1,4 +1,4 @@
-import type { MoversScope } from "@/lib/movers";
+import type { MoversItemScope, MoversScope } from "@/lib/movers";
 import type { PriceSource } from "@/lib/user-settings";
 
 export type MoversMode = "raw" | "graded" | "targets";
@@ -12,6 +12,13 @@ export function normalizeMoversPriceSource(
 
 export function normalizeMoversScope(value: string | null | undefined): MoversScope {
   return value === "all" || value === "graded" || value === "grading" ? value : "collection";
+}
+
+export function normalizeMoversItemScope(
+  value: string | null | undefined,
+  fallback: MoversItemScope
+): MoversItemScope {
+  return value === "all" || value === "collection" ? value : fallback;
 }
 
 export function getMoversMode(scope: MoversScope): MoversMode {
@@ -53,13 +60,18 @@ export function buildMoversModeHref(
 export function buildMoversSourceHref(
   pathname: string,
   source: PriceSource,
-  scope: MoversScope = "collection"
+  scope: MoversScope = "collection",
+  itemScope?: MoversItemScope
 ): string {
   const params = new URLSearchParams();
   params.set("source", source);
 
   if (scope !== "collection") {
     params.set("scope", scope);
+  }
+
+  if ((scope === "graded" || scope === "grading") && itemScope === "collection") {
+    params.set("view", "collection");
   }
 
   return `${pathname}?${params.toString()}`;

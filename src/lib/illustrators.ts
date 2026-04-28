@@ -4,7 +4,7 @@ import {
   HIDDEN_EXPANSION_NAMES,
 } from "@/lib/episodes";
 
-export type IllustratorSort = "alpha" | "cards";
+export type IllustratorSort = "alpha" | "cards" | "value";
 
 export const ILLUSTRATOR_SORT_COOKIE_NAME = "dusty_illustrator_sort";
 export const ILLUSTRATOR_SORT_STORAGE_KEY = "dusty-illustrator-sort";
@@ -26,7 +26,8 @@ const HIDDEN_EXPANSION_NAME_SQL = buildSqlLiteralList(
 );
 
 export function normalizeIllustratorSort(value: string | null | undefined): IllustratorSort {
-  return value === "cards" ? "cards" : "alpha";
+  if (value === "cards" || value === "value") return value;
+  return "alpha";
 }
 
 export function buildIllustratorSortHref(sort: IllustratorSort): string {

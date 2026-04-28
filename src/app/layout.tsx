@@ -92,11 +92,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <head>
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
+      </head>
+      <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
         <Script id="dustycards-init-settings" strategy="beforeInteractive">
           {initSettingsScript}
         </Script>
-      </head>
-      <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
         <SettingsProvider initialSettings={initialSettings}>
           <AutoPriceRefreshBoot />
           <header

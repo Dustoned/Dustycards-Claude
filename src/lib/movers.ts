@@ -1,8 +1,10 @@
 import { db } from "@/lib/db";
 import { startPerformanceTimer } from "@/lib/performance-timing";
 import {
+  CARD_MARKET_HISTORY_SERIES,
   buildCardPriceHistory,
-  getCardMarketValue,
+  getCardMarketHistorySeriesCurrentValue,
+  getSaneCardMarketHistorySeriesCurrentValue,
   type CardPriceHistoryPoint,
   type CardPriceHistorySnapshot,
 } from "@/lib/price-history";
@@ -27,6 +29,7 @@ const dateLabelCache = new Map<string, string>();
 type RawMoverSource = "cardmarket" | "tcgplayer";
 type MoverSource = RawMoverSource | "graded";
 export type MoversScope = "collection" | "all" | "graded" | "grading";
+export type MoversItemScope = "collection" | "all";
 
 type LatestPriceSnapshot = CardPriceHistorySnapshot;
 
@@ -42,7 +45,23 @@ interface MoverCandidateCardRecord {
     code: string | null;
   };
   prices: LatestPriceSnapshot[];
+  tcggoScore: TcggoMoverScore | null;
   ownedCount: number;
+}
+
+export interface TcggoMoverScore {
+  score: number | null;
+  tier: string | null;
+  momentum: number | null;
+  stability: number | null;
+  liquidity: number | null;
+  demand: number | null;
+  marketDepth: number | null;
+  gradePremium: number | null;
+  rsi: number | null;
+  ath: number | null;
+  atl: number | null;
+  updatedAt: string | null;
 }
 
 interface MoverCandidateCardRow {
@@ -64,6 +83,18 @@ interface MoverCandidateCardRow {
   tcp_market: number | null;
   cm_en_avg_7d: number | null;
   cm_en_avg_30d: number | null;
+  tcggo_score: number | null;
+  tcggo_score_tier: string | null;
+  tcggo_score_momentum: number | null;
+  tcggo_score_stability: number | null;
+  tcggo_score_liquidity: number | null;
+  tcggo_score_demand: number | null;
+  tcggo_score_market_depth: number | null;
+  tcggo_score_grade_premium: number | null;
+  tcggo_score_rsi: number | null;
+  tcggo_score_ath: number | null;
+  tcggo_score_atl: number | null;
+  tcggo_score_updated_at: Date | string | null;
 }
 
 interface RecentHistoryRow {
@@ -77,6 +108,18 @@ interface RecentHistoryRow {
   tcp_market: number | null;
   cm_en_avg_7d: number | null;
   cm_en_avg_30d: number | null;
+  tcggo_score: number | null;
+  tcggo_score_tier: string | null;
+  tcggo_score_momentum: number | null;
+  tcggo_score_stability: number | null;
+  tcggo_score_liquidity: number | null;
+  tcggo_score_demand: number | null;
+  tcggo_score_market_depth: number | null;
+  tcggo_score_grade_premium: number | null;
+  tcggo_score_rsi: number | null;
+  tcggo_score_ath: number | null;
+  tcggo_score_atl: number | null;
+  tcggo_score_updated_at: Date | string | null;
 }
 
 interface AllTimeHistorySummaryRow {
@@ -136,6 +179,19 @@ interface GradedMoverCandidateRow {
   tcp_market: number | null;
   cm_en_avg_7d: number | null;
   cm_en_avg_30d: number | null;
+  cm_sane_fallback_value: number | null;
+  tcggo_score: number | null;
+  tcggo_score_tier: string | null;
+  tcggo_score_momentum: number | null;
+  tcggo_score_stability: number | null;
+  tcggo_score_liquidity: number | null;
+  tcggo_score_demand: number | null;
+  tcggo_score_market_depth: number | null;
+  tcggo_score_grade_premium: number | null;
+  tcggo_score_rsi: number | null;
+  tcggo_score_ath: number | null;
+  tcggo_score_atl: number | null;
+  tcggo_score_updated_at: Date | string | null;
 }
 
 interface GradedHistoryRow {
@@ -282,6 +338,7 @@ export interface CollectionMoverItem {
   pullRateWeight: number | null;
   pullRateSource: string | null;
   cheapnessWeight: number;
+  tcggoScore: TcggoMoverScore | null;
   moverScore: number;
 }
 
@@ -327,32 +384,128 @@ function toIsoOrNull(value: Date | string | null | undefined): string | null {
   return new Date(value).toISOString();
 }
 
+function hasTcggoScoreData(score: TcggoMoverScore): boolean {
+  return Object.entries(score).some(([key, value]) => key !== "updatedAt" && value != null);
+}
+
+function buildTcggoMoverScore(row: {
+  tcggo_score: number | null;
+  tcggo_score_tier: string | null;
+  tcggo_score_momentum: number | null;
+  tcggo_score_stability: number | null;
+  tcggo_score_liquidity: number | null;
+  tcggo_score_demand: number | null;
+  tcggo_score_market_depth: number | null;
+  tcggo_score_grade_premium: number | null;
+  tcggo_score_rsi: number | null;
+  tcggo_score_ath: number | null;
+  tcggo_score_atl: number | null;
+  tcggo_score_updated_at: Date | string | null;
+}): TcggoMoverScore | null {
+  const score = {
+    score: row.tcggo_score,
+    tier: row.tcggo_score_tier,
+    momentum: row.tcggo_score_momentum,
+    stability: row.tcggo_score_stability,
+    liquidity: row.tcggo_score_liquidity,
+    demand: row.tcggo_score_demand,
+    marketDepth: row.tcggo_score_market_depth,
+    gradePremium: row.tcggo_score_grade_premium,
+    rsi: row.tcggo_score_rsi,
+    ath: row.tcggo_score_ath,
+    atl: row.tcggo_score_atl,
+    updatedAt: toIsoOrNull(row.tcggo_score_updated_at),
+  };
+
+  return hasTcggoScoreData(score) ? score : null;
+}
+
+function getPreferredCardMarketHistorySeriesKey(
+  snapshot: LatestPriceSnapshot | null | undefined
+): (typeof CARD_MARKET_HISTORY_SERIES)[number]["key"] | null {
+  if (!snapshot) return null;
+
+  return (
+    CARD_MARKET_HISTORY_SERIES.find(
+      (series) => getCardMarketHistorySeriesCurrentValue(snapshot, series.key) != null
+    )?.key ?? null
+  );
+}
+
+function getSaneCurrentCardMarketValue(
+  snapshot: LatestPriceSnapshot | null | undefined,
+  historyPoints: CardPriceHistoryPoint[],
+  fallbackValue: number | null = null
+): number | null {
+  const key = getPreferredCardMarketHistorySeriesKey(snapshot);
+  if (!key) return null;
+
+  const saneValue = getSaneCardMarketHistorySeriesCurrentValue(snapshot, key, historyPoints);
+  if (saneValue.ignoredValue != null) {
+    return saneValue.value;
+  }
+
+  if (
+    saneValue.value != null &&
+    fallbackValue != null &&
+    fallbackValue >= 10 &&
+    saneValue.value < 1 &&
+    saneValue.value < fallbackValue * 0.15
+  ) {
+    return fallbackValue;
+  }
+
+  return saneValue.value;
+}
+
 function getCurrentSourceValue(
   snapshot: LatestPriceSnapshot | null | undefined,
-  source: RawMoverSource
+  source: RawMoverSource,
+  historyPoints: CardPriceHistoryPoint[] = [],
+  cardmarketFallbackValue: number | null = null
 ): number | null {
   if (!snapshot) {
     return null;
   }
 
-  return source === "tcgplayer" ? snapshot.tcp_market ?? null : getCardMarketValue(snapshot);
+  return source === "tcgplayer"
+    ? snapshot.tcp_market ?? null
+    : getSaneCurrentCardMarketValue(snapshot, historyPoints, cardmarketFallbackValue);
 }
 
 function getHistorySourceValue(
   point: CardPriceHistoryPoint,
-  source: RawMoverSource
+  source: RawMoverSource,
+  cardmarketSeriesKey: (typeof CARD_MARKET_HISTORY_SERIES)[number]["key"] | null,
+  historyPoints: CardPriceHistoryPoint[]
 ): number | null {
-  return source === "tcgplayer" ? point.tcp_market ?? null : point.cm_market ?? null;
+  if (source === "tcgplayer") return point.tcp_market ?? null;
+  if (!cardmarketSeriesKey) return point.cm_market ?? null;
+
+  return getSaneCardMarketHistorySeriesCurrentValue(
+    {
+      cm_en_lowest_nm: point.cm_market_en,
+      cm_de_lowest_nm: point.cm_market_de,
+      cm_fr_lowest_nm: point.cm_market_fr,
+      cm_es_lowest_nm: point.cm_market_es,
+      cm_it_lowest_nm: point.cm_market_it,
+    },
+    cardmarketSeriesKey,
+    historyPoints
+  ).value;
 }
 
 function buildSeries(
   points: CardPriceHistoryPoint[],
   latestPrice: LatestPriceSnapshot | null,
-  source: RawMoverSource
+  source: RawMoverSource,
+  cardmarketFallbackValue: number | null = null
 ): MoverSeriesPoint[] {
+  const cardmarketSeriesKey =
+    source === "cardmarket" ? getPreferredCardMarketHistorySeriesKey(latestPrice) : null;
   const series = points
     .map((point) => {
-      const value = getHistorySourceValue(point, source);
+      const value = getHistorySourceValue(point, source, cardmarketSeriesKey, points);
       if (value == null) {
         return null;
       }
@@ -365,7 +518,12 @@ function buildSeries(
     })
     .filter((point): point is MoverSeriesPoint => Boolean(point));
 
-  const latestValue = getCurrentSourceValue(latestPrice, source);
+  const latestValue = getCurrentSourceValue(
+    latestPrice,
+    source,
+    points,
+    cardmarketFallbackValue
+  );
   if (latestPrice && latestValue != null) {
     const latestDate = toDateKey(latestPrice.fetched_at);
     const latestTimestamp = new Date(`${latestDate}T00:00:00.000Z`).getTime();
@@ -689,14 +847,20 @@ function evaluateSource(
   latestPrice: LatestPriceSnapshot | null,
   historyPoints: CardPriceHistoryPoint[],
   source: RawMoverSource,
-  allTimeSummary: AllTimeSourceSummary
+  allTimeSummary: AllTimeSourceSummary,
+  cardmarketFallbackValue: number | null = null
 ): EvaluatedMoverSource | null {
-  const currentPrice = getCurrentSourceValue(latestPrice, source);
+  const currentPrice = getCurrentSourceValue(
+    latestPrice,
+    source,
+    historyPoints,
+    cardmarketFallbackValue
+  );
   if (currentPrice == null) {
     return null;
   }
 
-  const series = buildSeries(historyPoints, latestPrice, source);
+  const series = buildSeries(historyPoints, latestPrice, source, cardmarketFallbackValue);
   if (series.length < 2) {
     return null;
   }
@@ -718,7 +882,8 @@ function resolveBestSource(
   latestPrice: LatestPriceSnapshot | null,
   historyPoints: CardPriceHistoryPoint[],
   preferredSource: PriceSource,
-  allTimeSummaries: Record<RawMoverSource, AllTimeSourceSummary>
+  allTimeSummaries: Record<RawMoverSource, AllTimeSourceSummary>,
+  cardmarketFallbackValue: number | null = null
 ): EvaluatedMoverSource | null {
   const sourceOrder: RawMoverSource[] =
     preferredSource === "tcp"
@@ -726,7 +891,15 @@ function resolveBestSource(
       : ["cardmarket", "tcgplayer"];
 
   const evaluated = sourceOrder
-    .map((source) => evaluateSource(latestPrice, historyPoints, source, allTimeSummaries[source]))
+    .map((source) =>
+      evaluateSource(
+        latestPrice,
+        historyPoints,
+        source,
+        allTimeSummaries[source],
+        cardmarketFallbackValue
+      )
+    )
     .filter((value): value is EvaluatedMoverSource => Boolean(value));
 
   if (evaluated.length === 0) {
@@ -764,6 +937,18 @@ async function fetchMoverCandidateCards(
       c.card_number,
       c.rarity,
       c.image_url,
+      c.tcggo_score,
+      c.tcggo_score_tier,
+      c.tcggo_score_momentum,
+      c.tcggo_score_stability,
+      c.tcggo_score_liquidity,
+      c.tcggo_score_demand,
+      c.tcggo_score_market_depth,
+      c.tcggo_score_grade_premium,
+      c.tcggo_score_rsi,
+      c.tcggo_score_ath,
+      c.tcggo_score_atl,
+      c.tcggo_score_updated_at,
       e.id AS episode_id,
       e.name AS episode_name,
       e.code AS episode_code,
@@ -818,6 +1003,7 @@ async function fetchMoverCandidateCards(
           },
         ]
       : [],
+    tcggoScore: buildTcggoMoverScore(row),
     ownedCount: Number(row.owned_count ?? 0),
   }));
 }
@@ -872,7 +1058,8 @@ function buildGradedPricesByCardId(
 
 async function buildGradedMoversData(
   preferredSource: PriceSource,
-  scope: Extract<MoversScope, "graded" | "grading"> = "graded"
+  scope: Extract<MoversScope, "graded" | "grading"> = "graded",
+  itemScope: MoversItemScope = "all"
 ): Promise<{ result: CollectionMoversData; historyRows: number }> {
   const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS).toISOString();
 
@@ -891,6 +1078,18 @@ async function buildGradedMoversData(
           c.card_number,
           c.rarity,
           c.image_url,
+          c.tcggo_score,
+          c.tcggo_score_tier,
+          c.tcggo_score_momentum,
+          c.tcggo_score_stability,
+          c.tcggo_score_liquidity,
+          c.tcggo_score_demand,
+          c.tcggo_score_market_depth,
+          c.tcggo_score_grade_premium,
+          c.tcggo_score_rsi,
+          c.tcggo_score_ath,
+          c.tcggo_score_atl,
+          c.tcggo_score_updated_at,
           e.id AS episode_id,
           e.name AS episode_name,
           e.code AS episode_code,
@@ -906,7 +1105,27 @@ async function buildGradedMoversData(
           lp.cm_it_lowest_nm,
           lp.tcp_market,
           lp.cm_en_avg_7d,
-          lp.cm_en_avg_30d
+          lp.cm_en_avg_30d,
+          (
+            SELECT COALESCE(
+              p3.cm_en_lowest_nm,
+              p3.cm_de_lowest_nm,
+              p3.cm_fr_lowest_nm,
+              p3.cm_es_lowest_nm,
+              p3.cm_it_lowest_nm
+            )
+            FROM "Price" p3
+            WHERE p3.card_id = c.id
+              AND COALESCE(
+                p3.cm_en_lowest_nm,
+                p3.cm_de_lowest_nm,
+                p3.cm_fr_lowest_nm,
+                p3.cm_es_lowest_nm,
+                p3.cm_it_lowest_nm
+              ) >= 1
+            ORDER BY p3.fetched_at DESC, p3.id DESC
+            LIMIT 1
+          ) AS cm_sane_fallback_value
         FROM "CardGradedPrice" gp
         INNER JOIN "Card" c ON c.id = gp.card_id
         INNER JOIN "Episode" e ON e.id = c.episode_id
@@ -918,6 +1137,7 @@ async function buildGradedMoversData(
           ORDER BY p2.fetched_at DESC, p2.id DESC
           LIMIT 1
         )
+        ${itemScope === "collection" ? "WHERE COALESCE(oc.owned_count, 0) > 0" : ""}
         ORDER BY gp.price DESC, c.name ASC, gp.label ASC
       `
       ),
@@ -1113,7 +1333,12 @@ async function buildGradedMoversData(
     const rarityWeight = resolveMoverRarityWeight(row.rarity, pullRateInfo?.pullRateWeight);
     const cheapnessWeight = getCheapnessWeight(currentPrice);
     const rawLatestPrice = buildLatestRawPriceFromGradedRow(row);
-    const cardmarketPrice = getCurrentSourceValue(rawLatestPrice, "cardmarket");
+    const cardmarketPrice = getCurrentSourceValue(
+      rawLatestPrice,
+      "cardmarket",
+      [],
+      row.cm_sane_fallback_value
+    );
     const tcgplayerPrice = getCurrentSourceValue(rawLatestPrice, "tcgplayer");
     const grading = buildGradingInsight(cardmarketPrice, currentPrice, rarityWeight);
     const recentPositive = (change7d?.change ?? 0) > 0 || (change30d?.change ?? 0) > 0;
@@ -1177,6 +1402,7 @@ async function buildGradedMoversData(
       pullRateWeight: pullRateInfo?.pullRateWeight ?? null,
       pullRateSource: pullRateInfo?.source ?? null,
       cheapnessWeight,
+      tcggoScore: buildTcggoMoverScore(row),
       moverScore,
     });
   }
@@ -1305,12 +1531,18 @@ async function buildGradedMoversData(
 
 export async function getMovers(
   preferredSource: PriceSource,
-  scope: MoversScope = "collection"
+  scope: MoversScope = "collection",
+  itemScope: MoversItemScope =
+    scope === "collection" ? "collection" : "all"
 ): Promise<CollectionMoversData> {
   const timer = startPerformanceTimer(`movers.${scope}`, { preferredSource, scope });
 
   if (scope === "graded" || scope === "grading") {
-    const { result, historyRows } = await buildGradedMoversData(preferredSource, scope);
+    const { result, historyRows } = await buildGradedMoversData(
+      preferredSource,
+      scope,
+      itemScope
+    );
     timer.finish({
       trackedCards: result.trackedCards,
       eligibleCards: result.eligibleCards,
@@ -1698,7 +1930,7 @@ export async function getMovers(
         : null;
     const rarityWeight = resolveMoverRarityWeight(card.rarity, pullRateInfo?.pullRateWeight);
     const cheapnessWeight = getCheapnessWeight(resolvedSource.currentPrice);
-    const cardmarketPrice = getCurrentSourceValue(latestPrice, "cardmarket");
+    const cardmarketPrice = getCurrentSourceValue(latestPrice, "cardmarket", historyPoints);
     const tcgplayerPrice = getCurrentSourceValue(latestPrice, "tcgplayer");
     const recentPositive =
       (resolvedSource.change7d?.change ?? 0) > 0 || (resolvedSource.change30d?.change ?? 0) > 0;
@@ -1764,6 +1996,7 @@ export async function getMovers(
       pullRateWeight: pullRateInfo?.pullRateWeight ?? null,
       pullRateSource: pullRateInfo?.source ?? null,
       cheapnessWeight,
+      tcggoScore: card.tcggoScore,
       moverScore,
     });
   }

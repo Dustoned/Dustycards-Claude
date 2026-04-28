@@ -43,6 +43,52 @@ interface RawCard {
   cardmarket_id?: string | number | null;
   tcgplayer_id?: string | number | null;
   prices?: RawPrices;
+  score?: RawCardScore | number | null;
+  scores?: RawCardScore | null;
+  metrics?: RawCardScore | null;
+  tcggo_score?: RawCardScore | number | null;
+  tcggo_score_tier?: string | null;
+  tier?: string | null;
+  momentum?: number | string | null;
+  stability?: number | string | null;
+  liquidity?: number | string | null;
+  demand?: number | string | null;
+  market_depth?: number | string | null;
+  grade_premium?: number | string | null;
+  rsi?: number | string | null;
+  ath?: number | string | null;
+  atl?: number | string | null;
+  score_updated_at?: string | null;
+  tcggo_score_updated_at?: string | null;
+}
+
+type RawScoreValue = number | string | null | undefined;
+
+interface RawCardScore {
+  score?: RawScoreValue;
+  value?: RawScoreValue;
+  total?: RawScoreValue;
+  overall?: RawScoreValue;
+  tcggo_score?: RawScoreValue;
+  tier?: string | null;
+  rank?: string | null;
+  momentum?: RawScoreValue;
+  stability?: RawScoreValue;
+  liquidity?: RawScoreValue;
+  demand?: RawScoreValue;
+  market_depth?: RawScoreValue;
+  marketDepth?: RawScoreValue;
+  grade_premium?: RawScoreValue;
+  gradePremium?: RawScoreValue;
+  rsi?: RawScoreValue;
+  ath?: RawScoreValue;
+  atl?: RawScoreValue;
+  all_time_high?: RawScoreValue;
+  allTimeHigh?: RawScoreValue;
+  all_time_low?: RawScoreValue;
+  allTimeLow?: RawScoreValue;
+  updated_at?: string | null;
+  updatedAt?: string | null;
 }
 
 interface RawPrices {
@@ -126,7 +172,23 @@ export interface NormalizedCard {
   tcgid: string | null;
   cardmarket_id: string | null;
   tcgplayer_id: string | null;
+  score: TcggoCardScoreData;
   prices: RawPrices | undefined;
+}
+
+export interface TcggoCardScoreData {
+  tcggo_score: number | null;
+  tcggo_score_tier: string | null;
+  tcggo_score_momentum: number | null;
+  tcggo_score_stability: number | null;
+  tcggo_score_liquidity: number | null;
+  tcggo_score_demand: number | null;
+  tcggo_score_market_depth: number | null;
+  tcggo_score_grade_premium: number | null;
+  tcggo_score_rsi: number | null;
+  tcggo_score_ath: number | null;
+  tcggo_score_atl: number | null;
+  tcggo_score_updated_at: Date | null;
 }
 
 export interface NormalizedGradedPrice {
@@ -447,6 +509,106 @@ function normalizeEpisode(ep: RawEpisode): NormalizedEpisode {
   };
 }
 
+function toScoreNumber(value: RawScoreValue): number | null {
+  if (value == null || value === "") return null;
+
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toScoreDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function asRawCardScore(value: RawCardScore | number | null | undefined): RawCardScore | null {
+  return value && typeof value === "object" ? value : null;
+}
+
+function getFirstScoreNumber(
+  card: RawCard,
+  score: RawCardScore | null,
+  keys: Array<keyof RawCardScore>,
+  cardKeys: Array<keyof RawCard> = []
+): number | null {
+  for (const key of keys) {
+    const value = toScoreNumber(score?.[key] as RawScoreValue);
+    if (value != null) return value;
+  }
+
+  for (const key of cardKeys) {
+    const value = toScoreNumber(card[key] as RawScoreValue);
+    if (value != null) return value;
+  }
+
+  return null;
+}
+
+function getTcggoScoreTier(score: number | null): string | null {
+  if (score == null) return null;
+  if (score >= 90) return "ULTRA";
+  if (score >= 75) return "PRO";
+  if (score >= 60) return "SOLID";
+  if (score >= 40) return "NEUTRAL";
+  if (score >= 20) return "WEAK";
+  return "COLD";
+}
+
+function normalizeCardScore(card: RawCard): TcggoCardScoreData {
+  const scorePayload =
+    asRawCardScore(card.tcggo_score) ??
+    asRawCardScore(card.score) ??
+    asRawCardScore(card.scores) ??
+    asRawCardScore(card.metrics);
+  const scoreValue =
+    toScoreNumber(typeof card.tcggo_score === "object" ? null : card.tcggo_score) ??
+    toScoreNumber(typeof card.score === "object" ? null : card.score) ??
+    getFirstScoreNumber(card, scorePayload, ["tcggo_score", "score", "overall", "total", "value"]);
+  const explicitTier = scorePayload?.tier ?? scorePayload?.rank ?? card.tcggo_score_tier ?? card.tier ?? null;
+
+  return {
+    tcggo_score: scoreValue,
+    tcggo_score_tier: explicitTier?.toUpperCase() ?? getTcggoScoreTier(scoreValue),
+    tcggo_score_momentum: getFirstScoreNumber(card, scorePayload, ["momentum"], ["momentum"]),
+    tcggo_score_stability: getFirstScoreNumber(card, scorePayload, ["stability"], ["stability"]),
+    tcggo_score_liquidity: getFirstScoreNumber(card, scorePayload, ["liquidity"], ["liquidity"]),
+    tcggo_score_demand: getFirstScoreNumber(card, scorePayload, ["demand"], ["demand"]),
+    tcggo_score_market_depth: getFirstScoreNumber(
+      card,
+      scorePayload,
+      ["market_depth", "marketDepth"],
+      ["market_depth"]
+    ),
+    tcggo_score_grade_premium: getFirstScoreNumber(
+      card,
+      scorePayload,
+      ["grade_premium", "gradePremium"],
+      ["grade_premium"]
+    ),
+    tcggo_score_rsi: getFirstScoreNumber(card, scorePayload, ["rsi"], ["rsi"]),
+    tcggo_score_ath: getFirstScoreNumber(
+      card,
+      scorePayload,
+      ["ath", "all_time_high", "allTimeHigh"],
+      ["ath"]
+    ),
+    tcggo_score_atl: getFirstScoreNumber(
+      card,
+      scorePayload,
+      ["atl", "all_time_low", "allTimeLow"],
+      ["atl"]
+    ),
+    tcggo_score_updated_at: toScoreDate(
+      scorePayload?.updated_at ??
+        scorePayload?.updatedAt ??
+        card.tcggo_score_updated_at ??
+        card.score_updated_at
+    ),
+  };
+}
+
 function normalizeCard(
   card: RawCard,
   tcgdexImageLookup: ReadonlyMap<string, string>
@@ -470,6 +632,7 @@ function normalizeCard(
     tcgid: tcgId,
     cardmarket_id: cardmarketId,
     tcgplayer_id: card.tcgplayer_id != null ? String(card.tcgplayer_id) : null,
+    score: normalizeCardScore(card),
     prices: card.prices,
   };
 }

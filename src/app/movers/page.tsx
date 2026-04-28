@@ -39,10 +39,13 @@ function metricToneClass(tone: SummaryMetric["tone"]): string {
   return tones[tone];
 }
 
-function getModeCopy(activeScope: "collection" | "all" | "graded" | "grading") {
+function getModeCopy(
+  activeScope: "collection" | "all" | "graded" | "grading",
+  activeItemScope: "collection" | "all"
+) {
   if (activeScope === "graded") {
     return {
-      eyebrow: "Graded Market",
+      eyebrow: activeItemScope === "collection" ? "Graded Market · Collection" : "Graded Market · All Cards",
       title: "Movers",
       description:
         "Track every current slab label as its own market item, with recent movement and lifetime context tucked into details.",
@@ -52,7 +55,7 @@ function getModeCopy(activeScope: "collection" | "all" | "graded" | "grading") {
 
   if (activeScope === "grading") {
     return {
-      eyebrow: "Grade Targets",
+      eyebrow: activeItemScope === "collection" ? "Grade Targets · Collection" : "Grade Targets · All Cards",
       title: "Movers",
       description:
         "Find cards where the raw CardMarket price is low compared with the current graded value.",
@@ -74,19 +77,23 @@ function getModeCopy(activeScope: "collection" | "all" | "graded" | "grading") {
 export default async function MoversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; scope?: string }>;
+  searchParams: Promise<{ source?: string; scope?: string; view?: string }>;
 }) {
-  const { source, scope } = await searchParams;
-  const { activePriceSource, activeScope, data } = await loadMoversPageData(source, scope);
+  const { source, scope, view } = await searchParams;
+  const { activePriceSource, activeScope, activeItemScope, data } = await loadMoversPageData(
+    source,
+    scope,
+    view
+  );
   const isGradedScope = activeScope === "graded";
   const isGradingScope = activeScope === "grading";
   const isRawScope = !isGradedScope && !isGradingScope;
-  const modeCopy = getModeCopy(activeScope);
+  const modeCopy = getModeCopy(activeScope, activeItemScope);
   const updatedAt = data.movers[0]?.latestFetchedAt ?? null;
   const metrics = [
     {
-      label: isRawScope ? (activeScope === "all" ? "Tracked Cards" : "Collection Cards") : "Graded Labels",
-      value: data.trackedCards.toLocaleString(),
+      label: activeItemScope === "all" ? "Tracked Cards" : "Collection Cards",
+      value: data.trackedCards.toLocaleString("nl-NL"),
       hint: isGradingScope
         ? "Labels compared with raw CardMarket price."
         : isGradedScope
@@ -97,7 +104,7 @@ export default async function MoversPage({
     },
     {
       label: isGradingScope ? "Targets" : isGradedScope ? "Labels Shown" : "Movers",
-      value: data.eligibleCards.toLocaleString(),
+      value: data.eligibleCards.toLocaleString("nl-NL"),
       hint: isGradingScope
         ? "Positive raw-to-graded upside."
         : isGradedScope
@@ -108,7 +115,7 @@ export default async function MoversPage({
     },
     {
       label: isGradingScope ? "Cheap Raw" : "Opportunity",
-      value: data.cheapestHighRarityMovers.length.toLocaleString(),
+      value: data.cheapestHighRarityMovers.length.toLocaleString("nl-NL"),
       hint: isGradingScope ? "Raw price at or below 15 EUR." : "Lower-price high-rarity picks.",
       Icon: Sparkles,
       tone: "violet",
@@ -182,10 +189,11 @@ export default async function MoversPage({
         </section>
 
         <MoversBrowser
-          key={activeScope}
+          key={`${activeScope}:${activeItemScope}`}
           movers={data.movers}
           activePriceSource={activePriceSource}
           activeScope={activeScope}
+          activeItemScope={activeItemScope}
           emptyTitle={
             isGradingScope
               ? "No grade targets found"

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUpRight, BrushCleaning, LibraryBig, Sparkles } from "lucide-react";
+import { ArrowUpRight, BrushCleaning, Images, LibraryBig, Sparkles } from "lucide-react";
 import {
   HeaderAction,
   PageHeroHeader,
@@ -54,7 +54,7 @@ type IllustratorSummary = {
   topPrice: number | null;
 };
 
-const EUR_FORMATTER = new Intl.NumberFormat("en-US", {
+const EUR_FORMATTER = new Intl.NumberFormat("nl-NL", {
   style: "currency",
   currency: "EUR",
   minimumFractionDigits: 2,
@@ -67,9 +67,28 @@ function formatCurrency(value: number | null): string {
   return EUR_FORMATTER.format(value);
 }
 
+function formatCount(value: number): string {
+  return value.toLocaleString("nl-NL");
+}
+
 function getInitialGroup(value: string): string {
   const initial = value.trim().charAt(0).toUpperCase();
   return /[A-Z]/.test(initial) ? initial : "#";
+}
+
+function compareByArtistValue(a: IllustratorSummary, b: IllustratorSummary): number {
+  const aTopPrice = a.topPrice ?? Number.NEGATIVE_INFINITY;
+  const bTopPrice = b.topPrice ?? Number.NEGATIVE_INFINITY;
+  const topPriceDiff = bTopPrice - aTopPrice;
+  if (topPriceDiff !== 0) return topPriceDiff;
+
+  const cardCountDiff = b.cardCount - a.cardCount;
+  if (cardCountDiff !== 0) return cardCountDiff;
+
+  const setCountDiff = b.expansionCount - a.expansionCount;
+  if (setCountDiff !== 0) return setCountDiff;
+
+  return a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" });
 }
 
 async function getIllustratorSummaries(): Promise<IllustratorSummary[]> {
@@ -189,26 +208,29 @@ export default async function IllustratorsPage({
     ? normalizeIllustratorSort(rawSort)
     : normalizeIllustratorSort(cookieStore.get(ILLUSTRATOR_SORT_COOKIE_NAME)?.value);
   const tileConfig = getIllustratorTileScale(settings.uiScale, settings.widescreen);
+  const pageMaxWidth = settings.widescreen ? "max-w-[2000px]" : "max-w-7xl";
   const illustrators = await getIllustratorSummaries();
 
   const sortedIllustrators =
-    sort === "cards"
-      ? [...illustrators].sort((a, b) => {
-          const cardCountDiff = b.cardCount - a.cardCount;
-          if (cardCountDiff !== 0) return cardCountDiff;
+    sort === "value"
+      ? [...illustrators].sort(compareByArtistValue)
+      : sort === "cards"
+        ? [...illustrators].sort((a, b) => {
+            const cardCountDiff = b.cardCount - a.cardCount;
+            if (cardCountDiff !== 0) return cardCountDiff;
 
-          const setCountDiff = b.expansionCount - a.expansionCount;
-          if (setCountDiff !== 0) return setCountDiff;
+            const setCountDiff = b.expansionCount - a.expansionCount;
+            if (setCountDiff !== 0) return setCountDiff;
 
-          return a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" });
-        })
+            return a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" });
+          })
       : [...illustrators].sort((a, b) =>
           a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" })
         );
 
   const sortedGroups =
-    sort === "cards"
-      ? [["Most cards", sortedIllustrators] as const]
+    sort === "cards" || sort === "value"
+      ? [[sort === "value" ? "Most value" : "Most cards", sortedIllustrators] as const]
       : (() => {
           const grouped = new Map<string, typeof sortedIllustrators>();
           for (const illustrator of sortedIllustrators) {
@@ -238,30 +260,30 @@ export default async function IllustratorsPage({
   const headerStats = [
     {
       label: "Illustrators",
-      value: totalIllustrators.toLocaleString(),
+      value: formatCount(totalIllustrators),
       Icon: BrushCleaning,
       tone: "amber",
     },
     {
       label: "Tracked cards",
-      value: trackedCards.toLocaleString(),
+      value: formatCount(trackedCards),
       Icon: LibraryBig,
       tone: "emerald",
     },
     {
       label: "Priced cards",
-      value: pricedCards.toLocaleString(),
+      value: formatCount(pricedCards),
       Icon: Sparkles,
       tone: "rose",
     },
   ] satisfies HeaderStat[];
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className={`page-container mx-auto ${pageMaxWidth} px-4 py-10 sm:px-6 lg:px-8`}>
       <PageHeroHeader
         eyebrow="Dusty Cards Collection"
         title="Illustrators"
-        description={`${totalIllustrators.toLocaleString()} illustrators across ${trackedCards.toLocaleString()} tracked cards.`}
+        description={`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked cards.`}
         className="mb-10"
         stats={headerStats}
         actions={
@@ -278,19 +300,24 @@ export default async function IllustratorsPage({
         }
       />
 
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-white/35">
+      <div className="glass mb-8 flex flex-col gap-4 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex h-9 items-center rounded-2xl border border-black/8 bg-white/70 px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/42">
             Sort
           </span>
           <IllustratorSortToggle activeSort={sort} />
         </div>
 
-        <p className="text-sm text-gray-500 dark:text-white/45">
-          {sort === "cards"
-            ? "Showing illustrators by total tracked cards."
-            : "Showing illustrators in alphabetical order."}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/58">
+            <LibraryBig className="h-3.5 w-3.5" />
+            {formatCount(trackedCards)} cards
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/58">
+            <Sparkles className="h-3.5 w-3.5" />
+            {formatCount(pricedCards)} priced
+          </span>
+        </div>
       </div>
 
       <div className="space-y-12">
@@ -310,10 +337,10 @@ export default async function IllustratorsPage({
                   key={illustrator.artist}
                   href={`/illustrators/${encodeURIComponent(illustrator.artist)}`}
                   prefetch={false}
-                  className={`group glass flex flex-col transition-all duration-200 hover:scale-[1.02] hover:bg-white/8 active:scale-[0.98] dark:hover:bg-white/6 ${tileConfig.tileClass}`}
+                  className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
                 >
                   <div
-                    className={`relative overflow-hidden rounded-xl border border-black/6 bg-black/[0.03] shadow-md shadow-black/10 dark:border-white/8 dark:bg-white/[0.03] ${tileConfig.imageWrapClass}`}
+                    className={`relative overflow-hidden rounded-2xl border border-black/6 bg-black/[0.03] shadow-md shadow-black/10 dark:border-white/8 dark:bg-white/[0.03] ${tileConfig.imageWrapClass}`}
                   >
                     {illustrator.topCard?.image_url ? (
                       <Image
@@ -322,7 +349,10 @@ export default async function IllustratorsPage({
                         fill
                         className="object-contain transition-transform duration-300 group-hover:scale-[1.02]"
                         sizes={tileConfig.minWidth}
-                        priority={index < 4 && (group === "A" || group === "Most cards")}
+                        priority={
+                          index < 4 &&
+                          (group === "A" || group === "Most cards" || group === "Most value")
+                        }
                         unoptimized
                       />
                     ) : (
@@ -336,46 +366,44 @@ export default async function IllustratorsPage({
 
                   <div className="space-y-1">
                     <p
-                      className={`line-clamp-2 font-semibold leading-snug text-gray-800 transition-colors group-hover:text-black dark:text-white dark:group-hover:text-white ${tileConfig.titleClass}`}
+                      className={`line-clamp-2 font-bold leading-snug text-gray-900 transition-colors group-hover:text-black dark:text-white dark:group-hover:text-white ${tileConfig.titleClass}`}
                     >
                       {illustrator.artist}
                     </p>
-                    <p className={`truncate text-gray-400 dark:text-white/40 ${tileConfig.metaClass}`}>
-                      {illustrator.topCard?.name ?? "No featured card yet"}
-                    </p>
+                    <div className={`space-y-0.5 text-gray-400 dark:text-white/40 ${tileConfig.metaClass}`}>
+                      <p className="truncate">{illustrator.topCard?.name ?? "No featured card yet"}</p>
+                      {illustrator.topCard ? (
+                        <p className="truncate">
+                          {illustrator.topCard.episode_name}
+                          {illustrator.topCard.episode_code
+                            ? ` (${illustrator.topCard.episode_code})`
+                            : ""}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
 
-                  <div className="mt-auto grid grid-cols-2 gap-2">
-                    <div className="rounded-xl border border-black/8 bg-black/[0.03] px-3 py-2 dark:border-white/8 dark:bg-white/[0.03]">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                        Cards
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                        {illustrator.cardCount}
-                      </p>
+                  <div className="mt-auto border-t border-black/6 pt-3 dark:border-white/8">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-white/60 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55">
+                        <Images className="h-3 w-3" />
+                        {formatCount(illustrator.cardCount)}
+                      </span>
+                      <span className="inline-flex items-center rounded-full border border-black/8 bg-white/60 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55">
+                        {formatCount(illustrator.expansionCount)} sets
+                      </span>
+                      <span className="inline-flex items-center rounded-full border border-black/8 bg-white/60 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55">
+                        {formatCount(illustrator.pricedCount)} priced
+                      </span>
                     </div>
-                    <div className="rounded-xl border border-black/8 bg-black/[0.03] px-3 py-2 dark:border-white/8 dark:bg-white/[0.03]">
+
+                    <div className="mt-3 flex items-end justify-between gap-3">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                        Sets
+                        Top card value
                       </p>
-                      <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                        {illustrator.expansionCount}
+                      <p className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-gray-900 dark:text-white">
+                        {formatCurrency(illustrator.topPrice)}
                       </p>
-                    </div>
-                    <div className="col-span-2 rounded-xl border border-black/8 bg-black/[0.03] px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.03]">
-                      <div className="flex items-end justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                            Top
-                          </p>
-                          <p className="mt-1 truncate text-xs text-gray-400 dark:text-white/40">
-                            {illustrator.topCard?.name ?? "No featured card yet"}
-                          </p>
-                        </div>
-                        <p className="shrink-0 whitespace-nowrap text-base font-semibold tabular-nums text-gray-900 dark:text-white">
-                          {formatCurrency(illustrator.topPrice)}
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </Link>

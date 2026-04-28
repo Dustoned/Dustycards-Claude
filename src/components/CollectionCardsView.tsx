@@ -1985,7 +1985,7 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={(event) => handleSingleRemove(event, item)}
                           disabled={removingItems}
-                          className={`${collectionTileActionButtonClass(settings.cardSize)} ml-auto`}
+                          className={collectionTileActionButtonClass(settings.cardSize)}
                           aria-label={`Remove ${item.name} from collection`}
                           title="Remove from collection"
                         >
@@ -2006,7 +2006,7 @@ export default function CollectionCardsView({
                         }}
                         initialBinderId={bulkAddBinder?.id ?? null}
                         lockedBinderName={bulkAddBinder?.name ?? null}
-                        className={`${collectionTileActionButtonClass(settings.cardSize)} ml-auto`}
+                        className={collectionTileActionButtonClass(settings.cardSize)}
                       />
                     )
                   ) : null;
@@ -2126,6 +2126,7 @@ export default function CollectionCardsView({
                     ) : (
                       <span className={collectionTileNoPriceClass(settings.cardSize)}>No price</span>
                     )}
+                    {tileAction}
                   </div>
                 </div>
 
@@ -2157,14 +2158,12 @@ export default function CollectionCardsView({
                         {conditionBadge.label}
                       </span>
                     )}
-                    {tileAction}
                   </div>
                 ) : !item.owned ? (
                   <div className={collectionMetaWrapClass(settings.cardSize)}>
                     <p className={collectionMissingMetaClass(settings.cardSize)}>
                       Not in your collection yet
                     </p>
-                    {tileAction}
                   </div>
                 ) : null}
                       </div>

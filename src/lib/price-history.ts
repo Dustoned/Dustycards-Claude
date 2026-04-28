@@ -234,6 +234,60 @@ export function getCardMarketHistorySeriesCurrentValue(
   }
 }
 
+export interface SaneCardMarketCurrentValue {
+  value: number | null;
+  ignoredValue: number | null;
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function isSuspiciousLowCardMarketValue(
+  currentValue: number,
+  historyValues: number[]
+): boolean {
+  const baseline = median(historyValues.filter((value) => value >= 1));
+
+  return baseline != null && baseline >= 10 && currentValue < 1 && currentValue < baseline * 0.15;
+}
+
+export function getSaneCardMarketHistorySeriesCurrentValue(
+  snapshot: CardMarketPriceSnapshot | null | undefined,
+  key: CardMarketHistorySeriesKey,
+  history: CardPriceHistoryPoint[]
+): SaneCardMarketCurrentValue {
+  const currentValue = getCardMarketHistorySeriesCurrentValue(snapshot, key);
+  if (currentValue == null) {
+    return { value: null, ignoredValue: null };
+  }
+
+  const historyValues = history
+    .map((point) => getCardMarketHistorySeriesValue(point, key))
+    .filter((value): value is number => value != null && Number.isFinite(value));
+
+  if (!isSuspiciousLowCardMarketValue(currentValue, historyValues)) {
+    return { value: currentValue, ignoredValue: null };
+  }
+
+  const fallbackValue =
+    [...historyValues]
+      .reverse()
+      .find((value) => value >= 1 && value >= currentValue * 10) ?? null;
+
+  return {
+    value: fallbackValue ?? currentValue,
+    ignoredValue: fallbackValue == null ? null : currentValue,
+  };
+}
+
 export function hasCardMarketHistorySeries(
   points: CardPriceHistoryPoint[],
   key: CardMarketHistorySeriesKey

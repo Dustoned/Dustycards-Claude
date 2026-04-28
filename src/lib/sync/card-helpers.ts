@@ -5,7 +5,7 @@ import {
   getTcgdexIllustratorLookupForCards,
   getTcgdexSupertypeLookupForSet,
 } from "@/lib/tcgdex";
-import { extractPrices } from "@/lib/tcggo";
+import { extractPrices, type TcggoCardScoreData } from "@/lib/tcggo";
 
 const CARD_FIELDS = [
   "name",
@@ -21,6 +21,18 @@ const CARD_FIELDS = [
   "tcgid",
   "cardmarket_id",
   "tcgplayer_id",
+  "tcggo_score",
+  "tcggo_score_tier",
+  "tcggo_score_momentum",
+  "tcggo_score_stability",
+  "tcggo_score_liquidity",
+  "tcggo_score_demand",
+  "tcggo_score_market_depth",
+  "tcggo_score_grade_premium",
+  "tcggo_score_rsi",
+  "tcggo_score_ath",
+  "tcggo_score_atl",
+  "tcggo_score_updated_at",
 ] as const;
 
 const PRICE_FIELDS = [
@@ -52,7 +64,7 @@ export type CardWriteData = {
   tcgid: string | null;
   cardmarket_id: string | null;
   tcgplayer_id: string | null;
-};
+} & TcggoCardScoreData;
 
 export interface ExistingPriceRecord extends PriceSnapshotData {
   id: string;
@@ -87,6 +99,18 @@ export const syncCardBaseSelect = {
   tcgid: true,
   cardmarket_id: true,
   tcgplayer_id: true,
+  tcggo_score: true,
+  tcggo_score_tier: true,
+  tcggo_score_momentum: true,
+  tcggo_score_stability: true,
+  tcggo_score_liquidity: true,
+  tcggo_score_demand: true,
+  tcggo_score_market_depth: true,
+  tcggo_score_grade_premium: true,
+  tcggo_score_rsi: true,
+  tcggo_score_ath: true,
+  tcggo_score_atl: true,
+  tcggo_score_updated_at: true,
   price_source_status: true,
   price_source_checked_at: true,
   native_history_synced_at: true,
@@ -146,11 +170,39 @@ export function buildCardWriteData(
     tcgid: card.tcgid ?? existing?.tcgid ?? null,
     cardmarket_id: card.cardmarket_id ?? existing?.cardmarket_id ?? null,
     tcgplayer_id: card.tcgplayer_id ?? existing?.tcgplayer_id ?? null,
+    tcggo_score: card.tcggo_score ?? existing?.tcggo_score ?? null,
+    tcggo_score_tier: card.tcggo_score_tier ?? existing?.tcggo_score_tier ?? null,
+    tcggo_score_momentum:
+      card.tcggo_score_momentum ?? existing?.tcggo_score_momentum ?? null,
+    tcggo_score_stability:
+      card.tcggo_score_stability ?? existing?.tcggo_score_stability ?? null,
+    tcggo_score_liquidity:
+      card.tcggo_score_liquidity ?? existing?.tcggo_score_liquidity ?? null,
+    tcggo_score_demand: card.tcggo_score_demand ?? existing?.tcggo_score_demand ?? null,
+    tcggo_score_market_depth:
+      card.tcggo_score_market_depth ?? existing?.tcggo_score_market_depth ?? null,
+    tcggo_score_grade_premium:
+      card.tcggo_score_grade_premium ?? existing?.tcggo_score_grade_premium ?? null,
+    tcggo_score_rsi: card.tcggo_score_rsi ?? existing?.tcggo_score_rsi ?? null,
+    tcggo_score_ath: card.tcggo_score_ath ?? existing?.tcggo_score_ath ?? null,
+    tcggo_score_atl: card.tcggo_score_atl ?? existing?.tcggo_score_atl ?? null,
+    tcggo_score_updated_at:
+      card.tcggo_score_updated_at ?? existing?.tcggo_score_updated_at ?? null,
   };
 }
 
 export function hasCardChanges(existing: CardWriteData, next: CardWriteData): boolean {
-  return CARD_FIELDS.some((field) => existing[field] !== next[field]);
+  return CARD_FIELDS.some((field) => {
+    const existingValue = existing[field];
+    const nextValue = next[field];
+
+    if (existingValue instanceof Date || nextValue instanceof Date) {
+      return (existingValue ? new Date(existingValue).getTime() : null) !==
+        (nextValue ? new Date(nextValue).getTime() : null);
+    }
+
+    return existingValue !== nextValue;
+  });
 }
 
 async function getTcgdexSupertypeLookupForEpisode(input: EpisodeCardLookupInput): Promise<ReadonlyMap<string, string>> {
