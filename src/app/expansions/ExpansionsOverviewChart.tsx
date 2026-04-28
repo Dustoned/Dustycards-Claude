@@ -82,17 +82,10 @@ export default function ExpansionsOverviewChart({
   trackedCardCount,
 }: Props) {
   const episodeIdsKey = useMemo(() => getEpisodeIdsKey(episodeIds), [episodeIds]);
-  const [cachedInitialData] = useState(() =>
-    readCachedOverviewHistory(getEpisodeIdsKey(episodeIds))
-  );
-  const [points, setPoints] = useState<PriceHistoryValuePoint[]>(cachedInitialData?.points ?? []);
-  const [currentValue, setCurrentValue] = useState<number | null>(
-    cachedInitialData?.currentValue ?? initialCurrentValue
-  );
-  const [pricedCardCount, setPricedCardCount] = useState(
-    cachedInitialData?.pricedCardCount ?? initialPricedCardCount
-  );
-  const [isLoading, setIsLoading] = useState(episodeIds.length > 0 && !cachedInitialData);
+  const [points, setPoints] = useState<PriceHistoryValuePoint[]>([]);
+  const [currentValue, setCurrentValue] = useState<number | null>(initialCurrentValue);
+  const [pricedCardCount, setPricedCardCount] = useState(initialPricedCardCount);
+  const [isLoading, setIsLoading] = useState(episodeIds.length > 0);
 
   const requestBody = useMemo(() => JSON.stringify({ episodeIds }), [episodeIds]);
 
@@ -102,6 +95,17 @@ export default function ExpansionsOverviewChart({
     }
 
     const controller = new AbortController();
+    const frameId = window.requestAnimationFrame(() => {
+      const cached = readCachedOverviewHistory(episodeIdsKey);
+      if (!cached || controller.signal.aborted) {
+        return;
+      }
+
+      setPoints(cached.points ?? []);
+      setCurrentValue(cached.currentValue ?? initialCurrentValue);
+      setPricedCardCount(cached.pricedCardCount ?? initialPricedCardCount);
+      setIsLoading(false);
+    });
 
     fetch("/api/expansions/overview-history", {
       method: "POST",
@@ -133,7 +137,10 @@ export default function ExpansionsOverviewChart({
         }
       });
 
-    return () => controller.abort();
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      controller.abort();
+    };
   }, [
     episodeIds.length,
     episodeIdsKey,

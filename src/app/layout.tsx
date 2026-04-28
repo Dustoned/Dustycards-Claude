@@ -2,12 +2,10 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { Geist } from "next/font/google";
 import Link from "next/link";
-import Script from "next/script";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import HeaderSearch from "@/components/HeaderSearch";
 import SettingsProvider from "@/components/SettingsProvider";
 import {
-  initSettingsScript,
   parseCookieSettings,
   parseResolvedThemeCookie,
   SETTINGS_COOKIE_NAME,
@@ -94,9 +92,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
       </head>
       <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
-        <Script id="dustycards-init-settings" strategy="beforeInteractive">
-          {initSettingsScript}
-        </Script>
         <SettingsProvider initialSettings={initialSettings}>
           <AutoPriceRefreshBoot />
           <header
