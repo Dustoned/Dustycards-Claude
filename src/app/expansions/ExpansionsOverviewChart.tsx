@@ -27,18 +27,22 @@ function formatCount(value: number): string {
   return value.toLocaleString("nl-NL");
 }
 
-function getBrowserCacheKey(episodeIds: string[]): string {
+function getEpisodeIdsKey(episodeIds: string[]): string {
   const ids = episodeIds.toSorted((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  return `dustycards:expansions-overview-history:${ids.join("|")}`;
+  return ids.join("|");
 }
 
-function readCachedOverviewHistory(episodeIds: string[]): OverviewHistoryResponse | null {
-  if (typeof window === "undefined" || episodeIds.length === 0) {
+function getBrowserCacheKey(episodeIdsKey: string): string {
+  return `dustycards:expansions-overview-history:${episodeIdsKey}`;
+}
+
+function readCachedOverviewHistory(episodeIdsKey: string): OverviewHistoryResponse | null {
+  if (typeof window === "undefined" || !episodeIdsKey) {
     return null;
   }
 
   try {
-    const raw = window.localStorage.getItem(getBrowserCacheKey(episodeIds));
+    const raw = window.localStorage.getItem(getBrowserCacheKey(episodeIdsKey));
     if (!raw) return null;
 
     const cached = JSON.parse(raw) as CachedOverviewHistoryResponse;
@@ -56,14 +60,14 @@ function readCachedOverviewHistory(episodeIds: string[]): OverviewHistoryRespons
   }
 }
 
-function writeCachedOverviewHistory(episodeIds: string[], data: OverviewHistoryResponse) {
-  if (typeof window === "undefined" || episodeIds.length === 0) {
+function writeCachedOverviewHistory(episodeIdsKey: string, data: OverviewHistoryResponse) {
+  if (typeof window === "undefined" || !episodeIdsKey) {
     return;
   }
 
   try {
     window.localStorage.setItem(
-      getBrowserCacheKey(episodeIds),
+      getBrowserCacheKey(episodeIdsKey),
       JSON.stringify({ storedAt: Date.now(), data } satisfies CachedOverviewHistoryResponse)
     );
   } catch {
@@ -77,7 +81,10 @@ export default function ExpansionsOverviewChart({
   initialPricedCardCount,
   trackedCardCount,
 }: Props) {
-  const [cachedInitialData] = useState(() => readCachedOverviewHistory(episodeIds));
+  const episodeIdsKey = useMemo(() => getEpisodeIdsKey(episodeIds), [episodeIds]);
+  const [cachedInitialData] = useState(() =>
+    readCachedOverviewHistory(getEpisodeIdsKey(episodeIds))
+  );
   const [points, setPoints] = useState<PriceHistoryValuePoint[]>(cachedInitialData?.points ?? []);
   const [currentValue, setCurrentValue] = useState<number | null>(
     cachedInitialData?.currentValue ?? initialCurrentValue
@@ -110,7 +117,7 @@ export default function ExpansionsOverviewChart({
         return (await response.json()) as OverviewHistoryResponse;
       })
       .then((data) => {
-        writeCachedOverviewHistory(episodeIds, data);
+        writeCachedOverviewHistory(episodeIdsKey, data);
         setPoints(data.points ?? []);
         setCurrentValue(data.currentValue ?? initialCurrentValue);
         setPricedCardCount(data.pricedCardCount ?? initialPricedCardCount);
@@ -127,7 +134,13 @@ export default function ExpansionsOverviewChart({
       });
 
     return () => controller.abort();
-  }, [episodeIds, episodeIds.length, initialCurrentValue, initialPricedCardCount, requestBody]);
+  }, [
+    episodeIds.length,
+    episodeIdsKey,
+    initialCurrentValue,
+    initialPricedCardCount,
+    requestBody,
+  ]);
 
   return (
     <PriceHistoryPanel
