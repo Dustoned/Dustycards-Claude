@@ -32,12 +32,13 @@ export const SETTINGS_STORAGE_KEY = "dustycards-settings";
 export const SETTINGS_COOKIE_NAME = "dustycards-settings";
 export const SETTINGS_RESOLVED_THEME_COOKIE_NAME = "dustycards-resolved-theme";
 export const SETTINGS_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+const SETTINGS_VERSION = 2;
 
 export const DEFAULT_SETTINGS: UserSettings = {
   theme: "system",
   widescreen: false,
   uiScale: "medium",
-  autoPriceRefresh: true,
+  autoPriceRefresh: false,
   binderWatchMinPrice: 50,
   defaultView: "table",
   cardSize: "medium",
@@ -124,11 +125,22 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
   };
 }
 
+type StoredSettings = Partial<UserSettings> & {
+  settingsVersion?: number;
+};
+
 export function parseStoredSettings(raw: string | null | undefined): UserSettings | null {
   if (!raw) return null;
 
   try {
-    return mergeSettings(JSON.parse(raw) as Partial<UserSettings>);
+    const parsed = JSON.parse(raw) as StoredSettings;
+    const merged = mergeSettings(parsed);
+
+    if (parsed.settingsVersion !== SETTINGS_VERSION) {
+      merged.autoPriceRefresh = DEFAULT_SETTINGS.autoPriceRefresh;
+    }
+
+    return merged;
   } catch {
     return null;
   }
@@ -145,7 +157,7 @@ export function parseCookieSettings(raw: string | null | undefined): UserSetting
 }
 
 export function serializeSettings(settings: UserSettings): string {
-  return JSON.stringify(settings);
+  return JSON.stringify({ ...settings, settingsVersion: SETTINGS_VERSION });
 }
 
 export function buildSettingsCookie(settings: UserSettings): string {

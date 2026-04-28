@@ -24,6 +24,43 @@ export {
   normalizeMoversScope,
 };
 
+const MOVERS_PAGE_CACHE_MS = 15_000;
+
+const moversPageCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise: Promise<CollectionMoversData>;
+  }
+>();
+
+function getCachedMovers(
+  activePriceSource: ReturnType<typeof normalizeMoversPriceSource>,
+  activeScope: MoversScope,
+  activeItemScope: MoversItemScope
+): Promise<CollectionMoversData> {
+  const key = `${activePriceSource}:${activeScope}:${activeItemScope}`;
+  const now = Date.now();
+  const cached = moversPageCache.get(key);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
+  }
+
+  const promise = getMovers(activePriceSource, activeScope, activeItemScope);
+  moversPageCache.set(key, {
+    expiresAt: now + MOVERS_PAGE_CACHE_MS,
+    promise,
+  });
+  promise.catch(() => {
+    if (moversPageCache.get(key)?.promise === promise) {
+      moversPageCache.delete(key);
+    }
+  });
+
+  return promise;
+}
+
 export async function loadMoversPageData(
   sourceOverride?: string | null,
   scopeOverride?: string | null,
@@ -43,7 +80,7 @@ export async function loadMoversPageData(
       : activeScope === "collection"
         ? "collection"
         : normalizeMoversItemScope(itemScopeOverride, "all");
-  const data = await getMovers(activePriceSource, activeScope, activeItemScope);
+  const data = await getCachedMovers(activePriceSource, activeScope, activeItemScope);
 
   return { settings, data, activePriceSource, activeScope, activeItemScope };
 }

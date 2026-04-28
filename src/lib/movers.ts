@@ -20,6 +20,7 @@ const DAY_MS = 1000 * 60 * 60 * 24;
 const HISTORY_LOOKBACK_DAYS = 45;
 const MIN_PERCENT_BASE_VALUE = 1;
 const RECENT_PRICE_SERIES_POINT_LIMIT = 16;
+const MAX_ALL_SCOPE_MOVERS = 500;
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("nl-NL", {
   day: "numeric",
   month: "short",
@@ -2059,12 +2060,17 @@ export async function getMovers(
       .filter((item) => (item.change30dPct ?? 0) > 0)
       .sort((a, b) => (b.change30dPct ?? 0) - (a.change30dPct ?? 0))[0] ?? null;
 
+  const displayedMovers =
+    scope === "all" && sortedMovers.length > MAX_ALL_SCOPE_MOVERS
+      ? sortedMovers.slice(0, MAX_ALL_SCOPE_MOVERS)
+      : sortedMovers;
+
   const result = {
     scope,
     preferredSource,
     trackedCards: candidateCards.length,
     eligibleCards: sortedMovers.length,
-    movers: sortedMovers,
+    movers: displayedMovers,
     topOpportunities,
     cheapestHighRarityMovers,
     discountedHighRarity,

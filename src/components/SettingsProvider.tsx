@@ -9,6 +9,7 @@ import {
   mergeSettings,
   parseStoredSettings,
   resolveTheme,
+  serializeSettings,
   SETTINGS_STORAGE_KEY,
   type Card3dSize,
   type CardSize,
@@ -51,7 +52,7 @@ function load(): UserSettings {
 
 function save(s: UserSettings) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s));
+  localStorage.setItem(SETTINGS_STORAGE_KEY, serializeSettings(s));
   document.cookie = buildSettingsCookie(s);
   document.cookie = buildResolvedThemeCookie(resolveTheme(s.theme, prefersDark));
 }

@@ -311,6 +311,7 @@ model Price {
 
   @@index([card_id])
   @@index([card_id, fetched_at])
+  @@index([card_id, fetched_at, id])
   @@index([fetched_at])
 }
 
