@@ -9,6 +9,11 @@ interface OverviewHistoryResponse {
   pricedCardCount?: number;
 }
 
+interface CachedOverviewHistoryResponse {
+  storedAt: number;
+  data: OverviewHistoryResponse;
+}
+
 interface Props {
   episodeIds: string[];
   initialCurrentValue: number | null;
@@ -16,8 +21,54 @@ interface Props {
   trackedCardCount: number;
 }
 
+const BROWSER_CACHE_TTL_MS = 10 * 60 * 1000;
+
 function formatCount(value: number): string {
   return value.toLocaleString("nl-NL");
+}
+
+function getBrowserCacheKey(episodeIds: string[]): string {
+  const ids = episodeIds.toSorted((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return `dustycards:expansions-overview-history:${ids.join("|")}`;
+}
+
+function readCachedOverviewHistory(episodeIds: string[]): OverviewHistoryResponse | null {
+  if (typeof window === "undefined" || episodeIds.length === 0) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getBrowserCacheKey(episodeIds));
+    if (!raw) return null;
+
+    const cached = JSON.parse(raw) as CachedOverviewHistoryResponse;
+    if (
+      typeof cached.storedAt !== "number" ||
+      Date.now() - cached.storedAt > BROWSER_CACHE_TTL_MS ||
+      !cached.data
+    ) {
+      return null;
+    }
+
+    return cached.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedOverviewHistory(episodeIds: string[], data: OverviewHistoryResponse) {
+  if (typeof window === "undefined" || episodeIds.length === 0) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      getBrowserCacheKey(episodeIds),
+      JSON.stringify({ storedAt: Date.now(), data } satisfies CachedOverviewHistoryResponse)
+    );
+  } catch {
+    // Cache failures should never block the chart.
+  }
 }
 
 export default function ExpansionsOverviewChart({
@@ -26,10 +77,15 @@ export default function ExpansionsOverviewChart({
   initialPricedCardCount,
   trackedCardCount,
 }: Props) {
-  const [points, setPoints] = useState<PriceHistoryValuePoint[]>([]);
-  const [currentValue, setCurrentValue] = useState<number | null>(initialCurrentValue);
-  const [pricedCardCount, setPricedCardCount] = useState(initialPricedCardCount);
-  const [isLoading, setIsLoading] = useState(episodeIds.length > 0);
+  const [cachedInitialData] = useState(() => readCachedOverviewHistory(episodeIds));
+  const [points, setPoints] = useState<PriceHistoryValuePoint[]>(cachedInitialData?.points ?? []);
+  const [currentValue, setCurrentValue] = useState<number | null>(
+    cachedInitialData?.currentValue ?? initialCurrentValue
+  );
+  const [pricedCardCount, setPricedCardCount] = useState(
+    cachedInitialData?.pricedCardCount ?? initialPricedCardCount
+  );
+  const [isLoading, setIsLoading] = useState(episodeIds.length > 0 && !cachedInitialData);
 
   const requestBody = useMemo(() => JSON.stringify({ episodeIds }), [episodeIds]);
 
@@ -54,6 +110,7 @@ export default function ExpansionsOverviewChart({
         return (await response.json()) as OverviewHistoryResponse;
       })
       .then((data) => {
+        writeCachedOverviewHistory(episodeIds, data);
         setPoints(data.points ?? []);
         setCurrentValue(data.currentValue ?? initialCurrentValue);
         setPricedCardCount(data.pricedCardCount ?? initialPricedCardCount);
@@ -70,7 +127,7 @@ export default function ExpansionsOverviewChart({
       });
 
     return () => controller.abort();
-  }, [episodeIds.length, initialCurrentValue, initialPricedCardCount, requestBody]);
+  }, [episodeIds, episodeIds.length, initialCurrentValue, initialPricedCardCount, requestBody]);
 
   return (
     <PriceHistoryPanel
