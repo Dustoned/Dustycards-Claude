@@ -12,7 +12,8 @@
     "test": "vitest run",
     "smoke": "playwright test",
     "backfill:tcgdex-artists": "node scripts/backfill-tcgdex-artists.mjs",
-    "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs"
+    "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs",
+    "images:cache": "node scripts/cache-images.mjs"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.7.0",

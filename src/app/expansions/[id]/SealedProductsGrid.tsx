@@ -24,6 +24,7 @@ import {
   sealedTileTitleClass,
 } from "@/components/sealed-tile-styles";
 import { getFixedTrackGridTemplate, getSealedProductTrackWidth } from "@/lib/display-scale";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CardSize } from "@/lib/user-settings";
 import {
   getActiveSealedGroup,
@@ -83,7 +84,7 @@ function SealedProductCard({
       <div className={sealedTileImageClass(cardSize)}>
         {product.image_url ? (
           <Image
-            src={product.image_url}
+            src={getCachedImageUrl(product.image_url) ?? product.image_url}
             alt={product.name}
             fill
             className={`object-contain ${sealedTileImagePaddingClass(cardSize)}`}

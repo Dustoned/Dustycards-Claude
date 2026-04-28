@@ -14,6 +14,7 @@ import {
   type CardGradedPriceHistorySeries,
   type CardMarketHistorySeriesKey,
 } from "@/lib/price-history";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { formatCurrency, rarityBadge } from "./utils";
 import type { ModalCardCollectionItem, ModalCardData } from "./types";
@@ -195,7 +196,7 @@ export function CardModalPreview({
             />
           ) : (
             <Image
-              src={card.image_url}
+              src={getCachedImageUrl(card.image_url) ?? card.image_url}
               alt={card.name}
               fill
               className="object-contain"

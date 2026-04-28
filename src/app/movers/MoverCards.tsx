@@ -7,6 +7,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { BarChart3, ChevronDown, Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionMoverItem, MoverGradedPrice, MoverRecentPricePoint } from "@/lib/movers";
 
 interface PreviewCardConfig {
@@ -685,7 +686,7 @@ const MoverTile = memo(function MoverTile({
         >
           {item.imageUrl ? (
             <Image
-              src={item.imageUrl}
+              src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
               alt={item.name}
               fill
               className="object-contain transition-transform duration-300 group-hover:scale-[1.03]"
@@ -997,7 +998,7 @@ function MoverSpotlightCard({
           <div className="relative h-[4.5rem] w-14 shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 dark:border-white/10 dark:bg-white/[0.05]">
             {item.imageUrl ? (
               <Image
-                src={item.imageUrl}
+                src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
                 alt={item.name}
                 fill
                 className="object-contain"

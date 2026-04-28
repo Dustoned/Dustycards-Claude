@@ -24,6 +24,7 @@ import {
 } from "@/components/sealed-tile-styles";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CardSize } from "@/lib/user-settings";
 import type { CollectionSealedViewItem, RemoveDialogState } from "./types";
 import {
@@ -234,7 +235,7 @@ function CollectionSealedTile({
       <div className={sealedTileImageClass(cardSize, isSelected)}>
         {item.image_url ? (
           <Image
-            src={item.image_url}
+            src={getCachedImageUrl(item.image_url) ?? item.image_url}
             alt={item.name}
             fill
             className={`object-contain ${sealedTileImagePaddingClass(cardSize)}`}

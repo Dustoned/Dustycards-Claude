@@ -16,6 +16,7 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import { SectionHeader } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 import {
@@ -1768,7 +1769,7 @@ export default function CollectionCardsView({
                               <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-black/8 bg-black/5 dark:border-white/8 dark:bg-white/5">
                                 {item.image_url ? (
                                   <Image
-                                    src={item.image_url}
+                                    src={getCachedImageUrl(item.image_url) ?? item.image_url}
                                     alt={item.name}
                                     fill
                                     className={`object-contain ${
@@ -2053,7 +2054,7 @@ export default function CollectionCardsView({
                           />
                         ) : item.image_url ? (
                           <Image
-                            src={item.image_url}
+                            src={getCachedImageUrl(item.image_url) ?? item.image_url}
                             alt={item.name}
                             fill
                             className={imageClass}

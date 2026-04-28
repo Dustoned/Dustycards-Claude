@@ -11,6 +11,7 @@ import {
   buildOwnedCardValueHistory,
   formatCollectionCurrency,
 } from "@/lib/collection";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import type { BinderPageData } from "@/lib/collection-data";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -126,7 +127,7 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
               {data.binder.episode?.logo_url ? (
                 <div className="relative h-full w-full">
                   <Image
-                    src={data.binder.episode.logo_url}
+                    src={getCachedImageUrl(data.binder.episode.logo_url) ?? data.binder.episode.logo_url}
                     alt={data.binder.name}
                     fill
                     className="object-contain"

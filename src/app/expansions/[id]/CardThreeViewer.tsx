@@ -16,6 +16,7 @@ import {
   normalizeGradingCompanyLabel,
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 
 type CurrencyCode = "EUR" | "USD";
@@ -1078,7 +1079,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
           });
 
         const [loadedFrontTexture, backTexture, stlLoaderModule] = await Promise.all([
-          loadTexture(frontImageUrl),
+          loadTexture(getCachedImageUrl(frontImageUrl) ?? frontImageUrl),
           loadTexture(CARD_BACK_URL),
           isPsaSlabViewer ? import("three/examples/jsm/loaders/STLLoader.js") : Promise.resolve(null),
         ]);

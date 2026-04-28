@@ -16,6 +16,7 @@ import {
   ILLUSTRATOR_SORT_COOKIE_NAME,
   normalizeIllustratorSort,
 } from "@/lib/illustrators";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import {
   DEFAULT_SETTINGS,
   parseCookieSettings,
@@ -344,7 +345,7 @@ export default async function IllustratorsPage({
                   >
                     {illustrator.topCard?.image_url ? (
                       <Image
-                        src={illustrator.topCard.image_url}
+                        src={getCachedImageUrl(illustrator.topCard.image_url) ?? illustrator.topCard.image_url}
                         alt={illustrator.topCard.name}
                         fill
                         className="object-contain transition-transform duration-300 group-hover:scale-[1.02]"

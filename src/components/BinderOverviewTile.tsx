@@ -3,6 +3,7 @@
 import Link from "next/link";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getCachedImageUrl } from "@/lib/image-cache";
 
 interface BinderOverviewItem {
   id: string;
@@ -54,7 +55,7 @@ export default function BinderOverviewTile({
         {binder.episode?.logo_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={binder.episode.logo_url}
+            src={getCachedImageUrl(binder.episode.logo_url) ?? binder.episode.logo_url}
             alt={binder.name}
             className="h-full w-full object-contain p-5 sm:p-6"
           />

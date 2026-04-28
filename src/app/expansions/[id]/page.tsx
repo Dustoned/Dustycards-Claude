@@ -18,6 +18,7 @@ import {
   buildEpisodeSetPriceHistory,
 } from "@/lib/price-history";
 import { buildPullRateInfoFromRarity } from "@/lib/pull-rates";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import {
   getActiveSealedGroup,
@@ -430,7 +431,7 @@ export default async function ExpansionDetailPage({
             {episode.logo_url ? (
               <div className="relative h-full w-full">
                 <Image
-                  src={episode.logo_url}
+                  src={getCachedImageUrl(episode.logo_url) ?? episode.logo_url}
                   alt={episode.name}
                   fill
                   className="object-contain drop-shadow"

@@ -21,6 +21,7 @@ import {
   clearSearchReturnPath,
   readSearchReturnPath,
 } from "@/lib/search-navigation";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
@@ -314,7 +315,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                     {ep.logo_url ? (
                       <div className={`relative w-full ${logoHeight}`}>
                         <Image
-                          src={ep.logo_url}
+                          src={getCachedImageUrl(ep.logo_url) ?? ep.logo_url}
                           alt={ep.name}
                           fill
                           className="object-contain drop-shadow-sm"
@@ -375,7 +376,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                     <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-md shadow-black/20 group-hover:shadow-xl group-hover:shadow-black/30 group-hover:scale-[1.03] transition-all duration-200">
                       {card.image_url ? (
                         <Image
-                          src={card.image_url}
+                          src={getCachedImageUrl(card.image_url) ?? card.image_url}
                           alt={card.name}
                           fill
                           className="object-contain"
@@ -476,7 +477,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                     <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-transparent bg-black/4 shadow-md shadow-black/20 transition-all duration-200 group-hover:scale-[1.03] group-hover:shadow-xl group-hover:shadow-black/30 dark:bg-white/4">
                       {product.image_url ? (
                         <Image
-                          src={product.image_url}
+                          src={getCachedImageUrl(product.image_url) ?? product.image_url}
                           alt={product.name}
                           fill
                           className="object-contain p-3"

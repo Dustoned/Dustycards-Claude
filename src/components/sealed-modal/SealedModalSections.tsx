@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, ExternalLink, LineChart, Package, RefreshCw } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import { formatCurrency } from "./utils";
 import type { SealedDetailResponse } from "./types";
 
@@ -144,7 +145,7 @@ export function SealedModalPreview({
       <div className="relative aspect-square w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)]">
         {product.image_url ? (
           <Image
-            src={product.image_url}
+            src={getCachedImageUrl(product.image_url) ?? product.image_url}
             alt={product.name}
             fill
             className={`object-contain ${imagePadding}`}

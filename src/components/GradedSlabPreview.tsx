@@ -8,6 +8,7 @@ import {
   getPsaGradeDescriptor,
   type SupportedGradedSlabCompany,
 } from "@/lib/graded-slabs";
+import { getCachedImageUrl } from "@/lib/image-cache";
 
 interface Props {
   company: SupportedGradedSlabCompany;
@@ -243,6 +244,7 @@ function GradedSlabPreview({
   const psaDescriptor = isPsa ? getPsaGradeDescriptor(grade) : null;
   const psaNameLine = isPsa ? formatPsaNameLine(name) : null;
   const psaSetLine = isPsa ? formatPsaSetLine(episodeName, cardNumber ?? null) : null;
+  const cachedImageUrl = getCachedImageUrl(imageUrl);
   const slabSubtitle = [episodeCode ?? episodeName, cardNumber ? `#${cardNumber}` : null]
     .filter(Boolean)
     .join(" ");
@@ -363,9 +365,9 @@ function GradedSlabPreview({
             className={`absolute border border-white/14 dark:border-black/20 ${metrics.cardBorderInner}`}
           />
           <div className={`absolute overflow-hidden ${metrics.cardImageInset}`}>
-            {imageUrl ? (
+            {cachedImageUrl ? (
               <Image
-                src={imageUrl}
+                src={cachedImageUrl}
                 alt={alt}
                 fill
                 className={imageClassName}

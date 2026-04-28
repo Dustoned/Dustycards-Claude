@@ -8,6 +8,7 @@ import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -304,7 +305,7 @@ function warmCardImage(url: string, priority: "auto" | "low" = "auto") {
   if ("fetchPriority" in image) {
     image.fetchPriority = priority;
   }
-  image.src = url;
+  image.src = getCachedImageUrl(url) ?? url;
 }
 
 function getUniqueCardImageUrls(cards: CardData[]): string[] {
@@ -1126,7 +1127,7 @@ export default function ExpansionView({
                           <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-black/8 bg-black/5 dark:border-white/8 dark:bg-white/5">
                             {card.image_url ? (
                               <Image
-                                src={card.image_url}
+                                src={getCachedImageUrl(card.image_url) ?? card.image_url}
                                 alt={card.name}
                                 fill
                                 className="object-contain"
@@ -1262,7 +1263,7 @@ export default function ExpansionView({
                 >
                   {card.image_url ? (
                     <Image
-                      src={card.image_url}
+                      src={getCachedImageUrl(card.image_url) ?? card.image_url}
                       alt={card.name}
                       fill
                       className="object-contain"
