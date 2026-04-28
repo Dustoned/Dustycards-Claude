@@ -9,6 +9,7 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import { useIncrementalItems } from "@/lib/use-incremental-items";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -218,6 +219,9 @@ const INITIAL_IMAGE_PRELOAD_COUNT = 8;
 const BACKGROUND_IMAGE_PRELOAD_BATCH = 8;
 const BACKGROUND_IMAGE_PRELOAD_DELAY_MS = 240;
 const WARMED_CARD_IMAGE_CACHE_LIMIT = 600;
+const INITIAL_RENDERED_CARDS = 36;
+const RENDERED_CARD_BATCH_SIZE = 36;
+const EAGER_IMAGE_COUNT = 8;
 const warmedCardImageUrls = new Set<string>();
 const warmedCardImageQueue: string[] = [];
 
@@ -659,6 +663,12 @@ export default function ExpansionView({
   );
   const cardTrackWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
   const gridTemplateColumns = getFixedTrackGridTemplate(cardTrackWidth);
+  const renderedCards = useIncrementalItems(filtered, {
+    initialCount: INITIAL_RENDERED_CARDS,
+    batchSize: RENDERED_CARD_BATCH_SIZE,
+    delayMs: 80,
+  });
+  const hasPendingRenderedCards = renderedCards.length < filtered.length;
 
   useEffect(() => {
     onVisibleCardsChange?.(filtered);
@@ -1109,7 +1119,7 @@ export default function ExpansionView({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((card, index) => {
+                {renderedCards.map((card, index) => {
                   const tableSelected = selectedCardIdSet.has(card.id);
 
                   return (
@@ -1132,7 +1142,7 @@ export default function ExpansionView({
                                 fill
                                 className="object-contain"
                                 sizes="48px"
-                                loading={index < 18 ? "eager" : undefined}
+                                loading={index < EAGER_IMAGE_COUNT ? "eager" : undefined}
                                 unoptimized
                               />
                             ) : (
@@ -1235,7 +1245,7 @@ export default function ExpansionView({
             justifyContent: "start",
           }}
         >
-          {filtered.map((card, index) => {
+          {renderedCards.map((card, index) => {
             const gridPrice = getPriceBySource(card, primaryPriceSource);
             const gridCurrency = getPriceSourceCurrency(primaryPriceSource);
             const gridSelected = selectedCardIdSet.has(card.id);
@@ -1268,7 +1278,7 @@ export default function ExpansionView({
                       fill
                       className="object-contain"
                       sizes={cardTrackWidth}
-                      loading={index < 18 ? "eager" : undefined}
+                      loading={index < EAGER_IMAGE_COUNT ? "eager" : undefined}
                       unoptimized
                     />
                   ) : (
@@ -1337,6 +1347,12 @@ export default function ExpansionView({
             );
           })}
         </div>
+      )}
+
+      {hasPendingRenderedCards && (
+        <p className="text-center text-xs font-medium text-gray-400 dark:text-white/35">
+          Loading more cards...
+        </p>
       )}
 
       {bulkAddOpen && (
