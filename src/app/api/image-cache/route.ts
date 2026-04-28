@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { NextRequest, NextResponse } from "next/server";
 import { CACHEABLE_IMAGE_HOSTS } from "@/lib/image-cache";
 
@@ -9,6 +11,11 @@ export const dynamic = "force-dynamic";
 const IMAGE_CACHE_DIR = path.resolve(process.cwd(), "data", "image-cache");
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 30_000;
+const MAX_REMOTE_IMAGE_FETCHES = 3;
+
+let activeRemoteImageFetches = 0;
+const remoteImageFetchQueue: Array<() => void> = [];
+const pendingDownloads = new Map<string, Promise<{ buffer: Buffer; contentType: string }>>();
 
 interface ImageMeta {
   contentType: string;
@@ -45,6 +52,38 @@ async function readMeta(metaPath: string): Promise<ImageMeta | null> {
   }
 }
 
+async function acquireRemoteImageFetchSlot(): Promise<() => void> {
+  if (activeRemoteImageFetches < MAX_REMOTE_IMAGE_FETCHES) {
+    activeRemoteImageFetches += 1;
+    return releaseRemoteImageFetchSlot;
+  }
+
+  return new Promise((resolve) => {
+    remoteImageFetchQueue.push(() => {
+      activeRemoteImageFetches += 1;
+      resolve(releaseRemoteImageFetchSlot);
+    });
+  });
+}
+
+function releaseRemoteImageFetchSlot() {
+  activeRemoteImageFetches = Math.max(0, activeRemoteImageFetches - 1);
+  const next = remoteImageFetchQueue.shift();
+  if (next) next();
+}
+
+function imageFileResponse(imagePath: string, contentType: string, cacheState: "HIT" | "MISS") {
+  const stream = Readable.toWeb(createReadStream(imagePath)) as ReadableStream<Uint8Array>;
+
+  return new NextResponse(stream, {
+    headers: {
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "Content-Type": contentType,
+      "X-DustyCards-Image-Cache": cacheState,
+    },
+  });
+}
+
 function imageResponse(body: Buffer, contentType: string, cacheState: "HIT" | "MISS") {
   const bytes = new Uint8Array(body);
 
@@ -55,6 +94,63 @@ function imageResponse(body: Buffer, contentType: string, cacheState: "HIT" | "M
       "X-DustyCards-Image-Cache": cacheState,
     },
   });
+}
+
+async function fetchAndCacheImage(sourceUrl: URL, imagePath: string, metaPath: string) {
+  const pending = pendingDownloads.get(sourceUrl.href);
+  if (pending) return pending;
+
+  const download = (async () => {
+    const release = await acquireRemoteImageFetchSlot();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(sourceUrl, {
+        signal: controller.signal,
+        headers: {
+          Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Image fetch failed with ${response.status}`);
+      }
+
+      const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+      if (!contentType.startsWith("image/")) {
+        throw new Error("Remote URL did not return an image");
+      }
+
+      const contentLength = Number(response.headers.get("content-length") ?? 0);
+      if (contentLength > MAX_IMAGE_BYTES) {
+        throw new Error("Image too large");
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.byteLength > MAX_IMAGE_BYTES) {
+        throw new Error("Image too large");
+      }
+
+      await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
+      await Promise.all([
+        fs.writeFile(imagePath, buffer),
+        fs.writeFile(
+          metaPath,
+          JSON.stringify({ contentType, sourceUrl: sourceUrl.href } satisfies ImageMeta)
+        ),
+      ]);
+
+      return { buffer, contentType };
+    } finally {
+      clearTimeout(timeout);
+      release();
+    }
+  })();
+
+  pendingDownloads.set(sourceUrl.href, download);
+  download.finally(() => pendingDownloads.delete(sourceUrl.href));
+  return download;
 }
 
 export async function GET(request: NextRequest) {
@@ -68,11 +164,8 @@ export async function GET(request: NextRequest) {
 
   if (cachedMeta) {
     try {
-      return imageResponse(
-        await fs.readFile(imagePath),
-        cachedMeta.contentType || "application/octet-stream",
-        "HIT"
-      );
+      await fs.access(imagePath);
+      return imageFileResponse(imagePath, cachedMeta.contentType || "application/octet-stream", "HIT");
     } catch {
       await Promise.all([
         fs.rm(imagePath, { force: true }).catch(() => undefined),
@@ -81,53 +174,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
   try {
-    const response = await fetch(sourceUrl, {
-      signal: controller.signal,
-      headers: {
-        Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
-      },
-    });
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: `Image fetch failed with ${response.status}` },
-        { status: 502 }
-      );
-    }
-
-    const contentType = response.headers.get("content-type") ?? "application/octet-stream";
-    if (!contentType.startsWith("image/")) {
-      return NextResponse.json({ error: "Remote URL did not return an image" }, { status: 415 });
-    }
-
-    const contentLength = Number(response.headers.get("content-length") ?? 0);
-    if (contentLength > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ error: "Image too large" }, { status: 413 });
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.byteLength > MAX_IMAGE_BYTES) {
-      return NextResponse.json({ error: "Image too large" }, { status: 413 });
-    }
-
-    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
-    await Promise.all([
-      fs.writeFile(imagePath, buffer),
-      fs.writeFile(
-        metaPath,
-        JSON.stringify({ contentType, sourceUrl: sourceUrl.href } satisfies ImageMeta)
-      ),
-    ]);
-
+    const { buffer, contentType } = await fetchAndCacheImage(sourceUrl, imagePath, metaPath);
     return imageResponse(buffer, contentType, "MISS");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 502 });
-  } finally {
-    clearTimeout(timeout);
   }
 }
