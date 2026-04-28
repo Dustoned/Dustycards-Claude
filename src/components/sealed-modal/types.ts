@@ -23,6 +23,7 @@ export interface SealedModalProductData {
   image_url: string | null;
   tcggo_url?: string | null;
   cardmarket_url: string | null;
+  cardmarket_id?: string | null;
   price: SealedPriceData;
   episode?: SealedEpisodeRef | null;
 }

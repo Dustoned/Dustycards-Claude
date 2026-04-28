@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
-import { buildCardMarketProductUrl, withCardMarketFilters } from "@/lib/cardmarket";
+import { resolveCardMarketSealedProductUrl } from "@/lib/cardmarket";
 import { getSealedProductPrice } from "@/lib/sealed-products";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import {
@@ -57,11 +57,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
       : primaryPrice != null
         ? [{ date: "current", label: "Nu", value: primaryPrice }]
         : [];
-  const cardMarketUrl = modalProduct.cardmarket_url
-    ? withCardMarketFilters(modalProduct.cardmarket_url)
-    : modalProduct.cardmarket_id
-      ? buildCardMarketProductUrl(modalProduct.cardmarket_id)
-      : null;
+  const cardMarketUrl = resolveCardMarketSealedProductUrl(modalProduct);
   const isBusy = refreshing || syncingHistory;
   const priceFetchedAtLabel = formatTimestamp(modalProduct.price_fetched_at);
 

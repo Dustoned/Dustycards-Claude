@@ -1,4 +1,4 @@
-import { buildCardMarketProductUrl } from "@/lib/cardmarket";
+import { buildCardMarketProductUrl, buildCardMarketSealedProductUrl } from "@/lib/cardmarket";
 import { assertScraperRequestsEnabled } from "@/lib/scraper-guard";
 import { getTcgdexImageLookup, resolveTcgdexImageUrl } from "@/lib/tcgdex";
 import { recordTcggoQuotaSnapshot } from "@/lib/tcggo-usage";
@@ -648,9 +648,7 @@ function normalizeSealedProduct(product: RawSealedProduct): NormalizedSealedProd
     image_url: product.image ?? null,
     tcggo_url: product.tcggo_url ?? null,
     cardmarket_url:
-      cardmarketId
-        ? buildCardMarketProductUrl(cardmarketId)
-        : product.links?.cardmarket ?? null,
+      product.links?.cardmarket ?? buildCardMarketSealedProductUrl(product.name),
     cardmarket_id: cardmarketId,
     tcgplayer_id:
       product.tcgplayer_id != null ? String(product.tcgplayer_id) : null,

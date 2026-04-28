@@ -40,7 +40,7 @@ export function buildInitialSealedDetail(
   return {
     ...product,
     tcggo_url: product.tcggo_url ?? null,
-    cardmarket_id: null,
+    cardmarket_id: product.cardmarket_id ?? null,
     price_fetched_at: null,
     history_synced_at: null,
     price_history: [],

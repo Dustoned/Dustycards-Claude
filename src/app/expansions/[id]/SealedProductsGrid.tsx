@@ -205,6 +205,7 @@ export default function SealedProductsGrid({
       image_url: product.image_url,
       tcggo_url: product.tcggo_url,
       cardmarket_url: product.cardmarket_url,
+      cardmarket_id: product.cardmarket_id,
       price: product.price,
       episode,
     };

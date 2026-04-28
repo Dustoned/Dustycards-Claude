@@ -8,7 +8,7 @@ import {
   SyncCancelledError,
   SyncConflictError,
 } from "@/lib/sync";
-import { buildCardMarketProductUrl } from "@/lib/cardmarket";
+import { resolveCardMarketSealedProductUrl } from "@/lib/cardmarket";
 import { isTcggoQuotaExceededError } from "@/lib/tcggo";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 
@@ -56,9 +56,7 @@ async function getSealedDetailPayload(id: string) {
     image_url: product.image_url,
     tcggo_url: product.tcggo_url,
     cardmarket_id: product.cardmarket_id,
-    cardmarket_url:
-      product.cardmarket_url ??
-      (product.cardmarket_id ? buildCardMarketProductUrl(product.cardmarket_id) : null),
+    cardmarket_url: resolveCardMarketSealedProductUrl(product),
     price_fetched_at: product.synced_at ? product.synced_at.toISOString() : null,
     history_synced_at: product.native_history_synced_at
       ? product.native_history_synced_at.toISOString()
