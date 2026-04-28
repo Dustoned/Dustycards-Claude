@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
@@ -369,6 +369,7 @@ export default function ExpansionView({
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
+  const lastNotifiedVisibleCardsRef = useRef<readonly CardData[] | null>(null);
   const view: Exclude<CardView, "binder"> =
     settings.defaultView === "binder" ? "grid" : settings.defaultView;
   const rarities = settings.defaultRarities;
@@ -671,7 +672,10 @@ export default function ExpansionView({
   const hasPendingRenderedCards = renderedCards.length < filtered.length;
 
   useEffect(() => {
-    onVisibleCardsChange?.(filtered);
+    if (!onVisibleCardsChange || lastNotifiedVisibleCardsRef.current === filtered) return;
+
+    lastNotifiedVisibleCardsRef.current = filtered;
+    onVisibleCardsChange(filtered);
   }, [filtered, onVisibleCardsChange]);
 
   const hasActiveFilters =

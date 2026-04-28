@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { useDeferredValue, useMemo, useState, useTransition } from "react";
+import { useCallback, useDeferredValue, useMemo, useState, useTransition } from "react";
 import { PageHeroHeader } from "@/components/PageHeader";
 import {
   buildEpisodeSetPriceHistory,
@@ -55,6 +55,14 @@ export default function IllustratorCardsClient({
   const [isPending, startTransition] = useTransition();
   const deferredVisibleCards = useDeferredValue(visibleCards);
   const showingFilteredSubset = visibleCards.length !== cards.length;
+  const handleVisibleCardsChange = useCallback(
+    (nextCards: CardData[]) => {
+      startTransition(() => {
+        setVisibleCards((current) => (current === nextCards ? current : nextCards));
+      });
+    },
+    [startTransition]
+  );
 
   const fullCurrentTotals = useMemo(() => buildCurrentTotals(cards), [cards]);
   const fullPriceHistory = useMemo(
@@ -147,11 +155,7 @@ export default function IllustratorCardsClient({
       <ExpansionView
         cards={cards}
         warmCardImages={false}
-        onVisibleCardsChange={(nextCards) => {
-          startTransition(() => {
-            setVisibleCards(nextCards);
-          });
-        }}
+        onVisibleCardsChange={handleVisibleCardsChange}
       />
     </div>
   );
