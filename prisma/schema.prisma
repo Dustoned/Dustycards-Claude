@@ -168,6 +168,8 @@ model Card {
   collectionItems CollectionCard[]
   gradedPrices    CardGradedPrice[]
   gradedPriceSnapshots CardGradedPriceSnapshot[]
+  ebaySoldGradedPrices CardEbaySoldGradedPrice[]
+  ebaySoldGradedPriceSnapshots CardEbaySoldGradedPriceSnapshot[]
   prices          Price[]
 
   @@index([episode_id])
@@ -202,6 +204,45 @@ model CardGradedPriceSnapshot {
 
   @@index([card_id])
   @@index([card_id, label, fetched_at])
+  @@index([fetched_at])
+}
+
+model CardEbaySoldGradedPrice {
+  id           String   @id @default(cuid())
+  card_id      String
+  source       String   @default("ebay_sold")
+  label        String
+  company      String
+  grade        String
+  median_price Float
+  currency     String   @default("USD")
+  sample_size  Int?
+  fetched_at   DateTime @default(now())
+
+  card         Card     @relation(fields: [card_id], references: [id], onDelete: Cascade)
+
+  @@index([card_id])
+  @@index([card_id, source])
+  @@index([company, grade])
+  @@unique([card_id, source, label])
+}
+
+model CardEbaySoldGradedPriceSnapshot {
+  id           String   @id @default(cuid())
+  card_id      String
+  source       String   @default("ebay_sold")
+  label        String
+  company      String
+  grade        String
+  median_price Float
+  currency     String   @default("USD")
+  sample_size  Int?
+  fetched_at   DateTime @default(now())
+
+  card         Card     @relation(fields: [card_id], references: [id], onDelete: Cascade)
+
+  @@index([card_id])
+  @@index([card_id, source, label, fetched_at])
   @@index([fetched_at])
 }
 

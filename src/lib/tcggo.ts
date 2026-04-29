@@ -107,6 +107,10 @@ interface RawPrices {
     "7d_average"?: number;
     graded?: RawGradedPrices | null;
   };
+  ebay?: {
+    currency?: string | null;
+    graded?: RawEbaySoldGradedPrices | null;
+  };
   tcg_player?: {
     currency?: string;
     market_price?: number;
@@ -121,6 +125,31 @@ type RawGradedPrices =
       price?: number | null;
     }>
   | Record<string, Record<string, number | null> | number | null>;
+
+type RawEbaySoldGradedPriceValue =
+  | number
+  | string
+  | {
+      median_price?: RawScoreValue;
+      medianPrice?: RawScoreValue;
+      price?: RawScoreValue;
+      sample_size?: RawScoreValue;
+      sampleSize?: RawScoreValue;
+    }
+  | null;
+
+type RawEbaySoldGradedPrices =
+  | Array<{
+      company?: string | null;
+      grade?: string | null;
+      median_price?: RawScoreValue;
+      medianPrice?: RawScoreValue;
+      price?: RawScoreValue;
+      sample_size?: RawScoreValue;
+      sampleSize?: RawScoreValue;
+      currency?: string | null;
+    }>
+  | Record<string, Record<string, RawEbaySoldGradedPriceValue> | RawEbaySoldGradedPriceValue>;
 
 interface RawSealedProduct {
   id: number;
@@ -194,6 +223,16 @@ export interface TcggoCardScoreData {
 export interface NormalizedGradedPrice {
   label: string;
   price: number;
+}
+
+export interface NormalizedEbaySoldGradedPrice {
+  source: "ebay_sold";
+  label: string;
+  company: string;
+  grade: string;
+  median_price: number;
+  currency: string;
+  sample_size: number | null;
 }
 
 export interface TcggoHistoryPricePoint {
@@ -700,6 +739,66 @@ function normalizeGradedPriceLabel(sourceKey: string, nestedKey?: string): strin
   return upperSource;
 }
 
+function normalizeEbaySoldCompany(companyKey: string): string {
+  return normalizeGradeToken(companyKey).toUpperCase();
+}
+
+function normalizeEbaySoldGrade(companyKey: string, gradeKey: string): string {
+  const normalizedGrade = normalizeGradeToken(gradeKey);
+  const numericMatch = normalizedGrade.match(/(\d+(?:\.\d+)?)/);
+  if (numericMatch) return numericMatch[1];
+
+  const company = normalizeEbaySoldCompany(companyKey);
+  const upperGrade = normalizedGrade.toUpperCase();
+  if (upperGrade.startsWith(company)) {
+    const stripped = upperGrade.slice(company.length).replace(/^[\s/-]+/, "").trim();
+    if (stripped) return stripped;
+  }
+
+  return upperGrade;
+}
+
+function normalizeEbaySoldCurrency(currency: string | null | undefined): string {
+  const normalized = currency?.trim().toUpperCase();
+  return normalized || "USD";
+}
+
+function toPositiveInteger(value: RawScoreValue): number | null {
+  const numberValue = toScoreNumber(value);
+  if (numberValue == null) return null;
+
+  const integerValue = Math.trunc(numberValue);
+  return integerValue > 0 ? integerValue : null;
+}
+
+function readEbaySoldGradedValue(
+  value: RawEbaySoldGradedPriceValue
+): { medianPrice: number | null; sampleSize: number | null } {
+  if (value == null) {
+    return { medianPrice: null, sampleSize: null };
+  }
+
+  if (typeof value === "number" || typeof value === "string") {
+    return { medianPrice: toScoreNumber(value), sampleSize: null };
+  }
+
+  return {
+    medianPrice: toScoreNumber(value.median_price ?? value.medianPrice ?? value.price),
+    sampleSize: toPositiveInteger(value.sample_size ?? value.sampleSize),
+  };
+}
+
+function hasEbaySoldGradedPriceFields(value: unknown): value is Exclude<
+  RawEbaySoldGradedPriceValue,
+  number | string | null
+> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+
+  return ["median_price", "medianPrice", "price", "sample_size", "sampleSize"].some(
+    (key) => key in value
+  );
+}
+
 function dedupeGradedPrices(entries: NormalizedGradedPrice[]): NormalizedGradedPrice[] {
   const deduped = new Map<string, NormalizedGradedPrice>();
 
@@ -719,6 +818,50 @@ function dedupeGradedPrices(entries: NormalizedGradedPrice[]): NormalizedGradedP
   }
 
   return [...deduped.values()].sort((a, b) => b.price - a.price || a.label.localeCompare(b.label));
+}
+
+function dedupeEbaySoldGradedPrices(
+  entries: NormalizedEbaySoldGradedPrice[]
+): NormalizedEbaySoldGradedPrice[] {
+  const deduped = new Map<string, NormalizedEbaySoldGradedPrice>();
+
+  for (const entry of entries) {
+    const label = entry.label.replace(/\s+/g, " ").trim();
+    const company = entry.company.replace(/\s+/g, " ").trim().toUpperCase();
+    const grade = entry.grade.replace(/\s+/g, " ").trim();
+    if (!label || !company || !grade) continue;
+
+    const dedupeKey = `${entry.source}::${company}::${grade.toUpperCase()}`;
+    const existing = deduped.get(dedupeKey);
+    const entrySampleSize = entry.sample_size ?? 0;
+    const existingSampleSize = existing?.sample_size ?? 0;
+
+    if (
+      !existing ||
+      entrySampleSize > existingSampleSize ||
+      (entrySampleSize === existingSampleSize && entry.median_price > existing.median_price)
+    ) {
+      deduped.set(dedupeKey, {
+        ...entry,
+        label,
+        company,
+        grade,
+      });
+    }
+  }
+
+  return [...deduped.values()].sort((a, b) => {
+    const companyCompare = a.company.localeCompare(b.company);
+    if (companyCompare !== 0) return companyCompare;
+
+    const gradeA = Number(a.grade);
+    const gradeB = Number(b.grade);
+    if (Number.isFinite(gradeA) && Number.isFinite(gradeB) && gradeA !== gradeB) {
+      return gradeB - gradeA;
+    }
+
+    return b.median_price - a.median_price || a.label.localeCompare(b.label);
+  });
 }
 
 export function extractGradedPrices(prices: RawPrices | undefined): NormalizedGradedPrice[] {
@@ -759,6 +902,93 @@ export function extractGradedPrices(prices: RawPrices | undefined): NormalizedGr
   }
 
   return dedupeGradedPrices(normalized);
+}
+
+export function extractEbaySoldGradedPrices(
+  prices: RawPrices | undefined
+): NormalizedEbaySoldGradedPrice[] {
+  const graded = prices?.ebay?.graded;
+  if (!graded) return [];
+
+  const fallbackCurrency = normalizeEbaySoldCurrency(prices?.ebay?.currency);
+  const normalized: NormalizedEbaySoldGradedPrice[] = [];
+
+  if (Array.isArray(graded)) {
+    for (const entry of graded) {
+      if (!entry?.company || !entry.grade) continue;
+
+      const { medianPrice, sampleSize } = readEbaySoldGradedValue(entry);
+      if (medianPrice == null) continue;
+
+      const company = normalizeEbaySoldCompany(entry.company);
+      const grade = normalizeEbaySoldGrade(entry.company, entry.grade);
+      if (!company || !grade) continue;
+
+      normalized.push({
+        source: "ebay_sold",
+        label: `${company} ${grade}`,
+        company,
+        grade,
+        median_price: medianPrice,
+        currency: entry.currency ? normalizeEbaySoldCurrency(entry.currency) : fallbackCurrency,
+        sample_size: sampleSize,
+      });
+    }
+
+    return dedupeEbaySoldGradedPrices(normalized);
+  }
+
+  for (const [companyKey, companyValue] of Object.entries(graded)) {
+    if (companyValue == null) continue;
+
+    const company = normalizeEbaySoldCompany(companyKey);
+    if (!company) continue;
+
+    if (
+      typeof companyValue === "number" ||
+      typeof companyValue === "string" ||
+      hasEbaySoldGradedPriceFields(companyValue)
+    ) {
+      const { medianPrice, sampleSize } = readEbaySoldGradedValue(companyValue);
+      if (medianPrice == null) continue;
+
+      const grade = normalizeEbaySoldGrade(companyKey, companyKey);
+      if (!grade) continue;
+
+      normalized.push({
+        source: "ebay_sold",
+        label: `${company} ${grade}`,
+        company,
+        grade,
+        median_price: medianPrice,
+        currency: fallbackCurrency,
+        sample_size: sampleSize,
+      });
+      continue;
+    }
+
+    if (typeof companyValue === "object") {
+      for (const [gradeKey, gradeValue] of Object.entries(companyValue)) {
+        const { medianPrice, sampleSize } = readEbaySoldGradedValue(gradeValue);
+        if (medianPrice == null) continue;
+
+        const grade = normalizeEbaySoldGrade(companyKey, gradeKey);
+        if (!grade) continue;
+
+        normalized.push({
+          source: "ebay_sold",
+          label: `${company} ${grade}`,
+          company,
+          grade,
+          median_price: medianPrice,
+          currency: fallbackCurrency,
+          sample_size: sampleSize,
+        });
+      }
+    }
+  }
+
+  return dedupeEbaySoldGradedPrices(normalized);
 }
 
 interface RawHistoryPriceEntry {

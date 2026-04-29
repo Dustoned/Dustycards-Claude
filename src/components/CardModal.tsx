@@ -67,6 +67,17 @@ export default function CardModal({ card, onClose }: Props) {
       card.collection_item?.grading_grade
     )
   );
+  const [selectedEbaySoldGradedLabel, setSelectedEbaySoldGradedLabel] = useState<string | null>(
+    () =>
+      getPreferredGradedLabel(
+        (card.ebay_sold_graded_prices ?? []).map((price) => ({
+          label: price.label,
+          price: price.median_price,
+        })),
+        card.collection_item?.grading_company,
+        card.collection_item?.grading_grade
+      )
+  );
 
   const collectionItem = modalCard.collection_item ?? null;
   const layout = getCardModalLayoutClasses(
@@ -75,6 +86,7 @@ export default function CardModal({ card, onClose }: Props) {
     Boolean(collectionItem)
   );
   const gradedPrices = modalCard.graded_prices ?? [];
+  const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];
   const gradedPriceHistory = modalCard.graded_price_history ?? [];
   const gradingCompanyLabel = normalizeGradingCompanyLabel(collectionItem?.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(collectionItem?.grading_grade);
@@ -133,6 +145,18 @@ export default function CardModal({ card, onClose }: Props) {
   const selectedGradedPrice =
     gradedPrices.find((price) => price.label === selectedGradedLabel) ??
     gradedPrices.find((price) => price.label === preferredGradedLabel) ??
+    null;
+  const preferredEbaySoldGradedLabel = getPreferredGradedLabel(
+    ebaySoldGradedPrices.map((price) => ({
+      label: price.label,
+      price: price.median_price,
+    })),
+    gradingCompanyLabel,
+    gradingGradeLabel
+  );
+  const selectedEbaySoldGradedPrice =
+    ebaySoldGradedPrices.find((price) => price.label === selectedEbaySoldGradedLabel) ??
+    ebaySoldGradedPrices.find((price) => price.label === preferredEbaySoldGradedLabel) ??
     null;
   const selectedGradedHistory =
     gradedPriceHistory.find((series) => series.label === selectedGradedLabel) ??
@@ -308,11 +332,14 @@ export default function CardModal({ card, onClose }: Props) {
                     activeCardMarketCurrentValue={activeCardMarketCurrentValue}
                     ignoredCardMarketCurrentValue={saneActiveCardMarketCurrent.ignoredValue}
                     gradedPrices={gradedPrices}
+                    ebaySoldGradedPrices={ebaySoldGradedPrices}
                     gradingCompanyLabel={gradingCompanyLabel}
                     gradingGradeLabel={gradingGradeLabel}
                     selectedGradedPrice={selectedGradedPrice}
+                    selectedEbaySoldGradedPrice={selectedEbaySoldGradedPrice}
                     onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
                     onSelectGradedLabel={setSelectedGradedLabel}
+                    onSelectEbaySoldGradedLabel={setSelectedEbaySoldGradedLabel}
                   />
 
                   <CardModalHistorySection

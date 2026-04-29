@@ -460,11 +460,14 @@ export function CardModalPricingSection({
   activeCardMarketCurrentValue,
   ignoredCardMarketCurrentValue,
   gradedPrices,
+  ebaySoldGradedPrices,
   gradingCompanyLabel,
   gradingGradeLabel,
   selectedGradedPrice,
+  selectedEbaySoldGradedPrice,
   onSelectCardMarketHistorySeries,
   onSelectGradedLabel,
+  onSelectEbaySoldGradedLabel,
 }: {
   card: ModalCardData;
   availableCardMarketHistorySeries: Array<{
@@ -476,11 +479,16 @@ export function CardModalPricingSection({
   activeCardMarketCurrentValue: number | null;
   ignoredCardMarketCurrentValue: number | null;
   gradedPrices: Array<{ label: string; price: number }>;
+  ebaySoldGradedPrices: NonNullable<ModalCardData["ebay_sold_graded_prices"]>;
   gradingCompanyLabel: string | null;
   gradingGradeLabel: string | null;
   selectedGradedPrice: { label: string; price: number } | null;
+  selectedEbaySoldGradedPrice:
+    | NonNullable<ModalCardData["ebay_sold_graded_prices"]>[number]
+    | null;
   onSelectCardMarketHistorySeries: (series: CardMarketHistorySeriesKey) => void;
   onSelectGradedLabel: (label: string) => void;
+  onSelectEbaySoldGradedLabel: (label: string) => void;
 }) {
   const hasMultipleCardMarketSeries = availableCardMarketHistorySeries.length > 1;
   const cardMarketMetrics: PriceMetric[] = [
@@ -525,6 +533,28 @@ export function CardModalPricingSection({
   const pricingHeaderClass = hasMultipleCardMarketSeries
     ? "mb-4 flex min-h-[5.5rem] flex-col justify-start space-y-3"
     : "mb-4";
+  const selectedEbaySoldCurrency = selectedEbaySoldGradedPrice?.currency === "EUR" ? "EUR" : "USD";
+  const selectedEbaySoldMedianEur =
+    selectedEbaySoldGradedPrice?.median_price_eur ??
+    (selectedEbaySoldGradedPrice?.currency === "EUR"
+      ? selectedEbaySoldGradedPrice.median_price
+      : null);
+  const selectedEbaySoldDisplayCurrency = selectedEbaySoldMedianEur != null ? "EUR" : selectedEbaySoldCurrency;
+  const selectedEbaySoldDisplayPrice =
+    selectedEbaySoldMedianEur ?? selectedEbaySoldGradedPrice?.median_price ?? null;
+  const selectedEbaySoldSampleLabel =
+    selectedEbaySoldGradedPrice?.sample_size != null
+      ? `${selectedEbaySoldGradedPrice.sample_size} sold`
+      : "Sold median";
+  const selectedEbaySoldOriginalLabel =
+    selectedEbaySoldGradedPrice &&
+    selectedEbaySoldGradedPrice.currency.toUpperCase() === "USD" &&
+    selectedEbaySoldMedianEur != null
+      ? `${formatCurrency(selectedEbaySoldGradedPrice.median_price, "USD")} USD`
+      : null;
+  const selectedEbaySoldMetaLabel = [selectedEbaySoldSampleLabel, selectedEbaySoldOriginalLabel]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <SectionShell title="Current pricing">
@@ -651,6 +681,56 @@ export function CardModalPricingSection({
               <p className="shrink-0 rounded-2xl border border-violet-400/16 bg-violet-400/[0.08] px-4 py-3 text-right text-2xl font-semibold tabular-nums text-white">
                 {formatCurrency(selectedGradedPrice.price, "EUR")}
               </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {ebaySoldGradedPrices.length > 0 && (
+        <div className="mt-5 rounded-[24px] border border-sky-400/14 bg-sky-400/[0.055] p-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto] lg:items-center">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
+                  eBay Sold
+                </p>
+                <MetaPill>{selectedEbaySoldDisplayCurrency}</MetaPill>
+              </div>
+              <p className="mt-1.5 text-sm text-white/42">Completed graded sales median</p>
+            </div>
+
+            {ebaySoldGradedPrices.length > 1 ? (
+              <select
+                value={selectedEbaySoldGradedPrice?.label ?? ""}
+                onChange={(event) => onSelectEbaySoldGradedLabel(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-base font-medium text-white outline-none transition-colors focus:border-white/18"
+              >
+                {ebaySoldGradedPrices.map((gradedPrice) => (
+                  <option
+                    key={gradedPrice.label}
+                    value={gradedPrice.label}
+                    className="bg-[#111214] text-white"
+                  >
+                    {gradedPrice.label}
+                    {gradedPrice.sample_size != null ? ` (${gradedPrice.sample_size})` : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="rounded-2xl border border-sky-400/16 bg-sky-400/[0.08] px-4 py-3 text-base font-semibold text-white/78">
+                {selectedEbaySoldGradedPrice?.label ?? ebaySoldGradedPrices[0]?.label ?? "eBay"}
+              </div>
+            )}
+
+            {selectedEbaySoldGradedPrice && (
+              <div className="shrink-0 rounded-2xl border border-sky-400/16 bg-sky-400/[0.08] px-4 py-3 text-right">
+                <p className="text-2xl font-semibold tabular-nums text-white">
+                  {formatCurrency(selectedEbaySoldDisplayPrice, selectedEbaySoldDisplayCurrency)}
+                </p>
+                <p className="mt-1 text-sm font-medium text-white/48">
+                  {selectedEbaySoldMetaLabel}
+                </p>
+              </div>
             )}
           </div>
         </div>

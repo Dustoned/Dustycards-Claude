@@ -3,6 +3,19 @@ export interface GradedPriceData {
   price: number;
 }
 
+export interface EbaySoldGradedPriceData {
+  source: "ebay_sold";
+  label: string;
+  company: string;
+  grade: string;
+  median_price: number;
+  currency: string;
+  sample_size: number | null;
+  median_price_eur?: number | null;
+  exchange_rate_usd_eur?: number | null;
+  exchange_rate_date?: string | null;
+}
+
 export interface CardData {
   id: string;
   name: string;
@@ -35,6 +48,7 @@ export interface CardData {
     cm_en_avg_30d: number | null;
   } | null;
   graded_prices?: GradedPriceData[];
+  ebay_sold_graded_prices?: EbaySoldGradedPriceData[];
   pull_rate_info?: {
     source: string;
     rarity_name: string;

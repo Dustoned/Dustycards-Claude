@@ -5,6 +5,7 @@ import {
   getCollectionCardMarketValue,
   type CollectionCostBasis,
 } from "@/lib/collection";
+import { convertUsdToEur, getUsdToEurRate } from "@/lib/exchange-rates";
 import { buildCardGradedPriceHistory, buildCardPriceHistory } from "@/lib/price-history";
 import { getPullRateInfoForSetRarity } from "@/lib/pull-rates";
 import {
@@ -159,6 +160,18 @@ async function getCardDetailPayload(id: string) {
           price: true,
         },
       },
+      ebaySoldGradedPrices: {
+        orderBy: [{ median_price: "desc" }, { label: "asc" }],
+        select: {
+          source: true,
+          label: true,
+          company: true,
+          grade: true,
+          median_price: true,
+          currency: true,
+          sample_size: true,
+        },
+      },
       gradedPriceSnapshots: {
         orderBy: [{ label: "asc" }, { fetched_at: "asc" }],
         select: {
@@ -199,6 +212,27 @@ async function getCardDetailPayload(id: string) {
   });
   const collectionItem = card.collectionItems[0] ?? null;
   const collectionCostBasis = await getCardDetailCostBasis(collectionItem);
+  const hasUsdEbaySoldGradedPrices = card.ebaySoldGradedPrices.some(
+    (price) => price.currency.toUpperCase() === "USD"
+  );
+  const usdToEurRate = hasUsdEbaySoldGradedPrices ? await getUsdToEurRate() : null;
+  const ebaySoldGradedPrices = card.ebaySoldGradedPrices.map((price) => {
+    const currency = price.currency.toUpperCase();
+    const medianPriceEur =
+      currency === "EUR"
+        ? price.median_price
+        : currency === "USD"
+          ? convertUsdToEur(price.median_price, usdToEurRate)
+          : null;
+
+    return {
+      ...price,
+      currency,
+      median_price_eur: medianPriceEur,
+      exchange_rate_usd_eur: currency === "USD" ? usdToEurRate?.rate ?? null : null,
+      exchange_rate_date: currency === "USD" ? usdToEurRate?.date ?? null : null,
+    };
+  });
 
   return {
     id: card.id,
@@ -233,6 +267,7 @@ async function getCardDetailPayload(id: string) {
         }
       : null,
     graded_prices: card.gradedPrices,
+    ebay_sold_graded_prices: ebaySoldGradedPrices,
     graded_price_history: gradedPriceHistory,
     price_history: priceHistory,
     pull_rate_info: pullRateInfo

@@ -279,6 +279,7 @@ function buildModalCardData(
     price_fetched_at: card.price_fetched_at,
     price: card.price,
     graded_prices: card.graded_prices ?? [],
+    ebay_sold_graded_prices: card.ebay_sold_graded_prices ?? [],
     price_history: [],
     pull_rate_info: card.pull_rate_info ?? null,
     collection_item: null,

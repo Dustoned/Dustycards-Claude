@@ -35,6 +35,8 @@ const REQUIRED_RUNTIME_FIELDS = {
     "native_history_checked_at",
   ],
   CardGradedPriceSnapshot: ["price", "fetched_at"],
+  CardEbaySoldGradedPrice: ["source", "currency", "sample_size"],
+  CardEbaySoldGradedPriceSnapshot: ["source", "currency", "sample_size"],
   SetPullRateProfile: ["set_code", "imported_at"],
   SetPullRateRarity: ["normalized_rarity", "specific_pull_denominator"],
   SealedPriceSnapshot: ["cm_avg_7d", "cm_avg_30d"],

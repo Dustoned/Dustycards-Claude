@@ -17,6 +17,7 @@ import {
 import { resolveTcgdexSupertype } from "@/lib/tcgdex";
 import {
   buildCardWriteData,
+  dedupeEbaySoldGradedCreateRows,
   dedupeGradedCreateRows,
   findExistingCardsForSync,
   hasAnyMarketplaceId,
@@ -26,6 +27,7 @@ import {
   pricesMatch,
   syncCardWithEpisodeSelect,
   type CardWriteData,
+  type EbaySoldGradedCreateRow,
   type ExistingPriceRecord,
   type GradedCreateRow,
   type PriceSnapshotData,
@@ -41,6 +43,7 @@ import {
   upsertVisibleRemoteEpisodes,
 } from "@/lib/sync/catalog";
 import {
+  extractEbaySoldGradedPrices,
   extractGradedPrices,
   extractPrices,
   fetchAllEpisodes,
@@ -1037,6 +1040,8 @@ async function persistCardPriceWrites(
     fetchedAt: Date;
     gradedCardIdsToReplace: Set<string>;
     gradedCreates: GradedCreateRow[];
+    ebaySoldGradedCardIdsToReplace: Set<string>;
+    ebaySoldGradedCreates: EbaySoldGradedCreateRow[];
     priceRefreshes: string[];
     priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData>;
   }
@@ -1048,6 +1053,9 @@ async function persistCardPriceWrites(
   }
 
   const dedupedGradedCreates = dedupeGradedCreateRows(input.gradedCreates);
+  const dedupedEbaySoldGradedCreates = dedupeEbaySoldGradedCreateRows(
+    input.ebaySoldGradedCreates
+  );
 
   if (dedupedGradedCreates.length > 0) {
     await tx.cardGradedPrice.createMany({
@@ -1056,6 +1064,22 @@ async function persistCardPriceWrites(
 
     await tx.cardGradedPriceSnapshot.createMany({
       data: dedupedGradedCreates,
+    });
+  }
+
+  if (input.ebaySoldGradedCardIdsToReplace.size > 0) {
+    await tx.cardEbaySoldGradedPrice.deleteMany({
+      where: { card_id: { in: [...input.ebaySoldGradedCardIdsToReplace] } },
+    });
+  }
+
+  if (dedupedEbaySoldGradedCreates.length > 0) {
+    await tx.cardEbaySoldGradedPrice.createMany({
+      data: dedupedEbaySoldGradedCreates,
+    });
+
+    await tx.cardEbaySoldGradedPriceSnapshot.createMany({
+      data: dedupedEbaySoldGradedCreates,
     });
   }
 
@@ -1603,6 +1627,8 @@ async function syncEpisodeCards(
     const priceRefreshes: string[] = [];
     const gradedCardIdsToReplace = new Set<string>();
     const gradedCreates: GradedCreateRow[] = [];
+    const ebaySoldGradedCardIdsToReplace = new Set<string>();
+    const ebaySoldGradedCreates: EbaySoldGradedCreateRow[] = [];
 
     let newCards = 0;
     let updatedCards = 0;
@@ -1669,6 +1695,24 @@ async function syncEpisodeCards(
         }
       }
 
+      const nextEbaySoldGradedPrices = extractEbaySoldGradedPrices(card.prices);
+      if (nextEbaySoldGradedPrices.length > 0) {
+        ebaySoldGradedCardIdsToReplace.add(card.id);
+        for (const gradedPrice of nextEbaySoldGradedPrices) {
+          ebaySoldGradedCreates.push({
+            card_id: card.id,
+            source: gradedPrice.source,
+            label: gradedPrice.label,
+            company: gradedPrice.company,
+            grade: gradedPrice.grade,
+            median_price: gradedPrice.median_price,
+            currency: gradedPrice.currency,
+            sample_size: gradedPrice.sample_size,
+            fetched_at: fetchedAt,
+          });
+        }
+      }
+
       const latestPrice = existingCard?.prices[0] ?? null;
       const nextPrice = extractPrices(card.prices);
       const writeMode = queuePriceSnapshotWrite(
@@ -1718,6 +1762,8 @@ async function syncEpisodeCards(
       fetchedAt,
       gradedCardIdsToReplace,
       gradedCreates,
+      ebaySoldGradedCardIdsToReplace,
+      ebaySoldGradedCreates,
       priceRefreshes,
       priceCreates,
     });
@@ -2125,6 +2171,8 @@ async function refreshEpisodeDueCards(
     const priceRefreshes: string[] = [];
     const gradedCardIdsToReplace = new Set<string>();
     const gradedCreates: GradedCreateRow[] = [];
+    const ebaySoldGradedCardIdsToReplace = new Set<string>();
+    const ebaySoldGradedCreates: EbaySoldGradedCreateRow[] = [];
 
     let updatedCards = 0;
     let newPrices = 0;
@@ -2179,6 +2227,24 @@ async function refreshEpisodeDueCards(
         }
       }
 
+      const nextEbaySoldGradedPrices = extractEbaySoldGradedPrices(remoteCard.prices);
+      if (nextEbaySoldGradedPrices.length > 0) {
+        ebaySoldGradedCardIdsToReplace.add(cardId);
+        for (const gradedPrice of nextEbaySoldGradedPrices) {
+          ebaySoldGradedCreates.push({
+            card_id: cardId,
+            source: gradedPrice.source,
+            label: gradedPrice.label,
+            company: gradedPrice.company,
+            grade: gradedPrice.grade,
+            median_price: gradedPrice.median_price,
+            currency: gradedPrice.currency,
+            sample_size: gradedPrice.sample_size,
+            fetched_at: fetchedAt,
+          });
+        }
+      }
+
       const latestPrice = existingCard.prices[0] ?? null;
       const nextPrice = extractPrices(remoteCard.prices);
       const writeMode = queuePriceSnapshotWrite(
@@ -2225,6 +2291,8 @@ async function refreshEpisodeDueCards(
       fetchedAt,
       gradedCardIdsToReplace,
       gradedCreates,
+      ebaySoldGradedCardIdsToReplace,
+      ebaySoldGradedCreates,
       priceRefreshes,
       priceCreates,
     });
@@ -2313,6 +2381,19 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           price: gradedPrice.price,
           fetched_at: fetchedAt,
         }));
+        const ebaySoldGradedCreates = extractEbaySoldGradedPrices(remoteCard.prices).map(
+          (gradedPrice) => ({
+            card_id: cardId,
+            source: gradedPrice.source,
+            label: gradedPrice.label,
+            company: gradedPrice.company,
+            grade: gradedPrice.grade,
+            median_price: gradedPrice.median_price,
+            currency: gradedPrice.currency,
+            sample_size: gradedPrice.sample_size,
+            fetched_at: fetchedAt,
+          })
+        );
 
         const latestPrice = existingCard.prices[0] ?? null;
         const nextPrice = extractPrices(remoteCard.prices);
@@ -2364,6 +2445,10 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           fetchedAt,
           gradedCardIdsToReplace: new Set(gradedCreates.length > 0 ? [cardId] : []),
           gradedCreates,
+          ebaySoldGradedCardIdsToReplace: new Set(
+            ebaySoldGradedCreates.length > 0 ? [cardId] : []
+          ),
+          ebaySoldGradedCreates,
           priceRefreshes,
           priceCreates,
         });

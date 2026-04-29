@@ -149,6 +149,18 @@ export type GradedCreateRow = {
   fetched_at: Date;
 };
 
+export type EbaySoldGradedCreateRow = {
+  card_id: string;
+  source: string;
+  label: string;
+  company: string;
+  grade: string;
+  median_price: number;
+  currency: string;
+  sample_size: number | null;
+  fetched_at: Date;
+};
+
 export function buildCardWriteData(
   existing: CardWriteData | undefined,
   card: CardWriteData,
@@ -246,6 +258,41 @@ export function dedupeGradedCreateRows(rows: GradedCreateRow[]): GradedCreateRow
       deduped.set(dedupeKey, {
         ...row,
         label: normalizedLabel,
+      });
+    }
+  }
+
+  return [...deduped.values()];
+}
+
+export function dedupeEbaySoldGradedCreateRows(
+  rows: EbaySoldGradedCreateRow[]
+): EbaySoldGradedCreateRow[] {
+  const deduped = new Map<string, EbaySoldGradedCreateRow>();
+
+  for (const row of rows) {
+    const label = row.label.replace(/\s+/g, " ").trim();
+    const company = row.company.replace(/\s+/g, " ").trim().toUpperCase();
+    const grade = row.grade.replace(/\s+/g, " ").trim();
+    const currency = row.currency.replace(/\s+/g, " ").trim().toUpperCase() || "USD";
+    if (!label || !company || !grade) continue;
+
+    const dedupeKey = `${row.card_id}::${row.source}::${label.toUpperCase()}`;
+    const existing = deduped.get(dedupeKey);
+    const rowSampleSize = row.sample_size ?? 0;
+    const existingSampleSize = existing?.sample_size ?? 0;
+
+    if (
+      !existing ||
+      rowSampleSize > existingSampleSize ||
+      (rowSampleSize === existingSampleSize && row.median_price > existing.median_price)
+    ) {
+      deduped.set(dedupeKey, {
+        ...row,
+        label,
+        company,
+        grade,
+        currency,
       });
     }
   }

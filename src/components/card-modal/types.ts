@@ -35,6 +35,18 @@ export interface ModalCardData {
     label: string;
     price: number;
   }>;
+  ebay_sold_graded_prices?: Array<{
+    source: "ebay_sold";
+    label: string;
+    company: string;
+    grade: string;
+    median_price: number;
+    currency: string;
+    sample_size: number | null;
+    median_price_eur?: number | null;
+    exchange_rate_usd_eur?: number | null;
+    exchange_rate_date?: string | null;
+  }>;
   graded_price_history?: CardGradedPriceHistorySeries[];
   price_history: CardPriceHistoryPoint[];
   pull_rate_info?: {

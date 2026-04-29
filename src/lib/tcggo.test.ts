@@ -11,6 +11,7 @@ vi.mock("@/lib/tcgdex", () => ({
 
 import {
   __tcggoTestUtils,
+  extractEbaySoldGradedPrices,
   fetchCardsForEpisode,
   TCGGO_REQUEST_CONCURRENCY,
   TcggoQuotaExceededError,
@@ -74,5 +75,61 @@ describe("TCGGO request limiter", () => {
     await expect(fetchCardsForEpisode("1")).rejects.toBeInstanceOf(
       TcggoQuotaExceededError
     );
+  });
+});
+
+describe("TCGGO price extraction", () => {
+  it("extracts eBay sold graded medians separately from CardMarket graded prices", () => {
+    const prices = {
+      ebay: {
+        currency: "USD",
+        graded: {
+          psa: {
+            "10": { median_price: 4320.8, sample_size: 5 },
+            "9": { median_price: 110, sample_size: 5 },
+          },
+          bgs: {
+            "9": { median_price: 1205.7, sample_size: 1 },
+          },
+        },
+      },
+      cardmarket: {
+        graded: {
+          psa: {
+            psa10: 199,
+          },
+        },
+      },
+    };
+
+    expect(extractEbaySoldGradedPrices(prices)).toEqual([
+      {
+        source: "ebay_sold",
+        label: "BGS 9",
+        company: "BGS",
+        grade: "9",
+        median_price: 1205.7,
+        currency: "USD",
+        sample_size: 1,
+      },
+      {
+        source: "ebay_sold",
+        label: "PSA 10",
+        company: "PSA",
+        grade: "10",
+        median_price: 4320.8,
+        currency: "USD",
+        sample_size: 5,
+      },
+      {
+        source: "ebay_sold",
+        label: "PSA 9",
+        company: "PSA",
+        grade: "9",
+        median_price: 110,
+        currency: "USD",
+        sample_size: 5,
+      },
+    ]);
   });
 });
