@@ -5,10 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, Search, X, Layers, Package, Layers3 } from "lucide-react";
+import { Search, X, Package } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
-import { PageHeroHeader, SectionHeader, type HeaderStat } from "@/components/PageHeader";
+import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import {
   getCardGridTrackWidth,
@@ -76,7 +76,6 @@ interface SearchResults {
 }
 
 const MIN_SEARCH_LENGTH = 1;
-const SUGGESTED_SEARCHES = ["Pikachu", "Charizard", "Eevee", "Prismatic Evolutions"];
 
 function formatEur(value: number | null | undefined): string {
   if (value == null) return "-";
@@ -213,17 +212,16 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
   const showEmpty =
     !loading && results !== null && results.total === 0 && trimmedQuery.length >= MIN_SEARCH_LENGTH;
-  const showStarterPanel = !loading && trimmedQuery.length < MIN_SEARCH_LENGTH;
 
   const allExpansions: ExpansionResult[] = results?.expansions ?? [];
-  const headerStats = results
-    ? ([
-        { label: "Results", value: results.total.toLocaleString(), Icon: Search, tone: "sky" },
-        { label: "Cards", value: results.singles.length.toLocaleString(), Icon: Layers, tone: "emerald" },
-        { label: "Sealed", value: results.sealed.length.toLocaleString(), Icon: Package, tone: "amber" },
-        { label: "Expansions", value: allExpansions.length.toLocaleString(), Icon: Layers3, tone: "violet" },
-      ] satisfies HeaderStat[])
-    : undefined;
+  const resultSummary =
+    results && trimmedQuery.length >= MIN_SEARCH_LENGTH
+      ? [
+          `${results.singles.length.toLocaleString("en-US")} singles`,
+          `${results.sealed.length.toLocaleString("en-US")} sealed`,
+          `${allExpansions.length.toLocaleString("en-US")} expansions`,
+        ].join(" / ")
+      : null;
 
   const minWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
   const sealedMinWidth = getSealedProductTrackWidth(settings.cardSize, settings.widescreen);
@@ -232,23 +230,21 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-      <PageHeroHeader
-        eyebrow="DustyCards"
-        title="Search"
-        className="mb-6"
-        stats={headerStats}
-        description={
-          <>
-          {trimmedQuery
-            ? results?.fuzzy
-              ? `Best matches for "${trimmedQuery}" with typo tolerance.`
-              : `Live results for "${trimmedQuery}".`
-            : "Search cards, sealed products, and expansions from one focused workspace."}
-          </>
-        }
-      />
+      <div className="mb-4 flex flex-col gap-2 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-white/35">
+            Search
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-3xl">
+            {trimmedQuery ? `Results for "${trimmedQuery}"` : "Search"}
+          </h1>
+        </div>
+        {resultSummary && (
+          <p className="text-sm font-medium text-gray-500 dark:text-white/45">{resultSummary}</p>
+        )}
+      </div>
 
-      <div className="glass mb-6 rounded-3xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:p-4">
+      <div className="glass mb-4 rounded-3xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:p-4 lg:hidden">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
           <input
@@ -275,67 +271,19 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
             </button>
           )}
         </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          {SUGGESTED_SEARCHES.map((suggestion) => (
-            <button
-              key={suggestion}
-              type="button"
-              onClick={() => updateQuery(suggestion)}
-              className="inline-flex min-h-8 items-center rounded-full border border-black/8 bg-white/70 px-3 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55 dark:hover:border-white/18 dark:hover:text-white"
-            >
-              {suggestion}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-black/8 bg-white/60 px-4 py-3 text-sm text-gray-500 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/45">
           <span className="inline-block w-4 h-4 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
           Searching...
         </div>
       )}
 
-      {showStarterPanel && (
-        <div className="grid gap-3 md:grid-cols-3">
-          {[
-            {
-              title: "Find singles",
-              text: "Open a card, compare raw and graded pricing, then add it to DustyCards.",
-              Icon: Layers,
-              href: "/search?q=Pikachu",
-            },
-            {
-              title: "Check sealed",
-              text: "Search products by name and jump straight into sealed price details.",
-              Icon: Package,
-              href: "/search?q=booster%20box",
-            },
-            {
-              title: "Jump to sets",
-              text: "Use set names or codes to open expansion pages without hunting through lists.",
-              Icon: Layers3,
-              href: "/search?q=sv8",
-            },
-          ].map(({ title, text, Icon, href }) => (
-            <Link
-              key={title}
-              href={href}
-              prefetch={false}
-              className="glass group rounded-3xl border border-black/8 bg-white/70 p-4 transition-colors hover:border-black/14 hover:bg-white dark:border-white/8 dark:bg-white/[0.045] dark:hover:border-white/14 dark:hover:bg-white/[0.07]"
-            >
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-black/8 bg-black/[0.035] text-gray-700 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <ArrowUpRight className="h-4 w-4 text-gray-400 transition-colors group-hover:text-gray-700 dark:text-white/35 dark:group-hover:text-white/70" />
-              </div>
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h2>
-              <p className="mt-1.5 text-sm leading-6 text-gray-500 dark:text-white/45">{text}</p>
-            </Link>
-          ))}
+      {!loading && trimmedQuery.length < MIN_SEARCH_LENGTH && (
+        <div className="rounded-3xl border border-dashed border-black/12 bg-white/60 p-5 text-sm text-gray-500 dark:border-white/12 dark:bg-white/[0.035] dark:text-white/45">
+          Use the header search to find cards, sealed products, or expansions.
         </div>
       )}
 
@@ -355,7 +303,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
       {/* Results */}
       {results && (results.total > 0 || allExpansions.length > 0) && (
-        <div className="space-y-10">
+        <div className="space-y-8">
           {/* Expansions grid */}
           {allExpansions.length > 0 && (
             <section>
