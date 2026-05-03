@@ -12,6 +12,8 @@ const FUZZY_CARD_CANDIDATE_LIMIT = 180;
 const FUZZY_SEALED_CANDIDATE_LIMIT = 80;
 const FUZZY_EXPANSION_CANDIDATE_LIMIT = 48;
 const FUZZY_CARD_RESULT_LIMIT = Math.min(MAX_RESULTS, 36);
+const DIRECT_CARD_CANDIDATE_LIMIT = 400;
+const DIRECT_SEALED_CANDIDATE_LIMIT = 200;
 
 interface ParsedQuery {
   name: string | null;
@@ -494,6 +496,22 @@ function compareRelevance(aScore: number, bScore: number): number {
   return bScore - aScore;
 }
 
+function comparePriceDesc(aPrice: number | null | undefined, bPrice: number | null | undefined) {
+  const aValue = aPrice ?? -1;
+  const bValue = bPrice ?? -1;
+  return bValue - aValue;
+}
+
+function compareSingleSearchPriceDesc(
+  a: { cm_en_lowest_nm: number | null; tcp_market: number | null },
+  b: { cm_en_lowest_nm: number | null; tcp_market: number | null }
+) {
+  const cardMarketDiff = comparePriceDesc(a.cm_en_lowest_nm, b.cm_en_lowest_nm);
+  if (cardMarketDiff !== 0) return cardMarketDiff;
+
+  return comparePriceDesc(a.tcp_market, b.tcp_market);
+}
+
 function buildFuzzyTokenFragments(token: string): string[] {
   const normalized = token.trim();
   if (!normalized) return [];
@@ -600,6 +618,9 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
       tcp_market: card.prices[0]?.tcp_market ?? null,
     }))
     .sort((a, b) => {
+      const priceDiff = compareSingleSearchPriceDesc(a, b);
+      if (priceDiff !== 0) return priceDiff;
+
       if (relevanceQuery.trim()) {
         const scoreDiff = compareRelevance(
           relevanceScore(buildCardSearchText(a), relevanceQuery),
@@ -611,9 +632,10 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
       const nameCmp = a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
       if (nameCmp !== 0) return nameCmp;
 
-      const aPrice = a.cm_en_lowest_nm ?? a.tcp_market ?? -1;
-      const bPrice = b.cm_en_lowest_nm ?? b.tcp_market ?? -1;
-      return bPrice - aPrice;
+      return (a.card_number ?? "").localeCompare(b.card_number ?? "", "nl", {
+        numeric: true,
+        sensitivity: "base",
+      });
     });
 }
 
@@ -630,6 +652,9 @@ function formatSealedResults(sealed: SearchSealedRecord[], relevanceQuery: strin
       episode: product.episode,
     }))
     .sort((a, b) => {
+      const priceDiff = comparePriceDesc(a.cm_lowest, b.cm_lowest);
+      if (priceDiff !== 0) return priceDiff;
+
       const aScore =
         relevanceScore(a.name, relevanceQuery) +
         Math.floor(relevanceScore(a.episode.name, relevanceQuery) / 2);
@@ -639,9 +664,7 @@ function formatSealedResults(sealed: SearchSealedRecord[], relevanceQuery: strin
       const scoreDiff = compareRelevance(aScore, bScore);
       if (scoreDiff !== 0) return scoreDiff;
 
-      const aPrice = a.cm_lowest ?? -1;
-      const bPrice = b.cm_lowest ?? -1;
-      return bPrice - aPrice;
+      return a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
     });
 }
 
@@ -884,7 +907,7 @@ export async function GET(req: NextRequest) {
     const [cards, sealed, expansions] = await Promise.all([
       db.card.findMany({
         where: visibleCardWhere,
-        take: MAX_RESULTS,
+        take: DIRECT_CARD_CANDIDATE_LIMIT,
         select: {
           id: true,
           name: true,
@@ -911,7 +934,7 @@ export async function GET(req: NextRequest) {
       shouldSearchSealed
         ? db.sealedProduct.findMany({
             where: visibleSealedWhere,
-            take: MAX_RESULTS,
+            take: DIRECT_SEALED_CANDIDATE_LIMIT,
             select: {
               id: true,
               name: true,
@@ -937,8 +960,8 @@ export async function GET(req: NextRequest) {
     ]);
 
     const relevanceQuery = name ?? q;
-    const singles = formatSingleResults(cards, relevanceQuery);
-    const sealedResults = formatSealedResults(sealed, relevanceQuery);
+    const singles = formatSingleResults(cards, relevanceQuery).slice(0, MAX_RESULTS);
+    const sealedResults = formatSealedResults(sealed, relevanceQuery).slice(0, MAX_RESULTS);
     const expansionResults = formatExpansionResults(expansions, relevanceQuery);
     const total = singles.length + sealedResults.length + expansionResults.length;
 

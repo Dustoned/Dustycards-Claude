@@ -155,4 +155,76 @@ describe("GET /api/search", () => {
       })
     );
   });
+
+  it("returns direct card and sealed results with the highest prices first", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "cheap-card",
+        name: "Budget Pikachu",
+        card_number: "003",
+        rarity: "Common",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: { id: "set", name: "Test Set", code: "TST" },
+        prices: [{ cm_en_lowest_nm: 2, tcp_market: 3 }],
+      },
+      {
+        id: "premium-card",
+        name: "Premium Pikachu",
+        card_number: "001",
+        rarity: "Promo",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: { id: "set", name: "Test Set", code: "TST" },
+        prices: [{ cm_en_lowest_nm: 150, tcp_market: 120 }],
+      },
+      {
+        id: "mid-card",
+        name: "Mid Pikachu",
+        card_number: "002",
+        rarity: "Rare",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: { id: "set", name: "Test Set", code: "TST" },
+        prices: [{ cm_en_lowest_nm: 75, tcp_market: 80 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([
+      {
+        id: "cheap-sealed",
+        name: "Budget Pikachu Box",
+        image_url: null,
+        cardmarket_url: null,
+        cm_lowest: 20,
+        cm_avg_7d: null,
+        cm_avg_30d: null,
+        episode: { id: "set", name: "Test Set", code: "TST" },
+      },
+      {
+        id: "premium-sealed",
+        name: "Premium Pikachu Box",
+        image_url: null,
+        cardmarket_url: null,
+        cm_lowest: 300,
+        cm_avg_7d: null,
+        cm_avg_30d: null,
+        episode: { id: "set", name: "Test Set", code: "TST" },
+      },
+    ]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=pikachu"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.singles.map((card: { id: string }) => card.id)).toEqual([
+      "premium-card",
+      "mid-card",
+      "cheap-card",
+    ]);
+    expect(body.sealed.map((product: { id: string }) => product.id)).toEqual([
+      "premium-sealed",
+      "cheap-sealed",
+    ]);
+  });
 });
