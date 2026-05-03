@@ -17,7 +17,6 @@ import { SectionHeader } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
-import { useIncrementalItems } from "@/lib/use-incremental-items";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 import {
   useSettings,
@@ -849,10 +848,20 @@ export default function CollectionCardsView({
 
     return groups;
   }, [visibleEntries, splitByGrading]);
-  const renderedVisibleEntries = useIncrementalItems(visibleEntries, {
-    initialCount: INITIAL_COLLECTION_RENDER_COUNT,
-    batchSize: COLLECTION_RENDER_BATCH_SIZE,
+  const [renderState, setRenderState] = useState({
+    key: "",
+    limit: INITIAL_COLLECTION_RENDER_COUNT,
   });
+  const renderKey = `${visibleEntries.length}:${visibleEntries[0]?.selectionKey ?? ""}:${
+    visibleEntries[visibleEntries.length - 1]?.selectionKey ?? ""
+  }:${sortBy}:${sortDir}:${splitByGrading ? "split" : "all"}`;
+  const renderLimit =
+    renderState.key === renderKey ? renderState.limit : INITIAL_COLLECTION_RENDER_COUNT;
+  const renderedVisibleEntries = useMemo(
+    () => visibleEntries.slice(0, renderLimit),
+    [renderLimit, visibleEntries]
+  );
+  const hasMoreVisibleEntries = renderLimit < visibleEntries.length;
   const renderedSelectionKeys = useMemo(
     () => new Set(renderedVisibleEntries.map((entry) => entry.selectionKey)),
     [renderedVisibleEntries]
@@ -1709,7 +1718,187 @@ export default function CollectionCardsView({
                 />
               )}
 
-              <div className="overflow-x-auto rounded-2xl border border-black/8 bg-white/70 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
+              <div className="grid gap-2 md:hidden">
+                {group.entries.map(({ item, selectionKey }, index) => {
+                  const missing = !item.owned;
+                  const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
+                  const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
+                  const displayPrice = getCollectionItemPrice(item, primaryPriceSource);
+                  const displayPriceCurrency = getCollectionItemPriceCurrency(
+                    item,
+                    primaryPriceSource
+                  );
+                  const costBasis = getCollectionItemCostBasis(item);
+                  const costBasisLabel = getCollectionItemCostBasisLabel(item);
+                  const pnl =
+                    item.current_value != null && costBasis != null
+                      ? Number((item.current_value - costBasis).toFixed(2))
+                      : null;
+
+                  return (
+                    <article
+                      key={selectionKey}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={activeSelectionMode ? isSelected : undefined}
+                      aria-disabled={activeSelectionMode && !selectableInMode}
+                      onClick={() => handleTileActivate(item, selectionKey, selectableInMode)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          handleTileActivate(item, selectionKey, selectableInMode);
+                        }
+                      }}
+                      className={`min-w-0 rounded-2xl border bg-white/72 p-3 shadow-sm shadow-black/5 transition-colors dark:bg-white/[0.045] ${
+                        isSelected
+                          ? "border-blue-400/70 ring-2 ring-blue-400/50"
+                          : "border-black/8 dark:border-white/8"
+                      } ${activeSelectionMode && !selectableInMode ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
+                    >
+                      <div className="flex gap-3">
+                        <div className="relative h-24 w-[4.25rem] shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 dark:border-white/8 dark:bg-white/5">
+                          {item.image_url ? (
+                            <Image
+                              src={getCachedImageUrl(item.image_url) ?? item.image_url}
+                              alt={item.name}
+                              fill
+                              className={`object-contain ${
+                                blurMissing && missing ? "blur-[2px] saturate-[0.72] opacity-55" : ""
+                              }`}
+                              sizes="68px"
+                              loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
+                              {item.name.slice(0, 2)}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                                {item.name}
+                              </p>
+                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-gray-500 dark:text-white/50">
+                                <span className="shrink-0">
+                                  {item.card_number ? `#${item.card_number}` : "--"}
+                                </span>
+                                <span className="text-gray-300 dark:text-white/20">/</span>
+                                <Link
+                                  href={`/expansions/${item.episode_id}`}
+                                  prefetch={false}
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="min-w-0 truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
+                                >
+                                  {item.episode_name}
+                                  {item.episode_code ? (
+                                    <span className="ml-1 opacity-60">({item.episode_code})</span>
+                                  ) : null}
+                                </Link>
+                              </div>
+                            </div>
+
+                            {!activeSelectionMode &&
+                              (item.owned ? (
+                                canRemoveFromCollection &&
+                                (item.collection_item_id ||
+                                  (item.collection_item_ids?.length ?? 0) > 0) ? (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => handleSingleRemove(event, item)}
+                                    disabled={removingItems}
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                    aria-label={`Remove ${item.name} from collection`}
+                                    title="Remove from collection"
+                                  >
+                                    <Minus className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : null
+                              ) : (
+                                <CollectionAddCardButton
+                                  card={{
+                                    id: item.card_id,
+                                    name: item.name,
+                                    image_url: item.image_url,
+                                    episode: {
+                                      id: item.episode_id,
+                                      name: item.episode_name,
+                                      code: item.episode_code,
+                                    },
+                                  }}
+                                  initialBinderId={bulkAddBinder?.id ?? null}
+                                  lockedBinderName={bulkAddBinder?.name ?? null}
+                                  className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                />
+                              ))}
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <div className="rounded-xl border border-black/7 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.04]">
+                              <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                                {primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+                              </p>
+                              <p className="mt-1 truncate font-semibold tabular-nums text-gray-950 dark:text-white">
+                                {displayPrice != null
+                                  ? formatMarketCurrency(displayPrice, displayPriceCurrency)
+                                  : "No price"}
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-black/7 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.04]">
+                              <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                                P&amp;L
+                              </p>
+                              <p
+                                className={`mt-1 truncate font-semibold tabular-nums ${
+                                  pnl == null
+                                    ? "text-gray-400 dark:text-white/35"
+                                    : pnl >= 0
+                                      ? "text-emerald-600 dark:text-emerald-300"
+                                      : "text-rose-600 dark:text-rose-300"
+                                }`}
+                              >
+                                {pnl != null
+                                  ? `${pnl >= 0 ? "+" : ""}${formatCollectionCurrency(pnl)}`
+                                  : "--"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {item.rarity ? (
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold leading-none ${rarityBadge(item.rarity)}`}
+                              >
+                                {normalizeRarityLabel(item.rarity) ?? item.rarity}
+                              </span>
+                            ) : null}
+                            {costBasis != null ? (
+                              <span className="inline-flex items-center rounded-full border border-black/8 bg-white/70 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55">
+                                {costBasisLabel}: {formatCollectionCurrency(costBasis)}
+                              </span>
+                            ) : null}
+                            <span className="inline-flex items-center rounded-full border border-black/8 bg-white/70 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55">
+                              {missing && blurMissing
+                                ? "Missing"
+                                : item.owned_count && item.owned_count > 1
+                                  ? `x${item.owned_count} owned`
+                                  : item.owned
+                                    ? "Owned"
+                                    : "Available"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="hidden overflow-x-auto rounded-2xl border border-black/8 bg-white/70 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] md:block">
                 <table className="min-w-full text-sm text-gray-900 dark:text-white">
                   <thead className="border-b border-black/8 text-xs uppercase tracking-[0.14em] text-gray-400 dark:border-white/8 dark:text-white/40">
                     <tr>
@@ -2174,6 +2363,27 @@ export default function CollectionCardsView({
               </div>
             </section>
           ))}
+        </div>
+      )}
+
+      {hasMoreVisibleEntries && (
+        <div className="mt-5 flex justify-center">
+          <button
+            type="button"
+            onClick={() =>
+              setRenderState((current) => ({
+                key: renderKey,
+                limit: Math.min(
+                  (current.key === renderKey ? current.limit : INITIAL_COLLECTION_RENDER_COUNT) +
+                    COLLECTION_RENDER_BATCH_SIZE,
+                  visibleEntries.length
+                ),
+              }))
+            }
+            className="inline-flex items-center rounded-full border border-black/8 bg-white/75 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm shadow-black/5 transition-colors hover:border-black/15 hover:bg-white hover:text-gray-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/68 dark:hover:border-white/18 dark:hover:bg-white/[0.08] dark:hover:text-white"
+          >
+            Load more cards ({renderedVisibleEntries.length} / {visibleEntries.length})
+          </button>
         </div>
       )}
 

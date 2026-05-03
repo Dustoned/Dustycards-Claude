@@ -46,6 +46,37 @@ interface Props {
   onClose: () => void;
 }
 
+function normalizeGradeSelection(value: string | null | undefined): string {
+  return value?.toUpperCase().replace(/[^A-Z0-9.]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
+}
+
+function findSavedGradedLabel(
+  prices: Array<{ label: string; price?: number; company?: string; grade?: string }>,
+  collectionItem: ModalCardData["collection_item"] | null | undefined
+): string | null {
+  const company = normalizeGradingCompanyLabel(collectionItem?.grading_company);
+  const grade = normalizeGradingGradeLabel(collectionItem?.grading_grade);
+  if (!company || !grade) return null;
+
+  const normalizedCompany = normalizeGradeSelection(company);
+  const normalizedGrade = normalizeGradeSelection(grade);
+  const exactStructuredMatch = prices.find((price) => {
+    if (!price.company || !price.grade) return false;
+    return (
+      normalizeGradeSelection(price.company) === normalizedCompany &&
+      normalizeGradeSelection(price.grade) === normalizedGrade
+    );
+  });
+  if (exactStructuredMatch) return exactStructuredMatch.label;
+
+  return (
+    prices.find((price) => {
+      const label = normalizeGradeSelection(price.label);
+      return label.includes(normalizedCompany) && label.includes(normalizedGrade);
+    })?.label ?? null
+  );
+}
+
 export default function CardModal({ card, onClose }: Props) {
   useBodyScrollLock();
 
@@ -61,10 +92,12 @@ export default function CardModal({ card, onClose }: Props) {
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
   const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(() =>
+    findSavedGradedLabel(card.graded_prices ?? [], card.collection_item) ??
     getPreferredGradedLabel(card.graded_prices ?? [])
   );
   const [selectedEbaySoldGradedLabel, setSelectedEbaySoldGradedLabel] = useState<string | null>(
     () =>
+      findSavedGradedLabel(card.ebay_sold_graded_prices ?? [], card.collection_item) ??
       getPreferredGradedLabel(
         (card.ebay_sold_graded_prices ?? []).map((price) => ({
           label: price.label,

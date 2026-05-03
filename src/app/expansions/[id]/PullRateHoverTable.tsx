@@ -64,7 +64,7 @@ export default function PullRateHoverTable({
             Pull Rate Data
           </p>
           <p className="mt-1.5 truncate text-[length:var(--ui-binder-metric-value-size)] font-bold leading-none tracking-tight text-gray-950 dark:text-white">
-            {profile.rarities.length.toLocaleString("nl-NL")} rarity tiers
+            {profile.rarities.length.toLocaleString("en-US")} rarity tiers
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center rounded-full border border-black/8 bg-white/60 px-[var(--ui-header-pill-x)] py-[var(--ui-header-pill-y)] text-[length:var(--ui-header-pill-font-size)] font-bold text-gray-600 transition-colors group-hover:bg-white/75 dark:border-white/8 dark:bg-white/[0.06] dark:text-white/68 dark:group-hover:bg-white/[0.09]">

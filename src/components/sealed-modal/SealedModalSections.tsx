@@ -515,7 +515,7 @@ export function SealedModalHistorySection({
             currentValue={currentValue}
             tone="dark"
             loading={loading}
-            emptyText="Nog geen sealed prijshistorie"
+            emptyText="No sealed price history yet"
             layout="hero"
           />
         </div>

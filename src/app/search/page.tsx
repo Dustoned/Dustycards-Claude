@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Search, X, Layers, Package, Layers3 } from "lucide-react";
+import { ArrowUpRight, Search, X, Layers, Package, Layers3 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { PageHeroHeader, SectionHeader, type HeaderStat } from "@/components/PageHeader";
@@ -76,6 +76,7 @@ interface SearchResults {
 }
 
 const MIN_SEARCH_LENGTH = 1;
+const SUGGESTED_SEARCHES = ["Pikachu", "Charizard", "Eevee", "Prismatic Evolutions"];
 
 function formatEur(value: number | null | undefined): string {
   if (value == null) return "-";
@@ -212,6 +213,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
   const showEmpty =
     !loading && results !== null && results.total === 0 && trimmedQuery.length >= MIN_SEARCH_LENGTH;
+  const showStarterPanel = !loading && trimmedQuery.length < MIN_SEARCH_LENGTH;
 
   const allExpansions: ExpansionResult[] = results?.expansions ?? [];
   const headerStats = results
@@ -229,7 +231,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   const logoHeight = getSearchLogoHeightClass(settings.uiScale);
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <PageHeroHeader
         eyebrow="DustyCards"
         title="Search"
@@ -239,55 +241,116 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
           <>
           {trimmedQuery
             ? results?.fuzzy
-              ? `Beste matches voor "${trimmedQuery}" met typo-tolerantie.`
-              : `Live resultaten voor "${trimmedQuery}".`
-            : "Typ bovenin om direct kaarten, sealed en expansions te zoeken."}
+              ? `Best matches for "${trimmedQuery}" with typo tolerance.`
+              : `Live results for "${trimmedQuery}".`
+            : "Search cards, sealed products, and expansions from one focused workspace."}
           </>
         }
       />
 
-      <div className="relative mb-8 max-w-2xl md:hidden">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={initialQuery}
-          onChange={(e) => updateQuery(e.target.value)}
-          placeholder="Zoek op naam, set-code, kaartnummer..."
-          className="w-full pl-12 pr-10 py-3.5 rounded-2xl text-base bg-white dark:bg-white/5 border border-black/8 dark:border-white/8 text-gray-900 dark:text-white placeholder-gray-400 shadow-sm focus:outline-none focus:border-black/20 dark:focus:border-white/20 transition-colors"
-          autoComplete="off"
-          spellCheck={false}
-        />
-        {initialQuery.length > 0 && (
-          <button
-            onClick={() => {
-              updateQuery("");
-              inputRef.current?.focus();
-            }}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+      <div className="glass mb-6 rounded-3xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:p-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={initialQuery}
+            onChange={(e) => updateQuery(e.target.value)}
+            placeholder="Search name, set code, card number..."
+            className="w-full rounded-2xl border border-black/8 bg-white py-3.5 pl-12 pr-10 text-base text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 focus:border-black/20 focus:outline-none dark:border-white/8 dark:bg-white/5 dark:text-white dark:focus:border-white/20"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {initialQuery.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                updateQuery("");
+                inputRef.current?.focus();
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          {SUGGESTED_SEARCHES.map((suggestion) => (
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => updateQuery(suggestion)}
+              className="inline-flex min-h-8 items-center rounded-full border border-black/8 bg-white/70 px-3 text-xs font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55 dark:hover:border-white/18 dark:hover:text-white"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Loading */}
       {loading && (
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <span className="inline-block w-4 h-4 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
-          Zoeken...
+          Searching...
+        </div>
+      )}
+
+      {showStarterPanel && (
+        <div className="grid gap-3 md:grid-cols-3">
+          {[
+            {
+              title: "Find singles",
+              text: "Open a card, compare raw and graded pricing, then add it to DustyCards.",
+              Icon: Layers,
+              href: "/search?q=Pikachu",
+            },
+            {
+              title: "Check sealed",
+              text: "Search products by name and jump straight into sealed price details.",
+              Icon: Package,
+              href: "/search?q=booster%20box",
+            },
+            {
+              title: "Jump to sets",
+              text: "Use set names or codes to open expansion pages without hunting through lists.",
+              Icon: Layers3,
+              href: "/search?q=sv8",
+            },
+          ].map(({ title, text, Icon, href }) => (
+            <Link
+              key={title}
+              href={href}
+              prefetch={false}
+              className="glass group rounded-3xl border border-black/8 bg-white/70 p-4 transition-colors hover:border-black/14 hover:bg-white dark:border-white/8 dark:bg-white/[0.045] dark:hover:border-white/14 dark:hover:bg-white/[0.07]"
+            >
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-black/8 bg-black/[0.035] text-gray-700 dark:border-white/10 dark:bg-white/[0.06] dark:text-white/70">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <ArrowUpRight className="h-4 w-4 text-gray-400 transition-colors group-hover:text-gray-700 dark:text-white/35 dark:group-hover:text-white/70" />
+              </div>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h2>
+              <p className="mt-1.5 text-sm leading-6 text-gray-500 dark:text-white/45">{text}</p>
+            </Link>
+          ))}
         </div>
       )}
 
       {/* No results */}
       {showEmpty && (
-        <p className="text-sm text-gray-400">
-          Geen resultaten voor{" "}
-          <span className="font-medium text-gray-600 dark:text-gray-300">
-            &ldquo;{trimmedQuery}&rdquo;
-          </span>
-          .
-        </p>
+        <div className="rounded-3xl border border-dashed border-black/12 bg-white/60 p-5 text-sm text-gray-500 dark:border-white/12 dark:bg-white/[0.035] dark:text-white/45">
+          <p>
+            No results for{" "}
+            <span className="font-semibold text-gray-700 dark:text-white/75">
+              &ldquo;{trimmedQuery}&rdquo;
+            </span>
+            .
+          </p>
+          <p className="mt-1">Try a shorter name, a set code, or a card number.</p>
+        </div>
       )}
 
       {/* Results */}
@@ -401,7 +464,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                             <span className="shrink-0 text-gray-500 dark:text-gray-400">
                               {card.card_number ? `#${card.card_number}` : "--"}
                             </span>
-                            <span className="text-gray-300 dark:text-white/20">•</span>
+                            <span className="text-gray-300 dark:text-white/20">/</span>
                             <Link
                               href={`/expansions/${card.episode_id}`}
                               prefetch={false}

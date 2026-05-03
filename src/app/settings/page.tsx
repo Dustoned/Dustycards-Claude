@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 function formatDateTime(value: Date | null): string | null {
   if (!value) return null;
 
-  return new Intl.DateTimeFormat("nl-NL", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(value);
@@ -326,7 +326,7 @@ export default async function SettingsPage() {
   ] satisfies HeaderStat[];
 
   return (
-    <div className={`settings-page ${widescreen ? "max-w-[2000px]" : "max-w-2xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
+    <div className={`settings-page ${widescreen ? "max-w-[2000px]" : "max-w-6xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
       <PageHeroHeader
         eyebrow="DustyCards"
         title="Settings"
@@ -335,39 +335,45 @@ export default async function SettingsPage() {
         stats={headerStats}
       />
 
-      <div className={`grid gap-4 ${widescreen ? "grid-cols-1 xl:grid-cols-3" : "grid-cols-1"}`}>
-        <ThemeSection />
-        <LayoutSection />
-        <CardDefaultsSection />
-        <HomePageSection />
-        <FiltersSection />
-        <PullRateImportSection
-          summary={{
-            setCount: pullRateSetCount,
-            rarityRowCount: pullRateRarityRowCount,
-            lastImportedLabel: formatDateTime(latestPullRateProfile?.imported_at ?? null),
-            lastGeneratedAt: latestPullRateProfile?.generated_at ?? null,
-          }}
-        />
-        <AutomationSection
-          scraperUsage={{
-            requestsUsed: tcggoUsageSnapshot.requestsUsed,
-            requestsLimit: tcggoUsageSnapshot.requestsLimit,
-            requestsRemaining: tcggoUsageSnapshot.requestsRemaining,
-            resetLabel: tcggoUsageSnapshot.hasLiveWindow
-              ? formatDateTime(tcggoUsageSnapshot.quotaResetsAt)
-              : tcggoUsageSnapshot.observedAt
-                ? "Just reset, waiting for the next scraper response"
-                : "No scraper requests seen yet",
-            observedLabel: formatDateTime(tcggoUsageSnapshot.observedAt),
-          }}
-          pendingCardHistoryCards={pendingCardHistoryCards}
-          pendingEbaySoldGradedPriceCards={pendingEbaySoldGradedPriceCards}
-          activeScraperLabel={activeScraperLabel}
-          scraperDisabled={scraperDisabled}
-          scraperDisabledLabel={SCRAPER_DISABLED_ENV}
-        />
-        <div className={widescreen ? "xl:col-span-3" : ""}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-start">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+          <ThemeSection />
+          <LayoutSection />
+          <CardDefaultsSection />
+          <HomePageSection />
+          <FiltersSection />
+        </div>
+
+        <div className="grid gap-4">
+          <PullRateImportSection
+            summary={{
+              setCount: pullRateSetCount,
+              rarityRowCount: pullRateRarityRowCount,
+              lastImportedLabel: formatDateTime(latestPullRateProfile?.imported_at ?? null),
+              lastGeneratedAt: latestPullRateProfile?.generated_at ?? null,
+            }}
+          />
+          <AutomationSection
+            scraperUsage={{
+              requestsUsed: tcggoUsageSnapshot.requestsUsed,
+              requestsLimit: tcggoUsageSnapshot.requestsLimit,
+              requestsRemaining: tcggoUsageSnapshot.requestsRemaining,
+              resetLabel: tcggoUsageSnapshot.hasLiveWindow
+                ? formatDateTime(tcggoUsageSnapshot.quotaResetsAt)
+                : tcggoUsageSnapshot.observedAt
+                  ? "Just reset, waiting for the next scraper response"
+                  : "No scraper requests seen yet",
+              observedLabel: formatDateTime(tcggoUsageSnapshot.observedAt),
+            }}
+            pendingCardHistoryCards={pendingCardHistoryCards}
+            pendingEbaySoldGradedPriceCards={pendingEbaySoldGradedPriceCards}
+            activeScraperLabel={activeScraperLabel}
+            scraperDisabled={scraperDisabled}
+            scraperDisabledLabel={SCRAPER_DISABLED_ENV}
+          />
+        </div>
+
+        <div className="xl:col-span-2">
           <SyncStatusSection
             activeSync={toSyncEntry(activeSync)}
             lastSuccessfulSync={toSyncEntry(lastSuccessfulSync)}

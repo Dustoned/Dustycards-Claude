@@ -151,8 +151,8 @@ export default async function HomePage({
   }
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="flex w-full flex-col gap-8">
+    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <div className="flex w-full flex-col gap-5 sm:gap-7">
         <PageHeroHeader
           eyebrow="DustyCards"
           title="DustyCards Collection"
@@ -186,7 +186,7 @@ export default async function HomePage({
                   emptyText="Add cards or sealed to start tracking your value"
                 />
               </div>
-              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:auto-rows-fr">
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr">
                 {summaryCards.map((stat) => (
                   <HeaderStatCard key={stat.label} {...stat} />
                 ))}

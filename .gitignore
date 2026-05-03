@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/audit-screenshots-*/
+/audit-viewports-*/
+/polish-screenshots-*/
+/test-results/
 
 # next.js
 /.next/

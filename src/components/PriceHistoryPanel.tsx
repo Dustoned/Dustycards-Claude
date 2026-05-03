@@ -100,7 +100,7 @@ function formatPointDate(point: ParsedHistoryPoint): string {
     return point.label || point.date || "Unknown date";
   }
 
-  return new Intl.DateTimeFormat("nl-NL", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -112,7 +112,7 @@ function formatInlinePointDate(point: ParsedHistoryPoint): string {
     return point.label || point.date || "";
   }
 
-  return new Intl.DateTimeFormat("nl-NL", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
   }).format(point.timestamp);
@@ -248,13 +248,13 @@ export default function PriceHistoryPanel({
   headerAccessory,
   tone = "default",
   loading = false,
-  emptyText = "Nog geen prijshistorie",
+  emptyText = "No price history yet",
   compact = false,
   layout = "default",
 }: Props) {
   const isHeroLayout = !compact && layout === "hero";
   const axisHeight = compact ? 18 : 22;
-  const height = compact ? 126 : isHeroLayout ? 232 : 184;
+  const height = compact ? 126 : isHeroLayout ? 188 : 168;
   const chartId = useId().replace(/:/g, "");
   const chartFrameRef = useRef<HTMLDivElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number | null>(null);
@@ -502,7 +502,7 @@ export default function PriceHistoryPanel({
 
       {loading ? (
         <div className={compact ? "mt-3" : "mt-4"}>
-          <div className={emptyClass}>Grafiek laden...</div>
+          <div className={emptyClass}>Loading chart...</div>
         </div>
       ) : !hasDrawablePoints ? (
         <div className={compact ? "mt-3" : "mt-4"}>
@@ -512,7 +512,7 @@ export default function PriceHistoryPanel({
         <div className={compact ? "mt-3" : "mt-5"}>
           <div ref={chartFrameRef} className="relative w-full min-w-0">
             {!chart ? (
-              <div className={emptyClass}>Grafiek laden...</div>
+              <div className={emptyClass}>Loading chart...</div>
             ) : (
               <>
             {activePoint && (

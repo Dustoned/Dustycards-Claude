@@ -91,7 +91,7 @@ export interface SealedPriceHistoryPoint {
   cm_avg_30d: number | null;
 }
 
-const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("nl-NL", {
+const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
 });

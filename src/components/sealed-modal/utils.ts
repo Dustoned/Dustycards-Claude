@@ -9,7 +9,7 @@ const EUR_FORMATTER = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
-const NL_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("nl-NL", {
+const NL_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
   year: "numeric",

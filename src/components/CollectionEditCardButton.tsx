@@ -106,7 +106,7 @@ export default function CollectionEditCardButton({
         });
 
         if (!response.ok) {
-          throw new Error("Kon binders niet laden");
+          throw new Error("Could not load binders");
         }
 
         const data = (await response.json()) as { binders?: BinderOption[] };
@@ -164,14 +164,14 @@ export default function CollectionEditCardButton({
 
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
-        throw new Error(data.error ?? "Opslaan mislukt");
+        throw new Error(data.error ?? "Save failed");
       }
 
       setOpen(false);
       router.refresh();
       onSaved?.();
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Opslaan mislukt");
+      setSaveError(error instanceof Error ? error.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -262,7 +262,7 @@ export default function CollectionEditCardButton({
                       </option>
                     ))}
                   </select>
-                  {bindersLoading && <p className="text-xs text-white/35">Binders laden...</p>}
+                  {bindersLoading && <p className="text-xs text-white/35">Loading binders...</p>}
                 </label>
 
                 <label className="space-y-1.5 text-sm">

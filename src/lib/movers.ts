@@ -21,7 +21,7 @@ const HISTORY_LOOKBACK_DAYS = 45;
 const MIN_PERCENT_BASE_VALUE = 1;
 const RECENT_PRICE_SERIES_POINT_LIMIT = 16;
 const MAX_ALL_SCOPE_MOVERS = 500;
-const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("nl-NL", {
+const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
 });

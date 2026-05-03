@@ -54,7 +54,7 @@ export type IllustratorSummary = {
 };
 
 function formatCount(value: number): string {
-  return value.toLocaleString("nl-NL");
+  return value.toLocaleString("en-US");
 }
 
 function getInitialGroup(value: string): string {
@@ -267,12 +267,12 @@ export default async function IllustratorsPage({
   ] satisfies HeaderStat[];
 
   return (
-    <div className={`page-container mx-auto ${pageMaxWidth} px-4 py-10 sm:px-6 lg:px-8`}>
+    <div className={`page-container mx-auto ${pageMaxWidth} px-4 py-5 sm:px-6 sm:py-8 lg:px-8`}>
       <PageHeroHeader
         eyebrow="Dusty Cards Collection"
         title="Illustrators"
         description={`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked cards.`}
-        className="mb-10"
+        className="mb-6 sm:mb-8"
         stats={headerStats}
         actions={
           <HeaderAction>

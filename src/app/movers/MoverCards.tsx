@@ -100,7 +100,7 @@ function formatOptionalScore(value: number | null | undefined): string {
 }
 
 function formatShortDate(value: string): string {
-  return new Intl.DateTimeFormat("nl-NL", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
   }).format(new Date(value));
@@ -334,7 +334,7 @@ function PriceSourceRow({
         ) : null}
       </div>
       <p className="mt-1 text-[11px] text-gray-500 dark:text-white/42">
-        {points.toLocaleString("nl-NL")} history points
+        {points.toLocaleString("en-US")} history points
       </p>
     </div>
   );
@@ -1064,7 +1064,7 @@ function MoverSpotlightCard({
         </div>
       ) : (
         <p className="mt-3 text-sm text-gray-500 dark:text-white/48">
-          Nog niet genoeg recente history om hier een duidelijke winnaar te tonen.
+          Not enough recent history yet to show a clear winner here.
         </p>
       )}
     </article>
@@ -1105,7 +1105,7 @@ function PocketPreviewCard({
 
         <div className="shrink-0 text-right">
           <p className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-            {items.length.toLocaleString("nl-NL")}
+            {items.length.toLocaleString("en-US")}
           </p>
           <p className="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
             cards

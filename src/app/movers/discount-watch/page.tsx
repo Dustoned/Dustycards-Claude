@@ -25,9 +25,9 @@ export default async function DiscountWatchPage({
   const deepDiscountCount = movers.filter((item) => (item.gapToPeakPct ?? 0) <= -50).length;
   const negativeMomentumCount = movers.filter((item) => item.moverScore < 0).length;
   const headerStats = [
-    { label: "Cards", value: movers.length.toLocaleString("nl-NL"), Icon: BadgePercent, tone: "amber" },
-    { label: "Peak -50%", value: deepDiscountCount.toLocaleString("nl-NL"), Icon: TrendingDown, tone: "rose" },
-    { label: "Negative Move", value: negativeMomentumCount.toLocaleString("nl-NL"), Icon: TriangleAlert, tone: "sky" },
+    { label: "Cards", value: movers.length.toLocaleString("en-US"), Icon: BadgePercent, tone: "amber" },
+    { label: "Peak -50%", value: deepDiscountCount.toLocaleString("en-US"), Icon: TrendingDown, tone: "rose" },
+    { label: "Negative Move", value: negativeMomentumCount.toLocaleString("en-US"), Icon: TriangleAlert, tone: "sky" },
   ] satisfies HeaderStat[];
 
   return (
@@ -38,8 +38,8 @@ export default async function DiscountWatchPage({
           title="High rarity cards that fell hard"
           description={
             isAllScope
-              ? "Een aparte view voor high-rarity kaarten uit alle tracked kaarten die flink onder hun oude piek staan. Handig om kaarten te spotten die nu goedkoop lijken ten opzichte van hun eerdere top."
-              : "Een aparte view voor high-rarity kaarten die flink onder hun oude piek staan. Handig om kaarten te spotten die nu goedkoop lijken ten opzichte van hun eerdere top."
+              ? "A focused view for high-rarity cards across all tracked cards that sit far below their previous peak."
+              : "A focused view for high-rarity cards in your collection that sit far below their previous peak."
           }
           stats={headerStats}
           backLinks={
@@ -104,9 +104,9 @@ export default async function DiscountWatchPage({
           activeItemScope={activeItemScope}
           eyebrow="Discount Watch"
           title="High rarity cards that fell hard"
-          description="Gebruik deze page om alleen high-rarity kaarten te bekijken die ver onder hun piek staan en recent zwakker ogen."
-          emptyTitle="Nog geen kaarten in Discount Watch"
-          emptyDescription="Er zijn op dit moment geen high-rarity kaarten die hard genoeg zijn teruggevallen voor deze lijst."
+          description="Review high-rarity cards that are well below peak and look weaker recently."
+          emptyTitle="No cards in Discount Watch yet"
+          emptyDescription="No high-rarity cards have fallen far enough for this list right now."
         />
       </div>
     </div>

@@ -91,7 +91,7 @@ export default function ExpansionCardsSection({
           points={chartPoints}
           currentValue={currentValue}
           subtitle={showingFilteredSubset ? subtitle : `${currentTotals.priced}/${totalCards} cards priced`}
-          emptyText="Nog geen setprijzen beschikbaar"
+          emptyText="No set prices available yet"
         />
       ) : null}
 

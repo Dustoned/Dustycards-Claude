@@ -11,7 +11,6 @@ import type { ModalCardData } from "@/components/card-modal/types";
 import { rarityBadge } from "@/components/card-modal/utils";
 import { KNOWN_RARITY_ORDER } from "@/lib/rarity";
 import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/movers";
-import { useIncrementalItems } from "@/lib/use-incremental-items";
 import type { PriceSource } from "@/lib/user-settings";
 import {
   compareMoverItems,
@@ -124,8 +123,8 @@ export default function MoversBrowser({
   eyebrow = "Main Movers",
   title = "Full collection movers",
   description,
-  emptyTitle = "Geen movers voor deze filtercombinatie",
-  emptyDescription = "Pas je zoekterm of filters aan om weer kaarten te zien.",
+  emptyTitle = "No movers for this filter combination",
+  emptyDescription = "Adjust your search or filters to bring cards back.",
   previewCards = [],
   spotlights = [],
 }: Props) {
@@ -372,10 +371,16 @@ export default function MoversBrowser({
     normalizedSearch,
     sortKey,
   ]);
-  const renderedMovers = useIncrementalItems(visibleMovers, {
-    initialCount: INITIAL_MOVER_RENDER_COUNT,
-    batchSize: MOVER_RENDER_BATCH_SIZE,
-  });
+  const [renderState, setRenderState] = useState({ key: "", limit: INITIAL_MOVER_RENDER_COUNT });
+  const renderKey = `${visibleMovers.length}:${visibleMovers[0]?.cardId ?? ""}:${
+    visibleMovers[visibleMovers.length - 1]?.cardId ?? ""
+  }:${sortKey}:${direction}`;
+  const renderLimit = renderState.key === renderKey ? renderState.limit : INITIAL_MOVER_RENDER_COUNT;
+  const renderedMovers = useMemo(
+    () => visibleMovers.slice(0, renderLimit),
+    [renderLimit, visibleMovers]
+  );
+  const hasMoreMovers = renderLimit < visibleMovers.length;
   const hasDirectionFilter = !isGradingScope && direction !== "all";
 
   const filterBadgeCount =
@@ -544,8 +549,8 @@ export default function MoversBrowser({
           description={description}
           actions={
             <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
-              {visibleMovers.length.toLocaleString("nl-NL")} /{" "}
-              {movers.length.toLocaleString("nl-NL")} visible
+              {visibleMovers.length.toLocaleString("en-US")} /{" "}
+              {movers.length.toLocaleString("en-US")} visible
             </p>
           }
         />
@@ -805,13 +810,36 @@ export default function MoversBrowser({
             </p>
           </div>
         ) : (
-          <MoverGrid
-            movers={renderedMovers}
-            minTileWidth={moverTileMinWidth}
-            loadingCardId={loadingCardId}
-            displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
-            onOpenCard={handleOpenMoverCard}
-          />
+          <>
+            <MoverGrid
+              movers={renderedMovers}
+              minTileWidth={moverTileMinWidth}
+              loadingCardId={loadingCardId}
+              displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
+              onOpenCard={handleOpenMoverCard}
+            />
+            {hasMoreMovers ? (
+              <div className="mt-5 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRenderState((current) => ({
+                      key: renderKey,
+                      limit: Math.min(
+                        (current.key === renderKey ? current.limit : INITIAL_MOVER_RENDER_COUNT) +
+                          MOVER_RENDER_BATCH_SIZE,
+                        visibleMovers.length
+                      ),
+                    }))
+                  }
+                  className={filterButtonClass(false)}
+                >
+                  Load more movers ({renderedMovers.length.toLocaleString("en-US")} /{" "}
+                  {visibleMovers.length.toLocaleString("en-US")})
+                </button>
+              </div>
+            ) : null}
+          </>
         )}
       </section>
 

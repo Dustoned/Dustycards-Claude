@@ -279,7 +279,7 @@ export function HeaderStatCard({
   const toneClass = toneClasses[tone];
 
   return (
-    <div className="min-w-0 rounded-[var(--ui-header-stat-radius)] border border-black/8 bg-white/70 p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none lg:min-h-[var(--ui-header-stat-min-height)]">
+    <div className="min-w-0 rounded-[var(--ui-header-stat-radius)] border border-black/8 bg-white/70 p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none sm:min-h-[var(--ui-header-stat-min-height)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="break-words text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
@@ -407,9 +407,9 @@ export function PageHeroHeader({
           <div className={cx("min-w-0 self-stretch space-y-3", sideClassName)}>
             {accessory}
             {hasStats ? (
-              <div
+            <div
                 className={cx(
-                  "grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(12rem,100%),1fr))] gap-3",
+                  "grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(min(11rem,100%),1fr))] sm:gap-3",
                   statsClassName
                 )}
               >

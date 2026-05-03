@@ -24,7 +24,7 @@ interface Props {
 const BROWSER_CACHE_TTL_MS = 10 * 60 * 1000;
 
 function formatCount(value: number): string {
-  return value.toLocaleString("nl-NL");
+  return value.toLocaleString("en-US");
 }
 
 function getEpisodeIdsKey(episodeIds: string[]): string {
@@ -157,7 +157,7 @@ export default function ExpansionsOverviewChart({
       currentValue={currentValue}
       subtitle={`${formatCount(pricedCardCount)} / ${formatCount(trackedCardCount)} cards priced`}
       loading={isLoading}
-      emptyText="Nog geen setprijzen beschikbaar"
+      emptyText="No set prices available yet"
     />
   );
 }

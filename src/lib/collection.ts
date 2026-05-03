@@ -60,7 +60,7 @@ export const COLLECTION_BINDER_COLORS = [
   "#f97316",
 ] as const;
 
-const COLLECTION_EUR_FORMATTER = new Intl.NumberFormat("nl-NL", {
+const COLLECTION_EUR_FORMATTER = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "EUR",
   minimumFractionDigits: 2,
@@ -425,7 +425,7 @@ export function combineValueHistories(
 
     return {
       date,
-      label: new Intl.DateTimeFormat("nl-NL", {
+      label: new Intl.DateTimeFormat("en-US", {
         day: "numeric",
         month: "short",
       }).format(new Date(`${date}T00:00:00.000Z`)),

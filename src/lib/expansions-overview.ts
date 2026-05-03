@@ -32,7 +32,7 @@ function placeholdersFor(values: unknown[]): string {
 }
 
 function toDateLabel(dateKey: string): string {
-  return new Intl.DateTimeFormat("nl-NL", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
   }).format(new Date(`${dateKey}T00:00:00.000Z`));

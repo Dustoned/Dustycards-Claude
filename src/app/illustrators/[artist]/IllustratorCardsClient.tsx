@@ -149,7 +149,7 @@ export default function IllustratorCardsClient({
         points={chartPoints}
         currentValue={currentValue}
         subtitle={isPending ? "Updating filters..." : subtitle}
-        emptyText="Nog geen illustratorprijzen beschikbaar"
+        emptyText="No illustrator prices available yet"
       />
 
       <ExpansionView

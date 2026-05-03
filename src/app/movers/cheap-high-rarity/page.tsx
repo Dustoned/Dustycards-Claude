@@ -29,9 +29,9 @@ export default async function CheapHighRarityMoversPage({
   const ownedMultipleCount = movers.filter((item) => item.ownedCount >= 2).length;
   const underTenCount = movers.filter((item) => item.currentPrice <= 10).length;
   const headerStats = [
-    { label: "Cards", value: movers.length.toLocaleString("nl-NL"), Icon: Sparkles, tone: "amber" },
-    { label: "Under 10", value: underTenCount.toLocaleString("nl-NL"), Icon: Gem, tone: "sky" },
-    { label: "Owned x2+", value: ownedMultipleCount.toLocaleString("nl-NL"), Icon: TrendingUp, tone: "emerald" },
+    { label: "Cards", value: movers.length.toLocaleString("en-US"), Icon: Sparkles, tone: "amber" },
+    { label: "Under 10", value: underTenCount.toLocaleString("en-US"), Icon: Gem, tone: "sky" },
+    { label: "Owned x2+", value: ownedMultipleCount.toLocaleString("en-US"), Icon: TrendingUp, tone: "emerald" },
   ] satisfies HeaderStat[];
 
   return (
@@ -42,8 +42,8 @@ export default async function CheapHighRarityMoversPage({
           title="Cheap movers with strong rarity"
           description={
             isAllScope
-              ? "Een aparte view voor goedkope high-rarity kaarten uit alle tracked kaarten die al beweging laten zien. Je krijgt hier dezelfde zoek-, filter- en sort-tools, maar dan alleen op deze pocket."
-              : "Een aparte view voor goedkope high-rarity kaarten uit je collectie die al beweging laten zien. Je krijgt hier dezelfde zoek-, filter- en sort-tools, maar dan alleen op deze pocket."
+              ? "A focused view for affordable high-rarity cards across all tracked cards that already show price movement."
+              : "A focused view for affordable high-rarity cards in your collection that already show price movement."
           }
           stats={headerStats}
           backLinks={
@@ -108,9 +108,9 @@ export default async function CheapHighRarityMoversPage({
           activeItemScope={activeItemScope}
           eyebrow="Secondary Pocket"
           title="Cheap movers with strong rarity"
-          description="Gebruik deze page om alleen de goedkope high-rarity movers te zoeken, filteren en sorteren."
-          emptyTitle="Nog geen cheap high-rarity movers"
-          emptyDescription="Er zijn op dit moment geen kaarten in deze pocket die aan de voorwaarden voldoen."
+          description="Search, filter, and sort only the affordable high-rarity movers in this pocket."
+          emptyTitle="No cheap high-rarity movers yet"
+          emptyDescription="No cards currently meet the conditions for this pocket."
         />
       </div>
     </div>

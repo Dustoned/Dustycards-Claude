@@ -59,7 +59,7 @@ export function getRichMoverTrackWidth(cardSize: CardSize, widescreen: boolean):
 }
 
 export function getFixedTrackGridTemplate(trackWidth: string): string {
-  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), ${trackWidth}))`;
+  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), min(100%, ${trackWidth})))`;
 }
 
 export function getExpansionTileScale(uiScale: UiScale, widescreen: boolean) {
@@ -151,7 +151,7 @@ export function getDetailModalScale(size: ModalSize, widescreen: boolean) {
       mediaWidth: media.mediaWidth,
       metaClassName: "text-[13px]",
       pad: "p-3 sm:p-4",
-      titleClass: "text-[1.55rem] sm:text-[1.75rem]",
+      titleClass: "text-[1.45rem] sm:text-[1.75rem]",
     };
   }
 
@@ -163,8 +163,8 @@ export function getDetailModalScale(size: ModalSize, widescreen: boolean) {
       maxW: widescreen ? "112rem" : "104rem",
       mediaWidth: media.mediaWidth,
       metaClassName: "text-[17px] sm:text-lg",
-      pad: "p-7 sm:p-8",
-      titleClass: "text-[2.75rem] sm:text-[3.1rem]",
+      pad: "p-4 sm:p-8",
+      titleClass: "text-[1.95rem] sm:text-[3.1rem]",
     };
   }
 
@@ -175,7 +175,7 @@ export function getDetailModalScale(size: ModalSize, widescreen: boolean) {
     maxW: widescreen ? "88rem" : "82rem",
     mediaWidth: media.mediaWidth,
     metaClassName: "text-[15px] sm:text-base",
-    pad: "p-5 sm:p-6",
-    titleClass: "text-[2.1rem] sm:text-[2.4rem]",
+    pad: "p-4 sm:p-6",
+    titleClass: "text-[1.75rem] sm:text-[2.4rem]",
   };
 }

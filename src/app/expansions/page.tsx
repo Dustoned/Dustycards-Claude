@@ -218,14 +218,14 @@ export default async function ExpansionsPage() {
   ] satisfies HeaderStat[];
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <PageHeroHeader
         eyebrow="Dusty Cards Collection"
         title="Expansions"
         description={`${withCards.length} sets across ${eraCount} eras, with ${trackedCardCount.toLocaleString()} tracked cards.`}
         gridClassName="xl:grid-cols-[minmax(20rem,0.72fr)_minmax(34rem,1.28fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.66fr)_minmax(48rem,1.34fr)]"
         sideClassName="xl:space-y-0"
-        className="mb-10"
+        className="mb-6 sm:mb-8"
         actions={
           <HeaderAction>
             <Link
@@ -248,7 +248,7 @@ export default async function ExpansionsPage() {
                 trackedCardCount={trackedCardCount}
               />
             </div>
-            <div className="grid min-w-0 gap-3 sm:grid-cols-3 xl:grid-cols-1 xl:auto-rows-fr">
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-1 xl:auto-rows-fr">
               {headerStats.map((stat) => (
                 <HeaderStatCard key={stat.label} {...stat} />
               ))}
@@ -266,7 +266,7 @@ export default async function ExpansionsPage() {
         </div>
       )}
 
-      <div className="space-y-12">
+      <div className="space-y-8 sm:space-y-10">
         {sortedGroups.map(([era, sets], groupIndex) => (
           <section key={era}>
             <SectionHeader title={era} count={sets.length} compact />
@@ -293,8 +293,8 @@ export default async function ExpansionsPage() {
                     key={episode.id}
                     href={`/expansions/${episode.id}`}
                     prefetch={false}
-                    className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
-                  >
+                  className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
+                >
                     {episode.logo_url ? (
                       <div
                         className={`relative flex w-full items-center justify-center rounded-xl border border-black/6 bg-black/[0.025] p-2 dark:border-white/7 dark:bg-white/[0.035] ${tileConfig.logoHeightClass}`}
@@ -336,7 +336,7 @@ export default async function ExpansionsPage() {
                             className={`mt-2 inline-flex items-baseline gap-1.5 rounded-full border border-black/7 bg-black/[0.035] px-2 py-1 font-semibold text-gray-600 dark:border-white/8 dark:bg-white/[0.055] dark:text-white/68 ${tileConfig.metaClass}`}
                           >
                             <span className="font-bold text-gray-900 tabular-nums dark:text-white">
-                              {cardCount > 0 ? cardCount.toLocaleString("nl-NL") : "--"}
+                              {cardCount > 0 ? cardCount.toLocaleString("en-US") : "--"}
                             </span>
                             <span>cards</span>
                           </p>

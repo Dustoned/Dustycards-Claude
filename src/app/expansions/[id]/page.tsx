@@ -95,7 +95,7 @@ function formatReleaseLabel(value: string | null): string | null {
   const parsedMonth = Number(month);
   if (!Number.isInteger(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) return year;
 
-  const monthLabel = new Intl.DateTimeFormat("nl-NL", {
+  const monthLabel = new Intl.DateTimeFormat("en-US", {
     month: "short",
   }).format(new Date(Date.UTC(Number(year), parsedMonth - 1, 1)));
 
@@ -193,7 +193,7 @@ export default async function ExpansionDetailPage({
   let pricePanelPoints: Array<{ date: string; label: string; value: number | null }> = [];
   let pricePanelCurrentValue: number | null = null;
   let pricePanelSubtitle = `0/${episode._count.cards} cards priced`;
-  let pricePanelEmptyText = "Nog geen setprijzen beschikbaar";
+  let pricePanelEmptyText = "No set prices available yet";
   let headerProgressLabel = "Card Pricing";
   let headerProgressValue = `0 / ${episode._count.cards}`;
   let headerProgressPercent = 0;
@@ -386,7 +386,7 @@ export default async function ExpansionDetailPage({
     }
     pricePanelCurrentValue = currentSealedTotal ?? latestSealedPricePoint?.total_market ?? null;
     pricePanelSubtitle = `${currentSealedTotals.priced}/${filteredSealedProducts.length} sealed priced`;
-    pricePanelEmptyText = "Nog geen sealed prijzen beschikbaar";
+    pricePanelEmptyText = "No sealed prices available yet";
     headerProgressLabel =
       activeSealedFilter === "all"
         ? "Sealed Pricing"
@@ -406,8 +406,8 @@ export default async function ExpansionDetailPage({
 
   const expansionContext = [episode.series, episode.code].filter(Boolean).join(" / ");
   const releaseLabel = formatReleaseLabel(episode.release_date);
-  const headerCountFormatted = headerCountValue.toLocaleString("nl-NL");
-  const sealedCountFormatted = episode._count.sealedProducts.toLocaleString("nl-NL");
+  const headerCountFormatted = headerCountValue.toLocaleString("en-US");
+  const sealedCountFormatted = episode._count.sealedProducts.toLocaleString("en-US");
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">

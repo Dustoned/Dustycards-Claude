@@ -80,6 +80,41 @@
   background-color: #f2f2f7;
 }
 
+@media (max-width: 640px) {
+  :root {
+    --ui-header-height: 3.5rem;
+    --ui-page-y: 1.35rem;
+    --ui-panel-padding: 1rem;
+    --ui-panel-radius: 0.875rem;
+    --ui-page-header-radius: 1.25rem;
+    --ui-page-header-padding: 1rem;
+    --ui-page-header-grid-gap: 0.95rem;
+    --ui-page-header-leading-gap: 0.75rem;
+    --ui-page-header-eyebrow-size: 0.625rem;
+    --ui-page-header-title-size: 1.75rem;
+    --ui-page-header-description-size: 0.875rem;
+    --ui-page-header-description-leading: 1.45;
+    --ui-page-header-action-margin: 0.9rem;
+    --ui-header-action-gap: 0.45rem;
+    --ui-header-action-font-size: 0.8125rem;
+    --ui-header-action-x: 0.75rem;
+    --ui-header-action-y: 0.425rem;
+    --ui-header-stat-radius: 0.95rem;
+    --ui-header-stat-padding: 0.75rem;
+    --ui-header-stat-min-height: 4.75rem;
+    --ui-header-stat-label-size: 0.5625rem;
+    --ui-header-stat-value-size: 1.25rem;
+    --ui-header-stat-hint-size: 0.6875rem;
+    --ui-header-stat-icon-box: 2rem;
+    --ui-header-stat-icon-size: 1rem;
+    --ui-section-header-title-size: 1.25rem;
+    --ui-binder-metric-min-width: 7rem;
+    --ui-binder-metric-x: 0.75rem;
+    --ui-binder-metric-y: 0.625rem;
+    --ui-binder-progress-min-width: 100%;
+  }
+}
+
 html.ui-scale-small {
   --ui-header-height: 3.25rem;
   --ui-header-gap: 0.625rem;

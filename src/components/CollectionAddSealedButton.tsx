@@ -84,7 +84,7 @@ export default function CollectionAddSealedButton({
 
       const data = (await response.json()) as { error?: string };
       if (!response.ok) {
-        throw new Error(data.error ?? "Opslaan mislukt");
+        throw new Error(data.error ?? "Save failed");
       }
 
       setOpen(false);
@@ -92,7 +92,7 @@ export default function CollectionAddSealedButton({
       router.refresh();
       onAdded?.();
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Opslaan mislukt");
+      setSaveError(error instanceof Error ? error.message : "Save failed");
     } finally {
       setSaving(false);
     }

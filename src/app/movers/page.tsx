@@ -14,14 +14,14 @@ interface SummaryMetric {
 }
 
 function formatShortDate(value: string): string {
-  return new Intl.DateTimeFormat("nl-NL", {
+  return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
   }).format(new Date(value));
 }
 
 function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("nl-NL", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
@@ -45,7 +45,7 @@ function getModeCopy(
 ) {
   if (activeScope === "graded") {
     return {
-      eyebrow: activeItemScope === "collection" ? "Graded Market · Collection" : "Graded Market · All Cards",
+      eyebrow: activeItemScope === "collection" ? "Graded Market / Collection" : "Graded Market / All Cards",
       title: "Movers",
       description:
         "Track every current slab label as its own market item, with recent movement and lifetime context tucked into details.",
@@ -55,7 +55,7 @@ function getModeCopy(
 
   if (activeScope === "grading") {
     return {
-      eyebrow: activeItemScope === "collection" ? "Grade Targets · Collection" : "Grade Targets · All Cards",
+      eyebrow: activeItemScope === "collection" ? "Grade Targets / Collection" : "Grade Targets / All Cards",
       title: "Movers",
       description:
         "Find cards where the raw CardMarket price is low compared with the current graded value.",
@@ -64,7 +64,7 @@ function getModeCopy(
   }
 
   return {
-    eyebrow: activeScope === "all" ? "Raw Movers · All Cards" : "Raw Movers · Collection",
+    eyebrow: activeScope === "all" ? "Raw Movers / All Cards" : "Raw Movers / Collection",
     title: "Movers",
     description:
       activeScope === "all"
@@ -93,7 +93,7 @@ export default async function MoversPage({
   const metrics = [
     {
       label: activeItemScope === "all" ? "Tracked Cards" : "Collection Cards",
-      value: data.trackedCards.toLocaleString("nl-NL"),
+      value: data.trackedCards.toLocaleString("en-US"),
       hint: isGradingScope
         ? "Labels compared with raw CardMarket price."
         : isGradedScope
@@ -104,7 +104,7 @@ export default async function MoversPage({
     },
     {
       label: isGradingScope ? "Targets" : isGradedScope ? "Labels Shown" : "Movers",
-      value: data.eligibleCards.toLocaleString("nl-NL"),
+      value: data.eligibleCards.toLocaleString("en-US"),
       hint: isGradingScope
         ? "Positive raw-to-graded upside."
         : isGradedScope
@@ -115,7 +115,7 @@ export default async function MoversPage({
     },
     {
       label: isGradingScope ? "Cheap Raw" : "Opportunity",
-      value: data.cheapestHighRarityMovers.length.toLocaleString("nl-NL"),
+      value: data.cheapestHighRarityMovers.length.toLocaleString("en-US"),
       hint: isGradingScope ? "Raw price at or below 15 EUR." : "Lower-price high-rarity picks.",
       Icon: Sparkles,
       tone: "violet",
@@ -130,15 +130,15 @@ export default async function MoversPage({
   ] satisfies SummaryMetric[];
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="flex w-full flex-col gap-6">
+    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <div className="flex w-full flex-col gap-5 sm:gap-6">
         <section className="rounded-2xl border border-black/8 bg-white/76 px-5 py-5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] lg:items-end">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] lg:items-end">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/36">
                 {modeCopy.eyebrow}
               </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950 dark:text-white">
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
                 {modeCopy.title}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-white/58">
@@ -156,25 +156,25 @@ export default async function MoversPage({
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {metrics.map((metric) => {
                 const Icon = metric.Icon;
 
                 return (
                   <div
                     key={metric.label}
-                    className={`min-w-0 rounded-2xl border px-4 py-3 ${metricToneClass(metric.tone)}`}
+                    className={`min-w-0 rounded-2xl border px-3 py-3 sm:px-4 ${metricToneClass(metric.tone)}`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] opacity-70">
                           {metric.label}
                         </p>
-                        <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums text-gray-950 dark:text-white">
+                        <p className="mt-1 text-xl font-bold tracking-tight tabular-nums text-gray-950 dark:text-white sm:text-2xl">
                           {metric.value}
                         </p>
                       </div>
-                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-current/12 bg-white/55 dark:bg-black/16">
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-current/12 bg-white/55 dark:bg-black/16 sm:h-9 sm:w-9">
                         <Icon className="h-4 w-4" />
                       </span>
                     </div>

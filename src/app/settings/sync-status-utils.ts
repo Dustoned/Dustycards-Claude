@@ -81,7 +81,7 @@ export interface GroupedSyncStatusEntry {
 export function formatDateTime(value: Date | null): string {
   if (!value) return "--";
 
-  return new Intl.DateTimeFormat("nl-NL", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(value);

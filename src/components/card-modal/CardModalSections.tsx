@@ -70,7 +70,7 @@ function SectionShell({
   className = "",
 }: SectionShellProps) {
   return (
-    <section className={`rounded-[26px] border border-white/10 bg-white/[0.055] p-5 sm:p-6 ${className}`}>
+    <section className={`rounded-[24px] border border-white/10 bg-white/[0.055] p-4 sm:p-6 ${className}`}>
       {(eyebrow || title || description) && (
         <div className="mb-5 space-y-2">
           {eyebrow && (
@@ -168,7 +168,7 @@ export function CardModalPreview({
 }) {
   return (
     <aside
-      className="mx-auto flex h-full max-w-full flex-col gap-4 lg:mx-0"
+      className="mx-auto flex h-full max-w-[min(13rem,62vw)] flex-col gap-3 sm:max-w-full sm:gap-4 lg:mx-0"
       style={{ width: mediaWidth }}
     >
       {card.image_url ? (
@@ -214,13 +214,15 @@ export function CardModalPreview({
         </div>
       )}
 
-      <PriceRefreshCountdown
-        rarity={card.rarity}
-        priceFetchedAt={card.price_fetched_at}
-        priceSourceStatus={card.price_source_status}
-        priceSourceCheckedAt={card.price_source_checked_at}
-        compact
-      />
+      <div className="hidden sm:block">
+        <PriceRefreshCountdown
+          rarity={card.rarity}
+          priceFetchedAt={card.price_fetched_at}
+          priceSourceStatus={card.price_source_status}
+          priceSourceCheckedAt={card.price_source_checked_at}
+          compact
+        />
+      </div>
     </aside>
   );
 }
@@ -552,9 +554,11 @@ export function CardModalPricingSection({
     selectedEbaySoldMedianEur != null
       ? `${formatCurrency(selectedEbaySoldGradedPrice.median_price, "USD")} USD`
       : null;
+  const ownedGradeLabel =
+    gradingCompanyLabel && gradingGradeLabel ? `${gradingCompanyLabel} ${gradingGradeLabel}` : null;
   const selectedEbaySoldMetaLabel = [selectedEbaySoldSampleLabel, selectedEbaySoldOriginalLabel]
     .filter(Boolean)
-    .join(" · ");
+    .join(" / ");
 
   return (
     <SectionShell title="Current pricing">
@@ -646,13 +650,13 @@ export function CardModalPricingSection({
           <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto] lg:items-center">
             <div className="min-w-0">
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-                Graded
+                Compare graded price
               </p>
-              {gradingCompanyLabel && gradingGradeLabel && (
-                <p className="mt-1.5 text-sm text-white/42">
-                  Saved grade {gradingCompanyLabel} {gradingGradeLabel}
-                </p>
-              )}
+              <p className="mt-1.5 text-sm text-white/42">
+                {ownedGradeLabel
+                  ? `Owned grade: ${ownedGradeLabel}`
+                  : "Select a benchmark grade for comparison."}
+              </p>
             </div>
 
             {gradedPrices.length > 1 ? (
@@ -692,11 +696,15 @@ export function CardModalPricingSection({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-                  eBay Sold
+                  eBay sold comparison
                 </p>
                 <MetaPill>{selectedEbaySoldDisplayCurrency}</MetaPill>
               </div>
-              <p className="mt-1.5 text-sm text-white/42">Completed graded sales median</p>
+              <p className="mt-1.5 text-sm text-white/42">
+                {ownedGradeLabel
+                  ? `Completed sales median. Owned grade: ${ownedGradeLabel}`
+                  : "Completed sales median for the selected grade."}
+              </p>
             </div>
 
             {ebaySoldGradedPrices.length > 1 ? (
