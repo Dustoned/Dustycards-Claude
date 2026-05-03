@@ -2,6 +2,7 @@ import {
   decodeSyncLogMessage,
   type AutoPriceRefreshLogDetails,
   type CardHistoryLogDetails,
+  type EbaySoldGradedPriceLogDetails,
   type EpisodeSyncLogDetails,
   type FullSyncLogDetails,
   type SealedSyncLogDetails,
@@ -276,6 +277,17 @@ function getCardHistoryDetails(entry: SyncStatusEntry): CardHistoryLogDetails | 
   return decoded.details?.kind === "card-history" ? decoded.details : null;
 }
 
+function getEbaySoldGradedPriceDetails(
+  entry: SyncStatusEntry
+): EbaySoldGradedPriceLogDetails | null {
+  if (entry.details?.kind === "ebay-sold-graded-prices") {
+    return entry.details;
+  }
+
+  const decoded = decodeSyncLogMessage(entry.message);
+  return decoded.details?.kind === "ebay-sold-graded-prices" ? decoded.details : null;
+}
+
 function getEpisodeSyncDetails(entry: SyncStatusEntry): EpisodeSyncLogDetails | null {
   if (entry.details?.kind === "episode-sync") {
     return entry.details;
@@ -383,6 +395,47 @@ export function parseActivityMetrics(entry: SyncStatusEntry): {
     return {
       metrics: metrics.slice(0, 8),
       detail: cardHistoryDetails.quotaExceeded
+        ? "Paused at scraper quota."
+        : compactMessage(entry.message, 320),
+    };
+  }
+
+  const ebaySoldDetails = getEbaySoldGradedPriceDetails(entry);
+  if (ebaySoldDetails) {
+    const metrics: ActivityMetric[] = [
+      { label: "eligible", value: String(ebaySoldDetails.candidateCards) },
+      { label: "selected", value: String(ebaySoldDetails.selectedCards) },
+      { label: "processed", value: String(ebaySoldDetails.processedCards) },
+      {
+        label: "cards with prices",
+        value: String(ebaySoldDetails.cardsWithPrices),
+        tone: "success",
+      },
+      {
+        label: "without prices",
+        value: String(ebaySoldDetails.cardsWithoutPrices),
+        tone: "warning",
+      },
+      { label: "failed", value: String(ebaySoldDetails.failedCards), tone: "warning" },
+      { label: "eBay rows", value: String(ebaySoldDetails.ebaySoldGradedPricesUpdated) },
+      {
+        label: "pending",
+        value: String(ebaySoldDetails.remainingCards),
+        tone: ebaySoldDetails.remainingCards > 0 ? "warning" : "default",
+      },
+    ];
+
+    if (ebaySoldDetails.requestsRemaining != null) {
+      metrics.push({
+        label: "requests left",
+        value: String(ebaySoldDetails.requestsRemaining),
+        tone: "warning",
+      });
+    }
+
+    return {
+      metrics: metrics.slice(0, 8),
+      detail: ebaySoldDetails.quotaExceeded
         ? "Paused at scraper quota."
         : compactMessage(entry.message, 320),
     };

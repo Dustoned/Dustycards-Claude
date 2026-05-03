@@ -35,6 +35,9 @@ export const COLLECTION_GRADING_COMPANIES = [
   "PSA",
   "BGS",
   "CGC",
+  "SGC",
+  "ACE",
+  "TAG",
 ] as const;
 
 export const COLLECTION_BINDER_ICONS = [

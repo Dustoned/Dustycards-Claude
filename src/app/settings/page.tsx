@@ -6,6 +6,7 @@ import { decodeSyncLogDetailsJson, decodeSyncLogMessage } from "@/lib/sync-log-d
 import { timeAsync } from "@/lib/performance-timing";
 import { areScraperRequestsDisabled, SCRAPER_DISABLED_ENV } from "@/lib/scraper-guard";
 import {
+  countEbaySoldGradedPriceCandidates,
   countManualCardHistoryCandidates,
   getAutoPriceRefreshSnapshot,
   reconcileStaleSyncLogs,
@@ -34,7 +35,15 @@ function formatDateTime(value: Date | null): string | null {
 }
 
 function parseSyncType(type: string): {
-  kind: "full" | "episode" | "auto" | "card" | "sealed" | "history" | "other";
+  kind:
+    | "full"
+    | "episode"
+    | "auto"
+    | "card"
+    | "sealed"
+    | "history"
+    | "ebay-sold-graded"
+    | "other";
   episodeId: string | null;
   cardId: string | null;
 } {
@@ -52,6 +61,10 @@ function parseSyncType(type: string): {
 
   if (type === "card-history") {
     return { kind: "history", episodeId: null, cardId: null };
+  }
+
+  if (type === "ebay-sold-graded-prices") {
+    return { kind: "ebay-sold-graded", episodeId: null, cardId: null };
   }
 
   if (type.startsWith("episode:")) {
@@ -86,6 +99,7 @@ export default async function SettingsPage() {
     autoRefreshSnapshot,
     tcggoUsageSnapshot,
     pendingCardHistoryCards,
+    pendingEbaySoldGradedPriceCards,
     pullRateSetCount,
     pullRateRarityRowCount,
     latestPullRateProfile,
@@ -148,6 +162,7 @@ export default async function SettingsPage() {
     getAutoPriceRefreshSnapshot(),
     getTcggoUsageSnapshot(),
     countManualCardHistoryCandidates(),
+    countEbaySoldGradedPriceCandidates(),
     db.setPullRateProfile.count({
       where: { rarity_buckets: { gt: 0 } },
     }),
@@ -232,6 +247,8 @@ export default async function SettingsPage() {
       label = "Sealed Products Sync";
     } else if (parsedType.kind === "history") {
       label = "Card History Sync";
+    } else if (parsedType.kind === "ebay-sold-graded") {
+      label = "eBay Sold Graded Price Sync";
     } else if (parsedType.kind === "card") {
       label = parsedType.cardId
         ? `Card Refresh: ${cardNameById[parsedType.cardId] ?? parsedType.cardId}`
@@ -345,6 +362,7 @@ export default async function SettingsPage() {
             observedLabel: formatDateTime(tcggoUsageSnapshot.observedAt),
           }}
           pendingCardHistoryCards={pendingCardHistoryCards}
+          pendingEbaySoldGradedPriceCards={pendingEbaySoldGradedPriceCards}
           activeScraperLabel={activeScraperLabel}
           scraperDisabled={scraperDisabled}
           scraperDisabledLabel={SCRAPER_DISABLED_ENV}

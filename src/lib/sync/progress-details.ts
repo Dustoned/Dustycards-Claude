@@ -1,6 +1,7 @@
 import {
   type AutoPriceRefreshLogDetails,
   type CardHistoryLogDetails,
+  type EbaySoldGradedPriceLogDetails,
   type EpisodeSyncLogDetails,
   type FullSyncLogDetails,
   type SealedSyncLogDetails,
@@ -37,6 +38,22 @@ interface CardHistorySyncResultForDetails {
   syncedCards: number;
   failedCards: number;
   newHistorySnapshots: number;
+  remainingCards: number;
+  hasMore: boolean;
+  skipped: boolean;
+  quotaExceeded?: boolean;
+  requestsRemaining?: number | null;
+  requestConcurrency?: number;
+}
+
+interface EbaySoldGradedPriceSyncResultForDetails {
+  candidateCards: number;
+  selectedCards: number;
+  processedCards: number;
+  cardsWithPrices: number;
+  cardsWithoutPrices: number;
+  failedCards: number;
+  ebaySoldGradedPricesUpdated: number;
   remainingCards: number;
   hasMore: boolean;
   skipped: boolean;
@@ -211,6 +228,64 @@ export function createCardHistoryResultDetails(
     syncedCards: result.syncedCards,
     failedCards: result.failedCards,
     newHistorySnapshots: result.newHistorySnapshots,
+    remainingCards: result.remainingCards,
+    hasMore: result.hasMore,
+    quotaExceeded: result.quotaExceeded,
+    requestsRemaining: result.requestsRemaining,
+    requestConcurrency: result.requestConcurrency,
+  });
+}
+
+function getEbaySoldGradedPriceLogStatus(
+  result: Pick<EbaySoldGradedPriceSyncResultForDetails, "quotaExceeded" | "skipped">
+): EbaySoldGradedPriceLogDetails["status"] {
+  if (result.quotaExceeded) return "quota-paused";
+  if (result.skipped) return "skipped";
+  return "success";
+}
+
+export function createEbaySoldGradedPriceLogDetails(
+  runId: string,
+  status: EbaySoldGradedPriceLogDetails["status"],
+  input: Partial<
+    Omit<EbaySoldGradedPriceLogDetails, "version" | "kind" | "runId" | "status">
+  >
+): EbaySoldGradedPriceLogDetails {
+  const quota = getTcggoQuotaResultFields(input.quotaExceeded ?? false);
+
+  return {
+    version: 1,
+    kind: "ebay-sold-graded-prices",
+    runId,
+    status,
+    candidateCards: input.candidateCards ?? 0,
+    selectedCards: input.selectedCards ?? 0,
+    processedCards: input.processedCards ?? 0,
+    cardsWithPrices: input.cardsWithPrices ?? 0,
+    cardsWithoutPrices: input.cardsWithoutPrices ?? 0,
+    failedCards: input.failedCards ?? 0,
+    ebaySoldGradedPricesUpdated: input.ebaySoldGradedPricesUpdated ?? 0,
+    remainingCards: input.remainingCards ?? 0,
+    hasMore: input.hasMore ?? false,
+    quotaExceeded: input.quotaExceeded ?? quota.quotaExceeded ?? false,
+    requestsRemaining: input.requestsRemaining ?? quota.requestsRemaining,
+    requestConcurrency: input.requestConcurrency ?? quota.requestConcurrency,
+  };
+}
+
+export function createEbaySoldGradedPriceResultDetails(
+  runId: string,
+  result: EbaySoldGradedPriceSyncResultForDetails,
+  status = getEbaySoldGradedPriceLogStatus(result)
+): EbaySoldGradedPriceLogDetails {
+  return createEbaySoldGradedPriceLogDetails(runId, status, {
+    candidateCards: result.candidateCards,
+    selectedCards: result.selectedCards,
+    processedCards: result.processedCards,
+    cardsWithPrices: result.cardsWithPrices,
+    cardsWithoutPrices: result.cardsWithoutPrices,
+    failedCards: result.failedCards,
+    ebaySoldGradedPricesUpdated: result.ebaySoldGradedPricesUpdated,
     remainingCards: result.remainingCards,
     hasMore: result.hasMore,
     quotaExceeded: result.quotaExceeded,

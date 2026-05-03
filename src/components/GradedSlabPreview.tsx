@@ -92,6 +92,48 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
         window:
           "border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))]",
       };
+    case "SGC":
+      return {
+        shell:
+          "border-white/24 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.045)_34%,rgba(255,255,255,0.018)_100%)]",
+        inner:
+          "border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025)_38%,rgba(255,255,255,0.012)_100%)]",
+        labelOuter:
+          "border border-white/50 bg-[linear-gradient(180deg,rgba(12,12,14,0.98),rgba(2,2,3,0.96))]",
+        labelInner: "bg-transparent",
+        labelDivider: "bg-white/38",
+        gradeDivider: "border-l border-white/22",
+        window:
+          "border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.014))]",
+      };
+    case "ACE":
+      return {
+        shell:
+          "border-white/28 bg-[linear-gradient(180deg,rgba(229,210,255,0.18),rgba(207,230,255,0.07)_35%,rgba(255,255,255,0.03)_100%)]",
+        inner:
+          "border-white/12 bg-[linear-gradient(180deg,rgba(229,210,255,0.09),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.015)_100%)]",
+        labelOuter:
+          "border border-violet-300/50 bg-[linear-gradient(135deg,rgba(75,47,133,0.95),rgba(25,111,132,0.9))]",
+        labelInner: "bg-transparent",
+        labelDivider: "bg-cyan-200/28",
+        gradeDivider: "border-l border-cyan-200/24",
+        window:
+          "border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))]",
+      };
+    case "TAG":
+      return {
+        shell:
+          "border-white/24 bg-[linear-gradient(180deg,rgba(204,255,234,0.16),rgba(204,255,234,0.055)_36%,rgba(255,255,255,0.025)_100%)]",
+        inner:
+          "border-white/12 bg-[linear-gradient(180deg,rgba(204,255,234,0.075),rgba(255,255,255,0.028)_38%,rgba(255,255,255,0.014)_100%)]",
+        labelOuter:
+          "border border-emerald-200/45 bg-[linear-gradient(180deg,rgba(9,46,42,0.96),rgba(6,25,31,0.94))]",
+        labelInner: "bg-transparent",
+        labelDivider: "bg-emerald-200/30",
+        gradeDivider: "border-l border-emerald-200/24",
+        window:
+          "border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))]",
+      };
   }
 }
 

@@ -91,6 +91,18 @@ describe("TCGGO price extraction", () => {
           bgs: {
             "9": { median_price: 1205.7, sample_size: 1 },
           },
+          cgc: {
+            "10": { median_price: 250, sample_size: 3 },
+          },
+          sgc: {
+            "10": { median_price: 220, sample_size: 2 },
+          },
+          ace: {
+            "10": { median_price: 210, sample_size: 4 },
+          },
+          tag: {
+            "9": { median_price: 180, sample_size: 2 },
+          },
         },
       },
       cardmarket: {
@@ -105,12 +117,30 @@ describe("TCGGO price extraction", () => {
     expect(extractEbaySoldGradedPrices(prices)).toEqual([
       {
         source: "ebay_sold",
+        label: "ACE 10",
+        company: "ACE",
+        grade: "10",
+        median_price: 210,
+        currency: "USD",
+        sample_size: 4,
+      },
+      {
+        source: "ebay_sold",
         label: "BGS 9",
         company: "BGS",
         grade: "9",
         median_price: 1205.7,
         currency: "USD",
         sample_size: 1,
+      },
+      {
+        source: "ebay_sold",
+        label: "CGC 10",
+        company: "CGC",
+        grade: "10",
+        median_price: 250,
+        currency: "USD",
+        sample_size: 3,
       },
       {
         source: "ebay_sold",
@@ -129,6 +159,24 @@ describe("TCGGO price extraction", () => {
         median_price: 110,
         currency: "USD",
         sample_size: 5,
+      },
+      {
+        source: "ebay_sold",
+        label: "SGC 10",
+        company: "SGC",
+        grade: "10",
+        median_price: 220,
+        currency: "USD",
+        sample_size: 2,
+      },
+      {
+        source: "ebay_sold",
+        label: "TAG 9",
+        company: "TAG",
+        grade: "9",
+        median_price: 180,
+        currency: "USD",
+        sample_size: 2,
       },
     ]);
   });

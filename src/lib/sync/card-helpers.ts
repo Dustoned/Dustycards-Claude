@@ -114,6 +114,12 @@ export const syncCardBaseSelect = {
   price_source_status: true,
   price_source_checked_at: true,
   native_history_synced_at: true,
+  ebaySoldGradedPrices: {
+    take: 1,
+    select: {
+      id: true,
+    },
+  },
   prices: {
     orderBy: { fetched_at: "desc" },
     take: 1,

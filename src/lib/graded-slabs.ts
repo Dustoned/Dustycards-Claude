@@ -11,7 +11,7 @@ export const PSA_SLAB_MODEL_DIMENSIONS = {
 
 export const RAW_CARD_ASPECT_CLASS = "aspect-[63/88]";
 export const GRADED_SLAB_ASPECT_CLASS = "aspect-[80.3/135.2]";
-export const GRADED_SLAB_COMPANIES = ["PSA", "BGS", "CGC"] as const;
+export const GRADED_SLAB_COMPANIES = ["PSA", "BGS", "CGC", "SGC", "ACE", "TAG"] as const;
 
 export type SupportedGradedSlabCompany = (typeof GRADED_SLAB_COMPANIES)[number];
 

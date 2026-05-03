@@ -52,6 +52,25 @@ export interface CardHistoryLogDetails {
   requestConcurrency: number;
 }
 
+export interface EbaySoldGradedPriceLogDetails {
+  version: 1;
+  kind: "ebay-sold-graded-prices";
+  runId: string;
+  status: "running" | "success" | "skipped" | "quota-paused" | "cancelled" | "failed";
+  candidateCards: number;
+  selectedCards: number;
+  processedCards: number;
+  cardsWithPrices: number;
+  cardsWithoutPrices: number;
+  failedCards: number;
+  ebaySoldGradedPricesUpdated: number;
+  remainingCards: number;
+  hasMore: boolean;
+  quotaExceeded: boolean;
+  requestsRemaining: number | null;
+  requestConcurrency: number;
+}
+
 export interface SyncCurrentEpisodeDetails {
   index: number;
   total: number;
@@ -113,6 +132,7 @@ export interface SealedSyncLogDetails {
 export type SyncLogDetails =
   | AutoPriceRefreshLogDetails
   | CardHistoryLogDetails
+  | EbaySoldGradedPriceLogDetails
   | EpisodeSyncLogDetails
   | FullSyncLogDetails
   | SealedSyncLogDetails;
@@ -138,6 +158,14 @@ function isCardHistoryDetails(value: unknown): value is CardHistoryLogDetails {
   return value.version === 1 && value.kind === "card-history";
 }
 
+function isEbaySoldGradedPriceDetails(
+  value: unknown
+): value is EbaySoldGradedPriceLogDetails {
+  if (!isRecord(value)) return false;
+
+  return value.version === 1 && value.kind === "ebay-sold-graded-prices";
+}
+
 function isEpisodeSyncDetails(value: unknown): value is EpisodeSyncLogDetails {
   if (!isRecord(value)) return false;
 
@@ -160,6 +188,7 @@ function isSyncLogDetails(value: unknown): value is SyncLogDetails {
   return (
     isAutoPriceRefreshDetails(value) ||
     isCardHistoryDetails(value) ||
+    isEbaySoldGradedPriceDetails(value) ||
     isEpisodeSyncDetails(value) ||
     isFullSyncDetails(value) ||
     isSealedSyncDetails(value)

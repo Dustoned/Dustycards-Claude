@@ -6,6 +6,7 @@ import {
   encodeSyncLogMessage,
   type AutoPriceRefreshLogDetails,
   type CardHistoryLogDetails,
+  type EbaySoldGradedPriceLogDetails,
   type EpisodeSyncLogDetails,
   type FullSyncLogDetails,
   type SealedSyncLogDetails,
@@ -58,6 +59,25 @@ const cardHistoryDetails: CardHistoryLogDetails = {
   hasMore: true,
   quotaExceeded: false,
   requestsRemaining: 651,
+  requestConcurrency: 8,
+};
+
+const ebaySoldGradedPriceDetails: EbaySoldGradedPriceLogDetails = {
+  version: 1,
+  kind: "ebay-sold-graded-prices",
+  runId: "ebay-1",
+  status: "running",
+  candidateCards: 90,
+  selectedCards: 48,
+  processedCards: 12,
+  cardsWithPrices: 6,
+  cardsWithoutPrices: 5,
+  failedCards: 1,
+  ebaySoldGradedPricesUpdated: 18,
+  remainingCards: 84,
+  hasMore: true,
+  quotaExceeded: false,
+  requestsRemaining: 630,
   requestConcurrency: 8,
 };
 
@@ -165,6 +185,15 @@ describe("sync log details", () => {
     expect(decodeSyncLogDetailsJson(encodeSyncLogDetailsJson(cardHistoryDetails))).toEqual(
       cardHistoryDetails
     );
+  });
+
+  it("round-trips eBay sold graded price details", () => {
+    const encoded = encodeSyncLogMessage("eBay chunk", ebaySoldGradedPriceDetails);
+
+    expect(decodeSyncLogMessage(encoded).details).toEqual(ebaySoldGradedPriceDetails);
+    expect(
+      decodeSyncLogDetailsJson(encodeSyncLogDetailsJson(ebaySoldGradedPriceDetails))
+    ).toEqual(ebaySoldGradedPriceDetails);
   });
 
   it("round-trips full, episode, and sealed sync details", () => {

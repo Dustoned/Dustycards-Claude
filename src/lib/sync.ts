@@ -12,6 +12,7 @@ import {
   encodeSyncLogDetailsJson,
   type AutoPriceRefreshCurrentSetDetails,
   type CardHistoryLogDetails,
+  type EbaySoldGradedPriceLogDetails,
   type SyncLogDetails,
 } from "@/lib/sync-log-details";
 import { resolveTcgdexSupertype } from "@/lib/tcgdex";
@@ -52,6 +53,7 @@ import {
   fetchHistoryPricesByItemId,
   fetchSealedProductsForEpisode,
   isTcggoQuotaExceededError,
+  type NormalizedCard,
   type NormalizedSealedProduct,
 } from "@/lib/tcggo";
 import {
@@ -60,6 +62,8 @@ import {
   createAutoPriceRefreshResultDetails,
   createCardHistoryLogDetails,
   createCardHistoryResultDetails,
+  createEbaySoldGradedPriceLogDetails,
+  createEbaySoldGradedPriceResultDetails,
   createEpisodeSyncLogDetails,
   createEpisodeSyncResultDetails,
   createFullSyncLogDetails,
@@ -78,6 +82,7 @@ const STALE_CANCELLED_SYNC_MESSAGE = "Marked cancelled after stop request exceed
 const SYNC_CANCELLED_MESSAGE = "Cancelled by user after the current batch finished.";
 const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
 const CARD_HISTORY_SYNC_TYPE = "card-history";
+const EBAY_SOLD_GRADED_PRICE_SYNC_TYPE = "ebay-sold-graded-prices";
 const AUTO_PRICE_REFRESH_MAX_EPISODES = 12;
 const AUTO_PRICE_REFRESH_MAX_CARDS = 1200;
 const AUTO_PRICE_REFRESH_MIN_INTERVAL_MS = 1000 * 60 * 60 * 6;
@@ -90,9 +95,12 @@ const EPISODE_SYNC_CONCURRENCY = 4;
 const FULL_SYNC_PROMO_VERIFICATION_LIMIT = 2;
 const PRICE_SOURCE_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 7;
 const NATIVE_HISTORY_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 30;
+const EBAY_SOLD_GRADED_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 30;
 const HISTORY_BACKFILL_BATCH_SIZE = 12;
 const MANUAL_HISTORY_SYNC_BATCH_SIZE = 6;
 const MANUAL_HISTORY_SYNC_MAX_CARDS_PER_RUN = 48;
+const MANUAL_EBAY_SOLD_GRADED_PRICE_SYNC_MAX_CARDS_PER_RUN = 48;
+const MANUAL_EBAY_SOLD_GRADED_PRICE_SYNC_CONCURRENCY = 4;
 const DB_WRITE_BATCH_SIZE = 60;
 const AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX = 0;
 const AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX = 0;
@@ -245,6 +253,23 @@ export interface CardHistorySyncResult {
   syncedCards: number;
   failedCards: number;
   newHistorySnapshots: number;
+  remainingCards: number;
+  hasMore: boolean;
+  skipped: boolean;
+  message: string;
+  quotaExceeded?: boolean;
+  requestsRemaining?: number | null;
+  requestConcurrency?: number;
+}
+
+export interface EbaySoldGradedPriceSyncResult {
+  candidateCards: number;
+  selectedCards: number;
+  processedCards: number;
+  cardsWithPrices: number;
+  cardsWithoutPrices: number;
+  failedCards: number;
+  ebaySoldGradedPricesUpdated: number;
   remainingCards: number;
   hasMore: boolean;
   skipped: boolean;
@@ -885,6 +910,33 @@ function summarizeCardHistorySync(result: CardHistorySyncResult): string {
   return summary.join(" | ");
 }
 
+function summarizeEbaySoldGradedPriceSync(result: EbaySoldGradedPriceSyncResult): string {
+  const summary = [
+    `Eligible ${result.candidateCards} cards`,
+    `Selected ${result.selectedCards} cards`,
+    `${result.processedCards} processed`,
+    `${result.cardsWithPrices} cards with eBay sold prices`,
+    `${result.cardsWithoutPrices} without eBay sold prices`,
+    `${result.failedCards} failed`,
+    `${result.ebaySoldGradedPricesUpdated} eBay sold graded prices updated`,
+    `${result.remainingCards} still pending`,
+  ];
+
+  if (result.skipped && result.candidateCards > 0) {
+    summary.push("paused for quota reset");
+  }
+
+  if (result.requestsRemaining != null) {
+    summary.push(`${result.requestsRemaining} scraper requests remaining`);
+  }
+
+  if (result.requestConcurrency != null) {
+    summary.push(`${result.requestConcurrency} request concurrency`);
+  }
+
+  return summary.join(" | ");
+}
+
 async function pruneAutoPriceRefreshLogs(keepId: string) {
   await db.syncLog.deleteMany({
     where: {
@@ -1042,6 +1094,8 @@ async function persistCardPriceWrites(
     gradedCreates: GradedCreateRow[];
     ebaySoldGradedCardIdsToReplace: Set<string>;
     ebaySoldGradedCreates: EbaySoldGradedCreateRow[];
+    ebaySoldGradedSyncedCardIds?: Set<string>;
+    ebaySoldGradedUnavailableCardIds?: Set<string>;
     priceRefreshes: string[];
     priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData>;
   }
@@ -1080,6 +1134,36 @@ async function persistCardPriceWrites(
 
     await tx.cardEbaySoldGradedPriceSnapshot.createMany({
       data: dedupedEbaySoldGradedCreates,
+    });
+  }
+
+  const ebaySoldGradedSyncedCardIds = input.ebaySoldGradedSyncedCardIds
+    ? [...input.ebaySoldGradedSyncedCardIds]
+    : [];
+  const syncedCardIdSet = new Set(ebaySoldGradedSyncedCardIds);
+  const ebaySoldGradedUnavailableCardIds = input.ebaySoldGradedUnavailableCardIds
+    ? [...input.ebaySoldGradedUnavailableCardIds].filter((cardId) => !syncedCardIdSet.has(cardId))
+    : [];
+
+  if (ebaySoldGradedSyncedCardIds.length > 0) {
+    await tx.card.updateMany({
+      where: { id: { in: ebaySoldGradedSyncedCardIds } },
+      data: {
+        ebay_sold_graded_synced_at: input.fetchedAt,
+        ebay_sold_graded_status: "synced",
+        ebay_sold_graded_checked_at: input.fetchedAt,
+      },
+    });
+  }
+
+  if (ebaySoldGradedUnavailableCardIds.length > 0) {
+    await tx.card.updateMany({
+      where: { id: { in: ebaySoldGradedUnavailableCardIds } },
+      data: {
+        ebay_sold_graded_synced_at: null,
+        ebay_sold_graded_status: "unavailable",
+        ebay_sold_graded_checked_at: input.fetchedAt,
+      },
     });
   }
 
@@ -1335,6 +1419,159 @@ async function backfillCardNativeHistory(
   return result.syncedCards;
 }
 
+async function backfillEbaySoldGradedPricesDetailed(
+  cardIds: string[],
+  fetchedAt: Date,
+  options?: {
+    concurrency?: number;
+    throwIfCancelled?: () => Promise<void>;
+    onProgress?: (progress: {
+      totalCards: number;
+      processedCards: number;
+      cardsWithPrices: number;
+      cardsWithoutPrices: number;
+      failedCards: number;
+      pricesUpdated: number;
+    }) => Promise<void> | void;
+  }
+): Promise<{
+  cardsWithPrices: number;
+  cardsWithoutPrices: number;
+  failedCards: number;
+  pricesUpdated: number;
+  processedCards: number;
+  quotaExceeded: boolean;
+}> {
+  if (cardIds.length === 0) {
+    return {
+      cardsWithPrices: 0,
+      cardsWithoutPrices: 0,
+      failedCards: 0,
+      pricesUpdated: 0,
+      processedCards: 0,
+      quotaExceeded: false,
+    };
+  }
+
+  await options?.throwIfCancelled?.();
+
+  const concurrency = Math.min(
+    Math.max(options?.concurrency ?? MANUAL_EBAY_SOLD_GRADED_PRICE_SYNC_CONCURRENCY, 1),
+    cardIds.length
+  );
+  let nextIndex = 0;
+  let processedCards = 0;
+  let cardsWithPrices = 0;
+  let cardsWithoutPrices = 0;
+  let failedCards = 0;
+  let pricesUpdated = 0;
+  let quotaExceeded = false;
+
+  async function publishProgress() {
+    if (!options?.onProgress) return;
+
+    await options.onProgress({
+      totalCards: cardIds.length,
+      processedCards,
+      cardsWithPrices,
+      cardsWithoutPrices,
+      failedCards,
+      pricesUpdated,
+    });
+  }
+
+  async function worker() {
+    while (!quotaExceeded) {
+      const index = nextIndex;
+      nextIndex += 1;
+
+      if (index >= cardIds.length) {
+        return;
+      }
+
+      await options?.throwIfCancelled?.();
+
+      const cardId = cardIds[index];
+      let shouldCountCard = false;
+
+      try {
+        const remoteCard = await fetchCardDetail(cardId);
+        await options?.throwIfCancelled?.();
+
+        const creates = remoteCard
+          ? dedupeEbaySoldGradedCreateRows(
+              buildEbaySoldGradedCreateRows(cardId, remoteCard.prices, fetchedAt)
+            )
+          : [];
+
+        if (creates.length > 0) {
+          await runExclusiveDbWrite(() =>
+            db.$transaction(async (tx) => {
+              await persistCardPriceWrites(tx, {
+                fetchedAt,
+                gradedCardIdsToReplace: new Set(),
+                gradedCreates: [],
+                ebaySoldGradedCardIdsToReplace: new Set([cardId]),
+                ebaySoldGradedCreates: creates,
+                priceRefreshes: [],
+                priceCreates: [],
+              });
+              await tx.card.update({
+                where: { id: cardId },
+                data: {
+                  ebay_sold_graded_synced_at: fetchedAt,
+                  ebay_sold_graded_status: "synced",
+                  ebay_sold_graded_checked_at: fetchedAt,
+                },
+              });
+            })
+          );
+
+          cardsWithPrices += 1;
+          pricesUpdated += creates.length;
+        } else {
+          await db.card.update({
+            where: { id: cardId },
+            data: {
+              ebay_sold_graded_synced_at: null,
+              ebay_sold_graded_status: "unavailable",
+              ebay_sold_graded_checked_at: fetchedAt,
+            },
+          });
+          cardsWithoutPrices += 1;
+        }
+
+        shouldCountCard = true;
+      } catch (error) {
+        if (isTcggoQuotaExceededError(error)) {
+          quotaExceeded = true;
+          return;
+        }
+
+        failedCards += 1;
+        shouldCountCard = true;
+      } finally {
+        if (shouldCountCard) {
+          processedCards += 1;
+          await publishProgress();
+        }
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  await options?.throwIfCancelled?.();
+
+  return {
+    cardsWithPrices,
+    cardsWithoutPrices,
+    failedCards,
+    pricesUpdated,
+    processedCards,
+    quotaExceeded,
+  };
+}
+
 async function backfillSealedNativeHistory(
   products: Array<{ id: string; episodeId: string }>,
   syncedAt: Date,
@@ -1563,6 +1800,103 @@ async function selectManualCardHistoryCandidates(options?: { take?: number }): P
   return cards.map((card) => card.id);
 }
 
+export async function countEbaySoldGradedPriceCandidates(): Promise<number> {
+  const retryBefore = new Date(Date.now() - EBAY_SOLD_GRADED_UNAVAILABLE_RETRY_MS);
+
+  return timeAsync("sync.ebay-sold-graded-price-candidates.count", () =>
+    db.card.count({
+      where: {
+        ebaySoldGradedPrices: {
+          none: {},
+        },
+        gradedPrices: {
+          some: {},
+        },
+        OR: [
+          { ebay_sold_graded_status: null },
+          { ebay_sold_graded_status: { not: "unavailable" } },
+          { ebay_sold_graded_checked_at: null },
+          { ebay_sold_graded_checked_at: { lt: retryBefore } },
+        ],
+      },
+    })
+  );
+}
+
+async function selectEbaySoldGradedPriceCandidates(options: {
+  take: number;
+  skip?: number;
+}): Promise<string[]> {
+  const retryBefore = new Date(Date.now() - EBAY_SOLD_GRADED_UNAVAILABLE_RETRY_MS);
+  const cards = await db.card.findMany({
+    where: {
+      ebaySoldGradedPrices: {
+        none: {},
+      },
+      gradedPrices: {
+        some: {},
+      },
+      OR: [
+        { ebay_sold_graded_status: null },
+        { ebay_sold_graded_status: { not: "unavailable" } },
+        { ebay_sold_graded_checked_at: null },
+        { ebay_sold_graded_checked_at: { lt: retryBefore } },
+      ],
+    },
+    orderBy: [{ updated_at: "desc" }, { id: "asc" }],
+    select: { id: true },
+    take: options.take,
+    skip: options.skip ?? 0,
+  });
+
+  return cards.map((card) => card.id);
+}
+
+function buildEbaySoldGradedCreateRows(
+  cardId: string,
+  prices: NormalizedCard["prices"],
+  fetchedAt: Date
+): EbaySoldGradedCreateRow[] {
+  return extractEbaySoldGradedPrices(prices).map((gradedPrice) => ({
+    card_id: cardId,
+    source: gradedPrice.source,
+    label: gradedPrice.label,
+    company: gradedPrice.company,
+    grade: gradedPrice.grade,
+    median_price: gradedPrice.median_price,
+    currency: gradedPrice.currency,
+    sample_size: gradedPrice.sample_size,
+    fetched_at: fetchedAt,
+  }));
+}
+
+function queueEbaySoldGradedPriceWrites(input: {
+  cardId: string;
+  prices: NormalizedCard["prices"];
+  fetchedAt: Date;
+  markUnavailableIfMissing: boolean;
+  cardIdsToReplace: Set<string>;
+  creates: EbaySoldGradedCreateRow[];
+  syncedCardIds: Set<string>;
+  unavailableCardIds: Set<string>;
+}): number {
+  const creates = buildEbaySoldGradedCreateRows(input.cardId, input.prices, input.fetchedAt);
+
+  if (creates.length > 0) {
+    input.cardIdsToReplace.add(input.cardId);
+    input.syncedCardIds.add(input.cardId);
+    input.unavailableCardIds.delete(input.cardId);
+    input.creates.push(...creates);
+    return creates.length;
+  }
+
+  if (input.markUnavailableIfMissing) {
+    input.unavailableCardIds.add(input.cardId);
+  }
+
+  return 0;
+}
+
 function countSelectedCards(selectedByEpisode: Map<string, string[]>): number {
   let total = 0;
   for (const cardIds of selectedByEpisode.values()) {
@@ -1629,6 +1963,8 @@ async function syncEpisodeCards(
     const gradedCreates: GradedCreateRow[] = [];
     const ebaySoldGradedCardIdsToReplace = new Set<string>();
     const ebaySoldGradedCreates: EbaySoldGradedCreateRow[] = [];
+    const ebaySoldGradedSyncedCardIds = new Set<string>();
+    const ebaySoldGradedUnavailableCardIds = new Set<string>();
 
     let newCards = 0;
     let updatedCards = 0;
@@ -1667,6 +2003,7 @@ async function syncEpisodeCards(
           price_source_status: null,
           price_source_checked_at: null,
           native_history_synced_at: null,
+          ebaySoldGradedPrices: [],
           prices: [],
         });
         newCards += 1;
@@ -1695,23 +2032,18 @@ async function syncEpisodeCards(
         }
       }
 
-      const nextEbaySoldGradedPrices = extractEbaySoldGradedPrices(card.prices);
-      if (nextEbaySoldGradedPrices.length > 0) {
-        ebaySoldGradedCardIdsToReplace.add(card.id);
-        for (const gradedPrice of nextEbaySoldGradedPrices) {
-          ebaySoldGradedCreates.push({
-            card_id: card.id,
-            source: gradedPrice.source,
-            label: gradedPrice.label,
-            company: gradedPrice.company,
-            grade: gradedPrice.grade,
-            median_price: gradedPrice.median_price,
-            currency: gradedPrice.currency,
-            sample_size: gradedPrice.sample_size,
-            fetched_at: fetchedAt,
-          });
-        }
-      }
+      queueEbaySoldGradedPriceWrites({
+        cardId: card.id,
+        prices: card.prices,
+        fetchedAt,
+        markUnavailableIfMissing:
+          nextGradedPrices.length > 0 &&
+          (existingCard?.ebaySoldGradedPrices.length ?? 0) === 0,
+        cardIdsToReplace: ebaySoldGradedCardIdsToReplace,
+        creates: ebaySoldGradedCreates,
+        syncedCardIds: ebaySoldGradedSyncedCardIds,
+        unavailableCardIds: ebaySoldGradedUnavailableCardIds,
+      });
 
       const latestPrice = existingCard?.prices[0] ?? null;
       const nextPrice = extractPrices(card.prices);
@@ -1764,6 +2096,8 @@ async function syncEpisodeCards(
       gradedCreates,
       ebaySoldGradedCardIdsToReplace,
       ebaySoldGradedCreates,
+      ebaySoldGradedSyncedCardIds,
+      ebaySoldGradedUnavailableCardIds,
       priceRefreshes,
       priceCreates,
     });
@@ -2154,12 +2488,9 @@ async function refreshEpisodeDueCards(
 
   await throwIfCancelled?.();
 
-  const { tcgdexSupertypeLookup, tcgdexIllustratorLookup } =
-    await loadEpisodeCardEnrichmentLookups(episode, remoteCards);
-
-  await throwIfCancelled?.();
-
   const remoteCardMap = new Map(remoteCards.map((card) => [card.id, card]));
+  const tcgdexSupertypeLookup = new Map<string, string>();
+  const tcgdexIllustratorLookup = new Map<string, string>();
 
   return runExclusiveDbWrite(() => db.$transaction(async (tx) => {
     const existingCards = await findExistingCardsForSync(tx, {
@@ -2173,6 +2504,8 @@ async function refreshEpisodeDueCards(
     const gradedCreates: GradedCreateRow[] = [];
     const ebaySoldGradedCardIdsToReplace = new Set<string>();
     const ebaySoldGradedCreates: EbaySoldGradedCreateRow[] = [];
+    const ebaySoldGradedSyncedCardIds = new Set<string>();
+    const ebaySoldGradedUnavailableCardIds = new Set<string>();
 
     let updatedCards = 0;
     let newPrices = 0;
@@ -2227,23 +2560,18 @@ async function refreshEpisodeDueCards(
         }
       }
 
-      const nextEbaySoldGradedPrices = extractEbaySoldGradedPrices(remoteCard.prices);
-      if (nextEbaySoldGradedPrices.length > 0) {
-        ebaySoldGradedCardIdsToReplace.add(cardId);
-        for (const gradedPrice of nextEbaySoldGradedPrices) {
-          ebaySoldGradedCreates.push({
-            card_id: cardId,
-            source: gradedPrice.source,
-            label: gradedPrice.label,
-            company: gradedPrice.company,
-            grade: gradedPrice.grade,
-            median_price: gradedPrice.median_price,
-            currency: gradedPrice.currency,
-            sample_size: gradedPrice.sample_size,
-            fetched_at: fetchedAt,
-          });
-        }
-      }
+      queueEbaySoldGradedPriceWrites({
+        cardId,
+        prices: remoteCard.prices,
+        fetchedAt,
+        markUnavailableIfMissing:
+          nextGradedPrices.length > 0 &&
+          (existingCard.ebaySoldGradedPrices.length ?? 0) === 0,
+        cardIdsToReplace: ebaySoldGradedCardIdsToReplace,
+        creates: ebaySoldGradedCreates,
+        syncedCardIds: ebaySoldGradedSyncedCardIds,
+        unavailableCardIds: ebaySoldGradedUnavailableCardIds,
+      });
 
       const latestPrice = existingCard.prices[0] ?? null;
       const nextPrice = extractPrices(remoteCard.prices);
@@ -2293,6 +2621,8 @@ async function refreshEpisodeDueCards(
       gradedCreates,
       ebaySoldGradedCardIdsToReplace,
       ebaySoldGradedCreates,
+      ebaySoldGradedSyncedCardIds,
+      ebaySoldGradedUnavailableCardIds,
       priceRefreshes,
       priceCreates,
     });
@@ -2375,25 +2705,29 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           updatedCard = true;
         }
 
-        const gradedCreates = extractGradedPrices(remoteCard.prices).map((gradedPrice) => ({
+        const nextGradedPrices = extractGradedPrices(remoteCard.prices);
+        const gradedCreates = nextGradedPrices.map((gradedPrice) => ({
           card_id: cardId,
           label: gradedPrice.label,
           price: gradedPrice.price,
           fetched_at: fetchedAt,
         }));
-        const ebaySoldGradedCreates = extractEbaySoldGradedPrices(remoteCard.prices).map(
-          (gradedPrice) => ({
-            card_id: cardId,
-            source: gradedPrice.source,
-            label: gradedPrice.label,
-            company: gradedPrice.company,
-            grade: gradedPrice.grade,
-            median_price: gradedPrice.median_price,
-            currency: gradedPrice.currency,
-            sample_size: gradedPrice.sample_size,
-            fetched_at: fetchedAt,
-          })
-        );
+        const ebaySoldGradedCardIdsToReplace = new Set<string>();
+        const ebaySoldGradedCreates: EbaySoldGradedCreateRow[] = [];
+        const ebaySoldGradedSyncedCardIds = new Set<string>();
+        const ebaySoldGradedUnavailableCardIds = new Set<string>();
+        queueEbaySoldGradedPriceWrites({
+          cardId,
+          prices: remoteCard.prices,
+          fetchedAt,
+          markUnavailableIfMissing:
+            nextGradedPrices.length > 0 &&
+            existingCard.ebaySoldGradedPrices.length === 0,
+          cardIdsToReplace: ebaySoldGradedCardIdsToReplace,
+          creates: ebaySoldGradedCreates,
+          syncedCardIds: ebaySoldGradedSyncedCardIds,
+          unavailableCardIds: ebaySoldGradedUnavailableCardIds,
+        });
 
         const latestPrice = existingCard.prices[0] ?? null;
         const nextPrice = extractPrices(remoteCard.prices);
@@ -2445,10 +2779,10 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           fetchedAt,
           gradedCardIdsToReplace: new Set(gradedCreates.length > 0 ? [cardId] : []),
           gradedCreates,
-          ebaySoldGradedCardIdsToReplace: new Set(
-            ebaySoldGradedCreates.length > 0 ? [cardId] : []
-          ),
+          ebaySoldGradedCardIdsToReplace,
           ebaySoldGradedCreates,
+          ebaySoldGradedSyncedCardIds,
+          ebaySoldGradedUnavailableCardIds,
           priceRefreshes,
           priceCreates,
         });
@@ -2714,6 +3048,138 @@ export async function runSealedProductHistorySync(
         historyPointsFetched: history.length,
         newHistorySnapshots: historyCreates.length,
       };
+    }
+  );
+}
+
+export async function runEbaySoldGradedPriceSync(options?: {
+  skip?: number;
+}): Promise<EbaySoldGradedPriceSyncResult> {
+  const skip = Math.max(options?.skip ?? 0, 0);
+  const totalCandidateCardCount = await countEbaySoldGradedPriceCandidates();
+  const candidateCardCount = Math.max(totalCandidateCardCount - skip, 0);
+
+  if (candidateCardCount === 0) {
+    return {
+      candidateCards: 0,
+      selectedCards: 0,
+      processedCards: 0,
+      cardsWithPrices: 0,
+      cardsWithoutPrices: 0,
+      failedCards: 0,
+      ebaySoldGradedPricesUpdated: 0,
+      remainingCards: 0,
+      hasMore: false,
+      skipped: true,
+      message: "All cards already have imported eBay sold graded prices.",
+    };
+  }
+
+  const candidateCards = await selectEbaySoldGradedPriceCandidates({
+    take: MANUAL_EBAY_SOLD_GRADED_PRICE_SYNC_MAX_CARDS_PER_RUN,
+    skip,
+  });
+
+  if (candidateCards.length === 0) {
+    return {
+      candidateCards: candidateCardCount,
+      selectedCards: 0,
+      processedCards: 0,
+      cardsWithPrices: 0,
+      cardsWithoutPrices: 0,
+      failedCards: 0,
+      ebaySoldGradedPricesUpdated: 0,
+      remainingCards: await countEbaySoldGradedPriceCandidates(),
+      hasMore: false,
+      skipped: true,
+      message: "No eBay sold graded price candidates were selectable for this run.",
+    };
+  }
+
+  return runLoggedSync(
+    EBAY_SOLD_GRADED_PRICE_SYNC_TYPE,
+    `Syncing eBay sold graded prices for ${candidateCards.length} of ${candidateCardCount} cards`,
+    summarizeEbaySoldGradedPriceSync,
+    async (progress) => {
+      await progress.throwIfCancelled();
+      const updateEbayProgress = (
+        message: string,
+        input: Partial<
+          Omit<EbaySoldGradedPriceLogDetails, "version" | "kind" | "runId" | "status">
+        >
+      ) =>
+        progress.updateMessage(
+          message,
+          createEbaySoldGradedPriceLogDetails(progress.syncId, "running", {
+            candidateCards: candidateCardCount,
+            selectedCards: candidateCards.length,
+            remainingCards: candidateCardCount,
+            hasMore: candidateCardCount > candidateCards.length,
+            ...input,
+          })
+        );
+
+      await progress.updateMessage(
+        `Syncing eBay sold graded prices for ${candidateCards.length}/${candidateCardCount} cards. This uses scraper requests.`,
+        createEbaySoldGradedPriceLogDetails(progress.syncId, "running", {
+          candidateCards: candidateCardCount,
+          selectedCards: candidateCards.length,
+          remainingCards: candidateCardCount,
+          hasMore: candidateCardCount > candidateCards.length,
+        })
+      );
+
+      const fetchedAt = new Date();
+      const result = await backfillEbaySoldGradedPricesDetailed(candidateCards, fetchedAt, {
+        concurrency: MANUAL_EBAY_SOLD_GRADED_PRICE_SYNC_CONCURRENCY,
+        throwIfCancelled: progress.throwIfCancelled,
+        onProgress: async ({
+          totalCards,
+          processedCards,
+          cardsWithPrices,
+          cardsWithoutPrices,
+          failedCards,
+          pricesUpdated,
+        }) => {
+          await updateEbayProgress(
+            `Syncing eBay sold graded prices ${processedCards}/${totalCards} | ${cardsWithPrices} with prices | ${cardsWithoutPrices} without prices | ${failedCards} failed | ${pricesUpdated} eBay rows | ${Math.max(totalCards - processedCards, 0)} left in this batch`,
+            {
+              processedCards,
+              cardsWithPrices,
+              cardsWithoutPrices,
+              failedCards,
+              ebaySoldGradedPricesUpdated: pricesUpdated,
+              remainingCards: Math.max(candidateCardCount - cardsWithPrices, 0),
+            }
+          );
+        },
+      });
+      const remainingUnvisitedCards = Math.max(candidateCardCount - result.processedCards, 0);
+      const remainingCards = await countEbaySoldGradedPriceCandidates();
+
+      return {
+        candidateCards: candidateCardCount,
+        selectedCards: candidateCards.length,
+        processedCards: result.processedCards,
+        cardsWithPrices: result.cardsWithPrices,
+        cardsWithoutPrices: result.cardsWithoutPrices,
+        failedCards: result.failedCards,
+        ebaySoldGradedPricesUpdated: result.pricesUpdated,
+        remainingCards,
+        hasMore: remainingUnvisitedCards > 0 && !result.quotaExceeded,
+        skipped: result.quotaExceeded,
+        ...getTcggoQuotaResultFields(result.quotaExceeded),
+        message: result.quotaExceeded
+          ? `Paused after ${result.processedCards} cards because scraper requests are exhausted. Resume after the quota reset.`
+          : remainingCards > 0
+            ? `Imported eBay sold graded prices for ${result.cardsWithPrices} cards. ${remainingCards} cards still do not have eBay sold rows.`
+            : `eBay sold graded price import complete. Imported prices for ${result.cardsWithPrices} cards.`,
+      };
+    },
+    {
+      interruptAutoPriceRefresh: true,
+      successDetails: (result, syncId) =>
+        createEbaySoldGradedPriceResultDetails(syncId, result),
     }
   );
 }

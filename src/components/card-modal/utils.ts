@@ -78,31 +78,31 @@ function normalizeGradePickerValue(value: string | null | undefined): string {
   return value?.toUpperCase().replace(/\s+/g, " ").trim() ?? "";
 }
 
+function normalizeGradeMatcherValue(value: string): string {
+  return normalizeGradePickerValue(value)
+    .replace(/[^A-Z0-9.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPsa10Label(label: string): boolean {
+  return /^PSA\s*10(?:\.0+)?(?:$|\s)/.test(normalizeGradeMatcherValue(label));
+}
+
+function isPsaLabel(label: string): boolean {
+  return /^PSA(?:$|\s|\d)/.test(normalizeGradeMatcherValue(label));
+}
+
 export function getPreferredGradedLabel(
-  prices: Array<{ label: string; price: number }>,
-  company: string | null | undefined,
-  grade: string | null | undefined
+  prices: Array<{ label: string; price: number }>
 ): string | null {
   if (prices.length === 0) return null;
 
-  const normalizedCompany = normalizeGradePickerValue(company);
-  const normalizedGrade = normalizeGradePickerValue(grade);
+  const psa10Price = prices.find((price) => isPsa10Label(price.label));
+  if (psa10Price) return psa10Price.label;
 
-  if (normalizedCompany && normalizedGrade) {
-    const preferredKey = `${normalizedCompany} ${normalizedGrade}`;
-    const matchedPrice = prices.find((price) => {
-      const normalizedLabel = normalizeGradePickerValue(price.label);
-      return (
-        normalizedLabel === preferredKey ||
-        normalizedLabel.startsWith(`${preferredKey} `) ||
-        normalizedLabel.includes(preferredKey)
-      );
-    });
-
-    if (matchedPrice) {
-      return matchedPrice.label;
-    }
-  }
+  const psaPrice = prices.find((price) => isPsaLabel(price.label));
+  if (psaPrice) return psaPrice.label;
 
   return prices[0]?.label ?? null;
 }

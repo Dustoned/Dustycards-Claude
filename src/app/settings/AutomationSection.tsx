@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Package, RefreshCw } from "lucide-react";
+import { BadgeDollarSign, Package, RefreshCw } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import SyncButton from "../expansions/SyncButton";
 
@@ -161,6 +161,110 @@ function SyncCardHistoryButton({
   );
 }
 
+function SyncEbaySoldGradedPricesButton({
+  pendingCards,
+  scraperDisabled,
+  disabledReason,
+}: {
+  pendingCards: number;
+  scraperDisabled: boolean;
+  disabledReason: string;
+}) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading) return;
+
+    let cancelled = false;
+
+    async function pollStatus() {
+      try {
+        const res = await fetch("/api/sync-ebay-sold-graded", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (cancelled || !data.ok) return;
+
+        router.refresh();
+
+        if (!data.running) {
+          setLoading(false);
+          setStatus(
+            data.error
+              ? `eBay sold sync stopped: ${data.error}`
+              : data.pendingCards > 0
+                ? `eBay sold sync finished with ${data.pendingCards} cards still without rows.`
+                : "eBay sold graded price import complete."
+          );
+        }
+      } catch {
+        // Keep the local running state; the next poll can recover.
+      }
+    }
+
+    const interval = window.setInterval(() => {
+      void pollStatus();
+    }, 2500);
+
+    void pollStatus();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [loading, router]);
+
+  async function handleSync() {
+    setLoading(true);
+    setStatus("Starting server-side eBay sold graded price sync...");
+    try {
+      const res = await fetch("/api/sync-ebay-sold-graded", { method: "POST" });
+      const data = await res.json();
+
+      if (!data.ok) {
+        setStatus(`Error: ${data.error}`);
+        setLoading(false);
+        return;
+      }
+
+      setStatus(
+        data.started
+          ? "eBay sold graded price sync is running server-side."
+          : "eBay sold graded price sync is already running."
+      );
+      router.refresh();
+    } catch {
+      setStatus("Network error");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex w-full flex-col gap-2 sm:w-auto">
+      <button
+        onClick={handleSync}
+        disabled={loading || pendingCards === 0 || scraperDisabled}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08] sm:w-auto"
+      >
+        <BadgeDollarSign className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
+        {loading ? "eBay sold sync running..." : "Sync eBay Sold Prices"}
+      </button>
+      <p className="max-w-sm text-xs text-gray-400">
+        Runs server-side in chunks and fills missing eBay sold graded rows.
+      </p>
+      {scraperDisabled && (
+        <p className="max-w-sm break-words text-xs text-amber-600 dark:text-amber-300">
+          {disabledReason}
+        </p>
+      )}
+      {status && <p className="max-w-sm break-words text-xs text-gray-400">{status}</p>}
+    </div>
+  );
+}
+
 const TIERS = [
   {
     label: "Base",
@@ -191,6 +295,7 @@ interface AutomationSectionProps {
     observedLabel: string | null;
   };
   pendingCardHistoryCards: number;
+  pendingEbaySoldGradedPriceCards: number;
   activeScraperLabel: string | null;
   scraperDisabled: boolean;
   scraperDisabledLabel: string;
@@ -223,6 +328,7 @@ function UsageStat({
 export default function AutomationSection({
   scraperUsage,
   pendingCardHistoryCards,
+  pendingEbaySoldGradedPriceCards,
   activeScraperLabel,
   scraperDisabled,
   scraperDisabledLabel,
@@ -316,6 +422,30 @@ export default function AutomationSection({
           </div>
           <SyncCardHistoryButton
             pendingCards={pendingCardHistoryCards}
+            scraperDisabled={scraperDisabled}
+            disabledReason={scraperDisabledReason}
+          />
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-900 dark:text-white">
+              eBay sold graded price import
+            </p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              Import missing sold-price medians only for cards that already have graded prices.
+            </p>
+            <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
+              Eligible graded cards to check:{" "}
+              <span className="font-semibold text-gray-900 dark:text-white">
+                {pendingEbaySoldGradedPriceCards}
+              </span>
+            </p>
+          </div>
+          <SyncEbaySoldGradedPricesButton
+            pendingCards={pendingEbaySoldGradedPriceCards}
             scraperDisabled={scraperDisabled}
             disabledReason={scraperDisabledReason}
           />

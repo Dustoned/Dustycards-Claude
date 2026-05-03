@@ -161,6 +161,9 @@ model Card {
   native_history_synced_at DateTime?
   native_history_status     String?
   native_history_checked_at DateTime?
+  ebay_sold_graded_synced_at DateTime?
+  ebay_sold_graded_status     String?
+  ebay_sold_graded_checked_at DateTime?
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
@@ -177,6 +180,8 @@ model Card {
   @@index([price_source_status, price_source_checked_at])
   @@index([native_history_synced_at])
   @@index([native_history_status, native_history_checked_at])
+  @@index([ebay_sold_graded_synced_at])
+  @@index([ebay_sold_graded_status, ebay_sold_graded_checked_at])
   @@index([tcggo_url, price_source_status, price_source_checked_at])
 }
 

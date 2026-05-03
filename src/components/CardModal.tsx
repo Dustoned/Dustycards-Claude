@@ -61,11 +61,7 @@ export default function CardModal({ card, onClose }: Props) {
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
   const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(() =>
-    getPreferredGradedLabel(
-      card.graded_prices ?? [],
-      card.collection_item?.grading_company,
-      card.collection_item?.grading_grade
-    )
+    getPreferredGradedLabel(card.graded_prices ?? [])
   );
   const [selectedEbaySoldGradedLabel, setSelectedEbaySoldGradedLabel] = useState<string | null>(
     () =>
@@ -73,9 +69,7 @@ export default function CardModal({ card, onClose }: Props) {
         (card.ebay_sold_graded_prices ?? []).map((price) => ({
           label: price.label,
           price: price.median_price,
-        })),
-        card.collection_item?.grading_company,
-        card.collection_item?.grading_grade
+        }))
       )
   );
 
@@ -138,9 +132,7 @@ export default function CardModal({ card, onClose }: Props) {
         };
   const activeCardMarketCurrentValue = saneActiveCardMarketCurrent.value;
   const preferredGradedLabel = getPreferredGradedLabel(
-    gradedPrices,
-    gradingCompanyLabel,
-    gradingGradeLabel
+    gradedPrices
   );
   const selectedGradedPrice =
     gradedPrices.find((price) => price.label === selectedGradedLabel) ??
@@ -150,9 +142,13 @@ export default function CardModal({ card, onClose }: Props) {
     ebaySoldGradedPrices.map((price) => ({
       label: price.label,
       price: price.median_price,
-    })),
-    gradingCompanyLabel,
-    gradingGradeLabel
+    }))
+  );
+  const preferredGradedHistoryLabel = getPreferredGradedLabel(
+    gradedPriceHistory.map((series) => ({
+      label: series.label,
+      price: series.points[series.points.length - 1]?.value ?? 0,
+    }))
   );
   const selectedEbaySoldGradedPrice =
     ebaySoldGradedPrices.find((price) => price.label === selectedEbaySoldGradedLabel) ??
@@ -161,6 +157,7 @@ export default function CardModal({ card, onClose }: Props) {
   const selectedGradedHistory =
     gradedPriceHistory.find((series) => series.label === selectedGradedLabel) ??
     gradedPriceHistory.find((series) => series.label === preferredGradedLabel) ??
+    gradedPriceHistory.find((series) => series.label === preferredGradedHistoryLabel) ??
     gradedPriceHistory[0] ??
     null;
   const selectedGradedHistoryCurrentValue =
