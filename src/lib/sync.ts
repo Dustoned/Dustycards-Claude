@@ -43,6 +43,7 @@ import {
   selectAutoCatalogSyncBatch,
   upsertVisibleRemoteEpisodes,
 } from "@/lib/sync/catalog";
+import { warmEpisodeImages } from "@/lib/sync/image-warmer";
 import {
   extractEbaySoldGradedPrices,
   extractGradedPrices,
@@ -2142,6 +2143,10 @@ async function syncEpisodeCards(
     await backfillCardNativeHistory(cardIdsNeedingHistory, fetchedAt, options.throwIfCancelled);
   }
 
+  // Fire-and-forget: pre-warm the image cache so cards work offline.
+  // Already-cached images are fast HITs; new images get downloaded in the background.
+  void warmEpisodeImages(episodeId);
+
   return result;
 }
 
@@ -3928,6 +3933,9 @@ async function syncEpisodeSealed(
       options.throwIfCancelled
     );
   }
+
+  // Fire-and-forget image cache warm-up for sealed product art.
+  void warmEpisodeImages(episodeId);
 }
 
 export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResult> {
