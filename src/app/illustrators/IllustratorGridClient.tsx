@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Images, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SectionHeader } from "@/components/PageHeader";
+import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { IllustratorSummary } from "./page";
 
@@ -37,18 +38,6 @@ interface Props {
 
 const INITIAL_ILLUSTRATORS = 72;
 const ILLUSTRATOR_BATCH_SIZE = 72;
-
-const EUR_FORMATTER = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "EUR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-function formatCurrency(value: number | null): string {
-  if (value == null) return "--";
-  return EUR_FORMATTER.format(value);
-}
 
 function formatCount(value: number): string {
   return value.toLocaleString("en-US");

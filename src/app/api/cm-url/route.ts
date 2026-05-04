@@ -1,16 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import {
+  requireId,
+  validationErrorResponse,
+} from "@/lib/api-validation";
 import {
   buildCardMarketProductUrl,
   buildCardMarketProxyUrl,
   isDirectCardMarketUrl,
   withCardMarketFilters,
 } from "@/lib/cardmarket";
+import { db } from "@/lib/db";
+
+async function syncDirectUrlIfChanged(
+  cardId: string,
+  current: string | null,
+  next: string
+): Promise<void> {
+  if (current === next) return;
+  await db.card.update({ where: { id: cardId }, data: { cardmarket_url: next } });
+}
 
 export async function GET(request: NextRequest) {
-  const cardId = request.nextUrl.searchParams.get("card_id");
-  if (!cardId) {
-    return NextResponse.json({ error: "missing params" }, { status: 400 });
+  let cardId: string;
+  try {
+    cardId = requireId(request.nextUrl.searchParams.get("card_id"), "card_id");
+  } catch (error) {
+    return validationErrorResponse(error) ?? NextResponse.json({ error: "bad request" }, { status: 400 });
   }
 
   const card = await db.card.findUnique({
@@ -22,31 +37,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "card not found" }, { status: 404 });
   }
 
-  const existingDirectUrl = card.cardmarket_url;
-
-  if (isDirectCardMarketUrl(existingDirectUrl)) {
-    const directUrl = withCardMarketFilters(existingDirectUrl);
-
-    if (existingDirectUrl !== directUrl) {
-      await db.card.update({
-        where: { id: cardId },
-        data: { cardmarket_url: directUrl },
-      });
-    }
-
+  if (isDirectCardMarketUrl(card.cardmarket_url)) {
+    const directUrl = withCardMarketFilters(card.cardmarket_url);
+    await syncDirectUrlIfChanged(cardId, card.cardmarket_url, directUrl);
     return NextResponse.json({ url: directUrl });
   }
 
   if (card.cardmarket_id) {
     const directUrl = buildCardMarketProductUrl(card.cardmarket_id);
-
-    if (card.cardmarket_url !== directUrl) {
-      await db.card.update({
-        where: { id: cardId },
-        data: { cardmarket_url: directUrl },
-      });
-    }
-
+    await syncDirectUrlIfChanged(cardId, card.cardmarket_url, directUrl);
     return NextResponse.json({ url: directUrl });
   }
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
 
+const COLLECTION_BATCH_LIMIT = 500;
+
 function toNullableString(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim();
@@ -57,6 +59,13 @@ export async function POST(req: NextRequest) {
 
   if (cardIds.length === 0) {
     return NextResponse.json({ error: "At least one card id is required" }, { status: 400 });
+  }
+
+  if (cardIds.length > COLLECTION_BATCH_LIMIT) {
+    return NextResponse.json(
+      { error: `Too many cards in one request (max ${COLLECTION_BATCH_LIMIT})` },
+      { status: 400 }
+    );
   }
 
   const purchasePrice = toNullableNumber(body.purchasePrice);
@@ -182,6 +191,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "At least one collection item id is required" }, { status: 400 });
   }
 
+  if (itemIds.length > COLLECTION_BATCH_LIMIT) {
+    return NextResponse.json(
+      { error: `Too many items in one request (max ${COLLECTION_BATCH_LIMIT})` },
+      { status: 400 }
+    );
+  }
+
   const binderId = toNullableString(body.binderId);
   let binder:
     | {
@@ -257,6 +273,13 @@ export async function DELETE(req: NextRequest) {
   if (itemIds.length === 0) {
     return NextResponse.json(
       { error: "At least one collection item id is required" },
+      { status: 400 }
+    );
+  }
+
+  if (itemIds.length > COLLECTION_BATCH_LIMIT) {
+    return NextResponse.json(
+      { error: `Too many items in one request (max ${COLLECTION_BATCH_LIMIT})` },
       { status: 400 }
     );
   }

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+process.env.RAPIDAPI_KEY = process.env.RAPIDAPI_KEY ?? "test-key";
+process.env.RAPIDAPI_HOST = process.env.RAPIDAPI_HOST ?? "test-host";
+process.env.DATABASE_URL = process.env.DATABASE_URL ?? "file:./test.db";
+
 vi.mock("@/lib/tcggo-usage", () => ({
   recordTcggoQuotaSnapshot: vi.fn(),
 }));

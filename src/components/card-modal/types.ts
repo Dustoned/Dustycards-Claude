@@ -77,4 +77,4 @@ export interface ModalCardData {
 }
 
 export type ModalCardCollectionItem = NonNullable<ModalCardData["collection_item"]>;
-export type CurrencyCode = "EUR" | "USD";
+export type { CurrencyCode } from "@/lib/format";

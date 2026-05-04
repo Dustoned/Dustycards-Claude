@@ -1,3 +1,4 @@
+import { formatCurrency } from "@/lib/format";
 import {
   buildEpisodeSetPriceHistory,
   buildEpisodeSealedSetPriceHistory,
@@ -60,12 +61,6 @@ export const COLLECTION_BINDER_COLORS = [
   "#f97316",
 ] as const;
 
-const COLLECTION_EUR_FORMATTER = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "EUR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 
 export type CollectionBinderType = "linked_set" | "custom";
 
@@ -103,9 +98,7 @@ export function parseCollectionTags(input: string): string[] {
 }
 
 export function formatCollectionCurrency(value: number | null | undefined): string {
-  if (value == null) return "--";
-
-  return COLLECTION_EUR_FORMATTER.format(value);
+  return formatCurrency(value, "EUR");
 }
 
 function normalizeGradeToken(value: string | null | undefined): string | null {

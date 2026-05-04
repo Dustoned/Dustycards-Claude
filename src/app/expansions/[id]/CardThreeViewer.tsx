@@ -6,6 +6,7 @@ import { useSettings, type Card3dSize } from "@/components/SettingsProvider";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import IllustratorLink from "@/components/IllustratorLink";
 import { withCardMarketFilters } from "@/lib/cardmarket";
+import { formatCurrency } from "@/lib/format";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import {
   PSA_SLAB_MODEL_DIMENSIONS,
@@ -18,8 +19,7 @@ import {
 } from "@/lib/graded-slabs";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
-
-type CurrencyCode = "EUR" | "USD";
+import { rarityBadgeDark } from "@/lib/rarity-styles";
 
 interface ViewerCard {
   name: string;
@@ -119,60 +119,6 @@ function getCard3dSizeConfig(size: Card3dSize): Card3dSizeConfig {
   return CARD_3D_SIZE_CONFIG[size] ?? CARD_3D_SIZE_CONFIG.medium;
 }
 
-function formatCurrency(value: number | null | undefined, currency: CurrencyCode = "EUR"): string {
-  if (value == null) return "--";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function rarityBadge(rarity: string | null): string {
-  const map: Record<string, string> = {
-    Common: "bg-white/8 text-white/58",
-    Uncommon: "bg-emerald-500/14 text-emerald-300",
-    Rare: "bg-blue-500/16 text-blue-300",
-    "Rare Holo": "bg-fuchsia-500/16 text-fuchsia-300",
-    "Rare Ultra": "bg-amber-500/16 text-amber-300",
-    "Ultra Rare": "bg-orange-500/16 text-orange-300",
-    "Secret Rare": "bg-rose-500/16 text-rose-300",
-    "Amazing Rare": "bg-cyan-500/16 text-cyan-300",
-    Promo: "bg-orange-500/16 text-orange-300",
-    "Radiant Rare": "bg-yellow-500/16 text-yellow-300",
-    "ACE SPEC Rare": "bg-indigo-500/16 text-indigo-300",
-    "Double Rare": "bg-sky-500/16 text-sky-300",
-    "Illustration Rare": "bg-teal-500/16 text-teal-300",
-    "Special Illustration Rare": "bg-pink-500/16 text-pink-300",
-    "Hyper Rare": "bg-yellow-500/16 text-yellow-300",
-    "Shiny Rare": "bg-lime-500/16 text-lime-300",
-    "Shiny Ultra Rare": "bg-green-500/16 text-green-300",
-    "Rare Rainbow": "bg-fuchsia-500/16 text-fuchsia-300",
-    "Rare Holo EX": "bg-red-500/16 text-red-300",
-    "Rare Holo V": "bg-violet-500/16 text-violet-300",
-    "Rare Holo GX": "bg-purple-500/16 text-purple-300",
-    "Trainer Gallery Rare Holo": "bg-pink-500/16 text-pink-300",
-    "Rare Holo LV.X": "bg-sky-500/16 text-sky-300",
-    "Rare Holo VSTAR": "bg-yellow-500/16 text-yellow-300",
-    "Rare Shiny": "bg-lime-500/16 text-lime-300",
-    "Rare Shiny GX": "bg-emerald-500/16 text-emerald-300",
-    "Rare BREAK": "bg-orange-500/16 text-orange-300",
-    "Rare Prism Star": "bg-cyan-500/16 text-cyan-300",
-    "Rare Prime": "bg-teal-500/16 text-teal-300",
-    "Classic Collection": "bg-slate-500/16 text-slate-300",
-    "Rare Holo Star": "bg-amber-500/16 text-amber-300",
-    LEGEND: "bg-stone-500/16 text-stone-300",
-    "Rare Shining": "bg-yellow-500/16 text-yellow-300",
-    "Rare ACE": "bg-indigo-500/16 text-indigo-300",
-    "Art Rare": "bg-teal-500/16 text-teal-300",
-    "Special Art Rare": "bg-pink-500/16 text-pink-300",
-    "Mega Hyper Rare": "bg-fuchsia-500/16 text-fuchsia-300",
-    "Black White Rare": "bg-slate-500/16 text-slate-300",
-  };
-
-  return map[normalizeRarityLabel(rarity) ?? ""] ?? "bg-white/8 text-white/58";
-}
 
 interface FoilProfile {
   foilStrength: number;
@@ -1774,7 +1720,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
 
                   {card.rarity && (
                     <span
-                      className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${rarityBadge(
+                      className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${rarityBadgeDark(
                         card.rarity
                       )}`}
                     >

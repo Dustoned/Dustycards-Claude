@@ -2,6 +2,7 @@
 
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { formatCurrency, type CurrencyCode } from "@/lib/format";
 
 export interface PriceHistoryValuePoint {
   date: string;
@@ -9,7 +10,6 @@ export interface PriceHistoryValuePoint {
   value: number | null;
 }
 
-type CurrencyCode = "EUR" | "USD";
 type Tone = "default" | "dark";
 type RangeKey = "1D" | "1W" | "1M" | "3M" | "6M" | "1Y" | "ALL";
 type Layout = "default" | "hero";
@@ -59,17 +59,6 @@ const RANGE_PRESETS: Array<{
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
-}
-
-function formatCurrency(value: number | null | undefined, currency: CurrencyCode): string {
-  if (value == null) return "--";
-
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
 }
 
 function formatDelta(value: number, currency: CurrencyCode): string {

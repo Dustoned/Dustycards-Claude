@@ -1,13 +1,9 @@
 import type { ModalSize } from "@/components/SettingsProvider";
 import { getDetailModalScale } from "@/lib/display-scale";
+import { formatCurrency } from "@/lib/format";
 import type { SealedDetailResponse, SealedModalProductData } from "./types";
 
-const EUR_FORMATTER = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "EUR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+export { formatCurrency };
 
 const NL_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
@@ -16,12 +12,6 @@ const NL_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
 });
-
-export function formatCurrency(value: number | null | undefined): string {
-  if (value == null) return "--";
-
-  return EUR_FORMATTER.format(value);
-}
 
 export function formatTimestamp(value: string | null | undefined): string | null {
   if (!value) return null;

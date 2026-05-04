@@ -24,6 +24,7 @@ import {
   sealedTileTitleClass,
 } from "@/components/sealed-tile-styles";
 import { getFixedTrackGridTemplate, getSealedProductTrackWidth } from "@/lib/display-scale";
+import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CardSize } from "@/lib/user-settings";
 import {
@@ -40,16 +41,6 @@ const SealedProductModal = dynamic(() => import("@/components/SealedProductModal
   ssr: false,
   loading: () => null,
 });
-
-function formatCurrency(value: number | null | undefined): string {
-  if (value == null) return "--";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
 
 function SealedProductCard({
   product,

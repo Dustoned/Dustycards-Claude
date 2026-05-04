@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Search, X, Package } from "lucide-react";
+import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { SectionHeader } from "@/components/PageHeader";
@@ -21,6 +22,7 @@ import {
   clearSearchReturnPath,
   readSearchReturnPath,
 } from "@/lib/search-navigation";
+import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
@@ -76,15 +78,20 @@ interface SearchResults {
 }
 
 const MIN_SEARCH_LENGTH = 1;
+const SEARCH_CACHE_MAX_ENTRIES = 50;
 
 function formatEur(value: number | null | undefined): string {
-  if (value == null) return "-";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+  return value == null ? "-" : formatCurrency(value, "EUR");
+}
+
+function setWithLruEviction<K, V>(map: Map<K, V>, key: K, value: V, max: number): void {
+  if (map.has(key)) map.delete(key);
+  map.set(key, value);
+  while (map.size > max) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined) break;
+    map.delete(oldest);
+  }
 }
 
 function SearchPageContent({ initialQuery }: { initialQuery: string }) {
@@ -94,6 +101,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   const [loading, setLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
+  const [openingCardId, setOpeningCardId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const resultsCacheRef = useRef(new Map<string, SearchResults>());
@@ -137,6 +145,9 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
       if (cachedResults) {
         abortRef.current?.abort();
         abortRef.current = null;
+        // Refresh LRU recency
+        resultsCacheRef.current.delete(trimmedQuery);
+        resultsCacheRef.current.set(trimmedQuery, cachedResults);
         setResults(cachedResults);
         setLoading(false);
         return;
@@ -157,7 +168,12 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
           const data: SearchResults = await res.json();
           if (abortRef.current === controller) {
-            resultsCacheRef.current.set(trimmedQuery, data);
+            setWithLruEviction(
+              resultsCacheRef.current,
+              trimmedQuery,
+              data,
+              SEARCH_CACHE_MAX_ENTRIES
+            );
             setResults(data);
           }
         } catch (e) {
@@ -180,6 +196,8 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   }, [trimmedQuery]);
 
   async function openCard(card: SingleResult) {
+    if (openingCardId === card.id) return;
+    setOpeningCardId(card.id);
     try {
       const res = await fetch(`/api/cards/${encodeURIComponent(card.id)}`);
       if (!res.ok) return;
@@ -187,6 +205,8 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
       setSelectedCard(data);
     } catch {
       // silently ignore
+    } finally {
+      setOpeningCardId(null);
     }
   }
 
@@ -383,6 +403,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                       }
                     }}
                     className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
+                    aria-busy={openingCardId === card.id}
                   >
                     <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-md shadow-black/20 group-hover:shadow-xl group-hover:shadow-black/30 group-hover:scale-[1.03] transition-all duration-200">
                       {card.image_url ? (
@@ -400,6 +421,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           {card.name.slice(0, 2)}
                         </div>
                       )}
+                      {openingCardId === card.id && <CardLoadingOverlay />}
                     </div>
 
                     <div className="mt-2 px-0.5">

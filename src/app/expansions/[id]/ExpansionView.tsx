@@ -8,8 +8,24 @@ import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
+import { rarityBadge } from "@/lib/rarity-styles";
+import {
+  cardNumberCollator,
+  compareCardNumbers,
+  comparePriceValues,
+  formatSortSummary,
+  getCardMarketPrice,
+  getDefaultSortDir,
+  getPriceBySource,
+  getPriceSourceCurrency,
+  getSortPrice,
+  hasAnyVisiblePrice,
+  neutralFilterChip,
+  rarityFilterChip,
+} from "./expansion-view-helpers";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -22,7 +38,6 @@ import {
   CardSize,
   SortBy,
   SortDir,
-  PriceSource,
 } from "@/components/SettingsProvider";
 import type { CardData } from "@/types/card-data";
 
@@ -41,178 +56,6 @@ const CollectionBulkAddCardsModal = dynamic(
 export type { CardData } from "@/types/card-data";
 
 type CardDetailData = ModalCardData;
-
-type CurrencyCode = "EUR" | "USD";
-
-const CARD_NUMBER_FALLBACK = "999999";
-const cardNumberCollator = new Intl.Collator("en", {
-  numeric: true,
-  sensitivity: "base",
-});
-
-function formatCurrency(
-  value: number | null | undefined,
-  currency: CurrencyCode = "EUR"
-): string {
-  if (value == null) return "--";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function getCardMarketPrice(card: CardData): number | null {
-  return (
-    card.price?.cm_en_lowest_nm ??
-    card.price?.cm_de_lowest_nm ??
-    card.price?.cm_fr_lowest_nm ??
-    card.price?.cm_es_lowest_nm ??
-    card.price?.cm_it_lowest_nm ??
-    null
-  );
-}
-
-function getSortPrice(card: CardData, sortBy: SortBy): number | null {
-  return sortBy === "tcp" ? card.price?.tcp_market ?? null : getCardMarketPrice(card);
-}
-
-function getPriceBySource(card: CardData, source: PriceSource): number | null {
-  return source === "tcp" ? card.price?.tcp_market ?? null : getCardMarketPrice(card);
-}
-
-function hasAnyVisiblePrice(card: CardData): boolean {
-  const price = card.price;
-  if (!price) return false;
-
-  return [
-    price.cm_en_lowest_nm,
-    price.cm_de_lowest_nm,
-    price.cm_fr_lowest_nm,
-    price.cm_es_lowest_nm,
-    price.cm_it_lowest_nm,
-    price.cm_en_avg_7d,
-    price.cm_en_avg_30d,
-    price.tcp_market,
-    price.tcp_mid,
-    price.tcp_low,
-  ].some((value) => value != null);
-}
-
-function getPriceSourceCurrency(source: PriceSource): CurrencyCode {
-  return source === "tcp" ? "USD" : "EUR";
-}
-
-function getSortLabel(sortBy: SortBy): string {
-  if (sortBy === "number") return "Number";
-  return sortBy === "cm_en" ? "CardMarket" : "TCGPlayer";
-}
-
-function getDefaultSortDir(sortBy: SortBy): SortDir {
-  return sortBy === "number" ? "asc" : "desc";
-}
-
-function comparePriceValues(a: number | null, b: number | null, sortDir: SortDir): number {
-  if (a == null && b == null) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
-  return sortDir === "asc" ? a - b : b - a;
-}
-
-function compareCardNumbers(a: CardData, b: CardData): number {
-  const diff = cardNumberCollator.compare(
-    a.card_number?.trim() || CARD_NUMBER_FALLBACK,
-    b.card_number?.trim() || CARD_NUMBER_FALLBACK
-  );
-  if (diff !== 0) return diff;
-  return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-}
-
-function formatSortSummary(sortBy: SortBy, sortDir: SortDir): string {
-  const direction = sortDir === "asc" ? "low-high" : "high-low";
-  return `${getSortLabel(sortBy)} ${direction}`;
-}
-
-function rarityBadge(rarity: string | null): string {
-  const map: Record<string, string> = {
-    Common: "bg-black/6 dark:bg-white/8 text-gray-500 dark:text-gray-400",
-    Uncommon:
-      "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
-    Rare: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
-    "Rare Holo": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
-    "Rare Ultra": "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
-    "Ultra Rare": "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
-    "Secret Rare": "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400",
-    "Amazing Rare": "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400",
-    Promo: "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
-    "Radiant Rare": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
-    "ACE SPEC Rare": "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
-    "Double Rare": "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300",
-    "Illustration Rare": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
-    "Special Illustration Rare":
-      "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
-    "Hyper Rare": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
-    "Shiny Rare": "bg-lime-50 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300",
-    "Shiny Ultra Rare":
-      "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300",
-    "Rare Rainbow": "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
-    "Rare Holo EX": "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300",
-    "Rare Holo V": "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300",
-    "Rare Holo GX":
-      "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
-    "Trainer Gallery Rare Holo":
-      "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
-    "Rare Holo LV.X":
-      "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300",
-    "Rare Holo VSTAR":
-      "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
-    "Rare Shiny": "bg-lime-50 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300",
-    "Rare Shiny GX":
-      "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
-    "Rare BREAK": "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
-    "Rare Prism Star":
-      "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300",
-    "Rare Prime": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
-    "Classic Collection":
-      "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
-    "Rare Holo Star":
-      "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
-    LEGEND: "bg-stone-100 dark:bg-stone-800/60 text-stone-700 dark:text-stone-300",
-    "Rare Shining":
-      "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
-    "Rare ACE": "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
-    "Art Rare": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
-    "Special Art Rare":
-      "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
-    "Mega Hyper Rare":
-      "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
-    "Black White Rare":
-      "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
-  };
-  return (
-    map[normalizeRarityLabel(rarity) ?? ""] ??
-    "bg-black/5 dark:bg-white/6 text-gray-500 dark:text-gray-400"
-  );
-}
-
-function rarityFilterChip(rarity: string | null, active: boolean): string {
-  const palette = rarityBadge(rarity);
-
-  if (active) {
-    return `${palette} border-black/15 dark:border-white/15 opacity-100 ring-2 ring-gray-900/70 ring-offset-1 ring-offset-white shadow-md shadow-black/10 dark:border-white/15 dark:ring-white/80 dark:ring-offset-black dark:shadow-black/25`;
-  }
-
-  return `${palette} border-black/8 dark:border-white/8 opacity-75 hover:opacity-100 hover:border-black/20 hover:shadow-sm dark:hover:border-white/20`;
-}
-
-function neutralFilterChip(active: boolean): string {
-  if (active) {
-    return "border-gray-900 bg-gray-900 text-white opacity-100 ring-2 ring-gray-900/70 ring-offset-1 ring-offset-white shadow-md shadow-black/10 dark:border-white dark:bg-white dark:text-gray-900 dark:ring-white/80 dark:ring-offset-black dark:shadow-black/25";
-  }
-
-  return "border-black/8 text-gray-500 opacity-80 hover:border-black/20 hover:opacity-100 hover:text-gray-900 hover:shadow-sm dark:border-white/8 dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white";
-}
 
 const KNOWN_SUPERTYPE_ORDER = ["Pokémon", "Trainer", "Energy"];
 const INITIAL_IMAGE_PRELOAD_COUNT = 8;

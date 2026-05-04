@@ -1,4 +1,5 @@
 import { buildCardMarketProductUrl, buildCardMarketSealedProductUrl } from "@/lib/cardmarket";
+import { getRapidApiHeaders } from "@/lib/env";
 import { assertScraperRequestsEnabled } from "@/lib/scraper-guard";
 import { getTcgdexImageLookup, resolveTcgdexImageUrl } from "@/lib/tcgdex";
 import { recordTcggoQuotaSnapshot } from "@/lib/tcggo-usage";
@@ -10,11 +11,6 @@ const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 500, 502, 503, 504]);
 const HISTORY_PAGE_FETCH_DELAY_MS = 250;
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
 export const TCGGO_REQUEST_CONCURRENCY = 8;
-
-const headers = {
-  "x-rapidapi-key": process.env.RAPIDAPI_KEY!,
-  "x-rapidapi-host": process.env.RAPIDAPI_HOST!,
-};
 
 // Actual API shapes (from live testing)
 interface RawEpisode {
@@ -458,7 +454,7 @@ async function apiFetch<T>(path: string): Promise<T> {
 
         try {
           return await fetch(`${BASE_URL}${path}`, {
-            headers,
+            headers: getRapidApiHeaders(),
             cache: "no-store",
             signal: controller.signal,
           });

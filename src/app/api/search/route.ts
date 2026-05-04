@@ -817,11 +817,20 @@ async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
   };
 }
 
+const SEARCH_QUERY_MAX_LENGTH = 200;
+
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
 
   if (q.length === 0) {
     return NextResponse.json({ singles: [], sealed: [], expansions: [], total: 0 });
+  }
+
+  if (q.length > SEARCH_QUERY_MAX_LENGTH) {
+    return NextResponse.json(
+      { error: `Query too long (max ${SEARCH_QUERY_MAX_LENGTH} chars)` },
+      { status: 400 }
+    );
   }
 
   try {
