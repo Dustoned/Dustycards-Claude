@@ -491,7 +491,7 @@ function TcggoScoreStats({ item }: { item: CollectionMoverItem }) {
   );
 }
 
-function MoverMetricCard({
+function MoverMetricRow({
   label,
   percent,
   delta,
@@ -504,22 +504,30 @@ function MoverMetricCard({
   hint: string;
   currency: "EUR" | "USD";
 }) {
+  if (percent == null && delta == null) return null;
+
   return (
-    <div className="min-w-0 border-t border-black/8 pt-3 dark:border-white/8">
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 text-[10px] font-semibold uppercase tracking-[0.16em] leading-tight text-gray-400 dark:text-white/34">
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-white/52">
           {label}
         </p>
-        <p className={`text-right text-sm font-semibold tabular-nums leading-tight ${getToneClass(percent)}`}>
-          {formatPercent(percent)}
+        <p className="mt-0.5 truncate text-[11px] leading-tight text-gray-400 dark:text-white/40">
+          {hint}
         </p>
       </div>
-      <p className={`mt-1 truncate text-sm font-semibold leading-tight ${getToneClass(delta)}`}>
-        {formatDelta(delta, currency)}
-      </p>
-      <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-gray-500 dark:text-white/42">
-        {hint}
-      </p>
+      <div className="shrink-0 text-right">
+        {percent != null ? (
+          <p className={`text-sm font-bold tabular-nums leading-tight ${getToneClass(percent)}`}>
+            {formatPercent(percent)}
+          </p>
+        ) : null}
+        {delta != null ? (
+          <p className={`mt-0.5 text-xs font-semibold tabular-nums leading-tight ${getToneClass(delta)}`}>
+            {formatDelta(delta, currency)}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -683,87 +691,264 @@ function buildCompactMetrics(
   value: string;
   toneValue?: number | null;
 }> {
+  const all: Array<{ label: string; value: string; toneValue?: number | null } | null> = [];
+
   if (mode === "target" && item.grading) {
-    return [
-      {
-        label: "TCGGO",
-        value: formatOptionalScore(item.tcggoScore?.score),
-      },
-      {
-        label: "Raw CM",
-        value: formatCurrency(item.grading.rawPrice, "EUR"),
-      },
+    all.push(
+      item.tcggoScore?.score != null
+        ? { label: "TCGGO", value: formatOptionalScore(item.tcggoScore.score) }
+        : null,
+      { label: "Raw CM", value: formatCurrency(item.grading.rawPrice, "EUR") },
       {
         label: item.gradedLabel ?? "Graded",
         value: formatTileCurrency(item.grading.gradedPrice, "EUR"),
       },
-      {
-        label: "Gap",
-        value: formatTileDelta(item.grading.valueGap, "EUR"),
-        toneValue: item.grading.valueGap,
-      },
-      {
-        label: "Multiplier",
-        value: `${item.grading.valueMultiplier.toFixed(2)}x`,
-        toneValue: item.grading.valueMultiplier - 1,
-      },
-    ];
+      item.grading.valueGap != null
+        ? {
+            label: "Gap",
+            value: formatTileDelta(item.grading.valueGap, "EUR"),
+            toneValue: item.grading.valueGap,
+          }
+        : null,
+      item.grading.valueMultiplier != null
+        ? {
+            label: "Multiplier",
+            value: `${item.grading.valueMultiplier.toFixed(2)}x`,
+            toneValue: item.grading.valueMultiplier - 1,
+          }
+        : null
+    );
+  } else if (mode === "graded") {
+    all.push(
+      item.tcggoScore?.score != null
+        ? { label: "TCGGO", value: formatOptionalScore(item.tcggoScore.score) }
+        : null,
+      item.change7dPct != null
+        ? { label: "7D", value: formatPercent(item.change7dPct), toneValue: item.change7dPct }
+        : null,
+      item.change30dPct != null
+        ? { label: "30D", value: formatPercent(item.change30dPct), toneValue: item.change30dPct }
+        : null,
+      item.changeSinceTrackedPct != null
+        ? {
+            label: "Since Tracked",
+            value: formatPercent(item.changeSinceTrackedPct),
+            toneValue: item.changeSinceTrackedPct,
+          }
+        : null,
+      item.cardmarketPrice != null
+        ? { label: "Raw CM", value: formatOptionalCurrency(item.cardmarketPrice, "EUR") }
+        : null
+    );
+  } else {
+    all.push(
+      item.tcggoScore?.score != null
+        ? { label: "TCGGO", value: formatOptionalScore(item.tcggoScore.score) }
+        : null,
+      item.change7dPct != null
+        ? { label: "7D", value: formatPercent(item.change7dPct), toneValue: item.change7dPct }
+        : null,
+      item.change30dPct != null
+        ? { label: "30D", value: formatPercent(item.change30dPct), toneValue: item.change30dPct }
+        : null,
+      item.changeSinceTrackedPct != null
+        ? {
+            label: "Since",
+            value: formatPercent(item.changeSinceTrackedPct),
+            toneValue: item.changeSinceTrackedPct,
+          }
+        : null
+    );
   }
 
-  if (mode === "graded") {
-    return [
-      {
-        label: "TCGGO",
-        value: formatOptionalScore(item.tcggoScore?.score),
-      },
-      {
-        label: "7D",
-        value: formatPercent(item.change7dPct),
-        toneValue: item.change7dPct,
-      },
-      {
-        label: "30D",
-        value: formatPercent(item.change30dPct),
-        toneValue: item.change30dPct,
-      },
-      {
-        label: "Since Tracked",
-        value: formatPercent(item.changeSinceTrackedPct),
-        toneValue: item.changeSinceTrackedPct,
-      },
-      {
-        label: "Raw CM",
-        value: formatOptionalCurrency(item.cardmarketPrice, "EUR"),
-      },
-    ];
-  }
+  return all.filter((m): m is { label: string; value: string; toneValue?: number | null } =>
+    m !== null
+  );
+}
 
-  return [
-    {
-      label: "TCGGO",
-      value: formatOptionalScore(item.tcggoScore?.score),
-    },
+function MoverExpandedDetails({
+  item,
+  detailsId,
+  trendTone,
+}: {
+  item: CollectionMoverItem;
+  detailsId: string;
+  trendTone: TrendTone;
+}) {
+  const sourceRows = (() => {
+    if (item.source === "graded") return [];
+    const rows: Array<{
+      label: string;
+      value: number | null;
+      currency: "EUR" | "USD";
+      points: number;
+      active: boolean;
+    }> = [];
+    if (item.cardmarketPrice != null || item.cardmarketHistoryPoints > 0) {
+      rows.push({
+        label: "CardMarket",
+        value: item.cardmarketPrice,
+        currency: "EUR",
+        points: item.cardmarketHistoryPoints,
+        active: item.source === "cardmarket",
+      });
+    }
+    if (item.tcgplayerPrice != null || item.tcgplayerHistoryPoints > 0) {
+      rows.push({
+        label: "TCGPlayer",
+        value: item.tcgplayerPrice,
+        currency: "USD",
+        points: item.tcgplayerHistoryPoints,
+        active: item.source === "tcgplayer",
+      });
+    }
+    return rows;
+  })();
+
+  const trendStats: Array<{
+    label: string;
+    percent: number | null;
+    delta: number | null;
+    hint: string;
+  }> = [
     {
       label: "7D",
-      value: formatPercent(item.change7dPct),
-      toneValue: item.change7dPct,
+      percent: item.change7dPct,
+      delta: item.change7d,
+      hint: item.change7dCoveredDays ? `${item.change7dCoveredDays}d window` : "Recent",
     },
     {
       label: "30D",
-      value: formatPercent(item.change30dPct),
-      toneValue: item.change30dPct,
+      percent: item.change30dPct,
+      delta: item.change30d,
+      hint: item.change30dCoveredDays ? `${item.change30dCoveredDays}d window` : "Recent",
     },
     {
-      label: "Since",
-      value: formatPercent(item.changeSinceTrackedPct),
-      toneValue: item.changeSinceTrackedPct,
+      label: "Since Tracked",
+      percent: item.changeSinceTrackedPct,
+      delta: item.changeSinceTracked,
+      hint: item.firstTrackedAt
+        ? `Since ${formatShortDate(item.firstTrackedAt)}${
+            item.trackedDays != null ? ` / ${item.trackedDays}d` : ""
+          }`
+        : item.trackedDays != null
+          ? `${item.trackedDays}d tracked`
+          : "No lifetime window",
     },
     {
-      label: "Score",
-      value: formatScoreValue(item.moverScore),
-      toneValue: item.moverScore,
+      label: "From Low",
+      percent: item.changeFromLowPct,
+      delta: item.changeFromLow,
+      hint:
+        item.lowPrice != null
+          ? `Low ${formatCurrency(item.lowPrice, item.currency)}${
+              item.lowAt ? ` / ${formatShortDate(item.lowAt)}` : ""
+            }`
+          : "",
+    },
+    {
+      label: "Vs Peak",
+      percent: item.gapToPeakPct,
+      delta: item.gapToPeak,
+      hint:
+        item.highPrice != null
+          ? `Peak ${formatCurrency(item.highPrice, item.currency)}${
+              item.highAt ? ` / ${formatShortDate(item.highAt)}` : ""
+            }`
+          : "",
     },
   ];
+
+  const visibleTrendStats = trendStats.filter(
+    (stat) => stat.percent != null || stat.delta != null
+  );
+
+  const weightChips: Array<{ label: string; tone: "amber" | "neutral" }> = [];
+  if (item.pullRateWeight != null) {
+    weightChips.push({ label: `Odds ${item.pullRateWeight.toFixed(2)}`, tone: "amber" });
+  }
+  if (item.specificPullOdds) {
+    weightChips.push({ label: `Pull ${item.specificPullOdds}`, tone: "neutral" });
+  }
+  weightChips.push({ label: `Rarity ${item.rarityWeight.toFixed(2)}`, tone: "neutral" });
+  weightChips.push({ label: `Price ${item.cheapnessWeight.toFixed(2)}`, tone: "neutral" });
+
+  const hasSparklineData = item.recentPriceSeries.length >= 2;
+
+  return (
+    <div
+      id={detailsId}
+      className="mt-4 space-y-4 border-t border-black/8 pt-4 dark:border-white/8"
+    >
+      {hasSparklineData ? (
+        <MiniPriceSparkline series={item.recentPriceSeries} toneValue={item.moverScore} />
+      ) : null}
+
+      {sourceRows.length > 0 ? (
+        <div
+          className={`grid gap-2 ${sourceRows.length > 1 ? "sm:grid-cols-2" : "sm:grid-cols-1"}`}
+        >
+          {sourceRows.map((row) => (
+            <PriceSourceRow
+              key={row.label}
+              label={row.label}
+              value={row.value}
+              currency={row.currency}
+              points={row.points}
+              active={row.active}
+              trendTone={trendTone}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <GradingOpportunityStats item={item} />
+      <TcggoScoreStats item={item} />
+      <GradedPriceStats prices={item.gradedPrices} activeLabel={item.gradedLabel} />
+
+      {visibleTrendStats.length > 0 ? (
+        <div className="rounded-xl border border-black/8 bg-white/72 px-4 py-2 dark:border-white/8 dark:bg-white/[0.04]">
+          <p className="py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
+            Movement
+          </p>
+          <div className="divide-y divide-black/6 dark:divide-white/6">
+            {visibleTrendStats.map((stat) => (
+              <MoverMetricRow
+                key={stat.label}
+                label={stat.label}
+                percent={stat.percent}
+                delta={stat.delta}
+                currency={item.currency}
+                hint={stat.hint}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {weightChips.length > 0 ? (
+        <div>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
+            Weight
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {weightChips.map((chip) => (
+              <span
+                key={chip.label}
+                className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium tabular-nums ${
+                  chip.tone === "amber"
+                    ? "border-amber-400/22 bg-amber-400/[0.10] text-amber-700 dark:text-amber-200"
+                    : "border-black/8 bg-black/[0.035] text-gray-600 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60"
+                }`}
+              >
+                {chip.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 const MoverTile = memo(function MoverTile({
@@ -956,121 +1141,11 @@ const MoverTile = memo(function MoverTile({
           </div>
 
           {detailsOpen ? (
-            <div id={detailsId} className="mt-4 space-y-3 border-t border-black/8 pt-4 dark:border-white/8">
-              <MiniPriceSparkline series={item.recentPriceSeries} toneValue={item.moverScore} />
-
-              {item.source !== "graded" ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <PriceSourceRow
-                    label="CardMarket"
-                    value={item.cardmarketPrice}
-                    currency="EUR"
-                    points={item.cardmarketHistoryPoints}
-                    active={item.source === "cardmarket"}
-                    trendTone={trendTone}
-                  />
-                  <PriceSourceRow
-                    label="TCGPlayer"
-                    value={item.tcgplayerPrice}
-                    currency="USD"
-                    points={item.tcgplayerHistoryPoints}
-                    active={item.source === "tcgplayer"}
-                    trendTone={trendTone}
-                  />
-                </div>
-              ) : null}
-
-              <GradingOpportunityStats item={item} />
-              <TcggoScoreStats item={item} />
-              <GradedPriceStats prices={item.gradedPrices} activeLabel={item.gradedLabel} />
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <MoverMetricCard
-                  label="7D"
-                  percent={item.change7dPct}
-                  delta={item.change7d}
-                  currency={item.currency}
-                  hint={
-                    item.change7dCoveredDays ? `${item.change7dCoveredDays}d window` : "Recent window"
-                  }
-                />
-                <MoverMetricCard
-                  label="30D"
-                  percent={item.change30dPct}
-                  delta={item.change30d}
-                  currency={item.currency}
-                  hint={
-                    item.change30dCoveredDays
-                      ? `${item.change30dCoveredDays}d window`
-                      : "Recent window"
-                  }
-                />
-                <MoverMetricCard
-                  label="Since Tracked"
-                  percent={item.changeSinceTrackedPct}
-                  delta={item.changeSinceTracked}
-                  currency={item.currency}
-                  hint={
-                    item.firstTrackedAt
-                      ? `Started ${formatShortDate(item.firstTrackedAt)}${
-                          item.trackedDays != null ? ` / ${item.trackedDays}d` : ""
-                        }`
-                      : item.trackedDays != null
-                        ? `${item.trackedDays}d tracked`
-                        : "No lifetime window"
-                  }
-                />
-                <MoverMetricCard
-                  label="From Low"
-                  percent={item.changeFromLowPct}
-                  delta={item.changeFromLow}
-                  currency={item.currency}
-                  hint={
-                    item.lowPrice != null
-                      ? `Low ${formatCurrency(item.lowPrice, item.currency)}${
-                          item.lowAt ? ` / ${formatShortDate(item.lowAt)}` : ""
-                        }`
-                      : "No low recorded"
-                  }
-                />
-                <MoverMetricCard
-                  label="Vs Peak"
-                  percent={item.gapToPeakPct}
-                  delta={item.gapToPeak}
-                  currency={item.currency}
-                  hint={
-                    item.highPrice != null
-                      ? `Peak ${formatCurrency(item.highPrice, item.currency)}${
-                          item.highAt ? ` / ${formatShortDate(item.highAt)}` : ""
-                        }`
-                      : "No peak recorded"
-                  }
-                />
-                <div className="min-w-0 border-t border-black/8 pt-3 dark:border-white/8">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] leading-tight text-gray-400 dark:text-white/34">
-                    Weight
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-white/46">
-                    {item.pullRateWeight != null ? (
-                      <span className="rounded-lg bg-amber-400/[0.08] px-2 py-1 text-amber-700 dark:text-amber-200">
-                        Odds {item.pullRateWeight.toFixed(2)}
-                      </span>
-                    ) : null}
-                    {item.specificPullOdds ? (
-                      <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
-                        Pull {item.specificPullOdds}
-                      </span>
-                    ) : null}
-                    <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
-                      Rarity {item.rarityWeight.toFixed(2)}
-                    </span>
-                    <span className="rounded-lg bg-black/[0.035] px-2 py-1 dark:bg-white/[0.04]">
-                      Price {item.cheapnessWeight.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <MoverExpandedDetails
+              item={item}
+              detailsId={detailsId}
+              trendTone={trendTone}
+            />
           ) : null}
         </div>
       </div>
