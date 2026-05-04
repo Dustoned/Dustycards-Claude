@@ -1194,6 +1194,36 @@ async function persistCardPriceWrites(
   };
 }
 
+/**
+ * Format a Date as YYYY-MM-DD for the cardmarket-api-tcg date_from query
+ * parameter. Using this lets the API return only history points after the
+ * given day, dropping per-card cost from ~20 paginated requests to ~1 once a
+ * card already has history in the DB.
+ */
+function formatHistoryDateFrom(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+/**
+ * Build a Map<cardId, latest fetched_at> from the same set used to dedupe
+ * inserts so callers can pass an incremental date_from to the API.
+ */
+function buildLatestSnapshotByCard(
+  existingByCard: Map<string, Set<string>>
+): Map<string, Date> {
+  const latest = new Map<string, Date>();
+  for (const [cardId, dateSet] of existingByCard) {
+    let max: number | null = null;
+    for (const iso of dateSet) {
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) continue;
+      if (max == null || t > max) max = t;
+    }
+    if (max != null) latest.set(cardId, new Date(max));
+  }
+  return latest;
+}
+
 async function backfillCardNativeHistoryDetailed(
   cardIds: string[],
   syncedAt: Date,
@@ -1244,6 +1274,7 @@ async function backfillCardNativeHistoryDetailed(
     existingByCard.set(snapshot.card_id, existing);
   }
 
+  const latestSnapshotByCard = buildLatestSnapshotByCard(existingByCard);
   const batchSize = options?.batchSize ?? HISTORY_BACKFILL_BATCH_SIZE;
   let processedCards = 0;
   let totalSyncedCards = 0;
@@ -1260,8 +1291,13 @@ async function backfillCardNativeHistoryDetailed(
         await options?.throwIfCancelled?.();
 
         try {
-          const history = await fetchHistoryPricesByItemId(cardId);
-          if (history.length === 0) {
+          const latestExisting = latestSnapshotByCard.get(cardId);
+          const history = await fetchHistoryPricesByItemId(cardId, {
+            dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
+          });
+          // When date_from skips already-fetched history, an empty response just
+          // means the card is already up to date — that is a success, not a fail.
+          if (history.length === 0 && !latestExisting) {
             return {
               cardId,
               synced: false,
@@ -1604,6 +1640,8 @@ async function backfillSealedNativeHistory(
     existingByProduct.set(snapshot.product_id, existing);
   }
 
+  const latestSnapshotByProduct = buildLatestSnapshotByCard(existingByProduct);
+
   const historyCreates: Array<{
     product_id: string;
     episode_id: string;
@@ -1623,7 +1661,10 @@ async function backfillSealedNativeHistory(
     await throwIfCancelled?.();
 
     try {
-      const history = await fetchHistoryPricesByItemId(product.id);
+      const latestExisting = latestSnapshotByProduct.get(product.id);
+      const history = await fetchHistoryPricesByItemId(product.id, {
+        dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
+      });
       const existing = existingByProduct.get(product.id) ?? new Set<string>();
 
       for (const point of history) {
@@ -2837,9 +2878,9 @@ export async function runSingleCardHistoryImport(
       await progress.throwIfCancelled();
       await progress.updateMessage(`Syncing ${existingCard.name} history (${cardId})`);
 
-      const history = await fetchHistoryPricesByItemId(cardId);
-      await progress.throwIfCancelled();
-
+      // Read the latest snapshot date BEFORE fetching so we can ask the API
+      // for only newer points — turns ~20 paginated requests into ~1 once a
+      // card has been synced before.
       const existingSnapshots = await db.price.findMany({
         where: { card_id: cardId },
         select: {
@@ -2849,6 +2890,15 @@ export async function runSingleCardHistoryImport(
       const existingSnapshotDates = new Set(
         existingSnapshots.map((snapshot) => snapshot.fetched_at.toISOString())
       );
+      const latestExisting = existingSnapshots.reduce<Date | null>((acc, snap) => {
+        const t = snap.fetched_at.getTime();
+        return acc == null || t > acc.getTime() ? snap.fetched_at : acc;
+      }, null);
+
+      const history = await fetchHistoryPricesByItemId(cardId, {
+        dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
+      });
+      await progress.throwIfCancelled();
       const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
 
       for (const point of history) {
@@ -2887,11 +2937,14 @@ export async function runSingleCardHistoryImport(
           });
         }
 
+        // history.length === 0 with prior snapshots in the DB just means the
+        // card is already up to date — that's still a successful sync.
+        const hasAnyHistory = history.length > 0 || existingSnapshots.length > 0;
         await tx.card.update({
           where: { id: cardId },
           data: {
-            native_history_synced_at: history.length > 0 ? syncedAt : null,
-            native_history_status: history.length > 0 ? "synced" : "unavailable",
+            native_history_synced_at: hasAnyHistory ? syncedAt : null,
+            native_history_status: hasAnyHistory ? "synced" : "unavailable",
             native_history_checked_at: syncedAt,
           },
         });
@@ -2901,7 +2954,7 @@ export async function runSingleCardHistoryImport(
         cardId,
         historyPointsFetched: history.length,
         newHistorySnapshots: priceCreates.length,
-        historySynced: history.length > 0,
+        historySynced: history.length > 0 || existingSnapshots.length > 0,
       };
     }
   );
@@ -2981,10 +3034,7 @@ export async function runSealedProductHistorySync(
       await progress.throwIfCancelled();
       await progress.updateMessage(`Syncing ${product.name} history (${productId})`);
 
-      const history = await fetchHistoryPricesByItemId(product.id);
-
-      await progress.throwIfCancelled();
-
+      // Read existing snapshots first so we can request only newer history.
       const existingSnapshots = await db.sealedPriceSnapshot.findMany({
         where: { product_id: product.id },
         select: {
@@ -2994,6 +3044,16 @@ export async function runSealedProductHistorySync(
       const existingSnapshotDates = new Set(
         existingSnapshots.map((snapshot) => snapshot.fetched_at.toISOString())
       );
+      const latestExisting = existingSnapshots.reduce<Date | null>((acc, snap) => {
+        const t = snap.fetched_at.getTime();
+        return acc == null || t > acc.getTime() ? snap.fetched_at : acc;
+      }, null);
+
+      const history = await fetchHistoryPricesByItemId(product.id, {
+        dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
+      });
+
+      await progress.throwIfCancelled();
       const historyCreates: Array<{
         product_id: string;
         episode_id: string;
@@ -3044,11 +3104,12 @@ export async function runSealedProductHistorySync(
           });
         }
 
+        const hasAnyHistory = history.length > 0 || existingSnapshots.length > 0;
         await tx.sealedProduct.update({
           where: { id: product.id },
           data: {
-            native_history_synced_at: history.length > 0 ? syncedAt : null,
-            native_history_status: history.length > 0 ? "synced" : "unavailable",
+            native_history_synced_at: hasAnyHistory ? syncedAt : null,
+            native_history_status: hasAnyHistory ? "synced" : "unavailable",
             native_history_checked_at: syncedAt,
           },
         });
