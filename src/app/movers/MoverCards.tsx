@@ -2,13 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { memo, useState } from "react";
+import { memo } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
-import { BarChart3, ChevronDown, Loader2 } from "lucide-react";
+import { BarChart3, Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
-import type { CollectionMoverItem, MoverGradedPrice, MoverRecentPricePoint } from "@/lib/movers";
+import type { CollectionMoverItem } from "@/lib/movers";
 
 interface PreviewCardConfig {
   title: string;
@@ -145,13 +145,6 @@ function getToneClass(value: number | null | undefined): string {
   return "text-gray-500 dark:text-white/45";
 }
 
-function getSparklineColor(value: number | null | undefined): string {
-  if (getTrendTone(value) === "negative") {
-    return "#fb7185";
-  }
-
-  return "#10b981";
-}
 
 function getCurrentPanelClasses(tone: TrendTone): {
   panel: string;
@@ -181,29 +174,6 @@ function getCurrentPanelClasses(tone: TrendTone): {
   };
 }
 
-function getActiveSourceClasses(tone: TrendTone): {
-  row: string;
-  pill: string;
-} {
-  if (tone === "negative") {
-    return {
-      row: "border-rose-400/20 bg-rose-400/[0.08]",
-      pill: "bg-rose-500/12 text-rose-700 dark:text-rose-200",
-    };
-  }
-
-  if (tone === "positive") {
-    return {
-      row: "border-emerald-400/20 bg-emerald-400/[0.08]",
-      pill: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-200",
-    };
-  }
-
-  return {
-    row: "border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.04]",
-    pill: "bg-black/6 text-gray-500 dark:bg-white/8 dark:text-white/45",
-  };
-}
 
 function stopCardOpen(event: MouseEvent<HTMLElement>) {
   event.stopPropagation();
@@ -233,312 +203,11 @@ function handleOpenKey(event: KeyboardEvent<HTMLElement>, onOpen: () => void) {
   onOpen();
 }
 
-const MiniPriceSparkline = memo(function MiniPriceSparkline({
-  series,
-  toneValue,
-}: {
-  series: MoverRecentPricePoint[];
-  toneValue: number | null | undefined;
-}) {
-  if (series.length < 2) {
-    return (
-      <div className="flex h-16 items-center justify-center rounded-xl border border-dashed border-black/10 text-[11px] text-gray-400 dark:border-white/10 dark:text-white/35">
-        No chart yet
-      </div>
-    );
-  }
 
-  const width = 220;
-  const height = 64;
-  const padding = 6;
-  const values = series.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const points = series
-    .map((point, index) => {
-      const x =
-        padding +
-        (index / Math.max(series.length - 1, 1)) * (width - padding * 2);
-      const y = padding + ((max - point.value) / range) * (height - padding * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  const color = getSparklineColor(toneValue);
-  const first = series[0];
-  const last = series[series.length - 1];
 
-  return (
-    <div className="rounded-xl border border-black/8 bg-white/72 px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.045]">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-16 w-full"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <polyline
-          points={points}
-          fill="none"
-          stroke={color}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="3"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-gray-400 dark:text-white/35">
-        <span className="truncate">{first.label}</span>
-        <span className="truncate text-right">{last.label}</span>
-      </div>
-    </div>
-  );
-});
 
-function PriceSourceRow({
-  label,
-  value,
-  currency,
-  points,
-  active,
-  trendTone,
-}: {
-  label: string;
-  value: number | null;
-  currency: "EUR" | "USD";
-  points: number;
-  active: boolean;
-  trendTone: TrendTone;
-}) {
-  const activeClasses = getActiveSourceClasses(trendTone);
 
-  return (
-    <div
-      className={`rounded-xl border px-3 py-2 ${
-        active ? activeClasses.row : "border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.04]"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
-            {label}
-          </p>
-          <p className="mt-1 truncate text-sm font-bold tabular-nums text-gray-900 dark:text-white">
-            {formatOptionalCurrency(value, currency)}
-          </p>
-        </div>
-        {active ? (
-          <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${activeClasses.pill}`}
-          >
-            Active
-          </span>
-        ) : null}
-      </div>
-      <p className="mt-1 text-[11px] text-gray-500 dark:text-white/42">
-        {points.toLocaleString("en-US")} history points
-      </p>
-    </div>
-  );
-}
 
-function GradedPriceStats({
-  prices,
-  activeLabel,
-}: {
-  prices: MoverGradedPrice[];
-  activeLabel?: string | null;
-}) {
-  if (prices.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="mt-3 rounded-xl border border-amber-400/14 bg-amber-400/[0.07] px-3 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700/75 dark:text-amber-200/70">
-          Graded
-        </p>
-        <span className="shrink-0 rounded-full bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-200">
-          {prices.length} {prices.length === 1 ? "label" : "labels"}
-        </span>
-      </div>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-        {prices.map((gradedPrice) => {
-          const active = activeLabel === gradedPrice.label;
-
-          return (
-            <div
-              key={gradedPrice.label}
-              className={`min-w-0 rounded-lg px-2.5 py-2 ${
-                active
-                  ? "bg-amber-500/14 ring-1 ring-amber-500/20"
-                  : "bg-white/72 dark:bg-white/[0.055]"
-              }`}
-            >
-              <div className="flex min-w-0 items-center justify-between gap-2">
-                <span className="min-w-0 truncate text-[11px] font-semibold text-amber-800/75 dark:text-amber-100/70">
-                  {gradedPrice.label}
-                </span>
-                <span className="shrink-0 text-xs font-bold tabular-nums text-gray-900 dark:text-white">
-                  {formatCurrency(gradedPrice.price, "EUR")}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function GradingOpportunityStats({ item }: { item: CollectionMoverItem }) {
-  if (!item.grading) {
-    return null;
-  }
-
-  const stats = [
-    {
-      label: "Raw CM",
-      value: formatCurrency(item.grading.rawPrice, "EUR"),
-    },
-    {
-      label: item.gradedLabel ?? "Graded",
-      value: formatCurrency(item.grading.gradedPrice, "EUR"),
-    },
-    {
-      label: "Gap",
-      value: formatDelta(item.grading.valueGap, "EUR"),
-    },
-    {
-      label: "Multiplier",
-      value: `${item.grading.valueMultiplier.toFixed(2)}x`,
-    },
-  ];
-
-  return (
-    <div className="mt-3 rounded-xl border border-emerald-400/14 bg-emerald-400/[0.075] px-3 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700/75 dark:text-emerald-200/70">
-          Grade Target
-        </p>
-        <span className="shrink-0 rounded-full bg-emerald-500/12 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-700 dark:text-emerald-200">
-          Score {item.grading.score.toFixed(1)}
-        </span>
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        {stats.map((stat) => (
-          <div key={stat.label} className="min-w-0 rounded-lg bg-white/72 px-2.5 py-2 dark:bg-white/[0.055]">
-            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-800/60 dark:text-emerald-100/55">
-              {stat.label}
-            </p>
-            <p className="mt-1 truncate text-sm font-bold tabular-nums text-gray-900 dark:text-white">
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TcggoScoreStats({ item }: { item: CollectionMoverItem }) {
-  if (!item.tcggoScore) {
-    return null;
-  }
-
-  const metrics = [
-    { label: "Momentum", value: item.tcggoScore.momentum },
-    { label: "Stability", value: item.tcggoScore.stability },
-    { label: "Liquidity", value: item.tcggoScore.liquidity },
-    { label: "Demand", value: item.tcggoScore.demand },
-    { label: "Depth", value: item.tcggoScore.marketDepth },
-    { label: "Premium", value: item.tcggoScore.gradePremium },
-    { label: "RSI", value: item.tcggoScore.rsi },
-  ].filter((metric) => metric.value != null);
-
-  return (
-    <div className="rounded-xl border border-sky-400/14 bg-sky-400/[0.07] px-3 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-sky-700/75 dark:text-sky-200/70">
-          TCGGO Score
-        </p>
-        <span className="shrink-0 rounded-full bg-sky-500/12 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-sky-700 dark:text-sky-200">
-          {formatOptionalScore(item.tcggoScore.score)}
-          {item.tcggoScore.tier ? ` / ${item.tcggoScore.tier}` : ""}
-        </span>
-      </div>
-      {metrics.length > 0 ? (
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {metrics.map((metric) => (
-            <div key={metric.label} className="min-w-0 rounded-lg bg-white/72 px-2.5 py-2 dark:bg-white/[0.055]">
-              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-800/60 dark:text-sky-100/55">
-                {metric.label}
-              </p>
-              <p className="mt-1 truncate text-sm font-bold tabular-nums text-gray-900 dark:text-white">
-                {formatOptionalScore(metric.value)}
-              </p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {item.tcggoScore.ath != null || item.tcggoScore.atl != null ? (
-        <div className="mt-2 flex flex-wrap gap-2 text-xs text-sky-800/70 dark:text-sky-100/65">
-          {item.tcggoScore.ath != null ? <span>ATH {formatCurrency(item.tcggoScore.ath, "EUR")}</span> : null}
-          {item.tcggoScore.atl != null ? <span>ATL {formatCurrency(item.tcggoScore.atl, "EUR")}</span> : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function MoverMetricCard({
-  label,
-  percent,
-  delta,
-  hint,
-  currency,
-}: {
-  label: string;
-  percent: number | null;
-  delta: number | null;
-  hint: string;
-  currency: "EUR" | "USD";
-}) {
-  if (percent == null && delta == null) return null;
-
-  return (
-    <div className="min-w-0 rounded-xl border border-black/8 bg-white/72 px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.04]">
-      <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.16em] leading-tight text-gray-500 dark:text-white/52">
-          {label}
-        </p>
-        {percent != null ? (
-          <p
-            className={`shrink-0 text-right text-base font-bold tabular-nums leading-tight ${getToneClass(
-              percent
-            )}`}
-          >
-            {formatPercent(percent)}
-          </p>
-        ) : null}
-      </div>
-      {delta != null ? (
-        <p
-          className={`mt-1 truncate text-xs font-semibold tabular-nums leading-tight ${getToneClass(
-            delta
-          )}`}
-        >
-          {formatDelta(delta, currency)}
-        </p>
-      ) : null}
-      {hint ? (
-        <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-gray-400 dark:text-white/40">
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
-}
 
 type MoverDisplayMode = "raw" | "graded" | "target";
 
@@ -774,211 +443,6 @@ function buildCompactMetrics(
   );
 }
 
-function MoverExpandedDetails({
-  item,
-  detailsId,
-  trendTone,
-  mode,
-}: {
-  item: CollectionMoverItem;
-  detailsId: string;
-  trendTone: TrendTone;
-  mode: MoverDisplayMode;
-}) {
-  const sourceRows = (() => {
-    if (item.source === "graded") return [];
-    const rows: Array<{
-      label: string;
-      value: number | null;
-      currency: "EUR" | "USD";
-      points: number;
-      active: boolean;
-    }> = [];
-    if (item.cardmarketPrice != null || item.cardmarketHistoryPoints > 0) {
-      rows.push({
-        label: "CardMarket",
-        value: item.cardmarketPrice,
-        currency: "EUR",
-        points: item.cardmarketHistoryPoints,
-        active: item.source === "cardmarket",
-      });
-    }
-    if (item.tcgplayerPrice != null || item.tcgplayerHistoryPoints > 0) {
-      rows.push({
-        label: "TCGPlayer",
-        value: item.tcgplayerPrice,
-        currency: "USD",
-        points: item.tcgplayerHistoryPoints,
-        active: item.source === "tcgplayer",
-      });
-    }
-    return rows;
-  })();
-
-  const trendStats: Array<{
-    label: string;
-    percent: number | null;
-    delta: number | null;
-    hint: string;
-  }> = [
-    {
-      label: "7D",
-      percent: item.change7dPct,
-      delta: item.change7d,
-      hint: item.change7dCoveredDays ? `${item.change7dCoveredDays}d window` : "Recent",
-    },
-    {
-      label: "30D",
-      percent: item.change30dPct,
-      delta: item.change30d,
-      hint: item.change30dCoveredDays ? `${item.change30dCoveredDays}d window` : "Recent",
-    },
-    {
-      label: "Tracked",
-      percent: item.changeSinceTrackedPct,
-      delta: item.changeSinceTracked,
-      hint: item.firstTrackedAt
-        ? `Since ${formatShortDate(item.firstTrackedAt)}${
-            item.trackedDays != null ? ` / ${item.trackedDays}d` : ""
-          }`
-        : item.trackedDays != null
-          ? `${item.trackedDays}d tracked`
-          : "No lifetime window",
-    },
-    {
-      label: "From Low",
-      percent: item.changeFromLowPct,
-      delta: item.changeFromLow,
-      hint:
-        item.lowPrice != null
-          ? `Low ${formatCurrency(item.lowPrice, item.currency)}${
-              item.lowAt ? ` / ${formatShortDate(item.lowAt)}` : ""
-            }`
-          : "",
-    },
-    {
-      label: "Vs Peak",
-      percent: item.gapToPeakPct,
-      delta: item.gapToPeak,
-      hint:
-        item.highPrice != null
-          ? `Peak ${formatCurrency(item.highPrice, item.currency)}${
-              item.highAt ? ` / ${formatShortDate(item.highAt)}` : ""
-            }`
-          : "",
-    },
-  ];
-
-  const isMeaningful = (
-    stat: { percent: number | null; delta: number | null }
-  ): boolean => {
-    if (stat.percent == null && stat.delta == null) return false;
-    const pctAbs = stat.percent != null ? Math.abs(stat.percent) : 0;
-    const deltaAbs = stat.delta != null ? Math.abs(stat.delta) : 0;
-    // Hide rows where both numbers round to ~0 — they're noise.
-    if (pctAbs < 0.5 && deltaAbs < 0.05) return false;
-    return true;
-  };
-
-  const meaningfulStats = trendStats.filter(isMeaningful);
-
-  // Dedupe overlapping windows — when 7D/30D/Tracked share the same percent and delta
-  // (typical for short-tracked or sticky-priced cards), keep only the longest window.
-  const visibleTrendStats: typeof trendStats = [];
-  const seen = new Set<string>();
-  for (let i = meaningfulStats.length - 1; i >= 0; i -= 1) {
-    const stat = meaningfulStats[i];
-    const key = `${stat.percent?.toFixed(2) ?? ""}|${stat.delta?.toFixed(2) ?? ""}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    visibleTrendStats.unshift(stat);
-  }
-
-  const weightChips: Array<{ label: string; tone: "amber" | "neutral" }> = [];
-  if (item.pullRateWeight != null) {
-    weightChips.push({ label: `Odds ${item.pullRateWeight.toFixed(2)}`, tone: "amber" });
-  }
-  if (item.specificPullOdds) {
-    weightChips.push({ label: `Pull ${item.specificPullOdds}`, tone: "neutral" });
-  }
-  weightChips.push({ label: `Rarity ${item.rarityWeight.toFixed(2)}`, tone: "neutral" });
-  weightChips.push({ label: `Price ${item.cheapnessWeight.toFixed(2)}`, tone: "neutral" });
-
-  const hasSparklineData = item.recentPriceSeries.length >= 2;
-
-  return (
-    <div
-      id={detailsId}
-      className="mt-4 space-y-4 border-t border-black/8 pt-4 dark:border-white/8"
-    >
-      {hasSparklineData ? (
-        <MiniPriceSparkline series={item.recentPriceSeries} toneValue={item.moverScore} />
-      ) : null}
-
-      {sourceRows.length > 0 ? (
-        <div
-          className={`grid gap-2 ${sourceRows.length > 1 ? "sm:grid-cols-2" : "sm:grid-cols-1"}`}
-        >
-          {sourceRows.map((row) => (
-            <PriceSourceRow
-              key={row.label}
-              label={row.label}
-              value={row.value}
-              currency={row.currency}
-              points={row.points}
-              active={row.active}
-              trendTone={trendTone}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {/* In target mode the compact metric tiles already show Raw/Graded/Gap/Multiplier so
-          GradingOpportunityStats below would be a verbatim copy. Only render it for non-target
-          modes where the compact row doesn't include those numbers. */}
-      {mode !== "target" ? <GradingOpportunityStats item={item} /> : null}
-      <TcggoScoreStats item={item} />
-      <GradedPriceStats prices={item.gradedPrices} activeLabel={item.gradedLabel} />
-
-      {visibleTrendStats.length > 0 ? (
-        <div className="grid gap-2 sm:grid-cols-2">
-          {visibleTrendStats.map((stat) => (
-            <MoverMetricCard
-              key={stat.label}
-              label={stat.label}
-              percent={stat.percent}
-              delta={stat.delta}
-              currency={item.currency}
-              hint={stat.hint}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {weightChips.length > 0 ? (
-        <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
-            Weight
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {weightChips.map((chip) => (
-              <span
-                key={chip.label}
-                className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium tabular-nums ${
-                  chip.tone === "amber"
-                    ? "border-amber-400/22 bg-amber-400/[0.10] text-amber-700 dark:text-amber-200"
-                    : "border-black/8 bg-black/[0.035] text-gray-600 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60"
-                }`}
-              >
-                {chip.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 const MoverTile = memo(function MoverTile({
   item,
@@ -991,7 +455,6 @@ const MoverTile = memo(function MoverTile({
   displayMode: MoverDisplayMode;
   onOpen: (cardId: string) => void;
 }) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const open = () => onOpen(item.cardId);
   const mode = displayMode;
   const trendTone = getTrendTone(item.moverScore);
@@ -1008,7 +471,6 @@ const MoverTile = memo(function MoverTile({
           "EUR"
         )} graded`
       : `${item.historyPoints} recent / ${item.lifetimeHistoryPoints} lifetime points`;
-  const detailsId = `mover-details-${item.cardId}-${item.gradedLabel ?? item.source}`;
 
   return (
     <article
@@ -1154,29 +616,12 @@ const MoverTile = memo(function MoverTile({
           <div className="mt-3 flex items-center justify-end gap-3 border-t border-black/8 pt-3 dark:border-white/8">
             <button
               type="button"
-              aria-expanded={detailsOpen}
-              aria-controls={detailsId}
-              onClick={(event) => {
-                event.stopPropagation();
-                setDetailsOpen((current) => !current);
-              }}
+              onClick={open}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-black/8 bg-white/82 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:border-black/14 hover:text-gray-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:hover:border-white/16 dark:hover:text-white"
             >
-              More metrics
-              <ChevronDown
-                className={`h-3.5 w-3.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`}
-              />
+              Open card details
             </button>
           </div>
-
-          {detailsOpen ? (
-            <MoverExpandedDetails
-              item={item}
-              detailsId={detailsId}
-              trendTone={trendTone}
-              mode={mode}
-            />
-          ) : null}
         </div>
       </div>
     </article>
