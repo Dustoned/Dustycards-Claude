@@ -491,7 +491,7 @@ function TcggoScoreStats({ item }: { item: CollectionMoverItem }) {
   );
 }
 
-function MoverMetricRow({
+function MoverMetricCard({
   label,
   percent,
   delta,
@@ -507,27 +507,35 @@ function MoverMetricRow({
   if (percent == null && delta == null) return null;
 
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1.5">
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 dark:text-white/52">
+    <div className="min-w-0 rounded-xl border border-black/8 bg-white/72 px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.04]">
+      <div className="flex items-start justify-between gap-2">
+        <p className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.16em] leading-tight text-gray-500 dark:text-white/52">
           {label}
         </p>
-        <p className="mt-0.5 truncate text-[11px] leading-tight text-gray-400 dark:text-white/40">
-          {hint}
-        </p>
-      </div>
-      <div className="shrink-0 text-right">
         {percent != null ? (
-          <p className={`text-sm font-bold tabular-nums leading-tight ${getToneClass(percent)}`}>
+          <p
+            className={`shrink-0 text-right text-base font-bold tabular-nums leading-tight ${getToneClass(
+              percent
+            )}`}
+          >
             {formatPercent(percent)}
           </p>
         ) : null}
-        {delta != null ? (
-          <p className={`mt-0.5 text-xs font-semibold tabular-nums leading-tight ${getToneClass(delta)}`}>
-            {formatDelta(delta, currency)}
-          </p>
-        ) : null}
       </div>
+      {delta != null ? (
+        <p
+          className={`mt-1 truncate text-xs font-semibold tabular-nums leading-tight ${getToneClass(
+            delta
+          )}`}
+        >
+          {formatDelta(delta, currency)}
+        </p>
+      ) : null}
+      {hint ? (
+        <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-gray-400 dark:text-white/40">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -824,7 +832,7 @@ function MoverExpandedDetails({
       hint: item.change30dCoveredDays ? `${item.change30dCoveredDays}d window` : "Recent",
     },
     {
-      label: "Since Tracked",
+      label: "Tracked",
       percent: item.changeSinceTrackedPct,
       delta: item.changeSinceTracked,
       hint: item.firstTrackedAt
@@ -907,22 +915,17 @@ function MoverExpandedDetails({
       <GradedPriceStats prices={item.gradedPrices} activeLabel={item.gradedLabel} />
 
       {visibleTrendStats.length > 0 ? (
-        <div className="rounded-xl border border-black/8 bg-white/72 px-4 py-2 dark:border-white/8 dark:bg-white/[0.04]">
-          <p className="py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
-            Movement
-          </p>
-          <div className="divide-y divide-black/6 dark:divide-white/6">
-            {visibleTrendStats.map((stat) => (
-              <MoverMetricRow
-                key={stat.label}
-                label={stat.label}
-                percent={stat.percent}
-                delta={stat.delta}
-                currency={item.currency}
-                hint={stat.hint}
-              />
-            ))}
-          </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {visibleTrendStats.map((stat) => (
+            <MoverMetricCard
+              key={stat.label}
+              label={stat.label}
+              percent={stat.percent}
+              delta={stat.delta}
+              currency={item.currency}
+              hint={stat.hint}
+            />
+          ))}
         </div>
       ) : null}
 
