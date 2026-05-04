@@ -282,7 +282,7 @@ export function HeaderStatCard({
     <div className="min-w-0 rounded-[var(--ui-header-stat-radius)] border border-black/8 bg-white/70 p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none sm:min-h-[var(--ui-header-stat-min-height)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="break-words text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
+          <p className="truncate text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
             {label}
           </p>
           <p className="mt-2 whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white">

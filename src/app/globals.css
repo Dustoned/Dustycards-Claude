@@ -336,3 +336,18 @@ html.widescreen .page-container {
 .settings-panel > div:first-child p {
   font-size: var(--ui-panel-copy-size) !important;
 }
+
+
+/* Keyboard focus ring — only visible to keyboard users, never on mouse click */
+@layer base {
+  :where(a, button, [role="button"], input:not([type="checkbox"]):not([type="radio"]), select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid rgb(37 99 235 / 0.85);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  .dark :where(a, button, [role="button"], input:not([type="checkbox"]):not([type="radio"]), select, textarea, [tabindex]):focus-visible {
+    outline-color: rgb(96 165 250 / 0.85);
+  }
+}
+

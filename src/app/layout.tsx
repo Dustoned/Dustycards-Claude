@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { Geist } from "next/font/google";
 import Link from "next/link";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
+import { HeaderMobileMenu, HeaderNav, HeaderSettingsLink } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
 import SettingsProvider from "@/components/SettingsProvider";
 import {
@@ -102,22 +103,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/" prefetch={false} className="shrink-0 font-semibold text-gray-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity [font-size:var(--ui-brand-size)]">
                 DustyCards
               </Link>
-              <div className="hidden shrink-0 items-center gap-[var(--ui-header-gap)] lg:flex">
-                <Link href="/expansions" prefetch={false} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
-                  Expansions
-                </Link>
-                <Link href="/movers" prefetch={false} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
-                  Movers
-                </Link>
-                <Link href="/illustrators" prefetch={false} className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
-                  Illustrators
-                </Link>
-              </div>
+              <HeaderNav />
               <HeaderSearch />
               <div className="flex-1 md:hidden" />
-              <Link href="/settings" prefetch={false} className="shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors font-medium [font-size:var(--ui-nav-link-size)]">
-                Settings
-              </Link>
+              <HeaderSettingsLink />
+              <HeaderMobileMenu />
             </nav>
           </header>
           <main className="flex-1">{children}</main>
