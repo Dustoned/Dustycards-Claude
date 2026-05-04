@@ -123,33 +123,10 @@ function buildMoversPreviewCards({ data, activeScope }: BuildPreviewArgs): Previ
         reasonMode: "target",
       });
     }
-  } else if (activeScope === "grading") {
-    // Grading view → surface the headline picks plus a discount-watch hint.
-    if (data.topOpportunities.length > 0) {
-      previews.push({
-        eyebrow: "Best to grade",
-        title: "Highest grade-upside picks",
-        description:
-          "Top raw-to-graded multipliers that are still cheap to enter — ranked by composite grading score.",
-        items: data.topOpportunities,
-        href: "/movers?scope=grading",
-        hrefLabel: "Show all grade targets",
-        reasonMode: "target",
-      });
-    }
-    if (data.discountedHighRarity.length > 0) {
-      previews.push({
-        eyebrow: "Buy the dip",
-        title: "Discount Watch",
-        description:
-          "High-rarity cards trading deep below their peak — pair these with grading wins for compounded upside.",
-        items: data.discountedHighRarity,
-        href: "/movers/discount-watch",
-        hrefLabel: "Open discount watch",
-        reasonMode: "raw",
-      });
-    }
   }
+  // Grading and graded scopes intentionally show no preview panels — the main
+  // list below is already ranked by exactly the same signals so duplicating
+  // them as a preview is just noise.
 
   return previews;
 }
