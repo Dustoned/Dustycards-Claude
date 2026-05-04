@@ -194,70 +194,50 @@ export function MoverStatsSection({
     trendStats.length > 0 || grading != null || tcggo != null || weightChips.length > 0;
   if (!hasContent) return null;
 
+  const headerChips: Array<{ label: string; tone: "emerald" | "amber" | "neutral" }> = [];
+  if (grading?.valueMultiplier != null) {
+    headerChips.push({
+      label: `${grading.valueMultiplier.toFixed(2)}x grade`,
+      tone: "emerald",
+    });
+  }
+  if (grading?.valueGap != null) {
+    headerChips.push({
+      label: `${formatDelta(grading.valueGap, "EUR")} gap`,
+      tone: "amber",
+    });
+  }
+  headerChips.push({
+    label: `Score ${formatScoreValue(moverInsight.moverScore)}`,
+    tone: "neutral",
+  });
+
   return (
     <section
       aria-label="Movers insights"
       className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
           Movers insights
         </p>
-        <p className={`text-sm font-bold tabular-nums ${getToneClass(moverInsight.moverScore)}`}>
-          Score {formatScoreValue(moverInsight.moverScore)}
-        </p>
-      </div>
-
-      {grading ? (
-        <div className="mt-3 rounded-xl border border-emerald-400/22 bg-emerald-400/[0.10] px-3 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200/72">
-              Grade target
-            </p>
-            <span className="shrink-0 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-emerald-200">
-              {grading.valueMultiplier != null
-                ? `${grading.valueMultiplier.toFixed(2)}x`
-                : "--"}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {headerChips.map((chip) => (
+            <span
+              key={chip.label}
+              className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${
+                chip.tone === "emerald"
+                  ? "border-emerald-400/30 bg-emerald-400/[0.12] text-emerald-200"
+                  : chip.tone === "amber"
+                    ? "border-amber-400/30 bg-amber-400/[0.12] text-amber-200"
+                    : "border-white/10 bg-white/[0.04] text-white/68"
+              }`}
+            >
+              {chip.label}
             </span>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-white/[0.06] px-2.5 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-100/55">
-                Raw CM
-              </p>
-              <p className="mt-0.5 text-sm font-bold tabular-nums text-white">
-                {grading.rawPrice != null ? formatCurrency(grading.rawPrice, "EUR") : "--"}
-              </p>
-            </div>
-            <div className="rounded-lg bg-white/[0.06] px-2.5 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-100/55">
-                Graded
-              </p>
-              <p className="mt-0.5 text-sm font-bold tabular-nums text-white">
-                {grading.gradedPrice != null ? formatCurrency(grading.gradedPrice, "EUR") : "--"}
-              </p>
-            </div>
-            <div className="rounded-lg bg-white/[0.06] px-2.5 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-100/55">
-                Gap
-              </p>
-              <p
-                className={`mt-0.5 text-sm font-bold tabular-nums ${getToneClass(grading.valueGap)}`}
-              >
-                {formatDelta(grading.valueGap, "EUR")}
-              </p>
-            </div>
-            <div className="rounded-lg bg-white/[0.06] px-2.5 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-100/55">
-                Score
-              </p>
-              <p className="mt-0.5 text-sm font-bold tabular-nums text-white">
-                {formatScoreValue(grading.score)}
-              </p>
-            </div>
-          </div>
+          ))}
         </div>
-      ) : null}
+      </div>
 
       {trendStats.length > 0 ? (
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
