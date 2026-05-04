@@ -145,6 +145,7 @@ export default function MoversBrowser({
   const [highGradingUpsideOnly, setHighGradingUpsideOnly] = useState(false);
   const [ownedMultipleOnly, setOwnedMultipleOnly] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
+  const [selectedMoverItem, setSelectedMoverItem] = useState<CollectionMoverItem | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -420,35 +421,43 @@ export default function MoversBrowser({
     setSearch("");
   }
 
-  const openMoverCard = useCallback(async (cardId: string) => {
-    const cached = cardDetailCache[cardId];
-    if (cached) {
-      setSelectedCard(cached);
-      setDetailError(null);
-      return;
-    }
+  const openMoverCard = useCallback(
+    async (cardId: string) => {
+      const moverMatch = movers.find((entry) => entry.cardId === cardId) ?? null;
+      setSelectedMoverItem(moverMatch);
 
-    setLoadingCardId(cardId);
-    setDetailError(null);
-
-    try {
-      const response = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error("Could not load card details");
+      const cached = cardDetailCache[cardId];
+      if (cached) {
+        setSelectedCard(cached);
+        setDetailError(null);
+        return;
       }
 
-      const data = (await response.json()) as ModalCardData;
-      setCardDetailCache((current) => ({ ...current, [cardId]: data }));
-      setSelectedCard(data);
-    } catch (error) {
-      setDetailError(error instanceof Error ? error.message : "Could not load card details");
-    } finally {
-      setLoadingCardId((current) => (current === cardId ? null : current));
-    }
-  }, [cardDetailCache]);
+      setLoadingCardId(cardId);
+      setDetailError(null);
+
+      try {
+        const response = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          throw new Error("Could not load card details");
+        }
+
+        const data = (await response.json()) as ModalCardData;
+        setCardDetailCache((current) => ({ ...current, [cardId]: data }));
+        setSelectedCard(data);
+      } catch (error) {
+        setDetailError(
+          error instanceof Error ? error.message : "Could not load card details"
+        );
+      } finally {
+        setLoadingCardId((current) => (current === cardId ? null : current));
+      }
+    },
+    [cardDetailCache, movers]
+  );
   const handleOpenMoverCard = useCallback(
     (cardId: string) => {
       void openMoverCard(cardId);
@@ -872,7 +881,11 @@ export default function MoversBrowser({
         <CardModal
           key={`${selectedCard.id}:${selectedCard.price_fetched_at ?? "none"}`}
           card={selectedCard}
-          onClose={() => setSelectedCard(null)}
+          moverInsight={selectedMoverItem}
+          onClose={() => {
+            setSelectedCard(null);
+            setSelectedMoverItem(null);
+          }}
         />
       ) : null}
     </div>

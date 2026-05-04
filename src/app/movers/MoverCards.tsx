@@ -474,7 +474,12 @@ const MoverTile = memo(function MoverTile({
 
   return (
     <article
-      className="group relative rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+      role="button"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(event) => handleOpenKey(event, open)}
+      aria-label={`Open details for ${item.name}`}
+      className="group relative cursor-pointer rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
     >
       {isLoading ? (
         <div className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/8 bg-white/90 text-gray-700 shadow-sm dark:border-white/10 dark:bg-black/80 dark:text-white">
@@ -483,12 +488,7 @@ const MoverTile = memo(function MoverTile({
       ) : null}
 
       <div className="flex items-start gap-3">
-        <button
-          type="button"
-          onClick={open}
-          className="relative h-24 w-[4.4rem] shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 outline-none transition focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/10 dark:bg-white/[0.05]"
-          aria-label={`Open details for ${item.name}`}
-        >
+        <div className="relative h-24 w-[4.4rem] shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 dark:border-white/10 dark:bg-white/[0.05]">
           {item.imageUrl ? (
             <Image
               src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
@@ -503,18 +503,14 @@ const MoverTile = memo(function MoverTile({
               {item.name.slice(0, 2)}
             </div>
           )}
-        </button>
+        </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <button
-                type="button"
-                onClick={open}
-                className="block max-w-full truncate pr-1 text-left text-base font-semibold leading-tight text-gray-900 outline-none transition-colors hover:text-emerald-700 focus-visible:rounded focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:text-white dark:hover:text-emerald-200"
-              >
+              <p className="block max-w-full truncate pr-1 text-base font-semibold leading-tight text-gray-900 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-200">
                 {item.name}
-              </button>
+              </p>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-white/46">
                 <span>{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
                 <span>/</span>
@@ -611,16 +607,6 @@ const MoverTile = memo(function MoverTile({
                 />
               ))}
             </div>
-          </div>
-
-          <div className="mt-3 flex items-center justify-end gap-3 border-t border-black/8 pt-3 dark:border-white/8">
-            <button
-              type="button"
-              onClick={open}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-black/8 bg-white/82 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:border-black/14 hover:text-gray-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/70 dark:hover:border-white/16 dark:hover:text-white"
-            >
-              Open card details
-            </button>
           </div>
         </div>
       </div>
