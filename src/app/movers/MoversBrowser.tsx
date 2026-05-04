@@ -145,7 +145,6 @@ export default function MoversBrowser({
   const [highGradingUpsideOnly, setHighGradingUpsideOnly] = useState(false);
   const [ownedMultipleOnly, setOwnedMultipleOnly] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
-  const [selectedMoverItem, setSelectedMoverItem] = useState<CollectionMoverItem | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -423,9 +422,6 @@ export default function MoversBrowser({
 
   const openMoverCard = useCallback(
     async (cardId: string) => {
-      const moverMatch = movers.find((entry) => entry.cardId === cardId) ?? null;
-      setSelectedMoverItem(moverMatch);
-
       const cached = cardDetailCache[cardId];
       if (cached) {
         setSelectedCard(cached);
@@ -456,7 +452,7 @@ export default function MoversBrowser({
         setLoadingCardId((current) => (current === cardId ? null : current));
       }
     },
-    [cardDetailCache, movers]
+    [cardDetailCache]
   );
   const handleOpenMoverCard = useCallback(
     (cardId: string) => {
@@ -881,11 +877,7 @@ export default function MoversBrowser({
         <CardModal
           key={`${selectedCard.id}:${selectedCard.price_fetched_at ?? "none"}`}
           card={selectedCard}
-          moverInsight={selectedMoverItem}
-          onClose={() => {
-            setSelectedCard(null);
-            setSelectedMoverItem(null);
-          }}
+          onClose={() => setSelectedCard(null)}
         />
       ) : null}
     </div>

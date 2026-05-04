@@ -31,7 +31,6 @@ import {
   CardModalPreview,
   CardModalPricingSection,
 } from "./card-modal/CardModalSections";
-import { MoverStatsSection } from "./card-modal/MoverStatsSection";
 import type { ModalCardData } from "./card-modal/types";
 import { getCardModalLayoutClasses, getPreferredGradedLabel } from "./card-modal/utils";
 
@@ -45,7 +44,6 @@ const CardThreeViewer = dynamic(() => import("@/app/expansions/[id]/CardThreeVie
 interface Props {
   card: ModalCardData;
   onClose: () => void;
-  moverInsight?: import("@/lib/movers").CollectionMoverItem | null;
 }
 
 function normalizeGradeSelection(value: string | null | undefined): string {
@@ -79,7 +77,7 @@ function findSavedGradedLabel(
   );
 }
 
-export default function CardModal({ card, onClose, moverInsight = null }: Props) {
+export default function CardModal({ card, onClose }: Props) {
   useBodyScrollLock();
 
   const [modalCard, setModalCard] = useState(card);
@@ -391,8 +389,6 @@ export default function CardModal({ card, onClose, moverInsight = null }: Props)
                     selectedGradedHistoryCurrentValue={selectedGradedHistoryCurrentValue}
                     onSelectGradedLabel={setSelectedGradedLabel}
                   />
-
-                  <MoverStatsSection moverInsight={moverInsight} />
                 </div>
               </div>
             </div>
