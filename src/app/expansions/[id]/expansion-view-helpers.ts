@@ -1,14 +1,10 @@
 import type { PriceSource, SortBy, SortDir } from "@/components/SettingsProvider";
+import { CARD_NUMBER_FALLBACK, cardNumberCollator } from "@/lib/card-number-sort";
 import type { CurrencyCode } from "@/lib/format";
 import { rarityBadge } from "@/lib/rarity-styles";
 import type { CardData } from "@/types/card-data";
 
-export const CARD_NUMBER_FALLBACK = "999999";
-
-export const cardNumberCollator = new Intl.Collator("en", {
-  numeric: true,
-  sensitivity: "base",
-});
+export { CARD_NUMBER_FALLBACK, cardNumberCollator };
 
 export function getCardMarketPrice(card: CardData): number | null {
   return (

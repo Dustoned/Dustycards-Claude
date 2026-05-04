@@ -3,17 +3,14 @@ import {
   normalizeGradingCompanyLabel,
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
+import { CARD_NUMBER_FALLBACK, cardNumberCollator } from "@/lib/card-number-sort";
 import { formatCurrency, type CurrencyCode } from "@/lib/format";
 import { rarityBadge } from "@/lib/rarity-styles";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
-export const KNOWN_SUPERTYPE_ORDER = ["pokemon", "trainer", "energy"] as const;
-export const CARD_NUMBER_FALLBACK = "999999";
+export { CARD_NUMBER_FALLBACK, cardNumberCollator };
 
-export const cardNumberCollator = new Intl.Collator("en", {
-  numeric: true,
-  sensitivity: "base",
-});
+export const KNOWN_SUPERTYPE_ORDER = ["pokemon", "trainer", "energy"] as const;
 
 export interface FilterOption {
   value: string;

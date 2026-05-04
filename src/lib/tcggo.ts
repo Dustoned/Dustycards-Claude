@@ -12,6 +12,35 @@ const HISTORY_PAGE_FETCH_DELAY_MS = 250;
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
 export const TCGGO_REQUEST_CONCURRENCY = 8;
 
+// RapidAPI plan caps requests at 300 per rolling minute. We track outgoing
+// timestamps in a sliding window so concurrent in-flight requests still respect
+// the per-minute ceiling.
+const MAX_REQUESTS_PER_MINUTE = 300;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const recentRequestTimestamps: number[] = [];
+
+function pruneRateLimitWindow(now: number): void {
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+  while (recentRequestTimestamps.length > 0 && recentRequestTimestamps[0] <= cutoff) {
+    recentRequestTimestamps.shift();
+  }
+}
+
+/**
+ * Returns 0 if a request can run right now, otherwise the number of milliseconds
+ * to wait before the rate window has room for another request.
+ */
+function getRateLimitWaitMs(now: number): number {
+  pruneRateLimitWindow(now);
+  if (recentRequestTimestamps.length < MAX_REQUESTS_PER_MINUTE) return 0;
+  const oldest = recentRequestTimestamps[0];
+  return Math.max(0, oldest + RATE_LIMIT_WINDOW_MS - now);
+}
+
+function recordRateLimitedRequest(now: number): void {
+  recentRequestTimestamps.push(now);
+}
+
 // Actual API shapes (from live testing)
 interface RawEpisode {
   id: number;
@@ -389,7 +418,21 @@ function runQueuedTcggoRequest<T>(path: string, work: () => Promise<T>): Promise
         return;
       }
 
+      const now = Date.now();
+      const waitMs = getRateLimitWaitMs(now);
+      if (waitMs > 0) {
+        // Re-queue this run after the rate window has freed a slot.
+        // Add small jitter to avoid all queued requests waking up together.
+        const jitter = Math.floor(Math.random() * 50);
+        setTimeout(() => {
+          tcggoRequestQueue.unshift(run);
+          drainTcggoRequestQueue();
+        }, waitMs + jitter);
+        return;
+      }
+
       reserveRuntimeQuotaRequest();
+      recordRateLimitedRequest(now);
       activeTcggoRequests += 1;
 
       work()

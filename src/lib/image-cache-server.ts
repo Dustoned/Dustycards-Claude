@@ -20,7 +20,9 @@ function resolveImageCacheDir() {
 export const IMAGE_CACHE_DIR = resolveImageCacheDir();
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 30_000;
-const MAX_REMOTE_IMAGE_FETCHES = 3;
+// Both tcgdex and tcggo serve images via fast CDNs and accept many parallel
+// connections; bumping from 3 to 10 cuts image-warm time roughly 3x.
+const MAX_REMOTE_IMAGE_FETCHES = 10;
 
 let activeRemoteImageFetches = 0;
 const remoteImageFetchQueue: Array<() => void> = [];

@@ -92,6 +92,10 @@ const AUTO_PRICE_BACKFILL_MAX_CARDS = 400;
 const AUTO_PRICE_PREEMPT_WAIT_TIMEOUT_MS = 1000 * 60 * 5;
 const AUTO_CATALOG_SYNC_MIN_INTERVAL_MS = 1000 * 60 * 60;
 const AUTO_CATALOG_SYNC_MAX_EPISODES = 6;
+// Episodes are synced in parallel; the per-request rate limiter in tcggo.ts
+// caps the actual API call rate at 300/min, so episode-level concurrency is
+// effectively a pipeline width — 4 keeps initial work parallel without
+// queueing too many episodes ahead of the rate-limited API floor.
 const EPISODE_SYNC_CONCURRENCY = 4;
 const FULL_SYNC_PROMO_VERIFICATION_LIMIT = 2;
 const PRICE_SOURCE_UNAVAILABLE_RETRY_MS = 1000 * 60 * 60 * 24 * 7;
@@ -102,10 +106,12 @@ const MANUAL_HISTORY_SYNC_BATCH_SIZE = 6;
 const MANUAL_HISTORY_SYNC_MAX_CARDS_PER_RUN = 48;
 const MANUAL_EBAY_SOLD_GRADED_PRICE_SYNC_MAX_CARDS_PER_RUN = 48;
 const MANUAL_EBAY_SOLD_GRADED_PRICE_SYNC_CONCURRENCY = 4;
-const DB_WRITE_BATCH_SIZE = 60;
+// SQLite + better-sqlite3 happily handles 300+ rows per insert; the previous 60
+// caused 5x more round-trips than necessary on price snapshot writes.
+const DB_WRITE_BATCH_SIZE = 300;
 const AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX = 0;
 const AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX = 0;
-const CANCELLATION_CHECK_INTERVAL_MS = 750;
+const CANCELLATION_CHECK_INTERVAL_MS = 250;
 const SYNC_WAIT_POLL_INTERVAL_MS = 300;
 const MANUAL_HISTORY_EXCLUDED_RARITIES = [
   "Common",
