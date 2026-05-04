@@ -17,6 +17,7 @@ interface PreviewCardConfig {
   href: string;
   hrefLabel?: string;
   items: CollectionMoverItem[];
+  reasonMode?: "raw" | "graded" | "target";
 }
 
 interface SpotlightConfig {
@@ -525,6 +526,134 @@ function MoverMetricCard({
 
 type MoverDisplayMode = "raw" | "graded" | "target";
 
+type MoverReasonTone = "emerald" | "rose" | "amber" | "sky" | "violet";
+
+interface MoverReason {
+  label: string;
+  tone: MoverReasonTone;
+}
+
+function reasonChipClass(tone: MoverReasonTone): string {
+  switch (tone) {
+    case "emerald":
+      return "border-emerald-400/22 bg-emerald-400/[0.10] text-emerald-700 dark:text-emerald-200";
+    case "rose":
+      return "border-rose-400/22 bg-rose-400/[0.10] text-rose-700 dark:text-rose-200";
+    case "amber":
+      return "border-amber-400/22 bg-amber-400/[0.10] text-amber-700 dark:text-amber-200";
+    case "sky":
+      return "border-sky-400/22 bg-sky-400/[0.10] text-sky-700 dark:text-sky-200";
+    case "violet":
+      return "border-violet-400/22 bg-violet-400/[0.10] text-violet-700 dark:text-violet-200";
+  }
+}
+
+/**
+ * Picks 0-2 short, human-readable reasons explaining why a card is on the list.
+ * Pure: only reads existing fields on the mover item.
+ */
+export function getMoverReasons(
+  item: CollectionMoverItem,
+  mode: MoverDisplayMode
+): MoverReason[] {
+  const reasons: MoverReason[] = [];
+
+  if (mode === "target" && item.grading) {
+    if (item.grading.valueMultiplier != null && item.grading.valueMultiplier >= 3) {
+      reasons.push({
+        label: `${item.grading.valueMultiplier.toFixed(1)}x grade upside`,
+        tone: "emerald",
+      });
+    } else if (item.grading.valueMultiplier != null && item.grading.valueMultiplier >= 2) {
+      reasons.push({
+        label: `${item.grading.valueMultiplier.toFixed(1)}x graded`,
+        tone: "emerald",
+      });
+    }
+    if (
+      item.grading.valueGap != null &&
+      item.grading.valueGap >= 100 &&
+      reasons.length < 2
+    ) {
+      reasons.push({
+        label: `+${formatCurrency(item.grading.valueGap, "EUR")} gap`,
+        tone: "amber",
+      });
+    }
+    if (
+      item.grading.rawPrice != null &&
+      item.grading.rawPrice <= 10 &&
+      reasons.length < 2
+    ) {
+      reasons.push({ label: "Cheap entry", tone: "violet" });
+    }
+    return reasons.slice(0, 2);
+  }
+
+  // raw or graded
+  if (item.change7dPct != null && item.change7dPct >= 15) {
+    reasons.push({ label: `+${item.change7dPct.toFixed(0)}% 7d`, tone: "emerald" });
+  } else if (item.change30dPct != null && item.change30dPct >= 30) {
+    reasons.push({ label: `+${item.change30dPct.toFixed(0)}% 30d`, tone: "emerald" });
+  } else if (item.change7dPct != null && item.change7dPct <= -10) {
+    reasons.push({ label: `${item.change7dPct.toFixed(0)}% 7d`, tone: "rose" });
+  }
+
+  if (
+    item.gapToPeakPct != null &&
+    item.gapToPeakPct <= -40 &&
+    reasons.length < 2
+  ) {
+    reasons.push({
+      label: `${Math.round(item.gapToPeakPct)}% off peak`,
+      tone: "violet",
+    });
+  } else if (
+    item.currentPrice != null &&
+    item.currentPrice <= 15 &&
+    item.rarityWeight >= 1.15 &&
+    reasons.length < 2
+  ) {
+    reasons.push({ label: "Cheap & rare", tone: "sky" });
+  } else if (
+    item.changeFromLowPct != null &&
+    item.changeFromLowPct >= 30 &&
+    item.change7dPct != null &&
+    item.change7dPct > 0 &&
+    reasons.length < 2
+  ) {
+    reasons.push({ label: "Off the floor", tone: "amber" });
+  }
+
+  return reasons.slice(0, 2);
+}
+
+function MoverReasonChips({
+  item,
+  mode,
+}: {
+  item: CollectionMoverItem;
+  mode: MoverDisplayMode;
+}) {
+  const reasons = getMoverReasons(item, mode);
+  if (reasons.length === 0) return null;
+
+  return (
+    <>
+      {reasons.map((reason) => (
+        <span
+          key={reason.label}
+          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${reasonChipClass(
+            reason.tone
+          )}`}
+        >
+          {reason.label}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function CompactMetric({
   label,
   value,
@@ -736,6 +865,7 @@ const MoverTile = memo(function MoverTile({
           </div>
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
+            <MoverReasonChips item={item} mode={mode} />
             {item.normalizedRarity ? (
               <span
                 className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${rarityBadge(
@@ -1080,6 +1210,7 @@ function PocketPreviewCard({
   hrefLabel = "Open page",
   loadingCardId,
   onOpenCard,
+  reasonMode = "raw",
 }: {
   title: string;
   eyebrow: string;
@@ -1089,6 +1220,7 @@ function PocketPreviewCard({
   hrefLabel?: string;
   loadingCardId: string | null;
   onOpenCard: (cardId: string) => void;
+  reasonMode?: MoverDisplayMode;
 }) {
   return (
     <article className="rounded-[24px] border border-black/8 bg-black/[0.03] p-4 shadow-lg shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
@@ -1141,6 +1273,24 @@ function PocketPreviewCard({
                 </span>
                 <span>{formatCurrency(item.currentPrice, item.currency)}</span>
               </div>
+              {(() => {
+                const reasons = getMoverReasons(item, reasonMode);
+                if (reasons.length === 0) return null;
+                return (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {reasons.map((reason) => (
+                      <span
+                        key={reason.label}
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold tabular-nums ${reasonChipClass(
+                          reason.tone
+                        )}`}
+                      >
+                        {reason.label}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
             </button>
           );
         })}
@@ -1200,6 +1350,7 @@ export function MoverSpotlightSections({
               hrefLabel={card.hrefLabel}
               loadingCardId={loadingCardId}
               onOpenCard={onOpenCard}
+              reasonMode={card.reasonMode ?? "raw"}
             />
           ))}
         </section>

@@ -46,6 +46,7 @@ interface PreviewCardConfig {
   href: string;
   hrefLabel?: string;
   items: CollectionMoverItem[];
+  reasonMode?: "raw" | "graded" | "target";
 }
 
 interface SpotlightConfig {
@@ -460,22 +461,46 @@ export default function MoversBrowser({
       <div className="space-y-3 rounded-2xl border border-black/8 bg-white/70 p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
         <div className="grid gap-2 sm:grid-cols-3">
           {[
-            { key: "raw" as const, label: "Raw Movers", active: isRawScope },
-            { key: "graded" as const, label: "Graded Market", active: isGradedScope },
-            { key: "targets" as const, label: "Grade Targets", active: isGradingScope },
+            {
+              key: "raw" as const,
+              label: "Raw Movers",
+              hint: "What to buy",
+              active: isRawScope,
+            },
+            {
+              key: "graded" as const,
+              label: "Graded Market",
+              hint: "Slabs that move",
+              active: isGradedScope,
+            },
+            {
+              key: "targets" as const,
+              label: "Grade Targets",
+              hint: "What to grade",
+              active: isGradingScope,
+            },
           ].map((option) => (
             <Link
               key={option.key}
               href={modeHref(option.key)}
               prefetch={false}
-              className={`inline-flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+              className={`flex min-h-12 flex-col items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
                 option.active
                   ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
                   : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/54 dark:hover:bg-white/[0.06] dark:hover:text-white"
               }`}
               aria-current={option.active ? "page" : undefined}
             >
-              {option.label}
+              <span>{option.label}</span>
+              <span
+                className={`mt-0.5 text-[10px] font-medium uppercase tracking-[0.14em] ${
+                  option.active
+                    ? "text-white/68 dark:text-gray-950/68"
+                    : "text-gray-400 dark:text-white/40"
+                }`}
+              >
+                {option.hint}
+              </span>
             </Link>
           ))}
         </div>

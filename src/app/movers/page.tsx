@@ -2,6 +2,7 @@ import { Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import { loadMoversPageData } from "@/app/movers/page-data";
+import type { CollectionMoverItem } from "@/lib/movers";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,85 @@ function getModeCopy(
         : "Scan your collection for raw cards with the clearest recent price movement.",
     ranking: activeScope === "all" ? "All raw cards" : "Collection raw cards",
   };
+}
+
+interface PreviewCardSpec {
+  title: string;
+  eyebrow: string;
+  description: string;
+  href: string;
+  hrefLabel?: string;
+  items: CollectionMoverItem[];
+  reasonMode?: "raw" | "graded" | "target";
+}
+
+interface BuildPreviewArgs {
+  data: Awaited<ReturnType<typeof loadMoversPageData>>["data"];
+  activeScope: "collection" | "all" | "graded" | "grading";
+}
+
+function buildMoversPreviewCards({ data, activeScope }: BuildPreviewArgs): PreviewCardSpec[] {
+  const previews: PreviewCardSpec[] = [];
+
+  if (activeScope !== "graded" && activeScope !== "grading") {
+    // Raw movers view → highlight buy and grade entry points.
+    const cheapHighRarity = data.cheapestHighRarityMovers.length > 0
+      ? data.cheapestHighRarityMovers
+      : data.movers.filter((item) => item.moverScore > 0).slice(0, 8);
+    if (cheapHighRarity.length > 0) {
+      previews.push({
+        eyebrow: "Best to buy",
+        title: "Cheap high-rarity risers",
+        description:
+          "Affordable scarce cards already moving up — the closest thing to a clear buy signal.",
+        items: cheapHighRarity,
+        href: "/movers/cheap-high-rarity",
+        hrefLabel: "Open all buys",
+        reasonMode: "raw",
+      });
+    }
+
+    if (data.topOpportunities.length > 0) {
+      previews.push({
+        eyebrow: "Best to grade",
+        title: "Raw cheap, graded high",
+        description:
+          "Cards where the raw price stays low while graded copies sell for multiples — the easiest grading wins.",
+        items: data.topOpportunities,
+        href: "/movers?scope=grading",
+        hrefLabel: "Open grade targets",
+        reasonMode: "target",
+      });
+    }
+  } else if (activeScope === "grading") {
+    // Grading view → surface the headline picks plus a discount-watch hint.
+    if (data.topOpportunities.length > 0) {
+      previews.push({
+        eyebrow: "Best to grade",
+        title: "Highest grade-upside picks",
+        description:
+          "Top raw-to-graded multipliers that are still cheap to enter — ranked by composite grading score.",
+        items: data.topOpportunities,
+        href: "/movers?scope=grading",
+        hrefLabel: "Show all grade targets",
+        reasonMode: "target",
+      });
+    }
+    if (data.discountedHighRarity.length > 0) {
+      previews.push({
+        eyebrow: "Buy the dip",
+        title: "Discount Watch",
+        description:
+          "High-rarity cards trading deep below their peak — pair these with grading wins for compounded upside.",
+        items: data.discountedHighRarity,
+        href: "/movers/discount-watch",
+        hrefLabel: "Open discount watch",
+        reasonMode: "raw",
+      });
+    }
+  }
+
+  return previews;
 }
 
 export default async function MoversPage({
@@ -194,6 +274,10 @@ export default async function MoversPage({
           activePriceSource={activePriceSource}
           activeScope={activeScope}
           activeItemScope={activeItemScope}
+          previewCards={buildMoversPreviewCards({
+            data,
+            activeScope,
+          })}
           emptyTitle={
             isGradingScope
               ? "No grade targets found"
