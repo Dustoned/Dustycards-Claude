@@ -778,10 +778,12 @@ function MoverExpandedDetails({
   item,
   detailsId,
   trendTone,
+  mode,
 }: {
   item: CollectionMoverItem;
   detailsId: string;
   trendTone: TrendTone;
+  mode: MoverDisplayMode;
 }) {
   const sourceRows = (() => {
     if (item.source === "graded") return [];
@@ -867,9 +869,30 @@ function MoverExpandedDetails({
     },
   ];
 
-  const visibleTrendStats = trendStats.filter(
-    (stat) => stat.percent != null || stat.delta != null
-  );
+  const isMeaningful = (
+    stat: { percent: number | null; delta: number | null }
+  ): boolean => {
+    if (stat.percent == null && stat.delta == null) return false;
+    const pctAbs = stat.percent != null ? Math.abs(stat.percent) : 0;
+    const deltaAbs = stat.delta != null ? Math.abs(stat.delta) : 0;
+    // Hide rows where both numbers round to ~0 — they're noise.
+    if (pctAbs < 0.5 && deltaAbs < 0.05) return false;
+    return true;
+  };
+
+  const meaningfulStats = trendStats.filter(isMeaningful);
+
+  // Dedupe overlapping windows — when 7D/30D/Tracked share the same percent and delta
+  // (typical for short-tracked or sticky-priced cards), keep only the longest window.
+  const visibleTrendStats: typeof trendStats = [];
+  const seen = new Set<string>();
+  for (let i = meaningfulStats.length - 1; i >= 0; i -= 1) {
+    const stat = meaningfulStats[i];
+    const key = `${stat.percent?.toFixed(2) ?? ""}|${stat.delta?.toFixed(2) ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    visibleTrendStats.unshift(stat);
+  }
 
   const weightChips: Array<{ label: string; tone: "amber" | "neutral" }> = [];
   if (item.pullRateWeight != null) {
@@ -910,7 +933,10 @@ function MoverExpandedDetails({
         </div>
       ) : null}
 
-      <GradingOpportunityStats item={item} />
+      {/* In target mode the compact metric tiles already show Raw/Graded/Gap/Multiplier so
+          GradingOpportunityStats below would be a verbatim copy. Only render it for non-target
+          modes where the compact row doesn't include those numbers. */}
+      {mode !== "target" ? <GradingOpportunityStats item={item} /> : null}
       <TcggoScoreStats item={item} />
       <GradedPriceStats prices={item.gradedPrices} activeLabel={item.gradedLabel} />
 
@@ -1148,6 +1174,7 @@ const MoverTile = memo(function MoverTile({
               item={item}
               detailsId={detailsId}
               trendTone={trendTone}
+              mode={mode}
             />
           ) : null}
         </div>
