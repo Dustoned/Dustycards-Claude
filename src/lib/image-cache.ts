@@ -1,4 +1,9 @@
-export const CACHEABLE_IMAGE_HOSTS = new Set(["assets.tcgdex.net", "images.tcggo.com"]);
+export const CACHEABLE_IMAGE_HOSTS = new Set([
+  "assets.tcgdex.net",
+  "images.tcggo.com",
+  "pokemoncardimages.pokedata.io",
+  "product-images.tcgplayer.com",
+]);
 
 export function isCacheableRemoteImageUrl(value: string | null | undefined): value is string {
   if (!value) return false;

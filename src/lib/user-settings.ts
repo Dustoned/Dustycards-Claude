@@ -32,13 +32,13 @@ export const SETTINGS_STORAGE_KEY = "dustycards-settings";
 export const SETTINGS_COOKIE_NAME = "dustycards-settings";
 export const SETTINGS_RESOLVED_THEME_COOKIE_NAME = "dustycards-resolved-theme";
 export const SETTINGS_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-const SETTINGS_VERSION = 2;
+const SETTINGS_VERSION = 3;
 
 export const DEFAULT_SETTINGS: UserSettings = {
   theme: "system",
   widescreen: false,
   uiScale: "medium",
-  autoPriceRefresh: false,
+  autoPriceRefresh: true,
   binderWatchMinPrice: 50,
   defaultView: "table",
   cardSize: "medium",

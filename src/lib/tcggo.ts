@@ -19,6 +19,15 @@ const MAX_REQUESTS_PER_MINUTE = 300;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const recentRequestTimestamps: number[] = [];
 
+function buildTcgplayerProductImageUrl(value: string | number | null | undefined): string | null {
+  if (value == null) return null;
+
+  const productId = String(value).trim();
+  if (!productId) return null;
+
+  return `https://product-images.tcgplayer.com/fit-in/437x437/${encodeURIComponent(productId)}.jpg`;
+}
+
 function pruneRateLimitWindow(now: number): void {
   const cutoff = now - RATE_LIMIT_WINDOW_MS;
   while (recentRequestTimestamps.length > 0 && recentRequestTimestamps[0] <= cutoff) {
@@ -694,6 +703,8 @@ function normalizeCard(
   const cardmarketId = card.cardmarket_id != null ? String(card.cardmarket_id) : null;
   const tcgId = card.tcgid != null ? String(card.tcgid) : null;
   const tcgdexImageUrl = resolveTcgdexImageUrl(tcgId, tcgdexImageLookup);
+  const tcgplayerImageUrl = buildTcgplayerProductImageUrl(card.tcgplayer_id);
+  const tcgplayerId = card.tcgplayer_id != null ? String(card.tcgplayer_id) : null;
 
   return {
     id: String(card.id),
@@ -704,12 +715,12 @@ function normalizeCard(
     supertype: card.supertype ?? null,
     subtypes: card.subtypes?.join(",") ?? null,
     artist: card.artist?.name ?? null,
-    image_url: tcgdexImageUrl ?? card.image ?? null,
+    image_url: tcgdexImageUrl ?? card.image ?? tcgplayerImageUrl,
     cardmarket_url: cardmarketId ? buildCardMarketProductUrl(cardmarketId) : null,
     tcggo_url: card.tcggo_url ?? null,
     tcgid: tcgId,
     cardmarket_id: cardmarketId,
-    tcgplayer_id: card.tcgplayer_id != null ? String(card.tcgplayer_id) : null,
+    tcgplayer_id: tcgplayerId,
     score: normalizeCardScore(card),
     prices: card.prices,
   };

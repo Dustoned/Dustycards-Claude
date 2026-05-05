@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
@@ -148,6 +148,7 @@ export default function MoversBrowser({
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
   const isGradingScope = activeScope === "grading";
@@ -383,6 +384,50 @@ export default function MoversBrowser({
   );
   const hasMoreMovers = renderLimit < visibleMovers.length;
   const hasDirectionFilter = !isGradingScope && direction !== "all";
+
+  useEffect(() => {
+    if (!hasMoreMovers) {
+      return;
+    }
+
+    const loadMoreElement = loadMoreRef.current;
+    if (!loadMoreElement) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) {
+          return;
+        }
+
+        setRenderState((current) => {
+          const currentLimit =
+            current.key === renderKey ? current.limit : INITIAL_MOVER_RENDER_COUNT;
+          const nextLimit = Math.min(
+            currentLimit + MOVER_RENDER_BATCH_SIZE,
+            visibleMovers.length
+          );
+
+          if (current.key === renderKey && nextLimit === current.limit) {
+            return current;
+          }
+
+          return {
+            key: renderKey,
+            limit: nextLimit,
+          };
+        });
+      },
+      { rootMargin: "700px 0px" }
+    );
+
+    observer.observe(loadMoreElement);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMoreMovers, renderKey, renderLimit, visibleMovers.length]);
 
   const filterBadgeCount =
     selectedSources.length +
@@ -849,24 +894,13 @@ export default function MoversBrowser({
               onOpenCard={handleOpenMoverCard}
             />
             {hasMoreMovers ? (
-              <div className="mt-5 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRenderState((current) => ({
-                      key: renderKey,
-                      limit: Math.min(
-                        (current.key === renderKey ? current.limit : INITIAL_MOVER_RENDER_COUNT) +
-                          MOVER_RENDER_BATCH_SIZE,
-                        visibleMovers.length
-                      ),
-                    }))
-                  }
-                  className={filterButtonClass(false)}
-                >
-                  Load more movers ({renderedMovers.length.toLocaleString("en-US")} /{" "}
-                  {visibleMovers.length.toLocaleString("en-US")})
-                </button>
+              <div
+                ref={loadMoreRef}
+                className="mt-5 flex h-10 items-center justify-center text-xs font-semibold text-gray-400 dark:text-white/35"
+                aria-live="polite"
+              >
+                Loading more movers ({renderedMovers.length.toLocaleString("en-US")} /{" "}
+                {visibleMovers.length.toLocaleString("en-US")})
               </div>
             ) : null}
           </>

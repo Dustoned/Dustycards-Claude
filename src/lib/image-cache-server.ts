@@ -20,8 +20,8 @@ function resolveImageCacheDir() {
 export const IMAGE_CACHE_DIR = resolveImageCacheDir();
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 30_000;
-// Both tcgdex and tcggo serve images via fast CDNs and accept many parallel
-// connections; bumping from 3 to 10 cuts image-warm time roughly 3x.
+// The card image hosts are fast CDNs and accept many parallel connections;
+// bumping from 3 to 10 cuts image-warm time roughly 3x.
 const MAX_REMOTE_IMAGE_FETCHES = 10;
 
 let activeRemoteImageFetches = 0;
@@ -68,6 +68,96 @@ async function readMeta(metaPath: string): Promise<ImageMeta | null> {
   } catch {
     return null;
   }
+}
+
+function hasImageSignature(buffer: Buffer, contentType: string): boolean {
+  if (buffer.byteLength === 0) {
+    return false;
+  }
+
+  const asciiStart = buffer.subarray(0, Math.min(buffer.byteLength, 32)).toString("ascii").trimStart();
+  if (
+    asciiStart.startsWith("<!DOCTYPE") ||
+    asciiStart.startsWith("<html") ||
+    asciiStart.startsWith("{")
+  ) {
+    return false;
+  }
+
+  const normalizedContentType = contentType.toLowerCase();
+  if (normalizedContentType.includes("svg")) {
+    return asciiStart.startsWith("<svg") || asciiStart.startsWith("<?xml");
+  }
+
+  if (buffer.byteLength >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return true;
+  }
+
+  if (
+    buffer.byteLength >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return true;
+  }
+
+  if (
+    buffer.byteLength >= 6 &&
+    buffer[0] === 0x47 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x38
+  ) {
+    return true;
+  }
+
+  if (
+    buffer.byteLength >= 12 &&
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return true;
+  }
+
+  if (
+    buffer.byteLength >= 12 &&
+    buffer.subarray(4, 8).toString("ascii") === "ftyp" &&
+    ["avif", "avis", "mif1", "msf1"].includes(buffer.subarray(8, 12).toString("ascii"))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+async function isCachedImageReadable(imagePath: string, contentType: string): Promise<boolean> {
+  const file = await fs.open(imagePath, "r");
+
+  try {
+    const { size } = await file.stat();
+    if (size === 0 || size > MAX_IMAGE_BYTES) {
+      return false;
+    }
+
+    const sample = Buffer.alloc(Math.min(32, size));
+    await file.read(sample, 0, sample.byteLength, 0);
+    return hasImageSignature(sample, contentType);
+  } finally {
+    await file.close();
+  }
+}
+
+async function removeCachedImage(imagePath: string, metaPath: string) {
+  await Promise.all([
+    fs.rm(imagePath, { force: true }).catch(() => undefined),
+    fs.rm(metaPath, { force: true }).catch(() => undefined),
+  ]);
 }
 
 function releaseRemoteImageFetchSlot() {
@@ -122,6 +212,10 @@ async function downloadAndPersist(
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
+    if (!hasImageSignature(buffer, contentType)) {
+      throw new Error("Remote URL returned invalid image bytes");
+    }
+
     if (buffer.byteLength > MAX_IMAGE_BYTES) {
       throw new Error("Image too large");
     }
@@ -148,18 +242,22 @@ export async function ensureImageCached(sourceUrl: URL): Promise<EnsureImageResu
 
   if (cachedMeta) {
     try {
-      await fs.access(imagePath);
-      return {
+      const isReadableImage = await isCachedImageReadable(
         imagePath,
-        contentType: cachedMeta.contentType || "application/octet-stream",
-        hit: true,
-        buffer: null,
-      };
+        cachedMeta.contentType || "application/octet-stream"
+      );
+      if (!isReadableImage) {
+        await removeCachedImage(imagePath, metaPath);
+      } else {
+        return {
+          imagePath,
+          contentType: cachedMeta.contentType || "application/octet-stream",
+          hit: true,
+          buffer: null,
+        };
+      }
     } catch {
-      await Promise.all([
-        fs.rm(imagePath, { force: true }).catch(() => undefined),
-        fs.rm(metaPath, { force: true }).catch(() => undefined),
-      ]);
+      await removeCachedImage(imagePath, metaPath);
     }
   }
 
@@ -168,7 +266,10 @@ export async function ensureImageCached(sourceUrl: URL): Promise<EnsureImageResu
 
   const download = downloadAndPersist(sourceUrl, imagePath, metaPath);
   pendingDownloads.set(sourceUrl.href, download);
-  download.finally(() => pendingDownloads.delete(sourceUrl.href));
+  download.then(
+    () => pendingDownloads.delete(sourceUrl.href),
+    () => pendingDownloads.delete(sourceUrl.href)
+  );
   return download;
 }
 

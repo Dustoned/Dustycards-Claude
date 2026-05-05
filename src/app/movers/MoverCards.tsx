@@ -479,7 +479,7 @@ const MoverTile = memo(function MoverTile({
       onClick={open}
       onKeyDown={(event) => handleOpenKey(event, open)}
       aria-label={`Open details for ${item.name}`}
-      className="group relative cursor-pointer rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+      className="group relative flex h-full cursor-pointer flex-col rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
     >
       {isLoading ? (
         <div className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/8 bg-white/90 text-gray-700 shadow-sm dark:border-white/10 dark:bg-black/80 dark:text-white">
@@ -910,7 +910,7 @@ export function MoverGrid({
 }) {
   return (
     <div
-      className="grid items-start gap-4"
+      className="grid auto-rows-fr items-stretch gap-4"
       style={{
         gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
         justifyContent: "start",

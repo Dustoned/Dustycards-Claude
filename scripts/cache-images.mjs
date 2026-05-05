@@ -18,7 +18,12 @@ function resolveImageCacheDir() {
 
 const IMAGE_CACHE_DIR = resolveImageCacheDir();
 const DB_PATH = path.resolve(process.cwd(), "dustycards.db");
-const CACHEABLE_IMAGE_HOSTS = new Set(["assets.tcgdex.net", "images.tcggo.com"]);
+const CACHEABLE_IMAGE_HOSTS = new Set([
+  "assets.tcgdex.net",
+  "images.tcggo.com",
+  "pokemoncardimages.pokedata.io",
+  "product-images.tcgplayer.com",
+]);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const CONCURRENCY = 8;
 
