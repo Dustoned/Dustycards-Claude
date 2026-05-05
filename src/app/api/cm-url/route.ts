@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
 import {
   requireId,
   validationErrorResponse,
@@ -21,6 +22,12 @@ async function syncDirectUrlIfChanged(
 }
 
 export async function GET(request: NextRequest) {
+  try {
+    await requireUser();
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Authentication failed" }, { status: 500 });
+  }
+
   let cardId: string;
   try {
     cardId = requireId(request.nextUrl.searchParams.get("card_id"), "card_id");

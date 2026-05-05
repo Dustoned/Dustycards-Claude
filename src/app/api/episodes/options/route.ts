@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
 
 export async function GET() {
+  try {
+    await requireUser();
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Authentication failed" }, { status: 500 });
+  }
+
   const episodes = await db.episode.findMany({
     orderBy: [{ release_date: "desc" }, { name: "asc" }],
     select: { id: true, name: true, code: true },

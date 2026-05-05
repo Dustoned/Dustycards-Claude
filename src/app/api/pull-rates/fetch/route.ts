@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import { fetchAndImportCollectricsPullRates } from "@/lib/pull-rates";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ function readSetCodes(value: unknown): unknown[] | null {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireAdmin();
     const body = (await req.json().catch(() => ({}))) as {
       setCode?: unknown;
       setCodes?: unknown;
@@ -41,6 +43,8 @@ export async function POST(req: NextRequest) {
       ...result,
     });
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

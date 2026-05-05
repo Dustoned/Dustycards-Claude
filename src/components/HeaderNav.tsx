@@ -24,6 +24,12 @@ const SETTINGS_ITEM: NavItem = {
   matches: ["/settings"],
 };
 
+const ACCOUNT_ITEM: NavItem = {
+  href: "/account",
+  label: "Account",
+  matches: ["/account"],
+};
+
 function isActive(pathname: string, matches: ReadonlyArray<string>): boolean {
   return matches.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
@@ -68,22 +74,39 @@ export function HeaderNav() {
 export function HeaderSettingsLink() {
   const pathname = usePathname() ?? "/";
   const active = isActive(pathname, SETTINGS_ITEM.matches);
+  const accountActive = isActive(pathname, ACCOUNT_ITEM.matches);
 
   return (
-    <Link
-      href={SETTINGS_ITEM.href}
-      prefetch={false}
-      aria-current={active ? "page" : undefined}
-      className={`hidden lg:inline-block shrink-0 ${desktopLinkClasses(active)}`}
-    >
-      {SETTINGS_ITEM.label}
-      {active && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-gray-900 dark:bg-white"
-        />
-      )}
-    </Link>
+    <>
+      <Link
+        href={ACCOUNT_ITEM.href}
+        prefetch={false}
+        aria-current={accountActive ? "page" : undefined}
+        className={`hidden lg:inline-block shrink-0 ${desktopLinkClasses(accountActive)}`}
+      >
+        {ACCOUNT_ITEM.label}
+        {accountActive && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-gray-900 dark:bg-white"
+          />
+        )}
+      </Link>
+      <Link
+        href={SETTINGS_ITEM.href}
+        prefetch={false}
+        aria-current={active ? "page" : undefined}
+        className={`hidden lg:inline-block shrink-0 ${desktopLinkClasses(active)}`}
+      >
+        {SETTINGS_ITEM.label}
+        {active && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-1 left-0 right-0 h-[2px] rounded-full bg-gray-900 dark:bg-white"
+          />
+        )}
+      </Link>
+    </>
   );
 }
 
@@ -109,7 +132,7 @@ export function HeaderMobileMenu() {
     };
   }, [open]);
 
-  const items = [...NAV_ITEMS, SETTINGS_ITEM];
+  const items = [...NAV_ITEMS, ACCOUNT_ITEM, SETTINGS_ITEM];
 
   return (
     <div className="lg:hidden">

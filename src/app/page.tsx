@@ -23,6 +23,7 @@ import {
   parseCookieSettings,
   SETTINGS_COOKIE_NAME,
 } from "@/lib/user-settings";
+import { requirePageUser } from "@/lib/page-auth";
 
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"), {
   loading: () => null,
@@ -76,6 +77,7 @@ export default async function HomePage({
   searchParams: Promise<{ tab?: string; graded?: string }>;
 }) {
   const cookieStore = await cookies();
+  const user = await requirePageUser("/");
   const settings =
     parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
   const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
@@ -93,6 +95,7 @@ export default async function HomePage({
     cookieStore.get(OVERVIEW_SECTION_ORDER_COOKIE_NAME)?.value
   );
   const data = await getCollectionOverviewData({
+    userId: user.id,
     activeTab: activeTab as CollectionPageTab,
   });
 

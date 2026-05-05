@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
 import {
   ensureImageCached,
   parseCacheableImageUrl,
@@ -17,6 +18,12 @@ function imageHeaders(contentType: string, cacheState: "HIT" | "MISS"): HeadersI
 }
 
 export async function GET(request: NextRequest) {
+  try {
+    await requireUser();
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Authentication failed" }, { status: 500 });
+  }
+
   const sourceUrl = parseCacheableImageUrl(request.nextUrl.searchParams.get("url"));
   if (!sourceUrl) {
     return NextResponse.json({ error: "Unsupported image URL" }, { status: 400 });

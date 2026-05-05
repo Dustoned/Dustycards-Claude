@@ -14,6 +14,7 @@ import {
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { parseCookieSettings, SETTINGS_COOKIE_NAME } from "@/lib/user-settings";
+import { requirePageAdmin } from "@/lib/page-auth";
 import ThemeSection from "./ThemeSection";
 import LayoutSection from "./LayoutSection";
 import AutomationSection from "./AutomationSection";
@@ -80,6 +81,7 @@ function parseSyncType(type: string): {
 
 export default async function SettingsPage() {
   const cookieStore = await cookies();
+  await requirePageAdmin("/settings");
   const settings = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value);
   const widescreen = settings?.widescreen ?? false;
   const scraperDisabled = areScraperRequestsDisabled();

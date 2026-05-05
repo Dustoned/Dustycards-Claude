@@ -6,6 +6,7 @@ import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import { HeaderMobileMenu, HeaderNav, HeaderSettingsLink } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
 import SettingsProvider from "@/components/SettingsProvider";
+import { getCurrentUser } from "@/lib/auth";
 import {
   parseCookieSettings,
   parseResolvedThemeCookie,
@@ -23,6 +24,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
+  const currentUser = await getCurrentUser();
   const initialSettings = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value);
   const resolvedTheme = parseResolvedThemeCookie(
     cookieStore.get(SETTINGS_RESOLVED_THEME_COOKIE_NAME)?.value
@@ -94,7 +96,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
         <SettingsProvider initialSettings={initialSettings}>
-          <AutoPriceRefreshBoot />
+          {currentUser && <AutoPriceRefreshBoot />}
           <header
             data-app-header
             className="sticky top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8"
@@ -103,11 +105,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/" prefetch={false} className="shrink-0 font-semibold text-gray-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity [font-size:var(--ui-brand-size)]">
                 DustyCards
               </Link>
-              <HeaderNav />
-              <HeaderSearch />
-              <div className="flex-1 md:hidden" />
-              <HeaderSettingsLink />
-              <HeaderMobileMenu />
+              {currentUser ? (
+                <>
+                  <HeaderNav />
+                  <HeaderSearch />
+                  <div className="flex-1 md:hidden" />
+                  <HeaderSettingsLink />
+                  <HeaderMobileMenu />
+                </>
+              ) : (
+                <div className="flex-1" />
+              )}
             </nav>
           </header>
           <main className="flex-1">{children}</main>

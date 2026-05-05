@@ -248,7 +248,8 @@ const collectionBinderMetricSelect = {
 const SQLITE_SAFE_CHUNK_SIZE = 250;
 
 async function fetchCollectionCardsPage(
-  options?: {
+  options: {
+    userId: string;
     binderId?: string;
     skip?: number;
     take?: number;
@@ -256,15 +257,19 @@ async function fetchCollectionCardsPage(
   }
 ) {
   return db.collectionCard.findMany({
-    where: options?.binderId ? { binder_id: options.binderId } : undefined,
+    where: {
+      user_id: options.userId,
+      ...(options.binderId ? { binder_id: options.binderId } : {}),
+    },
     orderBy: { added_at: "desc" },
-    skip: options?.skip,
-    take: options?.take,
-    select: options?.detail ? collectionCardSelect : collectionCardMetricSelect,
+    skip: options.skip,
+    take: options.take,
+    select: options.detail ? collectionCardSelect : collectionCardMetricSelect,
   });
 }
 
-async function fetchCollectionCards(options?: {
+async function fetchCollectionCards(options: {
+  userId: string;
   binderId?: string;
   detail?: boolean;
 }) {
@@ -274,10 +279,11 @@ async function fetchCollectionCards(options?: {
 
   while (true) {
     const page = await fetchCollectionCardsPage({
-      binderId: options?.binderId,
+      userId: options.userId,
+      binderId: options.binderId,
       skip,
       take: pageSize,
-      detail: options?.detail,
+      detail: options.detail,
     });
 
     records.push(...page);
@@ -383,29 +389,31 @@ type CollectionBinderCostBasisRecord = {
   base_purchase_price: number | null;
 };
 
-async function getCollectionCards(options?: { binderId?: string }) {
+async function getCollectionCards(options: { userId: string; binderId?: string }) {
   return fetchCollectionCards({ ...options, detail: true });
 }
 
-async function getCollectionCardMetrics() {
-  const records = await fetchCollectionCards({ detail: false });
+async function getCollectionCardMetrics(userId: string) {
+  const records = await fetchCollectionCards({ userId, detail: false });
   return records as CollectionCardMetricRecord[];
 }
 
-async function getCollectionSealedItems(detail = true) {
+async function getCollectionSealedItems(userId: string, detail = true) {
   return db.collectionSealed.findMany({
+    where: { user_id: userId },
     orderBy: { added_at: "desc" },
     select: detail ? collectionSealedSelect : collectionSealedMetricSelect,
   });
 }
 
-async function getCollectionSealedMetrics() {
-  const records = await getCollectionSealedItems(false);
+async function getCollectionSealedMetrics(userId: string) {
+  const records = await getCollectionSealedItems(userId, false);
   return records as CollectionSealedMetricRecord[];
 }
 
-async function getCollectionBinders(detail = true) {
+async function getCollectionBinders(userId: string, detail = true) {
   return db.collectionBinder.findMany({
+    where: { user_id: userId },
     orderBy: { updated_at: "desc" },
     select: detail ? collectionBinderSelect : collectionBinderMetricSelect,
   });
@@ -739,7 +747,7 @@ function shouldLoadDetailedBinders(activeTab: CollectionPageTab): boolean {
 }
 
 export async function getCollectionOverviewData(
-  options?: { activeTab?: CollectionPageTab }
+  options: { userId: string; activeTab?: CollectionPageTab }
 ): Promise<CollectionOverviewData> {
   const activeTab = options?.activeTab ?? "overview";
   const loadDetailedCards = shouldLoadDetailedCards(activeTab);
@@ -753,9 +761,13 @@ export async function getCollectionOverviewData(
   });
 
   const [collectionCards, collectionSealed, binders] = await Promise.all([
-    loadDetailedCards ? getCollectionCards() : getCollectionCardMetrics(),
-    loadDetailedSealed ? getCollectionSealedItems(true) : getCollectionSealedMetrics(),
-    getCollectionBinders(loadDetailedBinders),
+    loadDetailedCards
+      ? getCollectionCards({ userId: options.userId })
+      : getCollectionCardMetrics(options.userId),
+    loadDetailedSealed
+      ? getCollectionSealedItems(options.userId, true)
+      : getCollectionSealedMetrics(options.userId),
+    getCollectionBinders(options.userId, loadDetailedBinders),
   ]);
 
   const metricCards = collectionCards as CollectionCardMetricRecord[];
@@ -904,9 +916,12 @@ export async function getCollectionOverviewData(
   return result;
 }
 
-export async function getBinderPageData(binderId: string): Promise<BinderPageData | null> {
-  const binder = await db.collectionBinder.findUnique({
-    where: { id: binderId },
+export async function getBinderPageData(
+  binderId: string,
+  userId: string
+): Promise<BinderPageData | null> {
+  const binder = await db.collectionBinder.findFirst({
+    where: { id: binderId, user_id: userId },
     select: {
       id: true,
       name: true,
@@ -968,7 +983,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
         },
       }),
       db.collectionCard.findMany({
-        where: { binder_id: binder.id },
+        where: { binder_id: binder.id, user_id: userId },
         select: {
           id: true,
           purchase_price: true,
@@ -1151,7 +1166,7 @@ export async function getBinderPageData(binderId: string): Promise<BinderPageDat
     };
   }
 
-  const binderCards = await getCollectionCards({ binderId });
+  const binderCards = await getCollectionCards({ binderId, userId });
   const metricBinderCards = binderCards as CollectionCardMetricRecord[];
   const items = (binderCards as CollectionCardRecord[]).map((record) => buildCardViewItem(record));
   const currentValue = sumCardCurrentValue(metricBinderCards);

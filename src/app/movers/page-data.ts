@@ -37,9 +37,10 @@ const moversPageCache = new Map<
 function getCachedMovers(
   activePriceSource: ReturnType<typeof normalizeMoversPriceSource>,
   activeScope: MoversScope,
-  activeItemScope: MoversItemScope
+  activeItemScope: MoversItemScope,
+  userId: string
 ): Promise<CollectionMoversData> {
-  const key = `${activePriceSource}:${activeScope}:${activeItemScope}`;
+  const key = `${userId}:${activePriceSource}:${activeScope}:${activeItemScope}`;
   const now = Date.now();
   const cached = moversPageCache.get(key);
 
@@ -47,7 +48,7 @@ function getCachedMovers(
     return cached.promise;
   }
 
-  const promise = getMovers(activePriceSource, activeScope, activeItemScope);
+  const promise = getMovers(activePriceSource, activeScope, activeItemScope, userId);
   moversPageCache.set(key, {
     expiresAt: now + MOVERS_PAGE_CACHE_MS,
     promise,
@@ -64,8 +65,13 @@ function getCachedMovers(
 export async function loadMoversPageData(
   sourceOverride?: string | null,
   scopeOverride?: string | null,
-  itemScopeOverride?: string | null
+  itemScopeOverride?: string | null,
+  userId?: string | null
 ) {
+  if (!userId) {
+    throw new Error("loadMoversPageData requires a user id.");
+  }
+
   const cookieStore = await cookies();
   const settings =
     parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
@@ -80,7 +86,7 @@ export async function loadMoversPageData(
       : activeScope === "collection"
         ? "collection"
         : normalizeMoversItemScope(itemScopeOverride, "all");
-  const data = await getCachedMovers(activePriceSource, activeScope, activeItemScope);
+  const data = await getCachedMovers(activePriceSource, activeScope, activeItemScope, userId);
 
   return { settings, data, activePriceSource, activeScope, activeItemScope };
 }

@@ -1,0 +1,161 @@
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "@/lib/auth-constants";
+import { db } from "@/lib/db";
+import {
+  generateSessionToken,
+  hashSessionToken,
+  isSessionExpired,
+} from "@/lib/auth-crypto";
+
+export type UserRole = "admin" | "user";
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  disabled: boolean;
+}
+
+export class AuthenticationError extends Error {
+  constructor(message = "Authentication required") {
+    super(message);
+    this.name = "AuthenticationError";
+  }
+}
+
+export class AuthorizationError extends Error {
+  constructor(message = "Admin access required") {
+    super(message);
+    this.name = "AuthorizationError";
+  }
+}
+
+function toAuthUser(user: {
+  id: string;
+  email: string;
+  role: string;
+  disabled: boolean;
+}): AuthUser {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role === "admin" ? "admin" : "user",
+    disabled: user.disabled,
+  };
+}
+
+function sessionCookieOptions(expires?: Date) {
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    ...(expires ? { expires } : {}),
+  };
+}
+
+export async function createUserSession(userId: string): Promise<{
+  token: string;
+  expiresAt: Date;
+}> {
+  const token = generateSessionToken();
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+
+  await db.session.create({
+    data: {
+      user_id: userId,
+      token_hash: hashSessionToken(token),
+      expires_at: expiresAt,
+    },
+  });
+
+  return { token, expiresAt };
+}
+
+export async function setSessionCookie(token: string, expiresAt: Date): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, token, sessionCookieOptions(expiresAt));
+}
+
+export async function clearSessionCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, "", {
+    ...sessionCookieOptions(new Date(0)),
+    maxAge: 0,
+  });
+}
+
+export async function destroyCurrentSession(): Promise<void> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (token) {
+    await db.session.deleteMany({
+      where: { token_hash: hashSessionToken(token) },
+    });
+  }
+  await clearSessionCookie();
+}
+
+export async function getCurrentUser(): Promise<AuthUser | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!token) return null;
+
+  const session = await db.session.findUnique({
+    where: { token_hash: hashSessionToken(token) },
+    select: {
+      id: true,
+      expires_at: true,
+      user: {
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          disabled: true,
+        },
+      },
+    },
+  });
+
+  if (!session) {
+    await clearSessionCookie();
+    return null;
+  }
+
+  if (isSessionExpired(session.expires_at) || session.user.disabled) {
+    await db.session.deleteMany({ where: { id: session.id } });
+    await clearSessionCookie();
+    return null;
+  }
+
+  return toAuthUser(session.user);
+}
+
+export async function requireUser(): Promise<AuthUser> {
+  const user = await getCurrentUser();
+  if (!user) {
+    throw new AuthenticationError();
+  }
+  return user;
+}
+
+export async function requireAdmin(): Promise<AuthUser> {
+  const user = await requireUser();
+  if (user.role !== "admin") {
+    throw new AuthorizationError();
+  }
+  return user;
+}
+
+export function authErrorResponse(error: unknown): NextResponse | null {
+  if (error instanceof AuthenticationError) {
+    return NextResponse.json({ error: error.message }, { status: 401 });
+  }
+
+  if (error instanceof AuthorizationError) {
+    return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+
+  return null;
+}

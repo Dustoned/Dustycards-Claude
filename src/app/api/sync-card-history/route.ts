@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import {
   getCardHistorySyncJobSnapshot,
   startCardHistorySyncJob,
@@ -7,11 +8,16 @@ import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response"
 import { getSyncErrorResponse } from "@/app/api/sync-error-response";
 
 export async function GET() {
-  const snapshot = await getCardHistorySyncJobSnapshot();
-  return NextResponse.json({
-    ok: true,
-    ...snapshot,
-  });
+  try {
+    await requireAdmin();
+    const snapshot = await getCardHistorySyncJobSnapshot();
+    return NextResponse.json({
+      ok: true,
+      ...snapshot,
+    });
+  } catch (error) {
+    return authErrorResponse(error) ?? getSyncErrorResponse(error);
+  }
 }
 
 export async function POST() {
@@ -19,6 +25,7 @@ export async function POST() {
   if (scraperDisabled) return scraperDisabled;
 
   try {
+    await requireAdmin();
     const result = await startCardHistorySyncJob();
     return NextResponse.json({
       ok: true,
@@ -26,6 +33,8 @@ export async function POST() {
       ...result,
     });
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
     return getSyncErrorResponse(error);
   }
 }

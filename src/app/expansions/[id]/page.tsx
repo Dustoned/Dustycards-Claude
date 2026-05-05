@@ -28,6 +28,7 @@ import {
   resolveSealedFilter,
 } from "@/lib/sealed-products";
 import { getSealedPriceSnapshotsByEpisode } from "@/lib/sealed-price-snapshots";
+import { requirePageUser } from "@/lib/page-auth";
 import type { NormalizedSealedProduct } from "@/lib/tcggo";
 import type { CardData } from "@/types/card-data";
 import ExpansionCardsSection from "./ExpansionCardsSection";
@@ -112,6 +113,11 @@ export default async function ExpansionDetailPage({
   const { id } = await params;
   const { tab, sealed } = await searchParams;
   const requestedTab = tab === "sealed" ? "sealed" : "cards";
+  const nextParams = new URLSearchParams();
+  if (tab) nextParams.set("tab", tab);
+  if (sealed) nextParams.set("sealed", sealed);
+  const nextQuery = nextParams.toString();
+  await requirePageUser(`/expansions/${id}${nextQuery ? `?${nextQuery}` : ""}`);
 
   const episode = await db.episode.findUnique({
     where: { id },

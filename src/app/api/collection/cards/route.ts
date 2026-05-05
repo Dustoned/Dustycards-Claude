@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
 
@@ -36,7 +37,9 @@ function toStringArray(value: unknown): string[] {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as {
+  try {
+    const user = await requireUser();
+    const body = (await req.json()) as {
     cardId?: unknown;
     cardIds?: unknown;
     binderId?: unknown;
@@ -47,7 +50,7 @@ export async function POST(req: NextRequest) {
     tags?: unknown;
     gradingCompany?: unknown;
     gradingGrade?: unknown;
-  };
+    };
 
   const cardIds = (() => {
     const multiple = toStringArray(body.cardIds);
@@ -97,8 +100,8 @@ export async function POST(req: NextRequest) {
     | null = null;
 
   if (binderId) {
-    binder = await db.collectionBinder.findUnique({
-      where: { id: binderId },
+    binder = await db.collectionBinder.findFirst({
+      where: { id: binderId, user_id: user.id },
       select: { id: true, type: true, episode_id: true },
     });
 
@@ -138,6 +141,7 @@ export async function POST(req: NextRequest) {
         tx.collectionCard.create({
           data: {
             card_id: card.id,
+            user_id: user.id,
             binder_id: binderId,
             purchase_price: purchasePrice,
             condition,
@@ -170,14 +174,19 @@ export async function POST(req: NextRequest) {
       added_at: item.added_at.toISOString(),
     })),
   });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to add cards" }, { status: 500 });
+  }
 }
 
 export async function PATCH(req: NextRequest) {
-  const body = (await req.json()) as {
+  try {
+    const user = await requireUser();
+    const body = (await req.json()) as {
     itemId?: unknown;
     itemIds?: unknown;
     binderId?: unknown;
-  };
+    };
 
   const itemIds = (() => {
     const multiple = toStringArray(body.itemIds);
@@ -208,7 +217,7 @@ export async function PATCH(req: NextRequest) {
     | null = null;
 
   const collectionItems = await db.collectionCard.findMany({
-    where: { id: { in: itemIds } },
+    where: { id: { in: itemIds }, user_id: user.id },
     select: {
       id: true,
       card: {
@@ -224,8 +233,8 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (binderId) {
-    binder = await db.collectionBinder.findUnique({
-      where: { id: binderId },
+    binder = await db.collectionBinder.findFirst({
+      where: { id: binderId, user_id: user.id },
       select: { id: true, type: true, episode_id: true },
     });
 
@@ -246,7 +255,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const updated = await db.collectionCard.updateMany({
-    where: { id: { in: itemIds } },
+    where: { id: { in: itemIds }, user_id: user.id },
     data: { binder_id: binderId },
   });
 
@@ -254,13 +263,18 @@ export async function PATCH(req: NextRequest) {
     success: true,
     count: updated.count,
   });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to update cards" }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: NextRequest) {
-  const body = (await req.json()) as {
+  try {
+    const user = await requireUser();
+    const body = (await req.json()) as {
     itemId?: unknown;
     itemIds?: unknown;
-  };
+    };
 
   const itemIds = (() => {
     const multiple = toStringArray(body.itemIds);
@@ -285,7 +299,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   const existingCount = await db.collectionCard.count({
-    where: { id: { in: itemIds } },
+    where: { id: { in: itemIds }, user_id: user.id },
   });
 
   if (existingCount !== itemIds.length) {
@@ -296,11 +310,14 @@ export async function DELETE(req: NextRequest) {
   }
 
   const deleted = await db.collectionCard.deleteMany({
-    where: { id: { in: itemIds } },
+    where: { id: { in: itemIds }, user_id: user.id },
   });
 
   return NextResponse.json({
     success: true,
     count: deleted.count,
   });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to remove cards" }, { status: 500 });
+  }
 }

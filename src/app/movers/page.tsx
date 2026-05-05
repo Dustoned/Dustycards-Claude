@@ -2,6 +2,7 @@ import { Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import { loadMoversPageData } from "@/app/movers/page-data";
+import { requirePageUser } from "@/lib/page-auth";
 import type { CollectionMoverItem } from "@/lib/movers";
 
 export const dynamic = "force-dynamic";
@@ -137,10 +138,17 @@ export default async function MoversPage({
   searchParams: Promise<{ source?: string; scope?: string; view?: string }>;
 }) {
   const { source, scope, view } = await searchParams;
+  const nextParams = new URLSearchParams();
+  if (source) nextParams.set("source", source);
+  if (scope) nextParams.set("scope", scope);
+  if (view) nextParams.set("view", view);
+  const nextQuery = nextParams.toString();
+  const user = await requirePageUser(`/movers${nextQuery ? `?${nextQuery}` : ""}`);
   const { activePriceSource, activeScope, activeItemScope, data } = await loadMoversPageData(
     source,
     scope,
-    view
+    view,
+    user.id
   );
   const isGradedScope = activeScope === "graded";
   const isGradingScope = activeScope === "grading";

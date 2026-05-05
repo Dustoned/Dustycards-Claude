@@ -1258,6 +1258,19 @@ async function backfillCardNativeHistoryDetailed(
 
   await options?.throwIfCancelled?.();
 
+  const existingCards = await db.card.findMany({
+    where: { id: { in: cardIds } },
+    select: {
+      id: true,
+      native_history_synced_at: true,
+    },
+  });
+  const nativeHistorySyncedCardIds = new Set(
+    existingCards
+      .filter((card) => card.native_history_synced_at != null)
+      .map((card) => card.id)
+  );
+
   const existingSnapshots = await db.price.findMany({
     where: { card_id: { in: cardIds } },
     select: {
@@ -1291,7 +1304,9 @@ async function backfillCardNativeHistoryDetailed(
         await options?.throwIfCancelled?.();
 
         try {
-          const latestExisting = latestSnapshotByCard.get(cardId);
+          const latestExisting = nativeHistorySyncedCardIds.has(cardId)
+            ? latestSnapshotByCard.get(cardId)
+            : undefined;
           const history = await fetchHistoryPricesByItemId(cardId, {
             dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
           });
@@ -2868,6 +2883,7 @@ export async function runSingleCardHistoryImport(
         select: {
           id: true,
           name: true,
+          native_history_synced_at: true,
         },
       });
 
@@ -2878,9 +2894,8 @@ export async function runSingleCardHistoryImport(
       await progress.throwIfCancelled();
       await progress.updateMessage(`Syncing ${existingCard.name} history (${cardId})`);
 
-      // Read the latest snapshot date BEFORE fetching so we can ask the API
-      // for only newer points — turns ~20 paginated requests into ~1 once a
-      // card has been synced before.
+      // Only use the latest local row as date_from after native history was
+      // imported. First imports must fetch full TCGGO history.
       const existingSnapshots = await db.price.findMany({
         where: { card_id: cardId },
         select: {
@@ -2894,9 +2909,11 @@ export async function runSingleCardHistoryImport(
         const t = snap.fetched_at.getTime();
         return acc == null || t > acc.getTime() ? snap.fetched_at : acc;
       }, null);
+      const incrementalDateFrom =
+        existingCard.native_history_synced_at != null ? latestExisting : null;
 
       const history = await fetchHistoryPricesByItemId(cardId, {
-        dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
+        dateFrom: incrementalDateFrom ? formatHistoryDateFrom(incrementalDateFrom) : undefined,
       });
       await progress.throwIfCancelled();
       const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
@@ -2937,9 +2954,11 @@ export async function runSingleCardHistoryImport(
           });
         }
 
-        // history.length === 0 with prior snapshots in the DB just means the
-        // card is already up to date — that's still a successful sync.
-        const hasAnyHistory = history.length > 0 || existingSnapshots.length > 0;
+        // Local refresh snapshots alone do not prove that native TCGGO history
+        // was imported during a first sync.
+        const hasAnyHistory =
+          history.length > 0 ||
+          (existingCard.native_history_synced_at != null && existingSnapshots.length > 0);
         await tx.card.update({
           where: { id: cardId },
           data: {

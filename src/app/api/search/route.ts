@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
 import {
@@ -820,6 +821,12 @@ async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
 const SEARCH_QUERY_MAX_LENGTH = 200;
 
 export async function GET(req: NextRequest) {
+  try {
+    await requireUser();
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Authentication failed" }, { status: 500 });
+  }
+
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
 
   if (q.length === 0) {

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import { importPullRateData } from "@/lib/pull-rates";
 
 export async function POST(req: NextRequest) {
   try {
+    await requireAdmin();
     const contentType = req.headers.get("content-type") ?? "";
     let content = "";
     let source: string | null = null;
@@ -25,6 +27,8 @@ export async function POST(req: NextRequest) {
       ...result,
     });
   } catch (error) {
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

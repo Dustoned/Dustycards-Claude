@@ -11,6 +11,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "smoke": "playwright test",
+    "auth:bootstrap": "node scripts/bootstrap-admin.mjs",
     "backfill:tcgdex-artists": "node scripts/backfill-tcgdex-artists.mjs",
     "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs",
     "images:cache": "node scripts/cache-images.mjs"

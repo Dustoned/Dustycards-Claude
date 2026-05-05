@@ -25,6 +25,7 @@ import {
   parseCookieSettings,
   SETTINGS_COOKIE_NAME,
 } from "@/lib/user-settings";
+import { requirePageUser } from "@/lib/page-auth";
 import ExpansionsOverviewChart from "./ExpansionsOverviewChart";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +104,7 @@ function shouldReplaceEpisode(existingId: string, nextId: string): boolean {
 
 export default async function ExpansionsPage() {
   const cookieStore = await cookies();
+  await requirePageUser("/expansions");
   const settings =
     parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);

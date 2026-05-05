@@ -8,6 +8,7 @@ import {
 } from "@/components/PageHeader";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import { buildMoversSourceHref, loadMoversPageData } from "@/app/movers/page-data";
+import { requirePageUser } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,14 @@ export default async function DiscountWatchPage({
   searchParams: Promise<{ source?: string; scope?: string; view?: string }>;
 }) {
   const { source, scope, view } = await searchParams;
+  const nextParams = new URLSearchParams();
+  if (source) nextParams.set("source", source);
+  if (scope) nextParams.set("scope", scope);
+  if (view) nextParams.set("view", view);
+  const nextQuery = nextParams.toString();
+  const user = await requirePageUser(`/movers/discount-watch${nextQuery ? `?${nextQuery}` : ""}`);
   const { data, activePriceSource, activeScope, activeItemScope } =
-    await loadMoversPageData(source, scope, view);
+    await loadMoversPageData(source, scope, view, user.id);
   const movers = data.discountedHighRarity;
   const isAllScope = activeItemScope === "all";
   const scopeLabel = isAllScope ? "All Cards" : "Collection";

@@ -17,6 +17,8 @@ type PrismaClientWithRuntimeModel = PrismaClient & {
 };
 
 const REQUIRED_RUNTIME_FIELDS = {
+  User: ["email", "password_hash", "role", "disabled"],
+  Session: ["user_id", "token_hash", "expires_at"],
   Episode: ["source_status", "source_checked_at", "source_actual_card_count"],
   Card: [
     "price_source_status",
@@ -44,6 +46,9 @@ const REQUIRED_RUNTIME_FIELDS = {
   SetPullRateRarity: ["normalized_rarity", "specific_pull_denominator"],
   SealedPriceSnapshot: ["cm_avg_7d", "cm_avg_30d"],
   Price: ["cm_en_avg_7d", "cm_en_avg_30d"],
+  CollectionBinder: ["user_id"],
+  CollectionCard: ["user_id"],
+  CollectionSealed: ["user_id"],
   SyncLog: ["details_json"],
   SyncJob: ["details_json", "heartbeat_at"],
 } as const;

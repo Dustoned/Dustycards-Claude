@@ -29,6 +29,37 @@ model Episode {
   @@index([source_status, source_checked_at])
 }
 
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password_hash String
+  role          String   @default("user")
+  disabled      Boolean  @default(false)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  sessions        Session[]
+  binders         CollectionBinder[]
+  collectionCards CollectionCard[]
+  sealedItems     CollectionSealed[]
+
+  @@index([role])
+  @@index([disabled])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  user_id    String
+  token_hash String   @unique
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+}
+
 model SetPullRateProfile {
   id                    String   @id @default(cuid())
   source                String   @default("collectrics")
@@ -253,6 +284,7 @@ model CardEbaySoldGradedPriceSnapshot {
 
 model CollectionBinder {
   id                  String   @id @default(cuid())
+  user_id             String?
   name                String
   type                String
   episode_id          String?
@@ -263,9 +295,11 @@ model CollectionBinder {
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 
+  user                User?            @relation(fields: [user_id], references: [id], onDelete: Cascade)
   episode             Episode?         @relation(fields: [episode_id], references: [id])
   cards               CollectionCard[]
 
+  @@index([user_id])
   @@index([type])
   @@index([episode_id])
   @@index([created_at])
@@ -273,6 +307,7 @@ model CollectionBinder {
 
 model CollectionCard {
   id              String   @id @default(cuid())
+  user_id         String?
   card_id         String
   binder_id       String?
   purchase_price  Float?
@@ -284,10 +319,12 @@ model CollectionCard {
   added_at        DateTime @default(now())
   updated_at      DateTime @updatedAt
 
+  user            User?             @relation(fields: [user_id], references: [id], onDelete: Cascade)
   card            Card              @relation(fields: [card_id], references: [id])
   binder          CollectionBinder? @relation(fields: [binder_id], references: [id], onDelete: SetNull)
   tags            CollectionCardTag[]
 
+  @@index([user_id])
   @@index([card_id])
   @@index([card_id, added_at])
   @@index([binder_id])
@@ -308,6 +345,7 @@ model CollectionCardTag {
 
 model CollectionSealed {
   id                      String   @id @default(cuid())
+  user_id                 String?
   product_id              String
   quantity                Int      @default(1)
   purchase_price_per_item Float?
@@ -315,9 +353,11 @@ model CollectionSealed {
   added_at                DateTime @default(now())
   updated_at              DateTime @updatedAt
 
+  user                    User?                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
   product                 SealedProduct         @relation(fields: [product_id], references: [id])
   tags                    CollectionSealedTag[]
 
+  @@index([user_id])
   @@index([product_id])
   @@index([product_id, added_at])
   @@index([added_at])

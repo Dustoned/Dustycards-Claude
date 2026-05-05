@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireAdmin, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   buildLinkedBinderCostBasis,
@@ -44,14 +45,15 @@ function buildDirectCostBasis(purchasePrice: number | null): CollectionCostBasis
 }
 
 async function getCardDetailCostBasis(
-  collectionItem: CardDetailCollectionItem | null
+  collectionItem: CardDetailCollectionItem | null,
+  userId: string
 ): Promise<CollectionCostBasis | null> {
   if (!collectionItem) return null;
 
   const binder = collectionItem.binder;
   if (binder?.type === "linked_set" && binder.episode_id) {
     const binderCards = await db.collectionCard.findMany({
-      where: { binder_id: binder.id },
+      where: { binder_id: binder.id, user_id: userId },
       select: {
         id: true,
         purchase_price: true,
@@ -105,7 +107,7 @@ async function getCardDetailCostBasis(
   return buildDirectCostBasis(collectionItem.purchase_price);
 }
 
-async function getCardDetailPayload(id: string) {
+async function getCardDetailPayload(id: string, userId: string) {
   const card = await db.card.findUnique({
     where: { id },
     select: {
@@ -127,6 +129,7 @@ async function getCardDetailPayload(id: string) {
         select: { id: true, name: true, code: true },
       },
       collectionItems: {
+        where: { user_id: userId },
         orderBy: { updated_at: "desc" },
         take: 1,
         select: {
@@ -211,7 +214,7 @@ async function getCardDetailPayload(id: string) {
     rarity: card.rarity,
   });
   const collectionItem = card.collectionItems[0] ?? null;
-  const collectionCostBasis = await getCardDetailCostBasis(collectionItem);
+  const collectionCostBasis = await getCardDetailCostBasis(collectionItem, userId);
   const hasUsdEbaySoldGradedPrices = card.ebaySoldGradedPrices.some(
     (price) => price.currency.toUpperCase() === "USD"
   );
@@ -306,43 +309,49 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const payload = await getCardDetailPayload(id);
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+    const payload = await getCardDetailPayload(id, user.id);
 
-  if (!payload) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!payload) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(payload);
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to load card" }, { status: 500 });
   }
-
-  return NextResponse.json(payload);
 }
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const scraperDisabled = getScraperDisabledResponse();
-  if (scraperDisabled) return scraperDisabled;
-
-  let action: CardAction = "refresh";
-
   try {
-    const body = (await req.json()) as { action?: CardAction };
-    if (body.action === "sync-history") {
-      action = "sync-history";
+    const user = await requireAdmin();
+    const { id } = await params;
+    const scraperDisabled = getScraperDisabledResponse();
+    if (scraperDisabled) return scraperDisabled;
+
+    let action: CardAction = "refresh";
+
+    try {
+      const body = (await req.json()) as { action?: CardAction };
+      if (body.action === "sync-history") {
+        action = "sync-history";
+      }
+    } catch {
+      // Empty or invalid JSON should behave like a regular refresh.
     }
-  } catch {
-    // Empty or invalid JSON should behave like a regular refresh.
-  }
 
-  try {
     if (action === "sync-history") {
       await runSingleCardHistoryImport(id);
     } else {
       await runCardPriceRefresh(id);
     }
 
-    const payload = await getCardDetailPayload(id);
+    const payload = await getCardDetailPayload(id, user.id);
 
     if (!payload) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -382,6 +391,6 @@ export async function POST(
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return authErrorResponse(error) ?? NextResponse.json({ error: message }, { status: 500 });
   }
 }

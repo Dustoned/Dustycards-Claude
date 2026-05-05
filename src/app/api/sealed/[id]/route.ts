@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireAdmin, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildSealedPriceHistory } from "@/lib/price-history";
 import { getSealedPriceSnapshotsByProduct } from "@/lib/sealed-price-snapshots";
@@ -80,36 +81,42 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const payload = await getSealedDetailPayload(id);
+  try {
+    await requireUser();
+    const { id } = await params;
+    const payload = await getSealedDetailPayload(id);
 
-  if (!payload) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!payload) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(payload);
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to load sealed" }, { status: 500 });
   }
-
-  return NextResponse.json(payload);
 }
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const scraperDisabled = getScraperDisabledResponse();
-  if (scraperDisabled) return scraperDisabled;
-
-  let action: SealedAction = "refresh";
-
   try {
-    const body = (await req.json()) as { action?: SealedAction };
-    if (body.action === "sync-history") {
-      action = "sync-history";
+    await requireAdmin();
+    const { id } = await params;
+    const scraperDisabled = getScraperDisabledResponse();
+    if (scraperDisabled) return scraperDisabled;
+
+    let action: SealedAction = "refresh";
+
+    try {
+      const body = (await req.json()) as { action?: SealedAction };
+      if (body.action === "sync-history") {
+        action = "sync-history";
+      }
+    } catch {
+      // Treat empty or invalid JSON bodies as a regular refresh request.
     }
-  } catch {
-    // Treat empty or invalid JSON bodies as a regular refresh request.
-  }
 
-  try {
     if (action === "sync-history") {
       await runSealedProductHistorySync(id);
     } else {
@@ -156,6 +163,6 @@ export async function POST(
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return authErrorResponse(error) ?? NextResponse.json({ error: message }, { status: 500 });
   }
 }

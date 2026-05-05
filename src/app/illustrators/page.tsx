@@ -19,6 +19,7 @@ import {
   parseCookieSettings,
   SETTINGS_COOKIE_NAME,
 } from "@/lib/user-settings";
+import { requirePageUser } from "@/lib/page-auth";
 import IllustratorGridClient from "./IllustratorGridClient";
 
 export const dynamic = "force-dynamic";
@@ -188,6 +189,7 @@ export default async function IllustratorsPage({
 }) {
   const cookieStore = await cookies();
   const { sort: rawSort } = await searchParams;
+  await requirePageUser(rawSort ? `/illustrators?sort=${encodeURIComponent(rawSort)}` : "/illustrators");
   const settings =
     parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
   const sort = rawSort

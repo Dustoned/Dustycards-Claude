@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
 import {
   buildExpansionsOverviewHistoryPayload,
   getExpansionsOverviewHistory,
@@ -50,6 +51,12 @@ function rememberCacheEntry(key: string, payload: ExpansionsOverviewHistoryPaylo
 }
 
 export async function POST(request: Request) {
+  try {
+    await requireUser();
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Authentication failed" }, { status: 500 });
+  }
+
   const body = (await request.json().catch(() => ({}))) as RequestBody;
   const episodeIds = parseEpisodeIds(body.episodeIds);
 

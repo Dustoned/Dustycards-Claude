@@ -19,6 +19,16 @@ vi.mock("@/lib/db", () => ({
   db: dbMock,
 }));
 
+vi.mock("@/lib/auth", () => ({
+  requireUser: vi.fn().mockResolvedValue({
+    id: "user-1",
+    email: "user@example.com",
+    role: "user",
+    disabled: false,
+  }),
+  authErrorResponse: vi.fn(() => null),
+}));
+
 import { GET } from "@/app/api/search/route";
 
 describe("GET /api/search", () => {

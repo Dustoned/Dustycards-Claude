@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
 
@@ -41,13 +42,15 @@ function toStringArray(value: unknown): string[] {
 }
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as {
+  try {
+    const user = await requireUser();
+    const body = (await req.json()) as {
     productId?: unknown;
     quantity?: unknown;
     purchasePricePerItem?: unknown;
     notes?: unknown;
     tags?: unknown;
-  };
+    };
 
   const productId = toNullableString(body.productId);
   if (!productId) {
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest) {
 
   const created = await db.collectionSealed.create({
     data: {
+      user_id: user.id,
       product_id: product.id,
       quantity,
       purchase_price_per_item: purchasePricePerItem,
@@ -105,13 +109,18 @@ export async function POST(req: NextRequest) {
       added_at: created.added_at.toISOString(),
     },
   });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to add sealed" }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: NextRequest) {
-  const body = (await req.json()) as {
+  try {
+    const user = await requireUser();
+    const body = (await req.json()) as {
     itemId?: unknown;
     itemIds?: unknown;
-  };
+    };
 
   const itemIds = (() => {
     const multiple = toStringArray(body.itemIds);
@@ -129,7 +138,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   const existingCount = await db.collectionSealed.count({
-    where: { id: { in: itemIds } },
+    where: { id: { in: itemIds }, user_id: user.id },
   });
 
   if (existingCount !== itemIds.length) {
@@ -140,11 +149,14 @@ export async function DELETE(req: NextRequest) {
   }
 
   const deleted = await db.collectionSealed.deleteMany({
-    where: { id: { in: itemIds } },
+    where: { id: { in: itemIds }, user_id: user.id },
   });
 
   return NextResponse.json({
     success: true,
     count: deleted.count,
   });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to remove sealed" }, { status: 500 });
+  }
 }

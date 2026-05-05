@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import BinderDetailClient from "./BinderDetailClient";
 import { getBinderPageData } from "@/lib/collection-data";
+import { requirePageUser } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,8 @@ export default async function BinderDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await getBinderPageData(id);
+  const user = await requirePageUser(`/binders/${id}`);
+  const data = await getBinderPageData(id, user.id);
 
   if (!data) {
     notFound();

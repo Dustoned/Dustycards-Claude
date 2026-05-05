@@ -1,0 +1,107 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, useState } from "react";
+
+export default function AuthForm({
+  mode,
+  nextPath = "/",
+}: {
+  mode: "login" | "register";
+  nextPath?: string;
+}) {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const isRegister = mode === "register";
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await fetch(`/api/auth/${mode}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+
+      if (!response.ok) {
+        setError(data.error ?? "Authentication failed");
+        return;
+      }
+
+      router.replace(nextPath || "/");
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="glass mx-auto grid w-full max-w-sm gap-4 rounded-2xl p-6 shadow-md shadow-black/5">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">
+          {isRegister ? "Create account" : "Log in"}
+        </h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-white/45">
+          {isRegister ? "Start with an empty collection." : "Welcome back to DustyCards."}
+        </p>
+      </div>
+
+      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-white/75">
+        Email
+        <input
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          className="rounded-xl border border-black/10 bg-white px-3 py-2 text-gray-950 outline-none transition focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+        />
+      </label>
+
+      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-white/75">
+        Password
+        <input
+          type="password"
+          autoComplete={isRegister ? "new-password" : "current-password"}
+          required
+          minLength={8}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          className="rounded-xl border border-black/10 bg-white px-3 py-2 text-gray-950 outline-none transition focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+        />
+      </label>
+
+      {error && (
+        <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-400/25 dark:bg-red-500/10 dark:text-red-200">
+          {error}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-gray-950 dark:hover:bg-white/90"
+      >
+        {loading ? "Working..." : isRegister ? "Create account" : "Log in"}
+      </button>
+
+      <p className="text-center text-sm text-gray-500 dark:text-white/45">
+        {isRegister ? "Already have an account?" : "No account yet?"}{" "}
+        <Link
+          href={isRegister ? `/login?next=${encodeURIComponent(nextPath)}` : "/register"}
+          className="font-semibold text-gray-900 hover:underline dark:text-white"
+        >
+          {isRegister ? "Log in" : "Register"}
+        </Link>
+      </p>
+    </form>
+  );
+}

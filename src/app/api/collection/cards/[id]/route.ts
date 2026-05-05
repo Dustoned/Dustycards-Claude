@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
 
@@ -21,8 +22,10 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const body = (await req.json()) as {
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+    const body = (await req.json()) as {
     binderId?: unknown;
     purchasePrice?: unknown;
     condition?: unknown;
@@ -31,7 +34,7 @@ export async function PATCH(
     tags?: unknown;
     gradingCompany?: unknown;
     gradingGrade?: unknown;
-  };
+    };
 
   const purchasePrice = toNullableNumber(body.purchasePrice);
   if (purchasePrice != null && purchasePrice < 0) {
@@ -41,8 +44,8 @@ export async function PATCH(
     );
   }
 
-  const collectionItem = await db.collectionCard.findUnique({
-    where: { id },
+  const collectionItem = await db.collectionCard.findFirst({
+    where: { id, user_id: user.id },
     select: {
       id: true,
       card: {
@@ -59,8 +62,8 @@ export async function PATCH(
 
   const binderId = toNullableString(body.binderId);
   if (binderId) {
-    const binder = await db.collectionBinder.findUnique({
-      where: { id: binderId },
+    const binder = await db.collectionBinder.findFirst({
+      where: { id: binderId, user_id: user.id },
       select: { id: true, type: true, episode_id: true },
     });
 
@@ -123,4 +126,7 @@ export async function PATCH(
   });
 
   return NextResponse.json({ success: true });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to update collection item" }, { status: 500 });
+  }
 }

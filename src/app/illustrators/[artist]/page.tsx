@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { buildVisibleEpisodeWhereSql } from "@/lib/illustrators";
+import { requirePageUser } from "@/lib/page-auth";
 import IllustratorCardsClient from "./IllustratorCardsClient";
 import type { CardData } from "@/types/card-data";
 
@@ -177,6 +178,7 @@ export default async function IllustratorPage({
   params: Promise<{ artist: string }>;
 }) {
   const { artist } = await params;
+  await requirePageUser(`/illustrators/${artist}`);
   const resolvedArtist = (() => {
     try {
       return decodeURIComponent(artist);
