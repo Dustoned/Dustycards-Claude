@@ -111,45 +111,45 @@ export default function CollectionInlineBinderCreator({
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold text-white">Need a new binder?</p>
-          <p className="text-xs text-white/45">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 max-[640px]:rounded-xl max-[640px]:p-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 max-[640px]:gap-1.5">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white max-[640px]:text-[12px]">Need a new binder?</p>
+          <p className="text-xs text-white/45 max-[640px]:line-clamp-1 max-[640px]:text-[10px]">
             Type a set name for an automatic set binder, or any other name for a custom binder.
           </p>
         </div>
         <button
           type="button"
           onClick={handleOpen}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-sm font-semibold text-white transition-colors hover:border-white/18 hover:bg-white/12"
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-sm font-semibold text-white transition-colors hover:border-white/18 hover:bg-white/12 max-[640px]:gap-1.5 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[12px]"
         >
-          <Plus className="h-4 w-4" />
-          {open ? "Hide" : "Add new binder"}
+          <Plus className="h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5" />
+          {open ? "Hide" : "New binder"}
         </button>
       </div>
 
       {open && (
-        <div className="mt-3 space-y-3">
-          <label className="block space-y-1.5 text-sm">
+        <div className="mt-3 space-y-3 max-[640px]:mt-2.5 max-[640px]:space-y-2.5">
+          <label className="block space-y-1.5 text-sm max-[640px]:text-[12px]">
             <span className="text-white/60">Set name or binder name</span>
             <input
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+              className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]"
               placeholder={suggestedEpisode?.name ?? "Type a set or custom binder name"}
             />
           </label>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/55">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/55 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[10px]">
             {looksLikeSuggestedEpisode
               ? `This will create a set binder for ${suggestedEpisode?.name}${suggestedEpisode?.code ? ` (${suggestedEpisode.code})` : ""}.`
               : "If this matches an expansion, the binder gets the full set layout automatically. Otherwise it becomes a custom binder."}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="space-y-1.5 text-sm">
+          <div className="grid gap-3 max-[640px]:gap-2.5 sm:grid-cols-2">
+            <label className="space-y-1.5 text-sm max-[640px]:text-[12px]">
               <span className="text-white/60">Binder spend</span>
               <input
                 type="number"
@@ -158,18 +158,18 @@ export default function CollectionInlineBinderCreator({
                 inputMode="decimal"
                 value={basePurchasePrice}
                 onChange={(event) => setBasePurchasePrice(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]"
                 placeholder="0.00"
               />
             </label>
 
-            <label className="space-y-1.5 text-sm">
+            <label className="space-y-1.5 text-sm max-[640px]:text-[12px]">
               <span className="text-white/60">Notes</span>
               <input
                 type="text"
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]"
                 placeholder="Optional notes"
               />
             </label>
@@ -177,10 +177,10 @@ export default function CollectionInlineBinderCreator({
 
           {!looksLikeSuggestedEpisode && (
             <>
-              <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-start">
-                <div className="space-y-1.5 text-sm">
+              <div className="grid gap-3 max-[640px]:gap-2.5 sm:grid-cols-[auto_1fr] sm:items-start">
+                <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
                   <span className="text-white/60">Icon</span>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
                     {COLLECTION_BINDER_ICONS.map((option) => {
                       const active = option === iconName;
                       return (
@@ -188,26 +188,26 @@ export default function CollectionInlineBinderCreator({
                           key={option}
                           type="button"
                           onClick={() => setIconName(option)}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors ${
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors max-[640px]:h-8 max-[640px]:w-8 ${
                             active
                               ? "border-white bg-white text-gray-900"
                               : "border-white/10 bg-white/8 text-white hover:border-white/18 hover:bg-white/12"
                           }`}
                         >
-                          <CollectionBinderIcon iconName={option} className="h-4 w-4" />
+                          <CollectionBinderIcon iconName={option} className="h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5" />
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                <div className="space-y-1.5 text-sm">
+                <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
                   <span className="text-white/60">Accent color</span>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
                     <button
                       type="button"
                       onClick={() => setAccentColor(null)}
-                      className={`relative inline-flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white/[0.06] transition-all ${
+                      className={`relative inline-flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white/[0.06] transition-all max-[640px]:h-7 max-[640px]:w-7 ${
                         accentColor == null
                           ? "scale-110 border-white"
                           : "border-white/14 hover:border-white/26"
@@ -225,7 +225,7 @@ export default function CollectionInlineBinderCreator({
                           key={option}
                           type="button"
                           onClick={() => setAccentColor(option)}
-                          className={`h-8 w-8 rounded-full border-2 transition-transform ${
+                          className={`h-8 w-8 rounded-full border-2 transition-transform max-[640px]:h-7 max-[640px]:w-7 ${
                             active ? "scale-110 border-white" : "border-transparent"
                           }`}
                           style={{ backgroundColor: option }}
@@ -246,7 +246,7 @@ export default function CollectionInlineBinderCreator({
               type="button"
               onClick={() => void handleCreate()}
               disabled={saving}
-              className="rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-2 max-[640px]:text-[12px]"
             >
               {saving ? "Saving..." : "Create binder"}
             </button>

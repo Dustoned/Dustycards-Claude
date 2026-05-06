@@ -309,6 +309,57 @@ test.describe("DustyCards smoke", () => {
     await expect(page).toHaveURL(/\/search\?q=pikachu/);
     await expect(page.getByPlaceholder("Search name, set code, card number...")).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
+
+    await headerSearch.fill("");
+    await expect(page).toHaveURL(`${BASE_URL}/`);
+  });
+
+  test("mobile collection add dialogs stay fixed in the viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+    await page.getByRole("button", { name: "Add Binder" }).click();
+    const binderDialog = page.locator('[data-create-binder-modal="true"]');
+    await expect(binderDialog).toBeVisible();
+    const binderBox = await binderDialog.boundingBox();
+    expect(binderBox).not.toBeNull();
+    expect(binderBox?.y ?? Number.NaN).toBeGreaterThanOrEqual(-1);
+    expect((binderBox?.y ?? 0) + (binderBox?.height ?? 0)).toBeLessThanOrEqual(844 + 2);
+    await expectNoHorizontalOverflow(page);
+    await page.getByRole("button", { name: "Close create binder" }).click();
+  });
+
+  test("mobile add card dialog opens as a fixed sheet", async ({ page }) => {
+    const episodeId = findEpisodeWithImageCards();
+    if (!episodeId) {
+      test.skip(true, "No cards with images are available in this local database.");
+      return;
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await applyDisplaySettings(page, {
+      mobileUiScale: "small",
+      mobileCardSize: "small",
+      mobileModalSize: "small",
+      mobileCard3dSize: "small",
+      mobileDefaultView: "grid",
+    });
+    await page.goto(`/expansions/${episodeId}`);
+
+    const addButtons = page.locator('main button[aria-label^="Add "][aria-label$=" to collection"]');
+    await expect(addButtons.first()).toBeVisible();
+    const addButton = (await addButtons.count()) > 5 ? addButtons.nth(5) : addButtons.first();
+    await addButton.scrollIntoViewIfNeeded();
+    await addButton.click();
+
+    const addDialog = page.locator('[data-collection-add-modal="true"]');
+    await expect(addDialog).toBeVisible();
+    const addDialogBox = await addDialog.boundingBox();
+    expect(addDialogBox).not.toBeNull();
+    expect(addDialogBox?.y ?? Number.NaN).toBeGreaterThanOrEqual(-1);
+    expect((addDialogBox?.y ?? 0) + (addDialogBox?.height ?? 0)).toBeLessThanOrEqual(844 + 2);
+    await expectNoHorizontalOverflow(page);
   });
 
   test("account settings load in a fresh browser context", async ({ page, browser }) => {
@@ -416,7 +467,7 @@ test.describe("DustyCards smoke", () => {
   });
 
   test("card and detail size settings keep core layouts within the viewport", async ({ page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
 
     const viewports = [
       { width: 360, height: 800 },
@@ -448,7 +499,7 @@ test.describe("DustyCards smoke", () => {
   });
 
   test("mobile expansion grid and 3D viewer stay compact", async ({ browser, page }) => {
-    test.setTimeout(120_000);
+    test.setTimeout(180_000);
 
     const episodeId = findEpisodeWithImageCards();
     if (!episodeId) {

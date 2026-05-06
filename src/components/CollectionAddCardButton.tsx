@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import {
   COLLECTION_CONDITIONS,
   COLLECTION_GRADING_COMPANIES,
@@ -11,6 +12,7 @@ import {
 import CollectionInlineBinderCreator, {
   type InlineBinderOption,
 } from "@/components/CollectionInlineBinderCreator";
+import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
 type BinderOption = InlineBinderOption;
 
@@ -52,7 +54,10 @@ function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", classNa
 }
 
 const modalSelectClasses =
-  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18";
+  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]";
+const modalInputClasses =
+  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]";
+const modalLabelClasses = "space-y-1.5 text-sm max-[640px]:text-[12px]";
 const modalOptionClasses = "bg-white text-gray-900";
 
 export default function CollectionAddCardButton({
@@ -82,6 +87,8 @@ export default function CollectionAddCardButton({
   const [gradingCompany, setGradingCompany] = useState("");
   const [gradingGrade, setGradingGrade] = useState("");
   const binderLocked = Boolean(initialBinderId && lockedBinderName);
+
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
@@ -196,6 +203,215 @@ export default function CollectionAddCardButton({
     setSaveError("Binder created, but it belongs to another set and cannot be used for this card.");
   }
 
+  const addCardModal =
+    open && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/72 p-4 backdrop-blur-xl max-[640px]:items-end max-[640px]:p-0"
+            onClick={(event) => {
+              event.stopPropagation();
+              setOpen(false);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Add ${card.name} to DustyCards`}
+              data-collection-add-modal="true"
+              className="glass relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-white/12 bg-[#0d0d10]/92 text-white shadow-2xl shadow-black/45 max-[640px]:max-h-[calc(100dvh-0.75rem)] max-[640px]:rounded-b-none max-[640px]:rounded-t-[26px] max-[640px]:border-x-0 max-[640px]:border-b-0"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start gap-3 border-b border-white/10 px-6 py-5 max-[640px]:px-4 max-[640px]:py-3.5">
+                <div className="min-w-0 flex-1">
+                  <div className="mx-auto mb-3 hidden h-1 w-12 rounded-full bg-white/18 max-[640px]:block" />
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/38 max-[640px]:text-[9px]">
+                    Add Card
+                  </p>
+                  <h2 className="mt-1.5 line-clamp-2 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+                    {card.name}
+                  </h2>
+                  <p className="mt-1 truncate text-sm text-white/48 max-[640px]:text-[12px]">
+                    {card.episode.name}
+                    {card.episode.code ? ` (${card.episode.code})` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/60 transition-colors hover:bg-white/12 hover:text-white max-[640px]:h-8 max-[640px]:w-8"
+                  aria-label="Close add card"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <form
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-5 max-[640px]:px-4 max-[640px]:py-3"
+                onSubmit={handleSubmit}
+              >
+                <div className="grid gap-4 max-[640px]:gap-3 sm:grid-cols-2">
+                  {binderLocked ? (
+                    <div className={`${modalLabelClasses} max-[640px]:col-span-2`}>
+                      <span className="text-white/60">Save to</span>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2">
+                        <p className="font-medium text-white max-[640px]:text-[13px]">
+                          {lockedBinderName}
+                        </p>
+                        <p className="mt-1 text-xs text-white/45 max-[640px]:text-[11px]">
+                          This card will be added straight to this binder.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className={`${modalLabelClasses} max-[640px]:col-span-2`}>
+                      <span className="text-white/60">Save to</span>
+                      <select
+                        value={binderId}
+                        onChange={(event) => setBinderId(event.target.value)}
+                        className={modalSelectClasses}
+                      >
+                        <option value="" className={modalOptionClasses}>Singles</option>
+                        {availableBinders.map((binder) => (
+                          <option key={binder.id} value={binder.id} className={modalOptionClasses}>
+                            {binder.name}
+                            {binder.type === "linked_set" ? " - Set binder" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      {bindersLoading && <p className="text-xs text-white/35">Loading binders...</p>}
+                    </label>
+                  )}
+
+                  <label className={modalLabelClasses}>
+                    <span className="text-white/60">{purchasePriceLabel}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={purchasePrice}
+                      onChange={(event) => setPurchasePrice(event.target.value)}
+                      className={modalInputClasses}
+                      placeholder="0.00"
+                    />
+                  </label>
+
+                  <label className={modalLabelClasses}>
+                    <span className="text-white/60">Condition</span>
+                    <select
+                      value={condition}
+                      onChange={(event) => setCondition(event.target.value)}
+                      className={modalSelectClasses}
+                    >
+                      {COLLECTION_CONDITIONS.map((option) => (
+                        <option key={option} value={option} className={modalOptionClasses}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={modalLabelClasses}>
+                    <span className="text-white/60">Language</span>
+                    <select
+                      value={language}
+                      onChange={(event) => setLanguage(event.target.value)}
+                      className={modalSelectClasses}
+                    >
+                      {COLLECTION_LANGUAGES.map((option) => (
+                        <option key={option} value={option} className={modalOptionClasses}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={modalLabelClasses}>
+                    <span className="text-white/60">Grading company</span>
+                    <select
+                      value={gradingCompany}
+                      onChange={(event) => setGradingCompany(event.target.value)}
+                      className={modalSelectClasses}
+                    >
+                      <option value="" className={modalOptionClasses}>Not graded</option>
+                      {COLLECTION_GRADING_COMPANIES.map((option) => (
+                        <option key={option} value={option} className={modalOptionClasses}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={modalLabelClasses}>
+                    <span className="text-white/60">Grade</span>
+                    <input
+                      type="text"
+                      value={gradingGrade}
+                      onChange={(event) => setGradingGrade(event.target.value)}
+                      className={modalInputClasses}
+                      placeholder="10 / 9.5"
+                    />
+                  </label>
+                </div>
+
+                {!binderLocked && (
+                  <div className="mt-4 max-[640px]:mt-3">
+                    <CollectionInlineBinderCreator
+                      suggestedEpisode={card.episode}
+                      onCreated={handleBinderCreated}
+                    />
+                  </div>
+                )}
+
+                <div className="mt-4 grid gap-4 max-[640px]:mt-3 max-[640px]:gap-3 sm:grid-cols-2">
+                  <label className={`${modalLabelClasses} sm:col-span-2`}>
+                    <span className="text-white/60">Tags</span>
+                    <input
+                      type="text"
+                      value={tags}
+                      onChange={(event) => setTags(event.target.value)}
+                      className={modalInputClasses}
+                      placeholder="favorite, alt art"
+                    />
+                  </label>
+
+                  <label className={`${modalLabelClasses} sm:col-span-2`}>
+                    <span className="text-white/60">Notes</span>
+                    <textarea
+                      rows={2}
+                      value={notes}
+                      onChange={(event) => setNotes(event.target.value)}
+                      className={`${modalInputClasses} resize-none`}
+                      placeholder="Optional notes"
+                    />
+                  </label>
+                </div>
+
+                {saveError && <p className="mt-3 text-sm text-rose-300">{saveError}</p>}
+
+                <div className="sticky bottom-0 -mx-6 -mb-5 mt-5 flex gap-3 border-t border-white/10 bg-[#0d0d10]/95 px-6 py-4 backdrop-blur-xl max-[640px]:-mx-4 max-[640px]:-mb-3 max-[640px]:mt-3 max-[640px]:gap-2 max-[640px]:px-4 max-[640px]:py-3">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:py-2.5 max-[640px]:text-[13px]"
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-2.5 max-[640px]:text-[13px]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
     <>
       <button
@@ -208,185 +424,7 @@ export default function CollectionAddCardButton({
         {mode === "button" && <span>{flashAdded ? "Added" : label}</span>}
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
-          onClick={(event) => {
-            event.stopPropagation();
-            setOpen(false);
-          }}
-        >
-          <div
-            className="glass w-full max-w-lg rounded-3xl border border-white/12 bg-[#0d0d10]/90 p-6 text-white shadow-2xl shadow-black/45"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38">
-                Add Card
-              </p>
-              <h2 className="mt-2 text-2xl font-bold leading-tight">{card.name}</h2>
-              <p className="mt-1 text-sm text-white/48">
-                {card.episode.name}
-                {card.episode.code ? ` (${card.episode.code})` : ""}
-              </p>
-            </div>
-
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {binderLocked ? (
-                  <div className="space-y-1.5 text-sm">
-                    <span className="text-white/60">Save to</span>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5">
-                      <p className="font-medium text-white">{lockedBinderName}</p>
-                      <p className="mt-1 text-xs text-white/45">
-                        This card will be added straight to this binder.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <label className="space-y-1.5 text-sm">
-                    <span className="text-white/60">Save to</span>
-                    <select
-                      value={binderId}
-                      onChange={(event) => setBinderId(event.target.value)}
-                      className={modalSelectClasses}
-                    >
-                      <option value="" className={modalOptionClasses}>Singles</option>
-                      {availableBinders.map((binder) => (
-                        <option key={binder.id} value={binder.id} className={modalOptionClasses}>
-                          {binder.name}
-                          {binder.type === "linked_set" ? " - Set binder" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    {bindersLoading && <p className="text-xs text-white/35">Loading binders...</p>}
-                  </label>
-                )}
-
-                <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">{purchasePriceLabel}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={purchasePrice}
-                    onChange={(event) => setPurchasePrice(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                    placeholder="0.00"
-                  />
-                </label>
-
-                <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">Condition</span>
-                  <select
-                    value={condition}
-                    onChange={(event) => setCondition(event.target.value)}
-                    className={modalSelectClasses}
-                  >
-                    {COLLECTION_CONDITIONS.map((option) => (
-                      <option key={option} value={option} className={modalOptionClasses}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">Language</span>
-                  <select
-                    value={language}
-                    onChange={(event) => setLanguage(event.target.value)}
-                    className={modalSelectClasses}
-                  >
-                    {COLLECTION_LANGUAGES.map((option) => (
-                      <option key={option} value={option} className={modalOptionClasses}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">Grading company</span>
-                  <select
-                    value={gradingCompany}
-                    onChange={(event) => setGradingCompany(event.target.value)}
-                    className={modalSelectClasses}
-                  >
-                    <option value="" className={modalOptionClasses}>Not graded</option>
-                    {COLLECTION_GRADING_COMPANIES.map((option) => (
-                      <option key={option} value={option} className={modalOptionClasses}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="space-y-1.5 text-sm">
-                  <span className="text-white/60">Grade</span>
-                  <input
-                    type="text"
-                    value={gradingGrade}
-                    onChange={(event) => setGradingGrade(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                    placeholder="10 / 9.5 / Pristine"
-                  />
-                </label>
-              </div>
-
-              {!binderLocked && (
-                <CollectionInlineBinderCreator
-                  suggestedEpisode={card.episode}
-                  onCreated={handleBinderCreated}
-                />
-              )}
-
-              <label className="block space-y-1.5 text-sm">
-                <span className="text-white/60">Tags</span>
-                <input
-                  type="text"
-                  value={tags}
-                  onChange={(event) => setTags(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                  placeholder="favorite, alt art, binder hit"
-                />
-              </label>
-
-              <label className="block space-y-1.5 text-sm">
-                <span className="text-white/60">Notes</span>
-                <textarea
-                  rows={3}
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
-                  placeholder="Optional notes"
-                />
-              </label>
-
-              {saveError && <p className="text-sm text-rose-300">{saveError}</p>}
-
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving ? "Saving..." : "Save to collection"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {addCardModal}
     </>
   );
 }

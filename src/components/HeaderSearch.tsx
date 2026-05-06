@@ -64,17 +64,28 @@ export default function HeaderSearch() {
     });
   }, [mobileOpen]);
 
+  function resetSearchInputs() {
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    setMobileQuery("");
+    setMobileOpen(false);
+  }
+
   function returnToPreviousPageOrSearch() {
     const returnHref = readSearchReturnPath();
     startedSearchRef.current = false;
     clearSearchReturnPath();
+    resetSearchInputs();
 
-    if (pathname === "/search" && returnHref) {
+    if (returnHref) {
       router.replace(returnHref);
       return;
     }
 
-    router.replace("/search");
+    if (pathname === "/search") {
+      router.replace("/");
+    }
   }
 
   function routeToSearch(rawQuery: string, preferPush = false) {
@@ -129,9 +140,7 @@ export default function HeaderSearch() {
 
   function clearMobileSearch() {
     if (mobileQuery.trim()) {
-      setMobileQuery("");
       handleChange("");
-      window.requestAnimationFrame(() => mobileInputRef.current?.focus());
       return;
     }
 
