@@ -948,9 +948,9 @@ function getFramingOffset(
 
 function getBaseVerticalFramingOffset(viewportWidth: number, viewportHeight: number) {
   if (viewportWidth >= 768) return 0;
-  if (viewportHeight <= 700) return 0.92;
-  if (viewportHeight <= 780) return 0.82;
-  return 0.72;
+  if (viewportHeight <= 700) return 1.36;
+  if (viewportHeight <= 780) return 1.22;
+  return 1.08;
 }
 
 function getVerticalFramingOffset(
@@ -963,7 +963,7 @@ function getVerticalFramingOffset(
   const baseOffset = getBaseVerticalFramingOffset(viewportWidth, viewportHeight);
   if (baseOffset === 0) return 0;
 
-  const minOffset = baseOffset * 0.38;
+  const minOffset = baseOffset * 0.5;
   const zoomRange = Math.max(resetCameraDistance - MIN_CAMERA_DISTANCE, 0.001);
   const zoomProgress = clamp(
     (resetCameraDistance - cameraDistance) / zoomRange,
