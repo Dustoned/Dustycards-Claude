@@ -3,9 +3,9 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Search, X, Package } from "lucide-react";
+import { Package } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
@@ -20,10 +20,6 @@ import {
   getSealedProductGridTemplateColumns,
   getSealedProductImageSizes,
 } from "@/lib/display-scale";
-import {
-  clearSearchReturnPath,
-  readSearchReturnPath,
-} from "@/lib/search-navigation";
 import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { ModalCardData } from "@/components/card-modal/types";
@@ -97,41 +93,15 @@ function setWithLruEviction<K, V>(map: Map<K, V>, key: K, value: V, max: number)
 }
 
 function SearchPageContent({ initialQuery }: { initialQuery: string }) {
-  const router = useRouter();
   const { displaySettings, isMobileViewport } = useSettings();
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
   const [openingCardId, setOpeningCardId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const resultsCacheRef = useRef(new Map<string, SearchResults>());
   const trimmedQuery = initialQuery.trim();
-
-  useEffect(() => {
-    if (window.matchMedia("(max-width: 767px)").matches) {
-      inputRef.current?.focus();
-    }
-  }, []);
-
-  function updateQuery(nextQuery: string) {
-    const trimmed = nextQuery.trim();
-    if (trimmed) {
-      router.replace(`/search?q=${encodeURIComponent(trimmed)}`);
-      return;
-    }
-
-    const returnHref = readSearchReturnPath();
-    clearSearchReturnPath();
-
-    if (returnHref) {
-      router.replace(returnHref);
-      return;
-    }
-
-    router.replace("/search");
-  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -292,35 +262,6 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
         {resultSummary && (
           <p className="text-sm font-medium text-gray-500 dark:text-white/45">{resultSummary}</p>
         )}
-      </div>
-
-      <div className="glass mb-4 rounded-3xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:p-4 lg:hidden">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={initialQuery}
-            onChange={(e) => updateQuery(e.target.value)}
-            placeholder="Search name, set code, card number..."
-            className="w-full rounded-2xl border border-black/8 bg-white py-3.5 pl-12 pr-10 text-base text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 focus:border-black/20 focus:outline-none dark:border-white/8 dark:bg-white/5 dark:text-white dark:focus:border-white/20"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {initialQuery.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                updateQuery("");
-                inputRef.current?.focus();
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
-              aria-label="Clear search"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Loading */}

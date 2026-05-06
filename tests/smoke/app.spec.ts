@@ -302,6 +302,7 @@ test.describe("DustyCards smoke", () => {
 
     await headerSearch.fill("pikachu");
     await expect(page).toHaveURL(/\/search\?q=pikachu/);
+    await expect(page.getByPlaceholder("Search name, set code, card number...")).toHaveCount(0);
     await expectNoHorizontalOverflow(page);
   });
 
