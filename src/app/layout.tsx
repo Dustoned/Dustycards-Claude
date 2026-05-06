@@ -123,7 +123,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {currentUser && <AutoPriceRefreshBoot />}
           <header
             data-app-header
-            className="sticky top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8"
+            className="fixed inset-x-0 top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8"
           >
             <nav className="page-container relative mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-3 sm:px-6 lg:px-8">
               {currentUser && <HeaderMobileMenu />}
@@ -142,7 +142,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               )}
             </nav>
           </header>
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 pt-[var(--ui-header-height)]">{children}</main>
         </SettingsProvider>
       </body>
     </html>

@@ -296,6 +296,11 @@ test.describe("DustyCards smoke", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
+    await page.evaluate(() => window.scrollTo(0, 900));
+    const headerBox = await page.locator("[data-app-header]").boundingBox();
+    expect(headerBox?.y ?? Number.NaN).toBeGreaterThanOrEqual(-1);
+    expect(headerBox?.y ?? Number.NaN).toBeLessThanOrEqual(1);
+
     await page.getByRole("button", { name: "Open search" }).click();
     const headerSearch = page.getByPlaceholder("Search cards...");
     await expect(headerSearch).toBeVisible();
