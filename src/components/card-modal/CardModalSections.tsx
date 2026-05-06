@@ -604,8 +604,6 @@ function CardModalCurrentPricingPanel({
 export function CardModalPricingSection({
   gradedPrices,
   ebaySoldGradedPrices,
-  gradingCompanyLabel,
-  gradingGradeLabel,
   selectedGradedPrice,
   selectedEbaySoldGradedPrice,
   onSelectGradedLabel,
@@ -613,8 +611,6 @@ export function CardModalPricingSection({
 }: {
   gradedPrices: Array<{ label: string; price: number }>;
   ebaySoldGradedPrices: NonNullable<ModalCardData["ebay_sold_graded_prices"]>;
-  gradingCompanyLabel: string | null;
-  gradingGradeLabel: string | null;
   selectedGradedPrice: { label: string; price: number } | null;
   selectedEbaySoldGradedPrice:
     | NonNullable<ModalCardData["ebay_sold_graded_prices"]>[number]
@@ -653,8 +649,6 @@ export function CardModalPricingSection({
     selectedEbaySoldMedianEur != null
       ? `${formatCurrency(selectedEbaySoldGradedPrice.median_price, "USD")} USD`
       : null;
-  const ownedGradeLabel =
-    gradingCompanyLabel && gradingGradeLabel ? `${gradingCompanyLabel} ${gradingGradeLabel}` : null;
   const selectedEbaySoldMetaLabel = [selectedEbaySoldSampleLabel, selectedEbaySoldOriginalLabel]
     .filter(Boolean)
     .join(" / ");
@@ -695,20 +689,7 @@ export function CardModalPricingSection({
                 </p>
               )}
 
-              {effectiveGradedSource === "ebay" && (
-                <MetaPill>{selectedEbaySoldDisplayCurrency}</MetaPill>
-              )}
             </div>
-
-            <p className="mt-1.5 text-sm text-white/42">
-              {effectiveGradedSource === "ebay"
-                ? ownedGradeLabel
-                  ? `Completed sales median. Owned grade: ${ownedGradeLabel}`
-                  : "Completed sales median for the selected grade."
-                : ownedGradeLabel
-                  ? `Owned grade: ${ownedGradeLabel}`
-                  : "Select a benchmark grade for comparison."}
-            </p>
           </div>
 
           {effectiveGradedSource === "cardmarket" ? (
@@ -854,17 +835,14 @@ export function CardModalHistorySection({
 
   return (
     <SectionShell className="overflow-hidden">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
             Price history
           </p>
-          <h3 className="mt-1 text-xl font-semibold text-white">History charts</h3>
-        </div>
 
-        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
           {showCardMarketSeriesPicker && (
-            <div className="card-modal-series-picker card-modal-history-series-picker flex flex-wrap justify-end gap-2">
+            <div className="card-modal-series-picker card-modal-history-series-picker flex flex-wrap justify-end gap-1.5">
               {availableCardMarketHistorySeries.map((series) => (
                 <button
                   key={series.key}
@@ -881,29 +859,29 @@ export function CardModalHistorySection({
               ))}
             </div>
           )}
-
-          {showTcgPlayerSource && (
-            <div className="card-modal-source-toggle inline-flex overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-1">
-              {[
-                { key: "cardmarket" as const, label: "CardMarket" },
-                { key: "tcgplayer" as const, label: "TCGPlayer" },
-              ].map((source) => (
-                <button
-                  key={source.key}
-                  type="button"
-                  onClick={() => onSelectMarketSource(source.key)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    activeMarketSource === source.key
-                      ? "bg-white text-gray-950"
-                      : "text-white/48 hover:text-white/78"
-                  }`}
-                >
-                  {source.label}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
+
+        {showTcgPlayerSource && (
+          <div className="card-modal-source-toggle inline-flex w-full overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-1 sm:w-auto sm:self-end">
+            {[
+              { key: "cardmarket" as const, label: "CardMarket" },
+              { key: "tcgplayer" as const, label: "TCGPlayer" },
+            ].map((source) => (
+              <button
+                key={source.key}
+                type="button"
+                onClick={() => onSelectMarketSource(source.key)}
+                className={`min-w-0 flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none ${
+                  activeMarketSource === source.key
+                    ? "bg-white text-gray-950"
+                    : "text-white/48 hover:text-white/78"
+                }`}
+              >
+                {source.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="min-h-0 overflow-hidden">

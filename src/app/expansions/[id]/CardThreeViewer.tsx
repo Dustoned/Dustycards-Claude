@@ -948,9 +948,9 @@ function getFramingOffset(
 
 function getBaseVerticalFramingOffset(viewportWidth: number, viewportHeight: number) {
   if (viewportWidth >= 768) return 0;
-  if (viewportHeight <= 700) return 0.68;
-  if (viewportHeight <= 780) return 0.58;
-  return 0.48;
+  if (viewportHeight <= 700) return 0.92;
+  if (viewportHeight <= 780) return 0.82;
+  return 0.72;
 }
 
 function getVerticalFramingOffset(

@@ -389,8 +389,6 @@ export default function CardModal({ card, onClose }: Props) {
                   <CardModalPricingSection
                     gradedPrices={gradedPrices}
                     ebaySoldGradedPrices={ebaySoldGradedPrices}
-                    gradingCompanyLabel={gradingCompanyLabel}
-                    gradingGradeLabel={gradingGradeLabel}
                     selectedGradedPrice={selectedGradedPrice}
                     selectedEbaySoldGradedPrice={selectedEbaySoldGradedPrice}
                     onSelectGradedLabel={setSelectedGradedLabel}
