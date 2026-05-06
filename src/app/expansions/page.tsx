@@ -1,8 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowUpRight, Layers3, LibraryBig, Shapes } from "lucide-react";
+import { Layers3, LibraryBig, Shapes } from "lucide-react";
 import {
-  HeaderAction,
   HeaderStatCard,
   PageHeroHeader,
   SectionHeader,
@@ -217,22 +216,9 @@ export default async function ExpansionsPage() {
       <PageHeroHeader
         eyebrow="Dusty Cards Collection"
         title="Expansions"
-        description={`${withCards.length} sets across ${eraCount} eras, with ${trackedCardCount.toLocaleString()} tracked cards.`}
         gridClassName="xl:grid-cols-[minmax(20rem,0.72fr)_minmax(34rem,1.28fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.66fr)_minmax(48rem,1.34fr)]"
         sideClassName="xl:space-y-0"
         className="mb-6 sm:mb-8"
-        actions={
-          <HeaderAction>
-            <Link
-              href="/settings"
-              prefetch={false}
-              className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/75 px-3 py-1.5 font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/58 dark:hover:border-white/18 dark:hover:text-white"
-            >
-              Refresh tools in Settings
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
-          </HeaderAction>
-        }
         accessory={
           <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(28rem,1.35fr)_minmax(12rem,0.65fr)] xl:items-stretch 2xl:grid-cols-[minmax(38rem,1.45fr)_minmax(18rem,0.72fr)]">
             <div className="min-w-0 [&>section]:h-full">
