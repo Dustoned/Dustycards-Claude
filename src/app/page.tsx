@@ -222,12 +222,27 @@ export default async function HomePage({
           }
           accessory={
             <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(30rem,1.45fr)_minmax(20rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(42rem,1.55fr)_minmax(28rem,0.9fr)]">
-              <CollectionValueSummaryCard
-                currentValue={data.overview.currentValue}
-                pnl={data.overview.pnl}
-                rangeLabel={collectionValueRange}
-                className="sm:hidden"
-              />
+              <div className="sm:hidden">
+                {showCollectionChart ? (
+                  <PriceHistoryPanel
+                    compact
+                    title="Collection Value"
+                    currency="EUR"
+                    points={data.overview.chart}
+                    currentValue={data.overview.currentValue}
+                    subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
+                      data.overview.pnl
+                    )}`}
+                    emptyText="Add cards or sealed to start tracking your value"
+                  />
+                ) : (
+                  <CollectionValueSummaryCard
+                    currentValue={data.overview.currentValue}
+                    pnl={data.overview.pnl}
+                    rangeLabel={collectionValueRange}
+                  />
+                )}
+              </div>
               <div className="hidden min-w-0 sm:block [&>section]:h-full">
                 {showCollectionChart ? (
                   <PriceHistoryPanel
