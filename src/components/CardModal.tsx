@@ -81,7 +81,7 @@ export default function CardModal({ card, onClose }: Props) {
   useBodyScrollLock();
 
   const [modalCard, setModalCard] = useState(card);
-  const { displaySettings } = useSettings();
+  const { displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,6 +124,7 @@ export default function CardModal({ card, onClose }: Props) {
     ? GRADED_SLAB_ASPECT_CLASS
     : RAW_CARD_ASPECT_CLASS;
   const isBusy = refreshing || syncingHistory;
+  const canManageCardPrices = currentUserRole === "admin";
   const availableCardMarketHistorySeries = CARD_MARKET_HISTORY_SERIES.filter((series) =>
     hasCardMarketHistorySeries(modalCard.price_history, series.key)
   );
@@ -357,6 +358,7 @@ export default function CardModal({ card, onClose }: Props) {
                     refreshing={refreshing}
                     syncingHistory={syncingHistory}
                     refreshError={refreshError}
+                    canManageCardPrices={canManageCardPrices}
                     onRefresh={() => void runCardAction("refresh")}
                     onSyncHistory={() => void runCardAction("sync-history")}
                     onClose={onClose}
@@ -367,8 +369,14 @@ export default function CardModal({ card, onClose }: Props) {
                     activeMarketSource={effectiveMarketDataSource}
                     cardMarketHistory={cardMarketHistory}
                     activeCardMarketCurrentValue={activeCardMarketCurrentValue}
+                    ignoredCardMarketCurrentValue={saneActiveCardMarketCurrent.ignoredValue}
                     showTcgPlayerSource={hasTcgPlayerData}
+                    card={modalCard}
+                    availableCardMarketHistorySeries={availableCardMarketHistorySeries}
+                    activeCardMarketHistorySeries={activeCardMarketHistorySeries}
+                    activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
                     onSelectMarketSource={setMarketDataSource}
+                    onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
                     onSelectHistoryChartMode={setHistoryChartMode}
                     tcgPlayerHistory={tcgPlayerHistory}
                     tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
@@ -379,20 +387,12 @@ export default function CardModal({ card, onClose }: Props) {
                   />
 
                   <CardModalPricingSection
-                    card={modalCard}
-                    activePricingSource={effectiveMarketDataSource}
-                    availableCardMarketHistorySeries={availableCardMarketHistorySeries}
-                    activeCardMarketHistorySeries={activeCardMarketHistorySeries}
-                    activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
-                    activeCardMarketCurrentValue={activeCardMarketCurrentValue}
-                    ignoredCardMarketCurrentValue={saneActiveCardMarketCurrent.ignoredValue}
                     gradedPrices={gradedPrices}
                     ebaySoldGradedPrices={ebaySoldGradedPrices}
                     gradingCompanyLabel={gradingCompanyLabel}
                     gradingGradeLabel={gradingGradeLabel}
                     selectedGradedPrice={selectedGradedPrice}
                     selectedEbaySoldGradedPrice={selectedEbaySoldGradedPrice}
-                    onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
                     onSelectGradedLabel={setSelectedGradedLabel}
                     onSelectEbaySoldGradedLabel={setSelectedEbaySoldGradedLabel}
                   />

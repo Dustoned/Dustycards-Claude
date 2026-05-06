@@ -114,7 +114,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
       </head>
       <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
-        <SettingsProvider initialSettings={initialSettings} syncToAccount={Boolean(currentUser)}>
+        <SettingsProvider
+          initialSettings={initialSettings}
+          syncToAccount={Boolean(currentUser)}
+          currentUserRole={currentUser?.role ?? null}
+        >
           <AppVersionWatcher />
           {currentUser && <AutoPriceRefreshBoot />}
           <header

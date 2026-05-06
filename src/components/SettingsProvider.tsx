@@ -41,6 +41,7 @@ const SettingsContext = createContext<{
   displaySettings: UserSettings;
   isLoaded: boolean;
   isMobileViewport: boolean;
+  currentUserRole: "admin" | "user" | null;
   set: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void;
   setDisplay: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void;
 }>({
@@ -48,6 +49,7 @@ const SettingsContext = createContext<{
   displaySettings: DEFAULT_SETTINGS,
   isLoaded: false,
   isMobileViewport: false,
+  currentUserRole: null,
   set: () => {},
   setDisplay: () => {},
 });
@@ -133,10 +135,12 @@ export default function SettingsProvider({
   children,
   initialSettings,
   syncToAccount = false,
+  currentUserRole = null,
 }: {
   children: React.ReactNode;
   initialSettings?: UserSettings | null;
   syncToAccount?: boolean;
+  currentUserRole?: "admin" | "user" | null;
 }) {
   const [settings, setSettings] = useState<UserSettings>(initialSettings ?? DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(Boolean(initialSettings));
@@ -232,7 +236,15 @@ export default function SettingsProvider({
 
   return (
     <SettingsContext.Provider
-      value={{ settings, displaySettings, isLoaded, isMobileViewport, set, setDisplay }}
+      value={{
+        settings,
+        displaySettings,
+        isLoaded,
+        isMobileViewport,
+        currentUserRole,
+        set,
+        setDisplay,
+      }}
     >
       {children}
     </SettingsContext.Provider>
