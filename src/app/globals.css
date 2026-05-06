@@ -4,13 +4,13 @@
 
 :root {
   --font-sans: var(--font-geist-sans);
-  --ui-header-height: 3.5rem;
-  --ui-header-gap: 0.75rem;
-  --ui-header-search-height: 2.5rem;
+  --ui-header-height: 3.75rem;
+  --ui-header-gap: 0.875rem;
+  --ui-header-search-height: 2.7rem;
   --ui-header-search-max: 42rem;
   --ui-header-button-size: 0.75rem;
-  --ui-brand-size: 1rem;
-  --ui-nav-link-size: 0.875rem;
+  --ui-brand-size: 1.1rem;
+  --ui-nav-link-size: 0.9375rem;
   --ui-page-y: 2.5rem;
   --ui-panel-padding: 1.5rem;
   --ui-panel-radius: 1rem;
@@ -82,10 +82,10 @@
 
 @media (max-width: 640px) {
   :root {
-    --ui-header-height: 3.125rem;
-    --ui-header-gap: 0.5rem;
-    --ui-header-search-height: 2.1rem;
-    --ui-brand-size: 0.9375rem;
+    --ui-header-height: 3.4rem;
+    --ui-header-gap: 0.55rem;
+    --ui-header-search-height: 2.35rem;
+    --ui-brand-size: 1.05rem;
     --ui-page-y: 1.35rem;
     --ui-panel-padding: 1rem;
     --ui-panel-radius: 0.875rem;
@@ -121,13 +121,13 @@
 }
 
 html.ui-scale-small {
-  --ui-header-height: 3.25rem;
-  --ui-header-gap: 0.625rem;
-  --ui-header-search-height: 2.25rem;
+  --ui-header-height: 3.45rem;
+  --ui-header-gap: 0.7rem;
+  --ui-header-search-height: 2.45rem;
   --ui-header-search-max: 36rem;
   --ui-header-button-size: 0.6875rem;
-  --ui-brand-size: 0.9375rem;
-  --ui-nav-link-size: 0.8125rem;
+  --ui-brand-size: 1rem;
+  --ui-nav-link-size: 0.875rem;
   --ui-page-y: 2rem;
   --ui-panel-padding: 1.125rem;
   --ui-panel-radius: 0.875rem;
@@ -197,10 +197,10 @@ html.ui-scale-small {
 
 @media (max-width: 640px) {
   html.ui-scale-small {
-    --ui-header-height: 3rem;
-    --ui-header-gap: 0.5rem;
-    --ui-header-search-height: 2.125rem;
-    --ui-brand-size: 0.9375rem;
+    --ui-header-height: 3.35rem;
+    --ui-header-gap: 0.55rem;
+    --ui-header-search-height: 2.35rem;
+    --ui-brand-size: 1.05rem;
     --ui-page-y: 0.95rem;
     --ui-panel-padding: 0.75rem;
     --ui-panel-radius: 0.75rem;
@@ -341,10 +341,10 @@ html.ui-scale-large {
 
 @media (max-width: 640px) {
   html.ui-scale-large {
-    --ui-header-height: 3.35rem;
-    --ui-header-gap: 0.75rem;
-    --ui-header-search-height: 2.35rem;
-    --ui-brand-size: 1rem;
+    --ui-header-height: 3.65rem;
+    --ui-header-gap: 0.85rem;
+    --ui-header-search-height: 2.55rem;
+    --ui-brand-size: 1.125rem;
     --ui-page-y: 1.5rem;
     --ui-panel-padding: 1rem;
     --ui-panel-radius: 0.95rem;

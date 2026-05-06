@@ -292,6 +292,19 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("mobile header search opens in the top bar", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "Open search" }).click();
+    const headerSearch = page.getByPlaceholder("Search cards...");
+    await expect(headerSearch).toBeVisible();
+
+    await headerSearch.fill("pikachu");
+    await expect(page).toHaveURL(/\/search\?q=pikachu/);
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("account settings load in a fresh browser context", async ({ page, browser }) => {
     await applyDisplaySettings(page, {
       cardSize: "large",
