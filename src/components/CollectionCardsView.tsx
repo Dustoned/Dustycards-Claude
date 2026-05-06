@@ -1302,7 +1302,7 @@ export default function CollectionCardsView({
                       } ${activeSelectionMode && !selectableInMode ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
                     >
                       <div className="flex gap-3">
-                        <div className="relative h-24 w-[4.25rem] shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 dark:border-white/8 dark:bg-white/5">
+                        <div className="relative h-24 w-[4.25rem] shrink-0 bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]">
                           {item.image_url ? (
                             <Image
                               src={getCachedImageUrl(item.image_url) ?? item.image_url}
@@ -1500,7 +1500,7 @@ export default function CollectionCardsView({
                         >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-lg border border-black/8 bg-black/5 dark:border-white/8 dark:bg-white/5">
+                              <div className="relative h-16 w-12 shrink-0 bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.16)]">
                                 {item.image_url ? (
                                   <Image
                                     src={getCachedImageUrl(item.image_url) ?? item.image_url}
@@ -1769,10 +1769,16 @@ export default function CollectionCardsView({
                       className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
                     >
                       <div
-                        className={`relative ${previewAspectClass} w-full overflow-hidden rounded-xl border transition-all duration-200 ${
-                          isSelected
-                            ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
-                            : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
+                        className={`relative ${previewAspectClass} w-full transition-all duration-200 ${
+                          isGradedCard
+                            ? `overflow-hidden rounded-xl border ${
+                                isSelected
+                                  ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
+                                  : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
+                              }`
+                            : isSelected
+                              ? "bg-transparent drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
+                              : "bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
                         }`}
                       >
                         {isGradedCard && gradingCompanyLabel && gradingGradeLabel ? (

@@ -11,6 +11,8 @@ const SESSION_COOKIE_NAME = "dustycards-session";
 const BASE_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`;
 const SMOKE_USER_ID = "playwright-smoke-admin";
 const SMOKE_USER_EMAIL = "playwright-smoke-admin@example.test";
+const SMOKE_SESSION_ID = "playwright-smoke-session";
+const SMOKE_SESSION_TOKEN = "playwright-smoke-session-token";
 let activeSessionIds: string[] = [];
 
 const baseSettings = {
@@ -79,12 +81,17 @@ function createAuthenticatedSmokeSession(): { id: string; token: string } {
     throw new Error("Could not create smoke test user");
   }
 
-  const token = crypto.randomBytes(32).toString("base64url");
-  const id = `playwright-smoke-session-${crypto.randomBytes(12).toString("hex")}`;
+  const token = SMOKE_SESSION_TOKEN;
+  const id = SMOKE_SESSION_ID;
 
   db.prepare(`
     INSERT INTO "Session" (id, user_id, token_hash, expires_at, created_at)
     VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      user_id = excluded.user_id,
+      token_hash = excluded.token_hash,
+      expires_at = excluded.expires_at,
+      created_at = excluded.created_at
   `).run(id, user.id, hashToken(token), isoDate(60 * 60 * 1000), now);
   db.close();
 
@@ -92,10 +99,11 @@ function createAuthenticatedSmokeSession(): { id: string; token: string } {
 }
 
 function cleanupSmokeSessions(sessionIds: string[]) {
-  if (sessionIds.length === 0) return;
+  const uniqueSessionIds = [...new Set(sessionIds)];
+  if (uniqueSessionIds.length === 0) return;
   const db = openDb();
-  const placeholders = sessionIds.map(() => "?").join(",");
-  db.prepare(`DELETE FROM "Session" WHERE id IN (${placeholders})`).run(...sessionIds);
+  const placeholders = uniqueSessionIds.map(() => "?").join(",");
+  db.prepare(`DELETE FROM "Session" WHERE id IN (${placeholders})`).run(...uniqueSessionIds);
   db.close();
 }
 
@@ -137,9 +145,28 @@ async function applyDisplaySettings(
     { key: SETTINGS_STORAGE_KEY, raw: rawSettings }
   );
 
-  await page.request.put("/api/account/settings", {
-    data: { settings: nextSettings },
-  });
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await page.request.put("/api/account/settings", {
+        data: { settings: nextSettings },
+      });
+
+      if (response.ok()) {
+        return;
+      }
+
+      lastError = new Error(
+        `Settings update failed with ${response.status()}: ${await response.text()}`
+      );
+    } catch (error) {
+      lastError = error;
+    }
+
+    await page.waitForTimeout(250);
+  }
+
+  throw lastError;
 }
 
 async function expectNoHorizontalOverflow(page: Page) {

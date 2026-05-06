@@ -216,7 +216,7 @@ export default function IllustratorGridClient({
                 className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
               >
                 <div
-                  className={`relative overflow-hidden rounded-2xl border border-black/6 bg-black/[0.03] shadow-md shadow-black/10 dark:border-white/8 dark:bg-white/[0.03] ${tileConfig.imageWrapClass}`}
+                  className={`relative bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] ${tileConfig.imageWrapClass}`}
                 >
                   {illustrator.topCard?.image_url ? (
                     <Image

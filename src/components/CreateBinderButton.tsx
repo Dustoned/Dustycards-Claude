@@ -20,6 +20,7 @@ interface EpisodeOption {
 export default function CreateBinderButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
   const [query, setQuery] = useState("");
   const [accentColor, setAccentColor] = useState<string | null>(null);
   const [iconName, setIconName] = useState<(typeof COLLECTION_BINDER_ICONS)[number]>(
@@ -117,6 +118,12 @@ export default function CreateBinderButton() {
     }
   }
 
+  function openModal() {
+    setError(null);
+    setShowCustomize(false);
+    setOpen(true);
+  }
+
   const modalInputClasses =
     "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]";
   const binderModal =
@@ -143,7 +150,7 @@ export default function CreateBinderButton() {
                   <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
                     New collection binder
                   </h2>
-                  <p className="mt-1 text-sm text-white/50 max-[640px]:line-clamp-2 max-[640px]:text-[12px]">
+                  <p className="mt-1 text-sm text-white/50 max-[640px]:hidden">
                     Type a set name for an automatic set binder, or any other name for a custom binder.
                   </p>
                 </div>
@@ -158,11 +165,11 @@ export default function CreateBinderButton() {
               </div>
 
               <form
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-5 max-[640px]:px-4 max-[640px]:py-3"
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-5 max-[640px]:px-4 max-[640px]:py-2.5"
                 onSubmit={handleSubmit}
               >
-                <div className="grid gap-4 max-[640px]:gap-3 sm:grid-cols-2">
-                  <label className="space-y-1.5 text-sm max-[640px]:col-span-2 max-[640px]:text-[12px] sm:col-span-2">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <label className="col-span-2 space-y-1.5 text-sm max-[640px]:text-[12px]">
                     <span className="text-white/60">Set name or binder name</span>
                     <input
                       value={query}
@@ -179,7 +186,7 @@ export default function CreateBinderButton() {
                     </p>
                   </label>
 
-                  <label className="space-y-1.5 text-sm max-[640px]:text-[12px]">
+                  <label className="col-span-2 space-y-1.5 text-sm max-[640px]:text-[12px]">
                     <span className="text-white/60">Binder spend</span>
                     <input
                       type="number"
@@ -193,83 +200,96 @@ export default function CreateBinderButton() {
                     />
                   </label>
 
-                  {!matchedEpisode && (
-                    <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
-                      <span className="text-white/60">Icon</span>
-                      <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
-                        {COLLECTION_BINDER_ICONS.map((option) => {
-                          const active = option === iconName;
-                          return (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => setIconName(option)}
-                              className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors max-[640px]:h-9 max-[640px]:w-9 max-[640px]:rounded-xl ${
-                                active
-                                  ? "border-white bg-white text-gray-900"
-                                  : "border-white/10 bg-white/8 text-white hover:border-white/18 hover:bg-white/10"
-                              }`}
-                            >
-                              <CollectionBinderIcon iconName={option} className="h-5 w-5 max-[640px]:h-4 max-[640px]:w-4" />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {!matchedEpisode && (
-                    <div className="space-y-1.5 text-sm max-[640px]:text-[12px] sm:col-span-2">
-                      <span className="text-white/60">Accent color</span>
-                      <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setAccentColor(null)}
-                          className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border-2 bg-white/[0.06] transition-all max-[640px]:h-8 max-[640px]:w-8 ${
-                            accentColor == null
-                              ? "scale-110 border-white"
-                              : "border-white/14 hover:border-white/26"
-                          }`}
-                          aria-label="No accent color"
-                          title="No accent color"
-                        >
-                          <span className="absolute inset-[7px] rounded-full border border-white/25" />
-                          <span className="absolute h-px w-5 rotate-45 rounded-full bg-white/70" />
-                        </button>
-                        {COLLECTION_BINDER_COLORS.map((option) => {
-                          const active = option === accentColor;
-                          return (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => setAccentColor(option)}
-                              className={`h-9 w-9 rounded-full border-2 transition-transform max-[640px]:h-8 max-[640px]:w-8 ${
-                                active ? "scale-110 border-white" : "border-transparent"
-                              }`}
-                              style={{ backgroundColor: option }}
-                              aria-label={`Choose ${option}`}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
-                <label className="mt-4 block space-y-1.5 text-sm max-[640px]:mt-3 max-[640px]:text-[12px]">
-                  <span className="text-white/60">Notes</span>
-                  <textarea
-                    rows={2}
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    className={`${modalInputClasses} resize-none`}
-                    placeholder="Optional notes"
-                  />
-                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomize((value) => !value)}
+                  className="mt-3 inline-flex w-fit items-center rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/[0.1] hover:text-white max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[11px]"
+                >
+                  {showCustomize ? "Hide customization" : "Customize binder"}
+                </button>
+
+                {showCustomize && (
+                  <div className="mt-3 space-y-3">
+                    {!matchedEpisode && (
+                      <>
+                        <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
+                          <span className="text-white/60">Icon</span>
+                          <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
+                            {COLLECTION_BINDER_ICONS.map((option) => {
+                              const active = option === iconName;
+                              return (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => setIconName(option)}
+                                  className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors max-[640px]:h-9 max-[640px]:w-9 max-[640px]:rounded-xl ${
+                                    active
+                                      ? "border-white bg-white text-gray-900"
+                                      : "border-white/10 bg-white/8 text-white hover:border-white/18 hover:bg-white/10"
+                                  }`}
+                                >
+                                  <CollectionBinderIcon iconName={option} className="h-5 w-5 max-[640px]:h-4 max-[640px]:w-4" />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
+                          <span className="text-white/60">Accent color</span>
+                          <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setAccentColor(null)}
+                              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border-2 bg-white/[0.06] transition-all max-[640px]:h-8 max-[640px]:w-8 ${
+                                accentColor == null
+                                  ? "scale-110 border-white"
+                                  : "border-white/14 hover:border-white/26"
+                              }`}
+                              aria-label="No accent color"
+                              title="No accent color"
+                            >
+                              <span className="absolute inset-[7px] rounded-full border border-white/25" />
+                              <span className="absolute h-px w-5 rotate-45 rounded-full bg-white/70" />
+                            </button>
+                            {COLLECTION_BINDER_COLORS.map((option) => {
+                              const active = option === accentColor;
+                              return (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  onClick={() => setAccentColor(option)}
+                                  className={`h-9 w-9 rounded-full border-2 transition-transform max-[640px]:h-8 max-[640px]:w-8 ${
+                                    active ? "scale-110 border-white" : "border-transparent"
+                                  }`}
+                                  style={{ backgroundColor: option }}
+                                  aria-label={`Choose ${option}`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    <label className="block space-y-1.5 text-sm max-[640px]:text-[12px]">
+                      <span className="text-white/60">Notes</span>
+                      <textarea
+                        rows={2}
+                        value={notes}
+                        onChange={(event) => setNotes(event.target.value)}
+                        className={`${modalInputClasses} resize-none`}
+                        placeholder="Optional notes"
+                      />
+                    </label>
+                  </div>
+                )}
 
                 {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
 
-                <div className="sticky bottom-0 -mx-6 -mb-5 mt-5 flex gap-3 border-t border-white/10 bg-[#0d0d10]/95 px-6 py-4 backdrop-blur-xl max-[640px]:-mx-4 max-[640px]:-mb-3 max-[640px]:mt-3 max-[640px]:gap-2 max-[640px]:px-4 max-[640px]:py-3">
+                <div className="sticky bottom-0 -mx-6 -mb-5 mt-5 flex gap-3 border-t border-white/10 bg-[#0d0d10]/95 px-6 py-4 backdrop-blur-xl max-[640px]:-mx-4 max-[640px]:-mb-2.5 max-[640px]:mt-3 max-[640px]:gap-2 max-[640px]:px-4 max-[640px]:py-2.5">
                   <button
                     type="submit"
                     disabled={saving}
@@ -296,7 +316,7 @@ export default function CreateBinderButton() {
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openModal}
         className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white max-[640px]:gap-1.5 max-[640px]:px-3 max-[640px]:py-1.5 max-[640px]:text-[12px] dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
       >
         <Plus className="h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5" />

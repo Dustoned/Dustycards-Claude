@@ -376,7 +376,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                     className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
                     aria-busy={openingCardId === card.id}
                   >
-                    <div className="relative w-full aspect-[63/88] rounded-xl overflow-hidden shadow-md shadow-black/20 group-hover:shadow-xl group-hover:shadow-black/30 group-hover:scale-[1.03] transition-all duration-200">
+                    <div className="relative aspect-[63/88] w-full bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] transition-all duration-200 group-hover:scale-[1.03] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]">
                       {card.image_url ? (
                         <Image
                           src={getCachedImageUrl(card.image_url) ?? card.image_url}

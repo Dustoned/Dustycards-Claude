@@ -206,6 +206,11 @@ export function CardModalPreview({
   gradingGradeLabel: string | null;
   onOpenThreeD: () => void;
 }) {
+  const previewButtonClass =
+    showGradedPreview && gradingCompanyLabel && gradingGradeLabel
+      ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.01] max-[640px]:rounded-2xl`
+      : `group relative ${previewAspectClass} w-full bg-transparent p-0 drop-shadow-[0_18px_38px_rgba(0,0,0,0.38)] transition-transform hover:scale-[1.01]`;
+
   return (
     <aside
       className="mx-auto flex h-full max-w-[min(13rem,62vw)] flex-col gap-3 sm:max-w-full sm:gap-4 max-[640px]:max-w-[min(12rem,58vw)] max-[640px]:gap-1.5 lg:mx-0"
@@ -228,7 +233,7 @@ export function CardModalPreview({
             event.stopPropagation();
             onOpenThreeD();
           }}
-          className={`group relative ${previewAspectClass} w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.01] max-[640px]:rounded-2xl`}
+          className={previewButtonClass}
           aria-label={`Open ${card.name} in 3D`}
         >
           {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (

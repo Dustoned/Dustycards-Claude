@@ -488,7 +488,7 @@ const MoverTile = memo(function MoverTile({
       ) : null}
 
       <div className="flex items-start gap-3">
-        <div className="relative h-24 w-[4.4rem] shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 dark:border-white/10 dark:bg-white/[0.05]">
+        <div className="relative h-24 w-[4.4rem] shrink-0 bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]">
           {item.imageUrl ? (
             <Image
               src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
@@ -661,7 +661,7 @@ function MoverSpotlightCard({
 
       {item ? (
         <div className="mt-3 flex items-start gap-3">
-          <div className="relative h-[4.5rem] w-14 shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 dark:border-white/10 dark:bg-white/[0.05]">
+          <div className="relative h-[4.5rem] w-14 shrink-0 bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.16)]">
             {item.imageUrl ? (
               <Image
                 src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}

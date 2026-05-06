@@ -1252,10 +1252,10 @@ export default function ExpansionView({
                 }}
               >
                 <div
-                  className={`relative w-full aspect-[63/88] overflow-hidden rounded-xl border transition-all duration-200 ${
+                  className={`relative aspect-[63/88] w-full bg-transparent transition-all duration-200 ${
                     gridSelected
-                      ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
-                      : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
+                      ? "drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
+                      : "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
                   }`}
                 >
                   {card.image_url ? (
