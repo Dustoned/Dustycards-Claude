@@ -937,6 +937,7 @@ function getVerticalFramingOffset(
 export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, onClose }: Props) {
   const { displaySettings, isMobileViewport } = useSettings();
   const card3dSize = displaySettings.card3dSize;
+  const [priceSource, setPriceSource] = useState<"cardmarket" | "tcgplayer">("cardmarket");
   const rootRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const detailsRef = useRef<HTMLDivElement | null>(null);
@@ -1664,11 +1665,17 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     { label: "TCP Low", value: card.price?.tcp_low, currency: "USD" as const },
   ].filter(({ value }) => value != null);
   const gradedPriceRows = card.graded_prices ?? [];
-  const compactMobileDetails = isMobileViewport && card3dSize === "small";
-  const compactCardMarketPriceRows = compactMobileDetails
-    ? cardMarketPriceRows.slice(0, 1)
-    : cardMarketPriceRows;
-  const compactTcgPriceRows = compactMobileDetails ? tcgPriceRows.slice(0, 1) : tcgPriceRows;
+  const compactMobileDetails = isMobileViewport;
+  const showTcgSource = tcgPriceRows.length > 0;
+  const activePriceSource = showTcgSource ? priceSource : "cardmarket";
+  const activePriceRows = activePriceSource === "tcgplayer" ? tcgPriceRows : cardMarketPriceRows;
+  const [primaryPriceRow, ...secondaryPriceRows] = activePriceRows;
+  const compactSecondaryPriceRows = compactMobileDetails
+    ? secondaryPriceRows.slice(0, 2)
+    : secondaryPriceRows;
+  const compactGradedPriceRows = compactMobileDetails
+    ? gradedPriceRows.slice(0, 1)
+    : gradedPriceRows;
 
   function isPersistentUiTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Node)) return false;
@@ -1773,7 +1780,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
           aria-label={`3D view of ${card.name}`}
         />
 
-        <div className="pointer-events-none absolute inset-0 z-20 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-20 sm:px-6 sm:py-6">
+        <div className="pointer-events-none absolute inset-0 z-20 px-3 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-16 sm:px-6 sm:py-6">
           <div className="relative mx-auto h-full max-w-[84rem] lg:max-w-[88rem]">
             <div className="pointer-events-none relative flex h-full flex-col justify-end md:grid md:grid-cols-[minmax(19rem,22rem)_minmax(0,1fr)] md:items-center md:gap-5 lg:grid-cols-[minmax(20rem,23rem)_minmax(0,1fr)] lg:gap-6">
               <div className="pointer-events-none mt-4 md:mt-0 md:flex md:items-center">
@@ -1782,7 +1789,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                   data-three-details="true"
                   className={`pointer-events-auto mx-auto max-w-lg overscroll-contain rounded-2xl border border-white/14 bg-transparent backdrop-blur-xl md:mx-0 md:max-h-[calc(100vh-3rem)] md:w-full md:max-w-none md:overflow-y-auto md:rounded-3xl ${
                     compactMobileDetails
-                      ? "max-h-none overflow-visible px-3 py-2.5"
+                      ? "max-h-none w-full max-w-[min(23rem,calc(100vw-1.5rem))] overflow-visible px-3 py-2.5"
                       : "max-h-[31dvh] overflow-y-auto px-4 py-3 sm:max-h-[36dvh] sm:px-5 sm:py-4"
                   }`}
                   style={{
@@ -1793,90 +1800,153 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                     overscrollBehavior: "contain",
                   }}
                 >
-                  <p
-                    className={`font-semibold leading-tight text-white ${
-                      compactMobileDetails ? "text-lg" : "text-xl sm:text-2xl"
-                    }`}
-                  >
-                    {card.name}
-                  </p>
+                  <div className="flex min-w-0 items-start justify-between gap-2.5">
+                    <div className="min-w-0">
+                      <p
+                        className={`break-words font-semibold leading-tight text-white ${
+                          compactMobileDetails ? "text-[17px]" : "text-xl sm:text-2xl"
+                        }`}
+                      >
+                        {card.name}
+                      </p>
 
-                  <div
-                    className={`flex flex-wrap gap-x-3 gap-y-1 text-white/55 ${
-                      compactMobileDetails ? "mt-1 text-xs" : "mt-2 text-sm"
-                    }`}
-                  >
-                    {card.card_number && <span>#{card.card_number}</span>}
-                    {card.supertype && <span>{card.supertype}</span>}
-                    {!compactMobileDetails && card.subtypes && <span>{card.subtypes}</span>}
+                      <div
+                        className={`flex flex-wrap gap-x-2.5 gap-y-0.5 text-white/55 ${
+                          compactMobileDetails ? "mt-1 text-[11px]" : "mt-2 text-sm"
+                        }`}
+                      >
+                        {card.card_number && <span>#{card.card_number}</span>}
+                        {card.supertype && <span>{card.supertype}</span>}
+                        {!compactMobileDetails && card.subtypes && <span>{card.subtypes}</span>}
+                      </div>
+                    </div>
+
+                    {card.rarity && (
+                      <span
+                        className={`${compactMobileDetails ? "shrink-0 px-2 py-0.5 text-[10px]" : "mt-1 px-2.5 py-1 text-xs"} inline-flex rounded-full font-semibold ${rarityBadgeDark(
+                          card.rarity
+                        )}`}
+                      >
+                        {normalizeRarityLabel(card.rarity) ?? card.rarity}
+                      </span>
+                    )}
                   </div>
 
-                  {card.rarity && (
-                    <span
-                      className={`${compactMobileDetails ? "mt-2 px-2 py-0.5 text-[11px]" : "mt-3 px-2.5 py-1 text-xs"} inline-flex rounded-full font-semibold ${rarityBadgeDark(
-                        card.rarity
-                      )}`}
-                    >
-                      {normalizeRarityLabel(card.rarity) ?? card.rarity}
-                    </span>
-                  )}
-
-                  {(compactCardMarketPriceRows.length > 0 || compactTcgPriceRows.length > 0) && (
+                  {activePriceRows.length > 0 && primaryPriceRow && (
                     <div
-                      className={`grid grid-cols-2 ${
-                        compactMobileDetails ? "mt-3 gap-1.5 text-[11px]" : "mt-4 gap-2 text-sm"
+                      className={`rounded-2xl border border-white/10 bg-white/[0.045] ${
+                        compactMobileDetails ? "mt-2.5 p-2" : "mt-4 p-3"
                       }`}
                     >
-                      <div className="flex flex-col gap-2">
-                        {compactCardMarketPriceRows.map(({ label, value, currency }) => (
-                          <div
-                            key={label}
-                            className={`flex items-center justify-between bg-white/8 ${
-                              compactMobileDetails
-                                ? "rounded-xl px-2.5 py-1.5"
-                                : "rounded-2xl px-3 py-2"
-                            }`}
-                          >
-                            <span className="text-white/52">{label}</span>
-                            <span className="font-semibold tabular-nums text-white">
-                              {formatCurrency(value, currency)}
-                            </span>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/38">
+                          Current pricing
+                        </p>
+
+                        {showTcgSource && (
+                          <div className="inline-flex overflow-hidden rounded-full border border-white/10 bg-black/18 p-0.5">
+                            {[
+                              { key: "cardmarket" as const, label: "CM" },
+                              { key: "tcgplayer" as const, label: "TCG" },
+                            ].map((source) => (
+                              <button
+                                key={source.key}
+                                type="button"
+                                onClick={() => setPriceSource(source.key)}
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                                  activePriceSource === source.key
+                                    ? "bg-white text-gray-950"
+                                    : "text-white/52 hover:text-white/82"
+                                }`}
+                              >
+                                {source.label}
+                              </button>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
 
-                      <div className="flex flex-col gap-2">
-                        {compactTcgPriceRows.map(({ label, value, currency }) => (
-                          <div
-                            key={label}
-                            className={`flex items-center justify-between bg-white/8 ${
-                              compactMobileDetails
-                                ? "rounded-xl px-2.5 py-1.5"
-                                : "rounded-2xl px-3 py-2"
+                      <div
+                        className={`grid ${
+                          compactMobileDetails
+                            ? "mt-1.5 grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-1.5"
+                            : "mt-3 gap-2"
+                        }`}
+                      >
+                        <div
+                          className={`rounded-xl border ${
+                            activePriceSource === "tcgplayer"
+                              ? "border-blue-400/16 bg-blue-400/[0.1]"
+                              : "border-emerald-400/16 bg-emerald-400/[0.1]"
+                          } ${compactMobileDetails ? "px-2.5 py-2" : "px-3 py-2.5"}`}
+                        >
+                          <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-white/42">
+                            {activePriceSource === "tcgplayer" ? "TCGPlayer" : "CardMarket"}
+                          </span>
+                          <span
+                            className={`mt-1 block truncate font-semibold tabular-nums text-white ${
+                              compactMobileDetails ? "text-base" : "text-xl"
                             }`}
                           >
-                            <span className="text-white/52">{label}</span>
-                            <span className="font-semibold tabular-nums text-white">
-                              {formatCurrency(value, currency)}
-                            </span>
-                          </div>
-                        ))}
+                            {formatCurrency(primaryPriceRow.value, primaryPriceRow.currency)}
+                          </span>
+                        </div>
+
+                        <div className="grid gap-1.5">
+                          {compactSecondaryPriceRows.length > 0 ? (
+                            compactSecondaryPriceRows.map(({ label, value, currency }) => (
+                              <div
+                                key={label}
+                                className={`flex items-center justify-between gap-2 rounded-xl bg-white/8 ${
+                                  compactMobileDetails
+                                    ? "px-2 py-1.5 text-[11px]"
+                                    : "px-3 py-2 text-sm"
+                                }`}
+                              >
+                                <span className="truncate text-white/52">{label}</span>
+                                <span className="shrink-0 font-semibold tabular-nums text-white">
+                                  {formatCurrency(value, currency)}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <div
+                              className={`rounded-xl bg-white/8 text-white/45 ${
+                                compactMobileDetails ? "px-2 py-1.5 text-[11px]" : "px-3 py-2 text-sm"
+                              }`}
+                            >
+                              No extra prices
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {!compactMobileDetails && gradedPriceRows.length > 0 && (
-                    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
-                        Graded
-                      </p>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {gradedPriceRows.map((gradedPrice) => (
+                  {compactGradedPriceRows.length > 0 && (
+                    <div
+                      className={`rounded-2xl border border-white/10 bg-white/[0.04] ${
+                        compactMobileDetails ? "mt-2 p-2" : "mt-4 p-3"
+                      }`}
+                    >
+                      {!compactMobileDetails && (
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
+                          Graded
+                        </p>
+                      )}
+                      <div className={compactMobileDetails ? "grid gap-1.5" : "grid gap-2 sm:grid-cols-2"}>
+                        {compactGradedPriceRows.map((gradedPrice) => (
                           <div
                             key={gradedPrice.label}
-                            className="flex items-center justify-between rounded-2xl bg-white/8 px-3 py-2"
+                            className={`flex items-center justify-between gap-2 bg-white/8 ${
+                              compactMobileDetails
+                                ? "rounded-xl px-2 py-1.5 text-[11px]"
+                                : "rounded-2xl px-3 py-2"
+                            }`}
                           >
-                            <span className="text-white/52">{gradedPrice.label}</span>
+                            <span className="truncate text-white/52">
+                              {compactMobileDetails ? `Graded ${gradedPrice.label}` : gradedPrice.label}
+                            </span>
                             <span className="font-semibold tabular-nums text-white">
                               {formatCurrency(gradedPrice.price, "EUR")}
                             </span>
@@ -1913,11 +1983,11 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                       rel="noopener noreferrer"
                       className={`inline-flex w-full items-center justify-center bg-blue-600 text-center font-semibold text-white transition-colors hover:bg-blue-500 ${
                         compactMobileDetails
-                          ? "mt-3 rounded-xl px-3 py-2 text-sm"
+                          ? "mt-2 rounded-xl px-3 py-2 text-[13px]"
                           : "mt-4 rounded-2xl px-4 py-3"
                       }`}
                     >
-                      Open CardMarket
+                      CardMarket
                     </a>
                   )}
 
