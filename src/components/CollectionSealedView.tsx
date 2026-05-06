@@ -19,8 +19,11 @@ import type {
 import {
   buildModalProduct,
   compareCollectionSealedItems,
-  getCollectionSealedTileMinWidth,
 } from "./collection-sealed/utils";
+import {
+  getSealedProductGridTemplateColumns,
+  getSealedProductImageSizes,
+} from "@/lib/display-scale";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
@@ -39,7 +42,7 @@ export default function CollectionSealedView({
   sectionTrailing,
 }: CollectionSealedViewProps) {
   const router = useRouter();
-  const { settings } = useSettings();
+  const { displaySettings, isMobileViewport } = useSettings();
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -58,9 +61,15 @@ export default function CollectionSealedView({
     selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id));
   const showInlineSelectionButton =
     Boolean(sectionTitle) && !selectionMode && sortedItems.length > 0;
-  const tileMinWidth = getCollectionSealedTileMinWidth(
-    settings.cardSize,
-    settings.widescreen
+  const tileImageSizes = getSealedProductImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const gridTemplateColumns = getSealedProductGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
   );
 
   function openProduct(item: CollectionSealedViewItem) {
@@ -196,8 +205,10 @@ export default function CollectionSealedView({
 
       <CollectionSealedGrid
         items={sortedItems}
-        minTileWidth={tileMinWidth}
-        cardSize={settings.cardSize}
+        imageSizes={tileImageSizes}
+        gridTemplateColumns={gridTemplateColumns}
+        cardSize={displaySettings.cardSize}
+        isMobileViewport={isMobileViewport}
         selectionMode={selectionMode}
         selectedIdSet={selectedIdSet}
         removingItems={removingItems}

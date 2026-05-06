@@ -357,7 +357,7 @@ export default function AutomationSection({
         <button
           onClick={() => set("autoPriceRefresh", !settings.autoPriceRefresh)}
           type="button"
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center overflow-hidden rounded-full transition-colors ${
             settings.autoPriceRefresh ? "bg-gray-900 dark:bg-white" : "bg-black/10 dark:bg-white/10"
           }`}
         >
@@ -373,7 +373,7 @@ export default function AutomationSection({
 
       <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
         {scraperDisabled && (
-          <div className="mb-4 rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-3 text-sm text-amber-800 dark:border-amber-400/20 dark:bg-amber-900/20 dark:text-amber-100">
+          <div className="mb-4 rounded-xl border border-amber-200/70 bg-amber-50/70 px-4 py-3 text-sm text-amber-800 [overflow-wrap:anywhere] dark:border-amber-400/20 dark:bg-amber-900/20 dark:text-amber-100">
             {scraperDisabledReason} Background and manual scraper refreshes are paused.
           </div>
         )}

@@ -14,11 +14,7 @@ import {
   ILLUSTRATOR_SORT_COOKIE_NAME,
   normalizeIllustratorSort,
 } from "@/lib/illustrators";
-import {
-  DEFAULT_SETTINGS,
-  parseCookieSettings,
-  SETTINGS_COOKIE_NAME,
-} from "@/lib/user-settings";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 import { requirePageUser } from "@/lib/page-auth";
 import IllustratorGridClient from "./IllustratorGridClient";
 
@@ -189,9 +185,8 @@ export default async function IllustratorsPage({
 }) {
   const cookieStore = await cookies();
   const { sort: rawSort } = await searchParams;
-  await requirePageUser(rawSort ? `/illustrators?sort=${encodeURIComponent(rawSort)}` : "/illustrators");
-  const settings =
-    parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
+  const user = await requirePageUser(rawSort ? `/illustrators?sort=${encodeURIComponent(rawSort)}` : "/illustrators");
+  const settings = await getServerUserSettings(user.id);
   const sort = rawSort
     ? normalizeIllustratorSort(rawSort)
     : normalizeIllustratorSort(cookieStore.get(ILLUSTRATOR_SORT_COOKIE_NAME)?.value);

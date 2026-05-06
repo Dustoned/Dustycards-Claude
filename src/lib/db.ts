@@ -17,8 +17,10 @@ type PrismaClientWithRuntimeModel = PrismaClient & {
 };
 
 const REQUIRED_RUNTIME_FIELDS = {
-  User: ["email", "password_hash", "role", "disabled"],
+  User: ["email", "password_hash", "role", "disabled", "settings_json", "email_verified_at"],
   Session: ["user_id", "token_hash", "expires_at"],
+  PasswordResetToken: ["user_id", "token_hash", "expires_at", "used_at"],
+  EmailVerificationToken: ["user_id", "token_hash", "expires_at"],
   Episode: ["source_status", "source_checked_at", "source_actual_card_count"],
   Card: [
     "price_source_status",

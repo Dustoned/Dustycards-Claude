@@ -23,7 +23,10 @@ import {
   sealedTileRootClass,
   sealedTileTitleClass,
 } from "@/components/sealed-tile-styles";
-import { getFixedTrackGridTemplate, getSealedProductTrackWidth } from "@/lib/display-scale";
+import {
+  getSealedProductGridTemplateColumns,
+  getSealedProductImageSizes,
+} from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CardSize } from "@/lib/user-settings";
@@ -48,15 +51,17 @@ function SealedProductCard({
   episode,
   cardSize = "medium",
   widescreen = false,
+  isMobileViewport = false,
 }: {
   product: NormalizedSealedProduct;
   onOpen: () => void;
   episode?: SealedEpisodeRef;
   cardSize?: CardSize;
   widescreen?: boolean;
+  isMobileViewport?: boolean;
 }) {
   const productPrice = getSealedProductPrice(product);
-  const trackWidth = getSealedProductTrackWidth(cardSize, widescreen);
+  const imageSizes = getSealedProductImageSizes(cardSize, widescreen, isMobileViewport);
 
   return (
     <div
@@ -79,7 +84,7 @@ function SealedProductCard({
             alt={product.name}
             fill
             className={`object-contain ${sealedTileImagePaddingClass(cardSize)}`}
-            sizes={trackWidth}
+            sizes={imageSizes}
             unoptimized
           />
         ) : (
@@ -90,7 +95,7 @@ function SealedProductCard({
       </div>
 
       <div className={sealedTileInfoClass(cardSize)}>
-        <div className="flex items-start justify-between gap-3">
+        <div className="grid gap-1.5 sm:flex sm:items-start sm:justify-between sm:gap-3">
           <div className="min-w-0 flex-1">
             <h2 className={sealedTileTitleClass(cardSize)}>{product.name}</h2>
             <div className={sealedTileMetaLineClass(cardSize)}>
@@ -98,7 +103,7 @@ function SealedProductCard({
             </div>
           </div>
 
-          <div className="flex min-w-0 shrink-0 items-center justify-end gap-1.5">
+          <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink-0 sm:justify-end">
             {productPrice != null ? (
               <span className={sealedTilePriceClass(cardSize)}>
                 {formatCurrency(productPrice)}
@@ -157,7 +162,7 @@ export default function SealedProductsGrid({
   activeFilter: SealedFilter;
   episode?: SealedEpisodeRef;
 }) {
-  const { settings } = useSettings();
+  const { displaySettings, isMobileViewport } = useSettings();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -172,6 +177,10 @@ export default function SealedProductsGrid({
   );
   const visibleGroups =
     activeFilter === "all" ? groupedProducts : activeGroup ? [activeGroup] : [];
+  const renderedGroups =
+    isMobileViewport && activeFilter === "all"
+      ? [{ category: "all" as const, label: "All Sealed", products: activeProducts }]
+      : visibleGroups;
   const activeLabel = activeFilter === "all" ? "All Sealed" : activeGroup?.label ?? "All Sealed";
   const [selectedProduct, setSelectedProduct] = useState<NormalizedSealedProduct | null>(null);
 
@@ -216,8 +225,8 @@ export default function SealedProductsGrid({
   }
 
   const filterBar = (
-    <div className="overflow-x-auto pb-1">
-      <div className="inline-flex min-w-max gap-[var(--ui-chip-gap)]">
+    <div>
+      <div className="flex flex-wrap gap-[var(--ui-chip-gap)]">
         <button
           type="button"
           onClick={() => updateFilter("all")}
@@ -266,7 +275,7 @@ export default function SealedProductsGrid({
     </div>
   );
 
-  if (settings.widescreen) {
+  if (displaySettings.widescreen) {
     return (
       <div className="space-y-6">
         {filterBar}
@@ -275,12 +284,14 @@ export default function SealedProductsGrid({
           <SectionHeader title={activeLabel} count={activeProducts.length} compact className="mb-0" />
 
           <div
-            className={`grid ${sealedTileGridGapClass(settings.cardSize)}`}
+            className={`grid ${sealedTileGridGapClass(displaySettings.cardSize)}`}
             style={{
-              gridTemplateColumns: getFixedTrackGridTemplate(
-                getSealedProductTrackWidth(settings.cardSize, true)
+              gridTemplateColumns: getSealedProductGridTemplateColumns(
+                displaySettings.cardSize,
+                true,
+                isMobileViewport
               ),
-              justifyContent: "start",
+              justifyContent: isMobileViewport ? "stretch" : "start",
             }}
           >
             {activeProducts.map((product) => (
@@ -289,8 +300,9 @@ export default function SealedProductsGrid({
                 product={product}
                 onOpen={() => setSelectedProduct(product)}
                 episode={episode}
-                cardSize={settings.cardSize}
+                cardSize={displaySettings.cardSize}
                 widescreen
+                isMobileViewport={isMobileViewport}
               />
             ))}
           </div>
@@ -311,17 +323,19 @@ export default function SealedProductsGrid({
       {filterBar}
 
       <div className="space-y-10">
-        {visibleGroups.map((group) => (
+        {renderedGroups.map((group) => (
           <section key={group.category}>
             <SectionHeader title={group.label} count={group.products.length} compact className="mb-4" />
 
             <div
-              className={`grid ${sealedTileGridGapClass(settings.cardSize)}`}
+              className={`grid ${sealedTileGridGapClass(displaySettings.cardSize)}`}
               style={{
-                gridTemplateColumns: getFixedTrackGridTemplate(
-                  getSealedProductTrackWidth(settings.cardSize, false)
+                gridTemplateColumns: getSealedProductGridTemplateColumns(
+                  displaySettings.cardSize,
+                  false,
+                  isMobileViewport
                 ),
-                justifyContent: "start",
+                justifyContent: isMobileViewport ? "stretch" : "start",
               }}
             >
               {group.products.map((product) => (
@@ -330,7 +344,8 @@ export default function SealedProductsGrid({
                   product={product}
                   onOpen={() => setSelectedProduct(product)}
                   episode={episode}
-                  cardSize={settings.cardSize}
+                  cardSize={displaySettings.cardSize}
+                  isMobileViewport={isMobileViewport}
                 />
               ))}
             </div>

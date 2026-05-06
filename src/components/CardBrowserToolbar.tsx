@@ -160,7 +160,7 @@ export default function CardBrowserToolbar({
         : "grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)]";
 
   return (
-    <div className="glass mb-4 space-y-3 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8">
+    <div className="card-browser-toolbar glass mb-4 space-y-3 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
@@ -210,8 +210,8 @@ export default function CardBrowserToolbar({
       </div>
 
       <section className={sectionCardClass()}>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-x-5 sm:gap-y-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <p className={sectionLabelClass()}>View</p>
             <div className={compactSegmentedShellClass()}>
               {viewOptions.map((option) => (
@@ -232,7 +232,7 @@ export default function CardBrowserToolbar({
             <>
               <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <p className={sectionLabelClass()}>Sort</p>
                 <div className={compactSegmentedShellClass()}>
                   {sortOptions.map((option) => (
@@ -255,7 +255,7 @@ export default function CardBrowserToolbar({
             <>
               <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <p className={sectionLabelClass()}>Size</p>
                 <div className={compactSegmentedShellClass()}>
                   {sizeOptions.map((option) => (

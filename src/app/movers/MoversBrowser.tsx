@@ -129,7 +129,7 @@ export default function MoversBrowser({
   previewCards = [],
   spotlights = [],
 }: Props) {
-  const { settings } = useSettings();
+  const { displaySettings } = useSettings();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
@@ -154,7 +154,10 @@ export default function MoversBrowser({
   const isGradingScope = activeScope === "grading";
   const isGradedScope = activeScope === "graded";
   const isRawScope = !isGradedScope && !isGradingScope;
-  const moverTileMinWidth = getMoverTileMinWidth(settings.cardSize, settings.widescreen);
+  const moverTileMinWidth = getMoverTileMinWidth(
+    displaySettings.cardSize,
+    displaySettings.widescreen
+  );
   const visiblePreviewCards = previewCards.filter((card) => card.items.length > 0);
   const visibleSpotlights = spotlights.filter((spotlight) => spotlight.item);
   const scopeHref = useMemo(() => {

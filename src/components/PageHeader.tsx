@@ -93,7 +93,7 @@ export function HeaderMetricChip({
       <p className="text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] opacity-68">
         {label}
       </p>
-      <p className="mt-1.5 text-[length:var(--ui-binder-metric-value-size)] font-bold leading-none tracking-tight tabular-nums">
+      <p className="mt-1.5 min-w-0 break-words text-[length:var(--ui-binder-metric-value-size)] font-bold leading-tight tracking-tight tabular-nums">
         {value}
       </p>
     </div>
@@ -123,16 +123,16 @@ export function HeaderProgressMeter({
         className
       )}
     >
-      <div className="flex items-end justify-between gap-4">
-        <div>
+      <div className="flex min-w-0 items-end justify-between gap-2 sm:gap-4">
+        <div className="min-w-0">
           <p className="text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] opacity-68">
             {label}
           </p>
-          <p className="mt-1.5 text-[length:var(--ui-binder-progress-value-size)] font-bold leading-none tabular-nums">
+          <p className="mt-1.5 min-w-0 break-words text-[length:var(--ui-binder-progress-value-size)] font-bold leading-tight tabular-nums">
             {value}
           </p>
         </div>
-        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.10] px-2.5 py-1 text-[length:var(--ui-header-pill-font-size)] font-bold tabular-nums">
+        <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/[0.10] px-2.5 py-1 text-[length:var(--ui-header-pill-font-size)] font-bold tabular-nums">
           {Math.round(safePercent)}%
         </span>
       </div>
@@ -182,16 +182,16 @@ export function HeaderStackedProgressMeter({
         className
       )}
     >
-      <div className="flex items-end justify-between gap-4">
-        <div>
+      <div className="flex min-w-0 items-end justify-between gap-2 sm:gap-4">
+        <div className="min-w-0">
           <p className="text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] opacity-68">
             {label}
           </p>
-          <p className="mt-1.5 text-[length:var(--ui-binder-progress-value-size)] font-bold leading-none tabular-nums">
+          <p className="mt-1.5 min-w-0 break-words text-[length:var(--ui-binder-progress-value-size)] font-bold leading-tight tabular-nums">
             {value}
           </p>
         </div>
-        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.10] px-2.5 py-1 text-[length:var(--ui-header-pill-font-size)] font-bold tabular-nums">
+        <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/[0.10] px-2.5 py-1 text-[length:var(--ui-header-pill-font-size)] font-bold tabular-nums">
           {Math.round(safePercent)}%
         </span>
       </div>
@@ -282,7 +282,7 @@ export function HeaderStatCard({
     <div className="min-w-0 rounded-[var(--ui-header-stat-radius)] border border-black/8 bg-white/70 p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none sm:min-h-[var(--ui-header-stat-min-height)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
+          <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
             {label}
           </p>
           <p className="mt-2 whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white">
@@ -375,7 +375,7 @@ export function PageHeroHeader({
           gridClassName
         )}
       >
-        <div className="flex min-w-0 gap-[var(--ui-page-header-leading-gap)]">
+        <div className="flex min-w-0 flex-col gap-[var(--ui-page-header-leading-gap)] sm:flex-row">
           {leadingVisual ? <div className="shrink-0">{leadingVisual}</div> : null}
 
           <div className="min-w-0 flex-1">

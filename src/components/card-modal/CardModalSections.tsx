@@ -1,10 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, LineChart, RefreshCw } from "lucide-react";
+import { LineChart, RefreshCw } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import IllustratorLink from "@/components/IllustratorLink";
@@ -70,7 +70,7 @@ function SectionShell({
   className = "",
 }: SectionShellProps) {
   return (
-    <section className={`rounded-[24px] border border-white/10 bg-white/[0.055] p-4 sm:p-6 ${className}`}>
+    <section className={`card-modal-section rounded-[24px] border border-white/10 bg-white/[0.055] p-4 sm:p-6 max-[640px]:rounded-2xl max-[640px]:p-3 ${className}`}>
       {(eyebrow || title || description) && (
         <div className="mb-5 space-y-2">
           {eyebrow && (
@@ -104,7 +104,7 @@ function MetricTile({
           : "border-white/10 bg-black/22";
 
   return (
-    <div className={`min-w-0 rounded-2xl border px-4 py-4 ${accentClass} ${className}`}>
+    <div className={`card-modal-metric min-w-0 rounded-2xl border px-4 py-4 ${accentClass} ${className}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/38">{label}</p>
       <p className="mt-2.5 break-words text-xl font-semibold tabular-nums text-white">{value}</p>
       {hint && <p className="mt-1.5 text-sm text-white/42">{hint}</p>}
@@ -114,7 +114,7 @@ function MetricTile({
 
 function MarketRow({ label, value, hint }: MarketRowProps) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+    <div className="card-modal-market-row flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
       <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">{label}</p>
         {hint && <p className="mt-1 text-sm text-white/40">{hint}</p>}
@@ -127,7 +127,7 @@ function MarketRow({ label, value, hint }: MarketRowProps) {
 function MetaPill({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-base font-medium text-white/68 ${className}`}
+      className={`card-modal-meta-pill inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-base font-medium text-white/68 max-[640px]:px-2.5 max-[640px]:py-1 max-[640px]:text-[11px] ${className}`}
     >
       {children}
     </span>
@@ -168,14 +168,27 @@ export function CardModalPreview({
 }) {
   return (
     <aside
-      className="mx-auto flex h-full max-w-[min(13rem,62vw)] flex-col gap-3 sm:max-w-full sm:gap-4 lg:mx-0"
+      className="mx-auto flex h-full max-w-[min(13rem,62vw)] flex-col gap-3 sm:max-w-full sm:gap-4 max-[640px]:max-w-[min(12rem,58vw)] max-[640px]:gap-1.5 lg:mx-0"
       style={{ width: mediaWidth }}
     >
       {card.image_url ? (
         <button
           type="button"
-          onClick={onOpenThreeD}
-          className={`group relative ${previewAspectClass} w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.01]`}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            event.stopPropagation();
+            onOpenThreeD();
+          }}
+          onMouseDown={(event) => {
+            if (event.button !== 0) return;
+            event.stopPropagation();
+            onOpenThreeD();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenThreeD();
+          }}
+          className={`group relative ${previewAspectClass} w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.01] max-[640px]:rounded-2xl`}
           aria-label={`Open ${card.name} in 3D`}
         >
           {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (
@@ -208,7 +221,7 @@ export function CardModalPreview({
         </button>
       ) : (
         <div
-          className={`${previewAspectClass} flex w-full items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.03] text-white/30`}
+          className={`${previewAspectClass} flex w-full items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.03] text-white/30 max-[640px]:rounded-2xl`}
         >
           ?
         </div>
@@ -361,13 +374,13 @@ export function CardModalHeroSection({
               {card.name}
             </h2>
 
-            <div className={`mt-3 flex flex-wrap items-center gap-2.5 text-white/54 ${metaClassName}`}>
+            <div className={`mt-3 flex flex-wrap items-center gap-2.5 text-white/54 max-[640px]:mt-2 max-[640px]:gap-1.5 ${metaClassName}`}>
               {headerMetaLabel && (
                 <span className="whitespace-nowrap font-medium text-white/58">{headerMetaLabel}</span>
               )}
               {normalizedRarity && (
                 <span
-                  className={`inline-flex rounded-full px-4 py-1.5 text-sm font-semibold sm:text-base ${rarityBadge(
+                  className={`inline-flex rounded-full px-4 py-1.5 text-sm font-semibold sm:text-base max-[640px]:px-2.5 max-[640px]:py-1 max-[640px]:text-[11px] ${rarityBadge(
                     card.rarity
                   )}`}
                 >
@@ -386,7 +399,7 @@ export function CardModalHeroSection({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 xl:justify-self-end xl:self-start">
+          <div className="flex flex-wrap gap-2 max-[640px]:hidden xl:justify-self-end xl:self-start">
             <button
               type="button"
               onClick={onSyncHistory}
@@ -408,7 +421,7 @@ export function CardModalHeroSection({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-2 max-[640px]:hidden sm:grid-cols-2 xl:grid-cols-4">
           {headerDetailStats.map((stat) => (
             <div key={stat.label} className={`${detailStatClass} min-w-0`}>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
@@ -424,7 +437,7 @@ export function CardModalHeroSection({
         {collectionItem ? (
           <>
             {collectionTags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2 max-[640px]:hidden">
                 {collectionTags.map((tag) => (
                   <MetaPill key={tag}>{tag}</MetaPill>
                 ))}
@@ -432,7 +445,7 @@ export function CardModalHeroSection({
             )}
 
             {collectionItem.notes && (
-              <div className={`mt-3 ${detailStatClass}`}>
+              <div className={`mt-3 max-[640px]:hidden ${detailStatClass}`}>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
                   Notes
                 </p>
@@ -443,7 +456,7 @@ export function CardModalHeroSection({
             )}
           </>
         ) : (
-          <div className="mt-3 rounded-[20px] border border-dashed border-white/8 bg-black/12 px-4 py-3.5 text-base text-white/56">
+          <div className="mt-3 rounded-[20px] border border-dashed border-white/8 bg-black/12 px-4 py-3.5 text-base text-white/56 max-[640px]:hidden">
             Add this card to DustyCards to save purchase details, condition, language and notes.
           </div>
         )}
@@ -456,6 +469,7 @@ export function CardModalHeroSection({
 
 export function CardModalPricingSection({
   card,
+  activePricingSource,
   availableCardMarketHistorySeries,
   activeCardMarketHistorySeries,
   activeCardMarketSeriesLabel,
@@ -472,6 +486,7 @@ export function CardModalPricingSection({
   onSelectEbaySoldGradedLabel,
 }: {
   card: ModalCardData;
+  activePricingSource: "cardmarket" | "tcgplayer";
   availableCardMarketHistorySeries: Array<{
     key: CardMarketHistorySeriesKey;
     label: string;
@@ -527,14 +542,22 @@ export function CardModalPricingSection({
       value: formatCurrency(card.price?.tcp_low ?? null, "USD"),
     },
   ];
-  const hasTcgPlayerPricing = [card.price?.tcp_market, card.price?.tcp_mid, card.price?.tcp_low].some(
-    (value) => value != null
+  const effectivePricingSource = activePricingSource;
+  const hasCardMarketGradedPricing = gradedPrices.length > 0;
+  const hasEbayGradedPricing = ebaySoldGradedPrices.length > 0;
+  const [activeGradedSource, setActiveGradedSource] = useState<"cardmarket" | "ebay">(
+    "cardmarket"
   );
+  const effectiveGradedSource =
+    activeGradedSource === "ebay" && hasEbayGradedPricing
+      ? "ebay"
+      : hasCardMarketGradedPricing
+        ? "cardmarket"
+        : "ebay";
+  const showGradedSourceToggle = hasCardMarketGradedPricing && hasEbayGradedPricing;
   const [primaryCardMarketMetric, ...secondaryCardMarketMetrics] = cardMarketMetrics;
   const [primaryTcgMetric, ...secondaryTcgMetrics] = tcgMetrics;
-  const pricingHeaderClass = hasMultipleCardMarketSeries
-    ? "mb-4 flex min-h-[5.5rem] flex-col justify-start space-y-3"
-    : "mb-4";
+  const pricingHeaderClass = "card-modal-pricing-header mb-4 flex flex-col justify-start space-y-3";
   const selectedEbaySoldCurrency = selectedEbaySoldGradedPrice?.currency === "EUR" ? "EUR" : "USD";
   const selectedEbaySoldMedianEur =
     selectedEbaySoldGradedPrice?.median_price_eur ??
@@ -562,17 +585,21 @@ export function CardModalPricingSection({
 
   return (
     <SectionShell title="Current pricing">
-      <div className={`grid gap-5 ${hasTcgPlayerPricing ? "xl:grid-cols-2" : ""}`}>
-        <div className="rounded-[24px] border border-white/10 bg-black/24 p-5">
+      <div className="card-modal-pricing-grid grid gap-5">
+        <div className="card-modal-price-card rounded-[24px] border border-white/10 bg-black/24 p-5">
           <div className={pricingHeaderClass}>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-                CardMarket
+                {effectivePricingSource === "tcgplayer" ? "TCGPlayer" : "CardMarket"}
               </p>
-              {!hasMultipleCardMarketSeries && <MetaPill>{activeCardMarketSeriesLabel}</MetaPill>}
+
+              {effectivePricingSource === "cardmarket" && !hasMultipleCardMarketSeries && (
+                <MetaPill>{activeCardMarketSeriesLabel}</MetaPill>
+              )}
             </div>
-            {hasMultipleCardMarketSeries && (
-              <div className="flex flex-wrap gap-2">
+
+            {effectivePricingSource === "cardmarket" && hasMultipleCardMarketSeries && (
+              <div className="card-modal-series-picker flex flex-wrap gap-2">
                 {availableCardMarketHistorySeries.map((series) => (
                   <button
                     key={series.key}
@@ -591,46 +618,37 @@ export function CardModalPricingSection({
             )}
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-            <MetricTile
-              label={primaryCardMarketMetric.label}
-              value={primaryCardMarketMetric.value}
-              hint={primaryCardMarketMetric.hint ?? null}
-              accent="emerald"
-              className="min-h-[128px]"
-            />
+          {effectivePricingSource === "cardmarket" ? (
+            <div className="card-modal-pricing-metrics grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+              <MetricTile
+                label={primaryCardMarketMetric.label}
+                value={primaryCardMarketMetric.value}
+                hint={primaryCardMarketMetric.hint ?? null}
+                accent="emerald"
+                className="min-h-[128px] max-[640px]:min-h-0"
+              />
 
-            <div className="grid gap-4">
-              {secondaryCardMarketMetrics.map((metric) => (
-                <MarketRow
-                  key={metric.label}
-                  label={metric.label}
-                  value={metric.value}
-                  hint={metric.hint ?? null}
-                />
-              ))}
+              <div className="card-modal-market-rows grid gap-4">
+                {secondaryCardMarketMetrics.map((metric) => (
+                  <MarketRow
+                    key={metric.label}
+                    label={metric.label}
+                    value={metric.value}
+                    hint={metric.hint ?? null}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        </div>
-
-        {hasTcgPlayerPricing && (
-          <div className="rounded-[24px] border border-white/10 bg-black/24 p-5">
-            <div className={pricingHeaderClass}>
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-                TCGPlayer
-              </p>
-              {hasMultipleCardMarketSeries && <div className="h-[38px]" aria-hidden="true" />}
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+          ) : (
+            <div className="card-modal-pricing-metrics grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
               <MetricTile
                 label={primaryTcgMetric.label}
                 value={primaryTcgMetric.value}
                 accent="blue"
-                className="min-h-[128px]"
+                className="min-h-[128px] max-[640px]:min-h-0"
               />
 
-              <div className="grid gap-4">
+              <div className="card-modal-market-rows grid gap-4">
                 {secondaryTcgMetrics.map((metric) => (
                   <MarketRow
                     key={metric.label}
@@ -641,73 +659,80 @@ export function CardModalPricingSection({
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {gradedPrices.length > 0 && (
-        <div className="mt-5 rounded-[24px] border border-white/10 bg-black/24 p-5">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto] lg:items-center">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-                Compare graded price
-              </p>
-              <p className="mt-1.5 text-sm text-white/42">
-                {ownedGradeLabel
-                  ? `Owned grade: ${ownedGradeLabel}`
-                  : "Select a benchmark grade for comparison."}
-              </p>
-            </div>
-
-            {gradedPrices.length > 1 ? (
-              <select
-                value={selectedGradedPrice?.label ?? ""}
-                onChange={(event) => onSelectGradedLabel(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-base font-medium text-white outline-none transition-colors focus:border-white/18"
-              >
-                {gradedPrices.map((gradedPrice) => (
-                  <option
-                    key={gradedPrice.label}
-                    value={gradedPrice.label}
-                    className="bg-[#111214] text-white"
-                  >
-                    {gradedPrice.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div className="rounded-2xl border border-violet-400/16 bg-violet-400/[0.08] px-4 py-3 text-base font-semibold text-white/78">
-                {selectedGradedPrice?.label ?? gradedPrices[0]?.label ?? "Graded"}
-              </div>
-            )}
-
-            {selectedGradedPrice && (
-              <p className="shrink-0 rounded-2xl border border-violet-400/16 bg-violet-400/[0.08] px-4 py-3 text-right text-2xl font-semibold tabular-nums text-white">
-                {formatCurrency(selectedGradedPrice.price, "EUR")}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {ebaySoldGradedPrices.length > 0 && (
-        <div className="mt-5 rounded-[24px] border border-sky-400/14 bg-sky-400/[0.055] p-5">
+      {(hasCardMarketGradedPricing || hasEbayGradedPricing) && (
+        <div className="card-modal-compare-card mt-5 rounded-[24px] border border-white/10 bg-black/24 p-5">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto] lg:items-center">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-                  eBay sold comparison
-                </p>
-                <MetaPill>{selectedEbaySoldDisplayCurrency}</MetaPill>
+                {showGradedSourceToggle ? (
+                  <div className="card-modal-source-toggle inline-flex overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-1">
+                    {[
+                      { key: "cardmarket" as const, label: "CardMarket" },
+                      { key: "ebay" as const, label: "eBay sold" },
+                    ].map((source) => (
+                      <button
+                        key={source.key}
+                        type="button"
+                        onClick={() => setActiveGradedSource(source.key)}
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                          effectiveGradedSource === source.key
+                            ? "bg-white text-gray-950"
+                            : "text-white/48 hover:text-white/78"
+                        }`}
+                      >
+                        {source.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
+                    {effectiveGradedSource === "ebay" ? "eBay graded" : "CardMarket graded"}
+                  </p>
+                )}
+
+                {effectiveGradedSource === "ebay" && (
+                  <MetaPill>{selectedEbaySoldDisplayCurrency}</MetaPill>
+                )}
               </div>
+
               <p className="mt-1.5 text-sm text-white/42">
-                {ownedGradeLabel
-                  ? `Completed sales median. Owned grade: ${ownedGradeLabel}`
-                  : "Completed sales median for the selected grade."}
+                {effectiveGradedSource === "ebay"
+                  ? ownedGradeLabel
+                    ? `Completed sales median. Owned grade: ${ownedGradeLabel}`
+                    : "Completed sales median for the selected grade."
+                  : ownedGradeLabel
+                    ? `Owned grade: ${ownedGradeLabel}`
+                    : "Select a benchmark grade for comparison."}
               </p>
             </div>
 
-            {ebaySoldGradedPrices.length > 1 ? (
+            {effectiveGradedSource === "cardmarket" ? (
+              hasCardMarketGradedPricing && gradedPrices.length > 1 ? (
+                <select
+                  value={selectedGradedPrice?.label ?? ""}
+                  onChange={(event) => onSelectGradedLabel(event.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-base font-medium text-white outline-none transition-colors focus:border-white/18"
+                >
+                  {gradedPrices.map((gradedPrice) => (
+                    <option
+                      key={gradedPrice.label}
+                      value={gradedPrice.label}
+                      className="bg-[#111214] text-white"
+                    >
+                      {gradedPrice.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="rounded-2xl border border-violet-400/16 bg-violet-400/[0.08] px-4 py-3 text-base font-semibold text-white/78">
+                  {selectedGradedPrice?.label ?? gradedPrices[0]?.label ?? "Graded"}
+                </div>
+              )
+            ) : ebaySoldGradedPrices.length > 1 ? (
               <select
                 value={selectedEbaySoldGradedPrice?.label ?? ""}
                 onChange={(event) => onSelectEbaySoldGradedLabel(event.target.value)}
@@ -730,7 +755,13 @@ export function CardModalPricingSection({
               </div>
             )}
 
-            {selectedEbaySoldGradedPrice && (
+            {effectiveGradedSource === "cardmarket" ? (
+              selectedGradedPrice && (
+                <p className="shrink-0 rounded-2xl border border-violet-400/16 bg-violet-400/[0.08] px-4 py-3 text-right text-2xl font-semibold tabular-nums text-white">
+                  {formatCurrency(selectedGradedPrice.price, "EUR")}
+                </p>
+              )
+            ) : selectedEbaySoldGradedPrice ? (
               <div className="shrink-0 rounded-2xl border border-sky-400/16 bg-sky-400/[0.08] px-4 py-3 text-right">
                 <p className="text-2xl font-semibold tabular-nums text-white">
                   {formatCurrency(selectedEbaySoldDisplayPrice, selectedEbaySoldDisplayCurrency)}
@@ -739,7 +770,7 @@ export function CardModalPricingSection({
                   {selectedEbaySoldMetaLabel}
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       )}
@@ -748,12 +779,12 @@ export function CardModalPricingSection({
 }
 
 export function CardModalHistorySection({
-  cardId,
-  historyChartsOpen,
   historyChartMode,
+  activeMarketSource,
   cardMarketHistory,
   activeCardMarketCurrentValue,
-  onToggleHistoryCharts,
+  showTcgPlayerSource,
+  onSelectMarketSource,
   onSelectHistoryChartMode,
   tcgPlayerHistory,
   tcgPlayerCurrentValue,
@@ -762,12 +793,12 @@ export function CardModalHistorySection({
   selectedGradedHistoryCurrentValue,
   onSelectGradedLabel,
 }: {
-  cardId: string;
-  historyChartsOpen: boolean;
   historyChartMode: "market" | "graded";
+  activeMarketSource: "cardmarket" | "tcgplayer";
   cardMarketHistory: HistoryPointView[];
   activeCardMarketCurrentValue: number | null;
-  onToggleHistoryCharts: () => void;
+  showTcgPlayerSource: boolean;
+  onSelectMarketSource: (source: "cardmarket" | "tcgplayer") => void;
   onSelectHistoryChartMode: (mode: "market" | "graded") => void;
   tcgPlayerHistory: HistoryPointView[];
   tcgPlayerCurrentValue: number | null;
@@ -780,42 +811,55 @@ export function CardModalHistorySection({
     series.points.some((point) => point.value != null)
   );
   const effectiveHistoryChartMode = hasGradedHistory ? historyChartMode : "market";
+  const activeMarketHistory =
+    activeMarketSource === "tcgplayer"
+      ? {
+          currency: "USD" as const,
+          currentValue: tcgPlayerCurrentValue,
+          points: tcgPlayerHistory,
+          title: "TCGPlayer History",
+        }
+      : {
+          currency: "EUR" as const,
+          currentValue: activeCardMarketCurrentValue,
+          points: cardMarketHistory,
+          title: "CardMarket History",
+        };
 
   return (
     <SectionShell className="overflow-hidden">
-      <button
-        type="button"
-        onClick={onToggleHistoryCharts}
-        className="flex w-full items-center justify-between gap-4 text-left"
-        aria-expanded={historyChartsOpen}
-        aria-controls={`history-charts-${cardId}`}
-      >
-        <div>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
             Price history
           </p>
           <h3 className="mt-1 text-xl font-semibold text-white">History charts</h3>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/68">
-          {historyChartsOpen ? "Hide" : "Show"}
-          <ChevronDown
-            className={`h-5 w-5 transition-transform duration-300 ease-out motion-reduce:transition-none ${
-              historyChartsOpen ? "rotate-180" : ""
-            }`}
-          />
-        </span>
-      </button>
 
-      <div
-        id={`history-charts-${cardId}`}
-        aria-hidden={!historyChartsOpen}
-        className={`grid transition-[grid-template-rows,opacity,margin-top] duration-300 ease-out motion-reduce:transition-none ${
-          historyChartsOpen
-            ? "visible mt-5 grid-rows-[1fr] opacity-100"
-            : "invisible mt-0 grid-rows-[0fr] opacity-0"
-        }`}
-      >
-        <div className="min-h-0 overflow-hidden">
+        {showTcgPlayerSource && (
+          <div className="card-modal-source-toggle inline-flex overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-1">
+            {[
+              { key: "cardmarket" as const, label: "CardMarket" },
+              { key: "tcgplayer" as const, label: "TCGPlayer" },
+            ].map((source) => (
+              <button
+                key={source.key}
+                type="button"
+                onClick={() => onSelectMarketSource(source.key)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  activeMarketSource === source.key
+                    ? "bg-white text-gray-950"
+                    : "text-white/48 hover:text-white/78"
+                }`}
+              >
+                {source.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="min-h-0 overflow-hidden">
           {hasGradedHistory && (
             <div className="mb-4 flex flex-wrap items-center gap-2">
               {[
@@ -868,25 +912,14 @@ export function CardModalHistorySection({
               />
             </div>
           ) : (
-            <div className="grid gap-5 pb-1 xl:grid-cols-2">
-              <PriceHistoryPanel
-                title="CardMarket History"
-                currency="EUR"
-                points={cardMarketHistory}
-                currentValue={activeCardMarketCurrentValue}
-                tone="dark"
-              />
-
-              <PriceHistoryPanel
-                title="TCGPlayer History"
-                currency="USD"
-                points={tcgPlayerHistory}
-                currentValue={tcgPlayerCurrentValue}
-                tone="dark"
-              />
-            </div>
+            <PriceHistoryPanel
+              title={activeMarketHistory.title}
+              currency={activeMarketHistory.currency}
+              points={activeMarketHistory.points}
+              currentValue={activeMarketHistory.currentValue}
+              tone="dark"
+            />
           )}
-        </div>
       </div>
     </SectionShell>
   );

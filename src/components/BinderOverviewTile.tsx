@@ -30,7 +30,7 @@ export default function BinderOverviewTile({
     <Link
       href={`/binders/${binder.id}`}
       prefetch={false}
-      className="glass group relative flex h-full flex-col gap-4 overflow-hidden rounded-3xl p-5 shadow-lg shadow-black/5 transition-transform hover:scale-[1.01] hover:bg-white/8 dark:hover:bg-white/6"
+      className="glass group relative flex h-full flex-col gap-4 overflow-hidden rounded-3xl p-5 shadow-lg shadow-black/5 transition-transform hover:scale-[1.01] hover:bg-white/8 max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-3 dark:hover:bg-white/6"
       style={
         binder.accent_color
           ? { boxShadow: `inset 0 0 0 1px ${binder.accent_color}2f` }
@@ -45,7 +45,7 @@ export default function BinderOverviewTile({
       )}
 
       <div
-        className="relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-2xl border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]"
+        className="relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-2xl border border-black/8 bg-black/[0.03] max-[640px]:rounded-xl dark:border-white/8 dark:bg-white/[0.04]"
         style={
           binder.accent_color
             ? { boxShadow: `inset 0 0 0 1px ${binder.accent_color}24` }
@@ -57,7 +57,7 @@ export default function BinderOverviewTile({
           <img
             src={getCachedImageUrl(binder.episode.logo_url) ?? binder.episode.logo_url}
             alt={binder.name}
-            className="h-full w-full object-contain p-5 sm:p-6"
+            className="h-full w-full object-contain p-5 max-[640px]:p-2.5 sm:p-6"
           />
         ) : (
           <div
@@ -70,11 +70,11 @@ export default function BinderOverviewTile({
       </div>
 
       <div className="min-w-0">
-        <h3 className="truncate text-xl font-bold text-gray-900 dark:text-white">{binder.name}</h3>
-        <p className="mt-1 truncate text-sm text-gray-500 dark:text-white/50">{binder.subtitle}</p>
+        <h3 className="truncate text-xl font-bold text-gray-900 max-[640px]:text-[13px] dark:text-white">{binder.name}</h3>
+        <p className="mt-1 truncate text-sm text-gray-500 max-[640px]:mt-0.5 max-[640px]:text-[10px] dark:text-white/50">{binder.subtitle}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="grid grid-cols-3 gap-2 text-xs max-[640px]:grid-cols-2 max-[640px]:gap-1.5">
         {[
           { label: "Progress", value: binder.progressLabel },
           { label: "Value", value: formatCollectionCurrency(binder.currentValue) },
@@ -85,12 +85,12 @@ export default function BinderOverviewTile({
         ].map((metric) => (
           <div
             key={metric.label}
-            className="rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-3 dark:border-white/8 dark:bg-white/[0.04]"
+            className="min-w-0 rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-3 max-[640px]:rounded-xl max-[640px]:px-2 max-[640px]:py-1.5 dark:border-white/8 dark:bg-white/[0.04]"
           >
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 max-[640px]:text-[8px] max-[640px]:tracking-[0.08em] dark:text-white/35">
               {metric.label}
             </p>
-            <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
+            <p className="mt-2 truncate text-sm font-semibold text-gray-900 max-[640px]:mt-1 max-[640px]:text-[10px] dark:text-white">
               {metric.value}
             </p>
           </div>

@@ -18,6 +18,12 @@ const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/illustrators", label: "Illustrators", matches: ["/illustrators"] },
 ];
 
+const COLLECTION_ITEM: NavItem = {
+  href: "/",
+  label: "Collection",
+  matches: ["/"],
+};
+
 const SETTINGS_ITEM: NavItem = {
   href: "/settings",
   label: "Settings",
@@ -31,7 +37,9 @@ const ACCOUNT_ITEM: NavItem = {
 };
 
 function isActive(pathname: string, matches: ReadonlyArray<string>): boolean {
-  return matches.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return matches.some((prefix) =>
+    prefix === "/" ? pathname === "/" : pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
 }
 
 function desktopLinkClasses(active: boolean): string {
@@ -132,34 +140,35 @@ export function HeaderMobileMenu() {
     };
   }, [open]);
 
-  const items = [...NAV_ITEMS, ACCOUNT_ITEM, SETTINGS_ITEM];
+  const items = [COLLECTION_ITEM, ...NAV_ITEMS, ACCOUNT_ITEM, SETTINGS_ITEM];
 
   return (
-    <div className="lg:hidden">
+    <div className="shrink-0 lg:hidden">
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-controls="header-mobile-menu"
         aria-label={open ? "Close menu" : "Open menu"}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 text-gray-700 transition-colors hover:border-black/20 hover:bg-black/5 dark:border-white/10 dark:text-gray-200 dark:hover:border-white/20 dark:hover:bg-white/8"
+        className="flex h-[calc(var(--ui-header-search-height)-0.1rem)] w-[calc(var(--ui-header-search-height)-0.1rem)] items-center justify-center rounded-full border border-black/10 text-gray-700 transition-colors hover:border-black/20 hover:bg-black/5 dark:border-white/10 dark:text-gray-200 dark:hover:border-white/20 dark:hover:bg-white/8"
       >
         {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
       </button>
 
       {open && (
-        <>
-          <button
-            type="button"
-            aria-label="Close menu"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px]"
-          />
+        <div
+          className="fixed inset-0 z-[80] lg:hidden"
+          role="presentation"
+          onClick={() => setOpen(false)}
+        >
+          <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" aria-hidden="true" />
           <div
             id="header-mobile-menu"
             role="menu"
             aria-label="Main navigation"
-            className="fixed left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] z-50 rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/10 dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40"
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            className="absolute left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/10 dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40"
           >
             {items.map((item) => {
               const active = isActive(pathname, item.matches);
@@ -182,7 +191,7 @@ export function HeaderMobileMenu() {
               );
             })}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

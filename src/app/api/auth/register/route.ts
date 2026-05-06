@@ -1,25 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createUserSession,
-  setSessionCookie,
-} from "@/lib/auth";
 import { hashPassword, isValidEmail, normalizeEmail } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
+import { sendVerificationEmailForUser } from "@/lib/email-verification";
+
+export const runtime = "nodejs";
+
+function getPublicOrigin(req: NextRequest): string {
+  const configuredUrl = process.env.APP_URL;
+  if (configuredUrl) return configuredUrl;
+
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+function registerRedirect(req: NextRequest, error: string) {
+  const redirectUrl = new URL("/register", getPublicOrigin(req));
+  redirectUrl.searchParams.set("error", error);
+  return NextResponse.redirect(redirectUrl, { status: 303 });
+}
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
-    email?: unknown;
-    password?: unknown;
-  };
+  const contentType = req.headers.get("content-type") ?? "";
+  const isFormPost =
+    contentType.includes("application/x-www-form-urlencoded") ||
+    contentType.includes("multipart/form-data");
+  const body = isFormPost
+    ? Object.fromEntries(await req.formData())
+    : ((await req.json().catch(() => ({}))) as {
+        email?: unknown;
+        password?: unknown;
+        passwordConfirm?: unknown;
+      });
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
   const password = typeof body.password === "string" ? body.password : "";
+  const passwordConfirm =
+    typeof body.passwordConfirm === "string" ? body.passwordConfirm : "";
 
   if (!isValidEmail(email)) {
+    if (isFormPost) return registerRedirect(req, "email");
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
 
   if (password.length < 8) {
+    if (isFormPost) return registerRedirect(req, "short");
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
+  }
+
+  if (password !== passwordConfirm) {
+    if (isFormPost) return registerRedirect(req, "mismatch");
+    return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
   }
 
   const existing = await db.user.findUnique({
@@ -27,6 +59,7 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
   if (existing) {
+    if (isFormPost) return registerRedirect(req, "exists");
     return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
   }
 
@@ -42,8 +75,25 @@ export async function POST(req: NextRequest) {
       role: true,
     },
   });
-  const session = await createUserSession(user.id);
-  await setSessionCookie(session.token, session.expiresAt);
 
-  return NextResponse.json({ ok: true, user });
+  let verificationSent = true;
+  try {
+    await sendVerificationEmailForUser({
+      baseUrl: getPublicOrigin(req),
+      email: user.email,
+      userId: user.id,
+    });
+  } catch (error) {
+    verificationSent = false;
+    console.error("Email verification send failed", error);
+  }
+
+  if (isFormPost) {
+    const redirectUrl = new URL("/login", getPublicOrigin(req));
+    redirectUrl.searchParams.set("verify", verificationSent ? "sent" : "failed");
+    redirectUrl.searchParams.set("email", user.email);
+    return NextResponse.redirect(redirectUrl, { status: 303 });
+  }
+
+  return NextResponse.json({ ok: true, user, verifyEmail: true, verificationSent });
 }

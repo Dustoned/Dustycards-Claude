@@ -10,6 +10,12 @@ const CARD_GRID_TRACK: TrackScale = {
   large: { normal: 340, wide: 430 },
 };
 
+const MOBILE_CARD_GRID_COLUMNS: Record<CardSize, number> = {
+  small: 3,
+  medium: 2,
+  large: 1,
+};
+
 const SUPPORT_TILE_TRACK: TrackScale = {
   small: { normal: 200, wide: 230 },
   medium: { normal: 285, wide: 340 },
@@ -21,6 +27,8 @@ const SEALED_PRODUCT_TRACK: TrackScale = {
   medium: { normal: 320, wide: 380 },
   large: { normal: 470, wide: 560 },
 };
+
+const MOBILE_SEALED_PRODUCT_COLUMNS = 2;
 
 const RICH_MOVER_TRACK: TrackScale = {
   small: { normal: 360, wide: 420 },
@@ -42,16 +50,75 @@ function px(value: number): string {
   return `${value}px`;
 }
 
+function responsiveTwoColumnTrack(value: number, min = 150): string {
+  return `clamp(${min}px, calc((100vw - 3rem) / 2), ${value}px)`;
+}
+
 export function getCardGridTrackWidth(cardSize: CardSize, widescreen: boolean): string {
   return px(CARD_GRID_TRACK[cardSize][displayMode(widescreen)]);
 }
 
+export function getCardGridColumnCount(cardSize: CardSize, isMobileViewport: boolean): number {
+  return isMobileViewport ? MOBILE_CARD_GRID_COLUMNS[cardSize] : 0;
+}
+
+export function getCardGridTemplateColumns(
+  cardSize: CardSize,
+  widescreen: boolean,
+  isMobileViewport: boolean
+): string {
+  if (isMobileViewport) {
+    return `repeat(${MOBILE_CARD_GRID_COLUMNS[cardSize]}, minmax(0, 1fr))`;
+  }
+
+  return getFixedTrackGridTemplate(getCardGridTrackWidth(cardSize, widescreen));
+}
+
+export function getCardGridImageSizes(
+  cardSize: CardSize,
+  widescreen: boolean,
+  isMobileViewport: boolean
+): string {
+  if (!isMobileViewport) {
+    return getCardGridTrackWidth(cardSize, widescreen);
+  }
+
+  const columns = MOBILE_CARD_GRID_COLUMNS[cardSize];
+  if (columns === 1) return "calc(100vw - 2rem)";
+  if (columns === 2) return "calc((100vw - 2.75rem) / 2)";
+  return "calc((100vw - 3rem) / 3)";
+}
+
 export function getSupportTileTrackWidth(cardSize: CardSize, widescreen: boolean): string {
-  return px(SUPPORT_TILE_TRACK[cardSize][displayMode(widescreen)]);
+  return responsiveTwoColumnTrack(SUPPORT_TILE_TRACK[cardSize][displayMode(widescreen)]);
 }
 
 export function getSealedProductTrackWidth(cardSize: CardSize, widescreen: boolean): string {
   return px(SEALED_PRODUCT_TRACK[cardSize][displayMode(widescreen)]);
+}
+
+export function getSealedProductGridTemplateColumns(
+  cardSize: CardSize,
+  widescreen: boolean,
+  isMobileViewport: boolean
+): string {
+  if (isMobileViewport) {
+    return `repeat(${MOBILE_SEALED_PRODUCT_COLUMNS}, minmax(0, 1fr))`;
+  }
+
+  return getFixedTrackGridTemplate(getSealedProductTrackWidth(cardSize, widescreen));
+}
+
+export function getSealedProductImageSizes(
+  cardSize: CardSize,
+  widescreen: boolean,
+  isMobileViewport: boolean
+): string {
+  if (isMobileViewport) {
+    return "calc((100vw - 2.75rem) / 2)";
+  }
+
+  return getSealedProductTrackWidth(cardSize, widescreen);
 }
 
 export function getRichMoverTrackWidth(cardSize: CardSize, widescreen: boolean): string {

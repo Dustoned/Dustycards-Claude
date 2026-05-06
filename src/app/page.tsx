@@ -18,11 +18,7 @@ import {
   OVERVIEW_SECTION_ORDER_COOKIE_NAME,
   parseOverviewSectionOrderCookie,
 } from "@/lib/overview-section-order";
-import {
-  DEFAULT_SETTINGS,
-  parseCookieSettings,
-  SETTINGS_COOKIE_NAME,
-} from "@/lib/user-settings";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 import { requirePageUser } from "@/lib/page-auth";
 
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"), {
@@ -60,7 +56,7 @@ function TabLink({
     <Link
       href={href}
       prefetch={false}
-      className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
         active
           ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
           : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
@@ -78,8 +74,7 @@ export default async function HomePage({
 }) {
   const cookieStore = await cookies();
   const user = await requirePageUser("/");
-  const settings =
-    parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
+  const settings = await getServerUserSettings(user.id);
   const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
   const { tab, graded } = await searchParams;
   const activeTab =
@@ -199,8 +194,8 @@ export default async function HomePage({
         />
 
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex max-w-full flex-wrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+          <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
+            <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
               <TabLink
                 href={buildCollectionHref("overview")}
                 active={activeTab === "overview"}

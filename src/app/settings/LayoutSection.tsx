@@ -18,13 +18,13 @@ export default function LayoutSection() {
         <p className="text-sm text-gray-400 mt-0.5">Control how the page uses screen space.</p>
       </div>
       <div className="flex items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-white">Widescreen</p>
           <p className="text-xs text-gray-400 mt-0.5">Remove the max-width cap and use full horizontal space.</p>
         </div>
         <button
           onClick={() => set("widescreen", !settings.widescreen)}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center overflow-hidden rounded-full transition-colors ${
             settings.widescreen ? "bg-gray-900 dark:bg-white" : "bg-black/10 dark:bg-white/10"
           }`}
         >

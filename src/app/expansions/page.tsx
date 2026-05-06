@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowUpRight, Layers3, LibraryBig, Shapes } from "lucide-react";
@@ -20,11 +19,7 @@ import {
   isPromoExpansion,
   isRedundantSubsetExpansion,
 } from "@/lib/episodes";
-import {
-  DEFAULT_SETTINGS,
-  parseCookieSettings,
-  SETTINGS_COOKIE_NAME,
-} from "@/lib/user-settings";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 import { requirePageUser } from "@/lib/page-auth";
 import ExpansionsOverviewChart from "./ExpansionsOverviewChart";
 
@@ -103,10 +98,8 @@ function shouldReplaceEpisode(existingId: string, nextId: string): boolean {
 }
 
 export default async function ExpansionsPage() {
-  const cookieStore = await cookies();
-  await requirePageUser("/expansions");
-  const settings =
-    parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
+  const user = await requirePageUser("/expansions");
+  const settings = await getServerUserSettings(user.id);
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
 
   const episodes = await db.episode.findMany({
@@ -220,7 +213,7 @@ export default async function ExpansionsPage() {
   ] satisfies HeaderStat[];
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+    <div className="page-container mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
       <PageHeroHeader
         eyebrow="Dusty Cards Collection"
         title="Expansions"
@@ -295,11 +288,11 @@ export default async function ExpansionsPage() {
                     key={episode.id}
                     href={`/expansions/${episode.id}`}
                     prefetch={false}
-                  className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
+                className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-3 ${tileConfig.tileClass}`}
                 >
                     {episode.logo_url ? (
                       <div
-                        className={`relative flex w-full items-center justify-center rounded-xl border border-black/6 bg-black/[0.025] p-2 dark:border-white/7 dark:bg-white/[0.035] ${tileConfig.logoHeightClass}`}
+                          className={`relative flex w-full items-center justify-center rounded-xl border border-black/6 bg-black/[0.025] p-2 dark:border-white/7 dark:bg-white/[0.035] max-[640px]:h-16 ${tileConfig.logoHeightClass}`}
                       >
                         <Image
                           src={getCachedImageUrl(episode.logo_url) ?? episode.logo_url}
@@ -313,7 +306,7 @@ export default async function ExpansionsPage() {
                       </div>
                     ) : (
                       <div
-                        className={`w-full rounded-xl bg-black/5 dark:bg-white/4 ${tileConfig.fallbackHeightClass} flex items-center justify-center`}
+                        className={`w-full rounded-xl bg-black/5 dark:bg-white/4 max-[640px]:h-16 ${tileConfig.fallbackHeightClass} flex items-center justify-center`}
                       >
                         <span className="text-xs font-medium text-gray-400 dark:text-white/40">
                           {episode.name.slice(0, 2)}
@@ -323,19 +316,19 @@ export default async function ExpansionsPage() {
 
                     <div className="min-w-0">
                       <p
-                        className={`line-clamp-2 font-bold leading-snug text-gray-900 transition-colors group-hover:text-black dark:text-white dark:group-hover:text-white ${tileConfig.titleClass}`}
+                        className={`line-clamp-2 font-bold leading-snug text-gray-900 transition-colors group-hover:text-black dark:text-white dark:group-hover:text-white max-[640px]:text-[15px] ${tileConfig.titleClass}`}
                       >
                         {episode.name}
                       </p>
-                      <div className="mt-2 flex items-end justify-between gap-3">
+                      <div className="mt-2 grid min-w-0 gap-2 sm:flex sm:items-end sm:justify-between sm:gap-3">
                         <div className="min-w-0">
                           <p
-                            className={`truncate font-semibold text-gray-500 dark:text-white/48 ${tileConfig.metaClass}`}
+                            className={`truncate font-semibold text-gray-500 dark:text-white/48 max-[640px]:text-[11px] ${tileConfig.metaClass}`}
                           >
                             {metaParts.length > 0 ? metaParts.join(" / ") : "Expansion"}
                           </p>
                           <p
-                            className={`mt-2 inline-flex items-baseline gap-1.5 rounded-full border border-black/7 bg-black/[0.035] px-2 py-1 font-semibold text-gray-600 dark:border-white/8 dark:bg-white/[0.055] dark:text-white/68 ${tileConfig.metaClass}`}
+                            className={`mt-2 inline-flex max-w-full items-baseline gap-1.5 rounded-full border border-black/7 bg-black/[0.035] px-2 py-1 font-semibold text-gray-600 dark:border-white/8 dark:bg-white/[0.055] dark:text-white/68 max-[640px]:mt-1.5 max-[640px]:text-[11px] ${tileConfig.metaClass}`}
                           >
                             <span className="font-bold text-gray-900 tabular-nums dark:text-white">
                               {cardCount > 0 ? cardCount.toLocaleString("en-US") : "--"}
@@ -343,14 +336,14 @@ export default async function ExpansionsPage() {
                             <span>cards</span>
                           </p>
                         </div>
-                        <div className="shrink-0 text-right">
+                        <div className="min-w-0 text-left sm:shrink-0 sm:text-right">
                           <p
-                            className={`font-semibold uppercase tracking-[0.14em] text-emerald-600/70 dark:text-emerald-200/52 ${tileConfig.metaClass}`}
+                            className={`font-semibold uppercase tracking-[0.14em] text-emerald-600/70 dark:text-emerald-200/52 max-[640px]:text-[10px] ${tileConfig.metaClass}`}
                           >
                             Value
                           </p>
                           <p
-                            className={`mt-0.5 font-bold leading-none text-emerald-700 tabular-nums dark:text-emerald-100 ${tileConfig.valueClass}`}
+                            className={`mt-0.5 min-w-0 truncate font-bold leading-tight text-emerald-700 tabular-nums dark:text-emerald-100 max-[640px]:text-[16px] ${tileConfig.valueClass}`}
                           >
                             {formatCollectionCurrency(currentValue.value)}
                           </p>

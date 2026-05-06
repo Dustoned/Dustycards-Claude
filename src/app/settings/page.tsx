@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { Activity, AlertTriangle, RefreshCw, Settings2 } from "lucide-react";
 import { PageHeroHeader, type HeaderStat } from "@/components/PageHeader";
 import { db } from "@/lib/db";
@@ -13,14 +12,15 @@ import {
 } from "@/lib/sync";
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
-import { parseCookieSettings, SETTINGS_COOKIE_NAME } from "@/lib/user-settings";
-import { requirePageAdmin } from "@/lib/page-auth";
+import { getServerUserSettings } from "@/lib/user-settings-server";
+import { requirePageUser } from "@/lib/page-auth";
 import ThemeSection from "./ThemeSection";
 import LayoutSection from "./LayoutSection";
 import AutomationSection from "./AutomationSection";
 import CardDefaultsSection from "./CardDefaultsSection";
 import FiltersSection from "./FiltersSection";
 import HomePageSection from "./HomePageSection";
+import MobileDisplaySection from "./MobileDisplaySection";
 import PullRateImportSection from "./PullRateImportSection";
 import SyncStatusSection from "./SyncStatusSection";
 
@@ -79,11 +79,40 @@ function parseSyncType(type: string): {
   return { kind: "other", episodeId: null, cardId: null };
 }
 
+function PersonalSettingsSections({ className }: { className: string }) {
+  return (
+    <div className={className}>
+      <ThemeSection />
+      <LayoutSection />
+      <CardDefaultsSection />
+      <MobileDisplaySection />
+      <HomePageSection />
+      <FiltersSection />
+    </div>
+  );
+}
+
 export default async function SettingsPage() {
-  const cookieStore = await cookies();
-  await requirePageAdmin("/settings");
-  const settings = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value);
+  const user = await requirePageUser("/settings");
+  const settings = await getServerUserSettings(user.id);
   const widescreen = settings?.widescreen ?? false;
+  const isAdmin = user.role === "admin";
+
+  if (!isAdmin) {
+    return (
+      <div className={`settings-page ${widescreen ? "max-w-[2000px]" : "max-w-6xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
+        <PageHeroHeader
+          eyebrow="DustyCards"
+          title="Settings"
+          description="Tune appearance, layout, defaults and personal preferences."
+          className="mb-8"
+        />
+
+        <PersonalSettingsSections className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" />
+      </div>
+    );
+  }
+
   const scraperDisabled = areScraperRequestsDisabled();
 
   await reconcileStaleSyncLogs();
@@ -338,13 +367,7 @@ export default async function SettingsPage() {
       />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] xl:items-start">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-          <ThemeSection />
-          <LayoutSection />
-          <CardDefaultsSection />
-          <HomePageSection />
-          <FiltersSection />
-        </div>
+        <PersonalSettingsSections className="grid gap-4 md:grid-cols-2 xl:grid-cols-1" />
 
         <div className="grid gap-4">
           <PullRateImportSection

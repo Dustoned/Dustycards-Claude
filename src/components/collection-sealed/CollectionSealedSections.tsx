@@ -23,7 +23,6 @@ import {
   sealedTileTitleClass,
 } from "@/components/sealed-tile-styles";
 import { formatCollectionCurrency } from "@/lib/collection";
-import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CardSize } from "@/lib/user-settings";
 import type { CollectionSealedViewItem, RemoveDialogState } from "./types";
@@ -193,7 +192,7 @@ export function CollectionSealedSelectionToolbar({
 function CollectionSealedTile({
   item,
   index,
-  minTileWidth,
+  imageSizes,
   cardSize,
   selectionMode,
   isSelected,
@@ -203,7 +202,7 @@ function CollectionSealedTile({
 }: {
   item: CollectionSealedViewItem;
   index: number;
-  minTileWidth: string;
+  imageSizes: string;
   cardSize: CardSize;
   selectionMode: boolean;
   isSelected: boolean;
@@ -239,7 +238,7 @@ function CollectionSealedTile({
             alt={item.name}
             fill
             className={`object-contain ${sealedTileImagePaddingClass(cardSize)}`}
-            sizes={minTileWidth}
+            sizes={imageSizes}
             loading={index < 16 ? "eager" : undefined}
             unoptimized
           />
@@ -253,7 +252,7 @@ function CollectionSealedTile({
       </div>
 
       <div className={sealedTileInfoClass(cardSize)}>
-        <div className="flex items-start justify-between gap-3">
+        <div className="grid gap-1.5 sm:flex sm:items-start sm:justify-between sm:gap-3">
           <div className="min-w-0 flex-1">
             <p className={sealedTileTitleClass(cardSize)}>{item.name}</p>
             <div className={sealedTileMetaLineClass(cardSize)}>
@@ -271,7 +270,7 @@ function CollectionSealedTile({
             </div>
           </div>
 
-          <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
+          <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
             {currentTotal != null ? (
               <span className={sealedTilePriceClass(cardSize)}>
                 {formatCollectionCurrency(currentTotal)}
@@ -340,8 +339,10 @@ function CollectionSealedTile({
 
 export function CollectionSealedGrid({
   items,
-  minTileWidth,
+  imageSizes,
+  gridTemplateColumns,
   cardSize,
+  isMobileViewport,
   selectionMode,
   selectedIdSet,
   removingItems,
@@ -349,8 +350,10 @@ export function CollectionSealedGrid({
   onRemove,
 }: {
   items: CollectionSealedViewItem[];
-  minTileWidth: string;
+  imageSizes: string;
+  gridTemplateColumns: string;
   cardSize: CardSize;
+  isMobileViewport: boolean;
   selectionMode: boolean;
   selectedIdSet: Set<string>;
   removingItems: boolean;
@@ -361,8 +364,8 @@ export function CollectionSealedGrid({
     <div
       className={`grid ${sealedTileGridGapClass(cardSize)}`}
       style={{
-        gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
-        justifyContent: "start",
+        gridTemplateColumns,
+        justifyContent: isMobileViewport ? "stretch" : "start",
       }}
     >
       {items.map((item, index) => (
@@ -370,7 +373,7 @@ export function CollectionSealedGrid({
           key={item.id}
           item={item}
           index={index}
-          minTileWidth={minTileWidth}
+          imageSizes={imageSizes}
           cardSize={cardSize}
           selectionMode={selectionMode}
           isSelected={selectionMode && selectedIdSet.has(item.id)}

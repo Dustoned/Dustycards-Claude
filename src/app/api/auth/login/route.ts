@@ -5,13 +5,38 @@ import {
 } from "@/lib/auth";
 import { normalizeEmail, verifyPassword } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
+import { sendVerificationEmailForUser } from "@/lib/email-verification";
+
+export const runtime = "nodejs";
+
+function getPublicOrigin(req: NextRequest): string {
+  const configuredUrl = process.env.APP_URL;
+  if (configuredUrl) return configuredUrl;
+
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as {
-    email?: unknown;
-    password?: unknown;
-  };
+  const contentType = req.headers.get("content-type") ?? "";
+  const isFormPost =
+    contentType.includes("application/x-www-form-urlencoded") ||
+    contentType.includes("multipart/form-data");
+  const body = isFormPost
+    ? Object.fromEntries(await req.formData())
+    : ((await req.json().catch(() => ({}))) as {
+        email?: unknown;
+        next?: unknown;
+        password?: unknown;
+      });
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
+  const next =
+    typeof body.next === "string" && body.next.startsWith("/") && !body.next.startsWith("//")
+      ? body.next
+      : "/";
   const password = typeof body.password === "string" ? body.password : "";
 
   const user = email
@@ -20,6 +45,7 @@ export async function POST(req: NextRequest) {
         select: {
           id: true,
           email: true,
+          email_verified_at: true,
           password_hash: true,
           role: true,
           disabled: true,
@@ -28,11 +54,51 @@ export async function POST(req: NextRequest) {
     : null;
 
   if (!user || user.disabled || !(await verifyPassword(password, user.password_hash))) {
+    if (isFormPost) {
+      const redirectUrl = new URL("/login", getPublicOrigin(req));
+      redirectUrl.searchParams.set("error", "invalid");
+      redirectUrl.searchParams.set("next", next);
+      return NextResponse.redirect(redirectUrl, { status: 303 });
+    }
+
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+  }
+
+  if (!user.email_verified_at) {
+    try {
+      await sendVerificationEmailForUser({
+        baseUrl: getPublicOrigin(req),
+        email: user.email,
+        userId: user.id,
+      });
+    } catch (error) {
+      console.error("Email verification resend failed", error);
+    }
+
+    if (isFormPost) {
+      const redirectUrl = new URL("/login", getPublicOrigin(req));
+      redirectUrl.searchParams.set("error", "unverified");
+      redirectUrl.searchParams.set("email", user.email);
+      redirectUrl.searchParams.set("next", next);
+      return NextResponse.redirect(redirectUrl, { status: 303 });
+    }
+
+    return NextResponse.json(
+      {
+        code: "unverified",
+        email: user.email,
+        error: "Verify your email before logging in. We sent a new verification link.",
+      },
+      { status: 403 }
+    );
   }
 
   const session = await createUserSession(user.id);
   await setSessionCookie(session.token, session.expiresAt);
+
+  if (isFormPost) {
+    return NextResponse.redirect(new URL(next, getPublicOrigin(req)), { status: 303 });
+  }
 
   return NextResponse.json({
     ok: true,

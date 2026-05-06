@@ -7,6 +7,7 @@ export default function AccountActions() {
   const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -24,10 +25,15 @@ export default function AccountActions() {
     setLoading(true);
 
     try {
+      if (newPassword !== newPasswordConfirm) {
+        setError("New passwords do not match");
+        return;
+      }
+
       const response = await fetch("/api/auth/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword, newPasswordConfirm }),
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) {
@@ -36,6 +42,7 @@ export default function AccountActions() {
       }
       setCurrentPassword("");
       setNewPassword("");
+      setNewPasswordConfirm("");
       setMessage("Password updated.");
     } finally {
       setLoading(false);
@@ -69,6 +76,18 @@ export default function AccountActions() {
             minLength={8}
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
+            className="rounded-xl border border-black/10 bg-white px-3 py-2 text-gray-950 outline-none transition focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+          />
+        </label>
+        <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-white/75">
+          Confirm new password
+          <input
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            value={newPasswordConfirm}
+            onChange={(event) => setNewPasswordConfirm(event.target.value)}
             className="rounded-xl border border-black/10 bg-white px-3 py-2 text-gray-950 outline-none transition focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
           />
         </label>

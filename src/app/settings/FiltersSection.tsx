@@ -78,8 +78,8 @@ export default function FiltersSection() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-black/6 dark:border-white/6">
-        <div>
+      <div className="flex items-center justify-between gap-4 pt-2 border-t border-black/6 dark:border-white/6">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-white">Show only priced cards</p>
           <p className="text-xs text-gray-400 mt-0.5">
             Hide cards without a {primaryPriceLabel} price.
@@ -87,7 +87,7 @@ export default function FiltersSection() {
         </div>
         <button
           onClick={() => set("showOnlyPriced", !settings.showOnlyPriced)}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center overflow-hidden rounded-full transition-colors ${
             settings.showOnlyPriced ? "bg-gray-900 dark:bg-white" : "bg-black/10 dark:bg-white/10"
           }`}
         >

@@ -82,7 +82,10 @@
 
 @media (max-width: 640px) {
   :root {
-    --ui-header-height: 3.5rem;
+    --ui-header-height: 3.125rem;
+    --ui-header-gap: 0.5rem;
+    --ui-header-search-height: 2.1rem;
+    --ui-brand-size: 0.9375rem;
     --ui-page-y: 1.35rem;
     --ui-panel-padding: 1rem;
     --ui-panel-radius: 0.875rem;
@@ -108,6 +111,8 @@
     --ui-header-stat-icon-box: 2rem;
     --ui-header-stat-icon-size: 1rem;
     --ui-section-header-title-size: 1.25rem;
+    --ui-binder-header-logo-size: 4.5rem;
+    --ui-binder-header-logo-padding: 0.55rem;
     --ui-binder-metric-min-width: 7rem;
     --ui-binder-metric-x: 0.75rem;
     --ui-binder-metric-y: 0.625rem;
@@ -190,6 +195,75 @@ html.ui-scale-small {
   --ui-binder-progress-height: 0.5rem;
 }
 
+@media (max-width: 640px) {
+  html.ui-scale-small {
+    --ui-header-height: 3rem;
+    --ui-header-gap: 0.5rem;
+    --ui-header-search-height: 2.125rem;
+    --ui-brand-size: 0.9375rem;
+    --ui-page-y: 0.95rem;
+    --ui-panel-padding: 0.75rem;
+    --ui-panel-radius: 0.75rem;
+    --ui-panel-title-size: 0.9375rem;
+    --ui-panel-copy-size: 0.78125rem;
+    --ui-settings-title-size: 1.375rem;
+    --ui-settings-title-gap: 1rem;
+    --ui-page-header-radius: 1rem;
+    --ui-page-header-padding: 0.8rem;
+    --ui-page-header-grid-gap: 0.75rem;
+    --ui-page-header-leading-gap: 0.55rem;
+    --ui-page-header-title-size: 1.45rem;
+    --ui-page-header-description-size: 0.8125rem;
+    --ui-page-header-description-leading: 1.35;
+    --ui-page-header-action-margin: 0.7rem;
+    --ui-header-action-gap: 0.35rem;
+    --ui-header-action-font-size: 0.75rem;
+    --ui-header-action-x: 0.625rem;
+    --ui-header-action-y: 0.35rem;
+    --ui-header-pill-x: 0.625rem;
+    --ui-header-pill-y: 0.35rem;
+    --ui-header-pill-font-size: 0.625rem;
+    --ui-chip-gap: 0.35rem;
+    --ui-chip-x: 0.625rem;
+    --ui-chip-y: 0.35rem;
+    --ui-chip-font-size: 0.75rem;
+    --ui-chip-count-font-size: 0.625rem;
+    --ui-chip-count-x: 0.35rem;
+    --ui-chip-count-y: 0.0625rem;
+    --ui-chip-count-min-height: 1.125rem;
+    --ui-chip-min-height: 1.625rem;
+    --ui-segment-shell-padding: 0.18rem;
+    --ui-segment-radius: 0.625rem;
+    --ui-segment-x: 0.65rem;
+    --ui-segment-y: 0.35rem;
+    --ui-segment-font-size: 0.75rem;
+    --ui-header-stat-radius: 0.8rem;
+    --ui-header-stat-padding: 0.625rem;
+    --ui-header-stat-min-height: 4.25rem;
+    --ui-header-stat-label-size: 0.5625rem;
+    --ui-header-stat-value-size: 1.125rem;
+    --ui-header-stat-hint-size: 0.625rem;
+    --ui-header-stat-icon-box: 1.8rem;
+    --ui-header-stat-icon-size: 0.9rem;
+    --ui-section-header-gap: 0.5rem;
+    --ui-section-header-padding-bottom: 0.5rem;
+    --ui-section-header-title-size: 1.125rem;
+    --ui-section-header-compact-size: 0.8125rem;
+    --ui-section-header-count-size: 0.625rem;
+    --ui-section-header-description-size: 0.75rem;
+    --ui-binder-header-logo-size: 3.75rem;
+    --ui-binder-header-logo-padding: 0.45rem;
+    --ui-binder-metric-min-width: 6rem;
+    --ui-binder-metric-radius: 0.75rem;
+    --ui-binder-metric-x: 0.625rem;
+    --ui-binder-metric-y: 0.5rem;
+    --ui-binder-metric-value-size: 0.9375rem;
+    --ui-binder-progress-value-size: 1rem;
+    --ui-binder-progress-min-width: 100%;
+    --ui-binder-progress-height: 0.45rem;
+  }
+}
+
 html.ui-scale-large {
   --ui-header-height: 4.5rem;
   --ui-header-gap: 1.25rem;
@@ -265,6 +339,36 @@ html.ui-scale-large {
   --ui-binder-progress-height: 0.75rem;
 }
 
+@media (max-width: 640px) {
+  html.ui-scale-large {
+    --ui-header-height: 3.35rem;
+    --ui-header-gap: 0.75rem;
+    --ui-header-search-height: 2.35rem;
+    --ui-brand-size: 1rem;
+    --ui-page-y: 1.5rem;
+    --ui-panel-padding: 1rem;
+    --ui-panel-radius: 0.95rem;
+    --ui-panel-title-size: 1.0625rem;
+    --ui-panel-copy-size: 0.9375rem;
+    --ui-page-header-radius: 1.35rem;
+    --ui-page-header-padding: 1.1rem;
+    --ui-page-header-title-size: 1.95rem;
+    --ui-page-header-description-size: 0.9375rem;
+    --ui-header-stat-padding: 0.75rem;
+    --ui-header-stat-min-height: 4.75rem;
+    --ui-header-stat-label-size: 0.625rem;
+    --ui-header-stat-value-size: 1.35rem;
+    --ui-header-stat-icon-box: 2.25rem;
+    --ui-header-stat-icon-size: 1.0625rem;
+    --ui-chip-x: 0.875rem;
+    --ui-chip-y: 0.5rem;
+    --ui-chip-font-size: 0.875rem;
+    --ui-segment-x: 0.95rem;
+    --ui-segment-y: 0.5rem;
+    --ui-segment-font-size: 0.875rem;
+  }
+}
+
 html {
   min-height: 100%;
   background-color: #f2f2f7;
@@ -315,6 +419,41 @@ html.widescreen .page-container {
   -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
+@media (max-width: 640px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  .page-container {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .card-browser-toolbar {
+    border-radius: 1.25rem !important;
+    padding: 0.75rem !important;
+  }
+
+  .card-browser-toolbar > section {
+    border-radius: 1rem !important;
+    padding: 0.625rem !important;
+  }
+
+  html,
+  body,
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+  }
+}
+
 .settings-page {
   padding-block: var(--ui-page-y) !important;
 }
@@ -337,6 +476,142 @@ html.widescreen .page-container {
   font-size: var(--ui-panel-copy-size) !important;
 }
 
+@media (max-width: 640px) {
+  .card-modal-frame {
+    max-height: calc(100dvh - 0.25rem) !important;
+    border-radius: 1.1rem !important;
+  }
+
+  .card-modal-frame > div:first-child {
+    padding: 0.55rem !important;
+  }
+
+  .card-modal-frame > div:first-child > div:first-child {
+    gap: 0.55rem !important;
+  }
+
+  .card-modal-frame aside {
+    width: min(12rem, 58vw) !important;
+    max-width: min(12rem, 58vw) !important;
+    gap: 0.35rem !important;
+  }
+
+  .card-modal-frame[data-modal-size="medium"] aside {
+    width: min(13rem, 62vw) !important;
+    max-width: min(13rem, 62vw) !important;
+  }
+
+  .card-modal-frame[data-modal-size="large"] aside {
+    width: min(14.5rem, 68vw) !important;
+    max-width: min(14.5rem, 68vw) !important;
+  }
+
+  .card-modal-frame .card-modal-section {
+    border-radius: 0.95rem !important;
+    padding: 0.68rem !important;
+  }
+
+  .card-modal-frame .card-modal-section > div:first-child {
+    margin-bottom: 0.55rem !important;
+  }
+
+  .card-modal-frame .card-modal-section h2 {
+    font-size: clamp(1.2rem, 6vw, 1.55rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  .card-modal-frame[data-modal-size="large"] .card-modal-section h2 {
+    font-size: clamp(1.35rem, 7vw, 1.75rem) !important;
+  }
+
+  .card-modal-frame .card-modal-section h3 {
+    font-size: 0.95rem !important;
+  }
+
+  .card-modal-frame .card-modal-price-card,
+  .card-modal-frame .card-modal-compare-card {
+    border-radius: 0.95rem !important;
+    padding: 0.65rem !important;
+  }
+
+  .card-modal-frame .card-modal-pricing-grid,
+  .card-modal-frame .card-modal-pricing-metrics,
+  .card-modal-frame .card-modal-market-rows {
+    gap: 0.5rem !important;
+  }
+
+  .card-modal-frame .card-modal-pricing-header {
+    min-height: 0 !important;
+    margin-bottom: 0.55rem !important;
+    gap: 0.5rem !important;
+  }
+
+  .card-modal-frame .card-modal-series-picker {
+    flex-wrap: nowrap !important;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+  }
+
+  .card-modal-frame .card-modal-series-picker button {
+    flex-shrink: 0;
+    padding: 0.35rem 0.6rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .card-modal-frame .card-modal-source-toggle {
+    width: 100%;
+  }
+
+  .card-modal-frame .card-modal-source-toggle button {
+    flex: 1 1 0;
+    padding: 0.42rem 0.5rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .card-modal-frame .card-modal-metric {
+    min-height: auto !important;
+    border-radius: 0.8rem !important;
+    padding: 0.58rem !important;
+  }
+
+  .card-modal-frame .card-modal-metric p:first-child,
+  .card-modal-frame .card-modal-market-row p:first-child,
+  .card-modal-frame .card-modal-price-card > div:first-child p:first-child {
+    font-size: 0.58rem !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .card-modal-frame .card-modal-metric p:nth-child(2) {
+    margin-top: 0.25rem !important;
+    font-size: 0.95rem !important;
+  }
+
+  .card-modal-frame[data-modal-size="large"] .card-modal-metric p:nth-child(2) {
+    font-size: 1.08rem !important;
+  }
+
+  .card-modal-frame .card-modal-market-row {
+    gap: 0.45rem !important;
+    border-radius: 0.8rem !important;
+    padding: 0.55rem 0.58rem !important;
+  }
+
+  .card-modal-frame .card-modal-market-row p:last-child {
+    font-size: 0.88rem !important;
+  }
+
+  .card-modal-frame .card-modal-market-row p:nth-child(2),
+  .card-modal-frame .card-modal-metric p:last-child {
+    font-size: 0.68rem !important;
+  }
+
+  .card-modal-frame .card-modal-meta-pill {
+    padding: 0.2rem 0.5rem !important;
+    font-size: 0.68rem !important;
+  }
+}
+
 
 /* Keyboard focus ring — only visible to keyboard users, never on mouse click */
 @layer base {
@@ -350,4 +625,3 @@ html.widescreen .page-container {
     outline-color: rgb(96 165 250 / 0.85);
   }
 }
-

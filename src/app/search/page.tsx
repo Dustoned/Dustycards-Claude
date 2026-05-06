@@ -12,11 +12,13 @@ import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import {
-  getCardGridTrackWidth,
+  getCardGridImageSizes,
+  getCardGridTemplateColumns,
   getExpansionTileScale,
   getFixedTrackGridTemplate,
   getSearchLogoHeightClass,
-  getSealedProductTrackWidth,
+  getSealedProductGridTemplateColumns,
+  getSealedProductImageSizes,
 } from "@/lib/display-scale";
 import {
   clearSearchReturnPath,
@@ -96,7 +98,7 @@ function setWithLruEviction<K, V>(map: Map<K, V>, key: K, value: V, max: number)
 
 function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   const router = useRouter();
-  const { settings } = useSettings();
+  const { displaySettings, isMobileViewport } = useSettings();
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
@@ -243,10 +245,38 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
         ].join(" / ")
       : null;
 
-  const minWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
-  const sealedMinWidth = getSealedProductTrackWidth(settings.cardSize, settings.widescreen);
-  const expansionScale = getExpansionTileScale(settings.uiScale, settings.widescreen);
-  const logoHeight = getSearchLogoHeightClass(settings.uiScale);
+  const minWidth = getCardGridImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const singlesGridTemplateColumns = getCardGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const singlesGridGapClass = isMobileViewport
+    ? displaySettings.cardSize === "large"
+      ? "gap-x-0 gap-y-5"
+      : displaySettings.cardSize === "medium"
+        ? "gap-x-3 gap-y-4"
+        : "gap-x-2 gap-y-3"
+    : "gap-2";
+  const sealedImageSizes = getSealedProductImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const sealedGridTemplateColumns = getSealedProductGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const expansionScale = getExpansionTileScale(
+    displaySettings.uiScale,
+    displaySettings.widescreen
+  );
+  const logoHeight = getSearchLogoHeightClass(displaySettings.uiScale);
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
@@ -383,10 +413,10 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
               <SectionHeader title="Singles" count={results.singles.length} compact className="mb-4" />
 
               <div
-                className="grid gap-2"
+                className={`grid ${singlesGridGapClass}`}
                 style={{
-                  gridTemplateColumns: getFixedTrackGridTemplate(minWidth),
-                  justifyContent: "start",
+                  gridTemplateColumns: singlesGridTemplateColumns,
+                  justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
                 {results.singles.map((card, index) => (
@@ -424,38 +454,42 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                       {openingCardId === card.id && <CardLoadingOverlay />}
                     </div>
 
-                    <div className="mt-2 px-0.5">
-                      <div className="flex items-end justify-between gap-3">
+                    <div className="mt-1.5 px-0.5 sm:mt-2">
+                      <div className="grid gap-1 sm:flex sm:items-end sm:justify-between sm:gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
+                          <p className="truncate text-[11px] font-semibold leading-snug text-gray-900 dark:text-white sm:text-[13px]">
                             {card.name}
                           </p>
-                          <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
+                          <div className="mt-0.5 flex items-center gap-1 text-[10px] font-medium sm:gap-1.5 sm:text-xs">
                             <span className="shrink-0 text-gray-500 dark:text-gray-400">
                               {card.card_number ? `#${card.card_number}` : "--"}
                             </span>
-                            <span className="text-gray-300 dark:text-white/20">/</span>
-                            <Link
-                              href={`/expansions/${card.episode_id}`}
-                              prefetch={false}
-                              onClick={(e) => e.stopPropagation()}
-                              className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
-                            >
-                              {card.episode_name}
-                              {card.episode_code && (
-                                <span className="ml-1 opacity-60">({card.episode_code})</span>
-                              )}
-                            </Link>
+                            {!isMobileViewport && (
+                              <>
+                                <span className="text-gray-300 dark:text-white/20">/</span>
+                                <Link
+                                  href={`/expansions/${card.episode_id}`}
+                                  prefetch={false}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                                >
+                                  {card.episode_name}
+                                  {card.episode_code && (
+                                    <span className="ml-1 opacity-60">({card.episode_code})</span>
+                                  )}
+                                </Link>
+                              </>
+                            )}
                           </div>
                         </div>
 
-                        <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
+                        <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
                           {card.cm_en_lowest_nm != null ? (
-                            <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                            <span className="min-w-0 truncate text-[12px] font-semibold tabular-nums text-gray-900 dark:text-white sm:text-[15px]">
                               {formatEur(card.cm_en_lowest_nm)}
                             </span>
                           ) : (
-                            <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500 sm:text-xs">No price</span>
                           )}
 
                           <CollectionAddCardButton
@@ -469,7 +503,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                                 code: card.episode_code,
                               },
                             }}
-                            className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                            className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
                           />
                         </div>
                       </div>
@@ -488,8 +522,8 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
               <div
                 className="grid gap-2"
                 style={{
-                  gridTemplateColumns: getFixedTrackGridTemplate(sealedMinWidth),
-                  justifyContent: "start",
+                  gridTemplateColumns: sealedGridTemplateColumns,
+                  justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
                 {results.sealed.map((product, index) => (
@@ -505,7 +539,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                         openSealed(product);
                       }
                     }}
-                    className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
+                    className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none max-[640px]:gap-1"
                   >
                     <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-transparent bg-black/4 shadow-md shadow-black/20 transition-all duration-200 group-hover:scale-[1.03] group-hover:shadow-xl group-hover:shadow-black/30 dark:bg-white/4">
                       {product.image_url ? (
@@ -514,7 +548,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           alt={product.name}
                           fill
                           className="object-contain p-3"
-                          sizes={sealedMinWidth}
+                          sizes={sealedImageSizes}
                           loading={index < 18 ? "eager" : undefined}
                           unoptimized
                         />
@@ -524,13 +558,13 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                         </div>
                       )}
                     </div>
-                    <div className="mt-2 px-0.5">
-                      <div className="flex items-end justify-between gap-3">
+                    <div className="mt-2 px-0.5 max-[640px]:mt-1.5 max-[640px]:px-0">
+                      <div className="grid gap-1.5 sm:flex sm:items-end sm:justify-between sm:gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
+                          <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 max-[640px]:text-[12px] dark:text-white">
                             {product.name}
                           </p>
-                          <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
+                          <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium max-[640px]:hidden">
                             <Link
                               href={`/expansions/${product.episode.id}?tab=sealed`}
                               prefetch={false}
@@ -545,9 +579,9 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           </div>
                         </div>
 
-                        <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
+                        <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
                           {product.cm_lowest != null ? (
-                            <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                            <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 max-[640px]:text-[12px] dark:text-white">
                               {formatEur(product.cm_lowest)}
                             </span>
                           ) : (
@@ -561,7 +595,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                               image_url: product.image_url,
                               episode: product.episode,
                             }}
-                            className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                            className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 max-[640px]:h-6 max-[640px]:w-6 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
                           />
                         </div>
                       </div>

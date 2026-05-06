@@ -420,20 +420,20 @@ export default async function ExpansionDetailPage({
       <Link
         href="/expansions"
         prefetch={false}
-        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
+        className="mb-4 hidden items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
       >
         <ArrowLeft className="h-4 w-4" />
         Back to expansions
       </Link>
 
       <PageHeroHeader
-        className="mb-8"
+        className="mb-5 sm:mb-8"
         style={{ overflow: "visible" }}
         eyebrow="Expansion"
         title={episode.name}
         gridClassName="xl:grid-cols-[minmax(0,1.2fr)_minmax(28rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.24fr)_minmax(28rem,0.76fr)]"
         leadingVisual={
-          <div className="flex h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-black/8 bg-white/80 p-[var(--ui-binder-header-logo-padding)] text-center text-[length:var(--ui-section-header-title-size)] font-bold text-gray-500 shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/8 dark:text-white/70">
+          <div className="hidden h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-black/8 bg-white/80 p-[var(--ui-binder-header-logo-padding)] text-center text-[length:var(--ui-section-header-title-size)] font-bold text-gray-500 shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/8 dark:text-white/70 sm:flex">
             {episode.logo_url ? (
               <div className="relative h-full w-full">
                 <Image
@@ -451,31 +451,33 @@ export default async function ExpansionDetailPage({
           </div>
         }
         description={
-          <div className="space-y-5">
+          <div className="space-y-3 sm:space-y-5">
             <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-gray-600 dark:text-white/62">
               {expansionContext || "Expansion"}
             </p>
-            <div className="grid items-start gap-3 lg:grid-cols-[minmax(13.5rem,0.82fr)_minmax(20rem,1.18fr)]">
-              {headerHistoryProgressValue ? (
-                <HeaderStackedProgressMeter
-                  label={headerProgressLabel}
-                  value={headerProgressValue}
-                  percent={headerProgressPercent}
-                  secondaryLabel="History Prices"
-                  secondaryValue={headerHistoryProgressValue}
-                  secondaryPercent={headerHistoryProgressPercent}
-                  secondaryAccentColor="#38bdf8"
-                  className="sm:!min-w-0 sm:!w-full"
-                />
-              ) : (
-                <HeaderProgressMeter
-                  label={headerProgressLabel}
-                  value={headerProgressValue}
-                  percent={headerProgressPercent}
-                  className="sm:!min-w-0 sm:!w-full"
-                />
-              )}
-              <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid items-start gap-2.5 sm:gap-3 lg:grid-cols-[minmax(13.5rem,0.82fr)_minmax(20rem,1.18fr)]">
+              <div className="hidden sm:block">
+                {headerHistoryProgressValue ? (
+                  <HeaderStackedProgressMeter
+                    label={headerProgressLabel}
+                    value={headerProgressValue}
+                    percent={headerProgressPercent}
+                    secondaryLabel="History Prices"
+                    secondaryValue={headerHistoryProgressValue}
+                    secondaryPercent={headerHistoryProgressPercent}
+                    secondaryAccentColor="#38bdf8"
+                    className="sm:!min-w-0 sm:!w-full"
+                  />
+                ) : (
+                  <HeaderProgressMeter
+                    label={headerProgressLabel}
+                    value={headerProgressValue}
+                    percent={headerProgressPercent}
+                    className="sm:!min-w-0 sm:!w-full"
+                  />
+                )}
+              </div>
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3">
                 <HeaderMetricChip
                   label={headerValueLabel}
                   value={formatCollectionCurrency(pricePanelCurrentValue)}
@@ -514,7 +516,7 @@ export default async function ExpansionDetailPage({
                 {pullRateProfile ? (
                   <PullRateHoverTable
                     profile={pullRateProfile}
-                    className="sm:col-span-2 xl:col-span-2"
+                    className="col-span-2 xl:col-span-2"
                   />
                 ) : null}
               </div>
@@ -522,7 +524,7 @@ export default async function ExpansionDetailPage({
           </div>
         }
         titleActions={
-          <HeaderAction>
+          <HeaderAction className="hidden sm:flex">
             <SyncEpisodeButton episodeId={id} />
           </HeaderAction>
         }
@@ -536,7 +538,7 @@ export default async function ExpansionDetailPage({
             emptyText={pricePanelEmptyText}
           />
         }
-        sideClassName="[&>section]:h-full"
+        sideClassName="max-sm:hidden [&>section]:h-full"
       />
 
       <div className="mb-6 inline-flex rounded-[calc(var(--ui-segment-radius)+0.25rem)] border border-black/8 bg-black/3 p-[var(--ui-segment-shell-padding)] dark:border-white/8 dark:bg-white/5">

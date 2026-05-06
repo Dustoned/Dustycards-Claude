@@ -16,7 +16,7 @@ import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import { SectionHeader } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
-import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 import {
@@ -140,9 +140,9 @@ export default function CollectionCardsView({
   hideSortControls = false,
 }: Props) {
   const router = useRouter();
-  const { settings, set } = useSettings();
+  const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
   const view: CollectionView =
-    settings.defaultView === "binder" ? "grid" : settings.defaultView;
+    displaySettings.defaultView === "binder" ? "grid" : displaySettings.defaultView;
   const sortBy = forcedSortBy ?? settings.sortBy;
   const sortDir = forcedSortDir ?? settings.sortDir;
   const sortLocked = forcedSortBy != null || forcedSortDir != null;
@@ -671,8 +671,23 @@ export default function CollectionCardsView({
     );
   }
 
-  const cardTrackWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
-  const gridTemplateColumns = getFixedTrackGridTemplate(cardTrackWidth);
+  const cardTrackWidth = getCardGridImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const gridTemplateColumns = getCardGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const gridGapClass = isMobileViewport
+    ? displaySettings.cardSize === "large"
+      ? "gap-x-0 gap-y-5"
+      : displaySettings.cardSize === "medium"
+        ? "gap-x-3 gap-y-4"
+        : "gap-x-2 gap-y-3"
+    : "gap-2";
   const showInlineSelectionButton =
     Boolean(sectionTitle) && !showFilters && selectionEnabled && !activeSelectionMode;
   const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
@@ -855,13 +870,13 @@ export default function CollectionCardsView({
               { value: "grid", label: "Grid" },
             ]}
             activeView={view}
-            onViewChange={(value) => set("defaultView", value as CollectionView)}
+            onViewChange={(value) => setDisplay("defaultView", value as CollectionView)}
             sortOptions={hideSortControls ? [] : toolbarSortOptions}
             activeSort={sortBy}
             onSortChange={(value) => toggleSort(value as SortBy)}
             sizeOptions={toolbarSizeOptions}
-            activeSize={settings.cardSize}
-            onSizeChange={(value) => set("cardSize", value as CardSize)}
+            activeSize={displaySettings.cardSize}
+            onSizeChange={(value) => setDisplay("cardSize", value as CardSize)}
             filtersExpanded={filtersPanelExpanded}
             onToggleFilters={() => setFiltersExpanded((prev) => !prev)}
             filterBadgeCount={filterBadgeCount}
@@ -940,7 +955,7 @@ export default function CollectionCardsView({
                 <button
                   key={nextView}
                   type="button"
-                  onClick={() => set("defaultView", nextView)}
+                  onClick={() => setDisplay("defaultView", nextView)}
                   className={`px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
                     view === nextView
                       ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
@@ -991,9 +1006,9 @@ export default function CollectionCardsView({
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => set("cardSize", option.value)}
+                    onClick={() => setDisplay("cardSize", option.value)}
                     className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                      settings.cardSize === option.value
+                      displaySettings.cardSize === option.value
                         ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                         : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                     }`}
@@ -1664,17 +1679,20 @@ export default function CollectionCardsView({
                 />
               )}
               <div
-                className="grid gap-2"
+                className={`grid ${gridGapClass}`}
                 style={{
                   gridTemplateColumns,
-                  justifyContent: "start",
+                  justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
                 {group.entries.map(({ item, selectionKey }, index) => {
                   const missing = !item.owned;
                   const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
                   const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
-                  const conditionBadge = getConditionBadge(item.condition, settings.cardSize);
+                  const conditionBadge = getConditionBadge(
+                    item.condition,
+                    displaySettings.cardSize
+                  );
                   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
                   const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
                   const isGradedCard = Boolean(item.owned && gradingCompanyLabel && gradingGradeLabel);
@@ -1705,11 +1723,13 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={(event) => handleSingleRemove(event, item)}
                           disabled={removingItems}
-                          className={collectionTileActionButtonClass(settings.cardSize)}
+                          className={collectionTileActionButtonClass(displaySettings.cardSize)}
                           aria-label={`Remove ${item.name} from collection`}
                           title="Remove from collection"
                         >
-                          <Minus className={collectionTileActionIconClass(settings.cardSize)} />
+                          <Minus
+                            className={collectionTileActionIconClass(displaySettings.cardSize)}
+                          />
                         </button>
                       ) : null
                     ) : (
@@ -1726,7 +1746,7 @@ export default function CollectionCardsView({
                         }}
                         initialBinderId={bulkAddBinder?.id ?? null}
                         lockedBinderName={bulkAddBinder?.name ?? null}
-                        className={collectionTileActionButtonClass(settings.cardSize)}
+                        className={collectionTileActionButtonClass(displaySettings.cardSize)}
                       />
                     )
                   ) : null;
@@ -1767,7 +1787,7 @@ export default function CollectionCardsView({
                             alt={item.name}
                             className="absolute inset-0"
                             imageClassName={imageClass}
-                            tileSize={settings.cardSize}
+                            tileSize={displaySettings.cardSize}
                             sizes={cardTrackWidth}
                             loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
                           />
@@ -1797,26 +1817,26 @@ export default function CollectionCardsView({
 
                         {blurMissing && missing && (
                           <div className="absolute left-2 top-2">
-                            <span className={collectionOverlayBadgeClass(settings.cardSize)}>
+                            <span className={collectionOverlayBadgeClass(displaySettings.cardSize)}>
                               Missing
                             </span>
                           </div>
                         )}
 
                 {item.owned_count && item.owned_count > 1 && (
-                  <span className={`absolute bottom-2 right-2 ${collectionOverlayBadgeClass(settings.cardSize)}`}>
+                  <span className={`absolute bottom-2 right-2 ${collectionOverlayBadgeClass(displaySettings.cardSize)}`}>
                     x{item.owned_count}
                   </span>
                 )}
               </div>
 
-              <div className={collectionTileInfoClass(settings.cardSize)}>
-                <div className="flex items-end justify-between gap-3">
+              <div className={collectionTileInfoClass(displaySettings.cardSize)}>
+                <div className="grid gap-1 sm:flex sm:items-end sm:justify-between sm:gap-3">
                   <div className="min-w-0 flex-1">
-                    <p className={collectionTileTitleClass(settings.cardSize)}>
+                    <p className={collectionTileTitleClass(displaySettings.cardSize)}>
                       {item.name}
                     </p>
-                    <div className={collectionTileMetaLineClass(settings.cardSize)}>
+                    <div className={collectionTileMetaLineClass(displaySettings.cardSize)}>
                       <span className="shrink-0 text-gray-500 dark:text-gray-400">
                         {item.card_number ? `#${item.card_number}` : "--"}
                       </span>
@@ -1825,7 +1845,7 @@ export default function CollectionCardsView({
                         href={`/expansions/${item.episode_id}`}
                         prefetch={false}
                         onClick={(event) => event.stopPropagation()}
-                        className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                        className="hidden min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300 sm:inline"
                       >
                         {item.episode_name}
                         {item.episode_code ? <span className="ml-1 opacity-60">({item.episode_code})</span> : null}
@@ -1833,7 +1853,7 @@ export default function CollectionCardsView({
                     </div>
                   </div>
 
-                  <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
+                  <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
                     {displayPrice != null ? (
                       <span
                         title={
@@ -1841,22 +1861,22 @@ export default function CollectionCardsView({
                             ? `Using ${item.current_value_label} graded price`
                             : undefined
                         }
-                        className={collectionTilePriceClass(settings.cardSize)}
+                        className={collectionTilePriceClass(displaySettings.cardSize)}
                       >
                         {formatMarketCurrency(displayPrice, displayPriceCurrency)}
                       </span>
                     ) : (
-                      <span className={collectionTileNoPriceClass(settings.cardSize)}>No price</span>
+                      <span className={collectionTileNoPriceClass(displaySettings.cardSize)}>No price</span>
                     )}
                     {tileAction}
                   </div>
                 </div>
 
                 {item.owned ? (
-                  <div className={collectionMetaWrapClass(settings.cardSize)}>
+                  <div className={collectionMetaWrapClass(displaySettings.cardSize)}>
                     {costBasis != null && (
-                      <span className={collectionMetaBadge(settings.cardSize)}>
-                        <span className={`${collectionMetaLabelClass(settings.cardSize)} text-gray-400 dark:text-white/35`}>
+                      <span className={collectionMetaBadge(displaySettings.cardSize)}>
+                        <span className={`${collectionMetaLabelClass(displaySettings.cardSize)} text-gray-400 dark:text-white/35`}>
                           {costBasisLabel}
                         </span>
                         <span className="tabular-nums text-gray-700 dark:text-white/80">
@@ -1865,8 +1885,8 @@ export default function CollectionCardsView({
                       </span>
                     )}
                     {pnl != null && (
-                      <span className={collectionMetaBadge(settings.cardSize, pnl >= 0 ? "positive" : "negative")}>
-                        <span className={`${collectionMetaLabelClass(settings.cardSize)} opacity-70`}>
+                      <span className={collectionMetaBadge(displaySettings.cardSize, pnl >= 0 ? "positive" : "negative")}>
+                        <span className={`${collectionMetaLabelClass(displaySettings.cardSize)} opacity-70`}>
                           P&amp;L
                         </span>
                         <span className="tabular-nums">
@@ -1882,8 +1902,8 @@ export default function CollectionCardsView({
                     )}
                   </div>
                 ) : !item.owned ? (
-                  <div className={collectionMetaWrapClass(settings.cardSize)}>
-                    <p className={collectionMissingMetaClass(settings.cardSize)}>
+                  <div className={collectionMetaWrapClass(displaySettings.cardSize)}>
+                    <p className={collectionMissingMetaClass(displaySettings.cardSize)}>
                       Not in your collection yet
                     </p>
                   </div>

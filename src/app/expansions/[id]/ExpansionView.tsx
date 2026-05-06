@@ -7,7 +7,7 @@ import Link from "next/link";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import type { ModalCardData } from "@/components/card-modal/types";
-import { getCardGridTrackWidth, getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
@@ -205,7 +205,7 @@ export default function ExpansionView({
   onVisibleCardsChange,
   warmCardImages = true,
 }: Props) {
-  const { settings, set } = useSettings();
+  const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
   const [search, setSearch] = useState("");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [selected, setSelected] = useState<CardData | null>(null);
@@ -215,7 +215,7 @@ export default function ExpansionView({
   const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
   const lastNotifiedVisibleCardsRef = useRef<readonly CardData[] | null>(null);
   const view: Exclude<CardView, "binder"> =
-    settings.defaultView === "binder" ? "grid" : settings.defaultView;
+    displaySettings.defaultView === "binder" ? "grid" : displaySettings.defaultView;
   const rarities = settings.defaultRarities;
   const supertypes = settings.defaultSupertypes;
   const onlyPriced = settings.showOnlyPriced;
@@ -287,12 +287,6 @@ export default function ExpansionView({
   const selectedCardIdSet = useMemo(() => new Set(selectedCardIds), [selectedCardIds]);
   const effectiveOnlyPriced = onlyPriced && setHasAnyPricedCards;
   const pricedOnlyUnavailable = onlyPriced && !setHasAnyPricedCards;
-
-  useEffect(() => {
-    if (settings.defaultView === "binder") {
-      set("defaultView", "grid");
-    }
-  }, [settings.defaultView, set]);
 
   useEffect(() => {
     if (!warmCardImages) return;
@@ -506,8 +500,23 @@ export default function ExpansionView({
         : null,
     [collectionEpisode, selected, selectedDetails]
   );
-  const cardTrackWidth = getCardGridTrackWidth(settings.cardSize, settings.widescreen);
-  const gridTemplateColumns = getFixedTrackGridTemplate(cardTrackWidth);
+  const cardTrackWidth = getCardGridImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const gridTemplateColumns = getCardGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const gridGapClass = isMobileViewport
+    ? displaySettings.cardSize === "large"
+      ? "gap-x-0 gap-y-5"
+      : displaySettings.cardSize === "medium"
+        ? "gap-x-3 gap-y-4"
+        : "gap-x-2 gap-y-3"
+    : "gap-2";
   const renderedCards = useIncrementalItems(filtered, {
     initialCount: INITIAL_RENDERED_CARDS,
     batchSize: RENDERED_CARD_BATCH_SIZE,
@@ -677,13 +686,13 @@ export default function ExpansionView({
           { value: "grid", label: "Grid" },
         ]}
         activeView={view}
-        onViewChange={(value) => set("defaultView", value as CardView)}
+        onViewChange={(value) => setDisplay("defaultView", value as CardView)}
         sortOptions={toolbarSortOptions}
         activeSort={sortBy}
         onSortChange={(value) => toggleSort(value as SortBy)}
         sizeOptions={toolbarSizeOptions}
-        activeSize={settings.cardSize}
-        onSizeChange={(value) => set("cardSize", value as CardSize)}
+        activeSize={displaySettings.cardSize}
+        onSizeChange={(value) => setDisplay("cardSize", value as CardSize)}
         filtersExpanded={filtersPanelExpanded}
         onToggleFilters={() => setFiltersExpanded((prev) => !prev)}
         filterBadgeCount={filterBadgeCount}
@@ -800,9 +809,9 @@ export default function ExpansionView({
               {SIZE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
-                  onClick={() => set("cardSize", option.value)}
+                  onClick={() => setDisplay("cardSize", option.value)}
                   className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
-                    settings.cardSize === option.value
+                    displaySettings.cardSize === option.value
                       ? "bg-gray-900 dark:bg-white text-white dark:text-gray-900"
                       : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                   }`}
@@ -954,8 +963,137 @@ export default function ExpansionView({
       )}
 
       {view === "table" && (
-        <div className="glass rounded-3xl shadow-lg shadow-black/5 overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="space-y-2">
+          <div className="grid gap-2 md:hidden">
+            {renderedCards.map((card, index) => {
+              const tableSelected = selectedCardIdSet.has(card.id);
+              const cardMarketPrice = getCardMarketPrice(card);
+              const tcgPlayerPrice = card.price?.tcp_market ?? null;
+
+              return (
+                <article
+                  key={card.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleCardClick(card)}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      handleCardClick(card);
+                    }
+                  }}
+                  className={`min-w-0 rounded-2xl border bg-white/72 p-3 shadow-sm shadow-black/5 transition-colors dark:bg-white/[0.045] ${
+                    tableSelected
+                      ? "border-blue-400/70 ring-2 ring-blue-400/50"
+                      : "border-black/8 dark:border-white/8"
+                  }`}
+                >
+                  <div className="flex gap-3">
+                    <div className="relative h-24 w-[4.25rem] shrink-0 overflow-hidden rounded-xl border border-black/8 bg-black/5 dark:border-white/8 dark:bg-white/5">
+                      {card.image_url ? (
+                        <Image
+                          src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                          alt={card.name}
+                          fill
+                          className="object-contain"
+                          sizes="68px"
+                          loading={index < EAGER_IMAGE_COUNT ? "eager" : undefined}
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
+                          {card.name.slice(0, 2)}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                            {card.name}
+                          </p>
+                          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-gray-500 dark:text-white/50">
+                            <span className="shrink-0">
+                              {card.card_number ? `#${card.card_number}` : "--"}
+                            </span>
+                            {showEpisodeMeta && hasCardEpisodeMeta(card) ? (
+                              <>
+                                <span className="text-gray-300 dark:text-white/20">•</span>
+                                <Link
+                                  href={`/expansions/${card.episode_id}`}
+                                  prefetch={false}
+                                  onClick={(event) => event.stopPropagation()}
+                                  className="min-w-0 truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
+                                >
+                                  {card.episode_name}
+                                  {card.episode_code ? (
+                                    <span className="ml-1 opacity-60">({card.episode_code})</span>
+                                  ) : null}
+                                </Link>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {!selectionMode && (
+                          <CollectionAddCardButton
+                            card={{
+                              id: card.id,
+                              name: card.name,
+                              image_url: card.image_url,
+                              episode: getCollectionEpisodeForCard(card),
+                            }}
+                            className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                          />
+                        )}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div className="rounded-xl border border-black/7 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.04]">
+                          <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                            CardMarket
+                          </p>
+                          <p className="mt-1 truncate font-semibold tabular-nums text-gray-950 dark:text-white">
+                            {cardMarketPrice != null
+                              ? formatCurrency(cardMarketPrice, "EUR")
+                              : "No price"}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-black/7 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.04]">
+                          <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                            TCGPlayer
+                          </p>
+                          <p className="mt-1 truncate font-semibold tabular-nums text-gray-950 dark:text-white">
+                            {tcgPlayerPrice != null
+                              ? formatCurrency(tcgPlayerPrice, "USD")
+                              : "No price"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {card.rarity ? (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold leading-none ${rarityBadge(card.rarity)}`}
+                          >
+                            {normalizeRarityLabel(card.rarity) ?? card.rarity}
+                          </span>
+                        ) : null}
+                        <span className="inline-flex items-center rounded-full border border-black/8 bg-white/70 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55">
+                          Tap for details
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="glass hidden overflow-hidden rounded-3xl shadow-lg shadow-black/5 md:block">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-black/6 dark:border-white/6 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
@@ -1081,16 +1219,17 @@ export default function ExpansionView({
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}
 
       {view === "grid" && (
         <div
-          className="grid gap-2"
+          className={`grid ${gridGapClass}`}
           style={{
             gridTemplateColumns,
-            justifyContent: "start",
+            justifyContent: isMobileViewport ? "stretch" : "start",
           }}
         >
           {renderedCards.map((card, index) => {
@@ -1137,24 +1276,24 @@ export default function ExpansionView({
 
                   {gridSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
                 </div>
-                <div className="mt-2 px-0.5">
-                  <div className="flex items-end justify-between gap-3">
+                <div className="mt-1.5 px-0.5 sm:mt-2">
+                  <div className="grid gap-1 sm:flex sm:items-end sm:justify-between sm:gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
+                      <p className="truncate text-[11px] font-semibold leading-snug text-gray-900 dark:text-white sm:text-[13px]">
                         {card.name}
                       </p>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium">
+                      <div className="mt-0.5 flex items-center gap-1 text-[10px] font-medium sm:gap-1.5 sm:text-xs">
                         <span className="shrink-0 text-gray-500 dark:text-gray-400">
                           {card.card_number ? `#${card.card_number}` : "--"}
                         </span>
-                        {showEpisodeMeta && hasCardEpisodeMeta(card) && (
+                        {showEpisodeMeta && !isMobileViewport && hasCardEpisodeMeta(card) && (
                           <>
                             <span className="text-gray-300 dark:text-white/20">•</span>
                             <Link
                               href={`/expansions/${card.episode_id}`}
                               prefetch={false}
                               onClick={(event) => event.stopPropagation()}
-                              className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                              className="hidden min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300 sm:inline"
                             >
                               {card.episode_name}
                               {card.episode_code ? (
@@ -1166,15 +1305,15 @@ export default function ExpansionView({
                       </div>
                     </div>
 
-                    <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
+                    <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
                       {gridPrice != null ? (
-                        <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 dark:text-white">
+                        <span className="min-w-0 truncate text-[12px] font-semibold tabular-nums text-gray-900 dark:text-white sm:text-[15px]">
                           {primaryPriceSource === "tcp"
                             ? `TCP ${formatCurrency(gridPrice, gridCurrency)}`
                             : formatCurrency(gridPrice, gridCurrency)}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500 sm:text-xs">No price</span>
                       )}
 
                       {!selectionMode && (
@@ -1185,7 +1324,7 @@ export default function ExpansionView({
                             image_url: card.image_url,
                             episode: getCollectionEpisodeForCard(card),
                           }}
-                          className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                          className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
                         />
                       )}
                     </div>

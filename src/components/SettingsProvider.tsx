@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   buildResolvedThemeCookie,
   buildSettingsCookie,
@@ -38,9 +38,19 @@ export type {
 
 const SettingsContext = createContext<{
   settings: UserSettings;
+  displaySettings: UserSettings;
   isLoaded: boolean;
+  isMobileViewport: boolean;
   set: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void;
-}>({ settings: DEFAULT_SETTINGS, isLoaded: false, set: () => {} });
+  setDisplay: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void;
+}>({
+  settings: DEFAULT_SETTINGS,
+  displaySettings: DEFAULT_SETTINGS,
+  isLoaded: false,
+  isMobileViewport: false,
+  set: () => {},
+  setDisplay: () => {},
+});
 
 export function useSettings() {
   return useContext(SettingsContext);
@@ -50,11 +60,24 @@ function load(): UserSettings {
   return parseStoredSettings(localStorage.getItem(SETTINGS_STORAGE_KEY)) ?? DEFAULT_SETTINGS;
 }
 
-function save(s: UserSettings) {
+function saveToBrowser(s: UserSettings) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   localStorage.setItem(SETTINGS_STORAGE_KEY, serializeSettings(s));
   document.cookie = buildSettingsCookie(s);
   document.cookie = buildResolvedThemeCookie(resolveTheme(s.theme, prefersDark));
+}
+
+async function saveToAccount(s: UserSettings) {
+  const response = await fetch("/api/account/settings", {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ settings: s }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not save account settings");
+  }
 }
 
 function applyTheme(theme: Theme) {
@@ -75,38 +98,88 @@ function applyUiScale(scale: UiScale) {
   document.documentElement.classList.add(`ui-scale-${scale}`);
 }
 
+function getDisplaySettings(settings: UserSettings, isMobileViewport: boolean): UserSettings {
+  if (!isMobileViewport) return settings;
+
+  return {
+    ...settings,
+    widescreen: false,
+    uiScale: settings.mobileUiScale,
+    defaultView: settings.mobileDefaultView,
+    cardSize: settings.mobileCardSize,
+    modalSize: settings.mobileModalSize,
+    card3dSize: settings.mobileCard3dSize,
+  };
+}
+
+function getDisplaySettingKey<K extends keyof UserSettings>(
+  key: K,
+  isMobileViewport: boolean
+): K {
+  if (!isMobileViewport) return key;
+
+  const mobileKeyByDisplayKey: Partial<Record<keyof UserSettings, keyof UserSettings>> = {
+    uiScale: "mobileUiScale",
+    defaultView: "mobileDefaultView",
+    cardSize: "mobileCardSize",
+    modalSize: "mobileModalSize",
+    card3dSize: "mobileCard3dSize",
+  };
+
+  return (mobileKeyByDisplayKey[key] ?? key) as K;
+}
+
 export default function SettingsProvider({
   children,
   initialSettings,
+  syncToAccount = false,
 }: {
   children: React.ReactNode;
   initialSettings?: UserSettings | null;
+  syncToAccount?: boolean;
 }) {
   const [settings, setSettings] = useState<UserSettings>(initialSettings ?? DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(Boolean(initialSettings));
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const didSyncInitialSettingsRef = useRef(false);
+  const displaySettings = getDisplaySettings(settings, isMobileViewport);
 
   useEffect(() => {
-    const s = mergeSettings(load());
+    const s = mergeSettings(initialSettings ?? load());
     const initial = initialSettings ?? DEFAULT_SETTINGS;
     const nextRaw = JSON.stringify(s);
     const initialRaw = JSON.stringify(initial);
-    applyTheme(s.theme);
-    applyWidescreen(s.widescreen);
-    applyUiScale(s.uiScale);
-    save(s);
+    saveToBrowser(s);
     const frame = window.requestAnimationFrame(() => {
       if (nextRaw !== initialRaw) {
         setSettings(s);
       }
-      if (!initialSettings) {
-        setIsLoaded(true);
-      }
+      setIsLoaded(true);
     });
 
     return () => {
       window.cancelAnimationFrame(frame);
     };
   }, [initialSettings]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 640px)");
+    const handleChange = () => {
+      setIsMobileViewport(media.matches);
+    };
+
+    handleChange();
+    media.addEventListener("change", handleChange);
+    return () => {
+      media.removeEventListener("change", handleChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    applyTheme(settings.theme);
+    applyWidescreen(displaySettings.widescreen);
+    applyUiScale(displaySettings.uiScale);
+  }, [displaySettings.uiScale, displaySettings.widescreen, settings.theme]);
 
   useEffect(() => {
     if (settings.theme !== "system") {
@@ -124,19 +197,43 @@ export default function SettingsProvider({
     };
   }, [settings.theme]);
 
+  useEffect(() => {
+    if (!syncToAccount || !isLoaded || didSyncInitialSettingsRef.current) return;
+
+    didSyncInitialSettingsRef.current = true;
+    void saveToAccount(settings).catch(() => {
+      didSyncInitialSettingsRef.current = false;
+    });
+  }, [isLoaded, settings, syncToAccount]);
+
   function set<K extends keyof UserSettings>(key: K, value: UserSettings[K]) {
     setSettings((prev) => {
       const next = { ...prev, [key]: value };
-      save(next);
+      saveToBrowser(next);
+      if (syncToAccount) {
+        void saveToAccount(next).catch(() => undefined);
+      }
       if (key === "theme") applyTheme(value as Theme);
-      if (key === "widescreen") applyWidescreen(value as boolean);
-      if (key === "uiScale") applyUiScale(value as UiScale);
+      if (key === "widescreen") {
+        const effectiveSettings = getDisplaySettings(next, isMobileViewport);
+        applyWidescreen(effectiveSettings.widescreen);
+      }
+      if (key === "uiScale" || key === "mobileUiScale") {
+        const effectiveSettings = getDisplaySettings(next, isMobileViewport);
+        applyUiScale(effectiveSettings.uiScale);
+      }
       return next;
     });
   }
 
+  function setDisplay<K extends keyof UserSettings>(key: K, value: UserSettings[K]) {
+    set(getDisplaySettingKey(key, isMobileViewport), value);
+  }
+
   return (
-    <SettingsContext.Provider value={{ settings, isLoaded, set }}>
+    <SettingsContext.Provider
+      value={{ settings, displaySettings, isLoaded, isMobileViewport, set, setDisplay }}
+    >
       {children}
     </SettingsContext.Provider>
   );

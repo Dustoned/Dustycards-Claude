@@ -34,6 +34,7 @@ export class AuthorizationError extends Error {
 function toAuthUser(user: {
   id: string;
   email: string;
+  email_verified_at: Date | null;
   role: string;
   disabled: boolean;
 }): AuthUser {
@@ -111,6 +112,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
         select: {
           id: true,
           email: true,
+          email_verified_at: true,
           role: true,
           disabled: true,
         },
@@ -119,13 +121,11 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   });
 
   if (!session) {
-    await clearSessionCookie();
     return null;
   }
 
-  if (isSessionExpired(session.expires_at) || session.user.disabled) {
+  if (isSessionExpired(session.expires_at) || session.user.disabled || !session.user.email_verified_at) {
     await db.session.deleteMany({ where: { id: session.id } });
-    await clearSessionCookie();
     return null;
   }
 

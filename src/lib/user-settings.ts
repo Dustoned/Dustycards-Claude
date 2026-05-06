@@ -14,10 +14,13 @@ export interface UserSettings {
   theme: Theme;
   widescreen: boolean;
   uiScale: UiScale;
+  mobileUiScale: UiScale;
   autoPriceRefresh: boolean;
   binderWatchMinPrice: number;
   defaultView: CardView;
+  mobileDefaultView: CardView;
   cardSize: CardSize;
+  mobileCardSize: CardSize;
   defaultRarities: string[];
   defaultSupertypes: string[];
   showOnlyPriced: boolean;
@@ -25,7 +28,9 @@ export interface UserSettings {
   sortBy: SortBy;
   sortDir: SortDir;
   modalSize: ModalSize;
+  mobileModalSize: ModalSize;
   card3dSize: Card3dSize;
+  mobileCard3dSize: Card3dSize;
 }
 
 export const SETTINGS_STORAGE_KEY = "dustycards-settings";
@@ -38,10 +43,13 @@ export const DEFAULT_SETTINGS: UserSettings = {
   theme: "system",
   widescreen: false,
   uiScale: "medium",
+  mobileUiScale: "small",
   autoPriceRefresh: true,
   binderWatchMinPrice: 50,
   defaultView: "table",
+  mobileDefaultView: "grid",
   cardSize: "medium",
+  mobileCardSize: "small",
   defaultRarities: [],
   defaultSupertypes: [],
   showOnlyPriced: false,
@@ -49,7 +57,9 @@ export const DEFAULT_SETTINGS: UserSettings = {
   sortBy: "number",
   sortDir: "asc",
   modalSize: "medium",
+  mobileModalSize: "small",
   card3dSize: "medium",
+  mobileCard3dSize: "small",
 };
 
 function pickEnumValue<T extends string>(
@@ -85,6 +95,11 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
     widescreen:
       typeof source.widescreen === "boolean" ? source.widescreen : DEFAULT_SETTINGS.widescreen,
     uiScale: pickEnumValue(source.uiScale, ["small", "medium", "large"], DEFAULT_SETTINGS.uiScale),
+    mobileUiScale: pickEnumValue(
+      source.mobileUiScale,
+      ["small", "medium", "large"],
+      DEFAULT_SETTINGS.mobileUiScale
+    ),
     autoPriceRefresh:
       typeof source.autoPriceRefresh === "boolean"
         ? source.autoPriceRefresh
@@ -98,7 +113,17 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       ["table", "grid", "binder"],
       DEFAULT_SETTINGS.defaultView
     ),
+    mobileDefaultView: pickEnumValue(
+      source.mobileDefaultView,
+      ["table", "grid", "binder"],
+      DEFAULT_SETTINGS.mobileDefaultView
+    ),
     cardSize: pickEnumValue(source.cardSize, ["small", "medium", "large"], DEFAULT_SETTINGS.cardSize),
+    mobileCardSize: pickEnumValue(
+      source.mobileCardSize,
+      ["small", "medium", "large"],
+      DEFAULT_SETTINGS.mobileCardSize
+    ),
     defaultRarities: pickStringArray(source.defaultRarities),
     defaultSupertypes: pickStringArray(source.defaultSupertypes),
     showOnlyPriced:
@@ -117,10 +142,20 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       ["small", "medium", "large"],
       DEFAULT_SETTINGS.modalSize
     ),
+    mobileModalSize: pickEnumValue(
+      source.mobileModalSize,
+      ["small", "medium", "large"],
+      DEFAULT_SETTINGS.mobileModalSize
+    ),
     card3dSize: pickEnumValue(
       source.card3dSize,
       ["small", "medium", "large"],
       DEFAULT_SETTINGS.card3dSize
+    ),
+    mobileCard3dSize: pickEnumValue(
+      source.mobileCard3dSize,
+      ["small", "medium", "large"],
+      DEFAULT_SETTINGS.mobileCard3dSize
     ),
   };
 }
@@ -200,13 +235,15 @@ export const initSettingsScript = `
     var t = s.theme || 'system';
     var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.cookie = '${SETTINGS_RESOLVED_THEME_COOKIE_NAME}=' + (dark ? 'dark' : 'light') + '; Path=/; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; SameSite=Lax';
-    var ui = ['small', 'medium', 'large'].indexOf(s.uiScale) >= 0 ? s.uiScale : 'medium';
+    var phone = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+    var rawUi = phone ? (s.mobileUiScale || 'small') : (s.uiScale || 'medium');
+    var ui = ['small', 'medium', 'large'].indexOf(rawUi) >= 0 ? rawUi : (phone ? 'small' : 'medium');
     document.documentElement.dataset.theme = t;
     document.documentElement.dataset.uiScale = ui;
     document.documentElement.classList.remove('ui-scale-small', 'ui-scale-medium', 'ui-scale-large');
     document.documentElement.classList.add('ui-scale-' + ui);
     document.documentElement.classList.toggle('dark', dark);
-    document.documentElement.classList.toggle('widescreen', !!s.widescreen);
+    document.documentElement.classList.toggle('widescreen', !phone && !!s.widescreen);
   } catch(e){}
 })();
 `;

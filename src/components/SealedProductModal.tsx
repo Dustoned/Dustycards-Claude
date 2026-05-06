@@ -34,7 +34,7 @@ interface Props {
 export default function SealedProductModal({ product, onClose }: Props) {
   useBodyScrollLock();
 
-  const { settings } = useSettings();
+  const { displaySettings } = useSettings();
   const [modalProduct, setModalProduct] = useState<SealedDetailResponse>(() =>
     buildInitialSealedDetail(product)
   );
@@ -44,7 +44,10 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const [historyChartsOpen, setHistoryChartsOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const layout = getSealedModalLayoutClasses(settings.modalSize, settings.widescreen);
+  const layout = getSealedModalLayoutClasses(
+    displaySettings.modalSize,
+    displaySettings.widescreen
+  );
   const primaryPrice = getSealedProductPrice(modalProduct);
   const priceHistory = modalProduct.price_history;
   const chartPoints =

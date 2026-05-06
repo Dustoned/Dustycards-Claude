@@ -1,15 +1,10 @@
-import { cookies } from "next/headers";
 import {
   getMovers,
   type CollectionMoversData,
   type MoversItemScope,
   type MoversScope,
 } from "@/lib/movers";
-import {
-  DEFAULT_SETTINGS,
-  parseCookieSettings,
-  SETTINGS_COOKIE_NAME,
-} from "@/lib/user-settings";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
   buildMoversSourceHref,
   normalizeMoversItemScope,
@@ -72,9 +67,7 @@ export async function loadMoversPageData(
     throw new Error("loadMoversPageData requires a user id.");
   }
 
-  const cookieStore = await cookies();
-  const settings =
-    parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value) ?? DEFAULT_SETTINGS;
+  const settings = await getServerUserSettings(userId);
   const activePriceSource = normalizeMoversPriceSource(
     sourceOverride,
     settings.primaryPriceSource

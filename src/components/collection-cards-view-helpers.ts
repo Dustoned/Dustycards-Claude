@@ -244,14 +244,14 @@ export function collectionMetaLabelClass(cardSize: CardSize): string {
 
 export function collectionMetaWrapClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "mt-3 flex min-h-[86px] flex-wrap content-start items-center gap-1";
+    return "mt-3 flex min-h-[86px] flex-wrap content-start items-center gap-1 max-[640px]:hidden";
   }
 
   if (cardSize === "medium") {
-    return "mt-2.5 flex min-h-[72px] flex-wrap content-start items-center gap-1.5";
+    return "mt-2.5 flex min-h-[72px] flex-wrap content-start items-center gap-1.5 max-[640px]:hidden";
   }
 
-  return "mt-2 flex min-h-[62px] flex-wrap content-start items-center gap-1.5";
+  return "mt-2 flex min-h-[62px] flex-wrap content-start items-center gap-1.5 max-[640px]:hidden";
 }
 
 export function collectionMissingMetaClass(cardSize: CardSize): string {
@@ -292,38 +292,38 @@ export function collectionTileInfoClass(cardSize: CardSize): string {
 
 export function collectionTileTitleClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "truncate text-[18px] font-semibold leading-snug text-gray-900 dark:text-white";
+    return "truncate text-[18px] font-semibold leading-snug text-gray-900 dark:text-white max-[640px]:text-[17px]";
   }
 
   if (cardSize === "medium") {
-    return "truncate text-[15px] font-semibold leading-snug text-gray-900 dark:text-white";
+    return "truncate text-[15px] font-semibold leading-snug text-gray-900 dark:text-white max-[640px]:text-[13px]";
   }
 
-  return "truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white";
+  return "truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white max-[640px]:text-[11px]";
 }
 
 export function collectionTileMetaLineClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "mt-1 flex items-center gap-2 text-[14px] font-medium";
+    return "mt-1 flex items-center gap-2 text-[14px] font-medium max-[640px]:text-[12px]";
   }
 
   if (cardSize === "medium") {
-    return "mt-0.5 flex items-center gap-1.5 text-[12px] font-medium";
+    return "mt-0.5 flex items-center gap-1.5 text-[12px] font-medium max-[640px]:text-[11px]";
   }
 
-  return "mt-0.5 flex items-center gap-1.5 text-[11px] font-medium";
+  return "mt-0.5 flex items-center gap-1.5 text-[11px] font-medium max-[640px]:text-[10px]";
 }
 
 export function collectionTilePriceClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "min-w-0 truncate text-[20px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white";
+    return "min-w-0 truncate text-[20px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white max-[640px]:text-[20px]";
   }
 
   if (cardSize === "medium") {
-    return "min-w-0 truncate text-[16px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white";
+    return "min-w-0 truncate text-[16px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white max-[640px]:text-[15px]";
   }
 
-  return "min-w-0 truncate text-[14px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white";
+  return "min-w-0 truncate text-[14px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white max-[640px]:text-[12px]";
 }
 
 export function collectionTileNoPriceClass(cardSize: CardSize): string {
@@ -341,10 +341,10 @@ export function collectionTileNoPriceClass(cardSize: CardSize): string {
 export function collectionTileActionButtonClass(cardSize: CardSize): string {
   const size =
     cardSize === "large"
-      ? "h-[26px] w-[26px] rounded-lg"
+      ? "h-[26px] w-[26px] rounded-lg max-[640px]:h-[24px] max-[640px]:w-[24px]"
       : cardSize === "medium"
-        ? "h-[24px] w-[24px] rounded-md"
-        : "h-[22px] w-[22px] rounded-md";
+        ? "h-[24px] w-[24px] rounded-md max-[640px]:h-[22px] max-[640px]:w-[22px]"
+        : "h-[22px] w-[22px] rounded-md max-[640px]:h-[20px] max-[640px]:w-[20px]";
 
   return `inline-flex ${size} shrink-0 items-center justify-center border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12`;
 }

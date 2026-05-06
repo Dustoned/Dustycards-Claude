@@ -133,8 +133,11 @@ export default function CollectionOverviewSections({
   binders,
   initialSectionOrder = null,
 }: Props) {
-  const { settings } = useSettings();
-  const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
+  const { displaySettings } = useSettings();
+  const binderTileTrackWidth = getSupportTileTrackWidth(
+    displaySettings.uiScale,
+    displaySettings.widescreen
+  );
   const [sectionOrder, setSectionOrder] = useState<OverviewSectionKey[]>(
     initialSectionOrder ?? DEFAULT_OVERVIEW_SECTION_ORDER
   );

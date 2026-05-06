@@ -9,13 +9,20 @@ export async function POST(req: NextRequest) {
     const body = (await req.json().catch(() => ({}))) as {
       currentPassword?: unknown;
       newPassword?: unknown;
+      newPasswordConfirm?: unknown;
     };
     const currentPassword =
       typeof body.currentPassword === "string" ? body.currentPassword : "";
     const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
+    const newPasswordConfirm =
+      typeof body.newPasswordConfirm === "string" ? body.newPasswordConfirm : "";
 
     if (newPassword.length < 8) {
       return NextResponse.json({ error: "New password must be at least 8 characters" }, { status: 400 });
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      return NextResponse.json({ error: "New passwords do not match" }, { status: 400 });
     }
 
     const record = await db.user.findUnique({

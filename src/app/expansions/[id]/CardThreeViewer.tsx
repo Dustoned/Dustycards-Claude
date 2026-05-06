@@ -905,9 +905,38 @@ function getFramingOffset(
   return scaledBaseOffset + (minOffset - scaledBaseOffset) * zoomProgress;
 }
 
+function getBaseVerticalFramingOffset(viewportWidth: number, viewportHeight: number) {
+  if (viewportWidth >= 768) return 0;
+  if (viewportHeight <= 700) return 0.68;
+  if (viewportHeight <= 780) return 0.58;
+  return 0.48;
+}
+
+function getVerticalFramingOffset(
+  viewportWidth: number,
+  viewportHeight: number,
+  cameraDistance: number,
+  resetCameraDistance: number,
+  offsetScale: number
+) {
+  const baseOffset = getBaseVerticalFramingOffset(viewportWidth, viewportHeight);
+  if (baseOffset === 0) return 0;
+
+  const minOffset = baseOffset * 0.38;
+  const zoomRange = Math.max(resetCameraDistance - MIN_CAMERA_DISTANCE, 0.001);
+  const zoomProgress = clamp(
+    (resetCameraDistance - cameraDistance) / zoomRange,
+    0,
+    1
+  );
+
+  const scaledBaseOffset = baseOffset * offsetScale;
+  return scaledBaseOffset + (minOffset - scaledBaseOffset) * zoomProgress;
+}
+
 export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, onClose }: Props) {
-  const { settings } = useSettings();
-  const card3dSize = settings.card3dSize;
+  const { displaySettings, isMobileViewport } = useSettings();
+  const card3dSize = displaySettings.card3dSize;
   const rootRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const detailsRef = useRef<HTMLDivElement | null>(null);
@@ -920,9 +949,9 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     pointerUp: (pointerId: number) => void;
     wheel: (deltaY: number) => void;
   } | null>(null);
-  const dragStateRef = useRef<{ active: boolean; pointerId: number | null }>({
+  const dragStateRef = useRef<{ active: boolean; pointerIds: Set<number> }>({
     active: false,
-    pointerId: null,
+    pointerIds: new Set<number>(),
   });
   const clickAwayRef = useRef({ active: false, startX: 0, startY: 0 });
   const initialRotationRef = useRef({ x: -0.21, y: -0.72, z: 0 });
@@ -961,7 +990,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     setHasError(false);
     autoRotateRef.current = true;
     viewerApiRef.current = null;
-    dragStateRef.current = { active: false, pointerId: null };
+    dragStateRef.current = { active: false, pointerIds: new Set<number>() };
 
     let mounted = true;
     let animationFrameId = 0;
@@ -1358,8 +1387,20 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
             getResetCameraDistance(),
             sizeConfig.offsetScale
           );
+          const offsetY = getVerticalFramingOffset(
+            host.clientWidth,
+            host.clientHeight,
+            camera.position.z,
+            getResetCameraDistance(),
+            sizeConfig.offsetScale
+          );
           cardGroup.position.x = offsetX;
-          cameraTarget.set(offsetX * CAMERA_TARGET_FOLLOW, 0, 0);
+          cardGroup.position.y = offsetY;
+          cameraTarget.set(
+            offsetX * CAMERA_TARGET_FOLLOW,
+            offsetY * CAMERA_TARGET_FOLLOW * 0.35,
+            0
+          );
           camera.lookAt(cameraTarget);
         };
 
@@ -1553,9 +1594,22 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
             getResetCameraDistance(),
             sizeConfig.offsetScale
           );
+          const offsetY = getVerticalFramingOffset(
+            host.clientWidth,
+            host.clientHeight,
+            camera.position.z,
+            getResetCameraDistance(),
+            sizeConfig.offsetScale
+          );
           cardGroup.position.x +=
             (offsetX - cardGroup.position.x) * 0.18;
-          cameraTarget.set(cardGroup.position.x * CAMERA_TARGET_FOLLOW, 0, 0);
+          cardGroup.position.y +=
+            (offsetY - cardGroup.position.y) * 0.18;
+          cameraTarget.set(
+            cardGroup.position.x * CAMERA_TARGET_FOLLOW,
+            cardGroup.position.y * CAMERA_TARGET_FOLLOW * 0.35,
+            0
+          );
           camera.lookAt(cameraTarget);
           renderer?.render(scene, camera);
         };
@@ -1610,6 +1664,11 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     { label: "TCP Low", value: card.price?.tcp_low, currency: "USD" as const },
   ].filter(({ value }) => value != null);
   const gradedPriceRows = card.graded_prices ?? [];
+  const compactMobileDetails = isMobileViewport && card3dSize === "small";
+  const compactCardMarketPriceRows = compactMobileDetails
+    ? cardMarketPriceRows.slice(0, 1)
+    : cardMarketPriceRows;
+  const compactTcgPriceRows = compactMobileDetails ? tcgPriceRows.slice(0, 1) : tcgPriceRows;
 
   function isPersistentUiTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Node)) return false;
@@ -1620,20 +1679,28 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
   return (
     <div
       ref={rootRef}
-      className="fixed inset-0 z-[80] bg-black/85 backdrop-blur-md"
+      className="fixed inset-0 z-[80] touch-none bg-black/85 backdrop-blur-md"
+      style={{ overscrollBehavior: "contain", touchAction: "none" }}
       onPointerDownCapture={(event) => {
         const viewerApi = viewerApiRef.current;
+        const dragState = dragStateRef.current;
+        const keepOpenTarget = isPersistentUiTarget(event.target);
         const hitCard = viewerApi?.hitTest(event.clientX, event.clientY) ?? false;
-        if (hitCard) {
+        const joinsActiveTouchGesture =
+          event.pointerType === "touch" && dragState.active && !keepOpenTarget;
+
+        if (hitCard || joinsActiveTouchGesture) {
+          const pointerIds = new Set(dragState.pointerIds);
+          pointerIds.add(event.pointerId);
           clickAwayRef.current.active = false;
-          dragStateRef.current = { active: true, pointerId: event.pointerId };
+          dragStateRef.current = { active: true, pointerIds };
           viewerApi?.pointerDown(event.pointerId, event.clientX, event.clientY);
           event.preventDefault();
           event.stopPropagation();
           return;
         }
 
-        if (isPersistentUiTarget(event.target)) {
+        if (keepOpenTarget) {
           clickAwayRef.current.active = false;
           return;
         }
@@ -1647,16 +1714,18 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
       onPointerMoveCapture={(event) => {
         viewerApiRef.current?.pointerHover(event.clientX, event.clientY);
         const dragState = dragStateRef.current;
-        if (!dragState.active || dragState.pointerId !== event.pointerId) return;
+        if (!dragState.active || !dragState.pointerIds.has(event.pointerId)) return;
         viewerApiRef.current?.pointerMove(event.pointerId, event.clientX, event.clientY);
         event.preventDefault();
         event.stopPropagation();
       }}
       onPointerUpCapture={(event) => {
         const dragState = dragStateRef.current;
-        if (dragState.active && dragState.pointerId === event.pointerId) {
+        if (dragState.active && dragState.pointerIds.has(event.pointerId)) {
           viewerApiRef.current?.pointerUp(event.pointerId);
-          dragStateRef.current = { active: false, pointerId: null };
+          const pointerIds = new Set(dragState.pointerIds);
+          pointerIds.delete(event.pointerId);
+          dragStateRef.current = { active: pointerIds.size > 0, pointerIds };
           clickAwayRef.current.active = false;
           event.preventDefault();
           event.stopPropagation();
@@ -1681,12 +1750,19 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
         event.preventDefault();
         event.stopPropagation();
       }}
-      onPointerCancelCapture={() => {
+      onPointerCancelCapture={(event) => {
         const dragState = dragStateRef.current;
-        if (dragState.active && dragState.pointerId != null) {
-          viewerApiRef.current?.pointerUp(dragState.pointerId);
+        if (dragState.active && dragState.pointerIds.has(event.pointerId)) {
+          viewerApiRef.current?.pointerUp(event.pointerId);
+          const pointerIds = new Set(dragState.pointerIds);
+          pointerIds.delete(event.pointerId);
+          dragStateRef.current = { active: pointerIds.size > 0, pointerIds };
+        } else if (dragState.active) {
+          dragState.pointerIds.forEach((pointerId) => {
+            viewerApiRef.current?.pointerUp(pointerId);
+          });
+          dragStateRef.current = { active: false, pointerIds: new Set<number>() };
         }
-        dragStateRef.current = { active: false, pointerId: null };
         clickAwayRef.current.active = false;
       }}
     >
@@ -1697,30 +1773,47 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
           aria-label={`3D view of ${card.name}`}
         />
 
-        <div className="pointer-events-none absolute inset-0 z-20 px-4 py-4 sm:px-6 sm:py-6">
+        <div className="pointer-events-none absolute inset-0 z-20 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-20 sm:px-6 sm:py-6">
           <div className="relative mx-auto h-full max-w-[84rem] lg:max-w-[88rem]">
             <div className="pointer-events-none relative flex h-full flex-col justify-end md:grid md:grid-cols-[minmax(19rem,22rem)_minmax(0,1fr)] md:items-center md:gap-5 lg:grid-cols-[minmax(20rem,23rem)_minmax(0,1fr)] lg:gap-6">
               <div className="pointer-events-none mt-4 md:mt-0 md:flex md:items-center">
                 <div
                   ref={detailsRef}
-                  className="pointer-events-auto mx-auto max-w-lg rounded-3xl border border-white/14 bg-transparent px-5 py-4 backdrop-blur-xl md:mx-0 md:w-full md:max-w-none md:max-h-[calc(100vh-3rem)] md:overflow-y-auto md:overscroll-contain"
+                  data-three-details="true"
+                  className={`pointer-events-auto mx-auto max-w-lg overscroll-contain rounded-2xl border border-white/14 bg-transparent backdrop-blur-xl md:mx-0 md:max-h-[calc(100vh-3rem)] md:w-full md:max-w-none md:overflow-y-auto md:rounded-3xl ${
+                    compactMobileDetails
+                      ? "max-h-none overflow-visible px-3 py-2.5"
+                      : "max-h-[31dvh] overflow-y-auto px-4 py-3 sm:max-h-[36dvh] sm:px-5 sm:py-4"
+                  }`}
                   style={{
                     background: "rgba(12,12,14,0.68)",
                     border: "1px solid rgba(255,255,255,0.16)",
                     boxShadow: "0 28px 80px rgba(0,0,0,0.34)",
+                    touchAction: "pan-y",
+                    overscrollBehavior: "contain",
                   }}
                 >
-                  <p className="text-2xl font-semibold text-white">{card.name}</p>
+                  <p
+                    className={`font-semibold leading-tight text-white ${
+                      compactMobileDetails ? "text-lg" : "text-xl sm:text-2xl"
+                    }`}
+                  >
+                    {card.name}
+                  </p>
 
-                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-white/55">
+                  <div
+                    className={`flex flex-wrap gap-x-3 gap-y-1 text-white/55 ${
+                      compactMobileDetails ? "mt-1 text-xs" : "mt-2 text-sm"
+                    }`}
+                  >
                     {card.card_number && <span>#{card.card_number}</span>}
                     {card.supertype && <span>{card.supertype}</span>}
-                    {card.subtypes && <span>{card.subtypes}</span>}
+                    {!compactMobileDetails && card.subtypes && <span>{card.subtypes}</span>}
                   </div>
 
                   {card.rarity && (
                     <span
-                      className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${rarityBadgeDark(
+                      className={`${compactMobileDetails ? "mt-2 px-2 py-0.5 text-[11px]" : "mt-3 px-2.5 py-1 text-xs"} inline-flex rounded-full font-semibold ${rarityBadgeDark(
                         card.rarity
                       )}`}
                     >
@@ -1728,13 +1821,21 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                     </span>
                   )}
 
-                  {(cardMarketPriceRows.length > 0 || tcgPriceRows.length > 0) && (
-                    <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                  {(compactCardMarketPriceRows.length > 0 || compactTcgPriceRows.length > 0) && (
+                    <div
+                      className={`grid grid-cols-2 ${
+                        compactMobileDetails ? "mt-3 gap-1.5 text-[11px]" : "mt-4 gap-2 text-sm"
+                      }`}
+                    >
                       <div className="flex flex-col gap-2">
-                        {cardMarketPriceRows.map(({ label, value, currency }) => (
+                        {compactCardMarketPriceRows.map(({ label, value, currency }) => (
                           <div
                             key={label}
-                            className="flex items-center justify-between rounded-2xl bg-white/8 px-3 py-2"
+                            className={`flex items-center justify-between bg-white/8 ${
+                              compactMobileDetails
+                                ? "rounded-xl px-2.5 py-1.5"
+                                : "rounded-2xl px-3 py-2"
+                            }`}
                           >
                             <span className="text-white/52">{label}</span>
                             <span className="font-semibold tabular-nums text-white">
@@ -1745,10 +1846,14 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        {tcgPriceRows.map(({ label, value, currency }) => (
+                        {compactTcgPriceRows.map(({ label, value, currency }) => (
                           <div
                             key={label}
-                            className="flex items-center justify-between rounded-2xl bg-white/8 px-3 py-2"
+                            className={`flex items-center justify-between bg-white/8 ${
+                              compactMobileDetails
+                                ? "rounded-xl px-2.5 py-1.5"
+                                : "rounded-2xl px-3 py-2"
+                            }`}
                           >
                             <span className="text-white/52">{label}</span>
                             <span className="font-semibold tabular-nums text-white">
@@ -1760,7 +1865,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                     </div>
                   )}
 
-                  {gradedPriceRows.length > 0 && (
+                  {!compactMobileDetails && gradedPriceRows.length > 0 && (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
                         Graded
@@ -1781,15 +1886,17 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                     </div>
                   )}
 
-                  <PriceRefreshCountdown
-                    rarity={card.rarity}
-                    priceFetchedAt={card.price_fetched_at}
-                    priceSourceStatus={card.price_source_status}
-                    priceSourceCheckedAt={card.price_source_checked_at}
-                    className="mt-4"
-                  />
+                  {!compactMobileDetails && (
+                    <PriceRefreshCountdown
+                      rarity={card.rarity}
+                      priceFetchedAt={card.price_fetched_at}
+                      priceSourceStatus={card.price_source_status}
+                      priceSourceCheckedAt={card.price_source_checked_at}
+                      className="mt-4"
+                    />
+                  )}
 
-                  {card.artist && (
+                  {!compactMobileDetails && card.artist && (
                     <p className="mt-2 text-sm text-white/44">
                       Illus.{" "}
                       <IllustratorLink
@@ -1804,13 +1911,21 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                       href={filteredCardMarketUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-500"
+                      className={`inline-flex w-full items-center justify-center bg-blue-600 text-center font-semibold text-white transition-colors hover:bg-blue-500 ${
+                        compactMobileDetails
+                          ? "mt-3 rounded-xl px-3 py-2 text-sm"
+                          : "mt-4 rounded-2xl px-4 py-3"
+                      }`}
                     >
                       Open CardMarket
                     </a>
                   )}
 
-                  <p className="mt-4 text-sm text-white/55">Drag to rotate. Pinch or scroll to zoom.</p>
+                  {!compactMobileDetails && (
+                    <p className="mt-4 text-sm text-white/55">
+                      Drag to rotate. Pinch or scroll to zoom.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

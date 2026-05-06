@@ -1,6 +1,4 @@
-import type { CardSize } from "@/components/SettingsProvider";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
-import { getSealedProductTrackWidth } from "@/lib/display-scale";
 import type { CollectionSealedViewItem } from "./types";
 
 export function selectionToggleTextClass(active: boolean): string {
@@ -94,8 +92,4 @@ export function compareCollectionSealedItems(
   }
 
   return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
-}
-
-export function getCollectionSealedTileMinWidth(cardSize: CardSize, widescreen: boolean): string {
-  return getSealedProductTrackWidth(cardSize, widescreen);
 }
