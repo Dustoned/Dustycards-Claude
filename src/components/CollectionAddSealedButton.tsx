@@ -116,7 +116,7 @@ export default function CollectionAddSealedButton({
         <Plus
           className={
             mode === "icon"
-              ? "h-[calc(var(--ui-chip-font-size)+0.25rem)] w-[calc(var(--ui-chip-font-size)+0.25rem)]"
+              ? "h-4 w-4 stroke-[2.25] max-[640px]:h-3.5 max-[640px]:w-3.5"
               : "h-4 w-4"
           }
         />

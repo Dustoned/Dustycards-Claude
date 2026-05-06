@@ -8,6 +8,7 @@ import IllustratorLink from "@/components/IllustratorLink";
 import { withCardMarketFilters } from "@/lib/cardmarket";
 import { formatCurrency } from "@/lib/format";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
+import { getPreferredGradedLabel } from "@/components/card-modal/utils";
 import {
   PSA_SLAB_MODEL_DIMENSIONS,
   RAW_TCG_CARD_DIMENSIONS,
@@ -44,6 +45,20 @@ interface ViewerCard {
   graded_prices?: Array<{
     label: string;
     price: number;
+    company?: string;
+    grade?: string;
+  }>;
+  ebay_sold_graded_prices?: Array<{
+    source: "ebay_sold";
+    label: string;
+    company: string;
+    grade: string;
+    median_price: number;
+    currency: string;
+    sample_size: number | null;
+    median_price_eur?: number | null;
+    exchange_rate_usd_eur?: number | null;
+    exchange_rate_date?: string | null;
   }>;
   collection_item?: {
     grading_company: string | null;
@@ -115,8 +130,34 @@ const CARD_3D_SIZE_CONFIG: Record<Card3dSize, Card3dSizeConfig> = {
   },
 };
 
-function getCard3dSizeConfig(size: Card3dSize): Card3dSizeConfig {
-  return CARD_3D_SIZE_CONFIG[size] ?? CARD_3D_SIZE_CONFIG.medium;
+function getCard3dSizeConfig(size: Card3dSize, isMobileViewport: boolean): Card3dSizeConfig {
+  const baseConfig = CARD_3D_SIZE_CONFIG[size] ?? CARD_3D_SIZE_CONFIG.medium;
+
+  if (!isMobileViewport) {
+    return baseConfig;
+  }
+
+  if (size === "large") {
+    return {
+      resetDistanceScale: 0.7,
+      minimumFitScale: 0.72,
+      offsetScale: 0.98,
+    };
+  }
+
+  if (size === "medium") {
+    return {
+      resetDistanceScale: 0.9,
+      minimumFitScale: 0.86,
+      offsetScale: 1.04,
+    };
+  }
+
+  return {
+    resetDistanceScale: 1.1,
+    minimumFitScale: 1.02,
+    offsetScale: 1.1,
+  };
 }
 
 
@@ -934,10 +975,57 @@ function getVerticalFramingOffset(
   return scaledBaseOffset + (minOffset - scaledBaseOffset) * zoomProgress;
 }
 
+function normalizeGradeSelection(value: string | null | undefined): string {
+  return value?.toUpperCase().replace(/[^A-Z0-9.]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
+}
+
+function findSavedGradedLabel(
+  prices: Array<{ label: string; company?: string; grade?: string }>,
+  collectionItem: ViewerCard["collection_item"] | null | undefined
+): string | null {
+  const company = normalizeGradingCompanyLabel(collectionItem?.grading_company);
+  const grade = normalizeGradingGradeLabel(collectionItem?.grading_grade);
+  if (!company || !grade) return null;
+
+  const normalizedCompany = normalizeGradeSelection(company);
+  const normalizedGrade = normalizeGradeSelection(grade);
+  const exactStructuredMatch = prices.find((price) => {
+    if (!price.company || !price.grade) return false;
+    return (
+      normalizeGradeSelection(price.company) === normalizedCompany &&
+      normalizeGradeSelection(price.grade) === normalizedGrade
+    );
+  });
+  if (exactStructuredMatch) return exactStructuredMatch.label;
+
+  return (
+    prices.find((price) => {
+      const label = normalizeGradeSelection(price.label);
+      return label.includes(normalizedCompany) && label.includes(normalizedGrade);
+    })?.label ?? null
+  );
+}
+
 export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, onClose }: Props) {
   const { displaySettings, isMobileViewport } = useSettings();
   const card3dSize = displaySettings.card3dSize;
   const [priceSource, setPriceSource] = useState<"cardmarket" | "tcgplayer">("cardmarket");
+  const [gradedSource, setGradedSource] = useState<"cardmarket" | "ebay">("cardmarket");
+  const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(
+    () =>
+      findSavedGradedLabel(card.graded_prices ?? [], card.collection_item) ??
+      getPreferredGradedLabel(card.graded_prices ?? [])
+  );
+  const [selectedEbaySoldGradedLabel, setSelectedEbaySoldGradedLabel] = useState<string | null>(
+    () =>
+      findSavedGradedLabel(card.ebay_sold_graded_prices ?? [], card.collection_item) ??
+      getPreferredGradedLabel(
+        (card.ebay_sold_graded_prices ?? []).map((price) => ({
+          label: price.label,
+          price: price.median_price,
+        }))
+      )
+  );
   const rootRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const detailsRef = useRef<HTMLDivElement | null>(null);
@@ -985,7 +1073,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     if (!renderHostElement) return;
     const renderHost: HTMLDivElement = renderHostElement;
     const host: HTMLDivElement = renderHostElement;
-    const sizeConfig = getCard3dSizeConfig(card3dSize);
+    const sizeConfig = getCard3dSizeConfig(card3dSize, isMobileViewport);
 
     setIsReady(false);
     setHasError(false);
@@ -1652,6 +1740,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     gradingGradeLabel,
     isPsaSlabViewer,
     card3dSize,
+    isMobileViewport,
   ]);
 
   const cardMarketPriceRows = [
@@ -1665,6 +1754,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
     { label: "TCP Low", value: card.price?.tcp_low, currency: "USD" as const },
   ].filter(({ value }) => value != null);
   const gradedPriceRows = card.graded_prices ?? [];
+  const ebaySoldGradedPriceRows = card.ebay_sold_graded_prices ?? [];
   const compactMobileDetails = isMobileViewport;
   const showTcgSource = tcgPriceRows.length > 0;
   const activePriceSource = showTcgSource ? priceSource : "cardmarket";
@@ -1673,9 +1763,47 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
   const compactSecondaryPriceRows = compactMobileDetails
     ? secondaryPriceRows.slice(0, 2)
     : secondaryPriceRows;
-  const compactGradedPriceRows = compactMobileDetails
-    ? gradedPriceRows.slice(0, 1)
-    : gradedPriceRows;
+  const hasCardMarketGradedPricing = gradedPriceRows.length > 0;
+  const hasEbayGradedPricing = ebaySoldGradedPriceRows.length > 0;
+  const effectiveGradedSource =
+    gradedSource === "ebay" && hasEbayGradedPricing
+      ? "ebay"
+      : hasCardMarketGradedPricing
+        ? "cardmarket"
+        : "ebay";
+  const showGradedSourceToggle = hasCardMarketGradedPricing && hasEbayGradedPricing;
+  const preferredGradedLabel = getPreferredGradedLabel(gradedPriceRows);
+  const selectedGradedPrice =
+    gradedPriceRows.find((price) => price.label === selectedGradedLabel) ??
+    gradedPriceRows.find((price) => price.label === preferredGradedLabel) ??
+    gradedPriceRows[0] ??
+    null;
+  const preferredEbaySoldGradedLabel = getPreferredGradedLabel(
+    ebaySoldGradedPriceRows.map((price) => ({
+      label: price.label,
+      price: price.median_price,
+    }))
+  );
+  const selectedEbaySoldGradedPrice =
+    ebaySoldGradedPriceRows.find((price) => price.label === selectedEbaySoldGradedLabel) ??
+    ebaySoldGradedPriceRows.find((price) => price.label === preferredEbaySoldGradedLabel) ??
+    ebaySoldGradedPriceRows[0] ??
+    null;
+  const selectedEbaySoldMedianEur =
+    selectedEbaySoldGradedPrice?.median_price_eur ??
+    (selectedEbaySoldGradedPrice?.currency === "EUR"
+      ? selectedEbaySoldGradedPrice.median_price
+      : null);
+  const selectedEbaySoldDisplayCurrency = selectedEbaySoldMedianEur != null
+    ? "EUR"
+    : selectedEbaySoldGradedPrice?.currency === "EUR"
+      ? "EUR"
+      : "USD";
+  const selectedEbaySoldDisplayPrice =
+    selectedEbaySoldMedianEur ?? selectedEbaySoldGradedPrice?.median_price ?? null;
+  const selectedEbaySoldMetaLabel = selectedEbaySoldGradedPrice?.sample_size != null
+    ? `${selectedEbaySoldGradedPrice.sample_size} sold`
+    : "Sold median";
 
   function isPersistentUiTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Node)) return false;
@@ -1923,35 +2051,161 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                     </div>
                   )}
 
-                  {compactGradedPriceRows.length > 0 && (
+                  {(hasCardMarketGradedPricing || hasEbayGradedPricing) && (
                     <div
                       className={`rounded-2xl border border-white/10 bg-white/[0.04] ${
                         compactMobileDetails ? "mt-2 p-2" : "mt-4 p-3"
                       }`}
                     >
-                      {!compactMobileDetails && (
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-white/42">
-                          Graded
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/38">
+                          Graded pricing
                         </p>
-                      )}
-                      <div className={compactMobileDetails ? "grid gap-1.5" : "grid gap-2 sm:grid-cols-2"}>
-                        {compactGradedPriceRows.map((gradedPrice) => (
-                          <div
-                            key={gradedPrice.label}
-                            className={`flex items-center justify-between gap-2 bg-white/8 ${
-                              compactMobileDetails
-                                ? "rounded-xl px-2 py-1.5 text-[11px]"
-                                : "rounded-2xl px-3 py-2"
-                            }`}
-                          >
-                            <span className="truncate text-white/52">
-                              {compactMobileDetails ? `Graded ${gradedPrice.label}` : gradedPrice.label}
-                            </span>
-                            <span className="font-semibold tabular-nums text-white">
-                              {formatCurrency(gradedPrice.price, "EUR")}
-                            </span>
+
+                        {showGradedSourceToggle ? (
+                          <div className="inline-flex overflow-hidden rounded-full border border-white/10 bg-black/18 p-0.5">
+                            {[
+                              { key: "cardmarket" as const, label: "CM" },
+                              { key: "ebay" as const, label: "eBay" },
+                            ].map((source) => (
+                              <button
+                                key={source.key}
+                                type="button"
+                                onClick={() => setGradedSource(source.key)}
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+                                  effectiveGradedSource === source.key
+                                    ? "bg-white text-gray-950"
+                                    : "text-white/52 hover:text-white/82"
+                                }`}
+                              >
+                                {source.label}
+                              </button>
+                            ))}
                           </div>
-                        ))}
+                        ) : (
+                          <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/48">
+                            {effectiveGradedSource === "ebay" ? "eBay" : "CM"}
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        className={`mt-1.5 grid gap-1.5 ${
+                          compactMobileDetails
+                            ? "grid-cols-[minmax(0,1fr)_auto]"
+                            : "sm:grid-cols-[minmax(0,1fr)_auto]"
+                        }`}
+                      >
+                        {effectiveGradedSource === "cardmarket" ? (
+                          <>
+                            {gradedPriceRows.length > 1 ? (
+                              <select
+                                value={selectedGradedPrice?.label ?? ""}
+                                onChange={(event) => setSelectedGradedLabel(event.target.value)}
+                                className={`min-w-0 rounded-xl border border-white/10 bg-white/[0.06] font-semibold text-white outline-none focus:border-white/24 ${
+                                  compactMobileDetails
+                                    ? "px-2 py-1.5 text-[11px]"
+                                    : "px-3 py-2 text-sm"
+                                }`}
+                              >
+                                {gradedPriceRows.map((gradedPrice) => (
+                                  <option
+                                    key={gradedPrice.label}
+                                    value={gradedPrice.label}
+                                    className="bg-[#111214] text-white"
+                                  >
+                                    {gradedPrice.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div
+                                className={`min-w-0 truncate rounded-xl border border-violet-400/16 bg-violet-400/[0.08] font-semibold text-white/78 ${
+                                  compactMobileDetails
+                                    ? "px-2 py-1.5 text-[11px]"
+                                    : "px-3 py-2 text-sm"
+                                }`}
+                              >
+                                {selectedGradedPrice?.label ?? "Graded"}
+                              </div>
+                            )}
+
+                            <div
+                              className={`shrink-0 rounded-xl border border-violet-400/16 bg-violet-400/[0.08] text-right ${
+                                compactMobileDetails ? "px-2 py-1.5" : "px-3 py-2"
+                              }`}
+                            >
+                              <span
+                                className={`block font-semibold tabular-nums text-white ${
+                                  compactMobileDetails ? "text-[13px]" : "text-base"
+                                }`}
+                              >
+                                {formatCurrency(selectedGradedPrice?.price ?? null, "EUR")}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {ebaySoldGradedPriceRows.length > 1 ? (
+                              <select
+                                value={selectedEbaySoldGradedPrice?.label ?? ""}
+                                onChange={(event) =>
+                                  setSelectedEbaySoldGradedLabel(event.target.value)
+                                }
+                                className={`min-w-0 rounded-xl border border-white/10 bg-white/[0.06] font-semibold text-white outline-none focus:border-white/24 ${
+                                  compactMobileDetails
+                                    ? "px-2 py-1.5 text-[11px]"
+                                    : "px-3 py-2 text-sm"
+                                }`}
+                              >
+                                {ebaySoldGradedPriceRows.map((gradedPrice) => (
+                                  <option
+                                    key={gradedPrice.label}
+                                    value={gradedPrice.label}
+                                    className="bg-[#111214] text-white"
+                                  >
+                                    {gradedPrice.label}
+                                    {gradedPrice.sample_size != null
+                                      ? ` (${gradedPrice.sample_size})`
+                                      : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div
+                                className={`min-w-0 truncate rounded-xl border border-sky-400/16 bg-sky-400/[0.08] font-semibold text-white/78 ${
+                                  compactMobileDetails
+                                    ? "px-2 py-1.5 text-[11px]"
+                                    : "px-3 py-2 text-sm"
+                                }`}
+                              >
+                                {selectedEbaySoldGradedPrice?.label ?? "eBay"}
+                              </div>
+                            )}
+
+                            <div
+                              className={`shrink-0 rounded-xl border border-sky-400/16 bg-sky-400/[0.08] text-right ${
+                                compactMobileDetails ? "px-2 py-1.5" : "px-3 py-2"
+                              }`}
+                            >
+                              <span
+                                className={`block font-semibold tabular-nums text-white ${
+                                  compactMobileDetails ? "text-[13px]" : "text-base"
+                                }`}
+                              >
+                                {formatCurrency(
+                                  selectedEbaySoldDisplayPrice,
+                                  selectedEbaySoldDisplayCurrency
+                                )}
+                              </span>
+                              {!compactMobileDetails && (
+                                <span className="mt-0.5 block text-[11px] font-medium text-white/45">
+                                  {selectedEbaySoldMetaLabel}
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}

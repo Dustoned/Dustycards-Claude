@@ -147,6 +147,11 @@ export default async function HomePage({
     const query = params.toString();
     return query ? `/?${query}` : "/";
   }
+  const valueRangePoints = data.overview.chart.filter((point) => point.value != null);
+  const collectionValueRange =
+    valueRangePoints.length > 1
+      ? `${valueRangePoints[0].label} - ${valueRangePoints[valueRangePoints.length - 1].label}`
+      : valueRangePoints[0]?.label ?? "No history yet";
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
@@ -155,23 +160,53 @@ export default async function HomePage({
           eyebrow="DustyCards"
           title="DustyCards Collection"
           description="Keep track of your singles, binders and sealed with the same live market data you already use everywhere else."
+          className="max-[640px]:[--ui-page-header-action-margin:0.45rem] max-[640px]:[--ui-page-header-grid-gap:0.55rem] max-[640px]:[--ui-page-header-padding:0.7rem] max-[640px]:[--ui-page-header-title-size:1.35rem] max-[640px]:[--ui-header-action-gap:0.4rem] max-[640px]:[--ui-header-action-x:0.65rem] max-[640px]:[--ui-header-action-y:0.35rem] max-[640px]:[&_h1+div]:hidden"
           gridClassName="xl:grid-cols-[minmax(19rem,0.6fr)_minmax(0,1.7fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.58fr)_minmax(0,2.15fr)] 2xl:items-stretch"
-          sideClassName="xl:space-y-0"
+          sideClassName="space-y-2 xl:space-y-0"
           actions={
-            <HeaderAction>
+            <HeaderAction className="max-[640px]:gap-1.5">
                 <CreateBinderButton />
                 <Link
                   href="/expansions"
                   prefetch={false}
                   className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
                 >
-                  Browse Expansions
+                  <span className="sm:hidden">Browse</span>
+                  <span className="hidden sm:inline">Browse Expansions</span>
                 </Link>
             </HeaderAction>
           }
           accessory={
-            <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(30rem,1.45fr)_minmax(20rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(42rem,1.55fr)_minmax(28rem,0.9fr)]">
-              <div className="min-w-0 [&>section]:h-full">
+            <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(30rem,1.45fr)_minmax(20rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(42rem,1.55fr)_minmax(28rem,0.9fr)]">
+              <div className="rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.045] sm:hidden">
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/42">
+                      Collection Value
+                    </p>
+                    <p className="mt-1 truncate text-2xl font-bold leading-tight tabular-nums text-gray-950 dark:text-white">
+                      {formatCollectionCurrency(data.overview.currentValue)}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p
+                      className={`text-sm font-semibold tabular-nums ${
+                        data.overview.pnl >= 0
+                          ? "text-emerald-700 dark:text-emerald-300"
+                          : "text-rose-700 dark:text-rose-300"
+                      }`}
+                    >
+                      {data.overview.pnl >= 0 ? "+" : ""}
+                      {formatCollectionCurrency(data.overview.pnl)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-gray-500 dark:text-white/42">P&amp;L</p>
+                  </div>
+                </div>
+                <p className="mt-2 truncate text-[11px] text-gray-500 dark:text-white/42">
+                  {collectionValueRange}
+                </p>
+              </div>
+              <div className="hidden min-w-0 sm:block [&>section]:h-full">
                 <PriceHistoryPanel
                   layout="hero"
                   title="Collection Value"

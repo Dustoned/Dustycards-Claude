@@ -280,7 +280,7 @@ function CollectionSealedTile({
             )}
 
             {!selectionMode && (
-              <>
+              <div className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
                   onClick={(event) => onRemove(event, item)}
@@ -296,7 +296,7 @@ function CollectionSealedTile({
                   product={buildCollectionAddProduct(item)}
                   className={sealedTileActionButtonClass()}
                 />
-              </>
+              </div>
             )}
           </div>
         </div>

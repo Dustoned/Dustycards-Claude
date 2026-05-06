@@ -94,11 +94,11 @@ export function sealedTileNoPriceClass(cardSize: CardSize): string {
 }
 
 export function sealedTileActionButtonClass(): string {
-  return "inline-flex !h-[var(--ui-chip-min-height)] !w-[var(--ui-chip-min-height)] shrink-0 items-center justify-center !rounded-md border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:!h-6 max-[640px]:!w-6 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12";
+  return "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/8 bg-white/72 text-gray-900 shadow-sm shadow-black/10 transition-colors hover:border-black/15 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:!h-7 max-[640px]:!w-7 max-[640px]:border-white/12 max-[640px]:bg-white/[0.075] max-[640px]:shadow-none dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12";
 }
 
 export function sealedTileActionIconClass(): string {
-  return "h-[calc(var(--ui-chip-font-size)+0.25rem)] w-[calc(var(--ui-chip-font-size)+0.25rem)]";
+  return "h-4 w-4 stroke-[2.25] max-[640px]:h-3.5 max-[640px]:w-3.5";
 }
 
 export function sealedTileBubbleWrapClass(cardSize: CardSize): string {

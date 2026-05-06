@@ -62,6 +62,42 @@ interface HistoryPointView {
   value: number | null;
 }
 
+function parseHistoryPointTimestamp(point: HistoryPointView): number | null {
+  const raw = point.date.trim();
+  if (!raw) return null;
+
+  const timestamp = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T12:00:00.000Z`).getTime()
+    : new Date(raw).getTime();
+
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function getRecentHistoryAverage(points: HistoryPointView[], days: number): number | null {
+  const validPoints = points
+    .map((point) => ({
+      timestamp: parseHistoryPointTimestamp(point),
+      value: point.value,
+    }))
+    .filter(
+      (point): point is { timestamp: number; value: number } =>
+        point.timestamp != null && point.value != null && Number.isFinite(point.value)
+    );
+
+  if (validPoints.length === 0) return null;
+
+  const latestTimestamp = Math.max(...validPoints.map((point) => point.timestamp));
+  const cutoffTimestamp = latestTimestamp - days * 24 * 60 * 60 * 1000;
+  const recentValues = validPoints
+    .filter((point) => point.timestamp >= cutoffTimestamp)
+    .map((point) => point.value);
+
+  if (recentValues.length === 0) return null;
+
+  const total = recentValues.reduce((sum, value) => sum + value, 0);
+  return Number((total / recentValues.length).toFixed(2));
+}
+
 function SectionShell({
   eyebrow,
   title,
@@ -482,26 +518,22 @@ export function CardModalHeroSection({
 function CardModalCurrentPricingPanel({
   card,
   activePricingSource,
-  availableCardMarketHistorySeries,
-  activeCardMarketHistorySeries,
   activeCardMarketSeriesLabel,
+  showCardMarketSeriesHint,
   activeCardMarketCurrentValue,
+  activeCardMarketAverage7d,
+  activeCardMarketAverage30d,
   ignoredCardMarketCurrentValue,
-  onSelectCardMarketHistorySeries,
 }: {
   card: ModalCardData;
   activePricingSource: "cardmarket" | "tcgplayer";
-  availableCardMarketHistorySeries: Array<{
-    key: CardMarketHistorySeriesKey;
-    label: string;
-  }>;
-  activeCardMarketHistorySeries: CardMarketHistorySeriesKey;
   activeCardMarketSeriesLabel: string;
+  showCardMarketSeriesHint: boolean;
   activeCardMarketCurrentValue: number | null;
+  activeCardMarketAverage7d: number | null;
+  activeCardMarketAverage30d: number | null;
   ignoredCardMarketCurrentValue: number | null;
-  onSelectCardMarketHistorySeries: (series: CardMarketHistorySeriesKey) => void;
 }) {
-  const hasMultipleCardMarketSeries = availableCardMarketHistorySeries.length > 1;
   const cardMarketMetrics: PriceMetric[] = [
     {
       label: "Current",
@@ -509,17 +541,17 @@ function CardModalCurrentPricingPanel({
       hint:
         ignoredCardMarketCurrentValue != null
           ? `Ignored suspicious ${formatCurrency(ignoredCardMarketCurrentValue, "EUR")}`
-          : hasMultipleCardMarketSeries
+          : showCardMarketSeriesHint
             ? `Using ${activeCardMarketSeriesLabel}`
             : null,
     },
     {
       label: "7D Avg",
-      value: formatCurrency(card.price?.cm_en_avg_7d ?? null, "EUR"),
+      value: formatCurrency(activeCardMarketAverage7d, "EUR"),
     },
     {
       label: "30D Avg",
-      value: formatCurrency(card.price?.cm_en_avg_30d ?? null, "EUR"),
+      value: formatCurrency(activeCardMarketAverage30d, "EUR"),
     },
   ];
   const tcgMetrics: PriceMetric[] = [
@@ -545,37 +577,6 @@ function CardModalCurrentPricingPanel({
 
   return (
     <div className="card-modal-current-pricing-panel mt-4 border-t border-white/8 pt-4">
-      <div className="card-modal-pricing-header mb-3 flex flex-col justify-start space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-            Current pricing / {activePricingSource === "tcgplayer" ? "TCGPlayer" : "CardMarket"}
-          </p>
-
-          {activePricingSource === "cardmarket" && !hasMultipleCardMarketSeries && (
-            <MetaPill>{activeCardMarketSeriesLabel}</MetaPill>
-          )}
-        </div>
-
-        {activePricingSource === "cardmarket" && hasMultipleCardMarketSeries && (
-          <div className="card-modal-series-picker flex flex-wrap gap-2">
-            {availableCardMarketHistorySeries.map((series) => (
-              <button
-                key={series.key}
-                type="button"
-                onClick={() => onSelectCardMarketHistorySeries(series.key)}
-                className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                  activeCardMarketHistorySeries === series.key
-                    ? "border-white/24 bg-white/14 text-white"
-                    : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                }`}
-              >
-                {series.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       <div className="card-modal-pricing-metrics grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
         <MetricTile
           label={activePrimaryMetric.label}
@@ -839,6 +840,17 @@ export function CardModalHistorySection({
           points: cardMarketHistory,
           title: "CardMarket History",
         };
+  const hasMultipleCardMarketSeries = availableCardMarketHistorySeries.length > 1;
+  const showCardMarketSeriesPicker =
+    activeMarketSource === "cardmarket" && hasMultipleCardMarketSeries;
+  const derivedCardMarketAverage7d = getRecentHistoryAverage(cardMarketHistory, 7);
+  const derivedCardMarketAverage30d = getRecentHistoryAverage(cardMarketHistory, 30);
+  const activeCardMarketAverage7d =
+    derivedCardMarketAverage7d ??
+    (activeCardMarketHistorySeries === "cm_market_en" ? card.price?.cm_en_avg_7d ?? null : null);
+  const activeCardMarketAverage30d =
+    derivedCardMarketAverage30d ??
+    (activeCardMarketHistorySeries === "cm_market_en" ? card.price?.cm_en_avg_30d ?? null : null);
 
   return (
     <SectionShell className="overflow-hidden">
@@ -850,101 +862,122 @@ export function CardModalHistorySection({
           <h3 className="mt-1 text-xl font-semibold text-white">History charts</h3>
         </div>
 
-        {showTcgPlayerSource && (
-          <div className="card-modal-source-toggle inline-flex overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-1">
-            {[
-              { key: "cardmarket" as const, label: "CardMarket" },
-              { key: "tcgplayer" as const, label: "TCGPlayer" },
-            ].map((source) => (
-              <button
-                key={source.key}
-                type="button"
-                onClick={() => onSelectMarketSource(source.key)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  activeMarketSource === source.key
-                    ? "bg-white text-gray-950"
-                    : "text-white/48 hover:text-white/78"
-                }`}
-              >
-                {source.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="min-h-0 overflow-hidden">
-          {hasGradedHistory && (
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              {[
-                { key: "market" as const, label: "Raw prices" },
-                { key: "graded" as const, label: "Graded" },
-              ].map((mode) => (
+        <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
+          {showCardMarketSeriesPicker && (
+            <div className="card-modal-series-picker card-modal-history-series-picker flex flex-wrap justify-end gap-2">
+              {availableCardMarketHistorySeries.map((series) => (
                 <button
-                  key={mode.key}
+                  key={series.key}
                   type="button"
-                  onClick={() => onSelectHistoryChartMode(mode.key)}
-                  className={`inline-flex rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                    effectiveHistoryChartMode === mode.key
+                  onClick={() => onSelectCardMarketHistorySeries(series.key)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors max-[640px]:px-2.5 ${
+                    activeCardMarketHistorySeries === series.key
                       ? "border-white/24 bg-white/14 text-white"
                       : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
                   }`}
                 >
-                  {mode.label}
+                  {series.label}
                 </button>
               ))}
             </div>
           )}
 
-          {effectiveHistoryChartMode === "graded" && selectedGradedHistory ? (
-            <div className="space-y-4 pb-1">
-              {gradedPriceHistory.length > 1 && (
-                <div className="flex flex-wrap gap-2">
-                  {gradedPriceHistory.map((series) => (
-                    <button
-                      key={series.label}
-                      type="button"
-                      onClick={() => onSelectGradedLabel(series.label)}
-                      className={`inline-flex rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                        selectedGradedHistory.label === series.label
-                          ? "border-violet-300/30 bg-violet-400/16 text-violet-100"
-                          : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                      }`}
-                    >
-                      {series.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <PriceHistoryPanel
-                title={`${selectedGradedHistory.label} History`}
-                currency="EUR"
-                points={selectedGradedHistory.points}
-                currentValue={selectedGradedHistoryCurrentValue}
-                tone="dark"
-              />
+          {showTcgPlayerSource && (
+            <div className="card-modal-source-toggle inline-flex overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-1">
+              {[
+                { key: "cardmarket" as const, label: "CardMarket" },
+                { key: "tcgplayer" as const, label: "TCGPlayer" },
+              ].map((source) => (
+                <button
+                  key={source.key}
+                  type="button"
+                  onClick={() => onSelectMarketSource(source.key)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    activeMarketSource === source.key
+                      ? "bg-white text-gray-950"
+                      : "text-white/48 hover:text-white/78"
+                  }`}
+                >
+                  {source.label}
+                </button>
+              ))}
             </div>
-          ) : (
+          )}
+        </div>
+      </div>
+
+      <div className="min-h-0 overflow-hidden">
+        {hasGradedHistory && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            {[
+              { key: "market" as const, label: "Raw prices" },
+              { key: "graded" as const, label: "Graded" },
+            ].map((mode) => (
+              <button
+                key={mode.key}
+                type="button"
+                onClick={() => onSelectHistoryChartMode(mode.key)}
+                className={`inline-flex rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                  effectiveHistoryChartMode === mode.key
+                    ? "border-white/24 bg-white/14 text-white"
+                    : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {effectiveHistoryChartMode === "graded" && selectedGradedHistory ? (
+          <div className="space-y-4 pb-1">
+            {gradedPriceHistory.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                {gradedPriceHistory.map((series) => (
+                  <button
+                    key={series.label}
+                    type="button"
+                    onClick={() => onSelectGradedLabel(series.label)}
+                    className={`inline-flex rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                      selectedGradedHistory.label === series.label
+                        ? "border-violet-300/30 bg-violet-400/16 text-violet-100"
+                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                    }`}
+                  >
+                    {series.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <PriceHistoryPanel
-              title={activeMarketHistory.title}
-              currency={activeMarketHistory.currency}
-              points={activeMarketHistory.points}
-              currentValue={activeMarketHistory.currentValue}
+              title={`${selectedGradedHistory.label} History`}
+              currency="EUR"
+              points={selectedGradedHistory.points}
+              currentValue={selectedGradedHistoryCurrentValue}
               tone="dark"
             />
-          )}
+          </div>
+        ) : (
+          <PriceHistoryPanel
+            title={activeMarketHistory.title}
+            currency={activeMarketHistory.currency}
+            points={activeMarketHistory.points}
+            currentValue={activeMarketHistory.currentValue}
+            tone="dark"
+          />
+        )}
       </div>
 
       <CardModalCurrentPricingPanel
         card={card}
         activePricingSource={activeMarketSource}
-        availableCardMarketHistorySeries={availableCardMarketHistorySeries}
-        activeCardMarketHistorySeries={activeCardMarketHistorySeries}
         activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
+        showCardMarketSeriesHint={showCardMarketSeriesPicker}
         activeCardMarketCurrentValue={activeCardMarketCurrentValue}
+        activeCardMarketAverage7d={activeCardMarketAverage7d}
+        activeCardMarketAverage30d={activeCardMarketAverage30d}
         ignoredCardMarketCurrentValue={ignoredCardMarketCurrentValue}
-        onSelectCardMarketHistorySeries={onSelectCardMarketHistorySeries}
       />
     </SectionShell>
   );
