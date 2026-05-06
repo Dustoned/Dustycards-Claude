@@ -1,4 +1,5 @@
 import type {
+  CardEbaySoldGradedPriceHistorySeries,
   CardGradedPriceHistorySeries,
   CardPriceHistoryPoint,
 } from "@/lib/price-history";
@@ -48,6 +49,7 @@ export interface ModalCardData {
     exchange_rate_date?: string | null;
   }>;
   graded_price_history?: CardGradedPriceHistorySeries[];
+  ebay_sold_graded_price_history?: CardEbaySoldGradedPriceHistorySeries[];
   price_history: CardPriceHistoryPoint[];
   pull_rate_info?: {
     source: string;

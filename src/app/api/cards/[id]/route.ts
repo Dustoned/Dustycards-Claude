@@ -7,7 +7,11 @@ import {
   type CollectionCostBasis,
 } from "@/lib/collection";
 import { convertUsdToEur, getUsdToEurRate } from "@/lib/exchange-rates";
-import { buildCardGradedPriceHistory, buildCardPriceHistory } from "@/lib/price-history";
+import {
+  buildCardEbaySoldGradedPriceHistory,
+  buildCardGradedPriceHistory,
+  buildCardPriceHistory,
+} from "@/lib/price-history";
 import { getPullRateInfoForSetRarity } from "@/lib/pull-rates";
 import {
   runCardPriceRefresh,
@@ -175,6 +179,16 @@ async function getCardDetailPayload(id: string, userId: string) {
           sample_size: true,
         },
       },
+      ebaySoldGradedPriceSnapshots: {
+        orderBy: [{ label: "asc" }, { fetched_at: "asc" }],
+        select: {
+          label: true,
+          median_price: true,
+          currency: true,
+          sample_size: true,
+          fetched_at: true,
+        },
+      },
       gradedPriceSnapshots: {
         orderBy: [{ label: "asc" }, { fetched_at: "asc" }],
         select: {
@@ -217,8 +231,12 @@ async function getCardDetailPayload(id: string, userId: string) {
   const collectionCostBasis = await getCardDetailCostBasis(collectionItem, userId);
   const hasUsdEbaySoldGradedPrices = card.ebaySoldGradedPrices.some(
     (price) => price.currency.toUpperCase() === "USD"
-  );
+  ) || card.ebaySoldGradedPriceSnapshots.some((price) => price.currency.toUpperCase() === "USD");
   const usdToEurRate = hasUsdEbaySoldGradedPrices ? await getUsdToEurRate() : null;
+  const ebaySoldGradedPriceHistory = buildCardEbaySoldGradedPriceHistory(
+    card.ebaySoldGradedPriceSnapshots,
+    { usdToEurRate: usdToEurRate?.rate ?? null }
+  );
   const ebaySoldGradedPrices = card.ebaySoldGradedPrices.map((price) => {
     const currency = price.currency.toUpperCase();
     const medianPriceEur =
@@ -272,6 +290,7 @@ async function getCardDetailPayload(id: string, userId: string) {
     graded_prices: card.gradedPrices,
     ebay_sold_graded_prices: ebaySoldGradedPrices,
     graded_price_history: gradedPriceHistory,
+    ebay_sold_graded_price_history: ebaySoldGradedPriceHistory,
     price_history: priceHistory,
     pull_rate_info: pullRateInfo
       ? {

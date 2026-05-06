@@ -29,7 +29,6 @@ import {
   CardModalHeroSection,
   CardModalHistorySection,
   CardModalPreview,
-  CardModalPricingSection,
 } from "./card-modal/CardModalSections";
 import type { ModalCardData } from "./card-modal/types";
 import { getCardModalLayoutClasses, getPreferredGradedLabel } from "./card-modal/utils";
@@ -91,6 +90,7 @@ export default function CardModal({ card, onClose }: Props) {
   const [marketDataSource, setMarketDataSource] = useState<"cardmarket" | "tcgplayer">(
     "cardmarket"
   );
+  const [gradedDataSource, setGradedDataSource] = useState<"cardmarket" | "ebay">("cardmarket");
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
   const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(() =>
@@ -117,6 +117,7 @@ export default function CardModal({ card, onClose }: Props) {
   const gradedPrices = modalCard.graded_prices ?? [];
   const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];
   const gradedPriceHistory = modalCard.graded_price_history ?? [];
+  const ebaySoldGradedPriceHistory = modalCard.ebay_sold_graded_price_history ?? [];
   const gradingCompanyLabel = normalizeGradingCompanyLabel(collectionItem?.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(collectionItem?.grading_grade);
   const showGradedPreview = Boolean(gradingCompanyLabel && gradingGradeLabel);
@@ -185,6 +186,12 @@ export default function CardModal({ card, onClose }: Props) {
       price: price.median_price,
     }))
   );
+  const preferredEbaySoldGradedHistoryLabel = getPreferredGradedLabel(
+    ebaySoldGradedPriceHistory.map((series) => ({
+      label: series.label,
+      price: series.points[series.points.length - 1]?.value ?? 0,
+    }))
+  );
   const preferredGradedHistoryLabel = getPreferredGradedLabel(
     gradedPriceHistory.map((series) => ({
       label: series.label,
@@ -194,6 +201,13 @@ export default function CardModal({ card, onClose }: Props) {
   const selectedEbaySoldGradedPrice =
     ebaySoldGradedPrices.find((price) => price.label === selectedEbaySoldGradedLabel) ??
     ebaySoldGradedPrices.find((price) => price.label === preferredEbaySoldGradedLabel) ??
+    ebaySoldGradedPrices.find((price) => price.label === preferredEbaySoldGradedHistoryLabel) ??
+    null;
+  const selectedEbaySoldGradedHistory =
+    ebaySoldGradedPriceHistory.find((series) => series.label === selectedEbaySoldGradedLabel) ??
+    ebaySoldGradedPriceHistory.find((series) => series.label === preferredEbaySoldGradedLabel) ??
+    ebaySoldGradedPriceHistory.find((series) => series.label === preferredEbaySoldGradedHistoryLabel) ??
+    ebaySoldGradedPriceHistory[0] ??
     null;
   const selectedGradedHistory =
     gradedPriceHistory.find((series) => series.label === selectedGradedLabel) ??
@@ -205,10 +219,12 @@ export default function CardModal({ card, onClose }: Props) {
     selectedGradedPrice?.price ??
     selectedGradedHistory?.points[selectedGradedHistory.points.length - 1]?.value ??
     null;
-  const hasGradedHistory = gradedPriceHistory.some((series) =>
-    series.points.some((point) => point.value != null)
-  );
-  const effectiveHistoryChartMode = hasGradedHistory ? historyChartMode : "market";
+  const hasGradedData =
+    gradedPrices.length > 0 ||
+    ebaySoldGradedPrices.length > 0 ||
+    gradedPriceHistory.some((series) => series.points.some((point) => point.value != null)) ||
+    ebaySoldGradedPriceHistory.some((series) => series.points.some((point) => point.value != null));
+  const effectiveHistoryChartMode = hasGradedData ? historyChartMode : "market";
 
   async function runCardAction(action: "refresh" | "sync-history") {
     if (action === "refresh") {
@@ -380,18 +396,18 @@ export default function CardModal({ card, onClose }: Props) {
                     onSelectHistoryChartMode={setHistoryChartMode}
                     tcgPlayerHistory={tcgPlayerHistory}
                     tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
+                    gradedPrices={gradedPrices}
                     gradedPriceHistory={gradedPriceHistory}
                     selectedGradedHistory={selectedGradedHistory}
+                    selectedGradedPrice={selectedGradedPrice}
                     selectedGradedHistoryCurrentValue={selectedGradedHistoryCurrentValue}
                     onSelectGradedLabel={setSelectedGradedLabel}
-                  />
-
-                  <CardModalPricingSection
-                    gradedPrices={gradedPrices}
+                    gradedSource={gradedDataSource}
+                    onSelectGradedSource={setGradedDataSource}
                     ebaySoldGradedPrices={ebaySoldGradedPrices}
-                    selectedGradedPrice={selectedGradedPrice}
                     selectedEbaySoldGradedPrice={selectedEbaySoldGradedPrice}
-                    onSelectGradedLabel={setSelectedGradedLabel}
+                    ebaySoldGradedPriceHistory={ebaySoldGradedPriceHistory}
+                    selectedEbaySoldGradedHistory={selectedEbaySoldGradedHistory}
                     onSelectEbaySoldGradedLabel={setSelectedEbaySoldGradedLabel}
                   />
                 </div>

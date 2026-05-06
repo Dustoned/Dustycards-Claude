@@ -44,6 +44,21 @@ export interface CardGradedPriceHistorySeries {
   points: CardGradedPriceHistoryPoint[];
 }
 
+export interface CardEbaySoldGradedPriceHistorySnapshot {
+  fetched_at: Date | string;
+  label: string;
+  median_price: number;
+  currency: string;
+  sample_size: number | null;
+}
+
+export interface CardEbaySoldGradedPriceHistorySeries {
+  label: string;
+  currency: "EUR" | "USD";
+  points: CardGradedPriceHistoryPoint[];
+  latest_sample_size: number | null;
+}
+
 export const CARD_MARKET_HISTORY_SERIES = [
   { key: "cm_market_en", label: "EN" },
   { key: "cm_market_de", label: "DE" },
@@ -186,6 +201,87 @@ export function buildCardGradedPriceHistory(
           date,
           label: toDateLabel(date),
           value: snapshot.price,
+        })),
+      };
+    })
+    .sort((a, b) => {
+      const latestA = a.points[a.points.length - 1]?.value ?? 0;
+      const latestB = b.points[b.points.length - 1]?.value ?? 0;
+      return latestB - latestA || a.label.localeCompare(b.label);
+    });
+}
+
+function normalizeHistoryCurrency(currency: string | null | undefined): "EUR" | "USD" | null {
+  const normalized = currency?.toUpperCase();
+  return normalized === "EUR" || normalized === "USD" ? normalized : null;
+}
+
+function convertEbaySoldHistoryValue(
+  snapshot: CardEbaySoldGradedPriceHistorySnapshot,
+  usdToEurRate?: number | null
+): { value: number; currency: "EUR" | "USD" } | null {
+  const currency = normalizeHistoryCurrency(snapshot.currency);
+  if (!currency) return null;
+
+  if (currency === "USD" && usdToEurRate != null) {
+    return {
+      value: Number((snapshot.median_price * usdToEurRate).toFixed(2)),
+      currency: "EUR",
+    };
+  }
+
+  return {
+    value: snapshot.median_price,
+    currency,
+  };
+}
+
+export function buildCardEbaySoldGradedPriceHistory(
+  snapshots: CardEbaySoldGradedPriceHistorySnapshot[],
+  options: { usdToEurRate?: number | null } = {}
+): CardEbaySoldGradedPriceHistorySeries[] {
+  const snapshotsByLabel = new Map<
+    string,
+    Array<CardEbaySoldGradedPriceHistorySnapshot & { displayCurrency: "EUR" | "USD"; displayValue: number }>
+  >();
+
+  for (const snapshot of snapshots) {
+    const label = snapshot.label.replace(/\s+/g, " ").trim();
+    const converted = convertEbaySoldHistoryValue(snapshot, options.usdToEurRate);
+    if (!label || !converted) continue;
+
+    const existing = snapshotsByLabel.get(label) ?? [];
+    existing.push({
+      ...snapshot,
+      label,
+      displayCurrency: converted.currency,
+      displayValue: converted.value,
+    });
+    snapshotsByLabel.set(label, existing);
+  }
+
+  return [...snapshotsByLabel.entries()]
+    .map(([label, labelSnapshots]) => {
+      const byDay = new Map<string, (typeof labelSnapshots)[number]>();
+      const sorted = [...labelSnapshots].sort(
+        (a, b) => toMillis(a.fetched_at) - toMillis(b.fetched_at)
+      );
+
+      for (const snapshot of sorted) {
+        byDay.set(toDateKey(snapshot.fetched_at), snapshot);
+      }
+
+      const daySnapshots = [...byDay.entries()];
+      const latestSnapshot = daySnapshots[daySnapshots.length - 1]?.[1] ?? null;
+
+      return {
+        label,
+        currency: latestSnapshot?.displayCurrency ?? "USD",
+        latest_sample_size: latestSnapshot?.sample_size ?? null,
+        points: daySnapshots.map(([date, snapshot]) => ({
+          date,
+          label: toDateLabel(date),
+          value: snapshot.displayValue,
         })),
       };
     })

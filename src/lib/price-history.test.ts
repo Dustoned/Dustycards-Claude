@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCardEbaySoldGradedPriceHistory,
   buildCardGradedPriceHistory,
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
@@ -130,6 +131,75 @@ describe("graded card price history", () => {
     expect(history[1]).toMatchObject({
       label: "PSA 9",
       points: [{ date: "2026-04-25", value: 60 }],
+    });
+  });
+
+  it("groups eBay sold snapshots per label and uses the latest median per day", () => {
+    const history = buildCardEbaySoldGradedPriceHistory([
+      {
+        label: "PSA 10",
+        median_price: 100,
+        currency: "USD",
+        sample_size: 2,
+        fetched_at: "2026-04-25T09:00:00.000Z",
+      },
+      {
+        label: "PSA 10",
+        median_price: 125,
+        currency: "USD",
+        sample_size: 4,
+        fetched_at: "2026-04-25T21:00:00.000Z",
+      },
+      {
+        label: "PSA 9",
+        median_price: 60,
+        currency: "USD",
+        sample_size: 3,
+        fetched_at: "2026-04-25T10:00:00.000Z",
+      },
+      {
+        label: "PSA 10",
+        median_price: 130,
+        currency: "USD",
+        sample_size: 5,
+        fetched_at: "2026-04-26T09:00:00.000Z",
+      },
+    ]);
+
+    expect(history[0]).toMatchObject({
+      label: "PSA 10",
+      currency: "USD",
+      latest_sample_size: 5,
+      points: [
+        { date: "2026-04-25", value: 125 },
+        { date: "2026-04-26", value: 130 },
+      ],
+    });
+    expect(history[1]).toMatchObject({
+      label: "PSA 9",
+      latest_sample_size: 3,
+      points: [{ date: "2026-04-25", value: 60 }],
+    });
+  });
+
+  it("converts eBay sold USD history to EUR when a rate is available", () => {
+    const history = buildCardEbaySoldGradedPriceHistory(
+      [
+        {
+          label: "PSA 10",
+          median_price: 100,
+          currency: "USD",
+          sample_size: 2,
+          fetched_at: "2026-04-25T09:00:00.000Z",
+        },
+      ],
+      { usdToEurRate: 0.92 }
+    );
+
+    expect(history[0]).toMatchObject({
+      label: "PSA 10",
+      currency: "EUR",
+      points: [{ date: "2026-04-25", value: 92 }],
     });
   });
 });
