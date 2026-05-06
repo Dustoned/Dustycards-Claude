@@ -67,6 +67,47 @@ function TabLink({
   );
 }
 
+function CollectionValueSummaryCard({
+  currentValue,
+  pnl,
+  rangeLabel,
+  className = "",
+}: {
+  currentValue: number;
+  pnl: number;
+  rangeLabel: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.045] ${className}`}
+    >
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/42">
+            Collection Value
+          </p>
+          <p className="mt-1 truncate text-2xl font-bold leading-tight tabular-nums text-gray-950 dark:text-white sm:text-3xl">
+            {formatCollectionCurrency(currentValue)}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p
+            className={`text-sm font-semibold tabular-nums sm:text-base ${
+              pnl >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"
+            }`}
+          >
+            {pnl >= 0 ? "+" : ""}
+            {formatCollectionCurrency(pnl)}
+          </p>
+          <p className="mt-0.5 text-[11px] text-gray-500 dark:text-white/42">P&amp;L</p>
+        </div>
+      </div>
+      <p className="mt-2 truncate text-[11px] text-gray-500 dark:text-white/42">{rangeLabel}</p>
+    </div>
+  );
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -149,9 +190,12 @@ export default async function HomePage({
   }
   const valueRangePoints = data.overview.chart.filter((point) => point.value != null);
   const collectionValueRange =
-    valueRangePoints.length > 1
+    activeTab !== "overview"
+      ? "Live collection summary"
+      : valueRangePoints.length > 1
       ? `${valueRangePoints[0].label} - ${valueRangePoints[valueRangePoints.length - 1].label}`
       : valueRangePoints[0]?.label ?? "No history yet";
+  const showCollectionChart = activeTab === "overview" && valueRangePoints.length > 1;
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
@@ -178,46 +222,33 @@ export default async function HomePage({
           }
           accessory={
             <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(30rem,1.45fr)_minmax(20rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(42rem,1.55fr)_minmax(28rem,0.9fr)]">
-              <div className="rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.045] sm:hidden">
-                <div className="flex items-end justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/42">
-                      Collection Value
-                    </p>
-                    <p className="mt-1 truncate text-2xl font-bold leading-tight tabular-nums text-gray-950 dark:text-white">
-                      {formatCollectionCurrency(data.overview.currentValue)}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p
-                      className={`text-sm font-semibold tabular-nums ${
-                        data.overview.pnl >= 0
-                          ? "text-emerald-700 dark:text-emerald-300"
-                          : "text-rose-700 dark:text-rose-300"
-                      }`}
-                    >
-                      {data.overview.pnl >= 0 ? "+" : ""}
-                      {formatCollectionCurrency(data.overview.pnl)}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-gray-500 dark:text-white/42">P&amp;L</p>
-                  </div>
-                </div>
-                <p className="mt-2 truncate text-[11px] text-gray-500 dark:text-white/42">
-                  {collectionValueRange}
-                </p>
-              </div>
+              <CollectionValueSummaryCard
+                currentValue={data.overview.currentValue}
+                pnl={data.overview.pnl}
+                rangeLabel={collectionValueRange}
+                className="sm:hidden"
+              />
               <div className="hidden min-w-0 sm:block [&>section]:h-full">
-                <PriceHistoryPanel
-                  layout="hero"
-                  title="Collection Value"
-                  currency="EUR"
-                  points={data.overview.chart}
-                  currentValue={data.overview.currentValue}
-                  subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
-                    data.overview.pnl
-                  )}`}
-                  emptyText="Add cards or sealed to start tracking your value"
-                />
+                {showCollectionChart ? (
+                  <PriceHistoryPanel
+                    layout="hero"
+                    title="Collection Value"
+                    currency="EUR"
+                    points={data.overview.chart}
+                    currentValue={data.overview.currentValue}
+                    subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
+                      data.overview.pnl
+                    )}`}
+                    emptyText="Add cards or sealed to start tracking your value"
+                  />
+                ) : (
+                  <CollectionValueSummaryCard
+                    currentValue={data.overview.currentValue}
+                    pnl={data.overview.pnl}
+                    rangeLabel={collectionValueRange}
+                    className="flex h-full min-h-[9rem] flex-col justify-center px-5 py-4"
+                  />
+                )}
               </div>
             <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr">
                 {summaryCards.map((stat) => (

@@ -246,6 +246,13 @@ const collectionBinderMetricSelect = {
 } satisfies Prisma.CollectionBinderSelect;
 
 const SQLITE_SAFE_CHUNK_SIZE = 250;
+const COLLECTION_OVERVIEW_CHART_DAYS = 120;
+
+function getHistoryCutoffDate(days = COLLECTION_OVERVIEW_CHART_DAYS) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  return cutoff.toISOString();
+}
 
 async function fetchCollectionCardsPage(
   options: {
@@ -433,7 +440,7 @@ function placeholdersFor(values: unknown[]): string {
   return values.map(() => "?").join(", ");
 }
 
-async function getCardHistoryRows(cardIds: string[]) {
+async function getCardHistoryRows(cardIds: string[], since?: string) {
   if (cardIds.length === 0) return [];
 
   const rows = await Promise.all(
@@ -462,10 +469,12 @@ async function getCardHistoryRows(cardIds: string[]) {
             ) AS row_num
           FROM "Price" p
           WHERE p.card_id IN (${placeholdersFor(chunk)})
+            ${since ? "AND p.fetched_at >= ?" : ""}
         )
         WHERE row_num = 1
         ORDER BY fetched_at ASC, card_id ASC`,
-        ...chunk
+        ...chunk,
+        ...(since ? [since] : [])
       )
     )
   );
@@ -473,7 +482,7 @@ async function getCardHistoryRows(cardIds: string[]) {
   return rows.flat();
 }
 
-async function getSealedHistoryRows(productIds: string[]) {
+async function getSealedHistoryRows(productIds: string[], since?: string) {
   if (productIds.length === 0) return [];
 
   const rows = await Promise.all(
@@ -521,10 +530,12 @@ async function getSealedHistoryRows(productIds: string[]) {
             ) AS row_num
           FROM "SealedPriceSnapshot" s
           WHERE s.product_id IN (${placeholdersFor(chunk)})
+            ${since ? "AND s.fetched_at >= ?" : ""}
         )
         WHERE row_num = 1
         ORDER BY fetched_at ASC, product_id ASC`,
-        ...chunk
+        ...chunk,
+        ...(since ? [since] : [])
       )
     )
   );
@@ -753,11 +764,13 @@ export async function getCollectionOverviewData(
   const loadDetailedCards = shouldLoadDetailedCards(activeTab);
   const loadDetailedSealed = shouldLoadDetailedSealed(activeTab);
   const loadDetailedBinders = shouldLoadDetailedBinders(activeTab);
+  const loadCollectionHistory = activeTab === "overview";
   const timer = startPerformanceTimer("collection.overview", {
     activeTab,
     detailedCards: loadDetailedCards,
     detailedSealed: loadDetailedSealed,
     detailedBinders: loadDetailedBinders,
+    history: loadCollectionHistory,
   });
 
   const [collectionCards, collectionSealed, binders] = await Promise.all([
@@ -788,10 +801,13 @@ export async function getCollectionOverviewData(
 
   const cardQuantities = buildCardQuantityMap(metricCards);
   const sealedQuantities = buildProductQuantityMap(metricSealed);
-  const [cardHistory, sealedHistory] = await Promise.all([
-    getCardHistoryRows([...cardQuantities.keys()]),
-    getSealedHistoryRows([...sealedQuantities.keys()]),
-  ]);
+  const historyCutoff = loadCollectionHistory ? getHistoryCutoffDate() : null;
+  const [cardHistory, sealedHistory] = loadCollectionHistory
+    ? await Promise.all([
+        getCardHistoryRows([...cardQuantities.keys()], historyCutoff ?? undefined),
+        getSealedHistoryRows([...sealedQuantities.keys()], historyCutoff ?? undefined),
+      ])
+    : [[], []];
 
   const combinedHistory = combineValueHistories(
     buildOwnedCardValueHistory(cardHistory, cardQuantities),
@@ -801,10 +817,9 @@ export async function getCollectionOverviewData(
     label: point.label,
     value: point.total_market,
   }));
-  const costBasisByItemId = buildCollectionCostBasisMap(
-    metricCards,
-    binders as CollectionBinderCostBasisRecord[]
-  );
+  const costBasisByItemId = loadDetailedCards
+    ? buildCollectionCostBasisMap(metricCards, binders as CollectionBinderCostBasisRecord[])
+    : new Map<string, CollectionCostBasis>();
 
   const collectionCardViewItems = loadDetailedCards
     ? (collectionCards as CollectionCardRecord[]).map((record) =>
@@ -910,6 +925,7 @@ export async function getCollectionOverviewData(
     cards: metricCards.length,
     sealedItems: metricSealed.length,
     binders: binders.length,
+    historyLoaded: loadCollectionHistory,
     historyPoints: combinedHistory.length,
   });
 
