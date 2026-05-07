@@ -5,8 +5,10 @@ const EBAY_SCOPE = "https://api.ebay.com/oauth/api_scope";
 const EBAY_SEARCH_TIMEOUT_MS = 12_000;
 const EBAY_TOKEN_EXPIRY_SKEW_MS = 60_000;
 const EBAY_MAX_SEARCH_QUERY_LENGTH = 100;
-const EBAY_SEARCH_PAGE_SIZE = 50;
-const EBAY_MAX_FETCHED_LISTINGS = 200;
+const EBAY_SEARCH_PAGE_SIZE = 100;
+const EBAY_MAX_FETCHED_LISTINGS = 100;
+const EBAY_SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
+const EBAY_SEARCH_CACHE_MAX_ENTRIES = 120;
 const DEFAULT_EBAY_CATEGORY_ID = "183454";
 
 export type EbayEnvironment = "production" | "sandbox";
@@ -177,6 +179,13 @@ export interface EbayDealSearchResult {
 }
 
 let tokenCache: EbayApplicationToken | null = null;
+const searchCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    result: EbayDealSearchResult;
+  }
+>();
 
 function normalizeEnvValue(value: string | undefined): string | null {
   const normalized = value?.trim();
@@ -1007,6 +1016,73 @@ function buildEbaySearchFilters(config: EbayRuntimeConfig, buyingMode: EbayBuyin
   return filters;
 }
 
+function cloneEbayDealSearchResult(result: EbayDealSearchResult): EbayDealSearchResult {
+  return {
+    ...result,
+    listings: result.listings.map((listing) => ({
+      ...listing,
+      cardCondition: { ...listing.cardCondition },
+      language: { ...listing.language },
+      buyingOptions: [...listing.buyingOptions],
+      price: { ...listing.price },
+      shipping: { ...listing.shipping },
+      total: { ...listing.total },
+      seller: { ...listing.seller },
+    })),
+  };
+}
+
+function getSearchCacheKey(input: {
+  buyingMode: EbayBuyingMode;
+  config: EbayRuntimeConfig;
+  excludeGraded?: boolean;
+  limit: number;
+  query: string;
+  reference: EbayDealReference;
+  requireGraded?: boolean;
+  strictEnglish?: boolean;
+}): string {
+  return JSON.stringify({
+    buyingMode: input.buyingMode,
+    categoryId: input.config.categoryId,
+    deliveryCountry: input.config.deliveryCountry,
+    environment: input.config.environment,
+    excludeGraded: Boolean(input.excludeGraded),
+    limit: input.limit,
+    marketplaceId: input.config.marketplaceId,
+    query: input.query,
+    referenceSource: input.reference.source,
+    referenceValueEur: input.reference.valueEur,
+    requireGraded: Boolean(input.requireGraded),
+    strictEnglish: Boolean(input.strictEnglish),
+  });
+}
+
+function getCachedSearchResult(cacheKey: string): EbayDealSearchResult | null {
+  const cached = searchCache.get(cacheKey);
+  if (!cached) return null;
+
+  if (cached.expiresAt <= Date.now()) {
+    searchCache.delete(cacheKey);
+    return null;
+  }
+
+  return cloneEbayDealSearchResult(cached.result);
+}
+
+function setCachedSearchResult(cacheKey: string, result: EbayDealSearchResult): void {
+  searchCache.set(cacheKey, {
+    expiresAt: Date.now() + EBAY_SEARCH_CACHE_TTL_MS,
+    result: cloneEbayDealSearchResult(result),
+  });
+
+  while (searchCache.size > EBAY_SEARCH_CACHE_MAX_ENTRIES) {
+    const oldestKey = searchCache.keys().next().value;
+    if (!oldestKey) break;
+    searchCache.delete(oldestKey);
+  }
+}
+
 function buildListing(
   item: EbaySearchItemSummary,
   reference: EbayDealReference,
@@ -1147,7 +1223,22 @@ export async function searchEbayDeals(input: {
     };
   }
 
-  const requestedLimit = Math.min(Math.max(input.limit ?? 24, 1), EBAY_SEARCH_PAGE_SIZE);
+  const requestedLimit = Math.min(Math.max(input.limit ?? 24, 1), 50);
+  const cacheKey = getSearchCacheKey({
+    buyingMode,
+    config,
+    excludeGraded: input.excludeGraded,
+    limit: requestedLimit,
+    query,
+    reference: input.reference,
+    requireGraded: input.requireGraded,
+    strictEnglish: input.strictEnglish,
+  });
+  const cachedResult = getCachedSearchResult(cacheKey);
+  if (cachedResult) {
+    return cachedResult;
+  }
+
   const token = await getEbayApplicationToken(config);
   const baseUrl = new URL(`${getEbayApiBaseUrl(config.environment)}/buy/browse/v1/item_summary/search`);
   baseUrl.searchParams.set("q", query);
@@ -1164,46 +1255,37 @@ export async function searchEbayDeals(input: {
   const timeout = setTimeout(() => controller.abort(), EBAY_SEARCH_TIMEOUT_MS);
 
   try {
-    const itemSummaries: EbaySearchItemSummary[] = [];
-    let reportedTotal = 0;
+    const pageUrl = new URL(baseUrl);
+    pageUrl.searchParams.set("limit", String(EBAY_SEARCH_PAGE_SIZE));
+    pageUrl.searchParams.set("offset", "0");
 
-    for (
-      let offset = 0;
-      offset < EBAY_MAX_FETCHED_LISTINGS && itemSummaries.length < EBAY_MAX_FETCHED_LISTINGS;
-      offset += EBAY_SEARCH_PAGE_SIZE
-    ) {
-      const pageUrl = new URL(baseUrl);
-      pageUrl.searchParams.set("limit", String(EBAY_SEARCH_PAGE_SIZE));
-      pageUrl.searchParams.set("offset", String(offset));
+    const response = await fetch(pageUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "X-EBAY-C-MARKETPLACE-ID": config.marketplaceId,
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const data = (await response.json().catch(() => ({}))) as EbaySearchResponse & {
+      errors?: Array<{ message?: string; longMessage?: string }>;
+    };
 
-      const response = await fetch(pageUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-          "X-EBAY-C-MARKETPLACE-ID": config.marketplaceId,
-        },
-        cache: "no-store",
-        signal: controller.signal,
-      });
-      const data = (await response.json().catch(() => ({}))) as EbaySearchResponse & {
-        errors?: Array<{ message?: string; longMessage?: string }>;
-      };
-
-      if (!response.ok) {
-        const message =
-          data.errors?.[0]?.longMessage ??
-          data.errors?.[0]?.message ??
-          `eBay search failed with ${response.status}`;
-        throw new Error(message);
+    if (!response.ok) {
+      const message =
+        data.errors?.[0]?.longMessage ??
+        data.errors?.[0]?.message ??
+        `eBay search failed with ${response.status}`;
+      if (/limit|rate/i.test(message) || response.status === 429) {
+        throw new Error(
+          "eBay API limit reached. Try again after the eBay daily reset, or use the eBay link for this search."
+        );
       }
-
-      reportedTotal = data.total ?? reportedTotal;
-      const pageItems = data.itemSummaries ?? [];
-      itemSummaries.push(...pageItems);
-
-      if (pageItems.length < EBAY_SEARCH_PAGE_SIZE) break;
-      if (reportedTotal > 0 && offset + EBAY_SEARCH_PAGE_SIZE >= reportedTotal) break;
+      throw new Error(message);
     }
+
+    const itemSummaries = (data.itemSummaries ?? []).slice(0, EBAY_MAX_FETCHED_LISTINGS);
 
     const uniqueItemSummaries = Array.from(
       new Map(
@@ -1225,13 +1307,12 @@ export async function searchEbayDeals(input: {
       .filter((listing): listing is EbayDealListing => Boolean(listing))
       .filter((listing) => !getEbayListingRejectionReason(listing));
 
-    if (input.strictEnglish || input.requireGraded) {
+    if (input.strictEnglish) {
       listings = await enrichListingsWithItemDetails({
         listings,
         config,
         token,
         strictEnglish: input.strictEnglish,
-        requireGraded: input.requireGraded,
       });
     }
 
@@ -1243,7 +1324,7 @@ export async function searchEbayDeals(input: {
       .sort(sortListings)
       .slice(0, requestedLimit);
 
-    return {
+    const result = {
       query,
       marketplaceId: config.marketplaceId,
       deliveryCountry: config.deliveryCountry,
@@ -1252,6 +1333,8 @@ export async function searchEbayDeals(input: {
       listings,
       directSearchUrl,
     };
+    setCachedSearchResult(cacheKey, result);
+    return cloneEbayDealSearchResult(result);
   } finally {
     clearTimeout(timeout);
   }
@@ -1263,4 +1346,5 @@ export function isSupportedDealCurrency(currency: string): currency is CurrencyC
 
 export function __resetEbayTokenCacheForTests() {
   tokenCache = null;
+  searchCache.clear();
 }
