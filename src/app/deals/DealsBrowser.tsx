@@ -158,6 +158,32 @@ interface DealsResponse {
   error?: string;
 }
 
+interface EbayRateLimitRate {
+  count: number | null;
+  limit: number | null;
+  remaining: number | null;
+  reset: string | null;
+  timeWindow: number | null;
+}
+
+interface EbayRateLimitStatus {
+  configured: boolean;
+  apiContext: string;
+  apiName: string;
+  marketplaceId: string;
+  resources: Array<{
+    name: string;
+    rates: EbayRateLimitRate[];
+  }>;
+  summary: (EbayRateLimitRate & {
+    apiContext: string;
+    apiName: string;
+    resourceName: string;
+  }) | null;
+  refreshedAt: string;
+  error?: string;
+}
+
 interface CardSearchResult {
   id: string;
   name: string;
@@ -219,6 +245,36 @@ function formatMaybeCurrency(value: number | null | undefined, currency: string 
 function formatPercent(value: number | null): string {
   if (value == null) return "--";
   return `${value >= 0 ? "-" : "+"}${Math.abs(value).toFixed(1)}%`;
+}
+
+function formatInteger(value: number | null | undefined): string {
+  return value == null ? "--" : value.toLocaleString("en-US");
+}
+
+function formatResetTime(value: string | null | undefined): string {
+  if (!value) return "Reset unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Reset unknown";
+
+  return `Reset ${date.toLocaleString("nl-NL", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+  })}`;
+}
+
+function rateLimitToneClass(status: EbayRateLimitStatus | null): string {
+  const remaining = status?.summary?.remaining;
+  const limit = status?.summary?.limit;
+  if (remaining == null || limit == null || limit <= 0) {
+    return "border-gray-400/14 bg-gray-400/[0.06]";
+  }
+
+  const ratio = remaining / limit;
+  if (ratio <= 0.1) return "border-rose-400/14 bg-rose-400/[0.08]";
+  if (ratio <= 0.25) return "border-amber-400/14 bg-amber-400/[0.08]";
+  return "border-emerald-400/14 bg-emerald-400/[0.06]";
 }
 
 function dealToneClass(tone: DealListing["dealTone"]): string {
@@ -708,6 +764,9 @@ export default function DealsBrowser() {
   const [suggestionsQuery, setSuggestionsQuery] = useState("");
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [rateLimit, setRateLimit] = useState<EbayRateLimitStatus | null>(null);
+  const [rateLimitLoading, setRateLimitLoading] = useState(false);
+  const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [overrideBusyItemId, setOverrideBusyItemId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -764,6 +823,45 @@ export default function DealsBrowser() {
       controller.abort();
     };
   }, [requestPath]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const startTimer = window.setTimeout(() => {
+      setRateLimitLoading(true);
+      setRateLimitError(null);
+    }, 0);
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/ebay/rate-limit", {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => ({}))) as EbayRateLimitStatus & {
+          error?: string;
+        };
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Could not load eBay API limit");
+        }
+        setRateLimit(payload);
+      } catch (caught) {
+        if (caught instanceof Error && caught.name === "AbortError") return;
+        setRateLimit(null);
+        setRateLimitError(
+          caught instanceof Error ? caught.message : "Could not load eBay API limit"
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setRateLimitLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      window.clearTimeout(startTimer);
+      controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -983,7 +1081,7 @@ export default function DealsBrowser() {
               </div>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-emerald-400/14 bg-emerald-400/[0.06] px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700/70 dark:text-emerald-200/65">
                   Best
@@ -1010,6 +1108,25 @@ export default function DealsBrowser() {
                 </p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-gray-950 dark:text-white">
                   {visibleData.listings.length.toLocaleString("en-US")}
+                </p>
+              </div>
+              <div className={`rounded-2xl border px-4 py-3 ${rateLimitToneClass(rateLimit)}`}>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600/70 dark:text-white/55">
+                  eBay API left
+                </p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-gray-950 dark:text-white">
+                  {rateLimitLoading ? "--" : formatInteger(rateLimit?.summary?.remaining)}
+                </p>
+                <p className="mt-1 truncate text-[11px] font-semibold text-gray-500 dark:text-white/45">
+                  {rateLimitError
+                    ? "Limit unavailable"
+                    : rateLimit?.configured === false
+                      ? "Keys missing"
+                      : rateLimit?.summary?.limit != null
+                        ? `of ${formatInteger(rateLimit.summary.limit)} / ${formatResetTime(
+                            rateLimit.summary.reset
+                          )}`
+                        : "Limit unknown"}
                 </p>
               </div>
             </div>

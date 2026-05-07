@@ -9,6 +9,7 @@ const EBAY_SEARCH_PAGE_SIZE = 100;
 const EBAY_MAX_FETCHED_LISTINGS = 100;
 const EBAY_SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
 const EBAY_SEARCH_CACHE_MAX_ENTRIES = 120;
+const EBAY_RATE_LIMIT_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_EBAY_CATEGORY_ID = "183454";
 
 export type EbayEnvironment = "production" | "sandbox";
@@ -77,6 +78,24 @@ interface EbaySearchResponse {
   limit?: number;
   offset?: number;
   itemSummaries?: EbaySearchItemSummary[];
+}
+
+interface EbayAnalyticsRateLimitsResponse {
+  rateLimits?: Array<{
+    apiContext?: string | null;
+    apiName?: string | null;
+    apiVersion?: string | null;
+    resources?: Array<{
+      name?: string | null;
+      rates?: Array<{
+        count?: number | null;
+        limit?: number | null;
+        remaining?: number | null;
+        reset?: string | null;
+        timeWindow?: number | null;
+      }> | null;
+    }> | null;
+  }> | null;
 }
 
 export interface EbayCardSearchInput {
@@ -178,12 +197,48 @@ export interface EbayDealSearchResult {
   directSearchUrl: string;
 }
 
+export interface EbayRateLimitRate {
+  count: number | null;
+  limit: number | null;
+  remaining: number | null;
+  reset: string | null;
+  timeWindow: number | null;
+}
+
+export interface EbayRateLimitResource {
+  name: string;
+  rates: EbayRateLimitRate[];
+}
+
+export interface EbayRateLimitSummary extends EbayRateLimitRate {
+  apiContext: string;
+  apiName: string;
+  resourceName: string;
+}
+
+export interface EbayRateLimitStatus {
+  configured: boolean;
+  apiContext: string;
+  apiName: string;
+  marketplaceId: string;
+  resources: EbayRateLimitResource[];
+  summary: EbayRateLimitSummary | null;
+  refreshedAt: string;
+}
+
 let tokenCache: EbayApplicationToken | null = null;
 const searchCache = new Map<
   string,
   {
     expiresAt: number;
     result: EbayDealSearchResult;
+  }
+>();
+const rateLimitCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    status: EbayRateLimitStatus;
   }
 >();
 
@@ -221,6 +276,11 @@ export function getEbayRuntimeConfig(): EbayRuntimeConfig {
 
 function getEbayApiBaseUrl(environment: EbayEnvironment): string {
   return environment === "sandbox" ? "https://api.sandbox.ebay.com" : "https://api.ebay.com";
+}
+
+function toNullableInteger(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
 }
 
 function buildTokenCacheKey(config: EbayRuntimeConfig): string {
@@ -1083,6 +1143,157 @@ function setCachedSearchResult(cacheKey: string, result: EbayDealSearchResult): 
   }
 }
 
+function cloneEbayRateLimitStatus(status: EbayRateLimitStatus): EbayRateLimitStatus {
+  return {
+    ...status,
+    resources: status.resources.map((resource) => ({
+      ...resource,
+      rates: resource.rates.map((rate) => ({ ...rate })),
+    })),
+    summary: status.summary ? { ...status.summary } : null,
+  };
+}
+
+function getRateLimitCacheKey(config: EbayRuntimeConfig): string {
+  return [
+    config.environment,
+    config.marketplaceId,
+    config.clientId ?? "",
+    config.clientSecret ? "secret" : "",
+    "buy",
+    "browse",
+  ].join("|");
+}
+
+function getCachedRateLimitStatus(cacheKey: string): EbayRateLimitStatus | null {
+  const cached = rateLimitCache.get(cacheKey);
+  if (!cached) return null;
+
+  if (cached.expiresAt <= Date.now()) {
+    rateLimitCache.delete(cacheKey);
+    return null;
+  }
+
+  return cloneEbayRateLimitStatus(cached.status);
+}
+
+function setCachedRateLimitStatus(cacheKey: string, status: EbayRateLimitStatus): void {
+  rateLimitCache.set(cacheKey, {
+    expiresAt: Date.now() + EBAY_RATE_LIMIT_CACHE_TTL_MS,
+    status: cloneEbayRateLimitStatus(status),
+  });
+}
+
+function pickEbayRateLimitSummary(input: {
+  apiContext: string;
+  apiName: string;
+  resources: EbayRateLimitResource[];
+}): EbayRateLimitSummary | null {
+  const resource =
+    input.resources.find((candidate) =>
+      /\b(search|item_summary|browse|buy\.browse)\b/i.test(candidate.name)
+    ) ?? input.resources.find((candidate) => candidate.rates.length > 0);
+  if (!resource) return null;
+
+  const rate =
+    resource.rates.find((candidate) => candidate.timeWindow === 86400) ?? resource.rates[0];
+  if (!rate) return null;
+
+  return {
+    ...rate,
+    apiContext: input.apiContext,
+    apiName: input.apiName,
+    resourceName: resource.name,
+  };
+}
+
+export async function getEbayBrowseRateLimitStatus(
+  config = getEbayRuntimeConfig()
+): Promise<EbayRateLimitStatus> {
+  const emptyStatus: EbayRateLimitStatus = {
+    configured: config.configured,
+    apiContext: "buy",
+    apiName: "browse",
+    marketplaceId: config.marketplaceId,
+    resources: [],
+    summary: null,
+    refreshedAt: new Date().toISOString(),
+  };
+
+  if (!config.configured) return emptyStatus;
+
+  const cacheKey = getRateLimitCacheKey(config);
+  const cached = getCachedRateLimitStatus(cacheKey);
+  if (cached) return cached;
+
+  const token = await getEbayApplicationToken(config);
+  const url = new URL(`${getEbayApiBaseUrl(config.environment)}/developer/analytics/v1_beta/rate_limit/`);
+  url.searchParams.set("api_context", "buy");
+  url.searchParams.set("api_name", "browse");
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (response.status === 204) {
+    setCachedRateLimitStatus(cacheKey, emptyStatus);
+    return emptyStatus;
+  }
+
+  const data = (await response.json().catch(() => ({}))) as EbayAnalyticsRateLimitsResponse & {
+    errors?: Array<{ message?: string; longMessage?: string }>;
+  };
+
+  if (!response.ok) {
+    const message =
+      data.errors?.[0]?.longMessage ??
+      data.errors?.[0]?.message ??
+      `eBay rate limit lookup failed with ${response.status}`;
+    throw new Error(message);
+  }
+
+  const rateLimit =
+    data.rateLimits?.find(
+      (candidate) =>
+        candidate.apiContext?.toLowerCase() === "buy" &&
+        candidate.apiName?.toLowerCase() === "browse"
+    ) ?? data.rateLimits?.[0];
+  const resources =
+    rateLimit?.resources?.map((resource) => ({
+      name: resource.name?.trim() || "browse",
+      rates:
+        resource.rates?.map((rate) => ({
+          count: toNullableInteger(rate.count),
+          limit: toNullableInteger(rate.limit),
+          remaining: toNullableInteger(rate.remaining),
+          reset: rate.reset?.trim() || null,
+          timeWindow: toNullableInteger(rate.timeWindow),
+        })) ?? [],
+    })) ?? [];
+  const apiContext = rateLimit?.apiContext?.toLowerCase() || "buy";
+  const apiName = rateLimit?.apiName?.toLowerCase() || "browse";
+  const status: EbayRateLimitStatus = {
+    configured: true,
+    apiContext,
+    apiName,
+    marketplaceId: config.marketplaceId,
+    resources,
+    summary: pickEbayRateLimitSummary({
+      apiContext,
+      apiName,
+      resources,
+    }),
+    refreshedAt: new Date().toISOString(),
+  };
+
+  setCachedRateLimitStatus(cacheKey, status);
+  return cloneEbayRateLimitStatus(status);
+}
+
 function buildListing(
   item: EbaySearchItemSummary,
   reference: EbayDealReference,
@@ -1347,4 +1558,5 @@ export function isSupportedDealCurrency(currency: string): currency is CurrencyC
 export function __resetEbayTokenCacheForTests() {
   tokenCache = null;
   searchCache.clear();
+  rateLimitCache.clear();
 }
