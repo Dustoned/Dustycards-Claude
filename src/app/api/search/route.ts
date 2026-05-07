@@ -13,6 +13,7 @@ const FUZZY_CARD_CANDIDATE_LIMIT = 180;
 const FUZZY_SEALED_CANDIDATE_LIMIT = 80;
 const FUZZY_EXPANSION_CANDIDATE_LIMIT = 48;
 const FUZZY_CARD_RESULT_LIMIT = Math.min(MAX_RESULTS, 36);
+const FUZZY_NUMBER_CARD_CANDIDATE_LIMIT = 900;
 const DIRECT_CARD_CANDIDATE_LIMIT = 400;
 const DIRECT_SEALED_CANDIDATE_LIMIT = 200;
 
@@ -105,16 +106,6 @@ function parseSearchQuery(raw: string): ParsedQuery {
     return { name: prefix, cardNumber, setCode: null, rawCardRef: null };
   }
 
-  const compactReference = parseCompactCardReference(q);
-  if (compactReference) {
-    return {
-      name: null,
-      cardNumber: compactReference.cardNumber,
-      setCode: compactReference.setCode,
-      rawCardRef: compactReference.rawCardRef,
-    };
-  }
-
   const tokens = q.split(/\s+/);
   const codeIdx = tokens.findIndex((token) => SET_CODE_RE.test(token));
 
@@ -138,6 +129,16 @@ function parseSearchQuery(raw: string): ParsedQuery {
   const withNumber = /^(.+?)\s+(\d+)$/.exec(q);
   if (withNumber) {
     return { name: withNumber[1], cardNumber: withNumber[2], setCode: null, rawCardRef: null };
+  }
+
+  const compactReference = parseCompactCardReference(q);
+  if (compactReference) {
+    return {
+      name: null,
+      cardNumber: compactReference.cardNumber,
+      setCode: compactReference.setCode,
+      rawCardRef: compactReference.rawCardRef,
+    };
   }
 
   return { name: q || null, cardNumber: null, setCode: null, rawCardRef: null };
@@ -244,8 +245,11 @@ function containsCondition(field: string, value: string) {
   return { [field]: { contains: value } } as Record<string, { contains: string }>;
 }
 
-function buildCardNumberCondition(cardNumber: string): Prisma.CardWhereInput {
-  return /^\d+$/.test(cardNumber)
+function buildCardNumberCondition(
+  cardNumber: string,
+  options: { looseNumeric?: boolean } = {}
+): Prisma.CardWhereInput {
+  return /^\d+$/.test(cardNumber) && !options.looseNumeric
     ? { card_number: cardNumber }
     : { card_number: { contains: cardNumber } };
 }
@@ -569,6 +573,12 @@ function buildFuzzyCardCandidateWhere(
   return combineWhere("OR", conditions);
 }
 
+function buildFuzzyNumberCardCandidateWhere(parsed: ParsedQuery): Prisma.CardWhereInput | undefined {
+  if (!parsed.name || !parsed.cardNumber) return undefined;
+
+  return buildCardNumberCondition(parsed.cardNumber, { looseNumeric: true });
+}
+
 function buildFuzzySealedCandidateWhere(
   rawQuery: string,
   parsed: ParsedQuery
@@ -739,8 +749,37 @@ async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
       orderBy: { release_date: "desc" },
     }),
   ]);
+  const numberCardCandidateWhere = buildFuzzyNumberCardCandidateWhere(parsed);
+  const numberCardCandidates = numberCardCandidateWhere
+    ? await db.card.findMany({
+        where: combineWhere("AND", [
+          { episode: VISIBLE_EPISODE_WHERE },
+          numberCardCandidateWhere,
+        ]),
+        take: FUZZY_NUMBER_CARD_CANDIDATE_LIMIT,
+        orderBy: [{ name: "asc" }, { episode: { release_date: "desc" } }, { card_number: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          card_number: true,
+          rarity: true,
+          supertype: true,
+          image_url: true,
+          episode: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+          },
+        },
+      })
+    : [];
+  const cardCandidateById = new Map(
+    [...cardCandidates, ...numberCardCandidates].map((card) => [card.id, card])
+  );
 
-  const topCardIds = cardCandidates
+  const topCardIds = [...cardCandidateById.values()]
     .map((card) => ({
       id: card.id,
       score: fuzzyRelevanceScore(buildCardSearchText(card), rawQuery),
@@ -857,7 +896,7 @@ export async function GET(req: NextRequest) {
           {
             AND: [
               { episode: episodeMatchesSetCode(setCode) },
-              buildCardNumberCondition(cardNumber),
+              buildCardNumberCondition(cardNumber, { looseNumeric: Boolean(name) }),
             ],
           },
         ];
@@ -870,7 +909,9 @@ export async function GET(req: NextRequest) {
           referenceConditions.length === 1 ? referenceConditions[0] : { OR: referenceConditions }
         );
       } else {
-        cardAndConditions.push(buildCardNumberCondition(cardNumber));
+        cardAndConditions.push(
+          buildCardNumberCondition(cardNumber, { looseNumeric: Boolean(name) })
+        );
       }
     } else if (setCode) {
       cardAndConditions.push({ episode: episodeMatchesSetCode(setCode) });

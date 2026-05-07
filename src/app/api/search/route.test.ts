@@ -87,6 +87,38 @@ describe("GET /api/search", () => {
     );
   });
 
+  it("loosely matches card numbers when searching by name plus number", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "giratina-124",
+        name: "Giratina-EX",
+        card_number: "124/124",
+        rarity: "Rare Holo EX",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "drx",
+          name: "Dragons Exalted",
+          code: "DRX",
+        },
+        prices: [{ cm_en_lowest_nm: 89, tcp_market: 95 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=giratina%20124")
+    );
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.singles).toHaveLength(1);
+    expect(JSON.stringify(cardQuery.where)).toContain('"card_number":{"contains":"124"}');
+  });
+
   it("uses capped fuzzy candidate queries instead of reading the full tables", async () => {
     dbMock.card.findMany
       .mockResolvedValueOnce([])
@@ -162,6 +194,68 @@ describe("GET /api/search", () => {
       2,
       expect.objectContaining({
         take: 48,
+      })
+    );
+  });
+
+  it("keeps old numbered cards eligible when the name has a typo", async () => {
+    dbMock.card.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "giratina-ex-124",
+          name: "Giratina-EX",
+          card_number: "124",
+          rarity: "Rare Holo EX",
+          supertype: "Pokemon",
+          image_url: null,
+          episode: {
+            id: "drx",
+            name: "Dragons Exalted",
+            code: "DRX",
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "giratina-ex-124",
+          name: "Giratina-EX",
+          card_number: "124",
+          rarity: "Rare Holo EX",
+          supertype: "Pokemon",
+          image_url: null,
+          episode: {
+            id: "drx",
+            name: "Dragons Exalted",
+            code: "DRX",
+          },
+          prices: [{ cm_en_lowest_nm: 89, tcp_market: 95 }],
+        },
+      ]);
+
+    dbMock.sealedProduct.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    dbMock.episode.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=gratina%20124")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(true);
+    expect(body.singles).toHaveLength(1);
+    expect(body.singles[0].name).toBe("Giratina-EX");
+
+    expect(dbMock.card.findMany).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        take: 900,
       })
     );
   });
