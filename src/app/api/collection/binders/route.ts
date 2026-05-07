@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
           name: type === "linked_set" ? requestedName ?? resolvedEpisode.name : resolvedEpisode.name,
           type: "linked_set",
           episode_id: resolvedEpisode.id,
-          accent_color: null,
+          accent_color: toNullableString(body.accentColor),
           icon_name: null,
           notes: toNullableString(body.notes),
           base_purchase_price: basePurchasePrice,

@@ -4,10 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
-import {
-  COLLECTION_BINDER_COLORS,
-  COLLECTION_BINDER_ICONS,
-} from "@/lib/collection";
+import { COLLECTION_BINDER_ICONS } from "@/lib/collection";
+import BinderAccentColorPicker from "@/components/BinderAccentColorPicker";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
@@ -96,7 +94,7 @@ export default function CreateBinderButton() {
           name: query || null,
           episodeId: matchedEpisode?.id ?? null,
           linkedQuery: query || null,
-          accentColor: matchedEpisode ? null : accentColor,
+          accentColor,
           iconName: matchedEpisode ? null : iconName,
           basePurchasePrice: basePurchasePrice || null,
           notes: notes || null,
@@ -213,89 +211,34 @@ export default function CreateBinderButton() {
                 {showCustomize && (
                   <div className="mt-3 space-y-3">
                     {!matchedEpisode && (
-                      <>
-                        <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
-                          <span className="text-white/60">Icon</span>
-                          <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
-                            {COLLECTION_BINDER_ICONS.map((option) => {
-                              const active = option === iconName;
-                              return (
-                                <button
-                                  key={option}
-                                  type="button"
-                                  onClick={() => setIconName(option)}
-                                  className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors max-[640px]:h-9 max-[640px]:w-9 max-[640px]:rounded-xl ${
-                                    active
-                                      ? "border-white bg-white text-gray-900"
-                                      : "border-white/10 bg-white/8 text-white hover:border-white/18 hover:bg-white/10"
-                                  }`}
-                                >
-                                  <CollectionBinderIcon iconName={option} className="h-5 w-5 max-[640px]:h-4 max-[640px]:w-4" />
-                                </button>
-                              );
-                            })}
-                          </div>
+                      <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
+                        <span className="text-white/60">Icon</span>
+                        <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
+                          {COLLECTION_BINDER_ICONS.map((option) => {
+                            const active = option === iconName;
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => setIconName(option)}
+                                className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors max-[640px]:h-9 max-[640px]:w-9 max-[640px]:rounded-xl ${
+                                  active
+                                    ? "border-white bg-white text-gray-900"
+                                    : "border-white/10 bg-white/8 text-white hover:border-white/18 hover:bg-white/10"
+                                }`}
+                              >
+                                <CollectionBinderIcon iconName={option} className="h-5 w-5 max-[640px]:h-4 max-[640px]:w-4" />
+                              </button>
+                            );
+                          })}
                         </div>
-
-                        <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
-                          <span className="text-white/60">Accent color</span>
-                          <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setAccentColor(null)}
-                              className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border-2 bg-white/[0.06] transition-all max-[640px]:h-8 max-[640px]:w-8 ${
-                                accentColor == null
-                                  ? "scale-110 border-white"
-                                  : "border-white/14 hover:border-white/26"
-                              }`}
-                              aria-label="No accent color"
-                              title="No accent color"
-                            >
-                              <span className="absolute inset-[7px] rounded-full border border-white/25" />
-                              <span className="absolute h-px w-5 rotate-45 rounded-full bg-white/70" />
-                            </button>
-                            {COLLECTION_BINDER_COLORS.map((option) => {
-                              const active = option === accentColor;
-                              return (
-                                <button
-                                  key={option}
-                                  type="button"
-                                  onClick={() => setAccentColor(option)}
-                                  className={`h-9 w-9 rounded-full border-2 transition-transform max-[640px]:h-8 max-[640px]:w-8 ${
-                                    active ? "scale-110 border-white" : "border-transparent"
-                                  }`}
-                                  style={{ backgroundColor: option }}
-                                  aria-label={`Choose ${option}`}
-                                />
-                              );
-                            })}
-                            <label
-                              className={`relative inline-flex h-9 w-9 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 transition-transform max-[640px]:h-8 max-[640px]:w-8 ${
-                                accentColor != null && !COLLECTION_BINDER_COLORS.includes(accentColor as (typeof COLLECTION_BINDER_COLORS)[number])
-                                  ? "scale-110 border-white"
-                                  : "border-white/18 hover:border-white/32"
-                              }`}
-                              title="Custom color"
-                              aria-label="Choose custom color"
-                            >
-                              <span
-                                className="absolute inset-0"
-                                style={{ backgroundColor: accentColor ?? "#2563eb" }}
-                              />
-                              <span className="relative rounded-full bg-black/45 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                                +
-                              </span>
-                              <input
-                                type="color"
-                                value={accentColor ?? "#2563eb"}
-                                onChange={(event) => setAccentColor(event.target.value)}
-                                className="absolute inset-0 cursor-pointer opacity-0"
-                              />
-                            </label>
-                          </div>
-                        </div>
-                      </>
+                      </div>
                     )}
+
+                    <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
+                      <span className="text-white/60">Accent color</span>
+                      <BinderAccentColorPicker value={accentColor} onChange={setAccentColor} />
+                    </div>
 
                     <label className="block space-y-1.5 text-sm max-[640px]:text-[12px]">
                       <span className="text-white/60">Notes</span>

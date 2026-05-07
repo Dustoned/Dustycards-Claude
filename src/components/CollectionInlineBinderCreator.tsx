@@ -2,10 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
-import {
-  COLLECTION_BINDER_COLORS,
-  COLLECTION_BINDER_ICONS,
-} from "@/lib/collection";
+import { COLLECTION_BINDER_ICONS } from "@/lib/collection";
+import BinderAccentColorPicker from "@/components/BinderAccentColorPicker";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 
 export interface InlineBinderOption {
@@ -175,92 +173,41 @@ export default function CollectionInlineBinderCreator({
             </label>
           </div>
 
-          {!looksLikeSuggestedEpisode && (
-            <>
-              <div className="grid gap-3 max-[640px]:gap-2.5 sm:grid-cols-[auto_1fr] sm:items-start">
-                <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
-                  <span className="text-white/60">Icon</span>
-                  <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
-                    {COLLECTION_BINDER_ICONS.map((option) => {
-                      const active = option === iconName;
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setIconName(option)}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors max-[640px]:h-8 max-[640px]:w-8 ${
-                            active
-                              ? "border-white bg-white text-gray-900"
-                              : "border-white/10 bg-white/8 text-white hover:border-white/18 hover:bg-white/12"
-                          }`}
-                        >
-                          <CollectionBinderIcon iconName={option} className="h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5" />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
-                  <span className="text-white/60">Accent color</span>
-                  <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setAccentColor(null)}
-                      className={`relative inline-flex h-8 w-8 items-center justify-center rounded-full border-2 bg-white/[0.06] transition-all max-[640px]:h-7 max-[640px]:w-7 ${
-                        accentColor == null
-                          ? "scale-110 border-white"
-                          : "border-white/14 hover:border-white/26"
-                      }`}
-                      aria-label="No accent color"
-                      title="No accent color"
-                    >
-                      <span className="absolute inset-[6px] rounded-full border border-white/25" />
-                      <span className="absolute h-px w-4 rotate-45 rounded-full bg-white/70" />
-                    </button>
-                    {COLLECTION_BINDER_COLORS.map((option) => {
-                      const active = option === accentColor;
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setAccentColor(option)}
-                          className={`h-8 w-8 rounded-full border-2 transition-transform max-[640px]:h-7 max-[640px]:w-7 ${
-                            active ? "scale-110 border-white" : "border-transparent"
-                          }`}
-                          style={{ backgroundColor: option }}
-                          aria-label={`Choose ${option}`}
-                        />
-                      );
-                    })}
-                    <label
-                      className={`relative inline-flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 transition-transform max-[640px]:h-7 max-[640px]:w-7 ${
-                        accentColor != null && !COLLECTION_BINDER_COLORS.includes(accentColor as (typeof COLLECTION_BINDER_COLORS)[number])
-                          ? "scale-110 border-white"
-                          : "border-white/18 hover:border-white/32"
-                      }`}
-                      title="Custom color"
-                      aria-label="Choose custom color"
-                    >
-                      <span
-                        className="absolute inset-0"
-                        style={{ backgroundColor: accentColor ?? "#2563eb" }}
-                      />
-                      <span className="relative rounded-full bg-black/45 px-1 py-0.5 text-[8px] font-bold text-white">
-                        +
-                      </span>
-                      <input
-                        type="color"
-                        value={accentColor ?? "#2563eb"}
-                        onChange={(event) => setAccentColor(event.target.value)}
-                        className="absolute inset-0 cursor-pointer opacity-0"
-                      />
-                    </label>
-                  </div>
+          <div className="grid gap-3 max-[640px]:gap-2.5 sm:grid-cols-[auto_1fr] sm:items-start">
+            {!looksLikeSuggestedEpisode && (
+              <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
+                <span className="text-white/60">Icon</span>
+                <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">
+                  {COLLECTION_BINDER_ICONS.map((option) => {
+                    const active = option === iconName;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setIconName(option)}
+                        className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors max-[640px]:h-8 max-[640px]:w-8 ${
+                          active
+                            ? "border-white bg-white text-gray-900"
+                            : "border-white/10 bg-white/8 text-white hover:border-white/18 hover:bg-white/12"
+                        }`}
+                      >
+                        <CollectionBinderIcon iconName={option} className="h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </>
-          )}
+            )}
+
+            <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
+              <span className="text-white/60">Accent color</span>
+              <BinderAccentColorPicker
+                value={accentColor}
+                onChange={setAccentColor}
+                compact
+              />
+            </div>
+          </div>
 
           {error && <p className="text-sm text-rose-300">{error}</p>}
 
