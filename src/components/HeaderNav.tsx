@@ -14,9 +14,9 @@ interface NavItem {
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/expansions", label: "Expansions", matches: ["/expansions"] },
+  { href: "/illustrators", label: "Illustrators", matches: ["/illustrators"] },
   { href: "/movers", label: "Movers", matches: ["/movers"] },
   { href: "/deals", label: "Deals", matches: ["/deals"] },
-  { href: "/illustrators", label: "Illustrators", matches: ["/illustrators"] },
 ];
 
 const COLLECTION_ITEM: NavItem = {
