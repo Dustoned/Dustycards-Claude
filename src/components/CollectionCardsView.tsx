@@ -12,6 +12,7 @@ import CardBrowserToolbar, {
   type CardBrowserToolbarFilterSection,
   type CardBrowserToolbarOption,
 } from "@/components/CardBrowserToolbar";
+import { cardMatchesSearchQuery } from "@/lib/card-search";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import { SectionHeader } from "@/components/PageHeader";
@@ -200,15 +201,6 @@ export default function CollectionCardsView({
       items.map((item, index) => ({
         item,
         selectionKey: `${item.card_id}-${index}`,
-        searchText: [
-          item.name,
-          item.card_number ?? "",
-          item.episode_name,
-          item.episode_code ?? "",
-          `${item.episode_code ?? ""}${item.card_number ?? ""}`,
-        ]
-          .join(" ")
-          .toLowerCase(),
         normalizedRarity: normalizeRarityLabel(item.rarity),
         isPriced: hasAnyVisiblePrice(item),
         isGraded: isGradedCollectionCard(item),
@@ -267,7 +259,18 @@ export default function CollectionCardsView({
       return preparedEntries;
     }
 
-    return preparedEntries.filter((entry) => entry.searchText.includes(deferredNormalizedSearch));
+    return preparedEntries.filter((entry) =>
+      cardMatchesSearchQuery(
+        {
+          name: entry.item.name,
+          cardNumber: entry.item.card_number,
+          episodeName: entry.item.episode_name,
+          episodeCode: entry.item.episode_code,
+          rarity: entry.item.rarity,
+        },
+        deferredNormalizedSearch
+      )
+    );
   }, [preparedEntries, deferredNormalizedSearch]);
   const filteredEntries = useMemo(() => {
     return searchMatchedEntries.filter((entry) => {

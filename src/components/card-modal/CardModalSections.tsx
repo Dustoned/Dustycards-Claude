@@ -345,7 +345,7 @@ export function CardModalHeroSection({
             onClick={onClose}
             className="inline-flex max-w-full items-center text-base font-medium text-white/84 transition-colors hover:text-white hover:underline underline-offset-2"
           >
-            <span className="truncate">{card.episode_name}</span>
+            <span className="break-words">{card.episode_name}</span>
           </Link>
         </div>
       ),
@@ -478,7 +478,7 @@ export function CardModalHeroSection({
           )}
         </div>
 
-        <div className="mt-4 grid gap-2 max-[640px]:hidden sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-2 max-[640px]:mt-3 sm:grid-cols-2 xl:grid-cols-4">
           {headerDetailStats.map((stat) => (
             <div key={stat.label} className={`${detailStatClass} min-w-0`}>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
@@ -494,7 +494,7 @@ export function CardModalHeroSection({
         {collectionItem ? (
           <>
             {collectionTags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2 max-[640px]:hidden">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {collectionTags.map((tag) => (
                   <MetaPill key={tag}>{tag}</MetaPill>
                 ))}
@@ -502,7 +502,7 @@ export function CardModalHeroSection({
             )}
 
             {collectionItem.notes && (
-              <div className={`mt-3 max-[640px]:hidden ${detailStatClass}`}>
+              <div className={`mt-3 ${detailStatClass}`}>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
                   Notes
                 </p>
@@ -513,7 +513,7 @@ export function CardModalHeroSection({
             )}
           </>
         ) : (
-          <div className="mt-3 rounded-[20px] border border-dashed border-white/8 bg-black/12 px-4 py-3.5 text-base text-white/56 max-[640px]:hidden">
+          <div className="mt-3 rounded-[20px] border border-dashed border-white/8 bg-black/12 px-4 py-3.5 text-base text-white/56 max-[640px]:rounded-2xl max-[640px]:px-3 max-[640px]:py-2.5 max-[640px]:text-sm">
             Add this card to DustyCards to save purchase details, condition, language and notes.
           </div>
         )}

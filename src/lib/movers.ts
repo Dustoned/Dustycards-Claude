@@ -13,6 +13,11 @@ import {
   DEFAULT_PULL_RATE_SOURCE,
   type PullRateInfo,
 } from "@/lib/pull-rates";
+import {
+  buildMoverScores,
+  chooseRawMoverSource,
+  type MoverPriceQuality,
+} from "@/lib/mover-scoring";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { PriceSource } from "@/lib/user-settings";
 
@@ -29,7 +34,7 @@ const dateLabelCache = new Map<string, string>();
 
 type RawMoverSource = "cardmarket" | "tcgplayer";
 type MoverSource = RawMoverSource | "graded";
-export type MoversScope = "collection" | "all" | "graded" | "grading";
+export type MoversScope = "collection" | "all" | "graded" | "grading" | "sealed";
 export type MoversItemScope = "collection" | "all";
 
 type LatestPriceSnapshot = CardPriceHistorySnapshot;
@@ -340,6 +345,10 @@ export interface CollectionMoverItem {
   pullRateSource: string | null;
   cheapnessWeight: number;
   tcggoScore: TcggoMoverScore | null;
+  movementScore: number;
+  opportunityScore: number;
+  rankingScore: number;
+  priceQuality: MoverPriceQuality;
   moverScore: number;
 }
 
@@ -746,47 +755,6 @@ function buildGradingInsight(
   };
 }
 
-function getMomentumScore(
-  change7d: MoverWindowMetric | null,
-  change30d: MoverWindowMetric | null
-): number {
-  const sevenDayCoverage = change7d ? Math.min(change7d.coveredDays / 7, 1) : 0;
-  const thirtyDayCoverage = change30d ? Math.min(change30d.coveredDays / 30, 1) : 0;
-  const sevenDayPercent = change7d?.changePct ?? 0;
-  const thirtyDayPercent = change30d?.changePct ?? 0;
-  const sevenDayAbsolute = change7d?.change ?? 0;
-  const thirtyDayAbsolute = change30d?.change ?? 0;
-
-  return (
-    sevenDayPercent * 0.78 * sevenDayCoverage +
-    thirtyDayPercent * 0.34 * thirtyDayCoverage +
-    sevenDayAbsolute * 2.4 +
-    thirtyDayAbsolute * 1.15
-  );
-}
-
-function getLifetimeScore(
-  lifetime: LifetimeMoverMetrics,
-  recentPositive: boolean
-): number {
-  const trackedCoverage =
-    lifetime.changeSinceTracked ? Math.min(lifetime.changeSinceTracked.coveredDays / 180, 1) : 0;
-  const sinceTrackedPct = clamp(lifetime.changeSinceTracked?.changePct ?? 0, -120, 280);
-  const sinceTrackedAbs = lifetime.changeSinceTracked?.change ?? 0;
-  const fromLowPct = clamp(lifetime.changeFromLow?.changePct ?? 0, 0, 260);
-  const gapBelowPeakPct =
-    lifetime.gapToPeak?.changePct != null && lifetime.gapToPeak.changePct < 0
-      ? Math.min(Math.abs(lifetime.gapToPeak.changePct), 70)
-      : 0;
-
-  return (
-    sinceTrackedPct * 0.07 * trackedCoverage +
-    sinceTrackedAbs * 0.55 * trackedCoverage +
-    fromLowPct * 0.025 +
-    gapBelowPeakPct * (recentPositive ? 0.03 : 0.01)
-  );
-}
-
 function hasMeaningfulMove(
   change7d: MoverWindowMetric | null,
   change30d: MoverWindowMetric | null
@@ -886,29 +854,29 @@ function resolveBestSource(
   allTimeSummaries: Record<RawMoverSource, AllTimeSourceSummary>,
   cardmarketFallbackValue: number | null = null
 ): EvaluatedMoverSource | null {
-  const sourceOrder: RawMoverSource[] =
-    preferredSource === "tcp"
-      ? ["tcgplayer", "cardmarket"]
-      : ["cardmarket", "tcgplayer"];
+  const preferredRawSource: RawMoverSource =
+    preferredSource === "tcp" ? "tcgplayer" : "cardmarket";
+  const available = {
+    cardmarket:
+      getCurrentSourceValue(latestPrice, "cardmarket", historyPoints, cardmarketFallbackValue) !=
+      null,
+    tcgplayer: getCurrentSourceValue(latestPrice, "tcgplayer") != null,
+  };
+  const selectedSource = chooseRawMoverSource({
+    preferred: preferredRawSource,
+    available,
+  });
 
-  const evaluated = sourceOrder
-    .map((source) =>
-      evaluateSource(
-        latestPrice,
-        historyPoints,
-        source,
-        allTimeSummaries[source],
-        cardmarketFallbackValue
-      )
-    )
-    .filter((value): value is EvaluatedMoverSource => Boolean(value));
-
-  if (evaluated.length === 0) {
+  if (!selectedSource) {
     return null;
   }
 
-  return (
-    evaluated.find((entry) => entry.change7d != null || entry.change30d != null) ?? evaluated[0]
+  return evaluateSource(
+    latestPrice,
+    historyPoints,
+    selectedSource,
+    allTimeSummaries[selectedSource],
+    cardmarketFallbackValue
   );
 }
 
@@ -1354,13 +1322,20 @@ async function buildGradedMoversData(
     );
     const tcgplayerPrice = getCurrentSourceValue(rawLatestPrice, "tcgplayer");
     const grading = buildGradingInsight(cardmarketPrice, currentPrice, rarityWeight);
-    const recentPositive = (change7d?.change ?? 0) > 0 || (change30d?.change ?? 0) > 0;
-    const movementScore = round(
-      (getMomentumScore(change7d, change30d) + getLifetimeScore(lifetime, recentPositive)) *
-        rarityWeight *
-        cheapnessWeight
-    );
-    const moverScore = scope === "grading" ? grading?.score ?? 0 : movementScore;
+    const scores = buildMoverScores({
+      kind: "graded",
+      currentPrice,
+      change7d,
+      change30d,
+      changeSinceTrackedPct: lifetime.changeSinceTracked?.changePct ?? null,
+      changeFromLowPct: lifetime.changeFromLow?.changePct ?? null,
+      gapToPeakPct: lifetime.gapToPeak?.changePct ?? null,
+      historyPoints: series.length,
+      lifetimeHistoryPoints: lifetime.lifetimeHistoryPoints,
+      rarityWeight,
+    });
+    const moverScore = scope === "grading" ? grading?.score ?? 0 : scores.rankingScore;
+    const rankingScore = scope === "grading" ? moverScore : scores.rankingScore;
 
     movers.push({
       cardId: row.card_id,
@@ -1416,6 +1391,10 @@ async function buildGradedMoversData(
       pullRateSource: pullRateInfo?.source ?? null,
       cheapnessWeight,
       tcggoScore: buildTcggoMoverScore(row),
+      movementScore: scores.movementScore,
+      opportunityScore: scores.opportunityScore,
+      rankingScore,
+      priceQuality: scores.priceQuality,
       moverScore,
     });
   }
@@ -1550,6 +1529,11 @@ export async function getMovers(
   userId?: string | null
 ): Promise<CollectionMoversData> {
   const timer = startPerformanceTimer(`movers.${scope}`, { preferredSource, scope });
+
+  if (scope === "sealed") {
+    timer.finish({ skipped: true });
+    throw new Error("Use getSealedMovers for sealed movers.");
+  }
 
   if (scope === "graded" || scope === "grading") {
     const { result, historyRows } = await buildGradedMoversData(
@@ -1952,14 +1936,22 @@ export async function getMovers(
     const cheapnessWeight = getCheapnessWeight(resolvedSource.currentPrice);
     const cardmarketPrice = getCurrentSourceValue(latestPrice, "cardmarket", historyPoints);
     const tcgplayerPrice = getCurrentSourceValue(latestPrice, "tcgplayer");
-    const recentPositive =
-      (resolvedSource.change7d?.change ?? 0) > 0 || (resolvedSource.change30d?.change ?? 0) > 0;
-    const moverScore = round(
-      (getMomentumScore(resolvedSource.change7d, resolvedSource.change30d) +
-        getLifetimeScore(resolvedSource.lifetime, recentPositive)) *
-        rarityWeight *
-        cheapnessWeight
-    );
+    const comparisonPrice =
+      resolvedSource.key === "cardmarket" ? tcgplayerPrice : cardmarketPrice;
+    const scores = buildMoverScores({
+      kind: "raw",
+      currentPrice: resolvedSource.currentPrice,
+      change7d: resolvedSource.change7d,
+      change30d: resolvedSource.change30d,
+      changeSinceTrackedPct: resolvedSource.lifetime.changeSinceTracked?.changePct ?? null,
+      changeFromLowPct: resolvedSource.lifetime.changeFromLow?.changePct ?? null,
+      gapToPeakPct: resolvedSource.lifetime.gapToPeak?.changePct ?? null,
+      historyPoints: resolvedSource.historyPoints,
+      lifetimeHistoryPoints: resolvedSource.lifetime.lifetimeHistoryPoints,
+      rarityWeight,
+      comparisonPrice,
+    });
+    const moverScore = scores.rankingScore;
 
     movers.push({
       cardId: card.id,
@@ -2017,6 +2009,10 @@ export async function getMovers(
       pullRateSource: pullRateInfo?.source ?? null,
       cheapnessWeight,
       tcggoScore: card.tcggoScore,
+      movementScore: scores.movementScore,
+      opportunityScore: scores.opportunityScore,
+      rankingScore: scores.rankingScore,
+      priceQuality: scores.priceQuality,
       moverScore,
     });
   }

@@ -9,6 +9,7 @@ import {
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import { buildMoversSourceHref, loadMoversPageData } from "@/app/movers/page-data";
 import { requirePageUser } from "@/lib/page-auth";
+import type { CollectionMoversData } from "@/lib/movers";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +26,9 @@ export default async function DiscountWatchPage({
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/movers/discount-watch${nextQuery ? `?${nextQuery}` : ""}`);
   const { data, activePriceSource, activeScope, activeItemScope } =
-    await loadMoversPageData(source, scope, view, user.id);
-  const movers = data.discountedHighRarity;
+    await loadMoversPageData(source, scope === "sealed" ? null : scope, view, user.id);
+  const cardData = data as CollectionMoversData;
+  const movers = cardData.discountedHighRarity;
   const isAllScope = activeItemScope === "all";
   const scopeLabel = isAllScope ? "All Cards" : "Collection";
   const deepDiscountCount = movers.filter((item) => (item.gapToPeakPct ?? 0) <= -50).length;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
+import { buildCardNumberSearchAliases } from "@/lib/card-search";
 import {
   HIDDEN_EXPANSION_CODES,
   HIDDEN_EXPANSION_IDS,
@@ -249,9 +250,19 @@ function buildCardNumberCondition(
   cardNumber: string,
   options: { looseNumeric?: boolean } = {}
 ): Prisma.CardWhereInput {
-  return /^\d+$/.test(cardNumber) && !options.looseNumeric
-    ? { card_number: cardNumber }
-    : { card_number: { contains: cardNumber } };
+  const aliases = buildCardNumberSearchAliases(cardNumber);
+  if (aliases.length === 0) return { card_number: cardNumber };
+
+  if (/^\d+$/.test(cardNumber) && !options.looseNumeric) {
+    const conditions = aliases.flatMap((alias) => [
+      { card_number: alias },
+      { card_number: { startsWith: `${alias}/` } },
+    ]);
+    return conditions.length === 1 ? conditions[0] : { OR: conditions };
+  }
+
+  const conditions = aliases.map((alias) => ({ card_number: { contains: alias } }));
+  return conditions.length === 1 ? conditions[0] : { OR: conditions };
 }
 
 function buildCardFreeTextCondition(query: string): Prisma.CardWhereInput {
@@ -284,8 +295,12 @@ function buildCardSearchText(card: {
   const episodeName = card.episode?.name ?? card.episode_name ?? "";
   const episodeCode = card.episode?.code ?? card.episode_code ?? "";
   const compactRef = episodeCode && card.card_number ? `${episodeCode}${card.card_number}` : "";
+  const cardNumberAliases = buildCardNumberSearchAliases(card.card_number);
+  const compactRefAliases = episodeCode
+    ? cardNumberAliases.map((cardNumber) => `${episodeCode}${cardNumber}`)
+    : [];
 
-  return [card.name, card.card_number ?? "", episodeName, episodeCode, compactRef]
+  return [card.name, card.card_number ?? "", ...cardNumberAliases, episodeName, episodeCode, compactRef, ...compactRefAliases]
     .filter(Boolean)
     .join(" ");
 }
@@ -558,7 +573,7 @@ function buildFuzzyCardCandidateWhere(
     }
 
     if (parsed.cardNumber) {
-      conditions.push({ card_number: { contains: parsed.cardNumber } });
+      conditions.push(buildCardNumberCondition(parsed.cardNumber, { looseNumeric: true }));
     }
   }
 

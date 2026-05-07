@@ -111,18 +111,18 @@ export default function CollectionInlineBinderCreator({
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 max-[640px]:rounded-xl max-[640px]:p-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2 max-[640px]:gap-1.5">
+    <div className="rounded-2xl border border-dashed border-white/10 bg-black/18 p-3 max-[640px]:rounded-xl max-[640px]:p-2.5">
+      <div className="flex items-center justify-between gap-2 max-[640px]:gap-1.5">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-white max-[640px]:text-[12px]">Need a new binder?</p>
-          <p className="text-xs text-white/45 max-[640px]:line-clamp-1 max-[640px]:text-[10px]">
-            Type a set name for an automatic set binder, or any other name for a custom binder.
+          <p className="text-sm font-semibold text-white max-[640px]:text-[12px]">New binder</p>
+          <p className="truncate text-xs text-white/42 max-[640px]:text-[10px]">
+            Create one without leaving this card.
           </p>
         </div>
         <button
           type="button"
           onClick={handleOpen}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-sm font-semibold text-white transition-colors hover:border-white/18 hover:bg-white/12 max-[640px]:gap-1.5 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[12px]"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-sm font-semibold text-white transition-colors hover:border-white/18 hover:bg-white/12 max-[640px]:gap-1.5 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[12px]"
         >
           <Plus className="h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5" />
           {open ? "Hide" : "New binder"}
@@ -233,6 +233,29 @@ export default function CollectionInlineBinderCreator({
                         />
                       );
                     })}
+                    <label
+                      className={`relative inline-flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 transition-transform max-[640px]:h-7 max-[640px]:w-7 ${
+                        accentColor != null && !COLLECTION_BINDER_COLORS.includes(accentColor as (typeof COLLECTION_BINDER_COLORS)[number])
+                          ? "scale-110 border-white"
+                          : "border-white/18 hover:border-white/32"
+                      }`}
+                      title="Custom color"
+                      aria-label="Choose custom color"
+                    >
+                      <span
+                        className="absolute inset-0"
+                        style={{ backgroundColor: accentColor ?? "#2563eb" }}
+                      />
+                      <span className="relative rounded-full bg-black/45 px-1 py-0.5 text-[8px] font-bold text-white">
+                        +
+                      </span>
+                      <input
+                        type="color"
+                        value={accentColor ?? "#2563eb"}
+                        onChange={(event) => setAccentColor(event.target.value)}
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                      />
+                    </label>
                   </div>
                 </div>
               </div>

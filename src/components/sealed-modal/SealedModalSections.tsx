@@ -1,10 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, ExternalLink, LineChart, Package, RefreshCw } from "lucide-react";
+import { ExternalLink, LineChart, Package, RefreshCw } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { formatCurrency } from "./utils";
@@ -37,6 +37,20 @@ interface MarketRowProps {
   hint?: string | null;
 }
 
+interface PriceMetric {
+  label: string;
+  value: string;
+  hint?: string | null;
+}
+
+type PricingAccent = NonNullable<MetricTileProps["accent"]>;
+
+interface HistoryPointView {
+  date: string;
+  label: string;
+  value: number | null;
+}
+
 function SectionShell({
   eyebrow,
   title,
@@ -45,7 +59,7 @@ function SectionShell({
   className = "",
 }: SectionShellProps) {
   return (
-    <section className={`rounded-[26px] border border-white/10 bg-white/[0.055] p-5 sm:p-6 ${className}`}>
+    <section className={`card-modal-section rounded-[24px] border border-white/10 bg-white/[0.055] p-4 sm:p-6 max-[640px]:rounded-2xl max-[640px]:p-3 ${className}`}>
       {(eyebrow || title || description) && (
         <div className="mb-5 space-y-2">
           {eyebrow && (
@@ -79,7 +93,7 @@ function MetricTile({
           : "border-white/10 bg-black/22";
 
   return (
-    <div className={`min-w-0 rounded-2xl border px-4 py-4 ${accentClass} ${className}`}>
+    <div className={`card-modal-metric min-w-0 rounded-2xl border px-4 py-4 ${accentClass} ${className}`}>
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/38">{label}</p>
       <p className="mt-2.5 break-words text-xl font-semibold tabular-nums text-white">{value}</p>
       {hint && <p className="mt-1.5 text-sm text-white/42">{hint}</p>}
@@ -89,7 +103,7 @@ function MetricTile({
 
 function MarketRow({ label, value, hint }: MarketRowProps) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+    <div className="card-modal-market-row flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
       <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">{label}</p>
         {hint && <p className="mt-1 text-sm text-white/40">{hint}</p>}
@@ -118,6 +132,79 @@ function buildCollectionProduct(product: SealedDetailResponse) {
     image_url: product.image_url,
     episode: product.episode,
   };
+}
+
+function parseHistoryPointTimestamp(point: HistoryPointView): number | null {
+  const raw = point.date.trim();
+  if (!raw) return null;
+
+  const timestamp = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? new Date(`${raw}T12:00:00.000Z`).getTime()
+    : new Date(raw).getTime();
+
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function getRecentHistoryAverage(points: HistoryPointView[], days: number): number | null {
+  const validPoints = points
+    .map((point) => ({
+      timestamp: parseHistoryPointTimestamp(point),
+      value: point.value,
+    }))
+    .filter(
+      (point): point is { timestamp: number; value: number } =>
+        point.timestamp != null && point.value != null && Number.isFinite(point.value)
+    );
+
+  if (validPoints.length === 0) return null;
+
+  const latestTimestamp = Math.max(...validPoints.map((point) => point.timestamp));
+  const cutoffTimestamp = latestTimestamp - days * 24 * 60 * 60 * 1000;
+  const recentValues = validPoints
+    .filter((point) => point.timestamp >= cutoffTimestamp)
+    .map((point) => point.value);
+
+  if (recentValues.length === 0) return null;
+
+  const total = recentValues.reduce((sum, value) => sum + value, 0);
+  return Number((total / recentValues.length).toFixed(2));
+}
+
+function SealedModalCurrentPricingPanel({
+  metrics,
+  accent,
+}: {
+  metrics: PriceMetric[];
+  accent: PricingAccent;
+}) {
+  if (metrics.length === 0) return null;
+
+  const [activePrimaryMetric, ...activeSecondaryMetrics] = metrics;
+
+  return (
+    <div className="card-modal-current-pricing-panel mt-4 border-t border-white/8 pt-4">
+      <div className="card-modal-pricing-metrics grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <MetricTile
+          label={activePrimaryMetric.label}
+          value={activePrimaryMetric.value}
+          hint={activePrimaryMetric.hint ?? null}
+          accent={accent}
+          className="min-h-[128px] max-[640px]:min-h-0"
+        />
+
+        <div className="card-modal-market-rows grid gap-4">
+          {activeSecondaryMetrics.map((metric) => (
+            <MarketRow
+              key={metric.label}
+              label={metric.label}
+              value={metric.value}
+              hint={metric.hint ?? null}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function SealedModalPreview({
@@ -283,6 +370,15 @@ export function SealedModalHeroSection({
           </div>
 
           <div className="flex flex-wrap gap-2 xl:justify-self-end xl:self-start">
+            <Link
+              href={`/deals?mode=sealed&productId=${encodeURIComponent(product.id)}`}
+              prefetch={false}
+              onClick={onClose}
+              className="inline-flex min-h-[46px] items-center gap-2.5 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-base font-semibold text-white/84 transition-colors hover:bg-white/[0.1]"
+            >
+              <ExternalLink className="h-[18px] w-[18px]" />
+              eBay Deals
+            </Link>
             <button
               type="button"
               onClick={onSyncHistory}
@@ -323,203 +419,85 @@ export function SealedModalHeroSection({
   );
 }
 
-export function SealedModalPricingSection({
+export function SealedModalHistorySection({
+  productId,
   product,
-  primaryPrice,
+  chartPoints,
+  currentValue,
   priceFetchedAtLabel,
+  loading,
 }: {
+  productId: string;
   product: SealedDetailResponse;
-  primaryPrice: number | null;
+  chartPoints: HistoryPointView[];
+  currentValue: number | null;
   priceFetchedAtLabel: string | null;
+  loading: boolean;
 }) {
-  const primaryMetrics = [
+  const derivedAverage7d = getRecentHistoryAverage(chartPoints, 7);
+  const derivedAverage30d = getRecentHistoryAverage(chartPoints, 30);
+  const primaryMetrics: PriceMetric[] = [
     {
       label: "Current",
-      value: formatCurrency(primaryPrice),
+      value: formatCurrency(currentValue),
       hint: priceFetchedAtLabel ? `Updated ${priceFetchedAtLabel}` : null,
-      accent: "emerald" as const,
     },
     {
       label: "7D Avg",
-      value: formatCurrency(product.price.cm_avg_7d),
-      accent: "slate" as const,
+      value: formatCurrency(derivedAverage7d ?? product.price.cm_avg_7d),
     },
     {
       label: "30D Avg",
-      value: formatCurrency(product.price.cm_avg_30d),
-      accent: "slate" as const,
+      value: formatCurrency(derivedAverage30d ?? product.price.cm_avg_30d),
     },
-  ];
-  const regionalMetrics = [
     {
       label: "EU Only",
       value: formatCurrency(product.price.cm_lowest_eu),
-      accent: "amber" as const,
     },
     {
       label: "DE",
       value: formatCurrency(product.price.cm_lowest_de),
-      accent: "slate" as const,
     },
     {
       label: "FR",
       value: formatCurrency(product.price.cm_lowest_fr),
-      accent: "slate" as const,
     },
     {
       label: "ES",
       value: formatCurrency(product.price.cm_lowest_es),
-      accent: "slate" as const,
     },
     {
       label: "IT",
       value: formatCurrency(product.price.cm_lowest_it),
-      accent: "slate" as const,
     },
-  ].filter((metric) => metric.value !== "--");
-  const [primaryMetric, ...secondaryMetrics] = primaryMetrics;
-
-  return (
-    <SectionShell title="Current pricing">
-      <div className="grid gap-5">
-        <div className="rounded-[24px] border border-white/10 bg-black/24 p-5">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-                CardMarket
-              </p>
-              <p className="mt-1 text-sm text-white/44">Current market plus rolling averages</p>
-            </div>
-            <MetaPill>Sealed</MetaPill>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-            <MetricTile
-              label={primaryMetric.label}
-              value={primaryMetric.value}
-              hint={primaryMetric.hint ?? null}
-              accent="emerald"
-              className="min-h-[128px]"
-            />
-
-            <div className="grid gap-4">
-              {secondaryMetrics.map((metric) => (
-                <MarketRow
-                  key={metric.label}
-                  label={metric.label}
-                  value={metric.value}
-                  hint={metric.hint ?? null}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {regionalMetrics.length > 0 && (
-          <div className="rounded-[24px] border border-white/10 bg-black/24 p-5">
-            <div className="mb-4">
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/36">
-                Regional offers
-              </p>
-              <p className="mt-1 text-sm text-white/44">Alternative CardMarket regions</p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              {regionalMetrics.map((metric) => (
-                <MetricTile
-                  key={metric.label}
-                  label={metric.label}
-                  value={metric.value}
-                  accent={metric.accent}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </SectionShell>
-  );
-}
-
-export function SealedModalHistorySection({
-  productId,
-  historyChartsOpen,
-  chartPoints,
-  currentValue,
-  loading,
-  onToggleHistoryCharts,
-}: {
-  productId: string;
-  historyChartsOpen: boolean;
-  chartPoints: Array<{ date: string; label: string; value: number | null }>;
-  currentValue: number | null;
-  loading: boolean;
-  onToggleHistoryCharts: () => void;
-}) {
-  function handleToggleHistory(event: MouseEvent<HTMLButtonElement>) {
-    event.currentTarget.blur();
-    const scroller = document.querySelector('[role="dialog"]') as HTMLElement | null;
-    const scrollTop = scroller?.scrollTop ?? 0;
-
-    onToggleHistoryCharts();
-
-    [0, 40, 120, 260, 420, 760, 1400, 2200].forEach((delay) => {
-      window.setTimeout(() => {
-        if (scroller) {
-          scroller.scrollTop = scrollTop;
-        }
-      }, delay);
-    });
-  }
+  ].filter((metric, index) => index < 3 || metric.value !== "--");
 
   return (
     <SectionShell className="overflow-hidden">
-      <button
-        type="button"
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={handleToggleHistory}
-        className="flex w-full items-center justify-between gap-4 text-left"
-        aria-expanded={historyChartsOpen}
-        aria-controls={`sealed-history-charts-${productId}`}
-      >
-        <div>
+      <div className="mb-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
             Price history
           </p>
-          <h3 className="mt-1 text-xl font-semibold text-white">History chart</h3>
-        </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/68">
-          {historyChartsOpen ? "Hide" : "Show"}
-          <ChevronDown
-            className={`h-5 w-5 transition-transform duration-300 ease-out motion-reduce:transition-none ${
-              historyChartsOpen ? "rotate-180" : ""
-            }`}
-          />
-        </span>
-      </button>
-
-      <div
-        id={`sealed-history-charts-${productId}`}
-        aria-hidden={!historyChartsOpen}
-        className={`grid transition-[grid-template-rows,opacity,margin-top] duration-300 ease-out motion-reduce:transition-none ${
-          historyChartsOpen
-            ? "visible mt-5 grid-rows-[1fr] opacity-100"
-            : "invisible mt-0 grid-rows-[0fr] opacity-0"
-        }`}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <PriceHistoryPanel
-            title="CardMarket History"
-            currency="EUR"
-            points={chartPoints}
-            currentValue={currentValue}
-            tone="dark"
-            loading={loading}
-            emptyText="No sealed price history yet"
-            layout="hero"
-          />
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/34">
+            CardMarket sealed
+          </p>
         </div>
       </div>
+
+      <div id={`sealed-history-charts-${productId}`} className="min-h-0 overflow-hidden">
+        <PriceHistoryPanel
+          title="CardMarket History"
+          currency="EUR"
+          points={chartPoints}
+          currentValue={currentValue}
+          tone="dark"
+          loading={loading}
+          emptyText="No sealed price history yet"
+        />
+      </div>
+
+      <SealedModalCurrentPricingPanel metrics={primaryMetrics} accent="emerald" />
     </SectionShell>
   );
 }

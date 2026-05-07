@@ -243,6 +243,14 @@ export function getMoverReasons(
 ): MoverReason[] {
   const reasons: MoverReason[] = [];
 
+  if (item.priceQuality.status === "suspicious") {
+    return [{ label: item.priceQuality.reason ?? "Outlier ignored", tone: "rose" }];
+  }
+
+  if (item.priceQuality.status === "thin_history") {
+    return [{ label: item.priceQuality.reason ?? "Thin history", tone: "amber" }];
+  }
+
   if (mode === "target" && item.grading) {
     if (item.grading.valueMultiplier != null && item.grading.valueMultiplier >= 3) {
       reasons.push({
@@ -272,7 +280,7 @@ export function getMoverReasons(
     ) {
       reasons.push({ label: "Cheap entry", tone: "violet" });
     }
-    return reasons.slice(0, 2);
+    return reasons.slice(0, 1);
   }
 
   // raw or graded
@@ -310,7 +318,11 @@ export function getMoverReasons(
     reasons.push({ label: "Off the floor", tone: "amber" });
   }
 
-  return reasons.slice(0, 2);
+  if (reasons.length === 0 && item.movementScore > 0) {
+    reasons.push({ label: "Recent move", tone: "emerald" });
+  }
+
+  return reasons.slice(0, 1);
 }
 
 function MoverReasonChips({
@@ -457,7 +469,7 @@ const MoverTile = memo(function MoverTile({
 }) {
   const open = () => onOpen(item.cardId);
   const mode = displayMode;
-  const trendTone = getTrendTone(item.moverScore);
+  const trendTone = getTrendTone(mode === "target" ? item.moverScore : item.movementScore);
   const currentPanelClasses = getCurrentPanelClasses(trendTone);
   const compactMetrics = buildCompactMetrics(item, mode);
   const primaryLabel =
@@ -529,7 +541,7 @@ const MoverTile = memo(function MoverTile({
             <span
               className={`inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sourcePillClasses(
                 item.source,
-                item.moverScore
+                item.movementScore
               )}`}
             >
               {mode === "target" ? "Target" : item.sourceLabel}
@@ -784,6 +796,7 @@ function PocketPreviewCard({
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {items.slice(0, 4).map((item) => {
           const isLoading = loadingCardId === item.cardId;
+          const displayScore = reasonMode === "target" ? item.moverScore : item.rankingScore;
 
           return (
             <button
@@ -796,10 +809,10 @@ function PocketPreviewCard({
                 <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
                   {item.name}
                 </p>
-                <span className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${getToneClass(item.moverScore)}`}>
+                <span className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${getToneClass(displayScore)}`}>
                   {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  {item.moverScore >= 0 ? "+" : ""}
-                  {item.moverScore.toFixed(1)}
+                  {displayScore >= 0 ? "+" : ""}
+                  {displayScore.toFixed(1)}
                 </span>
               </div>
               <div className="mt-1 flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-white/46">

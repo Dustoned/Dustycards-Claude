@@ -12,6 +12,8 @@ import {
   buildEbayCardSearchQuery,
   buildEbayManualSearchQuery,
   buildEbayMarketplaceSearchUrl,
+  buildEbaySealedManualSearchQuery,
+  buildEbaySealedSearchQuery,
   compareListingToReference,
   getEbayRuntimeConfig,
   searchEbayDeals,
@@ -21,14 +23,15 @@ import {
 } from "@/lib/ebay";
 import { convertUsdToEur, getUsdToEurRate } from "@/lib/exchange-rates";
 import { getCardMarketValue } from "@/lib/price-history";
+import { getSealedProductPrice } from "@/lib/sealed-products";
 import type { Prisma } from "@/generated/prisma";
 
 export const runtime = "nodejs";
 
-type DealMode = "raw" | "graded";
+type DealMode = "raw" | "graded" | "sealed";
 
 function parseDealMode(value: string | null): DealMode | null {
-  return value === "raw" || value === "graded" ? value : null;
+  return value === "raw" || value === "graded" || value === "sealed" ? value : null;
 }
 
 function parseBuyingMode(value: string | null): EbayBuyingMode {
@@ -148,6 +151,7 @@ async function getCardDealContext(cardId: string, userId: string) {
 }
 
 type CardDealContext = NonNullable<Awaited<ReturnType<typeof getCardDealContext>>>;
+type SealedDealContext = NonNullable<Awaited<ReturnType<typeof getSealedDealContext>>>;
 
 type EnrichedEbayDealListing = EbayDealListing & {
   reference: EbayDealReference;
@@ -159,6 +163,60 @@ const NO_MATCH_REFERENCE: EbayDealReference = {
   valueEur: null,
   source: "none",
 };
+
+function getNoCardMatchForListing(listing: EbayDealListing, reason: string): EbayCardMatch {
+  return {
+    status: "unmatched",
+    confidence: 0,
+    reason,
+    source: "auto",
+    card: null,
+    candidates: [],
+    isGradedListing: listing.isGradedListing,
+    gradingCompany: null,
+    gradingGrade: null,
+  };
+}
+
+async function getSealedDealContext(productId: string) {
+  const product = await db.sealedProduct.findUnique({
+    where: { id: productId },
+    select: {
+      id: true,
+      name: true,
+      image_url: true,
+      cm_lowest: true,
+      cm_lowest_eu: true,
+      cm_lowest_de: true,
+      cm_lowest_fr: true,
+      cm_lowest_es: true,
+      cm_lowest_it: true,
+      episode: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
+    },
+  });
+
+  if (!product) return null;
+
+  return {
+    ...product,
+    referenceValue: getSealedProductPrice({
+      price: {
+        cm_lowest: product.cm_lowest,
+        cm_lowest_eu: product.cm_lowest_eu,
+        cm_lowest_de: product.cm_lowest_de,
+        cm_lowest_fr: product.cm_lowest_fr,
+        cm_lowest_es: product.cm_lowest_es,
+        cm_lowest_it: product.cm_lowest_it,
+      },
+    }),
+  };
+}
 
 function toMatchCard(card: CardDealContext): EbayMatchCard {
   return {
@@ -447,7 +505,7 @@ async function enrichListingsWithCardMatches(input: {
   listings: EbayDealListing[];
   query: string;
   userId: string;
-  mode: DealMode;
+  mode: Exclude<DealMode, "sealed">;
   marketplaceId: string;
   pinnedCard: CardDealContext | null;
 }): Promise<EnrichedEbayDealListing[]> {
@@ -518,9 +576,30 @@ async function enrichListingsWithCardMatches(input: {
   return enriched.sort(compareEnrichedListings);
 }
 
+function enrichListingsWithSealedReference(input: {
+  listings: EbayDealListing[];
+  reference: EbayDealReference;
+}): EnrichedEbayDealListing[] {
+  return input.listings
+    .map((listing) => {
+      const comparison = compareListingToReference({
+        totalPriceEur: listing.total.valueEur,
+        referencePriceEur: input.reference.valueEur,
+      });
+
+      return {
+        ...listing,
+        reference: input.reference,
+        cardMatch: getNoCardMatchForListing(listing, "Sealed product listing"),
+        ...comparison,
+      };
+    })
+    .sort(compareEnrichedListings);
+}
+
 async function buildReferenceForCard(
   card: CardDealContext,
-  mode: DealMode
+  mode: Exclude<DealMode, "sealed">
 ): Promise<EbayDealReference> {
   if (mode === "graded") {
     const matchedCardMarketGradedPrice = getCollectionMatchedGradedPrice(
@@ -602,24 +681,46 @@ async function buildReferenceForCard(
   };
 }
 
+function buildReferenceForSealed(product: SealedDealContext): EbayDealReference {
+  if (product.referenceValue != null) {
+    return {
+      label: "CardMarket sealed",
+      valueEur: product.referenceValue,
+      source: "sealed",
+    };
+  }
+
+  return {
+    label: "No DustyCards sealed price",
+    valueEur: null,
+    source: "none",
+  };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
     const config = getEbayRuntimeConfig();
     const cardId = req.nextUrl.searchParams.get("cardId")?.trim() ?? "";
-    const q = cardId ? "" : (req.nextUrl.searchParams.get("q")?.trim() ?? "");
+    const productId = req.nextUrl.searchParams.get("productId")?.trim() ?? "";
+    const q = cardId || productId ? "" : (req.nextUrl.searchParams.get("q")?.trim() ?? "");
     const requestedMode = parseDealMode(req.nextUrl.searchParams.get("mode"));
     const buyingMode = parseBuyingMode(req.nextUrl.searchParams.get("buying"));
     const limit = parseLimit(req.nextUrl.searchParams.get("limit"));
 
-    let query = q ? buildEbayManualSearchQuery(q) : "";
+    let mode: DealMode = requestedMode ?? (productId ? "sealed" : "raw");
+    let query = q
+      ? mode === "sealed"
+        ? buildEbaySealedManualSearchQuery(q)
+        : buildEbayManualSearchQuery(q)
+      : "";
     let reference: EbayDealReference = {
       label: "No DustyCards price",
       valueEur: null,
       source: "none",
     };
     let card: Awaited<ReturnType<typeof getCardDealContext>> = null;
-    let mode: DealMode = requestedMode ?? "raw";
+    let sealedProduct: Awaited<ReturnType<typeof getSealedDealContext>> = null;
 
     if (cardId) {
       card = await getCardDealContext(cardId, user.id);
@@ -627,8 +728,14 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Card not found" }, { status: 404 });
       }
 
-      mode = requestedMode ?? (card.hasSavedGrade ? "graded" : "raw");
-      reference = await buildReferenceForCard(card, mode);
+      const cardMode: Exclude<DealMode, "sealed"> =
+        requestedMode === "raw" || requestedMode === "graded"
+          ? requestedMode
+          : card.hasSavedGrade
+            ? "graded"
+            : "raw";
+      mode = cardMode;
+      reference = await buildReferenceForCard(card, cardMode);
 
       if (!query) {
         query = buildEbayCardSearchQuery({
@@ -638,7 +745,23 @@ export async function GET(req: NextRequest) {
           cardNumber: card.card_number,
           gradingCompany: card.collectionItem?.grading_company,
           gradingGrade: card.collectionItem?.grading_grade,
-          mode,
+          mode: cardMode,
+        });
+      }
+    } else if (productId) {
+      sealedProduct = await getSealedDealContext(productId);
+      if (!sealedProduct) {
+        return NextResponse.json({ error: "Sealed product not found" }, { status: 404 });
+      }
+
+      mode = "sealed";
+      reference = buildReferenceForSealed(sealedProduct);
+
+      if (!query) {
+        query = buildEbaySealedSearchQuery({
+          name: sealedProduct.name,
+          episodeName: sealedProduct.episode.name,
+          episodeCode: sealedProduct.episode.code,
         });
       }
     }
@@ -653,6 +776,14 @@ export async function GET(req: NextRequest) {
         query,
         reference,
         card: null,
+        sealedProduct: sealedProduct
+          ? {
+              id: sealedProduct.id,
+              name: sealedProduct.name,
+              image_url: sealedProduct.image_url,
+              episode: sealedProduct.episode,
+            }
+          : null,
         mode,
         marketplaceId: config.marketplaceId,
         deliveryCountry: config.deliveryCountry,
@@ -662,12 +793,12 @@ export async function GET(req: NextRequest) {
         directSearchUrl: buildEbayMarketplaceSearchUrl(
           query,
           config.marketplaceId,
-          config.categoryId
+          mode === "graded" || mode === "sealed" ? null : config.categoryId
         ),
       });
     }
 
-    const searchConfig = mode === "graded" ? { ...config, categoryId: null } : config;
+    const searchConfig = mode === "graded" || mode === "sealed" ? { ...config, categoryId: null } : config;
     const result = await searchEbayDeals({
       query,
       reference,
@@ -676,15 +807,22 @@ export async function GET(req: NextRequest) {
       config: searchConfig,
       excludeGraded: mode === "raw",
       requireGraded: mode === "graded",
+      listingKind: mode === "sealed" ? "sealed" : "card",
     });
-    const listings = await enrichListingsWithCardMatches({
-      listings: result.listings,
-      query,
-      userId: user.id,
-      mode,
-      marketplaceId: result.marketplaceId,
-      pinnedCard: card,
-    });
+    const listings =
+      mode === "sealed"
+        ? enrichListingsWithSealedReference({
+            listings: result.listings,
+            reference,
+          })
+        : await enrichListingsWithCardMatches({
+            listings: result.listings,
+            query,
+            userId: user.id,
+            mode,
+            marketplaceId: result.marketplaceId,
+            pinnedCard: card,
+          });
 
     return NextResponse.json({
       configured: config.configured,
@@ -699,9 +837,17 @@ export async function GET(req: NextRequest) {
             has_saved_grade: card.hasSavedGrade,
           }
         : null,
+      sealedProduct: sealedProduct
+        ? {
+            id: sealedProduct.id,
+            name: sealedProduct.name,
+            image_url: sealedProduct.image_url,
+            episode: sealedProduct.episode,
+          }
+        : null,
       mode,
       ...result,
-      total: card ? listings.length : result.total,
+      total: card || sealedProduct ? listings.length : result.total,
       listings,
     });
   } catch (error) {

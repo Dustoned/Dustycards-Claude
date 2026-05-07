@@ -54,11 +54,12 @@ function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", classNa
 }
 
 const modalSelectClasses =
-  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]";
+  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2.5 max-[640px]:text-[16px]";
 const modalInputClasses =
-  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]";
+  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2.5 max-[640px]:text-[16px]";
 const modalLabelClasses = "space-y-1.5 text-sm max-[640px]:text-[12px]";
 const modalOptionClasses = "bg-white text-gray-900";
+type CardKind = "raw" | "graded";
 
 export default function CollectionAddCardButton({
   card,
@@ -85,6 +86,7 @@ export default function CollectionAddCardButton({
   const [language, setLanguage] = useState("English");
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState("");
+  const [cardKind, setCardKind] = useState<CardKind>("raw");
   const [gradingCompany, setGradingCompany] = useState("");
   const [gradingGrade, setGradingGrade] = useState("");
   const binderLocked = Boolean(initialBinderId && lockedBinderName);
@@ -161,8 +163,8 @@ export default function CollectionAddCardButton({
           language,
           notes,
           tags,
-          gradingCompany: gradingCompany || null,
-          gradingGrade: gradingGrade || null,
+          gradingCompany: cardKind === "graded" ? gradingCompany || null : null,
+          gradingGrade: cardKind === "graded" ? gradingGrade || null : null,
         }),
       });
 
@@ -189,6 +191,7 @@ export default function CollectionAddCardButton({
     setBindersLoading(true);
     setSaveError(null);
     setShowAdvanced(false);
+    setCardKind("raw");
     setOpen(true);
   }
 
@@ -209,7 +212,7 @@ export default function CollectionAddCardButton({
     open && typeof document !== "undefined"
       ? createPortal(
           <div
-            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/72 p-4 backdrop-blur-xl max-[640px]:items-end max-[640px]:p-0"
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/72 p-4 backdrop-blur-xl max-[640px]:items-center max-[640px]:p-3"
             onClick={(event) => {
               event.stopPropagation();
               setOpen(false);
@@ -220,12 +223,11 @@ export default function CollectionAddCardButton({
               aria-modal="true"
               aria-label={`Add ${card.name} to DustyCards`}
               data-collection-add-modal="true"
-              className="glass relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-white/12 bg-[#0d0d10]/92 text-white shadow-2xl shadow-black/45 max-[640px]:max-h-[calc(100dvh-0.75rem)] max-[640px]:rounded-b-none max-[640px]:rounded-t-[26px] max-[640px]:border-x-0 max-[640px]:border-b-0"
+              className="glass relative flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-white/12 bg-[#0d0d10]/92 text-white shadow-2xl shadow-black/45 max-[640px]:max-h-[calc(100dvh-1.5rem)] max-[640px]:max-w-[min(26rem,100%)] max-[640px]:rounded-[24px]"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start gap-3 border-b border-white/10 px-6 py-5 max-[640px]:px-4 max-[640px]:py-3.5">
                 <div className="min-w-0 flex-1">
-                  <div className="mx-auto mb-3 hidden h-1 w-12 rounded-full bg-white/18 max-[640px]:block" />
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/38 max-[640px]:text-[9px]">
                     Add Card
                   </p>
@@ -284,7 +286,7 @@ export default function CollectionAddCardButton({
                     </label>
                   )}
 
-                  <label className={modalLabelClasses}>
+                  <label className="space-y-1.5 text-sm max-[640px]:col-span-2 max-[640px]:text-[12px]">
                     <span className="text-white/60">{purchasePriceLabel}</span>
                     <input
                       type="number"
@@ -298,7 +300,7 @@ export default function CollectionAddCardButton({
                     />
                   </label>
 
-                  <label className={modalLabelClasses}>
+                  <label className="space-y-1.5 text-sm max-[640px]:col-span-2 max-[640px]:text-[12px]">
                     <span className="text-white/60">Condition</span>
                     <select
                       value={condition}
@@ -313,7 +315,7 @@ export default function CollectionAddCardButton({
                     </select>
                   </label>
 
-                  <label className={modalLabelClasses}>
+                  <label className="space-y-1.5 text-sm max-[640px]:col-span-2 max-[640px]:text-[12px]">
                     <span className="text-white/60">Language</span>
                     <select
                       value={language}
@@ -329,25 +331,53 @@ export default function CollectionAddCardButton({
                   </label>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((value) => !value)}
-                  className="mt-3 inline-flex w-fit items-center rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/[0.1] hover:text-white max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[11px]"
-                >
-                  {showAdvanced ? "Hide extra options" : "Extra options"}
-                </button>
+                <div className="mt-3 space-y-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3 max-[640px]:rounded-xl max-[640px]:p-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white max-[640px]:text-[12px]">
+                        Card type
+                      </p>
+                      <p className="text-xs text-white/42 max-[640px]:text-[10px]">
+                        Use graded only when this copy is slabbed.
+                      </p>
+                    </div>
+                    <div className="inline-flex shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-1">
+                      {[
+                        { key: "raw" as const, label: "Raw" },
+                        { key: "graded" as const, label: "Graded" },
+                      ].map((option) => (
+                        <button
+                          key={option.key}
+                          type="button"
+                          onClick={() => {
+                            setCardKind(option.key);
+                            if (option.key === "raw") {
+                              setGradingCompany("");
+                              setGradingGrade("");
+                            }
+                          }}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors max-[640px]:px-2.5 ${
+                            cardKind === option.key
+                              ? "bg-white text-gray-950"
+                              : "text-white/54 hover:text-white"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                {showAdvanced && (
-                  <div className="mt-3 space-y-3">
+                  {cardKind === "graded" && (
                     <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      <label className={modalLabelClasses}>
+                      <label className="space-y-1.5 text-sm max-[640px]:col-span-2 max-[640px]:text-[12px]">
                         <span className="text-white/60">Grading company</span>
                         <select
                           value={gradingCompany}
                           onChange={(event) => setGradingCompany(event.target.value)}
                           className={modalSelectClasses}
                         >
-                          <option value="" className={modalOptionClasses}>Not graded</option>
+                          <option value="" className={modalOptionClasses}>Select company</option>
                           {COLLECTION_GRADING_COMPANIES.map((option) => (
                             <option key={option} value={option} className={modalOptionClasses}>
                               {option}
@@ -356,7 +386,7 @@ export default function CollectionAddCardButton({
                         </select>
                       </label>
 
-                      <label className={modalLabelClasses}>
+                      <label className="space-y-1.5 text-sm max-[640px]:col-span-2 max-[640px]:text-[12px]">
                         <span className="text-white/60">Grade</span>
                         <input
                           type="text"
@@ -367,43 +397,55 @@ export default function CollectionAddCardButton({
                         />
                       </label>
                     </div>
+                  )}
+                </div>
 
-                    {!binderLocked && (
-                      <CollectionInlineBinderCreator
-                        suggestedEpisode={card.episode}
-                        onCreated={handleBinderCreated}
+                {!binderLocked && (
+                  <div className="mt-3">
+                    <CollectionInlineBinderCreator
+                      suggestedEpisode={card.episode}
+                      onCreated={handleBinderCreated}
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((value) => !value)}
+                  className="mt-3 inline-flex w-fit items-center rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/[0.1] hover:text-white max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[11px]"
+                >
+                  {showAdvanced ? "Hide notes" : "Tags & notes"}
+                </button>
+
+                {showAdvanced && (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className={`${modalLabelClasses} sm:col-span-2`}>
+                      <span className="text-white/60">Tags</span>
+                      <input
+                        type="text"
+                        value={tags}
+                        onChange={(event) => setTags(event.target.value)}
+                        className={modalInputClasses}
+                        placeholder="favorite, alt art"
                       />
-                    )}
+                    </label>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <label className={`${modalLabelClasses} sm:col-span-2`}>
-                        <span className="text-white/60">Tags</span>
-                        <input
-                          type="text"
-                          value={tags}
-                          onChange={(event) => setTags(event.target.value)}
-                          className={modalInputClasses}
-                          placeholder="favorite, alt art"
-                        />
-                      </label>
-
-                      <label className={`${modalLabelClasses} sm:col-span-2`}>
-                        <span className="text-white/60">Notes</span>
-                        <textarea
-                          rows={2}
-                          value={notes}
-                          onChange={(event) => setNotes(event.target.value)}
-                          className={`${modalInputClasses} resize-none`}
-                          placeholder="Optional notes"
-                        />
-                      </label>
-                    </div>
+                    <label className={`${modalLabelClasses} sm:col-span-2`}>
+                      <span className="text-white/60">Notes</span>
+                      <textarea
+                        rows={2}
+                        value={notes}
+                        onChange={(event) => setNotes(event.target.value)}
+                        className={`${modalInputClasses} resize-none`}
+                        placeholder="Optional notes"
+                      />
+                    </label>
                   </div>
                 )}
 
                 {saveError && <p className="mt-3 text-sm text-rose-300">{saveError}</p>}
 
-                <div className="sticky bottom-0 -mx-6 -mb-5 mt-5 flex gap-3 border-t border-white/10 bg-[#0d0d10]/95 px-6 py-4 backdrop-blur-xl max-[640px]:-mx-4 max-[640px]:-mb-2.5 max-[640px]:mt-3 max-[640px]:gap-2 max-[640px]:px-4 max-[640px]:py-2.5">
+                <div className="sticky bottom-0 -mx-6 -mb-5 mt-5 flex gap-3 border-t border-white/10 bg-[#0d0d10]/95 px-6 py-4 backdrop-blur-xl max-[640px]:-mx-4 max-[640px]:-mb-2.5 max-[640px]:mt-3 max-[640px]:gap-2 max-[640px]:px-4 max-[640px]:py-3">
                   <button
                     type="submit"
                     disabled={saving}

@@ -109,10 +109,16 @@ export interface EbayCardSearchInput {
   mode?: "raw" | "graded";
 }
 
+export interface EbaySealedSearchInput {
+  name: string;
+  episodeName?: string | null;
+  episodeCode?: string | null;
+}
+
 export interface EbayDealReference {
   label: string;
   valueEur: number | null;
-  source: "cardmarket" | "tcgplayer" | "graded" | "ebay_sold_graded" | "manual" | "none";
+  source: "cardmarket" | "tcgplayer" | "graded" | "ebay_sold_graded" | "sealed" | "manual" | "none";
 }
 
 export type EbayListingLanguageCode =
@@ -739,6 +745,7 @@ export function getEbayListingRejectionReason(input: {
   title: string;
   condition?: string | null;
   language?: EbayListingLanguage | null;
+  listingKind?: "card" | "sealed";
 }): string | null {
   const title = normalizeListingFilterText(input.title);
   const condition = normalizeListingFilterText(input.condition);
@@ -750,6 +757,9 @@ export function getEbayListingRejectionReason(input: {
   }
 
   for (const { pattern, reason } of DISALLOWED_EBAY_LISTING_PATTERNS) {
+    if (input.listingKind === "sealed" && reason === "multi-card listing") {
+      continue;
+    }
     if (pattern.test(combined)) return reason;
   }
 
@@ -870,6 +880,52 @@ export function buildEbayManualSearchQuery(value: string): string {
     query.normalize("NFKD").replace(/\p{M}/gu, "")
   );
   const expandedQuery = hasPokemonContext ? query : `${query} Pokemon`;
+  if (expandedQuery.length <= EBAY_MAX_SEARCH_QUERY_LENGTH) {
+    return expandedQuery;
+  }
+
+  return expandedQuery.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
+}
+
+export function buildEbaySealedSearchQuery(input: EbaySealedSearchInput): string {
+  const episodeCode = normalizeQueryToken(input.episodeCode);
+  const episodeName = normalizeQueryToken(input.episodeName);
+  const tokens = uniqueTokens([
+    input.name,
+    episodeName,
+    episodeCode,
+    "Pokemon",
+    "sealed",
+  ]);
+  let query = tokens.join(" ");
+
+  if (query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH) {
+    return query;
+  }
+
+  query = uniqueTokens([input.name, episodeCode, "Pokemon", "sealed"]).join(" ");
+  if (query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH) {
+    return query;
+  }
+
+  return query.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
+}
+
+export function buildEbaySealedManualSearchQuery(value: string): string {
+  const query = normalizeQueryToken(value);
+  if (!query) return "";
+
+  const normalized = query.normalize("NFKD").replace(/\p{M}/gu, "");
+  const hasPokemonContext = /\bpokemon\b/i.test(normalized);
+  const hasSealedContext = /\b(sealed|booster|box|bundle|etb|elite trainer|tin|collection)\b/i.test(
+    normalized
+  );
+  const expandedQuery = uniqueTokens([
+    query,
+    hasPokemonContext ? null : "Pokemon",
+    hasSealedContext ? null : "sealed",
+  ]).join(" ");
+
   if (expandedQuery.length <= EBAY_MAX_SEARCH_QUERY_LENGTH) {
     return expandedQuery;
   }
@@ -1103,6 +1159,7 @@ function getSearchCacheKey(input: {
   reference: EbayDealReference;
   requireGraded?: boolean;
   strictEnglish?: boolean;
+  listingKind?: "card" | "sealed";
 }): string {
   return JSON.stringify({
     buyingMode: input.buyingMode,
@@ -1111,6 +1168,7 @@ function getSearchCacheKey(input: {
     environment: input.config.environment,
     excludeGraded: Boolean(input.excludeGraded),
     limit: input.limit,
+    listingKind: input.listingKind ?? "card",
     marketplaceId: input.config.marketplaceId,
     query: input.query,
     referenceSource: input.reference.source,
@@ -1464,6 +1522,7 @@ export async function searchEbayDeals(input: {
   strictEnglish?: boolean;
   excludeGraded?: boolean;
   requireGraded?: boolean;
+  listingKind?: "card" | "sealed";
 }): Promise<EbayDealSearchResult> {
   const config = input.config ?? getEbayRuntimeConfig();
   const query = input.query.trim();
@@ -1505,10 +1564,11 @@ export async function searchEbayDeals(input: {
     excludeGraded: input.excludeGraded,
     limit: requestedLimit,
     query,
-    reference: input.reference,
-    requireGraded: input.requireGraded,
-    strictEnglish: input.strictEnglish,
-  });
+      reference: input.reference,
+      requireGraded: input.requireGraded,
+      strictEnglish: input.strictEnglish,
+      listingKind: input.listingKind,
+    });
   const cachedResult = getCachedSearchResult(cacheKey);
   if (cachedResult) {
     return cachedResult;
@@ -1580,7 +1640,7 @@ export async function searchEbayDeals(input: {
     let listings = uniqueItemSummaries
       .map((item) => buildListing(item, input.reference, usdToEurRate))
       .filter((listing): listing is EbayDealListing => Boolean(listing))
-      .filter((listing) => !getEbayListingRejectionReason(listing));
+      .filter((listing) => !getEbayListingRejectionReason({ ...listing, listingKind: input.listingKind }));
 
     if (input.strictEnglish) {
       listings = await enrichListingsWithItemDetails({
@@ -1592,7 +1652,7 @@ export async function searchEbayDeals(input: {
     }
 
     listings = listings
-      .filter((listing) => !getEbayListingRejectionReason(listing))
+      .filter((listing) => !getEbayListingRejectionReason({ ...listing, listingKind: input.listingKind }))
       .filter((listing) => !input.strictEnglish || listing.language.code === "ENG")
       .filter((listing) => !input.excludeGraded || !listing.isGradedListing)
       .filter((listing) => !input.requireGraded || listing.isGradedListing)

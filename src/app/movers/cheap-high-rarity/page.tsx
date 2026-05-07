@@ -13,6 +13,7 @@ import {
   loadMoversPageData,
 } from "@/app/movers/page-data";
 import { requirePageUser } from "@/lib/page-auth";
+import type { CollectionMoversData } from "@/lib/movers";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,9 @@ export default async function CheapHighRarityMoversPage({
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/movers/cheap-high-rarity${nextQuery ? `?${nextQuery}` : ""}`);
   const { data, activePriceSource, activeScope, activeItemScope } =
-    await loadMoversPageData(source, scope, view, user.id);
-  const movers = getDisplayedCheapHighRarityMovers(data);
+    await loadMoversPageData(source, scope === "sealed" ? null : scope, view, user.id);
+  const cardData = data as CollectionMoversData;
+  const movers = getDisplayedCheapHighRarityMovers(cardData);
   const isAllScope = activeItemScope === "all";
   const scopeLabel = isAllScope ? "All Cards" : "Collection";
   const ownedMultipleCount = movers.filter((item) => item.ownedCount >= 2).length;

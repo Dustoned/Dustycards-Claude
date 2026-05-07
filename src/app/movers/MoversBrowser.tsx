@@ -4,12 +4,10 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
-import { rarityBadge } from "@/components/card-modal/utils";
-import { KNOWN_RARITY_ORDER } from "@/lib/rarity";
 import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/movers";
 import type { PriceSource } from "@/lib/user-settings";
 import {
@@ -69,11 +67,7 @@ interface Props {
   spotlights?: SpotlightConfig[];
 }
 
-interface FilterChipOption {
-  key: string;
-  label: string;
-  count: number;
-}
+type FocusFilter = "all" | "cheap" | "high_rarity" | "owned" | "grading_upside";
 
 function filterButtonClass(active: boolean): string {
   return `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
@@ -83,25 +77,7 @@ function filterButtonClass(active: boolean): string {
   }`;
 }
 
-function countBadgeClass(active: boolean): string {
-  return `rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-    active
-      ? "bg-black/12 text-current dark:bg-white/12"
-      : "bg-black/6 text-gray-400 dark:bg-white/8 dark:text-white/35"
-  }`;
-}
-
-function formatMoverSourceLabel(source: string): string {
-  if (source === "tcgplayer") {
-    return "TCGPlayer";
-  }
-
-  if (source === "graded") {
-    return "Graded";
-  }
-
-  return "CardMarket";
-}
+const SELECT_OPTION_CLASS = "bg-white text-gray-950 dark:bg-gray-950 dark:text-white";
 
 function MoverGridFallback() {
   return (
@@ -137,13 +113,7 @@ export default function MoversBrowser({
     activeScope === "grading" ? "grade_score" : "move"
   );
   const [direction, setDirection] = useState<DirectionFilter>("all");
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  const [selectedRarities, setSelectedRarities] = useState<string[]>([]);
-  const [cheapOnly, setCheapOnly] = useState(false);
-  const [highRarityOnly, setHighRarityOnly] = useState(false);
-  const [highGradingUpsideOnly, setHighGradingUpsideOnly] = useState(false);
-  const [ownedMultipleOnly, setOwnedMultipleOnly] = useState(false);
+  const [focusFilter, setFocusFilter] = useState<FocusFilter>("all");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
@@ -193,7 +163,7 @@ export default function MoversBrowser({
     };
   }, [pathname, searchParams]);
   const modeHref = useMemo(() => {
-    return (mode: "raw" | "graded" | "targets") => {
+    return (mode: "raw" | "graded" | "targets" | "sealed") => {
       const params = new URLSearchParams(searchParams.toString());
 
       if (mode === "raw") {
@@ -210,8 +180,15 @@ export default function MoversBrowser({
         } else {
           params.delete("view");
         }
-      } else {
+      } else if (mode === "targets") {
         params.set("scope", "grading");
+        if (activeItemScope === "collection") {
+          params.set("view", "collection");
+        } else {
+          params.delete("view");
+        }
+      } else {
+        params.set("scope", "sealed");
         if (activeItemScope === "collection") {
           params.set("view", "collection");
         } else {
@@ -227,81 +204,22 @@ export default function MoversBrowser({
   const sortOptions = useMemo(() => {
     if (activeScope === "grading") {
       return [
-        { key: "grade_score" as const, label: "Grade Score" },
-        { key: "tcggo_score" as const, label: "TCGGO" },
+        { key: "grade_score" as const, label: "Best targets" },
         { key: "grade_multiplier" as const, label: "Multiplier" },
-        { key: "grade_gap" as const, label: "Gap" },
-        { key: "raw_price_low" as const, label: "Raw Cheap" },
-        { key: "price_high" as const, label: "Graded High" },
-        { key: "7d" as const, label: "7D" },
-        { key: "30d" as const, label: "30D" },
+        { key: "grade_gap" as const, label: "Value gap" },
+        { key: "raw_price_low" as const, label: "Raw price" },
         { key: "name" as const, label: "Name" },
       ];
     }
 
     return [
-      { key: "move" as const, label: "Move" },
-      { key: "tcggo_score" as const, label: "TCGGO" },
-      { key: "7d" as const, label: "7D" },
-      { key: "30d" as const, label: "30D" },
-      { key: "tracked" as const, label: "Tracked" },
-      { key: "low_rebound" as const, label: "Low" },
-      { key: "peak_gap" as const, label: "Peak" },
-      { key: "price_low" as const, label: "Cheap" },
-      { key: "price_high" as const, label: "Expensive" },
+      { key: "move" as const, label: "Best movers" },
+      { key: "7d" as const, label: "7 days" },
+      { key: "30d" as const, label: "30 days" },
+      { key: "price_low" as const, label: "Price low" },
       { key: "name" as const, label: "Name" },
     ];
   }, [activeScope]);
-
-  const sourceOptions = useMemo<FilterChipOption[]>(() => {
-    const counts = new Map<string, number>();
-    for (const item of movers) {
-      counts.set(item.source, (counts.get(item.source) ?? 0) + 1);
-    }
-
-    return [...counts.entries()]
-      .sort(([a], [b]) => {
-        const order = ["cardmarket", "tcgplayer", "graded"];
-        const aIndex = order.indexOf(a);
-        const bIndex = order.indexOf(b);
-        if (aIndex !== -1 || bIndex !== -1) {
-          if (aIndex === -1) return 1;
-          if (bIndex === -1) return -1;
-          return aIndex - bIndex;
-        }
-
-        return a.localeCompare(b, undefined, { sensitivity: "base" });
-      })
-      .map(([source, count]) => ({
-        key: source,
-        label: formatMoverSourceLabel(source),
-        count,
-      }));
-  }, [movers]);
-  const showSourceFilter = sourceOptions.length > 1;
-
-  const rarityOptions = useMemo<FilterChipOption[]>(() => {
-    const counts = new Map<string, number>();
-    for (const item of movers) {
-      if (!item.normalizedRarity) continue;
-      counts.set(item.normalizedRarity, (counts.get(item.normalizedRarity) ?? 0) + 1);
-    }
-
-    return [...counts.entries()]
-      .sort(([a], [b]) => {
-        const aIndex = KNOWN_RARITY_ORDER.indexOf(a as (typeof KNOWN_RARITY_ORDER)[number]);
-        const bIndex = KNOWN_RARITY_ORDER.indexOf(b as (typeof KNOWN_RARITY_ORDER)[number]);
-
-        if (aIndex !== -1 || bIndex !== -1) {
-          if (aIndex === -1) return 1;
-          if (bIndex === -1) return -1;
-          if (aIndex !== bIndex) return aIndex - bIndex;
-        }
-
-        return a.localeCompare(b, undefined, { sensitivity: "base" });
-      })
-      .map(([label, count]) => ({ key: label, label, count }));
-  }, [movers]);
 
   const visibleMovers = useMemo(() => {
     const filtered = movers.filter((item) => {
@@ -309,37 +227,26 @@ export default function MoversBrowser({
         return false;
       }
 
-      if (selectedSources.length > 0 && !selectedSources.includes(item.source)) {
-        return false;
-      }
-
-      if (
-        selectedRarities.length > 0 &&
-        (!item.normalizedRarity || !selectedRarities.includes(item.normalizedRarity))
-      ) {
-        return false;
-      }
-
-      if (cheapOnly) {
+      if (focusFilter === "cheap") {
         const cheapReferencePrice = isGradingScope ? item.grading?.rawPrice : item.currentPrice;
         if (cheapReferencePrice == null || cheapReferencePrice > 15) {
           return false;
         }
       }
 
-      if (highRarityOnly && item.rarityWeight < 1.15) {
+      if (focusFilter === "high_rarity" && item.rarityWeight < 1.15) {
         return false;
       }
 
       if (
         isGradingScope &&
-        highGradingUpsideOnly &&
+        focusFilter === "grading_upside" &&
         ((item.grading?.valueMultiplier ?? 0) < 3 || (item.grading?.valueGap ?? 0) < 20)
       ) {
         return false;
       }
 
-      if (ownedMultipleOnly && item.ownedCount < 2) {
+      if (focusFilter === "owned" && item.ownedCount < 2) {
         return false;
       }
 
@@ -366,13 +273,8 @@ export default function MoversBrowser({
   }, [
     movers,
     direction,
-    selectedSources,
-    selectedRarities,
-    cheapOnly,
-    highRarityOnly,
-    highGradingUpsideOnly,
+    focusFilter,
     isGradingScope,
-    ownedMultipleOnly,
     normalizedSearch,
     sortKey,
   ]);
@@ -432,39 +334,16 @@ export default function MoversBrowser({
     };
   }, [hasMoreMovers, renderKey, renderLimit, visibleMovers.length]);
 
-  const filterBadgeCount =
-    selectedSources.length +
-    selectedRarities.length +
-    (hasDirectionFilter ? 1 : 0) +
-    (cheapOnly ? 1 : 0) +
-    (highRarityOnly ? 1 : 0) +
-    (isGradingScope && highGradingUpsideOnly ? 1 : 0) +
-    (ownedMultipleOnly ? 1 : 0);
-
-  const activeFilterLabels = [
-    ...(hasDirectionFilter ? [direction === "risers" ? "Risers" : "Fallers"] : []),
-    ...(cheapOnly ? [isGradingScope ? "Raw <= 15" : "Cheap <= 15"] : []),
-    ...(highRarityOnly ? ["High rarity"] : []),
-    ...(isGradingScope && highGradingUpsideOnly ? ["3x+ graded"] : []),
-    ...(ownedMultipleOnly ? ["Owned x2+"] : []),
-    ...selectedSources.map(formatMoverSourceLabel),
-    ...selectedRarities,
-  ];
-
-  function toggleArrayValue(current: string[], value: string) {
-    return current.includes(value)
-      ? current.filter((entry) => entry !== value)
-      : [...current, value];
-  }
+  const hasActiveControls =
+    search.trim().length > 0 ||
+    hasDirectionFilter ||
+    focusFilter !== "all" ||
+    sortKey !== (isGradingScope ? "grade_score" : "move");
 
   function clearAllFilters() {
     setDirection("all");
-    setSelectedSources([]);
-    setSelectedRarities([]);
-    setCheapOnly(false);
-    setHighRarityOnly(false);
-    setHighGradingUpsideOnly(false);
-    setOwnedMultipleOnly(false);
+    setFocusFilter("all");
+    setSortKey(isGradingScope ? "grade_score" : "move");
     setSearch("");
   }
 
@@ -512,24 +391,26 @@ export default function MoversBrowser({
   return (
     <div className="space-y-10">
       <div className="space-y-3 rounded-2xl border border-black/8 bg-white/70 p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
               key: "raw" as const,
               label: "Raw Movers",
-              hint: "What to buy",
               active: isRawScope,
             },
             {
               key: "graded" as const,
               label: "Graded Market",
-              hint: "Slabs that move",
               active: isGradedScope,
+            },
+            {
+              key: "sealed" as const,
+              label: "Sealed Movers",
+              active: false,
             },
             {
               key: "targets" as const,
               label: "Grade Targets",
-              hint: "What to grade",
               active: isGradingScope,
             },
           ].map((option) => (
@@ -537,23 +418,14 @@ export default function MoversBrowser({
               key={option.key}
               href={modeHref(option.key)}
               prefetch={false}
-              className={`flex min-h-12 flex-col items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+              className={`flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
                 option.active
                   ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
                   : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/54 dark:hover:bg-white/[0.06] dark:hover:text-white"
               }`}
               aria-current={option.active ? "page" : undefined}
             >
-              <span>{option.label}</span>
-              <span
-                className={`mt-0.5 text-[10px] font-medium uppercase tracking-[0.14em] ${
-                  option.active
-                    ? "text-white/68 dark:text-gray-950/68"
-                    : "text-gray-400 dark:text-white/40"
-                }`}
-              >
-                {option.hint}
-              </span>
+              {option.label}
             </Link>
           ))}
         </div>
@@ -639,243 +511,103 @@ export default function MoversBrowser({
           </div>
         ) : null}
 
-        <div className="glass mb-4 space-y-3 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
-              <input
-                type="text"
-                placeholder="Search card, set, number or rarity"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="w-full rounded-2xl border border-black/8 bg-white/78 py-2.5 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
-              />
-              {search ? (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-900 dark:text-white/35 dark:hover:text-white"
-                  aria-label="Clear search"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              ) : null}
-            </div>
+        <div className="glass mb-4 rounded-2xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8">
+          <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,12rem))_auto] lg:items-end">
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                Search
+              </span>
+              <span className="relative block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
+                <input
+                  type="text"
+                  placeholder="Card, set, number"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-black/8 bg-white/78 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
+                />
+                {search ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-900 dark:text-white/35 dark:hover:text-white"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </span>
+            </label>
 
-            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <label className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-black/8 bg-white/78 px-3 py-1.5 text-xs font-semibold text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/58">
-                Sort
+            {!isGradingScope ? (
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                  Trend
+                </span>
                 <select
-                  value={sortKey}
-                  onChange={(event) => setSortKey(event.target.value as SortKey)}
-                  className="bg-transparent text-sm font-semibold text-gray-900 outline-none dark:text-white"
+                  value={direction}
+                  onChange={(event) => setDirection(event.target.value as DirectionFilter)}
+                  className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
                 >
-                  {sortOptions.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
+                  <option className={SELECT_OPTION_CLASS} value="all">All moves</option>
+                  <option className={SELECT_OPTION_CLASS} value="risers">Risers</option>
+                  <option className={SELECT_OPTION_CLASS} value="fallers">Fallers</option>
                 </select>
               </label>
-              <button
-                type="button"
-                onClick={() => setFiltersExpanded((current) => !current)}
-                className={filterButtonClass(filtersExpanded || filterBadgeCount > 0)}
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                Filters
-                {filterBadgeCount > 0 ? (
-                  <span className={countBadgeClass(filtersExpanded || filterBadgeCount > 0)}>
-                    {filterBadgeCount}
-                  </span>
-                ) : null}
-              </button>
-              {filterBadgeCount > 0 ? (
-                <button type="button" onClick={clearAllFilters} className={filterButtonClass(false)}>
-                  Clear all
-                </button>
-              ) : null}
-            </div>
-          </div>
+            ) : (
+              <div className="hidden lg:block" />
+            )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-              Quick
-            </span>
-            {!isGradingScope ? (
-              <>
-                {[
-                  { key: "all", label: "All" },
-                  { key: "risers", label: "Risers" },
-                  { key: "fallers", label: "Fallers" },
-                ].map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    onClick={() => setDirection(option.key as DirectionFilter)}
-                    className={filterButtonClass(direction === option.key)}
-                  >
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                Sort
+              </span>
+              <select
+                value={sortKey}
+                onChange={(event) => setSortKey(event.target.value as SortKey)}
+                className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+              >
+                {sortOptions.map((option) => (
+                  <option className={SELECT_OPTION_CLASS} key={option.key} value={option.key}>
                     {option.label}
-                  </button>
+                  </option>
                 ))}
-              </>
-            ) : null}
-            <button
-              type="button"
-              onClick={() => setCheapOnly((current) => !current)}
-              className={filterButtonClass(cheapOnly)}
-            >
-              {isGradingScope ? "Raw <= 15" : "Cheap <= 15"}
-            </button>
-            {isGradingScope ? (
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                Focus
+              </span>
+              <select
+                value={focusFilter}
+                onChange={(event) => setFocusFilter(event.target.value as FocusFilter)}
+                className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+              >
+                <option className={SELECT_OPTION_CLASS} value="all">Everything</option>
+                <option className={SELECT_OPTION_CLASS} value="cheap">
+                  {isGradingScope ? "Raw <= 15" : "Cheap <= 15"}
+                </option>
+                {!isGradingScope ? (
+                  <option className={SELECT_OPTION_CLASS} value="high_rarity">High rarity</option>
+                ) : null}
+                {isGradingScope ? (
+                  <option className={SELECT_OPTION_CLASS} value="grading_upside">3x+ upside</option>
+                ) : null}
+                <option className={SELECT_OPTION_CLASS} value="owned">Owned x2+</option>
+              </select>
+            </label>
+
+            {hasActiveControls ? (
               <button
                 type="button"
-                onClick={() => setHighGradingUpsideOnly((current) => !current)}
-                className={filterButtonClass(highGradingUpsideOnly)}
+                onClick={clearAllFilters}
+                className="h-11 rounded-xl border border-black/8 bg-white/78 px-4 text-sm font-semibold text-gray-600 transition-colors hover:border-black/14 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/62 dark:hover:border-white/16 dark:hover:text-white"
               >
-                3x+ graded
+                Reset
               </button>
             ) : null}
-            <button
-              type="button"
-              onClick={() => setHighRarityOnly((current) => !current)}
-              className={filterButtonClass(highRarityOnly)}
-            >
-              High rarity
-            </button>
           </div>
-
-          {activeFilterLabels.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {activeFilterLabels.map((label) => (
-                <span
-                  key={label}
-                  className="inline-flex items-center rounded-full border border-black/8 bg-black/[0.035] px-2.5 py-1 text-xs font-medium text-gray-600 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60"
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
-          ) : null}
-
-          {filtersExpanded ? (
-            <div
-              className={`grid gap-3 ${
-                showSourceFilter
-                  ? "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_minmax(0,1.4fr)]"
-                  : "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)]"
-              }`}
-            >
-              <section className="overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                    Quick Filters
-                  </p>
-                  <span className="text-[11px] text-gray-400 dark:text-white/35">
-                    {Number(cheapOnly) +
-                      Number(highRarityOnly) +
-                      Number(isGradingScope && highGradingUpsideOnly) +
-                      Number(ownedMultipleOnly)}{" "}
-                    active
-                  </span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCheapOnly((current) => !current)}
-                    className={filterButtonClass(cheapOnly)}
-                  >
-                    {isGradingScope ? "Raw <= 15" : "Cheap <= 15"}
-                  </button>
-                  {isGradingScope ? (
-                    <button
-                      type="button"
-                      onClick={() => setHighGradingUpsideOnly((current) => !current)}
-                      className={filterButtonClass(highGradingUpsideOnly)}
-                    >
-                      3x+ graded
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => setHighRarityOnly((current) => !current)}
-                    className={filterButtonClass(highRarityOnly)}
-                  >
-                    High rarity
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOwnedMultipleOnly((current) => !current)}
-                    className={filterButtonClass(ownedMultipleOnly)}
-                  >
-                    Owned x2+
-                  </button>
-                </div>
-              </section>
-
-              {showSourceFilter ? (
-                <section className="overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                      Source
-                    </p>
-                    <span className="text-[11px] text-gray-400 dark:text-white/35">
-                      {selectedSources.length || sourceOptions.length} selected
-                    </span>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {sourceOptions.map((option) => {
-                      const active = selectedSources.includes(option.key);
-                      return (
-                        <button
-                          key={option.key}
-                          type="button"
-                          onClick={() =>
-                            setSelectedSources((current) => toggleArrayValue(current, option.key))
-                          }
-                          className={filterButtonClass(active)}
-                        >
-                          {option.label}
-                          <span className={countBadgeClass(active)}>{option.count}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-              ) : null}
-
-              <section className="overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                    Rarity
-                  </p>
-                  <span className="text-[11px] text-gray-400 dark:text-white/35">
-                    {selectedRarities.length || rarityOptions.length} selected
-                  </span>
-                </div>
-                <div className="mt-3 flex max-h-40 flex-wrap gap-2 overflow-y-auto pr-1">
-                  {rarityOptions.map((option) => {
-                    const active = selectedRarities.includes(option.key);
-                    return (
-                      <button
-                        key={option.key}
-                        type="button"
-                        onClick={() =>
-                          setSelectedRarities((current) => toggleArrayValue(current, option.key))
-                        }
-                        className={`${filterButtonClass(active)} ${
-                          option.label ? rarityBadge(option.label) : ""
-                        }`}
-                      >
-                        {option.label}
-                        <span className={countBadgeClass(active)}>{option.count}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            </div>
-          ) : null}
         </div>
 
         {visibleMovers.length === 0 ? (

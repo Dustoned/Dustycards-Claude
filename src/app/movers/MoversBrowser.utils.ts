@@ -76,11 +76,11 @@ export function matchesDirection(
   direction: DirectionFilter
 ): boolean {
   if (direction === "risers") {
-    return item.moverScore > 0;
+    return item.movementScore > 0;
   }
 
   if (direction === "fallers") {
-    return item.moverScore < 0;
+    return item.movementScore < 0;
   }
 
   return true;
@@ -175,12 +175,12 @@ export function compareMoverItems(
   } else if (sortKey === "peak_gap") {
     const diff = compareMetricValues(a.gapToPeakPct, b.gapToPeakPct, "asc");
     if (diff !== 0) return diff;
-  } else if (a.moverScore !== b.moverScore) {
-    return preferMostNegativeFirst ? a.moverScore - b.moverScore : b.moverScore - a.moverScore;
+  } else if (a.rankingScore !== b.rankingScore) {
+    return preferMostNegativeFirst ? a.movementScore - b.movementScore : b.rankingScore - a.rankingScore;
   }
 
-  if (a.moverScore !== b.moverScore) {
-    return preferMostNegativeFirst ? a.moverScore - b.moverScore : b.moverScore - a.moverScore;
+  if (a.rankingScore !== b.rankingScore || a.movementScore !== b.movementScore) {
+    return preferMostNegativeFirst ? a.movementScore - b.movementScore : b.rankingScore - a.rankingScore;
   }
 
   return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });

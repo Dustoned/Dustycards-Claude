@@ -1,9 +1,11 @@
 import { Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import MoversBrowser from "@/app/movers/MoversBrowser";
+import SealedMoversBrowser from "@/app/movers/SealedMoversBrowser";
 import { loadMoversPageData } from "@/app/movers/page-data";
 import { requirePageUser } from "@/lib/page-auth";
-import type { CollectionMoverItem } from "@/lib/movers";
+import type { CollectionMoverItem, CollectionMoversData, MoversScope } from "@/lib/movers";
+import type { SealedMoversData } from "@/lib/sealed-movers";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +44,19 @@ function metricToneClass(tone: SummaryMetric["tone"]): string {
 }
 
 function getModeCopy(
-  activeScope: "collection" | "all" | "graded" | "grading",
+  activeScope: MoversScope,
   activeItemScope: "collection" | "all"
 ) {
+  if (activeScope === "sealed") {
+    return {
+      eyebrow: activeItemScope === "collection" ? "Sealed Movers / Collection" : "Sealed Movers / All Products",
+      title: "Movers",
+      description:
+        "Track sealed Pokemon products by recent CardMarket movement, lifetime highs and lows, and collection scope.",
+      ranking: "Sealed products",
+    };
+  }
+
   if (activeScope === "graded") {
     return {
       eyebrow: activeItemScope === "collection" ? "Graded Market / Collection" : "Graded Market / All Cards",
@@ -87,8 +99,8 @@ interface PreviewCardSpec {
 }
 
 interface BuildPreviewArgs {
-  data: Awaited<ReturnType<typeof loadMoversPageData>>["data"];
-  activeScope: "collection" | "all" | "graded" | "grading";
+  data: CollectionMoversData;
+  activeScope: Exclude<MoversScope, "sealed">;
 }
 
 function buildMoversPreviewCards({ data, activeScope }: BuildPreviewArgs): PreviewCardSpec[] {
@@ -150,49 +162,83 @@ export default async function MoversPage({
     view,
     user.id
   );
+  const isSealedScope = activeScope === "sealed";
   const isGradedScope = activeScope === "graded";
   const isGradingScope = activeScope === "grading";
-  const isRawScope = !isGradedScope && !isGradingScope;
+  const isRawScope = !isSealedScope && !isGradedScope && !isGradingScope;
   const modeCopy = getModeCopy(activeScope, activeItemScope);
-  const updatedAt = data.movers[0]?.latestFetchedAt ?? null;
-  const metrics = [
-    {
-      label: activeItemScope === "all" ? "Tracked Cards" : "Collection Cards",
-      value: data.trackedCards.toLocaleString("en-US"),
-      hint: isGradingScope
-        ? "Labels compared with raw CardMarket price."
-        : isGradedScope
-          ? "Current labels with graded price data."
-          : "Cards checked for raw movement.",
-      Icon: Gem,
-      tone: "amber",
-    },
-    {
-      label: isGradingScope ? "Targets" : isGradedScope ? "Labels Shown" : "Movers",
-      value: data.eligibleCards.toLocaleString("en-US"),
-      hint: isGradingScope
-        ? "Positive raw-to-graded upside."
-        : isGradedScope
-          ? "Current slab labels in the market list."
-          : "Cards with meaningful movement.",
-      Icon: TrendingUp,
-      tone: "emerald",
-    },
-    {
-      label: isGradingScope ? "Cheap Raw" : "Opportunity",
-      value: data.cheapestHighRarityMovers.length.toLocaleString("en-US"),
-      hint: isGradingScope ? "Raw price at or below 15 EUR." : "Lower-price high-rarity picks.",
-      Icon: Sparkles,
-      tone: "violet",
-    },
-    {
-      label: "Updated",
-      value: updatedAt ? formatShortDate(updatedAt) : "--",
-      hint: updatedAt ? formatDateTime(updatedAt) : "No snapshot yet.",
-      Icon: Clock3,
-      tone: "sky",
-    },
-  ] satisfies SummaryMetric[];
+  const sealedData = isSealedScope ? (data as SealedMoversData) : null;
+  const cardData = !isSealedScope ? (data as CollectionMoversData) : null;
+  const updatedAt = sealedData?.updatedAt ?? cardData?.movers[0]?.latestFetchedAt ?? null;
+  const metrics = isSealedScope && sealedData
+    ? ([
+        {
+          label: activeItemScope === "all" ? "Tracked Products" : "Collection Products",
+          value: sealedData.trackedProducts.toLocaleString("en-US"),
+          hint: "Sealed products checked for CardMarket movement.",
+          Icon: Gem,
+          tone: "amber",
+        },
+        {
+          label: "Movers",
+          value: sealedData.eligibleProducts.toLocaleString("en-US"),
+          hint: "Priced sealed products in the current market list.",
+          Icon: TrendingUp,
+          tone: "emerald",
+        },
+        {
+          label: "Entry Picks",
+          value: sealedData.cheapestMovers.length.toLocaleString("en-US"),
+          hint: "Lower-price sealed products that are already moving.",
+          Icon: Sparkles,
+          tone: "violet",
+        },
+        {
+          label: "Updated",
+          value: updatedAt ? formatShortDate(updatedAt) : "--",
+          hint: updatedAt ? formatDateTime(updatedAt) : "No snapshot yet.",
+          Icon: Clock3,
+          tone: "sky",
+        },
+      ] satisfies SummaryMetric[])
+    : ([
+        {
+          label: activeItemScope === "all" ? "Tracked Cards" : "Collection Cards",
+          value: cardData?.trackedCards.toLocaleString("en-US") ?? "0",
+          hint: isGradingScope
+            ? "Labels compared with raw CardMarket price."
+            : isGradedScope
+              ? "Current labels with graded price data."
+              : "Cards checked for raw movement.",
+          Icon: Gem,
+          tone: "amber",
+        },
+        {
+          label: isGradingScope ? "Targets" : isGradedScope ? "Labels Shown" : "Movers",
+          value: cardData?.eligibleCards.toLocaleString("en-US") ?? "0",
+          hint: isGradingScope
+            ? "Positive raw-to-graded upside."
+            : isGradedScope
+              ? "Current slab labels in the market list."
+              : "Cards with meaningful movement.",
+          Icon: TrendingUp,
+          tone: "emerald",
+        },
+        {
+          label: isGradingScope ? "Cheap Raw" : "Opportunity",
+          value: cardData?.cheapestHighRarityMovers.length.toLocaleString("en-US") ?? "0",
+          hint: isGradingScope ? "Raw price at or below 15 EUR." : "Lower-price high-rarity picks.",
+          Icon: Sparkles,
+          tone: "violet",
+        },
+        {
+          label: "Updated",
+          value: updatedAt ? formatShortDate(updatedAt) : "--",
+          hint: updatedAt ? formatDateTime(updatedAt) : "No snapshot yet.",
+          Icon: Clock3,
+          tone: "sky",
+        },
+      ] satisfies SummaryMetric[]);
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
@@ -253,44 +299,52 @@ export default async function MoversPage({
           </div>
         </section>
 
-        <MoversBrowser
-          key={`${activeScope}:${activeItemScope}`}
-          movers={data.movers}
-          activePriceSource={activePriceSource}
-          activeScope={activeScope}
-          activeItemScope={activeItemScope}
-          previewCards={buildMoversPreviewCards({
-            data,
-            activeScope,
-          })}
-          emptyTitle={
-            isGradingScope
-              ? "No grade targets found"
-              : isGradedScope
-                ? "No graded market items found"
-                : "No movers found"
-          }
-          emptyDescription={
-            isGradingScope
-              ? "No current graded label has positive raw-to-graded upside with a raw CardMarket price yet."
-              : isGradedScope
-                ? "No current graded labels have enough data to show."
-                : "There is not enough recent movement for this filter combination yet."
-          }
-          eyebrow={
-            isGradingScope ? "Grade Targets" : isGradedScope ? "Graded Market" : "Raw Movers"
-          }
-          title={
-            isGradingScope ? "Best cards to grade" : isGradedScope ? "Slab market" : "Market list"
-          }
-          description={
-            isGradingScope
-              ? "Sorted by raw-to-graded upside with the extra details available per card."
-              : isGradedScope
-                ? "Every graded label is listed separately, with its own movement and price history."
-                : "Raw cards ranked by recent and lifetime movement, with collection scope and source controls nearby."
-          }
-        />
+        {isSealedScope && sealedData ? (
+          <SealedMoversBrowser
+            key={`${activeScope}:${activeItemScope}`}
+            data={sealedData}
+            activeItemScope={activeItemScope}
+          />
+        ) : cardData ? (
+          <MoversBrowser
+            key={`${activeScope}:${activeItemScope}`}
+            movers={cardData.movers}
+            activePriceSource={activePriceSource}
+            activeScope={activeScope}
+            activeItemScope={activeItemScope}
+            previewCards={buildMoversPreviewCards({
+              data: cardData,
+              activeScope: activeScope as Exclude<MoversScope, "sealed">,
+            })}
+            emptyTitle={
+              isGradingScope
+                ? "No grade targets found"
+                : isGradedScope
+                  ? "No graded market items found"
+                  : "No movers found"
+            }
+            emptyDescription={
+              isGradingScope
+                ? "No current graded label has positive raw-to-graded upside with a raw CardMarket price yet."
+                : isGradedScope
+                  ? "No current graded labels have enough data to show."
+                  : "There is not enough recent movement for this filter combination yet."
+            }
+            eyebrow={
+              isGradingScope ? "Grade Targets" : isGradedScope ? "Graded Market" : "Raw Movers"
+            }
+            title={
+              isGradingScope ? "Best cards to grade" : isGradedScope ? "Slab market" : "Market list"
+            }
+            description={
+              isGradingScope
+                ? "Sorted by raw-to-graded upside with the extra details available per card."
+                : isGradedScope
+                  ? "Every graded label is listed separately, with its own movement and price history."
+                  : "Raw cards ranked by recent and lifetime movement, with collection scope and source controls nearby."
+            }
+          />
+        ) : null}
       </div>
     </div>
   );

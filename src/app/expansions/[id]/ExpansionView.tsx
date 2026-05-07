@@ -32,6 +32,7 @@ import CardBrowserToolbar, {
   type CardBrowserToolbarFilterSection,
   type CardBrowserToolbarOption,
 } from "@/components/CardBrowserToolbar";
+import { cardMatchesSearchQuery } from "@/lib/card-search";
 import {
   useSettings,
   CardView,
@@ -431,18 +432,20 @@ export default function ExpansionView({
   const sortedCards = useMemo(() => {
     const next = cards.filter((card) => {
       if (normalizedSearch) {
-        const compactIdentifier = `${card.episode_code ?? ""}${card.card_number ?? ""}`;
-        const haystack = [
-          card.name,
-          card.card_number ?? "",
-          card.episode_name ?? "",
-          card.episode_code ?? "",
-          compactIdentifier,
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        if (!haystack.includes(normalizedSearch)) return false;
+        if (
+          !cardMatchesSearchQuery(
+            {
+              name: card.name,
+              cardNumber: card.card_number,
+              episodeName: card.episode_name,
+              episodeCode: card.episode_code,
+              rarity: card.rarity,
+            },
+            normalizedSearch
+          )
+        ) {
+          return false;
+        }
       }
 
       return true;

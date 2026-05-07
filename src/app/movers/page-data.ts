@@ -4,6 +4,7 @@ import {
   type MoversItemScope,
   type MoversScope,
 } from "@/lib/movers";
+import { getSealedMovers, type SealedMoversData } from "@/lib/sealed-movers";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
   buildMoversSourceHref,
@@ -25,7 +26,7 @@ const moversPageCache = new Map<
   string,
   {
     expiresAt: number;
-    promise: Promise<CollectionMoversData>;
+    promise: Promise<CollectionMoversData | SealedMoversData>;
   }
 >();
 
@@ -34,7 +35,7 @@ function getCachedMovers(
   activeScope: MoversScope,
   activeItemScope: MoversItemScope,
   userId: string
-): Promise<CollectionMoversData> {
+): Promise<CollectionMoversData | SealedMoversData> {
   const key = `${userId}:${activePriceSource}:${activeScope}:${activeItemScope}`;
   const now = Date.now();
   const cached = moversPageCache.get(key);
@@ -43,7 +44,10 @@ function getCachedMovers(
     return cached.promise;
   }
 
-  const promise = getMovers(activePriceSource, activeScope, activeItemScope, userId);
+  const promise =
+    activeScope === "sealed"
+      ? getSealedMovers(activeItemScope, userId)
+      : getMovers(activePriceSource, activeScope, activeItemScope, userId);
   moversPageCache.set(key, {
     expiresAt: now + MOVERS_PAGE_CACHE_MS,
     promise,
@@ -78,7 +82,9 @@ export async function loadMoversPageData(
       ? "all"
       : activeScope === "collection"
         ? "collection"
-        : normalizeMoversItemScope(itemScopeOverride, "all");
+        : activeScope === "sealed"
+          ? normalizeMoversItemScope(itemScopeOverride, "all")
+          : normalizeMoversItemScope(itemScopeOverride, "all");
   const data = await getCachedMovers(activePriceSource, activeScope, activeItemScope, userId);
 
   return { settings, data, activePriceSource, activeScope, activeItemScope };

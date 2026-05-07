@@ -20,7 +20,6 @@ export interface FilterOption {
 export interface PreparedCollectionEntry {
   item: CollectionCardViewItem;
   selectionKey: string;
-  searchText: string;
   normalizedRarity: string | null;
   isPriced: boolean;
   isGraded: boolean;

@@ -118,6 +118,10 @@ const CATEGORY_LABELS: Record<SealedCategory, string> = {
   other: "Other Sealed",
 };
 
+export function getSealedCategoryLabel(category: SealedCategory): string {
+  return CATEGORY_LABELS[category] ?? CATEGORY_LABELS.other;
+}
+
 const nameCollator = new Intl.Collator("en", {
   numeric: true,
   sensitivity: "base",

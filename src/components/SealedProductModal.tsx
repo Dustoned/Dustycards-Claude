@@ -11,7 +11,6 @@ import {
   SealedModalHeroSection,
   SealedModalHistorySection,
   SealedModalPreview,
-  SealedModalPricingSection,
 } from "./sealed-modal/SealedModalSections";
 import type {
   SealedActionResponse,
@@ -41,7 +40,6 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const [detailsLoading, setDetailsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
-  const [historyChartsOpen, setHistoryChartsOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const layout = getSealedModalLayoutClasses(
@@ -148,10 +146,6 @@ export default function SealedProductModal({ product, onClose }: Props) {
     }
   }
 
-  function toggleHistoryCharts() {
-    setHistoryChartsOpen((current) => !current);
-  }
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
@@ -177,7 +171,8 @@ export default function SealedProductModal({ product, onClose }: Props) {
           role="dialog"
           aria-modal="true"
           aria-label={modalProduct.name}
-          className="glass relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] [overflow-anchor:none] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)]"
+          className="card-modal-frame glass relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] [overflow-anchor:none] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)]"
+          data-modal-size={displaySettings.modalSize}
           style={{
             background: "rgba(10,10,12,0.92)",
             border: "1px solid rgba(255,255,255,0.12)",
@@ -214,19 +209,13 @@ export default function SealedProductModal({ product, onClose }: Props) {
                   onClose={onClose}
                 />
 
-                <SealedModalPricingSection
-                  product={modalProduct}
-                  primaryPrice={primaryPrice}
-                  priceFetchedAtLabel={priceFetchedAtLabel}
-                />
-
                 <SealedModalHistorySection
                   productId={modalProduct.id}
-                  historyChartsOpen={historyChartsOpen}
+                  product={modalProduct}
                   chartPoints={chartPoints}
                   currentValue={primaryPrice}
+                  priceFetchedAtLabel={priceFetchedAtLabel}
                   loading={detailsLoading && priceHistory.length === 0}
-                  onToggleHistoryCharts={toggleHistoryCharts}
                 />
               </div>
             </div>

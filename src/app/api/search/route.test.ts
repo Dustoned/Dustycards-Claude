@@ -119,6 +119,37 @@ describe("GET /api/search", () => {
     expect(JSON.stringify(cardQuery.where)).toContain('"card_number":{"contains":"124"}');
   });
 
+  it("matches numeric card searches with or without leading zeroes", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "zygarde-94",
+        name: "Mega Zygarde ex",
+        card_number: "94",
+        rarity: "Double Rare",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "por",
+          name: "Perfect Order",
+          code: "POR",
+        },
+        prices: [{ cm_en_lowest_nm: 6, tcp_market: 7 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=094"));
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.singles).toHaveLength(1);
+    expect(whereJson).toContain('"card_number":"94"');
+    expect(whereJson).toContain('"card_number":"094"');
+  });
+
   it("uses capped fuzzy candidate queries instead of reading the full tables", async () => {
     dbMock.card.findMany
       .mockResolvedValueOnce([])

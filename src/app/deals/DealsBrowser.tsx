@@ -16,7 +16,7 @@ import {
 import type { ModalCardData } from "@/components/CardModal";
 import { formatCurrency, type CurrencyCode } from "@/lib/format";
 
-type DealMode = "raw" | "graded";
+type DealMode = "raw" | "graded" | "sealed";
 type BuyingMode = "fixed" | "auction" | "all";
 type ConditionFilter =
   | "all"
@@ -153,6 +153,16 @@ interface DealsResponse {
     };
     has_saved_grade: boolean;
   } | null;
+  sealedProduct: {
+    id: string;
+    name: string;
+    image_url: string | null;
+    episode: {
+      id: string;
+      name: string;
+      code: string | null;
+    };
+  } | null;
   error?: string;
 }
 
@@ -209,6 +219,7 @@ const DEFAULT_RESPONSE: DealsResponse = {
   },
   mode: "raw",
   card: null,
+  sealedProduct: null,
 };
 
 const CONDITION_OPTIONS: Array<{ value: ConditionFilter; label: string }> = [
@@ -348,6 +359,7 @@ function buildDealsHref(input: {
   pathname: string;
   q: string;
   cardId: string | null;
+  productId: string | null;
   mode: DealMode;
   buying: BuyingMode;
   condition: ConditionFilter;
@@ -356,7 +368,8 @@ function buildDealsHref(input: {
   const params = new URLSearchParams();
   const trimmedQuery = input.q.trim();
   if (input.cardId) params.set("cardId", input.cardId);
-  if (trimmedQuery && !input.cardId) params.set("q", trimmedQuery);
+  if (input.productId) params.set("productId", input.productId);
+  if (trimmedQuery && !input.cardId && !input.productId) params.set("q", trimmedQuery);
   if (input.mode !== "raw") params.set("mode", input.mode);
   if (input.buying !== "fixed") params.set("buying", input.buying);
   if (input.condition !== "all") params.set("condition", input.condition);
@@ -733,8 +746,11 @@ export default function DealsBrowser() {
   const pathname = usePathname() ?? "/deals";
   const searchParams = useSearchParams();
   const cardId = searchParams.get("cardId");
-  const paramQuery = cardId ? "" : (searchParams.get("q") ?? "");
-  const paramMode = searchParams.get("mode") === "graded" ? "graded" : "raw";
+  const productId = searchParams.get("productId");
+  const paramQuery = cardId || productId ? "" : (searchParams.get("q") ?? "");
+  const modeParam = searchParams.get("mode");
+  const paramMode: DealMode =
+    productId ? "sealed" : modeParam === "graded" || modeParam === "sealed" ? modeParam : "raw";
   const paramBuying =
     searchParams.get("buying") === "auction" || searchParams.get("buying") === "all"
       ? (searchParams.get("buying") as BuyingMode)
@@ -762,7 +778,7 @@ export default function DealsBrowser() {
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [overrideBusyItemId, setOverrideBusyItemId] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const hasSearch = Boolean(paramQuery.trim() || cardId);
+  const hasSearch = Boolean(paramQuery.trim() || cardId || productId);
 
   const requestPath = useMemo(() => {
     if (!hasSearch) return null;
@@ -770,11 +786,12 @@ export default function DealsBrowser() {
     const params = new URLSearchParams();
     if (paramQuery.trim()) params.set("q", paramQuery.trim());
     if (cardId) params.set("cardId", cardId);
+    if (productId) params.set("productId", productId);
     if (paramMode !== "raw") params.set("mode", paramMode);
     if (paramBuying !== "fixed") params.set("buying", paramBuying);
     if (refreshNonce > 0) params.set("_r", String(refreshNonce));
     return `/api/ebay/deals?${params.toString()}`;
-  }, [cardId, hasSearch, paramBuying, paramMode, paramQuery, refreshNonce]);
+  }, [cardId, hasSearch, paramBuying, paramMode, paramQuery, productId, refreshNonce]);
 
   useEffect(() => {
     if (!requestPath) {
@@ -871,7 +888,7 @@ export default function DealsBrowser() {
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length < 2) {
+    if (mode === "sealed" || trimmed.length < 2) {
       return;
     }
 
@@ -916,18 +933,20 @@ export default function DealsBrowser() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [query]);
+  }, [mode, query]);
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextQuery = query.trim();
     const nextCardId = nextQuery ? null : cardId;
+    const nextProductId = nextQuery ? null : productId;
     setQuery(nextQuery);
     router.replace(
       buildDealsHref({
         pathname,
         q: nextQuery,
         cardId: nextCardId,
+        productId: nextProductId,
         mode,
         buying,
         condition: conditionFilter,
@@ -943,6 +962,7 @@ export default function DealsBrowser() {
         pathname,
         q: "",
         cardId: cardIdToSearch,
+        productId: null,
         mode,
         buying,
         condition: conditionFilter,
@@ -1030,10 +1050,11 @@ export default function DealsBrowser() {
     return [...data.listings]
       .filter(
         (listing) =>
+          data.mode === "sealed" ||
           conditionFilter === "all" || listing.cardCondition.code === conditionFilter
       )
       .sort((a, b) => compareDealListings(a, b, sort));
-  }, [conditionFilter, data.listings, sort]);
+  }, [conditionFilter, data.listings, data.mode, sort]);
   const visibleData = useMemo(
     () => ({
       ...data,
@@ -1044,10 +1065,10 @@ export default function DealsBrowser() {
   );
   const exactCardSuggestions = useMemo(
     () =>
-      suggestionsQuery === query.trim()
+      mode !== "sealed" && suggestionsQuery === query.trim()
         ? suggestedCards.filter((card) => card.id !== visibleData.card?.id)
         : [],
-    [query, suggestedCards, suggestionsQuery, visibleData.card?.id]
+    [mode, query, suggestedCards, suggestionsQuery, visibleData.card?.id]
   );
   const visibleLoading = hasSearch && loading;
   const visibleError = hasSearch ? error : null;
@@ -1138,7 +1159,7 @@ export default function DealsBrowser() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={visibleData.query || "Pokemon card"}
+                placeholder={visibleData.query || (mode === "sealed" ? "Pokemon sealed product" : "Pokemon card")}
                 className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-gray-950 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
                 autoComplete="off"
                 spellCheck={false}
@@ -1165,6 +1186,7 @@ export default function DealsBrowser() {
               >
                 <option value="raw">Raw</option>
                 <option value="graded">Graded</option>
+                <option value="sealed">Sealed</option>
               </select>
             </label>
 
@@ -1221,7 +1243,7 @@ export default function DealsBrowser() {
           </div>
         </form>
 
-        {(query.trim().length >= 2 || suggestionsLoading) && (
+        {mode !== "sealed" && (query.trim().length >= 2 || suggestionsLoading) && (
           <section className="rounded-2xl border border-black/8 bg-white/64 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.035]">
             <div className="mb-2 flex items-center justify-between gap-3">
               <h2 className="text-sm font-bold text-gray-950 dark:text-white">
@@ -1325,6 +1347,45 @@ export default function DealsBrowser() {
           </section>
         )}
 
+        {visibleData.sealedProduct && (
+          <section className="grid gap-3 rounded-2xl border border-black/8 bg-white/64 p-3 dark:border-white/8 dark:bg-white/[0.035] sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center">
+            {visibleData.sealedProduct.image_url ? (
+              <div className="relative aspect-square w-16 overflow-hidden rounded-lg bg-black/[0.035] dark:bg-black/24">
+                <Image
+                  src={visibleData.sealedProduct.image_url}
+                  alt={visibleData.sealedProduct.name}
+                  fill
+                  sizes="72px"
+                  className="object-contain p-1"
+                  unoptimized
+                />
+              </div>
+            ) : (
+              <div className="flex aspect-square w-16 items-center justify-center rounded-lg bg-black/[0.035] text-xs text-gray-400 dark:bg-black/24">
+                Sealed
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold text-gray-950 dark:text-white">
+                {visibleData.sealedProduct.name}
+              </p>
+              <p className="mt-1 truncate text-xs font-medium text-gray-500 dark:text-white/45">
+                {visibleData.sealedProduct.episode.name}
+                {visibleData.sealedProduct.episode.code
+                  ? ` / ${visibleData.sealedProduct.episode.code}`
+                  : ""}
+              </p>
+            </div>
+            <Link
+              href={`/expansions/${visibleData.sealedProduct.episode.id}?tab=sealed`}
+              prefetch={false}
+              className="inline-flex justify-center rounded-xl border border-black/8 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/68 dark:hover:bg-white/[0.05]"
+            >
+              DustyCards
+            </Link>
+          </section>
+        )}
+
         {hasLoadedConfig && !visibleData.configured && (
           <section className="rounded-2xl border border-amber-400/18 bg-amber-400/[0.08] p-4 text-sm font-medium text-amber-900 dark:text-amber-100">
             eBay API keys missing. Add `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET` to `.env`, then create a Production keyset in the eBay developer portal.
@@ -1393,7 +1454,7 @@ export default function DealsBrowser() {
           <section className="rounded-2xl border border-dashed border-black/12 bg-white/50 p-6 text-sm font-medium text-gray-500 dark:border-white/12 dark:bg-white/[0.03] dark:text-white/45">
             {data.listings.length > 0
               ? "No offers match these filters."
-              : paramQuery.trim() || cardId
+              : paramQuery.trim() || cardId || productId
                 ? "No eBay listings loaded."
                 : "No search yet."}
           </section>

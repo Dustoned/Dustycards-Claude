@@ -269,6 +269,29 @@ export default function CreateBinderButton() {
                                 />
                               );
                             })}
+                            <label
+                              className={`relative inline-flex h-9 w-9 cursor-pointer items-center justify-center overflow-hidden rounded-full border-2 transition-transform max-[640px]:h-8 max-[640px]:w-8 ${
+                                accentColor != null && !COLLECTION_BINDER_COLORS.includes(accentColor as (typeof COLLECTION_BINDER_COLORS)[number])
+                                  ? "scale-110 border-white"
+                                  : "border-white/18 hover:border-white/32"
+                              }`}
+                              title="Custom color"
+                              aria-label="Choose custom color"
+                            >
+                              <span
+                                className="absolute inset-0"
+                                style={{ backgroundColor: accentColor ?? "#2563eb" }}
+                              />
+                              <span className="relative rounded-full bg-black/45 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                                +
+                              </span>
+                              <input
+                                type="color"
+                                value={accentColor ?? "#2563eb"}
+                                onChange={(event) => setAccentColor(event.target.value)}
+                                className="absolute inset-0 cursor-pointer opacity-0"
+                              />
+                            </label>
                           </div>
                         </div>
                       </>
