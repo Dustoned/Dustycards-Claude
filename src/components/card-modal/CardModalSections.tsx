@@ -166,7 +166,7 @@ function MarketRow({ label, value, hint }: MarketRowProps) {
 function MetaPill({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <span
-      className={`card-modal-meta-pill inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-base font-medium text-white/68 max-[640px]:px-2.5 max-[640px]:py-1 max-[640px]:text-[11px] ${className}`}
+      className={`card-modal-meta-pill inline-flex min-h-0 items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-base font-medium leading-none text-white/68 max-[640px]:px-2 max-[640px]:py-0.5 max-[640px]:text-[10px] ${className}`}
     >
       {children}
     </span>
@@ -448,13 +448,15 @@ export function CardModalHeroSection({
               {card.name}
             </h2>
 
-            <div className={`mt-3 flex flex-wrap items-center gap-2.5 text-white/54 max-[640px]:mt-2 max-[640px]:gap-1.5 ${metaClassName}`}>
+            <div className={`mt-3 flex flex-wrap items-center gap-2 text-white/54 max-[640px]:mt-1 max-[640px]:gap-1 ${metaClassName}`}>
               {headerMetaLabel && (
-                <span className="whitespace-nowrap font-medium text-white/58">{headerMetaLabel}</span>
+                <span className="whitespace-nowrap rounded-full border border-white/8 bg-black/12 px-2 py-1 font-medium leading-none text-white/58 max-[640px]:px-1.5 max-[640px]:py-0.5 max-[640px]:text-[10px]">
+                  {headerMetaLabel}
+                </span>
               )}
               {normalizedRarity && (
                 <span
-                  className={`inline-flex rounded-full px-4 py-1.5 text-sm font-semibold sm:text-base max-[640px]:px-2.5 max-[640px]:py-1 max-[640px]:text-[11px] ${rarityBadge(
+                  className={`inline-flex rounded-full px-3 py-1.5 text-sm font-semibold leading-none sm:text-base max-[640px]:px-2 max-[640px]:py-0.5 max-[640px]:text-[10px] ${rarityBadge(
                     card.rarity
                   )}`}
                 >
@@ -462,7 +464,17 @@ export function CardModalHeroSection({
                 </span>
               )}
               <MetaPill className={collectionItem ? "text-emerald-200" : "text-white/60"}>
-                {collectionItem ? "In DustyCards" : "Not in collection"}
+                {collectionItem ? (
+                  <>
+                    <span className="max-[640px]:hidden">In DustyCards</span>
+                    <span className="hidden max-[640px]:inline">Saved</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="max-[640px]:hidden">Not in collection</span>
+                    <span className="hidden max-[640px]:inline">Not saved</span>
+                  </>
+                )}
               </MetaPill>
               {collectionLanguage && <MetaPill>{collectionLanguage}</MetaPill>}
               {gradingCompanyLabel && gradingGradeLabel && (
@@ -474,32 +486,36 @@ export function CardModalHeroSection({
           </div>
 
           {canManageCardPrices && (
-            <div className="flex flex-wrap gap-2 max-[640px]:mt-3 max-[640px]:grid max-[640px]:grid-cols-2 xl:justify-self-end xl:self-start">
+            <div className="flex flex-wrap items-center gap-2 max-[640px]:mt-2 max-[640px]:gap-1.5 xl:justify-self-end xl:self-start">
               <button
                 type="button"
                 onClick={onSyncHistory}
                 disabled={isBusy}
-                className="inline-flex min-h-[46px] items-center justify-center gap-2.5 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-base font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:min-h-[38px] max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[11px]"
+                className="inline-flex min-h-[40px] items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:h-8 max-[640px]:min-h-8 max-[640px]:w-8 max-[640px]:rounded-full max-[640px]:px-0 max-[640px]:py-0"
+                aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
+                title={syncingHistory ? "Syncing..." : "Sync history"}
               >
                 <LineChart
-                  className={`h-[18px] w-[18px] max-[640px]:h-[14px] max-[640px]:w-[14px] ${
+                  className={`h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5 ${
                     syncingHistory ? "animate-pulse" : ""
                   }`}
                 />
-                {syncingHistory ? "Syncing..." : "Sync History"}
+                <span className="max-[640px]:sr-only">{syncingHistory ? "Syncing..." : "Sync"}</span>
               </button>
               <button
                 type="button"
                 onClick={onRefresh}
                 disabled={isBusy}
-                className="inline-flex min-h-[46px] items-center justify-center gap-2.5 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-base font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:min-h-[38px] max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[11px]"
+                className="inline-flex min-h-[40px] items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:h-8 max-[640px]:min-h-8 max-[640px]:w-8 max-[640px]:rounded-full max-[640px]:px-0 max-[640px]:py-0"
+                aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
+                title={refreshing ? "Refreshing..." : "Refresh"}
               >
                 <RefreshCw
-                  className={`h-[18px] w-[18px] max-[640px]:h-[14px] max-[640px]:w-[14px] ${
+                  className={`h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5 ${
                     refreshing ? "animate-spin" : ""
                   }`}
                 />
-                {refreshing ? "Refreshing..." : "Refresh"}
+                <span className="max-[640px]:sr-only">{refreshing ? "Refreshing..." : "Refresh"}</span>
               </button>
             </div>
           )}

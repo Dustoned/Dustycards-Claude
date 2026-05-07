@@ -2273,10 +2273,11 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
           type="button"
           onClick={() => controlsRef.current?.reset()}
           data-viewer-keepopen="true"
-          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/14 bg-black/45 px-4 py-2 text-sm font-medium text-white/85 backdrop-blur-xl transition-colors hover:bg-black/60"
+          className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/45 text-white/85 backdrop-blur-xl transition-colors hover:bg-black/60 max-[640px]:h-10 max-[640px]:w-10"
+          aria-label="Reset 3D view"
+          title="Reset view"
         >
-          <RotateCcw className="h-4 w-4" />
-          Reset view
+          <RotateCcw className="h-5 w-5 max-[640px]:h-4 max-[640px]:w-4" />
         </button>
       </div>
 
