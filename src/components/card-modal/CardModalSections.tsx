@@ -4,10 +4,9 @@ import { type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { LineChart, RefreshCw } from "lucide-react";
+import { ChevronRight, LineChart, RefreshCw } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
-import IllustratorLink from "@/components/IllustratorLink";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import { type SupportedGradedSlabCompany } from "@/lib/graded-slabs";
 import {
@@ -174,6 +173,28 @@ function MetaPill({ children, className = "" }: { children: ReactNode; className
   );
 }
 
+function CompactDetailLink({
+  href,
+  children,
+  onClick,
+}: {
+  href: string;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      onClick={onClick}
+      className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-sky-300/18 bg-sky-300/[0.075] px-2.5 py-1 text-sky-100 transition-colors hover:border-sky-200/32 hover:bg-sky-300/[0.12] hover:text-white max-[640px]:px-2 max-[640px]:py-0.5"
+    >
+      <span className="min-w-0 truncate">{children}</span>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-sky-100/64 transition-transform group-hover:translate-x-0.5 group-hover:text-white max-[640px]:h-3 max-[640px]:w-3" />
+    </Link>
+  );
+}
+
 function buildCollectionCard(card: ModalCardData) {
   return {
     id: card.id,
@@ -334,33 +355,30 @@ export function CardModalHeroSection({
     {
       label: "Type",
       value: typeLabel || "--",
+      wideMobile: false,
     },
     {
       label: "Set",
       value: (
-        <div>
-          <Link
-            href={`/expansions/${card.episode_id}`}
-            prefetch={false}
-            onClick={onClose}
-            className="inline-flex max-w-full items-center text-base font-medium text-white/84 transition-colors hover:text-white hover:underline underline-offset-2"
-          >
-            <span className="break-words">{card.episode_name}</span>
-          </Link>
-        </div>
+        <CompactDetailLink href={`/expansions/${card.episode_id}`} onClick={onClose}>
+          {card.episode_name}
+        </CompactDetailLink>
       ),
+      wideMobile: true,
     },
     {
       label: "Artist",
       value: card.artist ? (
-        <IllustratorLink
-          artist={card.artist}
+        <CompactDetailLink
+          href={`/illustrators/${encodeURIComponent(card.artist)}`}
           onClick={onClose}
-          className="transition-colors hover:text-white hover:underline underline-offset-2"
-        />
+        >
+          {card.artist}
+        </CompactDetailLink>
       ) : (
         "--"
       ),
+      wideMobile: true,
     },
     ...(card.pull_rate_info
       ? [
@@ -373,7 +391,7 @@ export function CardModalHeroSection({
                     card.pull_rate_info.pull_rate_odds ??
                     "--"}
                 </p>
-                <p className="text-sm font-medium text-white/42">
+                <p className="text-sm font-medium text-white/42 max-[640px]:text-[11px]">
                   {[
                     card.pull_rate_info.pull_rate_odds
                       ? `Rarity ${card.pull_rate_info.pull_rate_odds}`
@@ -387,6 +405,7 @@ export function CardModalHeroSection({
                 </p>
               </div>
             ),
+            wideMobile: false,
           },
         ]
       : []),
@@ -399,11 +418,13 @@ export function CardModalHeroSection({
           ? formatCurrency(collectionItem.cost_basis_value, "EUR")
           : "--",
       show: collectionItem?.cost_basis_value != null,
+      wideMobile: false,
     },
     {
       label: "Condition",
       value: collectionItem?.condition ?? "--",
       show: Boolean(collectionItem?.condition),
+      wideMobile: false,
     },
   ];
   const headerDetailStats = collectionItem
@@ -478,13 +499,18 @@ export function CardModalHeroSection({
           )}
         </div>
 
-        <div className="mt-4 grid gap-2 max-[640px]:mt-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-2 max-[640px]:mt-2 max-[640px]:grid-cols-2 max-[640px]:gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
           {headerDetailStats.map((stat) => (
-            <div key={stat.label} className={`${detailStatClass} min-w-0`}>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
+            <div
+              key={stat.label}
+              className={`${detailStatClass} min-w-0 ${
+                stat.wideMobile ? "max-[640px]:col-span-2" : ""
+              }`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36 max-[640px]:text-[9px] max-[640px]:tracking-[0.12em]">
                 {stat.label}
               </p>
-              <div className="mt-2 min-w-0 break-words text-base font-medium text-white/84">
+              <div className="mt-2 min-w-0 break-words text-base font-medium text-white/84 max-[640px]:mt-1 max-[640px]:text-[13px] max-[640px]:leading-snug">
                 {stat.value}
               </div>
             </div>
