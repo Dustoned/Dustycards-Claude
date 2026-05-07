@@ -225,9 +225,45 @@ describe("GET /api/search", () => {
       setCode: "SHF",
       rawCardRef: "SHF73",
     });
-    expect(whereJson).toContain('"code":{"equals":"SHF"}');
+    expect(whereJson).toContain('"code":{"contains":"SHF"}');
+    expect(whereJson).not.toContain('"name":{"contains":"SHF"}');
     expect(whereJson).toContain('"card_number":"73"');
     expect(whereJson).not.toContain('"contains":"73"');
+  });
+
+  it("allows set name plus number searches to match episode names directly", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "alcremie-vmax-73",
+        name: "Alcremie VMAX",
+        card_number: "73",
+        rarity: "Rare Rainbow",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "shf",
+          name: "Shining Fates",
+          code: "SHF",
+        },
+        prices: [{ cm_en_lowest_nm: 1.8, tcp_market: 4.54 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=shining%20fates%2073")
+    );
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where).toLowerCase();
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.singles[0].id).toBe("alcremie-vmax-73");
+    expect(whereJson).toContain("shining fates");
+    expect(whereJson).toContain("episode");
+    expect(whereJson).toContain('"card_number":"73"');
   });
 
   it("hides redundant subset expansions from search results", async () => {

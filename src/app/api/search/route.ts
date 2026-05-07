@@ -307,7 +307,7 @@ const VISIBLE_EPISODE_WHERE = buildVisibleEpisodeWhere();
 
 function episodeMatchesSetCode(setCode: string) {
   return {
-    OR: [{ code: { equals: setCode } }, { name: { contains: setCode } }],
+    code: { contains: setCode },
   } satisfies Prisma.EpisodeWhereInput;
 }
 
@@ -332,7 +332,10 @@ function buildCardNumberCondition(cardNumber: string): Prisma.CardWhereInput {
 }
 
 function buildCardFreeTextCondition(query: string): Prisma.CardWhereInput {
-  const conditions: Prisma.CardWhereInput[] = [nameContains<Prisma.CardWhereInput>(query)];
+  const conditions: Prisma.CardWhereInput[] = [
+    nameContains<Prisma.CardWhereInput>(query),
+    { episode: nameContains<Prisma.EpisodeWhereInput>(query, "name") },
+  ];
 
   if (/\d/.test(query)) {
     conditions.push(fieldContains<Prisma.CardWhereInput>(query, "card_number"));
