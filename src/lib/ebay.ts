@@ -10,6 +10,7 @@ const EBAY_MAX_FETCHED_LISTINGS = 100;
 const EBAY_SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
 const EBAY_SEARCH_CACHE_MAX_ENTRIES = 120;
 const EBAY_RATE_LIMIT_CACHE_TTL_MS = 5 * 60 * 1000;
+const EBAY_BROWSE_QUOTA_BACKOFF_FALLBACK_MS = 5 * 60 * 1000;
 const DEFAULT_EBAY_CATEGORY_ID = "183454";
 
 export type EbayEnvironment = "production" | "sandbox";
@@ -241,6 +242,7 @@ const rateLimitCache = new Map<
     status: EbayRateLimitStatus;
   }
 >();
+let browseQuotaBackoff: { expiresAt: number; message: string } | null = null;
 
 function normalizeEnvValue(value: string | undefined): string | null {
   const normalized = value?.trim();
@@ -1207,6 +1209,68 @@ function pickEbayRateLimitSummary(input: {
   };
 }
 
+function buildEbayBrowseQuotaMessage(reset: string | null | undefined): string {
+  if (!reset) {
+    return "eBay Browse API limit reached. Try again after the eBay daily reset, or use the eBay link for this search.";
+  }
+
+  const resetDate = new Date(reset);
+  if (Number.isNaN(resetDate.getTime())) {
+    return "eBay Browse API limit reached. Try again after the eBay daily reset, or use the eBay link for this search.";
+  }
+
+  return `eBay Browse API limit reached. Daily reset: ${resetDate.toLocaleString("nl-NL", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Amsterdam",
+  })}. Use the eBay link for this search until then.`;
+}
+
+function rememberEbayBrowseQuotaBackoff(reset: string | null | undefined): string {
+  const resetTime = reset ? Date.parse(reset) : Number.NaN;
+  const expiresAt =
+    Number.isFinite(resetTime) && resetTime > Date.now()
+      ? resetTime
+      : Date.now() + EBAY_BROWSE_QUOTA_BACKOFF_FALLBACK_MS;
+  const message = buildEbayBrowseQuotaMessage(reset);
+  browseQuotaBackoff = { expiresAt, message };
+  return message;
+}
+
+function getEbayBrowseQuotaBackoffMessage(): string | null {
+  if (!browseQuotaBackoff) return null;
+  if (browseQuotaBackoff.expiresAt <= Date.now()) {
+    browseQuotaBackoff = null;
+    return null;
+  }
+
+  return browseQuotaBackoff.message;
+}
+
+async function assertEbayBrowseQuotaAvailable(config: EbayRuntimeConfig): Promise<void> {
+  const backoffMessage = getEbayBrowseQuotaBackoffMessage();
+  if (backoffMessage) {
+    throw new Error(backoffMessage);
+  }
+
+  try {
+    const status = await getEbayBrowseRateLimitStatus(config);
+    const remaining = status.summary?.remaining;
+    if (remaining != null && remaining <= 0) {
+      throw new Error(rememberEbayBrowseQuotaBackoff(status.summary?.reset));
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/eBay Browse API limit reached/i.test(message)) {
+      throw error;
+    }
+
+    console.warn("eBay rate limit preflight failed", error);
+  }
+}
+
 export async function getEbayBrowseRateLimitStatus(
   config = getEbayRuntimeConfig()
 ): Promise<EbayRateLimitStatus> {
@@ -1450,6 +1514,8 @@ export async function searchEbayDeals(input: {
     return cachedResult;
   }
 
+  await assertEbayBrowseQuotaAvailable(config);
+
   const token = await getEbayApplicationToken(config);
   const baseUrl = new URL(`${getEbayApiBaseUrl(config.environment)}/buy/browse/v1/item_summary/search`);
   baseUrl.searchParams.set("q", query);
@@ -1489,9 +1555,7 @@ export async function searchEbayDeals(input: {
         data.errors?.[0]?.message ??
         `eBay search failed with ${response.status}`;
       if (/limit|rate/i.test(message) || response.status === 429) {
-        throw new Error(
-          "eBay API limit reached. Try again after the eBay daily reset, or use the eBay link for this search."
-        );
+        throw new Error(rememberEbayBrowseQuotaBackoff(null));
       }
       throw new Error(message);
     }
@@ -1557,6 +1621,7 @@ export function isSupportedDealCurrency(currency: string): currency is CurrencyC
 
 export function __resetEbayTokenCacheForTests() {
   tokenCache = null;
+  browseQuotaBackoff = null;
   searchCache.clear();
   rateLimitCache.clear();
 }

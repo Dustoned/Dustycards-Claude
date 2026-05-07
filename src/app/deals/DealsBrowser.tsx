@@ -773,6 +773,8 @@ export default function DealsBrowser() {
   const hasSearch = Boolean(paramQuery.trim() || cardId);
 
   const requestPath = useMemo(() => {
+    if (!hasSearch) return null;
+
     const params = new URLSearchParams();
     if (paramQuery.trim()) params.set("q", paramQuery.trim());
     if (cardId) params.set("cardId", cardId);
@@ -780,9 +782,21 @@ export default function DealsBrowser() {
     if (paramBuying !== "fixed") params.set("buying", paramBuying);
     if (refreshNonce > 0) params.set("_r", String(refreshNonce));
     return `/api/ebay/deals?${params.toString()}`;
-  }, [cardId, paramBuying, paramMode, paramQuery, refreshNonce]);
+  }, [cardId, hasSearch, paramBuying, paramMode, paramQuery, refreshNonce]);
 
   useEffect(() => {
+    if (!requestPath) {
+      abortRef.current?.abort();
+      const resetTimer = window.setTimeout(() => {
+        setData(DEFAULT_RESPONSE);
+        setError(null);
+        setLoading(false);
+        setHasLoadedConfig(false);
+      }, 0);
+
+      return () => window.clearTimeout(resetTimer);
+    }
+
     const controller = new AbortController();
     abortRef.current?.abort();
     abortRef.current = controller;
