@@ -39,7 +39,7 @@ function writeLastTriggerAt(value: number) {
 }
 
 export default function AutoPriceRefreshBoot() {
-  const { settings, isLoaded } = useSettings();
+  const { currentUserRole, isLoaded } = useSettings();
   const router = useRouter();
   const inFlightRef = useRef(false);
   const lastRouterRefreshAtRef = useRef(0);
@@ -48,7 +48,7 @@ export default function AutoPriceRefreshBoot() {
   const tabOwnerIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded || !settings.autoPriceRefresh) {
+    if (!isLoaded || currentUserRole !== "admin") {
       return;
     }
 
@@ -201,7 +201,7 @@ export default function AutoPriceRefreshBoot() {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isLoaded, router, settings.autoPriceRefresh]);
+  }, [currentUserRole, isLoaded, router]);
 
   return null;
 }

@@ -100,10 +100,7 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       ["small", "medium", "large"],
       DEFAULT_SETTINGS.mobileUiScale
     ),
-    autoPriceRefresh:
-      typeof source.autoPriceRefresh === "boolean"
-        ? source.autoPriceRefresh
-        : DEFAULT_SETTINGS.autoPriceRefresh,
+    autoPriceRefresh: true,
     binderWatchMinPrice: pickNonNegativeNumber(
       source.binderWatchMinPrice,
       DEFAULT_SETTINGS.binderWatchMinPrice

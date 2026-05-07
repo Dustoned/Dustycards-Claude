@@ -9,13 +9,14 @@ const IDLE_SYNC_REFRESH_MS = 15_000;
 
 export default function SyncStatusAutoRefresh({ enabled }: { enabled: boolean }) {
   const router = useRouter();
-  const { settings, isLoaded } = useSettings();
+  const { currentUserRole, settings, isLoaded } = useSettings();
   const inFlightRef = useRef(false);
   const releaseTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const watchBackgroundRefresh = isLoaded && settings.autoPriceRefresh;
+    const watchBackgroundRefresh =
+      isLoaded && currentUserRole === "admin" && settings.autoPriceRefresh;
     const refreshIntervalMs =
       enabled || watchBackgroundRefresh ? ACTIVE_SYNC_REFRESH_MS : IDLE_SYNC_REFRESH_MS;
 
@@ -64,7 +65,7 @@ export default function SyncStatusAutoRefresh({ enabled }: { enabled: boolean })
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", visibilityHandler);
     };
-  }, [enabled, isLoaded, router, settings.autoPriceRefresh]);
+  }, [currentUserRole, enabled, isLoaded, router, settings.autoPriceRefresh]);
 
   return null;
 }

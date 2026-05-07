@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BadgeDollarSign, Package, RefreshCw } from "lucide-react";
-import { useSettings } from "@/components/SettingsProvider";
 import SyncButton from "../expansions/SyncButton";
 
 function SyncSealedButton({
@@ -333,7 +332,6 @@ export default function AutomationSection({
   scraperDisabled,
   scraperDisabledLabel,
 }: AutomationSectionProps) {
-  const { settings, set } = useSettings();
   const scraperDisabledReason = `Scraper requests are disabled by ${scraperDisabledLabel}.`;
 
   return (
@@ -351,24 +349,23 @@ export default function AutomationSection({
             Background price refresh
           </p>
           <p className="mt-0.5 text-xs text-gray-400">
-            Checks roughly every minute without blocking the first page load.
+            Always on for live pricing.
           </p>
         </div>
-        <button
-          onClick={() => set("autoPriceRefresh", !settings.autoPriceRefresh)}
-          type="button"
-          className={`relative inline-flex h-6 w-11 shrink-0 items-center overflow-hidden rounded-full transition-colors ${
-            settings.autoPriceRefresh ? "bg-gray-900 dark:bg-white" : "bg-black/10 dark:bg-white/10"
-          }`}
-        >
-          <span
-            className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
-              settings.autoPriceRefresh
-                ? "translate-x-6 bg-white dark:bg-gray-900"
-                : "translate-x-1 bg-white dark:bg-white/60"
-            }`}
-          />
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">
+            Always on
+          </span>
+          <button
+            disabled
+            aria-pressed="true"
+            title="Background price refresh is always on"
+            type="button"
+            className="relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center overflow-hidden rounded-full bg-gray-900 opacity-90 transition-colors dark:bg-white"
+          >
+            <span className="inline-block h-4 w-4 translate-x-6 transform rounded-full bg-white transition-transform dark:bg-gray-900" />
+          </button>
+        </div>
       </div>
 
       <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
