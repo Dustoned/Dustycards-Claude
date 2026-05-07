@@ -427,8 +427,14 @@ export function CardModalHeroSection({
       wideMobile: false,
     },
   ];
+  const visibleCollectionStats = collectionStats.filter((stat) => stat.show);
   const headerDetailStats = collectionItem
-    ? [...heroDetailStats, ...collectionStats.filter((stat) => stat.show)]
+    ? [
+        ...heroDetailStats.filter((stat) => stat.label !== "Type"),
+        ...visibleCollectionStats.filter((stat) => stat.label !== "Condition"),
+        ...heroDetailStats.filter((stat) => stat.label === "Type"),
+        ...visibleCollectionStats.filter((stat) => stat.label === "Condition"),
+      ]
     : heroDetailStats;
 
   return (
