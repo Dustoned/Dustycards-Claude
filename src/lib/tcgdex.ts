@@ -149,8 +149,8 @@ function buildSetIdAliases(setId: string, localId: string): string[] {
   if (swshHalf) {
     aliases.add(`swsh${swshHalf[1]}pt5`);
     aliases.add(`swsh${swshHalf[1]}5`);
-    aliases.add("swsh45");
-    if (localId.startsWith("sv")) {
+
+    if (setId === "swsh4.5" && localId.startsWith("sv")) {
       aliases.add("swsh45sv");
     }
   }
@@ -187,7 +187,7 @@ function buildSetIdAliases(setId: string, localId: string): string[] {
   return [...aliases];
 }
 
-function buildCardIdAliases(cardId: string): string[] {
+export function buildTcgdexCardIdAliases(cardId: string): string[] {
   const normalizedId = normalizeLookupKey(cardId);
   const hyphenIndex = normalizedId.indexOf("-");
 
@@ -452,7 +452,7 @@ async function loadTcgdexImageLookup(): Promise<TcgdexImageLookup> {
     const imageUrl = buildHighResImageUrl(card.image);
     if (!imageUrl) continue;
 
-    for (const alias of buildCardIdAliases(card.id)) {
+    for (const alias of buildTcgdexCardIdAliases(card.id)) {
       if (!lookup.has(alias)) {
         lookup.set(alias, imageUrl);
       }
@@ -470,7 +470,7 @@ async function loadTcgdexSupertypeLookup(setId: string): Promise<ReadonlyMap<str
     const supertype = categoryToSupertype(card.category);
     if (!supertype) continue;
 
-    for (const alias of buildCardIdAliases(card.id)) {
+    for (const alias of buildTcgdexCardIdAliases(card.id)) {
       if (!lookup.has(alias)) {
         lookup.set(alias, supertype);
       }
