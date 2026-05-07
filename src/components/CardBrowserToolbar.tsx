@@ -79,16 +79,20 @@ function sectionCardClass(): string {
   return "overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20";
 }
 
+function controlsStripClass(): string {
+  return "rounded-2xl border border-black/8 bg-black/[0.018] p-2 dark:border-white/8 dark:bg-white/[0.025]";
+}
+
 function sectionLabelClass(): string {
-  return "text-[length:var(--ui-chip-count-font-size)] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35";
+  return "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35";
 }
 
 function compactSegmentedShellClass(): string {
-  return "inline-flex overflow-hidden rounded-[var(--ui-segment-radius)] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.03]";
+  return "inline-flex min-w-0 overflow-hidden rounded-xl border border-black/8 bg-white/58 dark:border-white/8 dark:bg-white/[0.04]";
 }
 
 function segmentedButtonClass(active: boolean): string {
-  return `px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
+  return `min-h-8 px-3 py-1.5 text-xs font-semibold leading-none transition-colors sm:px-3.5 ${
     active
       ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
       : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
@@ -209,9 +213,9 @@ export default function CardBrowserToolbar({
         </div>
       </div>
 
-      <section className={sectionCardClass()}>
-        <div className="grid gap-2 sm:flex sm:flex-wrap sm:gap-x-5 sm:gap-y-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <section className={controlsStripClass()}>
+        <div className="grid gap-2 md:flex md:flex-wrap md:items-center md:gap-x-4 md:gap-y-2">
+          <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
             <p className={sectionLabelClass()}>View</p>
             <div className={compactSegmentedShellClass()}>
               {viewOptions.map((option) => (
@@ -230,9 +234,9 @@ export default function CardBrowserToolbar({
 
           {sortOptions.length > 0 && (
             <>
-              <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
+              <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 lg:block" />
 
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
                 <p className={sectionLabelClass()}>Sort</p>
                 <div className={compactSegmentedShellClass()}>
                   {sortOptions.map((option) => (
@@ -253,9 +257,9 @@ export default function CardBrowserToolbar({
 
           {sizeOptions.length > 0 && (
             <>
-              <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 md:block" />
+              <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 lg:block" />
 
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
                 <p className={sectionLabelClass()}>Size</p>
                 <div className={compactSegmentedShellClass()}>
                   {sizeOptions.map((option) => (

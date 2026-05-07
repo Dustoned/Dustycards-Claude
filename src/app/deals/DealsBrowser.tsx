@@ -11,8 +11,6 @@ import {
   ExternalLink,
   RotateCcw,
   Search,
-  SlidersHorizontal,
-  Tag,
   TrendingDown,
 } from "lucide-react";
 import type { ModalCardData } from "@/components/CardModal";
@@ -365,12 +363,6 @@ function buildDealsHref(input: {
   if (input.sort !== "deal") params.set("sort", input.sort);
   const query = params.toString();
   return query ? `${input.pathname}?${query}` : input.pathname;
-}
-
-function getBuyingLabel(mode: BuyingMode): string {
-  if (mode === "auction") return "Auctions";
-  if (mode === "all") return "All";
-  return "Buy It Now";
 }
 
 function compareDealListings(a: DealListing, b: DealListing, sort: DealSort): number {
@@ -1077,22 +1069,11 @@ export default function DealsBrowser() {
               <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
                 eBay Deals
               </h1>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-black/[0.035] px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/72">
-                  <Tag className="h-3.5 w-3.5" />
-                  {referenceLabel}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-black/[0.035] px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/72">
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  {visibleData.marketplaceId} / English checked / {visibleData.mode === "raw" ? "Raw only" : "Graded only"} / {getBuyingLabel(visibleData.buyingMode)}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-black/[0.035] px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/72">
-                  Condition:{" "}
-                  {CONDITION_OPTIONS.find((option) => option.value === conditionFilter)?.label ??
-                    "All conditions"}{" "}
-                  / {SORT_OPTIONS.find((option) => option.value === sort)?.label ?? "Best deal"}
-                </span>
-              </div>
+              {referenceLabel !== "No DustyCards price" && (
+                <p className="mt-2 text-sm font-semibold text-gray-500 dark:text-white/45">
+                  Reference: {referenceLabel}
+                </p>
+              )}
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -1149,71 +1130,95 @@ export default function DealsBrowser() {
 
         <form
           onSubmit={submitSearch}
-          className="grid gap-2 rounded-2xl border border-black/8 bg-white/72 p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto]"
+          className="rounded-2xl border border-black/8 bg-white/72 p-2.5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]"
         >
-          <label className="flex min-h-[46px] min-w-0 items-center gap-2 rounded-xl border border-black/8 bg-black/[0.025] px-3 dark:border-white/8 dark:bg-black/20">
-            <Search className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/35" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={visibleData.query || "Pokemon card"}
-              className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-gray-950 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
+          <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+            <label className="flex min-h-[46px] min-w-0 items-center gap-2 rounded-xl border border-black/8 bg-black/[0.025] px-3 dark:border-white/8 dark:bg-black/20">
+              <Search className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/35" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={visibleData.query || "Pokemon card"}
+                className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-gray-950 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
 
-          <select
-            value={mode}
-            onChange={(event) => setMode(event.target.value as DealMode)}
-            className="min-h-[46px] rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
-          >
-            <option value="raw">Raw</option>
-            <option value="graded">Graded</option>
-          </select>
+            <button
+              type="submit"
+              className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-gray-950 px-5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-white/86"
+            >
+              Search
+            </button>
+          </div>
 
-          <select
-            value={buying}
-            onChange={(event) => setBuying(event.target.value as BuyingMode)}
-            className="min-h-[46px] rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
-          >
-            <option value="fixed">Buy It Now</option>
-            <option value="auction">Auctions</option>
-            <option value="all">All</option>
-          </select>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <label className="min-w-0">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                Type
+              </span>
+              <select
+                value={mode}
+                onChange={(event) => setMode(event.target.value as DealMode)}
+                className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
+              >
+                <option value="raw">Raw</option>
+                <option value="graded">Graded</option>
+              </select>
+            </label>
 
-          <select
-            value={conditionFilter}
-            onChange={(event) => setConditionFilter(event.target.value as ConditionFilter)}
-            className="min-h-[46px] rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
-            title="Filter offers by detected card condition"
-          >
-            {CONDITION_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <label className="min-w-0">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                Buying
+              </span>
+              <select
+                value={buying}
+                onChange={(event) => setBuying(event.target.value as BuyingMode)}
+                className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
+              >
+                <option value="fixed">Buy It Now</option>
+                <option value="auction">Auctions</option>
+                <option value="all">All</option>
+              </select>
+            </label>
 
-          <select
-            value={sort}
-            onChange={(event) => setSort(event.target.value as DealSort)}
-            className="min-h-[46px] rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
-            title="Sort offers"
-          >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <label className="min-w-0">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                Condition
+              </span>
+              <select
+                value={conditionFilter}
+                onChange={(event) => setConditionFilter(event.target.value as ConditionFilter)}
+                className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
+                title="Filter offers by detected card condition"
+              >
+                {CONDITION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          <button
-            type="submit"
-            className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-gray-950 px-5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-white/86"
-          >
-            Search
-          </button>
+            <label className="min-w-0">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                Sort
+              </span>
+              <select
+                value={sort}
+                onChange={(event) => setSort(event.target.value as DealSort)}
+                className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
+                title="Sort offers"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </form>
 
         {(query.trim().length >= 2 || suggestionsLoading) && (
