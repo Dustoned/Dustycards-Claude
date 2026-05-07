@@ -105,6 +105,7 @@ const DEFAULT_CAMERA_DISTANCE = 8.55;
 const MIN_CAMERA_DISTANCE = 4.4;
 const MAX_CAMERA_DISTANCE = 22;
 const CAMERA_TARGET_FOLLOW = 0.16;
+const MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET = 0.14;
 
 interface Card3dSizeConfig {
   resetDistanceScale: number;
@@ -948,9 +949,9 @@ function getFramingOffset(
 
 function getBaseVerticalFramingOffset(viewportWidth: number, viewportHeight: number) {
   if (viewportWidth >= 768) return 0;
-  if (viewportHeight <= 700) return 1.36;
-  if (viewportHeight <= 780) return 1.22;
-  return 1.08;
+  if (viewportHeight <= 700) return 1.36 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
+  if (viewportHeight <= 780) return 1.22 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
+  return 1.08 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
 }
 
 function getVerticalFramingOffset(
