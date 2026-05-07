@@ -87,9 +87,13 @@ function PersonalSettingsSections({ className }: { className: string }) {
   return (
     <div className={className}>
       <ThemeSection />
-      <LayoutSection />
-      <CardDefaultsSection />
-      <MobileDisplaySection />
+      <div className="hidden sm:contents">
+        <LayoutSection />
+        <CardDefaultsSection />
+      </div>
+      <div className="sm:hidden">
+        <MobileDisplaySection />
+      </div>
       <HomePageSection />
       <FiltersSection />
     </div>
