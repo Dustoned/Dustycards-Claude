@@ -1,0 +1,374 @@
+export type EbayCardMatchStatus = "matched" | "review" | "unmatched";
+export type EbayCardMatchOverrideSource = "auto" | "confirmed" | "ignored";
+
+export interface EbayMatchCard {
+  id: string;
+  name: string;
+  card_number: string | null;
+  rarity: string | null;
+  image_url?: string | null;
+  episode: {
+    id: string;
+    name: string;
+    code: string | null;
+  };
+}
+
+export interface EbayCardMatchCandidate {
+  card: EbayMatchCard;
+  confidence: number;
+  reason: string;
+}
+
+export interface EbayCardMatch {
+  status: EbayCardMatchStatus;
+  confidence: number;
+  reason: string;
+  source: EbayCardMatchOverrideSource;
+  card: EbayMatchCard | null;
+  candidates: EbayCardMatchCandidate[];
+  isGradedListing: boolean;
+  gradingCompany: string | null;
+  gradingGrade: string | null;
+}
+
+export interface EbayCardMatchOverride {
+  status: "confirmed" | "ignored";
+  card: EbayMatchCard | null;
+}
+
+interface ListingTextSignals {
+  normalizedTitle: string;
+  tokens: Set<string>;
+  variants: Set<string>;
+  numbers: Set<string>;
+  slashRefs: Array<{ left: string; right: string }>;
+  isAccessoryListing: boolean;
+  isGradedListing: boolean;
+  gradingCompany: string | null;
+  gradingGrade: string | null;
+}
+
+const COMMON_TITLE_TOKENS = new Set([
+  "a",
+  "an",
+  "and",
+  "card",
+  "cards",
+  "full",
+  "art",
+  "gem",
+  "mint",
+  "near",
+  "nm",
+  "pokemon",
+  "s",
+  "tcg",
+  "the",
+]);
+
+const VARIANT_ALIASES = new Map<string, string>([
+  ["ex", "ex"],
+  ["gx", "gx"],
+  ["v", "v"],
+  ["vmax", "vmax"],
+  ["vstar", "vstar"],
+  ["vunion", "vunion"],
+  ["prime", "prime"],
+  ["star", "star"],
+  ["delta", "delta"],
+]);
+
+const GRADING_COMPANIES = ["PSA", "BGS", "CGC", "SGC", "ACE", "TAG", "AIGRADING"];
+const ACCESSORY_TOKENS = new Set([
+  "acrylic",
+  "acryl",
+  "case",
+  "canvas",
+  "custom",
+  "display",
+  "extended",
+  "frame",
+  "gemalde",
+  "gemaelde",
+  "holder",
+  "keychain",
+  "leinwand",
+  "malerei",
+  "mystery",
+  "novelty",
+  "painting",
+  "proxy",
+  "read",
+  "replica",
+  "stand",
+  "unikat",
+]);
+
+export function normalizeEbayMatchText(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[\u2605\u2726\u2727]/gu, " star ")
+    .replace(/[\u03b4\u0394]/gu, " delta ")
+    .replace(/&/g, " and ")
+    .replace(/[^\p{L}\p{N}/#.' -]+/gu, " ")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function tokenizeEbayMatchText(value: string | null | undefined): string[] {
+  const normalized = normalizeEbayMatchText(value);
+  const tokens = normalized.match(/[\p{L}\p{N}]+/gu) ?? [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const token of tokens) {
+    const canonical = VARIANT_ALIASES.get(token) ?? token;
+    if (!canonical || seen.has(canonical)) continue;
+    seen.add(canonical);
+    result.push(canonical);
+  }
+
+  return result;
+}
+
+export function extractUsefulEbayTitleTokens(value: string): string[] {
+  return tokenizeEbayMatchText(value).filter(
+    (token) =>
+      token.length >= 3 &&
+      !COMMON_TITLE_TOKENS.has(token) &&
+      !/^\d+$/.test(token) &&
+      !GRADING_COMPANIES.some((company) => company.toLowerCase() === token)
+  );
+}
+
+function canonicalCardNumber(value: string | null | undefined): string | null {
+  const token = tokenizeEbayMatchText(value ?? "")[0];
+  return token?.replace(/^0+/, "") || token || null;
+}
+
+function extractVariants(value: string): Set<string> {
+  const tokens = tokenizeEbayMatchText(
+    normalizeEbayMatchText(value).replace(/\bex\s*\/\s*nm\b/g, " ")
+  );
+  const variants = new Set<string>();
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === "v" && tokens[index + 1] === "union") {
+      variants.add("vunion");
+      continue;
+    }
+
+    const variant = VARIANT_ALIASES.get(token);
+    if (variant) variants.add(variant);
+  }
+
+  return variants;
+}
+
+function getCardNameTokens(card: EbayMatchCard): string[] {
+  return tokenizeEbayMatchText(card.name).filter(
+    (token) => token.length >= 2 && !COMMON_TITLE_TOKENS.has(token) && !VARIANT_ALIASES.has(token)
+  );
+}
+
+function getListingSignals(title: string, condition: string | null | undefined): ListingTextSignals {
+  const normalizedTitle = normalizeEbayMatchText(title);
+  const tokens = new Set(tokenizeEbayMatchText(title));
+  const slashRefs = [...normalizedTitle.matchAll(/\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/gi)]
+    .map((match) => ({
+      left: match[1].replace(/^0+/, "") || match[1],
+      right: match[2],
+    }));
+  const numbers = new Set<string>();
+  for (const token of tokens) {
+    if (/^\d+[a-z]*$/.test(token)) {
+      numbers.add(token.replace(/^0+/, "") || token);
+    }
+  }
+  for (const ref of slashRefs) {
+    numbers.add(ref.left);
+  }
+
+  const gradeMatch = normalizedTitle.match(
+    /\b(psa|bgs|cgc|sgc|ace|tag|aigrading)\s*(?:gem\s*mint\s*)?(\d+(?:\.\d+)?)\b/i
+  );
+  const conditionText = normalizeEbayMatchText(condition ?? "");
+  const isAccessoryListing = [...tokens].some((token) => ACCESSORY_TOKENS.has(token));
+  const isGradedListing = Boolean(
+    gradeMatch ||
+      /\b(graded|valutata|graad)\b/i.test(conditionText) ||
+      /\b(graded|slab|graad)\b/i.test(normalizedTitle)
+  );
+
+  return {
+    normalizedTitle,
+    tokens,
+    variants: extractVariants(title),
+    numbers,
+    slashRefs,
+    isAccessoryListing,
+    isGradedListing,
+    gradingCompany: gradeMatch?.[1]?.toUpperCase() ?? null,
+    gradingGrade: gradeMatch?.[2] ?? null,
+  };
+}
+
+function hasSetHint(signals: ListingTextSignals, card: EbayMatchCard): boolean {
+  const code = normalizeEbayMatchText(card.episode.code ?? "");
+  if (code && signals.tokens.has(code)) return true;
+
+  const setTokens = tokenizeEbayMatchText(card.episode.name).filter(
+    (token) => token.length >= 4 && !COMMON_TITLE_TOKENS.has(token)
+  );
+  return setTokens.length > 0 && setTokens.every((token) => signals.tokens.has(token));
+}
+
+function scoreCardAgainstListing(
+  signals: ListingTextSignals,
+  card: EbayMatchCard
+): EbayCardMatchCandidate | null {
+  const nameTokens = getCardNameTokens(card);
+  if (nameTokens.length === 0) return null;
+
+  const matchedNameTokens = nameTokens.filter((token) => signals.tokens.has(token));
+  if (matchedNameTokens.length === 0) return null;
+
+  const cardVariants = extractVariants(card.name);
+  const titleVariants = signals.variants;
+  const cardNumber = canonicalCardNumber(card.card_number);
+  const hasNumber = Boolean(cardNumber && signals.numbers.has(cardNumber));
+  const hasPromoLikeSlash = Boolean(
+    cardNumber &&
+      signals.slashRefs.some(
+        (ref) => ref.left === cardNumber && /[a-z]/i.test(ref.right) && !hasSetHint(signals, card)
+      )
+  );
+  const setHint = hasSetHint(signals, card);
+
+  let score = 0;
+  const reasons: string[] = [];
+
+  if (matchedNameTokens.length === nameTokens.length) {
+    score += 44;
+    reasons.push("name");
+  } else {
+    score += Math.floor((matchedNameTokens.length / nameTokens.length) * 24);
+  }
+
+  const missingCardVariant = [...cardVariants].some((variant) => !titleVariants.has(variant));
+  const extraTitleVariant = [...titleVariants].some((variant) => !cardVariants.has(variant));
+  if (!missingCardVariant && !extraTitleVariant) {
+    score += cardVariants.size > 0 ? 24 : 8;
+    if (cardVariants.size > 0) reasons.push("variant");
+  } else {
+    score -= missingCardVariant ? 34 : 0;
+    score -= extraTitleVariant ? 28 : 0;
+    reasons.push("variant mismatch");
+  }
+
+  if (hasNumber) {
+    score += 34;
+    reasons.push("number");
+  }
+
+  if (setHint) {
+    score += 18;
+    reasons.push("set");
+  }
+
+  if (hasPromoLikeSlash) {
+    score -= 42;
+    reasons.push("promo-style number");
+  }
+
+  const confidence = Math.max(0, Math.min(100, score));
+  if (confidence < 25) return null;
+
+  return {
+    card,
+    confidence,
+    reason: reasons.join(", ") || "title",
+  };
+}
+
+function emptyMatch(signals: ListingTextSignals, reason: string): EbayCardMatch {
+  return {
+    status: "unmatched",
+    confidence: 0,
+    reason,
+    source: "auto",
+    card: null,
+    candidates: [],
+    isGradedListing: signals.isGradedListing,
+    gradingCompany: signals.gradingCompany,
+    gradingGrade: signals.gradingGrade,
+  };
+}
+
+export function matchEbayListingToCard(input: {
+  title: string;
+  condition?: string | null;
+  candidates: EbayMatchCard[];
+  requestedMode: "raw" | "graded";
+  override?: EbayCardMatchOverride | null;
+}): EbayCardMatch {
+  const signals = getListingSignals(input.title, input.condition);
+
+  if (input.override?.status === "ignored") {
+    return {
+      ...emptyMatch(signals, "Ignored manually"),
+      source: "ignored",
+    };
+  }
+
+  if (input.override?.status === "confirmed" && input.override.card) {
+    return {
+      status: "matched",
+      confidence: 100,
+      reason: "Confirmed manually",
+      source: "confirmed",
+      card: input.override.card,
+      candidates: [{ card: input.override.card, confidence: 100, reason: "Confirmed manually" }],
+      isGradedListing: signals.isGradedListing,
+      gradingCompany: signals.gradingCompany,
+      gradingGrade: signals.gradingGrade,
+    };
+  }
+
+  const rankedCandidates = input.candidates
+    .map((card) => scoreCardAgainstListing(signals, card))
+    .filter((candidate): candidate is EbayCardMatchCandidate => Boolean(candidate))
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 5);
+  const best = rankedCandidates[0] ?? null;
+  if (!best) return emptyMatch(signals, "No DustyCards card match");
+
+  const second = rankedCandidates[1] ?? null;
+  const ambiguous = Boolean(second && best.confidence - second.confidence < 12);
+  const rawModeGradedListing = input.requestedMode === "raw" && signals.isGradedListing;
+  const accessoryListing = signals.isAccessoryListing;
+  const status: EbayCardMatchStatus =
+    best.confidence >= 82 && !ambiguous && !rawModeGradedListing && !accessoryListing
+      ? "matched"
+      : "review";
+
+  return {
+    status,
+    confidence: best.confidence,
+    reason: rawModeGradedListing
+      ? "Graded-looking listing in raw mode"
+      : accessoryListing
+        ? "Accessory-looking listing"
+        : best.reason,
+    source: "auto",
+    card: best.card,
+    candidates: rankedCandidates,
+    isGradedListing: signals.isGradedListing,
+    gradingCompany: signals.gradingCompany,
+    gradingGrade: signals.gradingGrade,
+  };
+}

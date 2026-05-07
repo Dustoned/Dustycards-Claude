@@ -15,7 +15,7 @@ function isPublicFile(pathname: string): boolean {
   return pathname.startsWith("/_next/") || pathname === "/favicon.ico" || /\.[^/]+$/.test(pathname);
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   if (isPublicFile(pathname) || isPublicPath(pathname)) {
     const headers = new Headers(request.headers);

@@ -46,6 +46,7 @@ model User {
   binders         CollectionBinder[]
   collectionCards CollectionCard[]
   sealedItems     CollectionSealed[]
+  ebayListingCardOverrides EbayListingCardOverride[]
 
   @@index([role])
   @@index([disabled])
@@ -237,6 +238,7 @@ model Card {
   gradedPriceSnapshots CardGradedPriceSnapshot[]
   ebaySoldGradedPrices CardEbaySoldGradedPrice[]
   ebaySoldGradedPriceSnapshots CardEbaySoldGradedPriceSnapshot[]
+  ebayListingOverrides EbayListingCardOverride[]
   prices          Price[]
 
   @@index([episode_id])
@@ -313,6 +315,25 @@ model CardEbaySoldGradedPriceSnapshot {
   @@index([card_id])
   @@index([card_id, source, label, fetched_at])
   @@index([fetched_at])
+}
+
+model EbayListingCardOverride {
+  id              String   @id @default(cuid())
+  user_id         String
+  marketplace_id  String
+  item_id         String
+  card_id         String?
+  status          String
+  title_snapshot  String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  card            Card?    @relation(fields: [card_id], references: [id], onDelete: SetNull)
+
+  @@unique([user_id, marketplace_id, item_id])
+  @@index([card_id])
+  @@index([user_id, status])
 }
 
 model CollectionBinder {

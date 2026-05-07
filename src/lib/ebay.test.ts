@@ -1,0 +1,279 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildEbayCardSearchQuery,
+  buildEbayManualSearchQuery,
+  buildEbayMarketplaceSearchUrl,
+  compareListingToReference,
+  detectEbayListingCardCondition,
+  detectEbayListingLanguage,
+  getEbayListingGradingReason,
+  getEbayListingRejectionReason,
+} from "@/lib/ebay";
+
+describe("ebay deal helpers", () => {
+  it("builds a card search query with set and grading context", () => {
+    expect(
+      buildEbayCardSearchQuery({
+        name: "Latias ex",
+        episodeName: "Surging Sparks",
+        episodeCode: "SV08",
+        cardNumber: "239",
+        gradingCompany: "PSA",
+        gradingGrade: "10",
+        mode: "graded",
+      })
+    ).toBe("PSA 10 Latias ex 239 Surging Sparks SV08 Pokemon");
+    expect(
+      buildEbayCardSearchQuery({
+        name: "Darkrai",
+        cardNumber: "136",
+        mode: "graded",
+      })
+    ).toBe("graded Darkrai 136 Pokemon");
+  });
+
+  it("adds Pokemon context to manual searches", () => {
+    expect(buildEbayManualSearchQuery("Latias ex")).toBe("Latias ex Pokemon");
+    expect(buildEbayManualSearchQuery("Pokemon Latias ex")).toBe("Pokemon Latias ex");
+  });
+
+  it("compares listing totals against the DustyCards reference price", () => {
+    expect(
+      compareListingToReference({
+        totalPriceEur: 75,
+        referencePriceEur: 100,
+      })
+    ).toMatchObject({
+      differenceEur: 25,
+      discountPercent: 25,
+      dealTone: "great",
+    });
+  });
+
+  it("creates a marketplace search URL for the configured eBay site", () => {
+    expect(buildEbayMarketplaceSearchUrl("Latias ex", "EBAY_NL")).toBe(
+      "https://www.ebay.nl/sch/i.html?_nkw=Latias+ex&_sacat=183454"
+    );
+  });
+
+  it("keeps normal English card listings", () => {
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex 161/131 Prismatic Evolutions Pokemon Card",
+        condition: "Ungraded",
+      })
+    ).toBeNull();
+  });
+
+  it("labels explicit English and leaves unknown language unconfirmed", () => {
+    expect(
+      detectEbayListingLanguage({
+        title: "Umbreon ex 161/131 ENG Pokemon Card",
+      })
+    ).toMatchObject({
+      code: "ENG",
+      label: "ENG",
+      confidence: "explicit",
+    });
+    expect(
+      detectEbayListingLanguage({
+        title: "Umbreon ex 161/131 Prismatic Evolutions Pokemon Card",
+      })
+    ).toMatchObject({
+      code: "UNKNOWN",
+      label: "Check ENG",
+      confidence: "unconfirmed",
+    });
+    expect(
+      detectEbayListingLanguage({
+        title: "Umbreon ex 161/131 English, not Japanese",
+      })
+    ).toMatchObject({
+      code: "ENG",
+      label: "ENG",
+      confidence: "explicit",
+    });
+  });
+
+  it("filters non-English eBay card listings", () => {
+    expect(
+      detectEbayListingLanguage({
+        title: "Umbreon ex 161/131 Japanese Pokemon Card",
+      })
+    ).toMatchObject({
+      code: "JPN",
+      label: "JPN",
+    });
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex 161/131 Japanese Pokemon Card",
+      })
+    ).toBe("non-English card language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "포켓몬 Umbreon ex 161/131 Korean Pokemon Card",
+      })
+    ).toBe("non-English card language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex 161/131 Chinese Pokemon Card",
+      })
+    ).toBe("non-English card language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Carte Pokémon Darkrai 136/197 Holo",
+      })
+    ).toBe("non-English card language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Darkrai ex Pokemon Japan Start Deck 100 Battle Collection",
+      })
+    ).toBe("non-English card language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon Darkrai 046/DP-P 10th Movie PROMO Holo PSA 9 MINT",
+      })
+    ).toBe("non-English card language");
+    expect(
+      detectEbayListingLanguage({
+        title: "Umbreon ex 161/131 FR Pokemon Card",
+      })
+    ).toMatchObject({
+      code: "OTHER",
+      label: "FR",
+    });
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex 161/131 FR Pokemon Card",
+      })
+    ).toBe("non-English card language");
+    expect(
+      detectEbayListingLanguage({
+        title: "Umbreon ex 161/131 ES Pokemon Card",
+      })
+    ).toMatchObject({
+      code: "OTHER",
+      label: "ES",
+    });
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex 161/131 ES Pokemon Card",
+      })
+    ).toBe("non-English card language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex 161/131 DE ITA Pokemon Card",
+      })
+    ).toBe("non-English card language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex 161/131 ENG not FR Pokemon Card",
+      })
+    ).toBeNull();
+  });
+
+  it("filters digital, Pocket, mystery, and custom listings", () => {
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon TCG Pocket Umbreon ex digital card",
+      })
+    ).toBe("Pokemon TCG Pocket listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex Pokemon TCG Live code card",
+      })
+    ).toBe("digital/code listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon Mystery Box Umbreon Chase Card",
+      })
+    ).toBe("mystery/custom listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon EX 161/131 Prismatic Evolutions Pokemon Card TCG Novelty Keychain",
+      })
+    ).toBe("accessory/pack listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "POKEMON TCG EXTENDED ART ACRYLIC CASE CARD UMBREON EX 161 PRE ANIME FRAME",
+      })
+    ).toBe("accessory/pack listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "1-150 chance to get Umbreon ex 161 of 131 Prismatic Evolutions Pack",
+      })
+    ).toBe("accessory/pack listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon - Darkrai Pokeball With TCG Display Stand PSA ACE BECKETT",
+      })
+    ).toBe("accessory/pack listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "POKEMON MINI SLAB KEYCHAINS PSA 10",
+      })
+    ).toBe("accessory/pack listing");
+  });
+
+  it("detects graded listings that should stay out of raw mode", () => {
+    expect(
+      getEbayListingGradingReason({
+        title: "Umbreon ex PSA 10 GEM MINT 161/131 Pokemon Card ENG",
+      })
+    ).toBeTruthy();
+    expect(
+      getEbayListingGradingReason({
+        title: "Umbreon ex GEM 💎 MINT 161/131 Pokemon Card ENG",
+      })
+    ).toBe("Title mentions GEM MINT");
+    expect(
+      getEbayListingGradingReason({
+        title: "Umbreon ex 161/131 Pokemon Card ENG",
+        aspects: [{ name: "Graded", value: "Yes" }],
+      })
+    ).toBe("eBay aspect says graded");
+    expect(
+      getEbayListingGradingReason({
+        title: "Umbreon ex 161/131 Near Mint Pokemon Card ENG",
+      })
+    ).toBeNull();
+  });
+
+  it("detects raw card condition markers from eBay titles", () => {
+    expect(
+      detectEbayListingCardCondition({
+        title: "Darkrai EX 107/108 Dark Explorers Full Art Pokemon NM",
+        condition: "Ungraded",
+      })
+    ).toMatchObject({
+      code: "near_mint",
+      label: "NM",
+      confidence: "explicit",
+    });
+    expect(
+      detectEbayListingCardCondition({
+        title: "Darkrai 4/106 Holo Great Encounters VLP/NM",
+      })
+    ).toMatchObject({
+      code: "light_play",
+      label: "LP",
+    });
+    expect(
+      detectEbayListingCardCondition({
+        title: "Umbreon ex 161/131 damaged Pokemon Card",
+      })
+    ).toMatchObject({
+      code: "damaged",
+      label: "DMG",
+    });
+    expect(
+      detectEbayListingCardCondition({
+        title: "Umbreon ex 161/131 Pokemon Card",
+        condition: "Ungraded",
+      })
+    ).toMatchObject({
+      code: "unknown",
+      label: "Cond. unknown",
+    });
+  });
+});

@@ -44,6 +44,7 @@ const REQUIRED_RUNTIME_FIELDS = {
   CardGradedPriceSnapshot: ["price", "fetched_at"],
   CardEbaySoldGradedPrice: ["source", "currency", "sample_size"],
   CardEbaySoldGradedPriceSnapshot: ["source", "currency", "sample_size"],
+  EbayListingCardOverride: ["user_id", "marketplace_id", "item_id", "card_id", "status"],
   SetPullRateProfile: ["set_code", "imported_at"],
   SetPullRateRarity: ["normalized_rarity", "specific_pull_denominator"],
   SealedPriceSnapshot: ["cm_avg_7d", "cm_avg_30d"],

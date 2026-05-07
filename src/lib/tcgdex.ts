@@ -445,9 +445,7 @@ async function fetchTcgdexSetCards(setId: string): Promise<TcgdexCardResponse[]>
 }
 
 async function loadTcgdexImageLookup(): Promise<TcgdexImageLookup> {
-  const cards = await tcgdexFetch<TcgdexCardBrief[]>(TCGDEX_CARDS_ENDPOINT, {
-    revalidateSeconds: IMAGE_REVALIDATE_SECONDS,
-  });
+  const cards = await tcgdexFetch<TcgdexCardBrief[]>(TCGDEX_CARDS_ENDPOINT);
   const lookup: TcgdexImageLookup = new Map();
 
   for (const card of cards) {

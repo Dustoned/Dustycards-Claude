@@ -1044,6 +1044,14 @@ export function CardModalFooter({
         />
       )}
 
+      <Link
+        href={`/deals?cardId=${encodeURIComponent(card.id)}`}
+        prefetch={false}
+        className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-emerald-500"
+      >
+        eBay Deals
+      </Link>
+
       {storedCardMarketUrl ? (
         <a
           href={storedCardMarketUrl}
