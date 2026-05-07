@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeDollarSign, Package, RefreshCw } from "lucide-react";
+import { Package, RefreshCw } from "lucide-react";
 import SyncButton from "../expansions/SyncButton";
 
 function SyncSealedButton({
@@ -160,12 +160,12 @@ function SyncCardHistoryButton({
   );
 }
 
-function SyncEbaySoldGradedPricesButton({
-  pendingCards,
+function CheckKnownUnavailablePricesButton({
+  knownUnavailableCards,
   scraperDisabled,
   disabledReason,
 }: {
-  pendingCards: number;
+  knownUnavailableCards: number;
   scraperDisabled: boolean;
   disabledReason: string;
 }) {
@@ -173,54 +173,11 @@ function SyncEbaySoldGradedPricesButton({
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!loading) return;
-
-    let cancelled = false;
-
-    async function pollStatus() {
-      try {
-        const res = await fetch("/api/sync-ebay-sold-graded", {
-          method: "GET",
-          cache: "no-store",
-        });
-        const data = await res.json();
-        if (cancelled || !data.ok) return;
-
-        router.refresh();
-
-        if (!data.running) {
-          setLoading(false);
-          setStatus(
-            data.error
-              ? `eBay sold sync stopped: ${data.error}`
-              : data.pendingCards > 0
-                ? `eBay sold sync finished with ${data.pendingCards} cards still without rows.`
-                : "eBay sold graded price import complete."
-          );
-        }
-      } catch {
-        // Keep the local running state; the next poll can recover.
-      }
-    }
-
-    const interval = window.setInterval(() => {
-      void pollStatus();
-    }, 2500);
-
-    void pollStatus();
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, [loading, router]);
-
   async function handleSync() {
     setLoading(true);
-    setStatus("Starting server-side eBay sold graded price sync...");
+    setStatus("Checking known unavailable cards for prices...");
     try {
-      const res = await fetch("/api/sync-ebay-sold-graded", { method: "POST" });
+      const res = await fetch("/api/sync-known-unavailable-prices", { method: "POST" });
       const data = await res.json();
 
       if (!data.ok) {
@@ -229,14 +186,18 @@ function SyncEbaySoldGradedPricesButton({
         return;
       }
 
+      const checkedCards = Number(data.checkedCards ?? 0);
+      const pricedCards = Number(data.refreshedCards ?? 0);
+      const remainingUnavailableCards = Number(data.remainingUnavailableCards ?? 0);
       setStatus(
-        data.started
-          ? "eBay sold graded price sync is running server-side."
-          : "eBay sold graded price sync is already running."
+        checkedCards > 0
+          ? `Checked ${checkedCards} cards; ${pricedCards} have prices now; ${remainingUnavailableCards} still known unavailable.`
+          : "No known unavailable cards to check."
       );
       router.refresh();
     } catch {
       setStatus("Network error");
+    } finally {
       setLoading(false);
     }
   }
@@ -245,14 +206,14 @@ function SyncEbaySoldGradedPricesButton({
     <div className="flex w-full flex-col gap-2 sm:w-auto">
       <button
         onClick={handleSync}
-        disabled={loading || pendingCards === 0 || scraperDisabled}
+        disabled={loading || knownUnavailableCards === 0 || scraperDisabled}
         className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08] sm:w-auto"
       >
-        <BadgeDollarSign className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
-        {loading ? "eBay sold sync running..." : "Sync eBay Sold Prices"}
+        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        {loading ? "Checking prices..." : "Check Known Unavailable"}
       </button>
       <p className="max-w-sm text-xs text-gray-400">
-        Runs server-side in chunks and fills missing eBay sold graded rows.
+        Re-checks cards that previously had no source price and clears the unavailable marker when prices return.
       </p>
       {scraperDisabled && (
         <p className="max-w-sm break-words text-xs text-amber-600 dark:text-amber-300">
@@ -294,7 +255,7 @@ interface AutomationSectionProps {
     observedLabel: string | null;
   };
   pendingCardHistoryCards: number;
-  pendingEbaySoldGradedPriceCards: number;
+  knownUnavailableCards: number;
   activeScraperLabel: string | null;
   scraperDisabled: boolean;
   scraperDisabledLabel: string;
@@ -327,7 +288,7 @@ function UsageStat({
 export default function AutomationSection({
   scraperUsage,
   pendingCardHistoryCards,
-  pendingEbaySoldGradedPriceCards,
+  knownUnavailableCards,
   activeScraperLabel,
   scraperDisabled,
   scraperDisabledLabel,
@@ -429,20 +390,20 @@ export default function AutomationSection({
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-white">
-              eBay sold graded price import
+              Known unavailable price check
             </p>
             <p className="mt-0.5 text-xs text-gray-400">
-              Import missing sold-price medians only for cards that already have graded prices.
+              Re-check cards that previously had no TCGGO price to see whether prices are available now.
             </p>
             <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-              Eligible graded cards to check:{" "}
+              Known unavailable cards:{" "}
               <span className="font-semibold text-gray-900 dark:text-white">
-                {pendingEbaySoldGradedPriceCards}
+                {knownUnavailableCards}
               </span>
             </p>
           </div>
-          <SyncEbaySoldGradedPricesButton
-            pendingCards={pendingEbaySoldGradedPriceCards}
+          <CheckKnownUnavailablePricesButton
+            knownUnavailableCards={knownUnavailableCards}
             scraperDisabled={scraperDisabled}
             disabledReason={scraperDisabledReason}
           />

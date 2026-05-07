@@ -5,7 +5,6 @@ import { decodeSyncLogDetailsJson, decodeSyncLogMessage } from "@/lib/sync-log-d
 import { timeAsync } from "@/lib/performance-timing";
 import { areScraperRequestsDisabled, SCRAPER_DISABLED_ENV } from "@/lib/scraper-guard";
 import {
-  countEbaySoldGradedPriceCandidates,
   countManualCardHistoryCandidates,
   getAutoPriceRefreshSnapshot,
   reconcileStaleSyncLogs,
@@ -44,6 +43,7 @@ function parseSyncType(type: string): {
     | "sealed"
     | "history"
     | "ebay-sold-graded"
+    | "known-unavailable"
     | "other";
   episodeId: string | null;
   cardId: string | null;
@@ -66,6 +66,10 @@ function parseSyncType(type: string): {
 
   if (type === "ebay-sold-graded-prices") {
     return { kind: "ebay-sold-graded", episodeId: null, cardId: null };
+  }
+
+  if (type === "known-unavailable-prices") {
+    return { kind: "known-unavailable", episodeId: null, cardId: null };
   }
 
   if (type.startsWith("episode:")) {
@@ -130,7 +134,6 @@ export default async function SettingsPage() {
     autoRefreshSnapshot,
     tcggoUsageSnapshot,
     pendingCardHistoryCards,
-    pendingEbaySoldGradedPriceCards,
     pullRateSetCount,
     pullRateRarityRowCount,
     latestPullRateProfile,
@@ -193,7 +196,6 @@ export default async function SettingsPage() {
     getAutoPriceRefreshSnapshot(),
     getTcggoUsageSnapshot(),
     countManualCardHistoryCandidates(),
-    countEbaySoldGradedPriceCandidates(),
     db.setPullRateProfile.count({
       where: { rarity_buckets: { gt: 0 } },
     }),
@@ -280,6 +282,8 @@ export default async function SettingsPage() {
       label = "Card History Sync";
     } else if (parsedType.kind === "ebay-sold-graded") {
       label = "eBay Sold Graded Price Sync";
+    } else if (parsedType.kind === "known-unavailable") {
+      label = "Known Unavailable Price Check";
     } else if (parsedType.kind === "card") {
       label = parsedType.cardId
         ? `Card Refresh: ${cardNameById[parsedType.cardId] ?? parsedType.cardId}`
@@ -391,7 +395,7 @@ export default async function SettingsPage() {
               observedLabel: formatDateTime(tcggoUsageSnapshot.observedAt),
             }}
             pendingCardHistoryCards={pendingCardHistoryCards}
-            pendingEbaySoldGradedPriceCards={pendingEbaySoldGradedPriceCards}
+            knownUnavailableCards={autoRefreshSnapshot.unavailableCooldownCards}
             activeScraperLabel={activeScraperLabel}
             scraperDisabled={scraperDisabled}
             scraperDisabledLabel={SCRAPER_DISABLED_ENV}

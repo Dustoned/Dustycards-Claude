@@ -84,11 +84,15 @@ const SYNC_CANCELLED_MESSAGE = "Cancelled by user after the current batch finish
 const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
 const CARD_HISTORY_SYNC_TYPE = "card-history";
 const EBAY_SOLD_GRADED_PRICE_SYNC_TYPE = "ebay-sold-graded-prices";
+const KNOWN_UNAVAILABLE_PRICE_CHECK_TYPE = "known-unavailable-prices";
 const AUTO_PRICE_REFRESH_MAX_EPISODES = 12;
 const AUTO_PRICE_REFRESH_MAX_CARDS = 1200;
 const AUTO_PRICE_REFRESH_MIN_INTERVAL_MS = 1000 * 60 * 60 * 6;
 const AUTO_PRICE_BACKFILL_MAX_EPISODES = 6;
 const AUTO_PRICE_BACKFILL_MAX_CARDS = 400;
+const KNOWN_UNAVAILABLE_PRICE_CHECK_MAX_EPISODES = 8;
+const KNOWN_UNAVAILABLE_PRICE_CHECK_MAX_CARDS = 240;
+const KNOWN_UNAVAILABLE_PRICE_CHECK_CONCURRENCY = 2;
 const AUTO_PRICE_PREEMPT_WAIT_TIMEOUT_MS = 1000 * 60 * 5;
 const AUTO_CATALOG_SYNC_MIN_INTERVAL_MS = 1000 * 60 * 60;
 const AUTO_CATALOG_SYNC_MAX_EPISODES = 6;
@@ -146,6 +150,13 @@ interface MissingPriceCandidate {
   id: string;
   episodeId: string;
   hasMarketId: boolean;
+  checkedAt: Date | null;
+  createdAt: Date;
+}
+
+interface KnownUnavailablePriceCandidate {
+  id: string;
+  episodeId: string;
   checkedAt: Date | null;
   createdAt: Date;
 }
@@ -211,6 +222,25 @@ export interface AutoPriceRefreshResult {
   newPrices: number;
   refreshedPrices: number;
   refreshedCards: number;
+  gradedPricesUpdated: number;
+  skipped: boolean;
+  message: string;
+  quotaExceeded: boolean;
+  requestsRemaining: number | null;
+  requestConcurrency: number;
+}
+
+export interface KnownUnavailablePriceCheckResult {
+  totalUnavailableCards: number;
+  plannedCards: number;
+  checkedCards: number;
+  checkedEpisodes: number;
+  remainingUnavailableCards: number;
+  stillUnavailableCards: number;
+  newPrices: number;
+  refreshedPrices: number;
+  refreshedCards: number;
+  updatedCards: number;
   gradedPricesUpdated: number;
   skipped: boolean;
   message: string;
@@ -353,6 +383,19 @@ function withAutoQuotaFields(
   >,
   quotaExceeded = false
 ): AutoPriceRefreshResult {
+  return {
+    ...result,
+    ...getTcggoQuotaResultFields(quotaExceeded),
+  };
+}
+
+function withKnownUnavailableQuotaFields(
+  result: Omit<
+    KnownUnavailablePriceCheckResult,
+    "quotaExceeded" | "requestsRemaining" | "requestConcurrency"
+  >,
+  quotaExceeded = false
+): KnownUnavailablePriceCheckResult {
   return {
     ...result,
     ...getTcggoQuotaResultFields(quotaExceeded),
@@ -827,6 +870,29 @@ function summarizeAutoPriceRefresh(result: AutoPriceRefreshResult): string {
     `${result.remainingDueCards} remaining after this batch`,
     `${result.requestConcurrency} request concurrency`
   );
+
+  if (result.requestsRemaining != null) {
+    summary.push(`${result.requestsRemaining} scraper requests remaining`);
+  }
+
+  return summary.join(" | ");
+}
+
+function summarizeKnownUnavailablePriceCheck(
+  result: KnownUnavailablePriceCheckResult
+): string {
+  const summary = [
+    `Checked ${result.checkedCards} known unavailable cards`,
+    `${result.checkedEpisodes} sets`,
+    `${result.refreshedCards} cards have prices now`,
+    `${result.stillUnavailableCards} still unavailable`,
+    `${result.remainingUnavailableCards} remaining`,
+    `${result.requestConcurrency} request concurrency`,
+  ];
+
+  if (result.quotaExceeded) {
+    summary.unshift(getQuotaPauseMessage());
+  }
 
   if (result.requestsRemaining != null) {
     summary.push(`${result.requestsRemaining} scraper requests remaining`);
@@ -2474,6 +2540,126 @@ async function selectMissingPriceBackfillBatch(options?: {
   };
 }
 
+async function getVisibleKnownUnavailablePriceWhere(): Promise<Prisma.CardWhereInput> {
+  const hiddenEpisodeIds = await getHiddenEpisodeIds();
+  const visibleEpisodeFilter =
+    hiddenEpisodeIds.length > 0 ? { episode_id: { notIn: hiddenEpisodeIds } } : {};
+
+  return {
+    ...visibleEpisodeFilter,
+    tcggo_url: { not: null },
+    price_source_status: "unavailable",
+  };
+}
+
+export async function countKnownUnavailablePriceCandidates(): Promise<number> {
+  return db.card.count({
+    where: await getVisibleKnownUnavailablePriceWhere(),
+  });
+}
+
+async function selectKnownUnavailablePriceCheckBatch(options?: {
+  maxEpisodes?: number;
+  maxCards?: number;
+}): Promise<{
+  totalUnavailableCards: number;
+  plannedCards: number;
+  selectedByEpisode: Map<string, string[]>;
+}> {
+  const maxEpisodes = options?.maxEpisodes ?? KNOWN_UNAVAILABLE_PRICE_CHECK_MAX_EPISODES;
+  const maxCards = options?.maxCards ?? KNOWN_UNAVAILABLE_PRICE_CHECK_MAX_CARDS;
+
+  if (maxEpisodes <= 0 || maxCards <= 0) {
+    return {
+      totalUnavailableCards: 0,
+      plannedCards: 0,
+      selectedByEpisode: new Map(),
+    };
+  }
+
+  const where = await getVisibleKnownUnavailablePriceWhere();
+  const [totalUnavailableCards, cards] = await Promise.all([
+    db.card.count({ where }),
+    db.card.findMany({
+      where,
+      select: {
+        id: true,
+        episode_id: true,
+        price_source_checked_at: true,
+        created_at: true,
+      },
+    }),
+  ]);
+
+  if (totalUnavailableCards === 0) {
+    return {
+      totalUnavailableCards,
+      plannedCards: 0,
+      selectedByEpisode: new Map(),
+    };
+  }
+
+  const candidates: KnownUnavailablePriceCandidate[] = cards.map((card) => ({
+    id: card.id,
+    episodeId: card.episode_id,
+    checkedAt: card.price_source_checked_at,
+    createdAt: card.created_at,
+  }));
+
+  const byEpisode = new Map<string, KnownUnavailablePriceCandidate[]>();
+  for (const candidate of candidates) {
+    const existing = byEpisode.get(candidate.episodeId);
+    if (existing) {
+      existing.push(candidate);
+    } else {
+      byEpisode.set(candidate.episodeId, [candidate]);
+    }
+  }
+
+  const rankedEpisodes = [...byEpisode.entries()]
+    .map(([episodeId, episodeCards]) => {
+      const rankedCards = [...episodeCards].sort((a, b) => {
+        const checkedDiff =
+          (a.checkedAt?.getTime() ?? 0) - (b.checkedAt?.getTime() ?? 0);
+        if (checkedDiff !== 0) return checkedDiff;
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
+
+      return {
+        episodeId,
+        cards: rankedCards,
+        oldestCheckedAt: rankedCards[0]?.checkedAt?.getTime() ?? 0,
+      };
+    })
+    .sort((a, b) => {
+      const oldestDiff = a.oldestCheckedAt - b.oldestCheckedAt;
+      if (oldestDiff !== 0) return oldestDiff;
+      return b.cards.length - a.cards.length;
+    });
+
+  const selectedByEpisode = new Map<string, string[]>();
+  let plannedCards = 0;
+
+  for (const episode of rankedEpisodes) {
+    if (selectedByEpisode.size >= maxEpisodes || plannedCards >= maxCards) {
+      break;
+    }
+
+    const remainingSlots = maxCards - plannedCards;
+    const pickedCards = episode.cards.slice(0, remainingSlots).map((card) => card.id);
+    if (pickedCards.length === 0) continue;
+
+    selectedByEpisode.set(episode.episodeId, pickedCards);
+    plannedCards += pickedCards.length;
+  }
+
+  return {
+    totalUnavailableCards,
+    plannedCards,
+    selectedByEpisode,
+  };
+}
+
 export async function getAutoPriceRefreshSnapshot(): Promise<{
   dueCards: number;
   missingPriceCards: number;
@@ -3822,6 +4008,132 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           true
         );
       },
+    }
+  );
+}
+
+export async function runKnownUnavailablePriceCheck(): Promise<KnownUnavailablePriceCheckResult> {
+  return runLoggedSync(
+    KNOWN_UNAVAILABLE_PRICE_CHECK_TYPE,
+    "Checking known unavailable cards for prices",
+    summarizeKnownUnavailablePriceCheck,
+    async (progress) => {
+      await progress.throwIfCancelled();
+
+      const batch = await selectKnownUnavailablePriceCheckBatch();
+
+      if (batch.plannedCards === 0) {
+        return withKnownUnavailableQuotaFields({
+          totalUnavailableCards: batch.totalUnavailableCards,
+          plannedCards: 0,
+          checkedCards: 0,
+          checkedEpisodes: 0,
+          remainingUnavailableCards: batch.totalUnavailableCards,
+          stillUnavailableCards: 0,
+          newPrices: 0,
+          refreshedPrices: 0,
+          refreshedCards: 0,
+          updatedCards: 0,
+          gradedPricesUpdated: 0,
+          skipped: true,
+          message: "No known unavailable cards are waiting for a manual price check.",
+        });
+      }
+
+      const fetchedAt = new Date();
+      const episodeEntries = [...batch.selectedByEpisode.entries()];
+      const episodeRecords = await db.episode.findMany({
+        where: { id: { in: episodeEntries.map(([episodeId]) => episodeId) } },
+        select: { id: true, name: true },
+      });
+      const episodeNameById = Object.fromEntries(
+        episodeRecords.map((episode) => [episode.id, episode.name])
+      );
+      const batchSummary = `Checking ${batch.plannedCards} known unavailable cards across ${episodeEntries.length} sets`;
+
+      let quotaExceeded = false;
+      let completedEpisodes = 0;
+      await progress.updateMessage(batchSummary);
+
+      const priceResults = await mapWithConcurrency(
+        episodeEntries,
+        KNOWN_UNAVAILABLE_PRICE_CHECK_CONCURRENCY,
+        async ([episodeId, cardIds], episodeIndex) => {
+          if (quotaExceeded) return null;
+
+          await progress.throwIfCancelled();
+
+          const episodeName = episodeNameById[episodeId] ?? `Set ${episodeId}`;
+          await progress.updateMessage(
+            `${batchSummary} | Refreshing ${episodeName} (${episodeIndex + 1}/${episodeEntries.length})`
+          );
+
+          try {
+            const result = await refreshEpisodeDueCards(
+              episodeId,
+              cardIds,
+              fetchedAt,
+              progress.throwIfCancelled
+            );
+
+            completedEpisodes += 1;
+            await progress.updateMessage(
+              `${batchSummary} | Completed ${completedEpisodes}/${episodeEntries.length} sets`
+            );
+
+            return result;
+          } catch (error) {
+            if (isTcggoQuotaExceededError(error)) {
+              quotaExceeded = true;
+              return null;
+            }
+
+            throw error;
+          }
+        }
+      );
+
+      let checkedCards = 0;
+      let updatedCards = 0;
+      let newPrices = 0;
+      let refreshedPrices = 0;
+      let refreshedCards = 0;
+      let gradedPricesUpdated = 0;
+
+      for (const result of priceResults) {
+        if (!result) continue;
+
+        checkedCards += result.selectedCards;
+        updatedCards += result.updatedCards;
+        newPrices += result.newPrices;
+        refreshedPrices += result.refreshedPrices;
+        refreshedCards += result.refreshedCards;
+        gradedPricesUpdated += result.gradedPricesUpdated;
+      }
+
+      const remainingUnavailableCards = await countKnownUnavailablePriceCandidates();
+      const stillUnavailableCards = Math.max(checkedCards - refreshedCards, 0);
+
+      return withKnownUnavailableQuotaFields({
+        totalUnavailableCards: batch.totalUnavailableCards,
+        plannedCards: batch.plannedCards,
+        checkedCards,
+        checkedEpisodes: completedEpisodes,
+        remainingUnavailableCards,
+        stillUnavailableCards,
+        newPrices,
+        refreshedPrices,
+        refreshedCards,
+        updatedCards,
+        gradedPricesUpdated,
+        skipped: checkedCards === 0,
+        message: quotaExceeded
+          ? `Paused after checking ${checkedCards} cards because scraper requests are exhausted.`
+          : `Checked ${checkedCards} known unavailable cards; ${refreshedCards} now have prices.`,
+      }, quotaExceeded);
+    },
+    {
+      interruptAutoPriceRefresh: true,
     }
   );
 }
