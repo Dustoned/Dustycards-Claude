@@ -18,6 +18,7 @@ const FUZZY_CARD_RESULT_LIMIT = Math.min(MAX_RESULTS, 36);
 const FUZZY_NUMBER_CARD_CANDIDATE_LIMIT = 900;
 const DIRECT_CARD_CANDIDATE_LIMIT = 400;
 const DIRECT_SEALED_CANDIDATE_LIMIT = 200;
+const FUZZY_EXPANSION_MULTI_TOKEN_MIN_SCORE = 60;
 
 interface ParsedQuery {
   name: string | null;
@@ -601,6 +602,10 @@ function compareSingleSearchPriceDesc(
   return comparePriceDesc(a.tcp_market, b.tcp_market);
 }
 
+function getFuzzyExpansionMinScore(rawQuery: string): number {
+  return searchTokens(rawQuery).length > 1 ? FUZZY_EXPANSION_MULTI_TOKEN_MIN_SCORE : 1;
+}
+
 function buildFuzzyTokenFragments(token: string): string[] {
   const normalized = token.trim();
   if (!normalized) return [];
@@ -922,7 +927,7 @@ async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
       episode,
       score: fuzzyRelevanceScore(episode.name, rawQuery),
     }))
-    .filter((entry) => entry.score > 0)
+    .filter((entry) => entry.score >= getFuzzyExpansionMinScore(rawQuery))
     .sort((a, b) => compareRelevance(a.score, b.score))
     .slice(0, 12)
     .map((entry) => entry.episode);

@@ -283,6 +283,34 @@ describe("GET /api/search", () => {
     expect(whereJson).toContain("galarian gallery");
   });
 
+  it("does not return weak partial fuzzy expansion matches for multi-word searches", async () => {
+    dbMock.card.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    dbMock.sealedProduct.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    dbMock.episode.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "dragon-vault",
+          name: "Dragon Vault",
+          code: "DRV",
+          logo_url: null,
+        },
+      ]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=shiny%20vault")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(true);
+    expect(body.expansions).toEqual([]);
+  });
+
   it("uses the last path segment from TCGGO URLs", async () => {
     dbMock.card.findMany.mockResolvedValue([
       {
