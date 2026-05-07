@@ -7,6 +7,7 @@ import {
   HIDDEN_EXPANSION_CODES,
   HIDDEN_EXPANSION_IDS,
   HIDDEN_EXPANSION_NAMES,
+  REDUNDANT_SUBSET_PATTERNS,
 } from "@/lib/episodes";
 
 const MAX_RESULTS = 100;
@@ -67,6 +68,19 @@ interface SearchExpansionRecord {
 
 const SET_CODE_RE = /^[a-z]{1,6}\d[\w]*$/i;
 const COMPACT_CARD_REF_RE = /^([a-z]{1,8})(\d[\w/-]*)$/i;
+const PLAIN_SET_CODE_RE = /^[a-z]{2,4}$/i;
+const NON_SET_CODE_TOKENS = new Set([
+  "and",
+  "card",
+  "ex",
+  "gx",
+  "set",
+  "star",
+  "the",
+  "v",
+  "vmax",
+  "vstar",
+]);
 
 function extractSearchableInput(value: string): string {
   const trimmed = value.trim();
@@ -86,6 +100,16 @@ function extractSearchableInput(value: string): string {
 
 function normalizeSlugSeparators(value: string): string {
   return value.trim().replace(/[-_]+/g, " ").replace(/\s+/g, " ");
+}
+
+function isLikelySetCodeToken(value: string): boolean {
+  const token = value.trim();
+  if (!token) return false;
+
+  const normalized = token.toLowerCase();
+  if (NON_SET_CODE_TOKENS.has(normalized)) return false;
+
+  return SET_CODE_RE.test(token) || PLAIN_SET_CODE_RE.test(token);
 }
 
 function parseCompactCardReference(value: string): {
@@ -129,7 +153,25 @@ function parseSearchQuery(raw: string): ParsedQuery {
   }
 
   const tokens = spacedQ.split(/\s+/);
-  const codeIdx = tokens.findIndex((token) => SET_CODE_RE.test(token));
+  const trailingNumber = /^(.+?)\s+(\d+)$/.exec(spacedQ);
+  if (trailingNumber) {
+    const prefixTokens = trailingNumber[1].trim().split(/\s+/).filter(Boolean);
+    const possibleSetCode = prefixTokens[prefixTokens.length - 1];
+
+    if (possibleSetCode && isLikelySetCodeToken(possibleSetCode)) {
+      const name = prefixTokens.slice(0, -1).join(" ");
+      const cardNumber = trailingNumber[2];
+
+      return {
+        name: name || null,
+        cardNumber,
+        setCode: possibleSetCode,
+        rawCardRef: `${possibleSetCode}${cardNumber}`,
+      };
+    }
+  }
+
+  const codeIdx = tokens.findIndex((token) => isLikelySetCodeToken(token));
 
   if (codeIdx !== -1 && tokens.length > 1) {
     const setCode = tokens[codeIdx];
@@ -252,6 +294,12 @@ function buildVisibleEpisodeWhere(): Prisma.EpisodeWhereInput {
     });
   }
 
+  if (REDUNDANT_SUBSET_PATTERNS.length > 0) {
+    hiddenConditions.push({
+      OR: REDUNDANT_SUBSET_PATTERNS.map((name) => ({ name: { contains: name } })),
+    });
+  }
+
   return hiddenConditions.length === 1 ? { NOT: hiddenConditions[0] } : { NOT: hiddenConditions };
 }
 
@@ -267,14 +315,11 @@ function containsCondition(field: string, value: string) {
   return { [field]: { contains: value } } as Record<string, { contains: string }>;
 }
 
-function buildCardNumberCondition(
-  cardNumber: string,
-  options: { looseNumeric?: boolean } = {}
-): Prisma.CardWhereInput {
+function buildCardNumberCondition(cardNumber: string): Prisma.CardWhereInput {
   const aliases = buildCardNumberSearchAliases(cardNumber);
   if (aliases.length === 0) return { card_number: cardNumber };
 
-  if (/^\d+$/.test(cardNumber) && !options.looseNumeric) {
+  if (/^\d+$/.test(cardNumber)) {
     const conditions = aliases.flatMap((alias) => [
       { card_number: alias },
       { card_number: { startsWith: `${alias}/` } },
@@ -594,7 +639,7 @@ function buildFuzzyCardCandidateWhere(
     }
 
     if (parsed.cardNumber) {
-      conditions.push(buildCardNumberCondition(parsed.cardNumber, { looseNumeric: true }));
+      conditions.push(buildCardNumberCondition(parsed.cardNumber));
     }
   }
 
@@ -612,7 +657,7 @@ function buildFuzzyCardCandidateWhere(
 function buildFuzzyNumberCardCandidateWhere(parsed: ParsedQuery): Prisma.CardWhereInput | undefined {
   if (!parsed.name || !parsed.cardNumber) return undefined;
 
-  return buildCardNumberCondition(parsed.cardNumber, { looseNumeric: true });
+  return buildCardNumberCondition(parsed.cardNumber);
 }
 
 function buildFuzzySealedCandidateWhere(
@@ -932,7 +977,7 @@ export async function GET(req: NextRequest) {
           {
             AND: [
               { episode: episodeMatchesSetCode(setCode) },
-              buildCardNumberCondition(cardNumber, { looseNumeric: Boolean(name) }),
+              buildCardNumberCondition(cardNumber),
             ],
           },
         ];
@@ -946,7 +991,7 @@ export async function GET(req: NextRequest) {
         );
       } else {
         cardAndConditions.push(
-          buildCardNumberCondition(cardNumber, { looseNumeric: Boolean(name) })
+          buildCardNumberCondition(cardNumber)
         );
       }
     } else if (setCode) {

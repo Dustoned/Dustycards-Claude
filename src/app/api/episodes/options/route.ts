@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isHiddenExpansion } from "@/lib/episodes";
+import { isHiddenExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
 
 export async function GET() {
   try {
@@ -18,6 +18,7 @@ export async function GET() {
 
   const visibleEpisodes = episodes.filter(
     (episode) =>
+      !isRedundantSubsetExpansion(episode.name) &&
       !isHiddenExpansion({
         id: episode.id,
         code: episode.code,

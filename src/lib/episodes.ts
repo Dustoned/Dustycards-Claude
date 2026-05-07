@@ -1,8 +1,8 @@
-const REDUNDANT_SUBSET_PATTERNS = [
+export const REDUNDANT_SUBSET_PATTERNS = [
   "trainer gallery",
   "galarian gallery",
   "shiny vault",
-];
+] as const;
 
 export const HIDDEN_EXPANSION_IDS = ["20"] as const;
 export const HIDDEN_EXPANSION_CODES = ["sve"] as const;
