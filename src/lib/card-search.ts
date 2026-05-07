@@ -18,6 +18,32 @@ function stripNumericLeadingZeros(value: string): string {
   return stripped || "0";
 }
 
+function extractSearchableInput(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(trimmed);
+    const segments = url.pathname.split("/").filter(Boolean);
+    const lastSegment = segments[segments.length - 1];
+    if (lastSegment) return decodeURIComponent(lastSegment);
+  } catch {
+    // Plain search text, not a URL.
+  }
+
+  return trimmed;
+}
+
+function normalizeSearchText(value: string): string {
+  return extractSearchableInput(value)
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}#/]+/gu, " ")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 export function buildCardNumberSearchAliases(value: string | null | undefined): string[] {
   const normalized = value?.trim().replace(/^#+/, "").toLowerCase() ?? "";
   if (!normalized) return [];
@@ -63,7 +89,7 @@ export function cardMatchesSearchQuery(
   },
   query: string
 ): boolean {
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery) return true;
 
   const episodeCode = card.episodeCode?.trim().toLowerCase() ?? "";
@@ -80,8 +106,11 @@ export function cardMatchesSearchQuery(
     ...compactRefs,
   ]
     .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    .join(" ");
+  const normalizedHaystack = normalizeSearchText(haystack);
 
-  return haystack.includes(normalizedQuery) || cardNumberMatchesSearch(card.cardNumber, normalizedQuery);
+  return (
+    normalizedHaystack.includes(normalizedQuery) ||
+    cardNumberMatchesSearch(card.cardNumber, normalizedQuery)
+  );
 }

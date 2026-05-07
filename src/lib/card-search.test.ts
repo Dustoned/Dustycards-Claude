@@ -30,4 +30,21 @@ describe("card search helpers", () => {
       )
     ).toBe(true);
   });
+
+  it("matches TCGGO style slugs and URLs", () => {
+    const card = {
+      name: "Alcremie VMAX",
+      cardNumber: "73",
+      episodeName: "Shining Fates",
+      episodeCode: "SHF",
+    };
+
+    expect(cardMatchesSearchQuery(card, "alcremie-vmax-73")).toBe(true);
+    expect(
+      cardMatchesSearchQuery(
+        card,
+        "https://www.tcggo.com/pokemon/shining-fates/alcremie-vmax-73"
+      )
+    ).toBe(true);
+  });
 });

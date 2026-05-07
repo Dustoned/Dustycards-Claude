@@ -150,6 +150,79 @@ describe("GET /api/search", () => {
     expect(whereJson).toContain('"card_number":"094"');
   });
 
+  it("treats TCGGO slug searches as card name plus number", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "alcremie-vmax-73",
+        name: "Alcremie VMAX",
+        card_number: "73",
+        rarity: "Rare Rainbow",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "shf",
+          name: "Shining Fates",
+          code: "SHF",
+        },
+        prices: [{ cm_en_lowest_nm: 1.8, tcp_market: 4.54 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=alcremie-vmax-73")
+    );
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.parsed).toEqual({
+      name: "alcremie vmax",
+      cardNumber: "73",
+      setCode: null,
+      rawCardRef: null,
+    });
+    expect(body.singles).toHaveLength(1);
+    expect(whereJson).toContain("alcremie vmax");
+    expect(whereJson).toContain('"card_number":{"contains":"73"}');
+  });
+
+  it("uses the last path segment from TCGGO URLs", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "alcremie-vmax-73",
+        name: "Alcremie VMAX",
+        card_number: "73",
+        rarity: "Rare Rainbow",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "shf",
+          name: "Shining Fates",
+          code: "SHF",
+        },
+        prices: [{ cm_en_lowest_nm: 1.8, tcp_market: 4.54 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3000/api/search?q=https%3A%2F%2Fwww.tcggo.com%2Fpokemon%2Fshining-fates%2Falcremie-vmax-73"
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.parsed.name).toBe("alcremie vmax");
+    expect(body.parsed.cardNumber).toBe("73");
+    expect(body.singles[0].id).toBe("alcremie-vmax-73");
+  });
+
   it("uses capped fuzzy candidate queries instead of reading the full tables", async () => {
     dbMock.card.findMany
       .mockResolvedValueOnce([])

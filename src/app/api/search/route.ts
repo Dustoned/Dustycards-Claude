@@ -68,6 +68,26 @@ interface SearchExpansionRecord {
 const SET_CODE_RE = /^[a-z]{1,6}\d[\w]*$/i;
 const COMPACT_CARD_REF_RE = /^([a-z]{1,8})(\d[\w/-]*)$/i;
 
+function extractSearchableInput(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  try {
+    const url = new URL(trimmed);
+    const segments = url.pathname.split("/").filter(Boolean);
+    const lastSegment = segments[segments.length - 1];
+    if (lastSegment) return decodeURIComponent(lastSegment);
+  } catch {
+    // Plain search text, not a URL.
+  }
+
+  return trimmed;
+}
+
+function normalizeSlugSeparators(value: string): string {
+  return value.trim().replace(/[-_]+/g, " ").replace(/\s+/g, " ");
+}
+
 function parseCompactCardReference(value: string): {
   setCode: string;
   cardNumber: string;
@@ -85,17 +105,18 @@ function parseCompactCardReference(value: string): {
 }
 
 function parseSearchQuery(raw: string): ParsedQuery {
-  const q = raw.trim();
+  const q = extractSearchableInput(raw);
+  const spacedQ = normalizeSlugSeparators(q);
 
-  if (/^\d+$/.test(q)) {
-    return { name: null, cardNumber: q, setCode: null, rawCardRef: null };
+  if (/^\d+$/.test(spacedQ)) {
+    return { name: null, cardNumber: spacedQ, setCode: null, rawCardRef: null };
   }
 
-  if (/^\d+\/\d+$/.test(q)) {
-    return { name: null, cardNumber: q.split("/")[0], setCode: null, rawCardRef: null };
+  if (/^\d+\/\d+$/.test(spacedQ)) {
+    return { name: null, cardNumber: spacedQ.split("/")[0], setCode: null, rawCardRef: null };
   }
 
-  const withSlash = /^(.+?)\s+(\d+)\/\d+$/.exec(q);
+  const withSlash = /^(.+?)\s+(\d+)\/\d+$/.exec(spacedQ);
   if (withSlash) {
     const prefix = withSlash[1].trim();
     const cardNumber = withSlash[2];
@@ -107,7 +128,7 @@ function parseSearchQuery(raw: string): ParsedQuery {
     return { name: prefix, cardNumber, setCode: null, rawCardRef: null };
   }
 
-  const tokens = q.split(/\s+/);
+  const tokens = spacedQ.split(/\s+/);
   const codeIdx = tokens.findIndex((token) => SET_CODE_RE.test(token));
 
   if (codeIdx !== -1 && tokens.length > 1) {
@@ -127,7 +148,7 @@ function parseSearchQuery(raw: string): ParsedQuery {
     return { name: nameTokens.join(" ") || null, cardNumber: null, setCode, rawCardRef: null };
   }
 
-  const withNumber = /^(.+?)\s+(\d+)$/.exec(q);
+  const withNumber = /^(.+?)\s+(\d+)$/.exec(spacedQ);
   if (withNumber) {
     return { name: withNumber[1], cardNumber: withNumber[2], setCode: null, rawCardRef: null };
   }
@@ -142,7 +163,7 @@ function parseSearchQuery(raw: string): ParsedQuery {
     };
   }
 
-  return { name: q || null, cardNumber: null, setCode: null, rawCardRef: null };
+  return { name: spacedQ || null, cardNumber: null, setCode: null, rawCardRef: null };
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
