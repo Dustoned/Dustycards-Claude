@@ -59,6 +59,7 @@ const COMMON_TITLE_TOKENS = new Set([
   "full",
   "art",
   "gem",
+  "mega",
   "mint",
   "near",
   "nm",

@@ -478,6 +478,11 @@ describe("GET /api/ebay/deals", () => {
         totalEur: 11,
       }),
       makeListing({
+        itemId: "generic-era-listing",
+        title: "Prismatic Evolutions Pokemon Cards, Reverse Holo, EX, Ultra Rare, Full Art, English NM",
+        totalEur: 10,
+      }),
+      makeListing({
         itemId: "charizard",
         title: "Charizard 4/102 Base Set Pokemon",
         totalEur: 300,

@@ -104,6 +104,17 @@ describe("eBay card matching", () => {
     expect(rightPromoNumber.card?.id).toBe("charizard-130");
   });
 
+  it("does not review-match generic Mega Evolution listings without the Pokemon name", () => {
+    const match = matchEbayListingToCard({
+      title: "Mega Evolution Pokemon Cards, Reverse Holo, EX, Ultra Rare, Full Art, English NM",
+      candidates: [megaCharizard130],
+      requestedMode: "raw",
+    });
+
+    expect(match.status).toBe("unmatched");
+    expect(match.card).toBeNull();
+  });
+
   it("matches graded listings in graded mode", () => {
     const match = matchEbayListingToCard({
       title: "PSA 9 UMBREON ex 161/131 | Prismatic Evo SIR Full Art Pokemon Card",
