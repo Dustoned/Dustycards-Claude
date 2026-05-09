@@ -4,7 +4,7 @@ import MoversBrowser from "@/app/movers/MoversBrowser";
 import SealedMoversBrowser from "@/app/movers/SealedMoversBrowser";
 import { loadMoversPageData } from "@/app/movers/page-data";
 import { requirePageUser } from "@/lib/page-auth";
-import type { CollectionMoverItem, CollectionMoversData, MoversScope } from "@/lib/movers";
+import type { CollectionMoversData, MoversScope } from "@/lib/movers";
 import type { SealedMoversData } from "@/lib/sealed-movers";
 
 export const dynamic = "force-dynamic";
@@ -86,62 +86,6 @@ function getModeCopy(
         : "Scan your collection for raw cards with the clearest recent price movement.",
     ranking: activeScope === "all" ? "All raw cards" : "Collection raw cards",
   };
-}
-
-interface PreviewCardSpec {
-  title: string;
-  eyebrow: string;
-  description: string;
-  href: string;
-  hrefLabel?: string;
-  items: CollectionMoverItem[];
-  reasonMode?: "raw" | "graded" | "target";
-}
-
-interface BuildPreviewArgs {
-  data: CollectionMoversData;
-  activeScope: Exclude<MoversScope, "sealed">;
-}
-
-function buildMoversPreviewCards({ data, activeScope }: BuildPreviewArgs): PreviewCardSpec[] {
-  const previews: PreviewCardSpec[] = [];
-
-  if (activeScope !== "graded" && activeScope !== "grading") {
-    // Raw movers view → highlight buy and grade entry points.
-    const cheapHighRarity = data.cheapestHighRarityMovers.length > 0
-      ? data.cheapestHighRarityMovers
-      : data.movers.filter((item) => item.moverScore > 0).slice(0, 8);
-    if (cheapHighRarity.length > 0) {
-      previews.push({
-        eyebrow: "Best to buy",
-        title: "Cheap high-rarity risers",
-        description:
-          "Affordable scarce cards already moving up — the closest thing to a clear buy signal.",
-        items: cheapHighRarity,
-        href: "/movers/cheap-high-rarity",
-        hrefLabel: "Open all buys",
-        reasonMode: "raw",
-      });
-    }
-
-    if (data.topOpportunities.length > 0) {
-      previews.push({
-        eyebrow: "Best to grade",
-        title: "Raw cheap, graded high",
-        description:
-          "Cards where the raw price stays low while graded copies sell for multiples — the easiest grading wins.",
-        items: data.topOpportunities,
-        href: "/movers?scope=grading",
-        hrefLabel: "Open grade targets",
-        reasonMode: "target",
-      });
-    }
-  }
-  // Grading and graded scopes intentionally show no preview panels — the main
-  // list below is already ranked by exactly the same signals so duplicating
-  // them as a preview is just noise.
-
-  return previews;
 }
 
 export default async function MoversPage({
@@ -312,10 +256,6 @@ export default async function MoversPage({
             activePriceSource={activePriceSource}
             activeScope={activeScope}
             activeItemScope={activeItemScope}
-            previewCards={buildMoversPreviewCards({
-              data: cardData,
-              activeScope: activeScope as Exclude<MoversScope, "sealed">,
-            })}
             emptyTitle={
               isGradingScope
                 ? "No grade targets found"
