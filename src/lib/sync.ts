@@ -1921,7 +1921,11 @@ export async function countManualCardHistoryCandidates(): Promise<number> {
 async function selectManualCardHistoryCandidates(options?: { take?: number }): Promise<string[]> {
   const cards = await db.card.findMany({
     where: buildManualCardHistoryCardWhere(),
-    orderBy: [{ updated_at: "desc" }],
+    orderBy: [
+      { episode: { release_date: "desc" } },
+      { updated_at: "desc" },
+      { id: "asc" },
+    ],
     select: { id: true },
     ...(options?.take ? { take: options.take } : {}),
   });

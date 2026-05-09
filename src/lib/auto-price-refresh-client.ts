@@ -20,6 +20,9 @@ export interface AutoPriceRefreshClientResponse {
   refreshedPrices?: number;
   refreshedCards?: number;
   gradedPricesUpdated?: number;
+  cardHistoryJobStarted?: boolean;
+  cardHistoryJobRunning?: boolean;
+  cardHistoryPendingCards?: number;
 }
 
 export function hasVisibleRefreshChanges(data: AutoPriceRefreshClientResponse): boolean {
@@ -32,7 +35,9 @@ export function hasVisibleRefreshChanges(data: AutoPriceRefreshClientResponse): 
     (data.newPrices ?? 0) > 0 ||
     (data.refreshedPrices ?? 0) > 0 ||
     (data.refreshedCards ?? 0) > 0 ||
-    (data.gradedPricesUpdated ?? 0) > 0
+    (data.gradedPricesUpdated ?? 0) > 0 ||
+    data.cardHistoryJobStarted === true ||
+    data.cardHistoryJobRunning === true
   );
 }
 

@@ -136,7 +136,15 @@ export default function AutoPriceRefreshBoot() {
 
         const data = (await response.json()) as AutoPriceRefreshClientResponse;
 
-        if (cancelled || !data.ok || data.skipped) {
+        if (cancelled || !data.ok) {
+          chainedFollowUpsRef.current = 0;
+          return;
+        }
+
+        const hasServerStartedHistoryJob =
+          data.cardHistoryJobStarted === true || data.cardHistoryJobRunning === true;
+
+        if (data.skipped && !hasServerStartedHistoryJob) {
           chainedFollowUpsRef.current = 0;
           return;
         }

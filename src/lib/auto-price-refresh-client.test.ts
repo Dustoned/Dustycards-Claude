@@ -5,6 +5,7 @@ import {
   releaseAutoPriceRefreshTabLock,
   hasQueuedFollowUp,
   hasRefreshProgress,
+  hasVisibleRefreshChanges,
   shouldQueueAutoPriceRefreshFollowUp,
   tryAcquireAutoPriceRefreshTabLock,
 } from "@/lib/auto-price-refresh-client";
@@ -51,6 +52,11 @@ describe("auto price refresh client follow-up guards", () => {
 
     expect(hasRefreshProgress(response)).toBe(true);
     expect(hasQueuedFollowUp(response)).toBe(true);
+  });
+
+  it("refreshes the UI when the quota-drain history job starts server-side", () => {
+    expect(hasVisibleRefreshChanges({ cardHistoryJobStarted: true })).toBe(true);
+    expect(hasVisibleRefreshChanges({ cardHistoryJobRunning: true })).toBe(true);
   });
 
   it("caps forced follow-up chains per browser session", () => {
