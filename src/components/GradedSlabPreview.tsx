@@ -204,8 +204,14 @@ const DETAIL_METRICS = {
 const TILE_LABEL_BASE_WIDTH = 176;
 const DETAIL_LABEL_BASE_WIDTH = 420;
 
+function getTileLabelMinScale(tileSize: "small" | "medium" | "large"): number {
+  if (tileSize === "small") return 0.46;
+  if (tileSize === "medium") return 0.52;
+  return 0.58;
+}
+
 function getTileLabelFallbackScale(tileSize: "small" | "medium" | "large"): number {
-  if (tileSize === "small") return 0.64;
+  if (tileSize === "small") return 0.52;
   if (tileSize === "large") return 1.6;
   return 1;
 }
@@ -268,10 +274,10 @@ function GradedSlabPreview({
   const isPsa = company === "PSA";
   const metrics = variant === "detail" ? DETAIL_METRICS : TILE_METRICS;
   const detailLabelScale =
-    slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.52, 1.12) : 0.72;
+    slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.42, 1.12) : 0.52;
   const tileLabelScale =
     slabWidth > 0
-      ? clampScale(slabWidth / TILE_LABEL_BASE_WIDTH, 0.58, 2.05)
+      ? clampScale(slabWidth / TILE_LABEL_BASE_WIDTH, getTileLabelMinScale(tileSize), 2.05)
       : getTileLabelFallbackScale(tileSize);
   const labelScale = variant === "detail" ? detailLabelScale : tileLabelScale;
   const scaledLabelContentStyle =
