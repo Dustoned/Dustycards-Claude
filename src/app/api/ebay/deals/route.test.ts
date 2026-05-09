@@ -413,7 +413,7 @@ describe("GET /api/ebay/deals", () => {
           : [
               makeListing({
                 itemId: "graded-fallback",
-                title: "PSA 10 Umbreon Pokemon",
+                title: "PSA 10 Umbreon ex 161/131 Pokemon",
                 totalEur: 400,
               }),
             ];
@@ -452,7 +452,7 @@ describe("GET /api/ebay/deals", () => {
       "graded-fallback",
     ]);
     expect(body.listings[0].cardMatch).toMatchObject({
-      status: "review",
+      status: "matched",
       card: { id: card.id, name: "Umbreon ex" },
     });
     expect(body.listings[0].reference.valueEur).toBe(899);
@@ -466,6 +466,11 @@ describe("GET /api/ebay/deals", () => {
         itemId: "umbreon-ex",
         title: "Umbreon ex 161/131 Prismatic Evolutions PRE Pokemon",
         totalEur: 510,
+      }),
+      makeListing({
+        itemId: "same-name-no-number",
+        title: "Umbreon ex Prismatic Evolutions PRE Pokemon Card",
+        totalEur: 25,
       }),
       makeListing({
         itemId: "same-name-wrong-number",

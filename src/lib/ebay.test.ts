@@ -188,6 +188,21 @@ describe("ebay deal helpers", () => {
       })
     ).toBe("non-English card language");
     expect(
+      detectEbayListingLanguage({
+        title: "Pokemon mega charizard x ex",
+        condition: "Non gradada",
+      })
+    ).toMatchObject({
+      code: "OTHER",
+      label: "IT",
+    });
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon mega charizard x ex",
+        condition: "Non gradada",
+      })
+    ).toBe("non-English card language");
+    expect(
       getEbayListingRejectionReason({
         title: "Umbreon ex 161/131 ENG not FR Pokemon Card",
       })

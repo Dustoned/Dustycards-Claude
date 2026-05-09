@@ -247,19 +247,21 @@ function listingHasPinnedCardHint(listing: EbayDealListing, card: CardDealContex
   const hashRefNumbers = [
     ...listingText.matchAll(/#\s*0*(\d{1,3}[a-z]?)\b/gi),
   ].map((match) => (match[1].replace(/^0+/, "") || match[1]).toLowerCase());
-
-  if (
+  const normalizedCardNumber = cardNumberToken?.toLowerCase() ?? null;
+  const hasMatchingCardNumber = Boolean(
     cardNumberToken &&
-    (slashNumbers.length > 0 || codedRefNumbers.length > 0 || hashRefNumbers.length > 0) &&
-    !slashNumbers.includes(cardNumberToken.toLowerCase()) &&
-    !codedRefNumbers.includes(cardNumberToken.toLowerCase()) &&
-    !hashRefNumbers.includes(cardNumberToken.toLowerCase()) &&
-    !listingNumbers.has(cardNumberToken)
-  ) {
-    return false;
+      normalizedCardNumber &&
+      (listingNumbers.has(cardNumberToken) ||
+        slashNumbers.includes(normalizedCardNumber) ||
+        codedRefNumbers.includes(normalizedCardNumber) ||
+        hashRefNumbers.includes(normalizedCardNumber))
+  );
+
+  if (cardNumberToken) {
+    return hasMatchingCardNumber;
   }
 
-  return hasNameHint || Boolean(cardNumberToken && listingNumbers.has(cardNumberToken));
+  return hasNameHint;
 }
 
 function getPinnedReviewMatch(input: {
@@ -651,8 +653,8 @@ async function enrichListingsWithCardMatches(input: {
     if (input.pinnedCard) {
       if (cardMatch.source === "ignored") continue;
       if (cardMatch.card && cardMatch.card.id !== input.pinnedCard.id) continue;
+      if (!listingHasPinnedCardHint(listing, input.pinnedCard)) continue;
       if (cardMatch.status === "unmatched") {
-        if (!listingHasPinnedCardHint(listing, input.pinnedCard)) continue;
         cardMatch = getPinnedReviewMatch({ card: input.pinnedCard, match: cardMatch });
       }
     }

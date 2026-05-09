@@ -423,7 +423,7 @@ const OTHER_NON_ENGLISH_LANGUAGES: Array<{
     label: "IT",
     name: "Italian",
     pattern: new RegExp(
-      `${LANGUAGE_SEPARATOR}(?:IT|ITA|it|ita|italian|italiaans|italiano|italiana)${LANGUAGE_END}`,
+      `${LANGUAGE_SEPARATOR}(?:IT|ITA|it|ita|italian|italiaans|italiano|italiana|non\\s+gradat[ao]|non\\s+gradad[ao])${LANGUAGE_END}`,
       "i"
     ),
   },
