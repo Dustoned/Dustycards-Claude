@@ -1,16 +1,25 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildEbayCardSearchQuery,
   buildEbayManualSearchQuery,
   buildEbayMarketplaceSearchUrl,
+  buildEbaySealedManualSearchQuery,
+  buildEbaySealedSearchQuery,
   compareListingToReference,
   detectEbayListingCardCondition,
   detectEbayListingLanguage,
   getEbayListingGradingReason,
   getEbayListingRejectionReason,
+  searchEbayDeals,
+  __resetEbayTokenCacheForTests,
 } from "@/lib/ebay";
 
 describe("ebay deal helpers", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    __resetEbayTokenCacheForTests();
+  });
+
   it("builds a card search query with set and grading context", () => {
     expect(
       buildEbayCardSearchQuery({
@@ -35,6 +44,19 @@ describe("ebay deal helpers", () => {
   it("adds Pokemon context to manual searches", () => {
     expect(buildEbayManualSearchQuery("Latias ex")).toBe("Latias ex Pokemon");
     expect(buildEbayManualSearchQuery("Pokemon Latias ex")).toBe("Pokemon Latias ex");
+  });
+
+  it("keeps sealed queries broad enough for eBay product titles", () => {
+    expect(
+      buildEbaySealedSearchQuery({
+        name: "Mega Evolution Sleeved Booster",
+        episodeName: "Mega Evolution",
+        episodeCode: "MEG",
+      })
+    ).toBe("Mega Evolution Sleeved Booster MEG Pokemon TCG");
+    expect(buildEbaySealedManualSearchQuery("Mega Evolution booster box")).toBe(
+      "Mega Evolution booster box Pokemon TCG"
+    );
   });
 
   it("compares listing totals against the DustyCards reference price", () => {
@@ -215,6 +237,21 @@ describe("ebay deal helpers", () => {
     ).toBe("accessory/pack listing");
   });
 
+  it("does not reject official sealed product wording as accessory noise", () => {
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon Mega Evolution Sleeved Booster Pack Sealed",
+        listingKind: "sealed",
+      })
+    ).toBeNull();
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon Mega Evolution Booster Bundle Display Sealed",
+        listingKind: "sealed",
+      })
+    ).toBeNull();
+  });
+
   it("detects graded listings that should stay out of raw mode", () => {
     expect(
       getEbayListingGradingReason({
@@ -275,5 +312,90 @@ describe("ebay deal helpers", () => {
       code: "unknown",
       label: "Cond. unknown",
     });
+  });
+
+  it("continues fetching eBay pages until enough listings survive local filters", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return new Response(
+          JSON.stringify({
+            access_token: "token",
+            expires_in: 7200,
+          })
+        );
+      }
+
+      if (url.includes("/developer/analytics")) {
+        return new Response(
+          JSON.stringify({
+            rateLimits: [
+              {
+                apiContext: "buy",
+                apiName: "browse",
+                resources: [
+                  {
+                    name: "item_summary_search",
+                    rates: [{ remaining: 1000, limit: 5000, timeWindow: 86400 }],
+                  },
+                ],
+              },
+            ],
+          })
+        );
+      }
+
+      if (url.includes("offset=0")) {
+        return new Response(
+          JSON.stringify({
+            total: 150,
+            itemSummaries: Array.from({ length: 100 }, (_, index) => ({
+              itemId: `bad-${index}`,
+              title: `Pokemon TCG Pocket Digital Card ${index}`,
+              itemWebUrl: `https://www.ebay.nl/itm/bad-${index}`,
+              price: { value: "1", currency: "EUR" },
+              buyingOptions: ["FIXED_PRICE"],
+            })),
+          })
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          total: 150,
+          itemSummaries: [
+            {
+              itemId: "good-1",
+              title: "Umbreon ex 161/131 Prismatic Evolutions Pokemon Card ENG",
+              itemWebUrl: "https://www.ebay.nl/itm/good-1",
+              price: { value: "500", currency: "EUR" },
+              buyingOptions: ["FIXED_PRICE"],
+            },
+          ],
+        })
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchEbayDeals({
+      query: "Umbreon ex 161 Pokemon",
+      reference: { label: "CardMarket raw", valueEur: 899, source: "cardmarket" },
+      limit: 1,
+      config: {
+        configured: true,
+        environment: "production",
+        marketplaceId: "EBAY_NL",
+        deliveryCountry: null,
+        categoryId: null,
+        clientId: "client-id",
+        clientSecret: "client-secret",
+      },
+    });
+
+    expect(result.listings.map((listing) => listing.itemId)).toEqual(["good-1"]);
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).includes("offset=100"))
+    ).toBe(true);
   });
 });

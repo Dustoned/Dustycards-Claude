@@ -19,6 +19,8 @@ const { collectionMock, dbMock, ebayMock, exchangeMock, priceHistoryMock } =
       buildEbayCardSearchQuery: vi.fn(),
       buildEbayManualSearchQuery: vi.fn(),
       buildEbayMarketplaceSearchUrl: vi.fn(),
+      buildEbaySealedManualSearchQuery: vi.fn(),
+      buildEbaySealedSearchQuery: vi.fn(),
       compareListingToReference: vi.fn(),
       getEbayRuntimeConfig: vi.fn(),
       searchEbayDeals: vi.fn(),
@@ -55,6 +57,8 @@ vi.mock("@/lib/ebay", () => ({
   buildEbayCardSearchQuery: ebayMock.buildEbayCardSearchQuery,
   buildEbayManualSearchQuery: ebayMock.buildEbayManualSearchQuery,
   buildEbayMarketplaceSearchUrl: ebayMock.buildEbayMarketplaceSearchUrl,
+  buildEbaySealedManualSearchQuery: ebayMock.buildEbaySealedManualSearchQuery,
+  buildEbaySealedSearchQuery: ebayMock.buildEbaySealedSearchQuery,
   compareListingToReference: ebayMock.compareListingToReference,
   getEbayRuntimeConfig: ebayMock.getEbayRuntimeConfig,
   searchEbayDeals: ebayMock.searchEbayDeals,
@@ -237,6 +241,13 @@ describe("GET /api/ebay/deals", () => {
     ebayMock.buildEbayCardSearchQuery.mockImplementation(
       (input: { name: string; cardNumber?: string | null }) =>
         [input.name, input.cardNumber, "Pokemon"].filter(Boolean).join(" ")
+    );
+    ebayMock.buildEbaySealedManualSearchQuery.mockImplementation((query: string) =>
+      /\bpokemon\b/i.test(query) ? `${query} TCG` : `${query} Pokemon TCG`
+    );
+    ebayMock.buildEbaySealedSearchQuery.mockImplementation(
+      (input: { name: string; episodeCode?: string | null }) =>
+        [input.name, input.episodeCode, "Pokemon", "TCG"].filter(Boolean).join(" ")
     );
     ebayMock.buildEbayMarketplaceSearchUrl.mockReturnValue(
       "https://www.ebay.nl/sch/i.html"
