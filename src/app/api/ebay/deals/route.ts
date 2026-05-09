@@ -34,8 +34,8 @@ function parseDealMode(value: string | null): DealMode | null {
   return value === "raw" || value === "graded" || value === "sealed" ? value : null;
 }
 
-function parseBuyingMode(value: string | null): EbayBuyingMode {
-  return value === "auction" || value === "all" ? value : "fixed";
+function parseBuyingMode(value: string | null): EbayBuyingMode | null {
+  return value === "fixed" || value === "auction" || value === "all" ? value : null;
 }
 
 function hasGradedQueryContext(value: string): boolean {
@@ -839,7 +839,7 @@ export async function GET(req: NextRequest) {
     const productId = req.nextUrl.searchParams.get("productId")?.trim() ?? "";
     const q = cardId || productId ? "" : (req.nextUrl.searchParams.get("q")?.trim() ?? "");
     const requestedMode = parseDealMode(req.nextUrl.searchParams.get("mode"));
-    const buyingMode = parseBuyingMode(req.nextUrl.searchParams.get("buying"));
+    const requestedBuyingMode = parseBuyingMode(req.nextUrl.searchParams.get("buying"));
     const limit = parseLimit(req.nextUrl.searchParams.get("limit"));
 
     let mode: DealMode = requestedMode ?? (productId ? "sealed" : "raw");
@@ -903,6 +903,8 @@ export async function GET(req: NextRequest) {
     if (q && mode === "graded" && !hasGradedQueryContext(q)) {
       query = buildEbayManualSearchQuery(`${q} graded`);
     }
+
+    const buyingMode = requestedBuyingMode ?? (mode === "sealed" ? "all" : "fixed");
 
     if (!query) {
       return NextResponse.json({

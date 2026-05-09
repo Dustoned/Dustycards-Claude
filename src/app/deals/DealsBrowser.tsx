@@ -355,6 +355,10 @@ function parseDealSort(value: string | null): DealSort {
   return SORT_OPTIONS.some((option) => option.value === value) ? (value as DealSort) : "deal";
 }
 
+function getDefaultBuyingMode(mode: DealMode): BuyingMode {
+  return mode === "sealed" ? "all" : "fixed";
+}
+
 function buildDealsHref(input: {
   pathname: string;
   q: string;
@@ -371,7 +375,7 @@ function buildDealsHref(input: {
   if (input.productId) params.set("productId", input.productId);
   if (trimmedQuery && !input.cardId && !input.productId) params.set("q", trimmedQuery);
   if (input.mode !== "raw") params.set("mode", input.mode);
-  if (input.buying !== "fixed") params.set("buying", input.buying);
+  if (input.buying !== getDefaultBuyingMode(input.mode)) params.set("buying", input.buying);
   if (input.condition !== "all") params.set("condition", input.condition);
   if (input.sort !== "deal") params.set("sort", input.sort);
   const query = params.toString();
@@ -751,10 +755,11 @@ export default function DealsBrowser() {
   const modeParam = searchParams.get("mode");
   const paramMode: DealMode =
     productId ? "sealed" : modeParam === "graded" || modeParam === "sealed" ? modeParam : "raw";
+  const buyingParam = searchParams.get("buying");
   const paramBuying =
-    searchParams.get("buying") === "auction" || searchParams.get("buying") === "all"
-      ? (searchParams.get("buying") as BuyingMode)
-      : "fixed";
+    buyingParam === "fixed" || buyingParam === "auction" || buyingParam === "all"
+      ? buyingParam
+      : getDefaultBuyingMode(paramMode);
   const paramCondition = parseConditionFilter(searchParams.get("condition"));
   const paramSort = parseDealSort(searchParams.get("sort"));
   const [query, setQuery] = useState(paramQuery);
@@ -788,7 +793,7 @@ export default function DealsBrowser() {
     if (cardId) params.set("cardId", cardId);
     if (productId) params.set("productId", productId);
     if (paramMode !== "raw") params.set("mode", paramMode);
-    if (paramBuying !== "fixed") params.set("buying", paramBuying);
+    if (paramBuying !== getDefaultBuyingMode(paramMode)) params.set("buying", paramBuying);
     if (refreshNonce > 0) params.set("_r", String(refreshNonce));
     return `/api/ebay/deals?${params.toString()}`;
   }, [cardId, hasSearch, paramBuying, paramMode, paramQuery, productId, refreshNonce]);
@@ -1181,7 +1186,13 @@ export default function DealsBrowser() {
               </span>
               <select
                 value={mode}
-                onChange={(event) => setMode(event.target.value as DealMode)}
+                onChange={(event) => {
+                  const nextMode = event.target.value as DealMode;
+                  setMode(nextMode);
+                  if (buying === getDefaultBuyingMode(mode)) {
+                    setBuying(getDefaultBuyingMode(nextMode));
+                  }
+                }}
                 className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
               >
                 <option value="raw">Raw</option>

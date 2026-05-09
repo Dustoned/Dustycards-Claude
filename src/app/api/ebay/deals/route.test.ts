@@ -591,10 +591,12 @@ describe("GET /api/ebay/deals", () => {
     expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
       expect.objectContaining({
         query: "Mega Evolution Sleeved Booster",
+        buyingMode: "all",
         listingKind: "sealed",
       })
     );
     expect(body.query).toBe("Mega Evolution Sleeved Booster");
+    expect(body.buyingMode).toBe("all");
     expect(body.listings.map((listing: { itemId: string }) => listing.itemId)).toEqual([
       "sealed-title",
     ]);
