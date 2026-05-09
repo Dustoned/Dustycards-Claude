@@ -472,7 +472,7 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   },
   {
     pattern:
-      /\b(no\s+card|card\s+not\s+included|does\s+not\s+include\s+(?:a\s+)?card|without\s+(?:a\s+)?card|empty\s+(?:box|pack)|graded\s+guard)\b/i,
+      /\b(no\s+(?:card|cards|pack|packs|booster|boosters)|(?:card|cards|pack|packs|booster|boosters)\s+not\s+included|does\s+not\s+include\s+(?:a\s+)?(?:card|cards|pack|packs|booster|boosters)|without\s+(?:a\s+)?(?:card|cards|pack|packs|booster|boosters)|empty\s+(?:(?:booster|elite\s+trainer|etb|display|collection|trainer|tin|case|outer|shipping|storage|packaging)\s+){0,3}(?:box|boxes|pack|packs|tin|tins|etb|display|case|wrapper|wrappers|packaging|carton)|(?:empty\s+)?(?:etb|elite\s+trainer|outer|shipping|storage|packaging)\s+box\s+only|(?:wrapper|wrappers|packaging|carton|case)\s+only|(?:box|boxes|pack|packs|tin|tins|etb|display|case|wrapper|wrappers|packaging|carton)\s+empty|packaging\s+only|graded\s+guard)\b/i,
     reason: "no-card listing",
   },
   {
@@ -765,11 +765,12 @@ export function getEbayListingRejectionReason(input: {
 
   if (
     input.listingKind !== "graded" &&
-    input.listingKind !== "sealed" &&
     language.code !== "ENG" &&
     language.code !== "UNKNOWN"
   ) {
-    return "non-English card language";
+    return input.listingKind === "sealed"
+      ? "non-English sealed language"
+      : "non-English card language";
   }
 
   for (const { pattern, reason } of DISALLOWED_EBAY_LISTING_PATTERNS) {
@@ -1044,6 +1045,7 @@ async function enrichListingsWithItemDetails(input: {
   config: EbayRuntimeConfig;
   token: string;
   strictEnglish?: boolean;
+  checkLanguageDetails?: boolean;
   requireGraded?: boolean;
   detailFetchLimit?: number;
 }): Promise<EbayDealListing[]> {
@@ -1052,6 +1054,7 @@ async function enrichListingsWithItemDetails(input: {
   return mapWithConcurrency(input.listings, 6, async (listing) => {
     const shouldFetchDetails =
       (input.strictEnglish && listing.language.code === "UNKNOWN") ||
+      (input.checkLanguageDetails && listing.language.code === "UNKNOWN") ||
       (input.requireGraded && !listing.isGradedListing);
     if (!shouldFetchDetails) return listing;
     if (input.detailFetchLimit != null && detailFetches >= input.detailFetchLimit) {
@@ -1699,12 +1702,15 @@ export async function searchEbayDeals(input: {
     }
   }
 
-  if (input.strictEnglish || input.requireGraded) {
+  const shouldCheckLanguageDetails = input.listingKind === "sealed";
+
+  if (input.strictEnglish || input.requireGraded || shouldCheckLanguageDetails) {
     listings = await enrichListingsWithItemDetails({
       listings,
       config,
       token,
       strictEnglish: input.strictEnglish,
+      checkLanguageDetails: shouldCheckLanguageDetails,
       requireGraded: input.requireGraded,
       detailFetchLimit: EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT,
     });

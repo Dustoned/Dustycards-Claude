@@ -267,7 +267,7 @@ describe("ebay deal helpers", () => {
     ).toBe("accessory/pack listing");
   });
 
-  it("allows non-English markers for graded and sealed deal modes", () => {
+  it("allows non-English markers for graded but filters sealed language mismatches", () => {
     expect(
       getEbayListingRejectionReason({
         title: "PSA 10 Umbreon ex SAR 217/187 Japanese Pokemon Card",
@@ -282,6 +282,12 @@ describe("ebay deal helpers", () => {
     expect(
       getEbayListingRejectionReason({
         title: "Pokemon TCG Booster Box Phantasmal Flames French",
+        listingKind: "sealed",
+      })
+    ).toBe("non-English sealed language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon TCG Booster Box Phantasmal Flames English",
         listingKind: "sealed",
       })
     ).toBeNull();
@@ -300,6 +306,18 @@ describe("ebay deal helpers", () => {
         listingKind: "sealed",
       })
     ).toBeNull();
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon Mega Evolution Booster Box Empty Box Only",
+        listingKind: "sealed",
+      })
+    ).toBe("no-card listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon Mega Evolution Elite Trainer Box Empty ETB No Packs",
+        listingKind: "sealed",
+      })
+    ).toBe("no-card listing");
   });
 
   it("detects graded listings that should stay out of raw mode", () => {
@@ -446,6 +464,85 @@ describe("ebay deal helpers", () => {
     expect(result.listings.map((listing) => listing.itemId)).toEqual(["good-1"]);
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).includes("offset=100"))
+    ).toBe(true);
+  });
+
+  it("uses eBay language aspects to filter non-English sealed listings", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return new Response(
+          JSON.stringify({
+            access_token: "token",
+            expires_in: 7200,
+          })
+        );
+      }
+
+      if (url.includes("/developer/analytics")) {
+        return new Response(
+          JSON.stringify({
+            rateLimits: [
+              {
+                apiContext: "buy",
+                apiName: "browse",
+                resources: [
+                  {
+                    name: "item_summary_search",
+                    rates: [{ remaining: 1000, limit: 5000, timeWindow: 86400 }],
+                  },
+                ],
+              },
+            ],
+          })
+        );
+      }
+
+      if (url.includes("/buy/browse/v1/item/sealed-de")) {
+        return new Response(
+          JSON.stringify({
+            localizedAspects: [{ name: "Language", value: "German" }],
+          })
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          total: 1,
+          itemSummaries: [
+            {
+              itemId: "sealed-de",
+              title: "Pokemon Phantasmal Flames Booster Box Sealed",
+              itemWebUrl: "https://www.ebay.nl/itm/sealed-de",
+              price: { value: "95", currency: "EUR" },
+              buyingOptions: ["FIXED_PRICE"],
+            },
+          ],
+        })
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchEbayDeals({
+      query: "Phantasmal Flames Booster Box",
+      reference: { label: "CardMarket sealed", valueEur: 120, source: "sealed" },
+      limit: 1,
+      listingKind: "sealed",
+      config: {
+        configured: true,
+        environment: "production",
+        marketplaceId: "EBAY_NL",
+        deliveryCountry: null,
+        categoryId: null,
+        clientId: "client-id",
+        clientSecret: "client-secret",
+      },
+    });
+
+    expect(result.listings).toEqual([]);
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).includes("/buy/browse/v1/item/sealed-de"))
     ).toBe(true);
   });
 });
