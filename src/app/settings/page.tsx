@@ -11,7 +11,6 @@ import {
 } from "@/lib/sync";
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
-import { getServerUserSettings } from "@/lib/user-settings-server";
 import { requirePageUser } from "@/lib/page-auth";
 import ThemeSection from "./ThemeSection";
 import LayoutSection from "./LayoutSection";
@@ -117,13 +116,11 @@ function PersonalSettingsSections({ className }: { className: string }) {
 
 export default async function SettingsPage() {
   const user = await requirePageUser("/settings");
-  const settings = await getServerUserSettings(user.id);
-  const widescreen = settings?.widescreen ?? false;
   const isAdmin = user.role === "admin";
 
   if (!isAdmin) {
     return (
-      <div className={`settings-page ${widescreen ? "max-w-[2000px]" : "max-w-6xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
+      <div className="settings-page mx-auto px-4 py-10 sm:px-6 lg:px-8">
         <PageHeroHeader
           eyebrow="DustyCards"
           title="Settings"
@@ -380,7 +377,7 @@ export default async function SettingsPage() {
   ] satisfies HeaderStat[];
 
   return (
-    <div className={`settings-page ${widescreen ? "max-w-[2000px]" : "max-w-6xl"} mx-auto px-4 sm:px-6 lg:px-8 py-10`}>
+    <div className="settings-page mx-auto px-4 py-10 sm:px-6 lg:px-8">
       <PageHeroHeader
         eyebrow="DustyCards"
         title="Settings"

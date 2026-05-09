@@ -412,8 +412,7 @@ html.widescreen .page-container {
 }
 
 @media (min-width: 1536px) {
-  html:not(.widescreen) .page-container.max-w-7xl,
-  html:not(.widescreen) .settings-page.max-w-6xl {
+  html:not(.widescreen) .page-container.max-w-7xl {
     max-width: 100rem !important;
   }
 }
@@ -462,7 +461,19 @@ html.widescreen .page-container {
 }
 
 .settings-page {
+  width: 100%;
+  max-width: 72rem;
   padding-block: var(--ui-page-y) !important;
+}
+
+html.widescreen .settings-page {
+  max-width: min(100%, 125rem) !important;
+}
+
+@media (min-width: 1536px) {
+  html:not(.widescreen) .settings-page {
+    max-width: 100rem !important;
+  }
 }
 
 .settings-page-title {
