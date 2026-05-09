@@ -40,6 +40,19 @@ const plainUmbreon: EbayMatchCard = {
   },
 };
 
+const megaCharizard130: EbayMatchCard = {
+  id: "charizard-130",
+  name: "Mega Charizard X ex",
+  card_number: "130",
+  rarity: "Special Illustration Rare",
+  image_url: null,
+  episode: {
+    id: "me02",
+    name: "Phantasmal Flames",
+    code: "ME2",
+  },
+};
+
 describe("eBay card matching", () => {
   it("matches Umbreon ex 161/131 Prismatic listings to the database card", () => {
     const match = matchEbayListingToCard({
@@ -61,6 +74,17 @@ describe("eBay card matching", () => {
     });
 
     expect(match.status).toBe("unmatched");
+  });
+
+  it("does not match same-name listings when the explicit card number is different", () => {
+    const match = matchEbayListingToCard({
+      title: "Mega Charizard X ex - 013/094 - Phantasmal Flames Double Rare Pokemon Card",
+      candidates: [megaCharizard130],
+      requestedMode: "raw",
+    });
+
+    expect(match.status).toBe("unmatched");
+    expect(match.card).toBeNull();
   });
 
   it("matches graded listings in graded mode", () => {

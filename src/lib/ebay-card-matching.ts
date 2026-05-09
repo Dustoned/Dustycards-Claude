@@ -241,6 +241,9 @@ function scoreCardAgainstListing(
   const titleVariants = signals.variants;
   const cardNumber = canonicalCardNumber(card.card_number);
   const hasNumber = Boolean(cardNumber && signals.numbers.has(cardNumber));
+  const hasDifferentSlashNumber = Boolean(
+    cardNumber && !hasNumber && signals.slashRefs.length > 0
+  );
   const hasPromoLikeSlash = Boolean(
     cardNumber &&
       signals.slashRefs.some(
@@ -248,6 +251,10 @@ function scoreCardAgainstListing(
       )
   );
   const setHint = hasSetHint(signals, card);
+
+  if (hasDifferentSlashNumber) {
+    return null;
+  }
 
   let score = 0;
   const reasons: string[] = [];

@@ -468,6 +468,11 @@ describe("GET /api/ebay/deals", () => {
         totalEur: 510,
       }),
       makeListing({
+        itemId: "same-name-wrong-number",
+        title: "Umbreon ex 013/094 Prismatic Evolutions PRE Pokemon",
+        totalEur: 12,
+      }),
+      makeListing({
         itemId: "charizard",
         title: "Charizard 4/102 Base Set Pokemon",
         totalEur: 300,
