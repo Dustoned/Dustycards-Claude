@@ -492,7 +492,7 @@ export function CardModalHeroSection({
 
           <div className="min-w-0 xl:justify-self-end">
             <div
-              className="flex w-full min-w-0 flex-wrap items-center gap-1.5 rounded-2xl border border-white/8 bg-black/12 p-1.5 shadow-sm shadow-black/10 sm:w-fit xl:justify-end"
+              className="flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:w-fit xl:justify-end"
               aria-label="Quick actions"
             >
               <CollectionAddCardButton
