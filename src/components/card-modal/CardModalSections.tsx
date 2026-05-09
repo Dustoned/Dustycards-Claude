@@ -166,7 +166,7 @@ function MarketRow({ label, value, hint }: MarketRowProps) {
 function MetaPill({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <span
-      className={`card-modal-meta-pill inline-flex min-h-0 items-center rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-base font-medium leading-none text-white/68 max-[640px]:px-2 max-[640px]:py-0.5 max-[640px]:text-[10px] ${className}`}
+      className={`card-modal-meta-pill inline-flex min-h-0 items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-sm font-medium leading-none text-white/68 max-[640px]:px-2 max-[640px]:py-0.5 max-[640px]:text-[10px] ${className}`}
     >
       {children}
     </span>
@@ -187,7 +187,7 @@ function CompactDetailLink({
       href={href}
       prefetch={false}
       onClick={onClick}
-      className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-sky-300/18 bg-sky-300/[0.075] px-2.5 py-1 text-sky-100 transition-colors hover:border-sky-200/32 hover:bg-sky-300/[0.12] hover:text-white max-[640px]:px-2 max-[640px]:py-0.5"
+      className="group inline-flex max-w-full items-center gap-1 rounded-full border border-sky-300/18 bg-sky-300/[0.075] px-2 py-0.5 text-sm text-sky-100 transition-colors hover:border-sky-200/32 hover:bg-sky-300/[0.12] hover:text-white max-[640px]:text-[12px]"
     >
       <span className="min-w-0 truncate">{children}</span>
       <ChevronRight className="h-3.5 w-3.5 shrink-0 text-sky-100/64 transition-transform group-hover:translate-x-0.5 group-hover:text-white max-[640px]:h-3 max-[640px]:w-3" />
@@ -437,27 +437,30 @@ export function CardModalHeroSection({
         ...visibleCollectionStats.filter((stat) => stat.label === "Condition"),
       ]
     : heroDetailStats;
+  const quickActionButtonClass = "min-h-9 w-full !rounded-xl !px-3 !py-2 !text-xs";
+  const utilityButtonClass =
+    "inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/76 transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
-    <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))]">
+    <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))] !p-3 sm:!p-4">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_48%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.16),transparent_42%)]" />
 
       <div className="relative">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)] xl:items-start">
           <div className="min-w-0">
-            <h2 className={`${titleClass} break-words leading-tight font-bold text-white`}>
+            <h2 className={`${titleClass} break-words !text-[1.45rem] font-bold leading-tight text-white sm:!text-[1.9rem]`}>
               {card.name}
             </h2>
 
-            <div className={`mt-3 flex flex-wrap items-center gap-2 text-white/54 max-[640px]:mt-1 max-[640px]:gap-1 ${metaClassName}`}>
+            <div className={`mt-2 flex flex-wrap items-center gap-1.5 text-white/54 max-[640px]:mt-1 max-[640px]:gap-1 ${metaClassName}`}>
               {headerMetaLabel && (
-                <span className="whitespace-nowrap rounded-full border border-white/8 bg-black/12 px-2 py-1 font-medium leading-none text-white/58 max-[640px]:px-1.5 max-[640px]:py-0.5 max-[640px]:text-[10px]">
+                <span className="whitespace-nowrap rounded-full border border-white/8 bg-black/12 px-2 py-1 text-sm font-medium leading-none text-white/58 max-[640px]:px-1.5 max-[640px]:py-0.5 max-[640px]:text-[10px]">
                   {headerMetaLabel}
                 </span>
               )}
               {normalizedRarity && (
                 <span
-                  className={`inline-flex rounded-full px-3 py-1.5 text-sm font-semibold leading-none sm:text-base max-[640px]:px-2 max-[640px]:py-0.5 max-[640px]:text-[10px] ${rarityBadge(
+                  className={`inline-flex rounded-full px-2.5 py-1 text-sm font-semibold leading-none max-[640px]:px-2 max-[640px]:py-0.5 max-[640px]:text-[10px] ${rarityBadge(
                     card.rarity
                   )}`}
                 >
@@ -486,87 +489,63 @@ export function CardModalHeroSection({
             </div>
           </div>
 
-          <div className="mt-4 grid max-w-xl gap-2 sm:grid-cols-2 xl:hidden">
-            <CollectionAddCardButton
-              card={collectionCard}
-              mode="button"
-              theme="dark"
-              label={collectionItem ? "Add copy" : "Add to DustyCards"}
-              className="min-h-10 w-full"
-            />
-
-            {collectionItem && (
-              <CollectionEditCardButton
+          <div className="min-w-0 rounded-2xl border border-white/8 bg-black/14 p-2 shadow-sm shadow-black/10">
+            <p className="px-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-white/34">
+              Quick actions
+            </p>
+            <div className={`mt-1.5 grid gap-1.5 ${collectionItem ? "grid-cols-2" : ""}`}>
+              <CollectionAddCardButton
                 card={collectionCard}
-                item={collectionItem}
                 mode="button"
                 theme="dark"
-                label="Edit card"
-                className="min-h-10 w-full"
-                onSaved={onClose}
+                label={collectionItem ? "Add copy" : "Add to DustyCards"}
+                className={quickActionButtonClass}
               />
+
+              {collectionItem && (
+                <CollectionEditCardButton
+                  card={collectionCard}
+                  item={collectionItem}
+                  mode="button"
+                  theme="dark"
+                  label="Edit"
+                  className={quickActionButtonClass}
+                  onSaved={onClose}
+                />
+              )}
+            </div>
+
+            {canManageCardPrices && (
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5 border-t border-white/8 pt-1.5">
+                <button
+                  type="button"
+                  onClick={onSyncHistory}
+                  disabled={isBusy}
+                  className={utilityButtonClass}
+                  aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
+                  title={syncingHistory ? "Syncing..." : "Sync history"}
+                >
+                  <LineChart className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`} />
+                  <span>{syncingHistory ? "Syncing" : "Sync"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onRefresh}
+                  disabled={isBusy}
+                  className={utilityButtonClass}
+                  aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
+                  title={refreshing ? "Refreshing..." : "Refresh"}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                  <span>{refreshing ? "Refreshing" : "Refresh"}</span>
+                </button>
+              </div>
             )}
           </div>
 
-          {canManageCardPrices && (
-            <div className="flex flex-wrap items-center gap-2 max-[640px]:mt-2 max-[640px]:gap-1.5 xl:justify-self-end xl:self-start">
-              <button
-                type="button"
-                onClick={onSyncHistory}
-                disabled={isBusy}
-                className="inline-flex min-h-[40px] items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:h-8 max-[640px]:min-h-8 max-[640px]:w-8 max-[640px]:rounded-full max-[640px]:px-0 max-[640px]:py-0"
-                aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
-                title={syncingHistory ? "Syncing..." : "Sync history"}
-              >
-                <LineChart
-                  className={`h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5 ${
-                    syncingHistory ? "animate-pulse" : ""
-                  }`}
-                />
-                <span className="max-[640px]:sr-only">{syncingHistory ? "Syncing..." : "Sync"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={isBusy}
-                className="inline-flex min-h-[40px] items-center justify-center gap-2 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white/84 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:h-8 max-[640px]:min-h-8 max-[640px]:w-8 max-[640px]:rounded-full max-[640px]:px-0 max-[640px]:py-0"
-                aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
-                title={refreshing ? "Refreshing..." : "Refresh"}
-              >
-                <RefreshCw
-                  className={`h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5 ${
-                    refreshing ? "animate-spin" : ""
-                  }`}
-                />
-                <span className="max-[640px]:sr-only">{refreshing ? "Refreshing..." : "Refresh"}</span>
-              </button>
-            </div>
-          )}
         </div>
 
-        <div className="mt-4 hidden max-w-xl gap-2 xl:grid xl:grid-cols-2">
-          <CollectionAddCardButton
-            card={collectionCard}
-            mode="button"
-            theme="dark"
-            label={collectionItem ? "Add copy" : "Add to DustyCards"}
-            className="min-h-10 w-full"
-          />
-
-          {collectionItem && (
-            <CollectionEditCardButton
-              card={collectionCard}
-              item={collectionItem}
-              mode="button"
-              theme="dark"
-              label="Edit card"
-              className="min-h-10 w-full"
-              onSaved={onClose}
-            />
-          )}
-        </div>
-
-        <div className="mt-4 grid gap-2 max-[640px]:mt-2 max-[640px]:grid-cols-2 max-[640px]:gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-3 grid gap-2 max-[640px]:mt-2 max-[640px]:grid-cols-2 max-[640px]:gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
           {headerDetailStats.map((stat) => (
             <div
               key={stat.label}
