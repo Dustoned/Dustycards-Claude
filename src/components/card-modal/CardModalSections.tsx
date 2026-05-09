@@ -437,16 +437,17 @@ export function CardModalHeroSection({
         ...visibleCollectionStats.filter((stat) => stat.label === "Condition"),
       ]
     : heroDetailStats;
-  const quickActionButtonClass = "min-h-9 w-full !rounded-xl !px-3 !py-2 !text-xs";
+  const quickActionButtonClass =
+    "min-h-8 !rounded-xl !border-white/10 !bg-white/[0.08] !px-3 !py-1.5 !text-[11px] hover:!border-white/18 hover:!bg-white/[0.13] max-[640px]:flex-1";
   const utilityButtonClass =
-    "inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-xs font-semibold text-white/76 transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex min-h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[11px] font-semibold text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:flex-1";
 
   return (
     <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))] !p-3 sm:!p-4">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_48%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.16),transparent_42%)]" />
 
       <div className="relative">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(16rem,18rem)] xl:items-start">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
           <div className="min-w-0">
             <h2 className={`${titleClass} break-words !text-[1.45rem] font-bold leading-tight text-white sm:!text-[1.9rem]`}>
               {card.name}
@@ -489,11 +490,11 @@ export function CardModalHeroSection({
             </div>
           </div>
 
-          <div className="min-w-0 rounded-2xl border border-white/8 bg-black/14 p-2 shadow-sm shadow-black/10">
-            <p className="px-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-white/34">
-              Quick actions
-            </p>
-            <div className={`mt-1.5 grid gap-1.5 ${collectionItem ? "grid-cols-2" : ""}`}>
+          <div className="min-w-0 xl:justify-self-end">
+            <div
+              className="flex w-full min-w-0 flex-wrap items-center gap-1.5 rounded-2xl border border-white/8 bg-black/12 p-1.5 shadow-sm shadow-black/10 sm:w-fit xl:justify-end"
+              aria-label="Quick actions"
+            >
               <CollectionAddCardButton
                 card={collectionCard}
                 mode="button"
@@ -513,34 +514,36 @@ export function CardModalHeroSection({
                   onSaved={onClose}
                 />
               )}
-            </div>
 
-            {canManageCardPrices && (
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5 border-t border-white/8 pt-1.5">
-                <button
-                  type="button"
-                  onClick={onSyncHistory}
-                  disabled={isBusy}
-                  className={utilityButtonClass}
-                  aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
-                  title={syncingHistory ? "Syncing..." : "Sync history"}
-                >
-                  <LineChart className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`} />
-                  <span>{syncingHistory ? "Syncing" : "Sync"}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onRefresh}
-                  disabled={isBusy}
-                  className={utilityButtonClass}
-                  aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
-                  title={refreshing ? "Refreshing..." : "Refresh"}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                  <span>{refreshing ? "Refreshing" : "Refresh"}</span>
-                </button>
-              </div>
-            )}
+              {canManageCardPrices && (
+                <>
+                  <button
+                    type="button"
+                    onClick={onSyncHistory}
+                    disabled={isBusy}
+                    className={utilityButtonClass}
+                    aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
+                    title={syncingHistory ? "Syncing..." : "Sync history"}
+                  >
+                    <LineChart
+                      className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`}
+                    />
+                    <span>{syncingHistory ? "Syncing" : "Sync"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    disabled={isBusy}
+                    className={utilityButtonClass}
+                    aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
+                    title={refreshing ? "Refreshing..." : "Refresh"}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                    <span>{refreshing ? "Refreshing" : "Refresh"}</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
         </div>
@@ -563,7 +566,7 @@ export function CardModalHeroSection({
           ))}
         </div>
 
-        {collectionItem ? (
+        {collectionItem && (
           <>
             {collectionTags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
@@ -584,10 +587,6 @@ export function CardModalHeroSection({
               </div>
             )}
           </>
-        ) : (
-          <div className="mt-3 rounded-[20px] border border-dashed border-white/8 bg-black/12 px-4 py-3.5 text-base text-white/56 max-[640px]:rounded-2xl max-[640px]:px-3 max-[640px]:py-2.5 max-[640px]:text-sm">
-            Add this card to DustyCards to save purchase details, condition, language and notes.
-          </div>
         )}
 
         {refreshError && <p className="mt-4 text-base text-rose-300">{refreshError}</p>}
