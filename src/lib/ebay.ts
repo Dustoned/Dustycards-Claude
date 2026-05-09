@@ -472,6 +472,11 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   },
   {
     pattern:
+      /\bempty\b(?=.{0,140}\b(?:elite\s+trainer\s+box|etb|booster\s+box|display|box|boxes|tin|tins|case|wrapper|wrappers|packaging|carton|divider|dividers)\b)/i,
+    reason: "no-card listing",
+  },
+  {
+    pattern:
       /\b(no\s+(?:card|cards|pack|packs|booster|boosters)|(?:card|cards|pack|packs|booster|boosters)\s+not\s+included|does\s+not\s+include\s+(?:a\s+)?(?:card|cards|pack|packs|booster|boosters)|without\s+(?:a\s+)?(?:card|cards|pack|packs|booster|boosters)|empty\s+(?:(?:booster|elite\s+trainer|etb|display|collection|trainer|tin|case|outer|shipping|storage|packaging)\s+){0,3}(?:box|boxes|pack|packs|tin|tins|etb|display|case|wrapper|wrappers|packaging|carton)|(?:empty\s+)?(?:etb|elite\s+trainer|outer|shipping|storage|packaging)\s+box\s+only|(?:wrapper|wrappers|packaging|carton|case)\s+only|(?:box|boxes|pack|packs|tin|tins|etb|display|case|wrapper|wrappers|packaging|carton)\s+empty|packaging\s+only|graded\s+guard)\b/i,
     reason: "no-card listing",
   },

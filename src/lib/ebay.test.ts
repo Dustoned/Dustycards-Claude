@@ -318,6 +318,12 @@ describe("ebay deal helpers", () => {
         listingKind: "sealed",
       })
     ).toBe("no-card listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "EMPTY Pokemon Phantasmal Flames Elite Trainer Box & Dividers Mega Charizard X",
+        listingKind: "sealed",
+      })
+    ).toBe("no-card listing");
   });
 
   it("detects graded listings that should stay out of raw mode", () => {
