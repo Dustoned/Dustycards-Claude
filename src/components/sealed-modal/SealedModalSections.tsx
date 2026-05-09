@@ -370,15 +370,6 @@ export function SealedModalHeroSection({
           </div>
 
           <div className="flex flex-wrap gap-2 xl:justify-self-end xl:self-start">
-            <Link
-              href={`/deals?mode=sealed&productId=${encodeURIComponent(product.id)}`}
-              prefetch={false}
-              onClick={onClose}
-              className="inline-flex min-h-[46px] items-center gap-2.5 whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 text-base font-semibold text-white/84 transition-colors hover:bg-white/[0.1]"
-            >
-              <ExternalLink className="h-[18px] w-[18px]" />
-              eBay Deals
-            </Link>
             <button
               type="button"
               onClick={onSyncHistory}
@@ -506,43 +497,74 @@ export function SealedModalFooter({
   product,
   footerGridClass,
   cardMarketUrl,
+  onClose,
 }: {
   product: SealedDetailResponse;
   footerGridClass: string;
   cardMarketUrl: string | null;
+  onClose: () => void;
 }) {
+  const footerGroupClass = "min-w-0 rounded-2xl border border-white/8 bg-white/[0.035] p-2.5";
+  const footerGroupLabelClass =
+    "px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/34";
+  const marketButtonBase =
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors";
+  const marketGridClass =
+    product.tcggo_url && cardMarketUrl ? "sm:grid-cols-3" : "sm:grid-cols-2";
+
   return (
-    <div className={`${footerGridClass} ${product.tcggo_url ? "xl:grid-cols-3" : ""}`}>
-      <CollectionAddSealedButton
-        product={buildCollectionProduct(product)}
-        mode="button"
-        theme="dark"
-        label="Add to DustyCards"
-        className="rounded-2xl"
-      />
+    <div className={footerGridClass}>
+      <div className={footerGroupClass}>
+        <p className={footerGroupLabelClass}>Collection</p>
+        <div className="mt-2 grid gap-2">
+          <CollectionAddSealedButton
+            product={buildCollectionProduct(product)}
+            mode="button"
+            theme="dark"
+            label="Add to DustyCards"
+            className="min-h-11 w-full"
+          />
+        </div>
+      </div>
 
-      {product.tcggo_url && (
-        <a
-          href={product.tcggo_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-3 text-center font-semibold text-white/78 transition-colors hover:border-white/20 hover:bg-white/[0.1] hover:text-white"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Open TCGGO
-        </a>
-      )}
+      <div className={footerGroupClass}>
+        <p className={footerGroupLabelClass}>Market</p>
+        <div className={`mt-2 grid gap-2 ${marketGridClass}`}>
+          {cardMarketUrl && (
+            <a
+              href={cardMarketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${marketButtonBase} bg-blue-600 hover:bg-blue-500`}
+            >
+              CardMarket
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          )}
 
-      {cardMarketUrl && (
-        <a
-          href={cardMarketUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-500"
-        >
-          Open CardMarket
-        </a>
-      )}
+          <Link
+            href={`/deals?mode=sealed&productId=${encodeURIComponent(product.id)}`}
+            prefetch={false}
+            onClick={onClose}
+            className={`${marketButtonBase} bg-emerald-600 hover:bg-emerald-500`}
+          >
+            eBay Deals
+            <ExternalLink className="h-4 w-4" />
+          </Link>
+
+          {product.tcggo_url && (
+            <a
+              href={product.tcggo_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${marketButtonBase} border border-white/12 bg-white/[0.06] text-white/78 hover:border-white/20 hover:bg-white/[0.1] hover:text-white`}
+            >
+              TCGGO
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

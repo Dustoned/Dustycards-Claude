@@ -111,8 +111,7 @@ export default function CardModal({ card, onClose }: Props) {
   const collectionItem = modalCard.collection_item ?? null;
   const layout = getCardModalLayoutClasses(
     displaySettings.modalSize,
-    displaySettings.widescreen,
-    Boolean(collectionItem)
+    displaySettings.widescreen
   );
   const gradedPrices = modalCard.graded_prices ?? [];
   const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];

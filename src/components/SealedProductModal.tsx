@@ -225,6 +225,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
             product={modalProduct}
             footerGridClass={layout.footerGridClass}
             cardMarketUrl={cardMarketUrl}
+            onClose={onClose}
           />
         </div>
       </div>

@@ -4,7 +4,7 @@ import { type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, LineChart, RefreshCw } from "lucide-react";
+import { ChevronRight, ExternalLink, LineChart, RefreshCw } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
@@ -339,6 +339,7 @@ export function CardModalHeroSection({
   onSyncHistory: () => void;
   onClose: () => void;
 }) {
+  const collectionCard = buildCollectionCard(card);
   const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
   const typeLabel = [card.supertype, card.subtypes].filter(Boolean).join(" / ");
   const collectionTags = collectionItem?.tags ?? [];
@@ -485,6 +486,28 @@ export function CardModalHeroSection({
             </div>
           </div>
 
+          <div className="mt-4 grid max-w-xl gap-2 sm:grid-cols-2 xl:hidden">
+            <CollectionAddCardButton
+              card={collectionCard}
+              mode="button"
+              theme="dark"
+              label={collectionItem ? "Add copy" : "Add to DustyCards"}
+              className="min-h-10 w-full"
+            />
+
+            {collectionItem && (
+              <CollectionEditCardButton
+                card={collectionCard}
+                item={collectionItem}
+                mode="button"
+                theme="dark"
+                label="Edit card"
+                className="min-h-10 w-full"
+                onSaved={onClose}
+              />
+            )}
+          </div>
+
           {canManageCardPrices && (
             <div className="flex flex-wrap items-center gap-2 max-[640px]:mt-2 max-[640px]:gap-1.5 xl:justify-self-end xl:self-start">
               <button
@@ -518,6 +541,28 @@ export function CardModalHeroSection({
                 <span className="max-[640px]:sr-only">{refreshing ? "Refreshing..." : "Refresh"}</span>
               </button>
             </div>
+          )}
+        </div>
+
+        <div className="mt-4 hidden max-w-xl gap-2 xl:grid xl:grid-cols-2">
+          <CollectionAddCardButton
+            card={collectionCard}
+            mode="button"
+            theme="dark"
+            label={collectionItem ? "Add copy" : "Add to DustyCards"}
+            className="min-h-10 w-full"
+          />
+
+          {collectionItem && (
+            <CollectionEditCardButton
+              card={collectionCard}
+              item={collectionItem}
+              mode="button"
+              theme="dark"
+              label="Edit card"
+              className="min-h-10 w-full"
+              onSaved={onClose}
+            />
           )}
         </div>
 
@@ -1069,55 +1114,73 @@ export function CardModalFooter({
   onClose: () => void;
 }) {
   const collectionCard = buildCollectionCard(card);
+  const footerGroupClass = "min-w-0 rounded-2xl border border-white/8 bg-white/[0.035] p-2.5";
+  const footerGroupLabelClass =
+    "px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/34";
+  const marketButtonBase =
+    "inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors";
 
   return (
     <div className={footerGridClass}>
-      <CollectionAddCardButton
-        card={collectionCard}
-        mode="button"
-        theme="dark"
-        label="Add to DustyCards"
-        className="rounded-2xl"
-      />
+      <div className={footerGroupClass}>
+        <p className={footerGroupLabelClass}>Collection</p>
+        <div className={`mt-2 grid gap-2 ${collectionItem ? "sm:grid-cols-2" : ""}`}>
+          <CollectionAddCardButton
+            card={collectionCard}
+            mode="button"
+            theme="dark"
+            label="Add to DustyCards"
+            className="min-h-11 w-full"
+          />
 
-      {collectionItem && (
-        <CollectionEditCardButton
-          card={collectionCard}
-          item={collectionItem}
-          mode="button"
-          theme="dark"
-          label="Edit card"
-          className="rounded-2xl"
-          onSaved={onClose}
-        />
-      )}
+          {collectionItem && (
+            <CollectionEditCardButton
+              card={collectionCard}
+              item={collectionItem}
+              mode="button"
+              theme="dark"
+              label="Edit card"
+              className="min-h-11 w-full"
+              onSaved={onClose}
+            />
+          )}
+        </div>
+      </div>
 
-      <Link
-        href={`/deals?cardId=${encodeURIComponent(card.id)}`}
-        prefetch={false}
-        className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-emerald-500"
-      >
-        eBay Deals
-      </Link>
+      <div className={footerGroupClass}>
+        <p className={footerGroupLabelClass}>Market</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {storedCardMarketUrl ? (
+            <a
+              href={storedCardMarketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${marketButtonBase} bg-blue-600 hover:bg-blue-500`}
+            >
+              CardMarket
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenCardMarket}
+              className={`${marketButtonBase} bg-blue-600 hover:bg-blue-500`}
+            >
+              CardMarket
+              <ExternalLink className="h-4 w-4" />
+            </button>
+          )}
 
-      {storedCardMarketUrl ? (
-        <a
-          href={storedCardMarketUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-4 py-3 text-center font-semibold text-white transition-colors hover:bg-blue-500"
-        >
-          Open CardMarket
-        </a>
-      ) : (
-        <button
-          type="button"
-          onClick={onOpenCardMarket}
-          className="rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500"
-        >
-          Open CardMarket
-        </button>
-      )}
+          <Link
+            href={`/deals?cardId=${encodeURIComponent(card.id)}`}
+            prefetch={false}
+            className={`${marketButtonBase} bg-emerald-600 hover:bg-emerald-500`}
+          >
+            eBay Deals
+            <ExternalLink className="h-4 w-4" />
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
