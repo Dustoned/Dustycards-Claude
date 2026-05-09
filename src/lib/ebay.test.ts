@@ -324,6 +324,18 @@ describe("ebay deal helpers", () => {
         listingKind: "sealed",
       })
     ).toBe("no-card listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokémon TCG: Phantasmal Flames Elite Trainer Box Card Sleeves (65-Pack)",
+        listingKind: "sealed",
+      })
+    ).toBe("accessory/pack listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon Phantasmal Flames Lot , Pulls From Booster Box's And And Elite Trainer",
+        listingKind: "sealed",
+      })
+    ).toBe("multi-card listing");
   });
 
   it("detects graded listings that should stay out of raw mode", () => {

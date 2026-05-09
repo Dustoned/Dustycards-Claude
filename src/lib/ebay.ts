@@ -497,6 +497,22 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   },
 ];
 
+const DISALLOWED_SEALED_EBAY_LISTING_PATTERNS: Array<{
+  pattern: RegExp;
+  reason: string;
+}> = [
+  {
+    pattern:
+      /\b(card\s+sleeves?|deck\s+sleeves?|sleeves?\s*(?:\(?\d+\s*-?\s*pack\)?|pack))\b/i,
+    reason: "accessory/pack listing",
+  },
+  {
+    pattern:
+      /\b(lot|pulls?\s+from|hits?\s+from|loose\s+(?:cards?|packs?)|opened\s+(?:box|packs?|product)|bulk)\b/i,
+    reason: "multi-card listing",
+  },
+];
+
 const CONDITION_SEPARATOR = String.raw`(?:^|[\s()[\]{}|,;:/\\-])`;
 const CONDITION_END = String.raw`(?=$|[\s()[\]{}|,;:/\\-])`;
 const UNKNOWN_CARD_CONDITION: EbayListingCardCondition = {
@@ -776,6 +792,12 @@ export function getEbayListingRejectionReason(input: {
     return input.listingKind === "sealed"
       ? "non-English sealed language"
       : "non-English card language";
+  }
+
+  if (input.listingKind === "sealed") {
+    for (const { pattern, reason } of DISALLOWED_SEALED_EBAY_LISTING_PATTERNS) {
+      if (pattern.test(combined)) return reason;
+    }
   }
 
   for (const { pattern, reason } of DISALLOWED_EBAY_LISTING_PATTERNS) {
