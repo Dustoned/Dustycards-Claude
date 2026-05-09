@@ -42,6 +42,7 @@ interface ListingTextSignals {
   tokens: Set<string>;
   variants: Set<string>;
   numbers: Set<string>;
+  codedRefNumbers: Set<string>;
   slashRefs: Array<{ left: string; right: string }>;
   isAccessoryListing: boolean;
   isGradedListing: boolean;
@@ -192,6 +193,11 @@ function getListingSignals(title: string, condition: string | null | undefined):
   for (const ref of slashRefs) {
     numbers.add(ref.left);
   }
+  const codedRefNumbers = new Set<string>();
+  for (const token of tokens) {
+    const codedRef = token.match(/^[a-z]{3,}0*(\d{2,3}[a-z]?)$/i)?.[1];
+    if (codedRef) codedRefNumbers.add(codedRef.replace(/^0+/, "") || codedRef);
+  }
 
   const gradeMatch = normalizedTitle.match(
     /\b(psa|bgs|cgc|sgc|ace|tag|aigrading)\s*(?:gem\s*mint\s*)?(\d+(?:\.\d+)?)\b/i
@@ -209,6 +215,7 @@ function getListingSignals(title: string, condition: string | null | undefined):
     tokens,
     variants: extractVariants(title),
     numbers,
+    codedRefNumbers,
     slashRefs,
     isAccessoryListing,
     isGradedListing,
@@ -240,9 +247,14 @@ function scoreCardAgainstListing(
   const cardVariants = extractVariants(card.name);
   const titleVariants = signals.variants;
   const cardNumber = canonicalCardNumber(card.card_number);
-  const hasNumber = Boolean(cardNumber && signals.numbers.has(cardNumber));
+  const hasNumber = Boolean(
+    cardNumber && (signals.numbers.has(cardNumber) || signals.codedRefNumbers.has(cardNumber))
+  );
   const hasDifferentSlashNumber = Boolean(
     cardNumber && !hasNumber && signals.slashRefs.length > 0
+  );
+  const hasDifferentCodedRefNumber = Boolean(
+    cardNumber && !hasNumber && signals.codedRefNumbers.size > 0
   );
   const hasPromoLikeSlash = Boolean(
     cardNumber &&
@@ -252,7 +264,7 @@ function scoreCardAgainstListing(
   );
   const setHint = hasSetHint(signals, card);
 
-  if (hasDifferentSlashNumber) {
+  if (hasDifferentSlashNumber || hasDifferentCodedRefNumber) {
     return null;
   }
 

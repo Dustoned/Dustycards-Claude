@@ -473,6 +473,11 @@ describe("GET /api/ebay/deals", () => {
         totalEur: 12,
       }),
       makeListing({
+        itemId: "same-name-promo-code",
+        title: "Umbreon ex MEP029 Prismatic Evolutions Promo Pokemon",
+        totalEur: 11,
+      }),
+      makeListing({
         itemId: "charizard",
         title: "Charizard 4/102 Base Set Pokemon",
         totalEur: 300,

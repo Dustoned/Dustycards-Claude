@@ -87,6 +87,23 @@ describe("eBay card matching", () => {
     expect(match.card).toBeNull();
   });
 
+  it("does not match same-name promo codes when the promo number is different", () => {
+    const wrongPromo = matchEbayListingToCard({
+      title: "Mega Charizard X ex MEP029 - Mega Evolution Promo Pokemon Card - NM",
+      candidates: [megaCharizard130],
+      requestedMode: "raw",
+    });
+    const rightPromoNumber = matchEbayListingToCard({
+      title: "Mega Charizard X ex MEP130 - Mega Evolution Promo Pokemon Card - NM",
+      candidates: [megaCharizard130],
+      requestedMode: "raw",
+    });
+
+    expect(wrongPromo.status).toBe("unmatched");
+    expect(wrongPromo.card).toBeNull();
+    expect(rightPromoNumber.card?.id).toBe("charizard-130");
+  });
+
   it("matches graded listings in graded mode", () => {
     const match = matchEbayListingToCard({
       title: "PSA 9 UMBREON ex 161/131 | Prismatic Evo SIR Full Art Pokemon Card",
