@@ -25,6 +25,8 @@ import SyncStatusSection from "./SyncStatusSection";
 
 export const dynamic = "force-dynamic";
 
+const SCRAPER_QUOTA_TIME_ZONE = "Europe/Amsterdam";
+
 function formatDateTime(value: Date | null): string | null {
   if (!value) return null;
 
@@ -32,6 +34,19 @@ function formatDateTime(value: Date | null): string | null {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(value);
+}
+
+function formatScraperQuotaResetTime(value: Date | null): string | null {
+  if (!value) return null;
+
+  const time = new Intl.DateTimeFormat("nl-NL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: SCRAPER_QUOTA_TIME_ZONE,
+  }).format(value);
+
+  return `${time} Amsterdam`;
 }
 
 function parseSyncType(type: string): {
@@ -392,7 +407,7 @@ export default async function SettingsPage() {
               requestsLimit: tcggoUsageSnapshot.requestsLimit,
               requestsRemaining: tcggoUsageSnapshot.requestsRemaining,
               resetLabel: tcggoUsageSnapshot.hasLiveWindow
-                ? formatDateTime(tcggoUsageSnapshot.quotaResetsAt)
+                ? formatScraperQuotaResetTime(tcggoUsageSnapshot.quotaResetsAt)
                 : tcggoUsageSnapshot.observedAt
                   ? "Just reset, waiting for the next scraper response"
                   : "No scraper requests seen yet",
@@ -440,7 +455,7 @@ export default async function SettingsPage() {
                 tcggoUsageSnapshot.hasLiveWindow &&
                 tcggoUsageSnapshot.requestsRemaining === 0,
               quotaResetLabel: tcggoUsageSnapshot.hasLiveWindow
-                ? formatDateTime(tcggoUsageSnapshot.quotaResetsAt)
+                ? formatScraperQuotaResetTime(tcggoUsageSnapshot.quotaResetsAt)
                 : null,
               scraperDisabled,
             }}
