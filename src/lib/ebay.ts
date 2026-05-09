@@ -472,6 +472,16 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   },
   {
     pattern:
+      /\b(no\s+card|card\s+not\s+included|does\s+not\s+include\s+(?:a\s+)?card|without\s+(?:a\s+)?card|empty\s+(?:box|pack)|graded\s+guard)\b/i,
+    reason: "no-card listing",
+  },
+  {
+    pattern:
+      /\b(choose\s+your\s+card|pick\s+your\s+card|choose\s+the\s+card|pick\s+the\s+card|multiple\s+available)\b/i,
+    reason: "choice listing",
+  },
+  {
+    pattern:
       /\b(god\s+packs?|chance\s+to\s+get|guaranteed\s+\d|acrylic|keychains?|sleeves?|display\s+stand|mini\s+slab|extended\s+art(?:work)?\s+(?:case|frame)|artwork\s+case|anime\s+frame|card\s+case|case\s+card)\b/i,
     reason: "accessory/pack listing",
   },
@@ -746,14 +756,19 @@ export function getEbayListingRejectionReason(input: {
   title: string;
   condition?: string | null;
   language?: EbayListingLanguage | null;
-  listingKind?: "card" | "sealed";
+  listingKind?: "card" | "graded" | "sealed";
 }): string | null {
   const title = normalizeListingFilterText(input.title);
   const condition = normalizeListingFilterText(input.condition);
   const combined = [title, condition].filter(Boolean).join(" ");
   const language = input.language ?? detectEbayListingLanguage({ title, condition });
 
-  if (language.code !== "ENG" && language.code !== "UNKNOWN") {
+  if (
+    input.listingKind !== "graded" &&
+    input.listingKind !== "sealed" &&
+    language.code !== "ENG" &&
+    language.code !== "UNKNOWN"
+  ) {
     return "non-English card language";
   }
 
@@ -1166,7 +1181,7 @@ function getSearchCacheKey(input: {
   reference: EbayDealReference;
   requireGraded?: boolean;
   strictEnglish?: boolean;
-  listingKind?: "card" | "sealed";
+  listingKind?: "card" | "graded" | "sealed";
 }): string {
   return JSON.stringify({
     buyingMode: input.buyingMode,
@@ -1550,7 +1565,7 @@ export async function searchEbayDeals(input: {
   strictEnglish?: boolean;
   excludeGraded?: boolean;
   requireGraded?: boolean;
-  listingKind?: "card" | "sealed";
+  listingKind?: "card" | "graded" | "sealed";
 }): Promise<EbayDealSearchResult> {
   const config = input.config ?? getEbayRuntimeConfig();
   const query = input.query.trim();

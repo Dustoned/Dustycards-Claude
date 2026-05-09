@@ -229,6 +229,41 @@ function toMatchCard(card: CardDealContext): EbayMatchCard {
   };
 }
 
+function listingHasPinnedCardHint(listing: EbayDealListing, card: CardDealContext): boolean {
+  const listingTokens = new Set(
+    extractUsefulEbayTitleTokens(`${listing.title} ${listing.condition ?? ""}`)
+  );
+  const cardNameTokens = extractUsefulEbayTitleTokens(card.name);
+  const hasNameHint = cardNameTokens.some((token) => listingTokens.has(token));
+  const cardNumberToken = getCandidateNumbers(card.card_number ?? "")[0] ?? null;
+  const listingNumbers = new Set(getCandidateNumbers(`${listing.title} ${listing.condition ?? ""}`));
+
+  return hasNameHint || Boolean(cardNumberToken && listingNumbers.has(cardNumberToken));
+}
+
+function getPinnedReviewMatch(input: {
+  card: CardDealContext;
+  match: EbayCardMatch;
+}): EbayCardMatch {
+  const card = toMatchCard(input.card);
+  const confidence = Math.max(input.match.confidence, 30);
+
+  return {
+    ...input.match,
+    status: "review",
+    confidence,
+    reason:
+      input.match.reason === "No DustyCards card match"
+        ? "Exact card search; review listing"
+        : input.match.reason,
+    card,
+    candidates:
+      input.match.candidates.length > 0
+        ? input.match.candidates
+        : [{ card, confidence, reason: "Exact card search" }],
+  };
+}
+
 function getCandidateNumbers(value: string): string[] {
   const seen = new Set<string>();
   const numbers: string[] = [];
@@ -525,7 +560,7 @@ async function enrichListingsWithCardMatches(input: {
   const enriched: EnrichedEbayDealListing[] = [];
 
   for (const listing of input.listings) {
-    const cardMatch = matchEbayListingToCard({
+    let cardMatch = matchEbayListingToCard({
       title: listing.title,
       condition: listing.condition,
       candidates: matchCandidates,
@@ -534,8 +569,12 @@ async function enrichListingsWithCardMatches(input: {
     });
 
     if (input.pinnedCard) {
-      if (cardMatch.card?.id !== input.pinnedCard.id) continue;
-      if (cardMatch.status === "unmatched") continue;
+      if (cardMatch.source === "ignored") continue;
+      if (cardMatch.card && cardMatch.card.id !== input.pinnedCard.id) continue;
+      if (cardMatch.status === "unmatched") {
+        if (!listingHasPinnedCardHint(listing, input.pinnedCard)) continue;
+        cardMatch = getPinnedReviewMatch({ card: input.pinnedCard, match: cardMatch });
+      }
     }
 
     let reference = NO_MATCH_REFERENCE;
@@ -549,7 +588,13 @@ async function enrichListingsWithCardMatches(input: {
       dealTone: "unknown" as const,
     };
 
-    if (cardMatch.status === "matched" && cardMatch.card) {
+    if (input.pinnedCard && cardMatch.card?.id === input.pinnedCard.id) {
+      reference = await buildReferenceForCard(input.pinnedCard, input.mode);
+      comparison = compareListingToReference({
+        totalPriceEur: listing.total.valueEur,
+        referencePriceEur: reference.valueEur,
+      });
+    } else if (cardMatch.status === "matched" && cardMatch.card) {
       let cardContext = cardContextById.get(cardMatch.card.id) ?? null;
       if (!cardContext) {
         cardContext = await getCardDealContext(cardMatch.card.id, input.userId);
@@ -799,16 +844,39 @@ export async function GET(req: NextRequest) {
     }
 
     const searchConfig = mode === "graded" || mode === "sealed" ? { ...config, categoryId: null } : config;
-    const result = await searchEbayDeals({
-      query,
-      reference,
-      limit,
-      buyingMode,
-      config: searchConfig,
-      excludeGraded: mode === "raw",
-      requireGraded: mode === "graded",
-      listingKind: mode === "sealed" ? "sealed" : "card",
-    });
+    const searchListingKind = mode === "sealed" ? "sealed" : mode === "graded" ? "graded" : "card";
+    const runDealSearch = (searchQuery: string) =>
+      searchEbayDeals({
+        query: searchQuery,
+        reference,
+        limit,
+        buyingMode,
+        config: searchConfig,
+        excludeGraded: mode === "raw",
+        requireGraded: mode === "graded",
+        listingKind: searchListingKind,
+      });
+
+    let result = await runDealSearch(query);
+    if (result.listings.length === 0 && mode === "graded" && card) {
+      const fallbackQuery = buildEbayCardSearchQuery({
+        name: card.name,
+        episodeName: card.episode.name,
+        episodeCode: card.episode.code,
+        cardNumber: card.card_number,
+        mode: "graded",
+      });
+      if (fallbackQuery && fallbackQuery !== query) {
+        query = fallbackQuery;
+        result = await runDealSearch(query);
+      }
+    } else if (result.listings.length === 0 && mode === "sealed" && sealedProduct) {
+      const fallbackQuery = buildEbaySealedManualSearchQuery(sealedProduct.name);
+      if (fallbackQuery && fallbackQuery !== query) {
+        query = fallbackQuery;
+        result = await runDealSearch(query);
+      }
+    }
     const listings =
       mode === "sealed"
         ? enrichListingsWithSealedReference({

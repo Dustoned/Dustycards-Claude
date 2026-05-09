@@ -212,6 +212,16 @@ describe("ebay deal helpers", () => {
     ).toBe("mystery/custom listing");
     expect(
       getEbayListingRejectionReason({
+        title: "Team Rocket's Mewtwo ex Extended Art Insert for PSA / Graded Guard (No Card)",
+      })
+    ).toBe("no-card listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon CGC Graded Cards Slab Choose Your Card Multiple Available PSA",
+      })
+    ).toBe("choice listing");
+    expect(
+      getEbayListingRejectionReason({
         title: "Umbreon EX 161/131 Prismatic Evolutions Pokemon Card TCG Novelty Keychain",
       })
     ).toBe("accessory/pack listing");
@@ -235,6 +245,26 @@ describe("ebay deal helpers", () => {
         title: "POKEMON MINI SLAB KEYCHAINS PSA 10",
       })
     ).toBe("accessory/pack listing");
+  });
+
+  it("allows non-English markers for graded and sealed deal modes", () => {
+    expect(
+      getEbayListingRejectionReason({
+        title: "PSA 10 Umbreon ex SAR 217/187 Japanese Pokemon Card",
+      })
+    ).toBe("non-English card language");
+    expect(
+      getEbayListingRejectionReason({
+        title: "PSA 10 Umbreon ex SAR 217/187 Japanese Pokemon Card",
+        listingKind: "graded",
+      })
+    ).toBeNull();
+    expect(
+      getEbayListingRejectionReason({
+        title: "Pokemon TCG Booster Box Phantasmal Flames French",
+        listingKind: "sealed",
+      })
+    ).toBeNull();
   });
 
   it("does not reject official sealed product wording as accessory noise", () => {

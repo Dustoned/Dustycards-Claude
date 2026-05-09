@@ -14,6 +14,9 @@ const { collectionMock, dbMock, ebayMock, exchangeMock, priceHistoryMock } =
       ebayListingCardOverride: {
         findMany: vi.fn(),
       },
+      sealedProduct: {
+        findUnique: vi.fn(),
+      },
     },
     ebayMock: {
       buildEbayCardSearchQuery: vi.fn(),
@@ -103,6 +106,25 @@ function makeUmbreonCard() {
     gradedPrices: [],
     ebaySoldGradedPrices: [],
     collectionItems: [],
+  };
+}
+
+function makeSealedProduct() {
+  return {
+    id: "sealed-1",
+    name: "Mega Evolution Sleeved Booster",
+    image_url: null,
+    cm_lowest: 8,
+    cm_lowest_eu: null,
+    cm_lowest_de: null,
+    cm_lowest_fr: null,
+    cm_lowest_es: null,
+    cm_lowest_it: null,
+    episode: {
+      id: "meg",
+      name: "Mega Evolution",
+      code: "MEG",
+    },
   };
 }
 
@@ -345,8 +367,93 @@ describe("GET /api/ebay/deals", () => {
         query: "darkrai graded Pokemon",
         requireGraded: true,
         excludeGraded: false,
+        listingKind: "graded",
       })
     );
+  });
+
+  it("falls back to a generic graded card query when the saved grade is too narrow", async () => {
+    const card = {
+      ...makeUmbreonCard(),
+      collectionItems: [
+        {
+          grading_company: "CGC",
+          grading_grade: "10",
+        },
+      ],
+    };
+    dbMock.card.findUnique.mockResolvedValue(card);
+    ebayMock.buildEbayCardSearchQuery.mockImplementation(
+      (input: {
+        name: string;
+        cardNumber?: string | null;
+        gradingCompany?: string | null;
+        gradingGrade?: string | null;
+      }) =>
+        [
+          input.gradingCompany && input.gradingGrade
+            ? `${input.gradingCompany} ${input.gradingGrade}`
+            : "graded",
+          input.name,
+          input.cardNumber,
+          "Pokemon",
+        ]
+          .filter(Boolean)
+          .join(" ")
+    );
+    ebayMock.searchEbayDeals.mockImplementation(
+      async ({
+        buyingMode,
+        config,
+        query,
+      }: {
+        buyingMode: string;
+        config: { marketplaceId: string; deliveryCountry: string | null };
+        query: string;
+      }) => {
+        const listings = query.startsWith("CGC 10")
+          ? []
+          : [
+              makeListing({
+                itemId: "graded-fallback",
+                title: "PSA 10 Umbreon Pokemon",
+                totalEur: 400,
+              }),
+            ];
+
+        return {
+          query,
+          marketplaceId: config.marketplaceId,
+          deliveryCountry: config.deliveryCountry,
+          buyingMode,
+          total: listings.length,
+          listings,
+          directSearchUrl: `https://www.ebay.nl/sch/i.html?_nkw=${encodeURIComponent(query)}`,
+        };
+      }
+    );
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/ebay/deals?cardId=21554&mode=graded")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledTimes(2);
+    expect(ebayMock.searchEbayDeals).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        query: "graded Umbreon ex 161/131 Pokemon",
+        listingKind: "graded",
+      })
+    );
+    expect(body.listings.map((listing: { itemId: string }) => listing.itemId)).toEqual([
+      "graded-fallback",
+    ]);
+    expect(body.listings[0].cardMatch).toMatchObject({
+      status: "review",
+      card: { id: card.id, name: "Umbreon ex" },
+    });
+    expect(body.listings[0].reference.valueEur).toBe(899);
   });
 
   it("filters cardId searches to listings matched to that exact card", async () => {
@@ -407,6 +514,65 @@ describe("GET /api/ebay/deals", () => {
         requireGraded: true,
       })
     );
+  });
+
+  it("falls back to a broader sealed query when the product query returns nothing", async () => {
+    const product = makeSealedProduct();
+    dbMock.sealedProduct.findUnique.mockResolvedValue(product);
+    ebayMock.searchEbayDeals.mockImplementation(
+      async ({
+        buyingMode,
+        config,
+        query,
+      }: {
+        buyingMode: string;
+        config: { marketplaceId: string; deliveryCountry: string | null };
+        query: string;
+      }) => {
+        const listings = query.includes("MEG")
+          ? []
+          : [
+              makeListing({
+                itemId: "sealed-fallback",
+                title: "Pokemon Mega Evolution Sleeved Booster Pack",
+                totalEur: 6,
+              }),
+            ];
+
+        return {
+          query,
+          marketplaceId: config.marketplaceId,
+          deliveryCountry: config.deliveryCountry,
+          buyingMode,
+          total: listings.length,
+          listings,
+          directSearchUrl: `https://www.ebay.nl/sch/i.html?_nkw=${encodeURIComponent(query)}`,
+        };
+      }
+    );
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/ebay/deals?productId=sealed-1")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledTimes(2);
+    expect(ebayMock.searchEbayDeals).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        query: "Mega Evolution Sleeved Booster Pokemon TCG",
+        listingKind: "sealed",
+      })
+    );
+    expect(body.query).toBe("Mega Evolution Sleeved Booster Pokemon TCG");
+    expect(body.listings.map((listing: { itemId: string }) => listing.itemId)).toEqual([
+      "sealed-fallback",
+    ]);
+    expect(body.reference).toMatchObject({
+      label: "CardMarket sealed",
+      valueEur: 8,
+      source: "sealed",
+    });
   });
 
   it("lets manual overrides win over automatic matching", async () => {
