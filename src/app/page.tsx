@@ -205,7 +205,7 @@ export default async function HomePage({
           title="DustyCards Collection"
           description="Keep track of your singles, binders and sealed with the same live market data you already use everywhere else."
           className="max-[640px]:[--ui-page-header-action-margin:0.45rem] max-[640px]:[--ui-page-header-grid-gap:0.55rem] max-[640px]:[--ui-page-header-padding:0.7rem] max-[640px]:[--ui-page-header-title-size:1.35rem] max-[640px]:[--ui-header-action-gap:0.4rem] max-[640px]:[--ui-header-action-x:0.65rem] max-[640px]:[--ui-header-action-y:0.35rem] max-[640px]:[&_h1+div]:hidden"
-          gridClassName="xl:grid-cols-[minmax(19rem,0.6fr)_minmax(0,1.7fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.58fr)_minmax(0,2.15fr)] 2xl:items-stretch"
+          gridClassName="xl:grid-cols-[minmax(19rem,0.58fr)_minmax(0,1.42fr)] xl:items-stretch 2xl:grid-cols-[minmax(22rem,0.58fr)_minmax(0,1.62fr)] 2xl:items-stretch"
           sideClassName="space-y-2 xl:space-y-0"
           actions={
             <HeaderAction className="max-[640px]:gap-1.5">
@@ -221,7 +221,7 @@ export default async function HomePage({
             </HeaderAction>
           }
           accessory={
-            <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(30rem,1.45fr)_minmax(20rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(42rem,1.55fr)_minmax(28rem,0.9fr)]">
+            <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(14rem,0.55fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.55fr)_minmax(16rem,0.45fr)]">
               <div className="sm:hidden">
                 {showCollectionChart ? (
                   <PriceHistoryPanel
@@ -265,7 +265,7 @@ export default async function HomePage({
                   />
                 )}
               </div>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr">
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr xl:grid-cols-1 2xl:grid-cols-2">
                 {summaryCards.map((stat) => (
                   <HeaderStatCard key={stat.label} {...stat} />
                 ))}

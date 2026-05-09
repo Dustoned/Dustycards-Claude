@@ -285,7 +285,7 @@ export function HeaderStatCard({
           <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
             {label}
           </p>
-          <p className="mt-2 whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white">
+          <p className="mt-2 min-w-0 break-words text-[length:var(--ui-header-stat-value-size)] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white">
             {value}
           </p>
         </div>
@@ -370,7 +370,7 @@ export function PageHeroHeader({
         className={cx(
           "relative grid gap-[var(--ui-page-header-grid-gap)]",
           hasSideContent && !gridClassName
-            ? "xl:grid-cols-[minmax(24rem,1fr)_minmax(34rem,0.92fr)] xl:items-stretch 2xl:grid-cols-[minmax(30rem,1.12fr)_minmax(46rem,0.88fr)]"
+            ? "xl:grid-cols-[minmax(22rem,0.95fr)_minmax(0,1.05fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.95fr)_minmax(0,1.15fr)]"
             : "",
           gridClassName
         )}

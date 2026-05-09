@@ -411,6 +411,13 @@ html.widescreen .page-container {
   max-width: none !important;
 }
 
+@media (min-width: 1536px) {
+  html:not(.widescreen) .page-container.max-w-7xl,
+  html:not(.widescreen) .settings-page.max-w-6xl {
+    max-width: 100rem !important;
+  }
+}
+
 /* Dark glass — triggered by .dark class on <html> */
 .dark .glass {
   background: rgba(255, 255, 255, 0.03);
