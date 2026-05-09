@@ -237,7 +237,14 @@ function listingHasPinnedCardHint(listing: EbayDealListing, card: CardDealContex
   const hasNameHint = cardNameTokens.some((token) => listingTokens.has(token));
   const cardNumberToken = getCandidateNumbers(card.card_number ?? "")[0] ?? null;
   const listingText = `${listing.title} ${listing.condition ?? ""}`;
-  const listingNumbers = new Set(getCandidateNumbers(listingText));
+  const slashRightNumbers = [
+    ...listingText.matchAll(/\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/gi),
+  ].map((match) => (match[2].replace(/^0+/, "") || match[2]).toLowerCase());
+  const listingNumbers = new Set(
+    getCandidateNumbers(listingText).filter(
+      (number) => !slashRightNumbers.includes(number.toLowerCase())
+    )
+  );
   const slashNumbers = [
     ...listingText.matchAll(/\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/gi),
   ].map((match) => (match[1].replace(/^0+/, "") || match[1]).toLowerCase());

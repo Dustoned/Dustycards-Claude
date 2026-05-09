@@ -478,6 +478,11 @@ describe("GET /api/ebay/deals", () => {
         totalEur: 12,
       }),
       makeListing({
+        itemId: "same-name-denominator-number",
+        title: "Umbreon ex 13/161 Prismatic Evolutions PRE Pokemon",
+        totalEur: 12,
+      }),
+      makeListing({
         itemId: "same-name-promo-code",
         title: "Umbreon ex MEP029 Prismatic Evolutions Promo Pokemon",
         totalEur: 11,

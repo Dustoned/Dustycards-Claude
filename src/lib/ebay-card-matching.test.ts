@@ -87,6 +87,23 @@ describe("eBay card matching", () => {
     expect(match.card).toBeNull();
   });
 
+  it("does not treat slash denominators as the card number", () => {
+    const wrongDenominator = matchEbayListingToCard({
+      title: "Pokemon Mega Charizard X ex (13/130) Phantasmal Flames NM HOLO",
+      candidates: [megaCharizard130],
+      requestedMode: "raw",
+    });
+    const rightSlash = matchEbayListingToCard({
+      title: "Pokemon Mega Charizard X ex (130/094) Phantasmal Flames NM HOLO",
+      candidates: [megaCharizard130],
+      requestedMode: "raw",
+    });
+
+    expect(wrongDenominator.status).toBe("unmatched");
+    expect(wrongDenominator.card).toBeNull();
+    expect(rightSlash.card?.id).toBe("charizard-130");
+  });
+
   it("does not match same-name promo codes when the promo number is different", () => {
     const wrongPromo = matchEbayListingToCard({
       title: "Mega Charizard X ex MEP029 - Mega Evolution Promo Pokemon Card - NM",

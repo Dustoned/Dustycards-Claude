@@ -184,12 +184,16 @@ function getListingSignals(title: string, condition: string | null | undefined):
   const slashRefs = [...normalizedTitle.matchAll(/\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/gi)]
     .map((match) => ({
       left: match[1].replace(/^0+/, "") || match[1],
-      right: match[2],
+      right: match[2].replace(/^0+/, "") || match[2],
     }));
+  const slashRightNumbers = new Set(slashRefs.map((ref) => ref.right));
   const numbers = new Set<string>();
   for (const token of tokens) {
     if (/^\d+[a-z]*$/.test(token)) {
-      numbers.add(token.replace(/^0+/, "") || token);
+      const normalizedToken = token.replace(/^0+/, "") || token;
+      if (!slashRightNumbers.has(normalizedToken)) {
+        numbers.add(normalizedToken);
+      }
     }
   }
   for (const ref of slashRefs) {
