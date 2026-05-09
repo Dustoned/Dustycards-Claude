@@ -285,7 +285,7 @@ export function HeaderStatCard({
           <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
             {label}
           </p>
-          <p className="mt-2 min-w-0 break-words text-[length:var(--ui-header-stat-value-size)] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white">
+          <p className="mt-2 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white">
             {value}
           </p>
         </div>

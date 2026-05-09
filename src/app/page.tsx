@@ -4,7 +4,6 @@ import Link from "next/link";
 import { BookOpen, Boxes, Coins, Sparkles } from "lucide-react";
 import {
   HeaderAction,
-  HeaderStatCard,
   PageHeroHeader,
   type HeaderStat,
 } from "@/components/PageHeader";
@@ -108,6 +107,77 @@ function CollectionValueSummaryCard({
   );
 }
 
+const collectionHeaderStatToneClasses: Record<
+  NonNullable<HeaderStat["tone"]>,
+  { icon: string; surface: string }
+> = {
+  slate: {
+    icon: "text-gray-500 dark:text-white/55",
+    surface: "border-black/6 bg-white/75 dark:border-white/10 dark:bg-white/[0.055]",
+  },
+  emerald: {
+    icon: "text-emerald-600 dark:text-emerald-300",
+    surface: "border-emerald-400/14 bg-emerald-400/[0.07]",
+  },
+  amber: {
+    icon: "text-amber-600 dark:text-amber-300",
+    surface: "border-amber-400/14 bg-amber-400/[0.07]",
+  },
+  sky: {
+    icon: "text-sky-600 dark:text-sky-300",
+    surface: "border-sky-400/14 bg-sky-400/[0.07]",
+  },
+  rose: {
+    icon: "text-rose-600 dark:text-rose-300",
+    surface: "border-rose-400/14 bg-rose-400/[0.07]",
+  },
+  violet: {
+    icon: "text-violet-600 dark:text-violet-300",
+    surface: "border-violet-400/14 bg-violet-400/[0.07]",
+  },
+  blue: {
+    icon: "text-blue-600 dark:text-blue-300",
+    surface: "border-blue-400/14 bg-blue-400/[0.07]",
+  },
+};
+
+function CollectionHeaderStatCard({
+  label,
+  value,
+  hint,
+  Icon,
+  tone = "slate",
+}: HeaderStat) {
+  const toneClass = collectionHeaderStatToneClasses[tone];
+
+  return (
+    <div className="flex min-h-[8.4rem] min-w-0 flex-col justify-between rounded-2xl border border-black/8 bg-white/70 p-4 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <p className="min-w-0 truncate text-[0.66rem] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
+          {label}
+        </p>
+        {Icon ? (
+          <span
+            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${toneClass.surface} ${toneClass.icon}`}
+          >
+            <Icon className="h-4.5 w-4.5" />
+          </span>
+        ) : null}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate whitespace-nowrap text-[clamp(1.45rem,1.45vw,1.75rem)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+          {value}
+        </p>
+        {hint ? (
+          <p className="mt-1 truncate text-xs leading-snug text-gray-500 dark:text-white/50">
+            {hint}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -204,8 +274,8 @@ export default async function HomePage({
           eyebrow="DustyCards"
           title="DustyCards Collection"
           description="Keep track of your singles, binders and sealed with the same live market data you already use everywhere else."
-          className="max-[640px]:[--ui-page-header-action-margin:0.45rem] max-[640px]:[--ui-page-header-grid-gap:0.55rem] max-[640px]:[--ui-page-header-padding:0.7rem] max-[640px]:[--ui-page-header-title-size:1.35rem] max-[640px]:[--ui-header-action-gap:0.4rem] max-[640px]:[--ui-header-action-x:0.65rem] max-[640px]:[--ui-header-action-y:0.35rem] max-[640px]:[&_h1+div]:hidden"
-          gridClassName="xl:grid-cols-[minmax(19rem,0.58fr)_minmax(0,1.42fr)] xl:items-stretch 2xl:grid-cols-[minmax(22rem,0.58fr)_minmax(0,1.62fr)] 2xl:items-stretch"
+          className="xl:[--ui-page-header-title-size:2rem] 2xl:[--ui-page-header-title-size:2.15rem] max-[640px]:[--ui-page-header-action-margin:0.45rem] max-[640px]:[--ui-page-header-grid-gap:0.55rem] max-[640px]:[--ui-page-header-padding:0.7rem] max-[640px]:[--ui-page-header-title-size:1.35rem] max-[640px]:[--ui-header-action-gap:0.4rem] max-[640px]:[--ui-header-action-x:0.65rem] max-[640px]:[--ui-header-action-y:0.35rem] max-[640px]:[&_h1+div]:hidden"
+          gridClassName="xl:grid-cols-[minmax(23rem,0.58fr)_minmax(0,1.42fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.57fr)_minmax(0,1.63fr)] 2xl:items-stretch"
           sideClassName="space-y-2 xl:space-y-0"
           actions={
             <HeaderAction className="max-[640px]:gap-1.5">
@@ -221,7 +291,7 @@ export default async function HomePage({
             </HeaderAction>
           }
           accessory={
-            <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(14rem,0.55fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.55fr)_minmax(16rem,0.45fr)]">
+            <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.75fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.32fr)_minmax(24rem,0.68fr)]">
               <div className="sm:hidden">
                 {showCollectionChart ? (
                   <PriceHistoryPanel
@@ -265,9 +335,9 @@ export default async function HomePage({
                   />
                 )}
               </div>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr xl:grid-cols-1 2xl:grid-cols-2">
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr">
                 {summaryCards.map((stat) => (
-                  <HeaderStatCard key={stat.label} {...stat} />
+                  <CollectionHeaderStatCard key={stat.label} {...stat} />
                 ))}
               </div>
             </div>
