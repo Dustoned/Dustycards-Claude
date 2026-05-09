@@ -918,111 +918,121 @@ export function CardModalHistorySection({
     effectiveGradedSource === "ebay"
       ? selectedEbaySoldGradedHistory?.label ?? selectedEbaySoldGradedPrice?.label ?? ""
       : selectedGradedHistory?.label ?? selectedGradedPrice?.label ?? "";
+  const historyPillClass =
+    "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-2.5";
+  const historySegmentClass =
+    "inline-flex h-8 min-w-0 !w-auto overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-0.5 max-[640px]:h-7 max-[640px]:!w-full";
+  const historySegmentButtonClass =
+    "min-w-0 flex-1 rounded-full px-3 text-[11px] font-semibold transition-colors sm:flex-none max-[640px]:px-2.5";
 
   return (
     <SectionShell className="overflow-hidden">
-      <div className="mb-4 flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-            Price history
-          </p>
+      <div className="mb-3 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <p className="mr-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+              Price history
+            </p>
 
-          {showCardMarketSeriesPicker && (
-            <div className="card-modal-series-picker card-modal-history-series-picker flex flex-wrap justify-end gap-1.5">
-              {availableCardMarketHistorySeries.map((series) => (
-                <button
-                  key={series.key}
-                  type="button"
-                  onClick={() => onSelectCardMarketHistorySeries(series.key)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors max-[640px]:px-2.5 ${
-                    activeCardMarketHistorySeries === series.key
-                      ? "border-white/24 bg-white/14 text-white"
-                      : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                  }`}
-                >
-                  {series.label}
-                </button>
-              ))}
-            </div>
-          )}
+            {hasGradedData && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[
+                  { key: "market" as const, label: "Raw" },
+                  { key: "graded" as const, label: "Graded" },
+                ].map((mode) => (
+                  <button
+                    key={mode.key}
+                    type="button"
+                    onClick={() => onSelectHistoryChartMode(mode.key)}
+                    className={`${historyPillClass} ${
+                      effectiveHistoryChartMode === mode.key
+                        ? "border-white/24 bg-white/14 text-white"
+                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:justify-end">
+            {effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker && (
+              <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap justify-end gap-1.5">
+                {availableCardMarketHistorySeries.map((series) => (
+                  <button
+                    key={series.key}
+                    type="button"
+                    onClick={() => onSelectCardMarketHistorySeries(series.key)}
+                    className={`${historyPillClass} ${
+                      activeCardMarketHistorySeries === series.key
+                        ? "border-white/24 bg-white/14 text-white"
+                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                    }`}
+                  >
+                    {series.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {effectiveHistoryChartMode === "market" && showRawSourceToggle && (
+              <div className={`card-modal-source-toggle ${historySegmentClass}`}>
+                {[
+                  { key: "cardmarket" as const, label: "CardMarket" },
+                  { key: "tcgplayer" as const, label: "TCGPlayer" },
+                ].map((source) => (
+                  <button
+                    key={source.key}
+                    type="button"
+                    onClick={() => onSelectMarketSource(source.key)}
+                    className={`${historySegmentButtonClass} ${
+                      activeMarketSource === source.key
+                        ? "bg-white text-gray-950"
+                        : "text-white/48 hover:text-white/78"
+                    }`}
+                  >
+                    {source.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {effectiveHistoryChartMode === "graded" && showGradedSourceToggle && (
+              <div className={`card-modal-source-toggle ${historySegmentClass}`}>
+                {[
+                  { key: "cardmarket" as const, label: "CardMarket" },
+                  { key: "ebay" as const, label: "eBay sold" },
+                ].map((source) => (
+                  <button
+                    key={source.key}
+                    type="button"
+                    onClick={() => onSelectGradedSource(source.key)}
+                    className={`${historySegmentButtonClass} ${
+                      effectiveGradedSource === source.key
+                        ? "bg-white text-gray-950"
+                        : "text-white/48 hover:text-white/78"
+                    }`}
+                  >
+                    {source.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {showRawSourceToggle && (
-          <div className="card-modal-source-toggle inline-flex w-full overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-1 sm:w-auto sm:self-end">
-            {[
-              { key: "cardmarket" as const, label: "CardMarket" },
-              { key: "tcgplayer" as const, label: "TCGPlayer" },
-            ].map((source) => (
-              <button
-                key={source.key}
-                type="button"
-                onClick={() => onSelectMarketSource(source.key)}
-                className={`min-w-0 flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none ${
-                  activeMarketSource === source.key
-                    ? "bg-white text-gray-950"
-                    : "text-white/48 hover:text-white/78"
-                }`}
-              >
-                {source.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="min-h-0 overflow-hidden">
-        {hasGradedData && (
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            {[
-              { key: "market" as const, label: "Raw prices" },
-              { key: "graded" as const, label: "Graded" },
-            ].map((mode) => (
-              <button
-                key={mode.key}
-                type="button"
-                onClick={() => onSelectHistoryChartMode(mode.key)}
-                className={`inline-flex rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-                  effectiveHistoryChartMode === mode.key
-                    ? "border-white/24 bg-white/14 text-white"
-                    : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                }`}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-        )}
-
         {effectiveHistoryChartMode === "graded" ? (
-          <div className="space-y-4 pb-1">
-            <div className="grid gap-2 sm:grid-cols-[auto_minmax(12rem,1fr)] sm:items-center">
-              {showGradedSourceToggle ? (
-                <div className="card-modal-source-toggle inline-flex w-full overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-1 sm:w-auto">
-                  {[
-                    { key: "cardmarket" as const, label: "CardMarket" },
-                    { key: "ebay" as const, label: "eBay sold" },
-                  ].map((source) => (
-                    <button
-                      key={source.key}
-                      type="button"
-                      onClick={() => onSelectGradedSource(source.key)}
-                      className={`min-w-0 flex-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none ${
-                        effectiveGradedSource === source.key
-                          ? "bg-white text-gray-950"
-                          : "text-white/48 hover:text-white/78"
-                      }`}
-                    >
-                      {source.label}
-                    </button>
-                  ))}
-                </div>
-              ) : (
+          <div className="space-y-3 pb-1">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              {!showGradedSourceToggle && (
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
                   {effectiveGradedSource === "ebay" ? "eBay sold" : "CardMarket"}
                 </p>
               )}
 
-              <div className="min-w-0">
+              <div className="min-w-0 sm:min-w-[11rem]">
                 {activeGradeLabels.length > 1 ? (
                   <select
                     value={activeGradeValue}
@@ -1033,7 +1043,7 @@ export function CardModalHistorySection({
                         onSelectGradedLabel(event.target.value);
                       }
                     }}
-                    className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white outline-none transition-colors focus:border-white/18"
+                    className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-white/18"
                   >
                     {activeGradeLabels.map((label) => (
                       <option key={label} value={label} className="bg-[#111214] text-white">
@@ -1042,7 +1052,7 @@ export function CardModalHistorySection({
                     ))}
                   </select>
                 ) : (
-                  <div className="truncate rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/72">
+                  <div className="h-9 truncate rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white/72">
                     {activeGradeValue || "Graded"}
                   </div>
                 )}
@@ -1058,13 +1068,15 @@ export function CardModalHistorySection({
             />
           </div>
         ) : (
-          <PriceHistoryPanel
-            title={activeMarketHistory.title}
-            currency={activeMarketHistory.currency}
-            points={activeMarketHistory.points}
-            currentValue={activeMarketHistory.currentValue}
-            tone="dark"
-          />
+          <div className="min-h-0 overflow-hidden">
+            <PriceHistoryPanel
+              title={activeMarketHistory.title}
+              currency={activeMarketHistory.currency}
+              points={activeMarketHistory.points}
+              currentValue={activeMarketHistory.currentValue}
+              tone="dark"
+            />
+          </div>
         )}
       </div>
 
