@@ -104,6 +104,23 @@ describe("eBay card matching", () => {
     expect(rightPromoNumber.card?.id).toBe("charizard-130");
   });
 
+  it("does not match same-name hashtag numbers when the card number is different", () => {
+    const wrongHashtag = matchEbayListingToCard({
+      title: "Mega Charizard X Ex Ascended Heroes Black Star Promo Holo Foil #29 Pokemon",
+      candidates: [megaCharizard130],
+      requestedMode: "raw",
+    });
+    const rightHashtag = matchEbayListingToCard({
+      title: "Mega Charizard X Ex Phantasmal Flames Holo Foil #130 Pokemon",
+      candidates: [megaCharizard130],
+      requestedMode: "raw",
+    });
+
+    expect(wrongHashtag.status).toBe("unmatched");
+    expect(wrongHashtag.card).toBeNull();
+    expect(rightHashtag.card?.id).toBe("charizard-130");
+  });
+
   it("does not review-match generic Mega Evolution listings without the Pokemon name", () => {
     const match = matchEbayListingToCard({
       title: "Mega Evolution Pokemon Cards, Reverse Holo, EX, Ultra Rare, Full Art, English NM",

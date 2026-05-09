@@ -244,12 +244,16 @@ function listingHasPinnedCardHint(listing: EbayDealListing, card: CardDealContex
   const codedRefNumbers = [
     ...listingText.matchAll(/\b[a-z]{3,}0*(\d{2,3}[a-z]?)\b/gi),
   ].map((match) => (match[1].replace(/^0+/, "") || match[1]).toLowerCase());
+  const hashRefNumbers = [
+    ...listingText.matchAll(/#\s*0*(\d{1,3}[a-z]?)\b/gi),
+  ].map((match) => (match[1].replace(/^0+/, "") || match[1]).toLowerCase());
 
   if (
     cardNumberToken &&
-    (slashNumbers.length > 0 || codedRefNumbers.length > 0) &&
+    (slashNumbers.length > 0 || codedRefNumbers.length > 0 || hashRefNumbers.length > 0) &&
     !slashNumbers.includes(cardNumberToken.toLowerCase()) &&
     !codedRefNumbers.includes(cardNumberToken.toLowerCase()) &&
+    !hashRefNumbers.includes(cardNumberToken.toLowerCase()) &&
     !listingNumbers.has(cardNumberToken)
   ) {
     return false;

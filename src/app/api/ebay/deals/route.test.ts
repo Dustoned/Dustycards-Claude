@@ -478,6 +478,11 @@ describe("GET /api/ebay/deals", () => {
         totalEur: 11,
       }),
       makeListing({
+        itemId: "same-name-hash-number",
+        title: "Umbreon ex Ascended Heroes Black Star Promo Holo Foil #29 Pokemon",
+        totalEur: 11,
+      }),
+      makeListing({
         itemId: "generic-era-listing",
         title: "Prismatic Evolutions Pokemon Cards, Reverse Holo, EX, Ultra Rare, Full Art, English NM",
         totalEur: 10,

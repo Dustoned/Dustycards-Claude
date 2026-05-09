@@ -43,6 +43,7 @@ interface ListingTextSignals {
   variants: Set<string>;
   numbers: Set<string>;
   codedRefNumbers: Set<string>;
+  hashRefNumbers: Set<string>;
   slashRefs: Array<{ left: string; right: string }>;
   isAccessoryListing: boolean;
   isGradedListing: boolean;
@@ -199,6 +200,11 @@ function getListingSignals(title: string, condition: string | null | undefined):
     const codedRef = token.match(/^[a-z]{3,}0*(\d{2,3}[a-z]?)$/i)?.[1];
     if (codedRef) codedRefNumbers.add(codedRef.replace(/^0+/, "") || codedRef);
   }
+  const hashRefNumbers = new Set(
+    [...normalizedTitle.matchAll(/#\s*0*(\d{1,3}[a-z]?)\b/gi)].map(
+      (match) => match[1].replace(/^0+/, "") || match[1]
+    )
+  );
 
   const gradeMatch = normalizedTitle.match(
     /\b(psa|bgs|cgc|sgc|ace|tag|aigrading)\s*(?:gem\s*mint\s*)?(\d+(?:\.\d+)?)\b/i
@@ -217,6 +223,7 @@ function getListingSignals(title: string, condition: string | null | undefined):
     variants: extractVariants(title),
     numbers,
     codedRefNumbers,
+    hashRefNumbers,
     slashRefs,
     isAccessoryListing,
     isGradedListing,
@@ -249,13 +256,19 @@ function scoreCardAgainstListing(
   const titleVariants = signals.variants;
   const cardNumber = canonicalCardNumber(card.card_number);
   const hasNumber = Boolean(
-    cardNumber && (signals.numbers.has(cardNumber) || signals.codedRefNumbers.has(cardNumber))
+    cardNumber &&
+      (signals.numbers.has(cardNumber) ||
+        signals.codedRefNumbers.has(cardNumber) ||
+        signals.hashRefNumbers.has(cardNumber))
   );
   const hasDifferentSlashNumber = Boolean(
     cardNumber && !hasNumber && signals.slashRefs.length > 0
   );
   const hasDifferentCodedRefNumber = Boolean(
     cardNumber && !hasNumber && signals.codedRefNumbers.size > 0
+  );
+  const hasDifferentHashRefNumber = Boolean(
+    cardNumber && !hasNumber && signals.hashRefNumbers.size > 0
   );
   const hasPromoLikeSlash = Boolean(
     cardNumber &&
@@ -265,7 +278,7 @@ function scoreCardAgainstListing(
   );
   const setHint = hasSetHint(signals, card);
 
-  if (hasDifferentSlashNumber || hasDifferentCodedRefNumber) {
+  if (hasDifferentSlashNumber || hasDifferentCodedRefNumber || hasDifferentHashRefNumber) {
     return null;
   }
 
