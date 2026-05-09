@@ -18,6 +18,7 @@ import {
   isPromoExpansion,
   isRedundantSubsetExpansion,
 } from "@/lib/episodes";
+import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { requirePageUser } from "@/lib/page-auth";
 import ExpansionsOverviewChart from "./ExpansionsOverviewChart";
@@ -266,8 +267,13 @@ export default async function ExpansionsPage() {
                   value: null,
                 };
                 const releaseYear = episode.release_date?.slice(0, 4) ?? null;
+                const releaseLabel = formatReleaseLabel(episode.release_date);
+                const isUpcomingEmptySet =
+                  cardCount === 0 && isFutureReleaseDate(episode.release_date);
                 const setCode = episode.code?.trim().toUpperCase() ?? null;
-                const metaParts = [setCode, releaseYear].filter(Boolean);
+                const releaseMeta =
+                  isUpcomingEmptySet && releaseLabel ? `Releases ${releaseLabel}` : releaseYear;
+                const metaParts = [setCode, releaseMeta].filter(Boolean);
 
                 return (
                   <Link
@@ -314,12 +320,25 @@ export default async function ExpansionsPage() {
                             {metaParts.length > 0 ? metaParts.join(" / ") : "Expansion"}
                           </p>
                           <p
-                            className={`mt-2 inline-flex max-w-full items-baseline gap-1.5 rounded-full border border-black/7 bg-black/[0.035] px-2 py-1 font-semibold text-gray-600 dark:border-white/8 dark:bg-white/[0.055] dark:text-white/68 max-[640px]:mt-1.5 max-[640px]:text-[11px] ${tileConfig.metaClass}`}
+                            className={`mt-2 inline-flex max-w-full items-baseline gap-1.5 rounded-full border px-2 py-1 font-semibold max-[640px]:mt-1.5 max-[640px]:text-[11px] ${
+                              isUpcomingEmptySet
+                                ? "border-sky-300/22 bg-sky-300/10 text-sky-700 dark:text-sky-200"
+                                : "border-black/7 bg-black/[0.035] text-gray-600 dark:border-white/8 dark:bg-white/[0.055] dark:text-white/68"
+                            } ${tileConfig.metaClass}`}
                           >
-                            <span className="font-bold text-gray-900 tabular-nums dark:text-white">
-                              {cardCount > 0 ? cardCount.toLocaleString("en-US") : "--"}
-                            </span>
-                            <span>cards</span>
+                            {isUpcomingEmptySet ? (
+                              <>
+                                <span className="font-bold tabular-nums">Upcoming</span>
+                                <span>after release</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="font-bold text-gray-900 tabular-nums dark:text-white">
+                                  {cardCount > 0 ? cardCount.toLocaleString("en-US") : "--"}
+                                </span>
+                                <span>cards</span>
+                              </>
+                            )}
                           </p>
                         </div>
                         <div className="min-w-0 text-left sm:shrink-0 sm:text-right">

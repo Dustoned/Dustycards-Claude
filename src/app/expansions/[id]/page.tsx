@@ -29,6 +29,7 @@ import {
 } from "@/lib/sealed-products";
 import { getSealedPriceSnapshotsByEpisode } from "@/lib/sealed-price-snapshots";
 import { requirePageUser } from "@/lib/page-auth";
+import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
 import type { NormalizedSealedProduct } from "@/lib/tcggo";
 import type { CardData } from "@/types/card-data";
 import ExpansionCardsSection from "./ExpansionCardsSection";
@@ -82,27 +83,6 @@ function toNormalizedSealedProduct(product: {
   };
 }
 
-function formatReleaseLabel(value: string | null): string | null {
-  if (!value) return null;
-
-  const raw = String(value).trim();
-  const match = raw.match(/^(\d{4})(?:-(\d{2}))?/);
-  if (!match) return raw || null;
-
-  const year = match[1];
-  const month = match[2];
-  if (!month) return year;
-
-  const parsedMonth = Number(month);
-  if (!Number.isInteger(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) return year;
-
-  const monthLabel = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-  }).format(new Date(Date.UTC(Number(year), parsedMonth - 1, 1)));
-
-  return `${monthLabel} ${year}`;
-}
-
 export default async function ExpansionDetailPage({
   params,
   searchParams,
@@ -131,6 +111,12 @@ export default async function ExpansionDetailPage({
   if (!episode || isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })) {
     notFound();
   }
+
+  const releaseLabel = formatReleaseLabel(episode.release_date);
+  const releaseDetailLabel =
+    formatReleaseLabel(episode.release_date, { includeDay: true }) ?? releaseLabel;
+  const isUpcomingRelease = isFutureReleaseDate(episode.release_date);
+  const isUpcomingEmptySet = isUpcomingRelease && episode._count.cards === 0;
 
   const pullRateProfile = episode.code
     ? await db.setPullRateProfile.findFirst({
@@ -410,10 +396,26 @@ export default async function ExpansionDetailPage({
     headerCountValue = filteredSealedProducts.length;
   }
 
+  if (activeTab === "cards" && isUpcomingEmptySet) {
+    pricePanelSubtitle = "Cards arrive after release";
+    pricePanelEmptyText = "Card prices will appear once the set is released and synced";
+    headerProgressLabel = "Release Status";
+    headerProgressValue = releaseDetailLabel ? `Releases ${releaseDetailLabel}` : "Upcoming set";
+    headerProgressPercent = 0;
+    headerHistoryProgressValue = null;
+    headerHistoryProgressPercent = 0;
+  }
+
   const expansionContext = [episode.series, episode.code].filter(Boolean).join(" / ");
-  const releaseLabel = formatReleaseLabel(episode.release_date);
   const headerCountFormatted = headerCountValue.toLocaleString("en-US");
   const sealedCountFormatted = episode._count.sealedProducts.toLocaleString("en-US");
+  const releaseMetricLabel = isUpcomingRelease ? "Releases" : "Released";
+  const emptyCardsTitle = isUpcomingEmptySet ? "This set is not released yet" : "No cards loaded yet";
+  const emptyCardsText = isUpcomingEmptySet
+    ? `${episode.name} ${
+        releaseDetailLabel ? `releases ${releaseDetailLabel}` : "is still upcoming"
+      }. Cards will appear here after the official release and the next sync.`
+    : "Use refresh to fetch this set.";
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -507,7 +509,7 @@ export default async function ExpansionDetailPage({
                 ) : null}
                 {releaseLabel ? (
                   <HeaderMetricChip
-                    label="Released"
+                    label={releaseMetricLabel}
                     value={releaseLabel}
                     tone="slate"
                     className="!min-w-0"
@@ -570,9 +572,22 @@ export default async function ExpansionDetailPage({
 
       {activeTab === "cards" ? (
         cards.length === 0 ? (
-          <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
-            <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">No cards loaded yet</p>
-            <p className="text-sm text-gray-400">Use refresh to fetch this set.</p>
+          <div
+            className={`glass rounded-3xl p-8 text-center shadow-md shadow-black/5 sm:p-12 ${
+              isUpcomingEmptySet
+                ? "border-sky-300/20 bg-sky-400/[0.045] dark:border-sky-300/16 dark:bg-sky-300/[0.055]"
+                : ""
+            }`}
+          >
+            {isUpcomingEmptySet ? (
+              <div className="mb-3 inline-flex items-center rounded-full border border-sky-300/25 bg-sky-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-200">
+                Upcoming set
+              </div>
+            ) : null}
+            <p className="mb-1 font-semibold text-gray-800 dark:text-white">{emptyCardsTitle}</p>
+            <p className="mx-auto max-w-lg text-sm leading-6 text-gray-500 dark:text-white/52">
+              {emptyCardsText}
+            </p>
           </div>
         ) : (
           <ExpansionCardsSection
