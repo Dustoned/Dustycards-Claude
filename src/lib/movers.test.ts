@@ -36,6 +36,20 @@ describe("mover scopes", () => {
   );
 
   it(
+    "keeps micro-priced raw cards out of the regular movers lists",
+    async () => {
+      const [collectionData, allData] = await Promise.all([
+        getMovers("cm_en", "collection"),
+        getMovers("cm_en", "all"),
+      ]);
+
+      expect(collectionData.movers.every((item) => item.currentPrice >= 3)).toBe(true);
+      expect(allData.movers.every((item) => item.currentPrice >= 3)).toBe(true);
+    },
+    30000
+  );
+
+  it(
     "includes all current graded prices for all-card movers without changing raw mover scope",
     async () => {
       const allData = await getMovers("cm_en", "all");

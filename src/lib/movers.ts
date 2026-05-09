@@ -24,6 +24,7 @@ import type { PriceSource } from "@/lib/user-settings";
 const DAY_MS = 1000 * 60 * 60 * 24;
 const HISTORY_LOOKBACK_DAYS = 45;
 const MIN_PERCENT_BASE_VALUE = 1;
+const MIN_RAW_MOVER_PRICE = 3;
 const RECENT_PRICE_SERIES_POINT_LIMIT = 16;
 const MAX_ALL_SCOPE_MOVERS = 500;
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -1919,6 +1920,10 @@ export async function getMovers(
     );
 
     if (!resolvedSource) {
+      continue;
+    }
+
+    if (resolvedSource.currentPrice < MIN_RAW_MOVER_PRICE) {
       continue;
     }
 
