@@ -53,9 +53,9 @@ describe("ebay deal helpers", () => {
         episodeName: "Mega Evolution",
         episodeCode: "MEG",
       })
-    ).toBe("Mega Evolution Sleeved Booster MEG Pokemon TCG");
+    ).toBe("Mega Evolution Sleeved Booster");
     expect(buildEbaySealedManualSearchQuery("Mega Evolution booster box")).toBe(
-      "Mega Evolution booster box Pokemon TCG"
+      "Mega Evolution booster box"
     );
   });
 

@@ -477,12 +477,12 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   },
   {
     pattern:
-      /\b(choose\s+your\s+card|pick\s+your\s+card|choose\s+the\s+card|pick\s+the\s+card|multiple\s+available)\b/i,
+      /\b(choose\s+your\s+card|pick\s+your\s+card|choose\s+the\s+card|pick\s+the\s+card|you\s+pick|multiple\s+available)\b/i,
     reason: "choice listing",
   },
   {
     pattern:
-      /\b(god\s+packs?|chance\s+to\s+get|guaranteed\s+\d|acrylic|keychains?|sleeves?|display\s+stand|mini\s+slab|extended\s+art(?:work)?\s+(?:case|frame)|artwork\s+case|anime\s+frame|card\s+case|case\s+card)\b/i,
+      /\b(god\s+packs?|chance\s+to\s+get|guaranteed\s+\d|acrylic|keychains?|sleeves?|display\s+stand|mini\s+slab|metal\s+card|stainless\s+steel|extended\s+art(?:work)?\s+(?:case|frame)|artwork\s+case|anime\s+frame|card\s+case|case\s+card)\b/i,
     reason: "accessory/pack listing",
   },
   {
@@ -907,44 +907,21 @@ export function buildEbayManualSearchQuery(value: string): string {
 }
 
 export function buildEbaySealedSearchQuery(input: EbaySealedSearchInput): string {
-  const episodeCode = normalizeQueryToken(input.episodeCode);
-  const tokens = uniqueTokens([
-    input.name,
-    episodeCode,
-    "Pokemon",
-    "TCG",
-  ]);
-  let query = tokens.join(" ");
+  const query = normalizeQueryToken(input.name);
+  if (!query) return "";
 
-  if (query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH) {
-    return query;
-  }
-
-  query = uniqueTokens([input.name, "Pokemon", "TCG"]).join(" ");
-  if (query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH) {
-    return query;
-  }
-
-  return query.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
+  return query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH
+    ? query
+    : query.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
 }
 
 export function buildEbaySealedManualSearchQuery(value: string): string {
   const query = normalizeQueryToken(value);
   if (!query) return "";
 
-  const normalized = query.normalize("NFKD").replace(/\p{M}/gu, "");
-  const hasPokemonContext = /\bpokemon\b/i.test(normalized);
-  const expandedQuery = uniqueTokens([
-    query,
-    hasPokemonContext ? null : "Pokemon",
-    /\btcg\b/i.test(normalized) ? null : "TCG",
-  ]).join(" ");
-
-  if (expandedQuery.length <= EBAY_MAX_SEARCH_QUERY_LENGTH) {
-    return expandedQuery;
-  }
-
-  return expandedQuery.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
+  return query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH
+    ? query
+    : query.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
 }
 
 export function buildEbayMarketplaceSearchUrl(

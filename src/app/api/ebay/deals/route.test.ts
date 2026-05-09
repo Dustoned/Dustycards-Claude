@@ -264,12 +264,9 @@ describe("GET /api/ebay/deals", () => {
       (input: { name: string; cardNumber?: string | null }) =>
         [input.name, input.cardNumber, "Pokemon"].filter(Boolean).join(" ")
     );
-    ebayMock.buildEbaySealedManualSearchQuery.mockImplementation((query: string) =>
-      /\bpokemon\b/i.test(query) ? `${query} TCG` : `${query} Pokemon TCG`
-    );
+    ebayMock.buildEbaySealedManualSearchQuery.mockImplementation((query: string) => query);
     ebayMock.buildEbaySealedSearchQuery.mockImplementation(
-      (input: { name: string; episodeCode?: string | null }) =>
-        [input.name, input.episodeCode, "Pokemon", "TCG"].filter(Boolean).join(" ")
+      (input: { name: string }) => input.name
     );
     ebayMock.buildEbayMarketplaceSearchUrl.mockReturnValue(
       "https://www.ebay.nl/sch/i.html"
@@ -439,10 +436,15 @@ describe("GET /api/ebay/deals", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(ebayMock.searchEbayDeals).toHaveBeenCalledTimes(2);
-    expect(ebayMock.searchEbayDeals).toHaveBeenLastCalledWith(
+    const searchedQueries = ebayMock.searchEbayDeals.mock.calls.map(
+      ([input]) => (input as { query: string }).query
+    );
+    expect(searchedQueries).toContain("CGC 10 Umbreon ex 161/131 Pokemon");
+    expect(searchedQueries).toContain("Umbreon ex 161/131 PRE graded Pokemon");
+    expect(searchedQueries).toContain("Umbreon ex graded Pokemon");
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: "graded Umbreon ex 161/131 Pokemon",
+        query: "Umbreon ex graded Pokemon",
         listingKind: "graded",
       })
     );
@@ -516,7 +518,7 @@ describe("GET /api/ebay/deals", () => {
     );
   });
 
-  it("falls back to a broader sealed query when the product query returns nothing", async () => {
+  it("searches sealed product deals by product title", async () => {
     const product = makeSealedProduct();
     dbMock.sealedProduct.findUnique.mockResolvedValue(product);
     ebayMock.searchEbayDeals.mockImplementation(
@@ -529,15 +531,13 @@ describe("GET /api/ebay/deals", () => {
         config: { marketplaceId: string; deliveryCountry: string | null };
         query: string;
       }) => {
-        const listings = query.includes("MEG")
-          ? []
-          : [
-              makeListing({
-                itemId: "sealed-fallback",
-                title: "Pokemon Mega Evolution Sleeved Booster Pack",
-                totalEur: 6,
-              }),
-            ];
+        const listings = [
+          makeListing({
+            itemId: "sealed-title",
+            title: "Pokemon Mega Evolution Sleeved Booster Pack",
+            totalEur: 6,
+          }),
+        ];
 
         return {
           query,
@@ -557,16 +557,16 @@ describe("GET /api/ebay/deals", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(ebayMock.searchEbayDeals).toHaveBeenCalledTimes(2);
-    expect(ebayMock.searchEbayDeals).toHaveBeenLastCalledWith(
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledTimes(1);
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: "Mega Evolution Sleeved Booster Pokemon TCG",
+        query: "Mega Evolution Sleeved Booster",
         listingKind: "sealed",
       })
     );
-    expect(body.query).toBe("Mega Evolution Sleeved Booster Pokemon TCG");
+    expect(body.query).toBe("Mega Evolution Sleeved Booster");
     expect(body.listings.map((listing: { itemId: string }) => listing.itemId)).toEqual([
-      "sealed-fallback",
+      "sealed-title",
     ]);
     expect(body.reference).toMatchObject({
       label: "CardMarket sealed",

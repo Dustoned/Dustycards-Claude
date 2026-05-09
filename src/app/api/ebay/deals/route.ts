@@ -276,6 +276,65 @@ function getCandidateNumbers(value: string): string[] {
   return numbers;
 }
 
+function uniqueDealQueries(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const queries: string[] = [];
+
+  for (const value of values) {
+    const query = value?.trim();
+    if (!query) continue;
+
+    const key = query.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    queries.push(query);
+  }
+
+  return queries;
+}
+
+function buildLooseCardDealQuery(input: {
+  card: CardDealContext;
+  mode: Exclude<DealMode, "sealed">;
+  includeNumber?: boolean;
+  includeSetCode?: boolean;
+}): string {
+  const parts = [
+    input.card.name,
+    input.includeNumber ? input.card.card_number : null,
+    input.includeSetCode ? input.card.episode.code : null,
+    input.mode === "graded" ? "graded" : null,
+    "Pokemon",
+  ];
+
+  return buildEbayManualSearchQuery(parts.filter(Boolean).join(" "));
+}
+
+function buildCardDealSearchQueries(input: {
+  card: CardDealContext;
+  mode: Exclude<DealMode, "sealed">;
+  primaryQuery: string;
+}): string[] {
+  return uniqueDealQueries([
+    input.primaryQuery,
+    buildLooseCardDealQuery({
+      card: input.card,
+      mode: input.mode,
+      includeNumber: true,
+      includeSetCode: true,
+    }),
+    buildLooseCardDealQuery({
+      card: input.card,
+      mode: input.mode,
+      includeNumber: true,
+    }),
+    buildLooseCardDealQuery({
+      card: input.card,
+      mode: input.mode,
+    }),
+  ]);
+}
+
 function buildCandidateCardWhere(query: string, listings: EbayDealListing[]): Prisma.CardWhereInput | null {
   const combinedText = [query, ...listings.map((listing) => listing.title)].join(" ");
   const tokens = [...new Set(extractUsefulEbayTitleTokens(combinedText))].slice(0, 18);
@@ -857,26 +916,40 @@ export async function GET(req: NextRequest) {
         listingKind: searchListingKind,
       });
 
-    let result = await runDealSearch(query);
-    if (result.listings.length === 0 && mode === "graded" && card) {
-      const fallbackQuery = buildEbayCardSearchQuery({
-        name: card.name,
-        episodeName: card.episode.name,
-        episodeCode: card.episode.code,
-        cardNumber: card.card_number,
-        mode: "graded",
-      });
-      if (fallbackQuery && fallbackQuery !== query) {
-        query = fallbackQuery;
-        result = await runDealSearch(query);
+    const searchQueries = card
+      ? buildCardDealSearchQueries({
+          card,
+          mode: mode === "graded" ? "graded" : "raw",
+          primaryQuery: query,
+        })
+      : sealedProduct
+        ? uniqueDealQueries([sealedProduct.name])
+        : [query];
+    const mergedListingsByItemId = new Map<string, EbayDealListing>();
+    const maxCandidateListings = card ? Math.max(limit * 3, limit) : limit;
+    let result: Awaited<ReturnType<typeof runDealSearch>> | null = null;
+
+    for (const searchQuery of searchQueries) {
+      const nextResult = await runDealSearch(searchQuery);
+      if (!result || (result.listings.length === 0 && nextResult.listings.length > 0)) {
+        result = nextResult;
+        query = nextResult.query;
       }
-    } else if (result.listings.length === 0 && mode === "sealed" && sealedProduct) {
-      const fallbackQuery = buildEbaySealedManualSearchQuery(sealedProduct.name);
-      if (fallbackQuery && fallbackQuery !== query) {
-        query = fallbackQuery;
-        result = await runDealSearch(query);
+
+      for (const listing of nextResult.listings) {
+        if (mergedListingsByItemId.has(listing.itemId)) continue;
+        mergedListingsByItemId.set(listing.itemId, listing);
+      }
+
+      if (mergedListingsByItemId.size >= maxCandidateListings) {
+        break;
       }
     }
+    result = {
+      ...(result ?? (await runDealSearch(query))),
+      listings: [...mergedListingsByItemId.values()],
+      total: mergedListingsByItemId.size,
+    };
     const listings =
       mode === "sealed"
         ? enrichListingsWithSealedReference({
@@ -891,6 +964,7 @@ export async function GET(req: NextRequest) {
             marketplaceId: result.marketplaceId,
             pinnedCard: card,
           });
+    const limitedListings = card || sealedProduct ? listings.slice(0, limit) : listings;
 
     return NextResponse.json({
       configured: config.configured,
@@ -915,8 +989,8 @@ export async function GET(req: NextRequest) {
         : null,
       mode,
       ...result,
-      total: card || sealedProduct ? listings.length : result.total,
-      listings,
+      total: card || sealedProduct ? limitedListings.length : result.total,
+      listings: limitedListings,
     });
   } catch (error) {
     const authResponse = authErrorResponse(error);
