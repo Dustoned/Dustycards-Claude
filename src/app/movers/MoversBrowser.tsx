@@ -390,97 +390,108 @@ export default function MoversBrowser({
 
   return (
     <div className="space-y-10">
-      <div className="space-y-3 rounded-2xl border border-black/8 bg-white/70 p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              key: "raw" as const,
-              label: "Raw Movers",
-              active: isRawScope,
-            },
-            {
-              key: "graded" as const,
-              label: "Graded Market",
-              active: isGradedScope,
-            },
-            {
-              key: "sealed" as const,
-              label: "Sealed Movers",
-              active: false,
-            },
-            {
-              key: "targets" as const,
-              label: "Grade Targets",
-              active: isGradingScope,
-            },
-          ].map((option) => (
-            <Link
-              key={option.key}
-              href={modeHref(option.key)}
-              prefetch={false}
-              className={`flex min-h-10 items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
-                option.active
-                  ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
-                  : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/54 dark:hover:bg-white/[0.06] dark:hover:text-white"
-              }`}
-              aria-current={option.active ? "page" : undefined}
-            >
-              {option.label}
-            </Link>
-          ))}
-        </div>
+      <div className="rounded-2xl border border-black/8 bg-white/70 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
+          <div className="min-w-0">
+            <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+              Market
+            </span>
+            <div className="mt-1 flex flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
+              {[
+                {
+                  key: "raw" as const,
+                  label: "Raw Movers",
+                  active: isRawScope,
+                },
+                {
+                  key: "graded" as const,
+                  label: "Graded Market",
+                  active: isGradedScope,
+                },
+                {
+                  key: "sealed" as const,
+                  label: "Sealed Movers",
+                  active: false,
+                },
+                {
+                  key: "targets" as const,
+                  label: "Grade Targets",
+                  active: isGradingScope,
+                },
+              ].map((option) => (
+                <Link
+                  key={option.key}
+                  href={modeHref(option.key)}
+                  prefetch={false}
+                  className={`inline-flex h-9 min-w-[8rem] flex-1 items-center justify-center rounded-lg px-3 text-xs font-semibold transition-colors sm:flex-none ${
+                    option.active
+                      ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
+                      : "text-gray-500 hover:bg-black/[0.05] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
+                  }`}
+                  aria-current={option.active ? "page" : undefined}
+                >
+                  {option.label}
+                </Link>
+              ))}
+            </div>
+          </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/8 px-2 pt-3 dark:border-white/8">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
               <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
                 Scope
               </span>
-              {[
-                { key: "collection" as const, label: "Collection" },
-                { key: "all" as const, label: "All Cards" },
-              ].map((option) => {
-                const active = activeItemScope === option.key;
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: "collection" as const, label: "Collection" },
+                  { key: "all" as const, label: "All Cards" },
+                ].map((option) => {
+                  const active = activeItemScope === option.key;
 
-                return (
-                  <Link
-                    key={option.key}
-                    href={scopeHref(option.key)}
-                    prefetch={false}
-                    className={filterButtonClass(active)}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    {option.label}
-                  </Link>
-                );
-              })}
+                  return (
+                    <Link
+                      key={option.key}
+                      href={scopeHref(option.key)}
+                      prefetch={false}
+                      className={filterButtonClass(active)}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      {option.label}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
 
             {isRawScope ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-                Source
-              </span>
-              {[
-                { key: "cm_en", label: "CardMarket" },
-                { key: "tcp", label: "TCGPlayer" },
-              ].map((option) => {
-                const active = activePriceSource === option.key;
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                  Source
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { key: "cm_en", label: "CardMarket" },
+                    { key: "tcp", label: "TCGPlayer" },
+                  ].map((option) => {
+                    const active = activePriceSource === option.key;
 
-                return (
-                  <Link
-                    key={option.key}
-                    href={priceSourceHref(option.key as PriceSource)}
-                    prefetch={false}
-                    className={filterButtonClass(active)}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    {option.label}
-                  </Link>
-                );
-              })}
-            </div>
+                    return (
+                      <Link
+                        key={option.key}
+                        href={priceSourceHref(option.key as PriceSource)}
+                        prefetch={false}
+                        className={filterButtonClass(active)}
+                        aria-current={active ? "page" : undefined}
+                      >
+                        {option.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             ) : null}
           </div>
+        </div>
       </div>
 
       {visibleSpotlights.length > 0 || visiblePreviewCards.length > 0 ? (
