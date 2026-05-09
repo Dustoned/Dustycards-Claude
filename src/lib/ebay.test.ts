@@ -227,6 +227,11 @@ describe("ebay deal helpers", () => {
     ).toBe("mystery/custom listing");
     expect(
       getEbayListingRejectionReason({
+        title: "Mega Charizard X EX SIR 125/094 SIR 130/094 Gold - PFL Chase Pack! Read Please!",
+      })
+    ).toBe("mystery/custom listing");
+    expect(
+      getEbayListingRejectionReason({
         title: "Team Rocket's Mewtwo ex Extended Art Insert for PSA / Graded Guard (No Card)",
       })
     ).toBe("no-card listing");

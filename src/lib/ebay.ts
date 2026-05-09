@@ -467,7 +467,7 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   },
   {
     pattern:
-      /\b(mystery|mystery\s+(box|pack|lot)|random\s+(card|cards|lot|pack)|repack|repacks|orica|proxy|replica|custom)\b/i,
+      /\b(mystery|mystery\s+(box|pack|lot)|random\s+(card|cards|lot|pack)|chase\s+(card|pack|box|lot)|read\s+please|repack|repacks|orica|proxy|replica|custom)\b/i,
     reason: "mystery/custom listing",
   },
   {
