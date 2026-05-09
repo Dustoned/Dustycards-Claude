@@ -400,23 +400,23 @@ export default function MoversBrowser({
               {[
                 {
                   key: "raw" as const,
-                  label: "Raw Movers",
+                  label: "Raw Singles",
                   active: isRawScope,
                 },
                 {
                   key: "graded" as const,
-                  label: "Graded Market",
+                  label: "Graded Cards",
                   active: isGradedScope,
-                },
-                {
-                  key: "sealed" as const,
-                  label: "Sealed Movers",
-                  active: false,
                 },
                 {
                   key: "targets" as const,
                   label: "Grade Targets",
                   active: isGradingScope,
+                },
+                {
+                  key: "sealed" as const,
+                  label: "Sealed Products",
+                  active: false,
                 },
               ].map((option) => (
                 <Link

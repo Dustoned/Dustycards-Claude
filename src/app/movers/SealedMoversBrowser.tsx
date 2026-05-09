@@ -439,10 +439,10 @@ export default function SealedMoversBrowser({ data, activeItemScope }: Props) {
             </span>
             <div className="mt-1 flex flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
               {[
-                { key: "raw" as const, label: "Raw Movers" },
-                { key: "graded" as const, label: "Graded Market" },
-                { key: "sealed" as const, label: "Sealed Movers" },
+                { key: "raw" as const, label: "Raw Singles" },
+                { key: "graded" as const, label: "Graded Cards" },
                 { key: "targets" as const, label: "Grade Targets" },
+                { key: "sealed" as const, label: "Sealed Products" },
               ].map((option) => (
                 <Link
                   key={option.key}
