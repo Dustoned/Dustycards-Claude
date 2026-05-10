@@ -265,6 +265,8 @@ export function CardModalPreview({
               name={card.name}
               episodeName={card.episode_name}
               episodeCode={card.episode_code}
+              episodeSeries={card.episode_series}
+              episodeReleaseDate={card.episode_release_date}
               cardNumber={card.card_number}
               imageUrl={card.image_url}
               alt={card.name}

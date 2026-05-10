@@ -89,6 +89,7 @@ export interface BinderPageData {
 
 export interface WantsPageData {
   items: CollectionCardViewItem[];
+  chart: Array<{ date: string; label: string; value: number | null }>;
   totalCards: number;
   totalSets: number;
   pricedCards: number;
@@ -143,6 +144,8 @@ const collectionCardSelect = {
           id: true,
           name: true,
           code: true,
+          series: true,
+          release_date: true,
         },
       },
     },
@@ -217,6 +220,8 @@ const collectionWantSelect = {
           id: true,
           name: true,
           code: true,
+          series: true,
+          release_date: true,
         },
       },
     },
@@ -394,6 +399,8 @@ type CollectionCardRecord = CollectionCardMetricRecord & {
       id: string;
       name: string;
       code: string | null;
+      series: string | null;
+      release_date: string | null;
     };
   };
 };
@@ -424,6 +431,8 @@ type CollectionWantRecord = {
       id: string;
       name: string;
       code: string | null;
+      series: string | null;
+      release_date: string | null;
     };
   };
 };
@@ -721,6 +730,8 @@ function buildCardViewItem(
     episode_id: record.card.episode.id,
     episode_name: record.card.episode.name,
     episode_code: record.card.episode.code,
+    episode_series: record.card.episode.series,
+    episode_release_date: record.card.episode.release_date,
     cm_value: cmValue,
     tcp_value: tcpValue,
     current_value: currentValue,
@@ -755,6 +766,8 @@ function buildWantViewItem(record: CollectionWantRecord): CollectionCardViewItem
     episode_id: record.card.episode.id,
     episode_name: record.card.episode.name,
     episode_code: record.card.episode.code,
+    episode_series: record.card.episode.series,
+    episode_release_date: record.card.episode.release_date,
     cm_value: cmValue,
     tcp_value: tcpValue,
     current_value: cmValue,
@@ -1068,6 +1081,16 @@ export async function getWantsPageData(userId: string): Promise<WantsPageData> {
   const wants = (await getCollectionWants(userId)) as CollectionWantRecord[];
   const items = wants.map(buildWantViewItem);
   const pricedItems = items.filter((item) => item.current_value != null);
+  const wantQuantities = buildCardQuantityMap(wants);
+  const historyRows = await getCardHistoryRows(
+    [...wantQuantities.keys()],
+    getHistoryCutoffDate()
+  );
+  const chart = buildOwnedCardValueHistory(historyRows, wantQuantities).map((point) => ({
+    date: point.date,
+    label: point.label,
+    value: point.total_market,
+  }));
   const estimatedValue = Number(
     pricedItems.reduce((total, item) => total + (item.current_value ?? 0), 0).toFixed(2)
   );
@@ -1076,10 +1099,12 @@ export async function getWantsPageData(userId: string): Promise<WantsPageData> {
     wants: items.length,
     priced: pricedItems.length,
     estimatedValue,
+    historyPoints: chart.length,
   });
 
   return {
     items,
+    chart,
     totalCards: items.length,
     totalSets: new Set(items.map((item) => item.episode_id)).size,
     pricedCards: pricedItems.length,

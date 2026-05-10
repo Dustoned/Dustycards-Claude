@@ -12,6 +12,8 @@ export interface CollectionCardViewItem {
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
+  episode_series?: string | null;
+  episode_release_date?: string | null;
   cm_value?: number | null;
   tcp_value?: number | null;
   current_value: number | null;

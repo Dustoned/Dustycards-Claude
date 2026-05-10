@@ -50,6 +50,7 @@ interface MoverCandidateCardRecord {
     id: string;
     name: string;
     code: string | null;
+    release_date: string | null;
   };
   prices: LatestPriceSnapshot[];
   tcggoScore: TcggoMoverScore | null;
@@ -80,6 +81,7 @@ interface MoverCandidateCardRow {
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
+  episode_release_date: string | null;
   owned_count: number | bigint | null;
   fetched_at: Date | string | null;
   cm_en_lowest_nm: number | null;
@@ -173,6 +175,7 @@ interface GradedMoverCandidateRow {
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
+  episode_release_date: string | null;
   owned_count: number | bigint | null;
   graded_label: string;
   graded_price: number;
@@ -289,6 +292,7 @@ export interface MoverGradingInsight {
   gradedPrice: number;
   valueGap: number;
   valueMultiplier: number;
+  olderValueScore: number;
   score: number;
 }
 
@@ -302,6 +306,8 @@ export interface CollectionMoverItem {
   episodeId: string;
   episodeName: string;
   episodeCode: string | null;
+  episodeReleaseDate: string | null;
+  releaseAgeYears: number | null;
   ownedCount: number;
   source: MoverSource;
   sourceLabel: "CardMarket" | "TCGPlayer" | "Graded";
@@ -345,6 +351,8 @@ export interface CollectionMoverItem {
   pullRateWeight: number | null;
   pullRateSource: string | null;
   cheapnessWeight: number;
+  ageWeight: number;
+  olderValueScore: number;
   tcggoScore: TcggoMoverScore | null;
   movementScore: number;
   opportunityScore: number;
@@ -712,10 +720,81 @@ function getCheapnessWeight(currentPrice: number): number {
   return 0.8;
 }
 
+function getReleaseAgeYears(releaseDate: string | null | undefined): number | null {
+  if (!releaseDate) {
+    return null;
+  }
+
+  const timestamp = new Date(releaseDate).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  return round(Math.max(0, (Date.now() - timestamp) / (DAY_MS * 365.25)), 1);
+}
+
+function getAgeWeight(releaseAgeYears: number | null): number {
+  if (releaseAgeYears == null) return 1;
+  if (releaseAgeYears >= 20) return 1.3;
+  if (releaseAgeYears >= 15) return 1.24;
+  if (releaseAgeYears >= 10) return 1.18;
+  if (releaseAgeYears >= 7) return 1.12;
+  if (releaseAgeYears >= 5) return 1.07;
+  if (releaseAgeYears >= 3) return 1.03;
+  return 1;
+}
+
+function isGradeTenLabel(label: string | null | undefined): boolean {
+  if (!label) return false;
+
+  const normalized = label.toUpperCase().replace(/[^A-Z0-9.]+/g, " ");
+  return /\b(?:PSA|BGS|CGC|SGC)?\s*10\b/.test(normalized) || normalized.includes("GEM MINT");
+}
+
+function getOlderValueScore(input: {
+  releaseAgeYears: number | null;
+  currentPrice: number;
+  rarityWeight: number;
+  cheapnessWeight: number;
+  kind: "raw" | "graded" | "grading";
+  isGradeTen?: boolean;
+}): number {
+  if (input.releaseAgeYears == null || input.releaseAgeYears < 5) {
+    return 0;
+  }
+
+  const priceCap =
+    input.kind === "grading" ? 35 : input.kind === "graded" && input.isGradeTen ? 180 : 80;
+  if (input.currentPrice > priceCap) {
+    return 0;
+  }
+
+  const ageFactor = clamp((input.releaseAgeYears - 5) / 15, 0, 1);
+  const cheapFactor = clamp((input.cheapnessWeight - 0.8) / 0.75, 0, 1);
+  const rarityFactor = clamp((input.rarityWeight - 1) / 0.85, 0, 1);
+  const gradeTenBoost = input.isGradeTen ? 1.2 : 1;
+  const baseScore = input.kind === "grading" ? 14 : input.kind === "graded" ? 9 : 11;
+
+  return round(
+    baseScore *
+      (0.3 + ageFactor * 0.7) *
+      (0.5 + cheapFactor * 0.5) *
+      (0.55 + rarityFactor * 0.45) *
+      gradeTenBoost
+  );
+}
+
+interface GradingInsightOptions {
+  ageWeight?: number;
+  olderValueScore?: number;
+  isGradeTen?: boolean;
+}
+
 function buildGradingInsight(
   rawPrice: number | null,
   gradedPrice: number | null,
-  rarityWeight: number
+  rarityWeight: number,
+  options: GradingInsightOptions = {}
 ): MoverGradingInsight | null {
   if (rawPrice == null || gradedPrice == null || rawPrice <= 0 || gradedPrice <= 0) {
     return null;
@@ -741,10 +820,16 @@ function buildGradingInsight(
                 : 0.68;
   const multiplierScore = Math.log2(positiveMultiplier) * 42;
   const gapScore = Math.min(positiveGap, 700) / 6;
+  const ageMultiplier = clamp(options.ageWeight ?? 1, 1, 1.24);
+  const gradeTenMultiplier = options.isGradeTen ? 1.07 : 1;
+  const olderValueScore = options.olderValueScore ?? 0;
   const score = round(
     Math.max(0, multiplierScore + gapScore) *
       rawAffordabilityBoost *
-      clamp(rarityWeight, 0.75, 1.85)
+      clamp(rarityWeight, 0.75, 1.85) *
+      ageMultiplier *
+      gradeTenMultiplier +
+      olderValueScore
   );
 
   return {
@@ -752,6 +837,7 @@ function buildGradingInsight(
     gradedPrice: round(gradedPrice),
     valueGap: round(valueGap),
     valueMultiplier: round(valueMultiplier, 2),
+    olderValueScore,
     score,
   };
 }
@@ -928,6 +1014,7 @@ async function fetchMoverCandidateCards(
       e.id AS episode_id,
       e.name AS episode_name,
       e.code AS episode_code,
+      e.release_date AS episode_release_date,
       COALESCE(oc.owned_count, 0) AS owned_count,
       lp.fetched_at,
       lp.cm_en_lowest_nm,
@@ -965,6 +1052,7 @@ async function fetchMoverCandidateCards(
       id: row.episode_id,
       name: row.episode_name,
       code: row.episode_code,
+      release_date: row.episode_release_date,
     },
     prices: row.fetched_at
       ? [
@@ -1074,6 +1162,7 @@ async function buildGradedMoversData(
           e.id AS episode_id,
           e.name AS episode_name,
           e.code AS episode_code,
+          e.release_date AS episode_release_date,
           COALESCE(oc.owned_count, 0) AS owned_count,
           gp.label AS graded_label,
           gp.price AS graded_price,
@@ -1314,6 +1403,9 @@ async function buildGradedMoversData(
         : null;
     const rarityWeight = resolveMoverRarityWeight(row.rarity, pullRateInfo?.pullRateWeight);
     const cheapnessWeight = getCheapnessWeight(currentPrice);
+    const releaseAgeYears = getReleaseAgeYears(row.episode_release_date);
+    const ageWeight = getAgeWeight(releaseAgeYears);
+    const isGradeTen = isGradeTenLabel(row.graded_label);
     const rawLatestPrice = buildLatestRawPriceFromGradedRow(row);
     const cardmarketPrice = getCurrentSourceValue(
       rawLatestPrice,
@@ -1322,7 +1414,22 @@ async function buildGradedMoversData(
       row.cm_sane_fallback_value
     );
     const tcgplayerPrice = getCurrentSourceValue(rawLatestPrice, "tcgplayer");
-    const grading = buildGradingInsight(cardmarketPrice, currentPrice, rarityWeight);
+    const olderValueScore = getOlderValueScore({
+      releaseAgeYears,
+      currentPrice: scope === "grading" ? cardmarketPrice ?? currentPrice : currentPrice,
+      rarityWeight,
+      cheapnessWeight:
+        scope === "grading" && cardmarketPrice != null
+          ? getCheapnessWeight(cardmarketPrice)
+          : cheapnessWeight,
+      kind: scope === "grading" ? "grading" : "graded",
+      isGradeTen,
+    });
+    const grading = buildGradingInsight(cardmarketPrice, currentPrice, rarityWeight, {
+      ageWeight,
+      olderValueScore,
+      isGradeTen,
+    });
     const scores = buildMoverScores({
       kind: "graded",
       currentPrice,
@@ -1334,6 +1441,8 @@ async function buildGradedMoversData(
       historyPoints: series.length,
       lifetimeHistoryPoints: lifetime.lifetimeHistoryPoints,
       rarityWeight,
+      cheapnessWeight,
+      ageWeight,
     });
     const moverScore = scope === "grading" ? grading?.score ?? 0 : scores.rankingScore;
     const rankingScore = scope === "grading" ? moverScore : scores.rankingScore;
@@ -1348,6 +1457,8 @@ async function buildGradedMoversData(
       episodeId: row.episode_id,
       episodeName: row.episode_name,
       episodeCode: row.episode_code,
+      episodeReleaseDate: row.episode_release_date,
+      releaseAgeYears,
       ownedCount: Number(row.owned_count ?? 0),
       source: "graded",
       sourceLabel: "Graded",
@@ -1391,6 +1502,8 @@ async function buildGradedMoversData(
       pullRateWeight: pullRateInfo?.pullRateWeight ?? null,
       pullRateSource: pullRateInfo?.source ?? null,
       cheapnessWeight,
+      ageWeight,
+      olderValueScore,
       tcggoScore: buildTcggoMoverScore(row),
       movementScore: scores.movementScore,
       opportunityScore: scores.opportunityScore,
@@ -1457,7 +1570,10 @@ async function buildGradedMoversData(
       ? sortedMovers
           .filter((item) => {
             const rawPrice = item.grading?.rawPrice;
-            return rawPrice != null && rawPrice <= 15 && item.rarityWeight >= 1.15;
+            return (
+              rawPrice != null &&
+              ((rawPrice <= 15 && item.rarityWeight >= 1.15) || item.olderValueScore >= 5)
+            );
           })
           .slice(0, 16)
       : sortedMovers
@@ -1468,8 +1584,11 @@ async function buildGradedMoversData(
   const discountedHighRarity =
     scope === "grading"
       ? [...sortedMovers]
-          .filter((item) => (item.grading?.valueMultiplier ?? 0) >= 3)
+          .filter((item) => (item.grading?.valueMultiplier ?? 0) >= 3 || item.olderValueScore >= 6)
           .sort((a, b) => {
+            const olderValueDiff = b.olderValueScore - a.olderValueScore;
+            if (olderValueDiff !== 0) return olderValueDiff;
+
             const multiplierDiff =
               (b.grading?.valueMultiplier ?? 0) - (a.grading?.valueMultiplier ?? 0);
             if (multiplierDiff !== 0) return multiplierDiff;
@@ -1927,10 +2046,6 @@ export async function getMovers(
       continue;
     }
 
-    if (!hasMeaningfulMove(resolvedSource.change7d, resolvedSource.change30d)) {
-      continue;
-    }
-
     const normalizedRarity = normalizeRarityLabel(card.rarity);
     const pullRateInfo =
       card.episode.code && normalizedRarity
@@ -1939,6 +2054,23 @@ export async function getMovers(
         : null;
     const rarityWeight = resolveMoverRarityWeight(card.rarity, pullRateInfo?.pullRateWeight);
     const cheapnessWeight = getCheapnessWeight(resolvedSource.currentPrice);
+    const releaseAgeYears = getReleaseAgeYears(card.episode.release_date);
+    const ageWeight = getAgeWeight(releaseAgeYears);
+    const olderValueScore = getOlderValueScore({
+      releaseAgeYears,
+      currentPrice: resolvedSource.currentPrice,
+      rarityWeight,
+      cheapnessWeight,
+      kind: "raw",
+    });
+
+    if (
+      !hasMeaningfulMove(resolvedSource.change7d, resolvedSource.change30d) &&
+      olderValueScore < 4
+    ) {
+      continue;
+    }
+
     const cardmarketPrice = getCurrentSourceValue(latestPrice, "cardmarket", historyPoints);
     const tcgplayerPrice = getCurrentSourceValue(latestPrice, "tcgplayer");
     const comparisonPrice =
@@ -1954,6 +2086,8 @@ export async function getMovers(
       historyPoints: resolvedSource.historyPoints,
       lifetimeHistoryPoints: resolvedSource.lifetime.lifetimeHistoryPoints,
       rarityWeight,
+      cheapnessWeight,
+      ageWeight,
       comparisonPrice,
     });
     const moverScore = scores.rankingScore;
@@ -1968,6 +2102,8 @@ export async function getMovers(
       episodeId: card.episode.id,
       episodeName: card.episode.name,
       episodeCode: card.episode.code,
+      episodeReleaseDate: card.episode.release_date,
+      releaseAgeYears,
       ownedCount: card.ownedCount,
       source: resolvedSource.key,
       sourceLabel: resolvedSource.label,
@@ -2013,6 +2149,8 @@ export async function getMovers(
       pullRateWeight: pullRateInfo?.pullRateWeight ?? null,
       pullRateSource: pullRateInfo?.source ?? null,
       cheapnessWeight,
+      ageWeight,
+      olderValueScore,
       tcggoScore: card.tcggoScore,
       movementScore: scores.movementScore,
       opportunityScore: scores.opportunityScore,

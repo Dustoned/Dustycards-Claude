@@ -273,6 +273,12 @@ export function getMoverReasons(
         tone: "amber",
       });
     }
+    if (item.olderValueScore >= 5 && reasons.length < 2) {
+      reasons.push({
+        label: item.gradedLabel?.includes("10") ? "Old cheap 10" : "Older value",
+        tone: "sky",
+      });
+    }
     if (
       item.grading.rawPrice != null &&
       item.grading.rawPrice <= 10 &&
@@ -280,7 +286,7 @@ export function getMoverReasons(
     ) {
       reasons.push({ label: "Cheap entry", tone: "violet" });
     }
-    return reasons.slice(0, 1);
+    return reasons.slice(0, 2);
   }
 
   // raw or graded
@@ -300,6 +306,11 @@ export function getMoverReasons(
     reasons.push({
       label: `${Math.round(item.gapToPeakPct)}% off peak`,
       tone: "violet",
+    });
+  } else if (item.olderValueScore >= 5 && reasons.length < 2) {
+    reasons.push({
+      label: item.releaseAgeYears != null ? `${Math.floor(item.releaseAgeYears)}y value` : "Older value",
+      tone: "sky",
     });
   } else if (
     item.currentPrice != null &&

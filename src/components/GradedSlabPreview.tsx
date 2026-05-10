@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
+  formatPsaHeaderLine,
   formatPsaNameLine,
   formatPsaSetLine,
   getPsaGradeDescriptor,
@@ -16,6 +17,8 @@ interface Props {
   name: string;
   episodeName: string;
   episodeCode?: string | null;
+  episodeSeries?: string | null;
+  episodeReleaseDate?: string | null;
   cardNumber?: string | null;
   imageUrl: string | null;
   alt: string;
@@ -142,13 +145,14 @@ const TILE_METRICS = {
   innerInset: "inset-[1.3%] rounded-[10px]",
   psaLabel:
     "inset-x-[4%] top-[2.8%] h-[12.7%] min-h-[30px] rounded-[4px] p-[2.4px]",
-  psaLeft: "left-[7px] right-[31%] top-[5px]",
-  psaEyebrow: "text-[5px]",
-  psaName: "mt-[4px] text-[9px]",
-  psaSet: "mt-[2px] text-[6px]",
+  psaLeft: "left-[7px] right-[31%] top-[4px]",
+  psaEyebrow: "text-[4.8px]",
+  psaName: "mt-[2.4px] text-[8.2px]",
+  psaSet: "mt-[1.7px] text-[5.7px]",
   psaRight: "right-[6px] top-[5px] w-[22%]",
   psaRightMeta: "text-[7px]",
-  psaGrade: "mt-[2px] text-[14px]",
+  psaDescriptor: "mt-[1px]",
+  psaGrade: "mt-0 text-[13px]",
   psaLogoWrap: "bottom-[-1.5px] h-[10px] w-[27%] rounded-t-[2px] p-[1.1px]",
   psaLogoInner: "rounded-t-[1px]",
   psaLogo: "text-[9px]",
@@ -174,13 +178,14 @@ const DETAIL_METRICS = {
   innerInset: "inset-[1.05%] rounded-[15px]",
   psaLabel:
     "inset-x-[4%] top-[2.8%] h-[12.7%] min-h-[42px] rounded-[7px] p-[3px] max-[640px]:min-h-[32px]",
-  psaLeft: "left-[14px] right-[31%] top-[8px]",
-  psaEyebrow: "text-[8.5px]",
-  psaName: "mt-[5px] text-[18px]",
-  psaSet: "mt-[4px] text-[12px]",
-  psaRight: "right-[12px] top-[8px] w-[22%]",
+  psaLeft: "left-[14px] right-[31%] top-[7px]",
+  psaEyebrow: "text-[7.6px]",
+  psaName: "mt-[3.5px] text-[16px]",
+  psaSet: "mt-[3px] text-[10.7px]",
+  psaRight: "right-[12px] top-[5px] w-[22%]",
   psaRightMeta: "text-[13px]",
-  psaGrade: "mt-[4px] text-[33px]",
+  psaDescriptor: "mt-[2px]",
+  psaGrade: "mt-0 text-[28px]",
   psaLogoWrap: "bottom-[-2px] h-[18px] w-[27%] rounded-t-[3px] p-[1.6px]",
   psaLogoInner: "rounded-t-[2px]",
   psaLogo: "text-[17px]",
@@ -226,6 +231,8 @@ function GradedSlabPreview({
   name,
   episodeName,
   episodeCode,
+  episodeSeries,
+  episodeReleaseDate,
   cardNumber,
   imageUrl,
   alt,
@@ -290,8 +297,11 @@ function GradedSlabPreview({
           transformOrigin: "top left",
         };
   const psaDescriptor = isPsa ? getPsaGradeDescriptor(grade) : null;
+  const psaHeaderLine = isPsa
+    ? formatPsaHeaderLine({ episodeSeries, episodeReleaseDate })
+    : null;
   const psaNameLine = isPsa ? formatPsaNameLine(name) : null;
-  const psaSetLine = isPsa ? formatPsaSetLine(episodeName, cardNumber ?? null) : null;
+  const psaSetLine = isPsa ? formatPsaSetLine(episodeName, null) : null;
   const cachedImageUrl = getCachedImageUrl(imageUrl);
   const slabSubtitle = [episodeCode ?? episodeName, cardNumber ? `#${cardNumber}` : null]
     .filter(Boolean)
@@ -316,17 +326,17 @@ function GradedSlabPreview({
                   className={`absolute flex flex-col items-start text-left leading-none text-[#111111] ${metrics.psaLeft}`}
                 >
                   <p
-                    className={`truncate font-bold uppercase tracking-[0.18em] ${metrics.psaEyebrow}`}
+                    className={`truncate font-bold uppercase leading-none tracking-[0.13em] ${metrics.psaEyebrow}`}
                   >
-                    Pokemon TCG
+                    {psaHeaderLine}
                   </p>
                   <p
-                    className={`truncate font-bold uppercase tracking-[0.03em] ${metrics.psaName}`}
+                    className={`truncate font-black uppercase leading-none tracking-[0.035em] ${metrics.psaName}`}
                   >
                     {psaNameLine}
                   </p>
                   <p
-                    className={`truncate font-semibold uppercase tracking-[0.07em] opacity-85 ${metrics.psaSet}`}
+                    className={`truncate font-extrabold uppercase leading-none tracking-[0.11em] opacity-80 ${metrics.psaSet}`}
                   >
                     {psaSetLine}
                   </p>
@@ -341,7 +351,7 @@ function GradedSlabPreview({
                     {cardNumber ? `#${cardNumber}` : ""}
                   </p>
                   <p
-                    className={`mt-[4px] truncate font-bold leading-none tracking-[0.08em] ${metrics.psaRightMeta}`}
+                    className={`truncate font-bold leading-none tracking-[0.08em] ${metrics.psaDescriptor} ${metrics.psaRightMeta}`}
                   >
                     {psaDescriptor ?? "GRADE"}
                   </p>

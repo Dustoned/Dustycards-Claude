@@ -130,7 +130,7 @@ async function getCardDetailPayload(id: string, userId: string) {
       price_source_status: true,
       price_source_checked_at: true,
       episode: {
-        select: { id: true, name: true, code: true },
+        select: { id: true, name: true, code: true, series: true, release_date: true },
       },
       collectionItems: {
         where: { user_id: userId },
@@ -314,6 +314,8 @@ async function getCardDetailPayload(id: string, userId: string) {
     episode_id: card.episode.id,
     episode_name: card.episode.name,
     episode_code: card.episode.code,
+    episode_series: card.episode.series,
+    episode_release_date: card.episode.release_date,
     collection_item: collectionItem
       ? {
           id: collectionItem.id,

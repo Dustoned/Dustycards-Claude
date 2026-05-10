@@ -62,6 +62,8 @@ export interface ModalCardData {
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
+  episode_series?: string | null;
+  episode_release_date?: string | null;
   collection_item?: {
     id: string;
     binder_id: string | null;

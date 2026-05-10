@@ -279,15 +279,7 @@ export default async function HomePage({
           sideClassName="space-y-2 xl:space-y-0"
           actions={
             <HeaderAction className="max-[640px]:gap-1.5">
-                <CreateBinderButton />
-                <Link
-                  href="/expansions"
-                  prefetch={false}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
-                >
-                  <span className="sm:hidden">Browse</span>
-                  <span className="hidden sm:inline">Browse Expansions</span>
-                </Link>
+              <CreateBinderButton />
             </HeaderAction>
           }
           accessory={

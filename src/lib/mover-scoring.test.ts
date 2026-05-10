@@ -74,6 +74,28 @@ describe("mover scoring", () => {
     expect(scores.rankingScore).toBeGreaterThan(scores.opportunityScore);
   });
 
+  it("nudges older affordable raw cards without pretending they moved", () => {
+    const baseInput = {
+      kind: "raw" as const,
+      currentPrice: 12,
+      change7d: null,
+      change30d: null,
+      changeSinceTrackedPct: null,
+      changeFromLowPct: null,
+      gapToPeakPct: null,
+      historyPoints: 8,
+      lifetimeHistoryPoints: 10,
+      rarityWeight: 1.4,
+      cheapnessWeight: 1.35,
+    };
+    const modern = buildMoverScores(baseInput);
+    const older = buildMoverScores({ ...baseInput, ageWeight: 1.24 });
+
+    expect(older.movementScore).toBe(0);
+    expect(older.opportunityScore).toBeGreaterThan(modern.opportunityScore);
+    expect(older.rankingScore).toBeGreaterThan(modern.rankingScore);
+  });
+
   it("uses the selected raw source and falls back only when it is missing", () => {
     expect(
       chooseRawMoverSource({

@@ -67,7 +67,7 @@ interface Props {
   spotlights?: SpotlightConfig[];
 }
 
-type FocusFilter = "all" | "cheap" | "high_rarity" | "owned" | "grading_upside";
+type FocusFilter = "all" | "cheap" | "older_value" | "high_rarity" | "owned" | "grading_upside";
 
 function filterButtonClass(active: boolean): string {
   return `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
@@ -78,6 +78,13 @@ function filterButtonClass(active: boolean): string {
 }
 
 const SELECT_OPTION_CLASS = "bg-white text-gray-950 dark:bg-gray-950 dark:text-white";
+
+function isGradeTenLabel(label: string | null | undefined): boolean {
+  if (!label) return false;
+
+  const normalized = label.toUpperCase().replace(/[^A-Z0-9.]+/g, " ");
+  return /\b(?:PSA|BGS|CGC|SGC)?\s*10\b/.test(normalized) || normalized.includes("GEM MINT");
+}
 
 function MoverGridFallback() {
   return (
@@ -205,6 +212,7 @@ export default function MoversBrowser({
     if (activeScope === "grading") {
       return [
         { key: "grade_score" as const, label: "Best targets" },
+        { key: "older_value" as const, label: "Older value" },
         { key: "grade_multiplier" as const, label: "Multiplier" },
         { key: "grade_gap" as const, label: "Value gap" },
         { key: "raw_price_low" as const, label: "Raw price" },
@@ -214,6 +222,7 @@ export default function MoversBrowser({
 
     return [
       { key: "move" as const, label: "Best movers" },
+      { key: "older_value" as const, label: "Older value" },
       { key: "7d" as const, label: "7 days" },
       { key: "30d" as const, label: "30 days" },
       { key: "price_low" as const, label: "Price low" },
@@ -230,6 +239,17 @@ export default function MoversBrowser({
       if (focusFilter === "cheap") {
         const cheapReferencePrice = isGradingScope ? item.grading?.rawPrice : item.currentPrice;
         if (cheapReferencePrice == null || cheapReferencePrice > 15) {
+          return false;
+        }
+      }
+
+      if (focusFilter === "older_value") {
+        const valueReferencePrice = isGradingScope ? item.grading?.rawPrice : item.currentPrice;
+        if (
+          item.olderValueScore < 4 ||
+          valueReferencePrice == null ||
+          (isGradingScope && !isGradeTenLabel(item.gradedLabel))
+        ) {
           return false;
         }
       }
@@ -598,6 +618,9 @@ export default function MoversBrowser({
                 <option className={SELECT_OPTION_CLASS} value="all">Everything</option>
                 <option className={SELECT_OPTION_CLASS} value="cheap">
                   {isGradingScope ? "Raw <= 15" : "Cheap <= 15"}
+                </option>
+                <option className={SELECT_OPTION_CLASS} value="older_value">
+                  {isGradingScope ? "Older cheap 10s" : "Older value"}
                 </option>
                 {!isGradingScope ? (
                   <option className={SELECT_OPTION_CLASS} value="high_rarity">High rarity</option>

@@ -8,6 +8,7 @@ export type SortKey =
   | "grade_score"
   | "grade_multiplier"
   | "grade_gap"
+  | "older_value"
   | "raw_price_low"
   | "7d"
   | "30d"
@@ -37,6 +38,8 @@ export function buildSortSummary(sortKey: SortKey, direction: DirectionFilter): 
       return "Raw-to-graded multiplier high -> low";
     case "grade_gap":
       return "Raw-to-graded gap high -> low";
+    case "older_value":
+      return "Older affordable cards first";
     case "raw_price_low":
       return "Raw CardMarket price low -> high";
     case "7d":
@@ -141,6 +144,18 @@ export function compareMoverItems(
   } else if (sortKey === "grade_gap") {
     const diff = compareMetricValues(a.grading?.valueGap, b.grading?.valueGap, "desc");
     if (diff !== 0) return diff;
+  } else if (sortKey === "older_value") {
+    const diff = compareMetricValues(a.olderValueScore, b.olderValueScore, "desc");
+    if (diff !== 0) return diff;
+
+    const ageDiff = compareMetricValues(a.releaseAgeYears, b.releaseAgeYears, "desc");
+    if (ageDiff !== 0) return ageDiff;
+
+    const aPrice = a.grading?.rawPrice ?? a.currentPrice;
+    const bPrice = b.grading?.rawPrice ?? b.currentPrice;
+    if (aPrice !== bPrice) {
+      return aPrice - bPrice;
+    }
   } else if (sortKey === "raw_price_low") {
     const diff = compareMetricValues(a.grading?.rawPrice, b.grading?.rawPrice, "asc");
     if (diff !== 0) return diff;

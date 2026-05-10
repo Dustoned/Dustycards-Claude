@@ -66,12 +66,31 @@ export function formatPsaNameLine(name: string): string {
     .toUpperCase();
 }
 
-export function formatPsaSetLine(name: string, cardNumber: string | null): string {
-  const setLabel = name
+function formatPsaToken(value: string | null | undefined): string {
+  return (value ?? "")
     .replace(/[()]/g, "")
-    .replace(/\s+/g, "-")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
+}
+
+function getPsaReleaseYear(releaseDate: string | null | undefined): string | null {
+  const year = releaseDate?.match(/^(\d{4})/)?.[1] ?? null;
+  return year && Number.isInteger(Number(year)) ? year : null;
+}
+
+export function formatPsaHeaderLine(input: {
+  episodeSeries?: string | null;
+  episodeReleaseDate?: string | null;
+}): string {
+  const year = getPsaReleaseYear(input.episodeReleaseDate);
+  const series = formatPsaToken(input.episodeSeries);
+  return [year, "POKEMON", series].filter(Boolean).join(" ");
+}
+
+export function formatPsaSetLine(name: string, cardNumber: string | null): string {
+  const setLabel = formatPsaToken(name);
 
   return cardNumber ? `${setLabel} #${cardNumber}` : setLabel;
 }

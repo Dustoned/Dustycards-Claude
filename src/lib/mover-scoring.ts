@@ -24,6 +24,8 @@ export interface BuildMoverScoresInput {
   historyPoints: number;
   lifetimeHistoryPoints: number;
   rarityWeight?: number;
+  cheapnessWeight?: number;
+  ageWeight?: number;
   comparisonPrice?: number | null;
 }
 
@@ -190,6 +192,22 @@ function getPriceOpportunity(currentPrice: number, kind: MoverMarketKind): numbe
   return 0;
 }
 
+function getOlderValueOpportunity(input: BuildMoverScoresInput): number {
+  if (input.kind === "sealed") return 0;
+
+  const ageWeight = clamp(input.ageWeight ?? 1, 1, 1.35);
+  if (ageWeight <= 1.01) return 0;
+
+  const priceCap = input.kind === "graded" ? 180 : 80;
+  if (input.currentPrice > priceCap) return 0;
+
+  const ageFactor = clamp((ageWeight - 1) / 0.35, 0, 1);
+  const cheapFactor = clamp(((input.cheapnessWeight ?? 1) - 0.8) / 0.75, 0, 1);
+  const maxOpportunity = input.kind === "graded" ? 8 : 10;
+
+  return round(maxOpportunity * ageFactor * (0.45 + cheapFactor * 0.55), 2);
+}
+
 function buildOpportunityScore(input: BuildMoverScoresInput): number {
   const priceCap = getOpportunityPriceCap(input.kind);
   if (priceCap > 0 && input.currentPrice > priceCap) {
@@ -205,8 +223,9 @@ function buildOpportunityScore(input: BuildMoverScoresInput): number {
     input.changeFromLowPct != null
       ? clamp(input.changeFromLowPct, 0, input.kind === "sealed" ? 80 : 100) * 0.025
       : 0;
+  const olderValueOpportunity = getOlderValueOpportunity(input);
 
-  return round(priceOpportunity + offPeakOpportunity + reboundOpportunity, 2);
+  return round(priceOpportunity + offPeakOpportunity + reboundOpportunity + olderValueOpportunity, 2);
 }
 
 export function buildMoverScores(input: BuildMoverScoresInput): BuiltMoverScores {

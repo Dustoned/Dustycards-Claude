@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
@@ -145,6 +145,7 @@ export default function CollectionCardsView({
 }: Props) {
   const router = useRouter();
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const view: CollectionView =
     displaySettings.defaultView === "binder" ? "grid" : displaySettings.defaultView;
   const sortBy = forcedSortBy ?? settings.sortBy;
@@ -395,6 +396,51 @@ export default function CollectionCardsView({
     [renderLimit, visibleEntries]
   );
   const hasMoreVisibleEntries = renderLimit < visibleEntries.length;
+
+  useEffect(() => {
+    if (!hasMoreVisibleEntries) {
+      return;
+    }
+
+    const loadMoreElement = loadMoreRef.current;
+    if (!loadMoreElement) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) {
+          return;
+        }
+
+        setRenderState((current) => {
+          const currentLimit =
+            current.key === renderKey ? current.limit : INITIAL_COLLECTION_RENDER_COUNT;
+          const nextLimit = Math.min(
+            currentLimit + COLLECTION_RENDER_BATCH_SIZE,
+            visibleEntries.length
+          );
+
+          if (current.key === renderKey && nextLimit === current.limit) {
+            return current;
+          }
+
+          return {
+            key: renderKey,
+            limit: nextLimit,
+          };
+        });
+      },
+      { rootMargin: "700px 0px" }
+    );
+
+    observer.observe(loadMoreElement);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMoreVisibleEntries, renderKey, renderLimit, visibleEntries.length]);
+
   const renderedSelectionKeys = useMemo(
     () => new Set(renderedVisibleEntries.map((entry) => entry.selectionKey)),
     [renderedVisibleEntries]
@@ -1937,6 +1983,8 @@ export default function CollectionCardsView({
                             name={item.name}
                             episodeName={item.episode_name}
                             episodeCode={item.episode_code}
+                            episodeSeries={item.episode_series}
+                            episodeReleaseDate={item.episode_release_date}
                             cardNumber={item.card_number}
                             imageUrl={item.image_url}
                             alt={item.name}
@@ -2074,23 +2122,13 @@ export default function CollectionCardsView({
       )}
 
       {hasMoreVisibleEntries && (
-        <div className="mt-5 flex justify-center">
-          <button
-            type="button"
-            onClick={() =>
-              setRenderState((current) => ({
-                key: renderKey,
-                limit: Math.min(
-                  (current.key === renderKey ? current.limit : INITIAL_COLLECTION_RENDER_COUNT) +
-                    COLLECTION_RENDER_BATCH_SIZE,
-                  visibleEntries.length
-                ),
-              }))
-            }
-            className="inline-flex items-center rounded-full border border-black/8 bg-white/75 px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm shadow-black/5 transition-colors hover:border-black/15 hover:bg-white hover:text-gray-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/68 dark:hover:border-white/18 dark:hover:bg-white/[0.08] dark:hover:text-white"
-          >
-            Load more cards ({renderedVisibleEntries.length} / {visibleEntries.length})
-          </button>
+        <div
+          ref={loadMoreRef}
+          className="mt-5 flex h-10 items-center justify-center text-xs font-semibold text-gray-400 dark:text-white/35"
+          aria-live="polite"
+        >
+          Loading more cards ({renderedVisibleEntries.length.toLocaleString("en-US")} /{" "}
+          {visibleEntries.length.toLocaleString("en-US")})
         </div>
       )}
 
