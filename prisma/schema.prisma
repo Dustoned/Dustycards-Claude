@@ -45,6 +45,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   binders         CollectionBinder[]
   collectionCards CollectionCard[]
+  wants           CollectionWant[]
   sealedItems     CollectionSealed[]
   ebayListingCardOverrides EbayListingCardOverride[]
 
@@ -234,6 +235,7 @@ model Card {
 
   episode         Episode  @relation(fields: [episode_id], references: [id])
   collectionItems CollectionCard[]
+  wants           CollectionWant[]
   gradedPrices    CardGradedPrice[]
   gradedPriceSnapshots CardGradedPriceSnapshot[]
   ebaySoldGradedPrices CardEbaySoldGradedPrice[]
@@ -395,6 +397,23 @@ model CollectionCardTag {
 
   @@index([collection_card_id])
   @@index([label])
+}
+
+model CollectionWant {
+  id         String   @id @default(cuid())
+  user_id    String
+  card_id    String
+  notes      String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  card       Card     @relation(fields: [card_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, card_id])
+  @@index([user_id])
+  @@index([card_id])
+  @@index([created_at])
 }
 
 model CollectionSealed {

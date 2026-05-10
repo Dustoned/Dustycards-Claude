@@ -76,6 +76,10 @@ export interface ModalCardData {
     grading_company: string | null;
     grading_grade: string | null;
   } | null;
+  want_item?: {
+    id: string;
+    created_at: string;
+  } | null;
 }
 
 export type ModalCardCollectionItem = NonNullable<ModalCardData["collection_item"]>;

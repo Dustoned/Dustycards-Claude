@@ -7,6 +7,7 @@ import Link from "next/link";
 import { ChevronRight, ExternalLink, LineChart, RefreshCw } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
+import CollectionWantButton from "@/components/CollectionWantButton";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import { type SupportedGradedSlabCompany } from "@/lib/graded-slabs";
 import {
@@ -502,6 +503,18 @@ export function CardModalHeroSection({
                 label={collectionItem ? "Add copy" : "Add to DustyCards"}
                 className={quickActionButtonClass}
               />
+
+              {!collectionItem && (
+                <CollectionWantButton
+                  card={collectionCard}
+                  mode="button"
+                  theme="dark"
+                  label="Want"
+                  initialWanted={Boolean(card.want_item)}
+                  wantItemId={card.want_item?.id ?? null}
+                  className={quickActionButtonClass}
+                />
+              )}
 
               {collectionItem && (
                 <CollectionEditCardButton

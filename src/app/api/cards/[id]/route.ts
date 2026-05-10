@@ -160,6 +160,14 @@ async function getCardDetailPayload(id: string, userId: string) {
           },
         },
       },
+      wants: {
+        where: { user_id: userId },
+        take: 1,
+        select: {
+          id: true,
+          created_at: true,
+        },
+      },
       gradedPrices: {
         orderBy: [{ price: "desc" }, { label: "asc" }],
         select: {
@@ -228,6 +236,7 @@ async function getCardDetailPayload(id: string, userId: string) {
     rarity: card.rarity,
   });
   const collectionItem = card.collectionItems[0] ?? null;
+  const wantItem = card.wants[0] ?? null;
   const collectionCostBasis = await getCardDetailCostBasis(collectionItem, userId);
   const hasUsdEbaySoldGradedPrices = card.ebaySoldGradedPrices.some(
     (price) => price.currency.toUpperCase() === "USD"
@@ -319,6 +328,12 @@ async function getCardDetailPayload(id: string, userId: string) {
           tags: collectionItem.tags.map((tag) => tag.label),
           grading_company: collectionItem.grading_company,
           grading_grade: collectionItem.grading_grade,
+        }
+      : null,
+    want_item: wantItem
+      ? {
+          id: wantItem.id,
+          created_at: wantItem.created_at.toISOString(),
         }
       : null,
   };

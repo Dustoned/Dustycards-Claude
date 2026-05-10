@@ -135,8 +135,8 @@ export async function POST(req: NextRequest) {
   const gradingCompany = toNullableString(body.gradingCompany);
   const gradingGrade = toNullableString(body.gradingGrade);
 
-  const created = await db.$transaction((tx) =>
-    Promise.all(
+  const created = await db.$transaction(async (tx) => {
+    const items = await Promise.all(
       orderedCards.map((card) =>
         tx.collectionCard.create({
           data: {
@@ -157,8 +157,17 @@ export async function POST(req: NextRequest) {
           },
         })
       )
-    )
-  );
+    );
+
+    await tx.collectionWant.deleteMany({
+      where: {
+        user_id: user.id,
+        card_id: { in: orderedCards.map((card) => card.id) },
+      },
+    });
+
+    return items;
+  });
 
   return NextResponse.json({
     success: true,

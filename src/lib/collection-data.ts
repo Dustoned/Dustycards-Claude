@@ -32,6 +32,7 @@ export interface CollectionOverviewData {
     chart: Array<{ date: string; label: string; value: number | null }>;
   };
   cards: CollectionCardViewItem[];
+  wants: CollectionCardViewItem[];
   looseSingles: CollectionCardViewItem[];
   binderCards: CollectionCardViewItem[];
   sealed: CollectionSealedViewItem[];
@@ -58,7 +59,7 @@ export interface CollectionOverviewData {
   }>;
 }
 
-export type CollectionPageTab = "overview" | "cards" | "binders" | "sealed" | "graded";
+export type CollectionPageTab = "overview" | "cards" | "wants" | "binders" | "sealed" | "graded";
 
 export interface BinderPageData {
   binder: {
@@ -172,6 +173,47 @@ const collectionCardMetricSelect = {
     },
   },
 } satisfies Prisma.CollectionCardSelect;
+
+const collectionWantSelect = {
+  id: true,
+  created_at: true,
+  card: {
+    select: {
+      id: true,
+      name: true,
+      image_url: true,
+      card_number: true,
+      rarity: true,
+      supertype: true,
+      prices: {
+        orderBy: { fetched_at: "desc" },
+        take: 1,
+        select: {
+          cm_en_lowest_nm: true,
+          cm_de_lowest_nm: true,
+          cm_fr_lowest_nm: true,
+          cm_es_lowest_nm: true,
+          cm_it_lowest_nm: true,
+          tcp_market: true,
+        },
+      },
+      gradedPrices: {
+        orderBy: [{ price: "desc" }, { label: "asc" }],
+        select: {
+          label: true,
+          price: true,
+        },
+      },
+      episode: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.CollectionWantSelect;
 
 const collectionSealedSelect = {
   id: true,
@@ -348,6 +390,36 @@ type CollectionCardRecord = CollectionCardMetricRecord & {
   };
 };
 
+type CollectionWantRecord = {
+  id: string;
+  created_at: Date;
+  card: CollectionCardValueLike & {
+    id: string;
+    name: string;
+    image_url: string | null;
+    card_number: string | null;
+    rarity: string | null;
+    supertype: string | null;
+    prices: Array<{
+      cm_en_lowest_nm: number | null;
+      cm_de_lowest_nm: number | null;
+      cm_fr_lowest_nm: number | null;
+      cm_es_lowest_nm: number | null;
+      cm_it_lowest_nm: number | null;
+      tcp_market: number | null;
+    }>;
+    gradedPrices: Array<{
+      label: string;
+      price: number;
+    }>;
+    episode: {
+      id: string;
+      name: string;
+      code: string | null;
+    };
+  };
+};
+
 type CollectionSealedMetricRecord = {
   id: string;
   quantity: number;
@@ -403,6 +475,21 @@ async function getCollectionCards(options: { userId: string; binderId?: string }
 async function getCollectionCardMetrics(userId: string) {
   const records = await fetchCollectionCards({ userId, detail: false });
   return records as CollectionCardMetricRecord[];
+}
+
+async function getCollectionWants(userId: string) {
+  return db.collectionWant.findMany({
+    where: {
+      user_id: userId,
+      card: {
+        collectionItems: {
+          none: { user_id: userId },
+        },
+      },
+    },
+    orderBy: { created_at: "desc" },
+    select: collectionWantSelect,
+  });
 }
 
 async function getCollectionSealedItems(userId: string, detail = true) {
@@ -643,6 +730,42 @@ function buildCardViewItem(
   };
 }
 
+function buildWantViewItem(record: CollectionWantRecord): CollectionCardViewItem {
+  const cmValue = getCollectionCardMarketValue(record.card);
+  const tcpValue = record.card.prices[0]?.tcp_market ?? null;
+
+  return {
+    collection_item_id: null,
+    collection_item_ids: [],
+    want_item_id: record.id,
+    card_id: record.card.id,
+    name: record.card.name,
+    image_url: record.card.image_url,
+    card_number: record.card.card_number,
+    rarity: record.card.rarity,
+    supertype: record.card.supertype,
+    episode_id: record.card.episode.id,
+    episode_name: record.card.episode.name,
+    episode_code: record.card.episode.code,
+    cm_value: cmValue,
+    tcp_value: tcpValue,
+    current_value: cmValue,
+    current_value_label: null,
+    purchase_price: null,
+    cost_basis_value: null,
+    cost_basis_label: "Paid",
+    cost_basis_source: "direct",
+    condition: null,
+    language: null,
+    notes: null,
+    tags: [],
+    grading_company: null,
+    grading_grade: null,
+    owned: false,
+    owned_count: 0,
+  };
+}
+
 function getCollectionCardCurrentValue(record: CollectionCardMetricRecord): number | null {
   return getCollectionCardMarketValue(record.card, {
     gradingCompany: record.grading_company,
@@ -749,6 +872,10 @@ function shouldLoadDetailedCards(activeTab: CollectionPageTab): boolean {
   return activeTab === "overview" || activeTab === "cards" || activeTab === "graded";
 }
 
+function shouldLoadDetailedWants(activeTab: CollectionPageTab): boolean {
+  return activeTab === "wants";
+}
+
 function shouldLoadDetailedSealed(activeTab: CollectionPageTab): boolean {
   return activeTab === "overview" || activeTab === "sealed";
 }
@@ -762,21 +889,24 @@ export async function getCollectionOverviewData(
 ): Promise<CollectionOverviewData> {
   const activeTab = options?.activeTab ?? "overview";
   const loadDetailedCards = shouldLoadDetailedCards(activeTab);
+  const loadDetailedWants = shouldLoadDetailedWants(activeTab);
   const loadDetailedSealed = shouldLoadDetailedSealed(activeTab);
   const loadDetailedBinders = shouldLoadDetailedBinders(activeTab);
   const loadCollectionHistory = activeTab === "overview";
   const timer = startPerformanceTimer("collection.overview", {
     activeTab,
     detailedCards: loadDetailedCards,
+    detailedWants: loadDetailedWants,
     detailedSealed: loadDetailedSealed,
     detailedBinders: loadDetailedBinders,
     history: loadCollectionHistory,
   });
 
-  const [collectionCards, collectionSealed, binders] = await Promise.all([
+  const [collectionCards, wants, collectionSealed, binders] = await Promise.all([
     loadDetailedCards
       ? getCollectionCards({ userId: options.userId })
       : getCollectionCardMetrics(options.userId),
+    loadDetailedWants ? getCollectionWants(options.userId) : Promise.resolve([]),
     loadDetailedSealed
       ? getCollectionSealedItems(options.userId, true)
       : getCollectionSealedMetrics(options.userId),
@@ -915,6 +1045,7 @@ export async function getCollectionOverviewData(
       chart: combinedHistory,
     },
     cards: collectionCardViewItems,
+    wants: loadDetailedWants ? (wants as CollectionWantRecord[]).map(buildWantViewItem) : [],
     looseSingles: looseSingleViewItems,
     binderCards: binderCardViewItems,
     sealed: loadDetailedSealed ? (collectionSealed as CollectionSealedRecord[]).map(buildSealedViewItem) : [],
@@ -923,6 +1054,7 @@ export async function getCollectionOverviewData(
 
   timer.finish({
     cards: metricCards.length,
+    wants: wants.length,
     sealedItems: metricSealed.length,
     binders: binders.length,
     historyLoaded: loadCollectionHistory,

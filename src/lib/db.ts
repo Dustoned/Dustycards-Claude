@@ -51,6 +51,7 @@ const REQUIRED_RUNTIME_FIELDS = {
   Price: ["cm_en_avg_7d", "cm_en_avg_30d"],
   CollectionBinder: ["user_id"],
   CollectionCard: ["user_id"],
+  CollectionWant: ["user_id"],
   CollectionSealed: ["user_id"],
   SyncLog: ["details_json"],
   SyncJob: ["details_json", "heartbeat_at"],

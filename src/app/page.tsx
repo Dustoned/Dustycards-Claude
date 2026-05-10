@@ -190,6 +190,7 @@ export default async function HomePage({
   const { tab, graded } = await searchParams;
   const activeTab =
     tab === "cards" ||
+    tab === "wants" ||
     tab === "binders" ||
     tab === "sealed" ||
     tab === "graded"
@@ -250,7 +251,7 @@ export default async function HomePage({
     activeTab === "overview" &&
     (rawLooseSingles.length > 0 || data.looseSingles.length === 0);
 
-  function buildCollectionHref(tabValue: "overview" | "cards" | "binders" | "sealed" | "graded") {
+  function buildCollectionHref(tabValue: "overview" | "cards" | "wants" | "binders" | "sealed" | "graded") {
     const params = new URLSearchParams();
     if (tabValue !== "overview") {
       params.set("tab", tabValue);
@@ -358,6 +359,11 @@ export default async function HomePage({
                 label="Cards"
               />
               <TabLink
+                href={buildCollectionHref("wants")}
+                active={activeTab === "wants"}
+                label="Wants"
+              />
+              <TabLink
                 href={buildCollectionHref("binders")}
                 active={activeTab === "binders"}
                 label="Binders"
@@ -375,7 +381,7 @@ export default async function HomePage({
             </div>
           </div>
 
-          {!hasCollection && (
+          {!hasCollection && activeTab === "overview" && (
             <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
               <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
                 Your collection is still empty
@@ -410,6 +416,19 @@ export default async function HomePage({
             forcedSortDir="desc"
             hideSortControls
           />
+          )}
+
+          {activeTab === "wants" && (
+            <CollectionCardsView
+              items={data.wants}
+              allowWantRemoval
+              emptyTitle="No wants yet"
+              emptyText="Use Want on any card you would like to pick up later."
+              showFilters
+              forcedSortBy="cm_en"
+              forcedSortDir="desc"
+              hideSortControls
+            />
           )}
 
           {activeTab === "graded" && (

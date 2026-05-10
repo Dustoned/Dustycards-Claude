@@ -99,6 +99,7 @@ interface Props {
   emptyText: string;
   bulkAddBinder?: BulkAddBinderTarget | null;
   allowCollectionRemoval?: boolean;
+  allowWantRemoval?: boolean;
   showFilters?: boolean;
   onVisibleItemsChange?: (items: CollectionCardViewItem[]) => void;
   splitByGrading?: boolean;
@@ -112,6 +113,7 @@ interface Props {
 
 interface RemoveDialogState {
   itemIds: string[];
+  target: "collection" | "wants";
   title: string;
   description: string;
 }
@@ -130,6 +132,7 @@ export default function CollectionCardsView({
   emptyText,
   bulkAddBinder = null,
   allowCollectionRemoval = false,
+  allowWantRemoval = false,
   showFilters = false,
   onVisibleItemsChange,
   splitByGrading = false,
@@ -159,9 +162,10 @@ export default function CollectionCardsView({
   const [removingItems, setRemovingItems] = useState(false);
   const [removeDialog, setRemoveDialog] = useState<RemoveDialogState | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  const selectionEnabled = Boolean(bulkAddBinder) || allowCollectionRemoval;
+  const selectionEnabled = Boolean(bulkAddBinder) || allowCollectionRemoval || allowWantRemoval;
   const canBulkAddToBinder = Boolean(bulkAddBinder) && blurMissing;
   const canRemoveFromCollection = Boolean(bulkAddBinder) || allowCollectionRemoval;
+  const canRemoveFromWants = allowWantRemoval;
   const availableRarities = useMemo(
     () =>
       buildFilterOptions(items.map((item) => item.rarity), KNOWN_RARITY_ORDER, normalizeRarityLabel),
@@ -451,6 +455,19 @@ export default function CollectionCardsView({
     },
     [preparedEntries, selectedKeySet]
   );
+  const selectedWantItemIds = useMemo(
+    () => {
+      const ids = new Set<string>();
+
+      for (const entry of preparedEntries) {
+        if (!selectedKeySet.has(entry.selectionKey) || !entry.item.want_item_id) continue;
+        ids.add(entry.item.want_item_id);
+      }
+
+      return [...ids];
+    },
+    [preparedEntries, selectedKeySet]
+  );
 
   async function openCard(item: CollectionCardViewItem) {
     if (openingCardId === item.card_id) return;
@@ -552,15 +569,64 @@ export default function CollectionCardsView({
     }
   }
 
+  async function removeItemsFromWants(itemIds: string[]) {
+    if (itemIds.length === 0) return;
+
+    setRemovingItems(true);
+    setRemoveError(null);
+
+    try {
+      const response = await fetch("/api/wants/cards", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds }),
+      });
+
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not remove cards from Wants");
+      }
+
+      setBulkAddOpen(false);
+      setSelectionMode(false);
+      setSelectedKeys([]);
+      setRemoveDialog(null);
+      router.refresh();
+    } catch (error) {
+      setRemoveError(error instanceof Error ? error.message : "Could not remove cards from Wants");
+    } finally {
+      setRemovingItems(false);
+    }
+  }
+
   function handleBulkAdd() {
     setBulkAddOpen(true);
   }
 
   function handleBulkRemove() {
+    if (canRemoveFromWants) {
+      if (selectedWantItemIds.length === 0) return;
+      setRemoveError(null);
+      setRemoveDialog({
+        itemIds: selectedWantItemIds,
+        target: "wants",
+        title:
+          selectedWantItemIds.length === 1
+            ? "Remove 1 card from Wants?"
+            : `Remove ${selectedWantItemIds.length} cards from Wants?`,
+        description:
+          selectedWantItemIds.length === 1
+            ? "This card will be removed from your Wants list."
+            : "These cards will be removed from your Wants list.",
+      });
+      return;
+    }
+
     if (selectedCollectionItemIds.length === 0) return;
     setRemoveError(null);
     setRemoveDialog({
       itemIds: selectedCollectionItemIds,
+      target: "collection",
       title:
         selectedCollectionItemIds.length === 1
           ? "Remove 1 card from My Collection?"
@@ -579,10 +645,22 @@ export default function CollectionCardsView({
     event.stopPropagation();
 
     const removableIds = item.collection_item_ids ?? (item.collection_item_id ? [item.collection_item_id] : []);
+    if (canRemoveFromWants && item.want_item_id) {
+      setRemoveError(null);
+      setRemoveDialog({
+        itemIds: [item.want_item_id],
+        target: "wants",
+        title: `Remove ${item.name} from Wants?`,
+        description: "This card will be removed from your Wants list.",
+      });
+      return;
+    }
+
     if (removableIds.length === 0) return;
     setRemoveError(null);
     setRemoveDialog({
       itemIds: removableIds,
+      target: "collection",
       title:
         removableIds.length === 1
           ? `Remove ${item.name} from My Collection?`
@@ -933,6 +1011,16 @@ export default function CollectionCardsView({
                           Remove
                         </button>
                       )}
+                      {canRemoveFromWants && (
+                        <button
+                          type="button"
+                          onClick={handleBulkRemove}
+                          disabled={removingItems || selectedWantItemIds.length === 0}
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </>
                   )}
                   <button
@@ -1233,6 +1321,16 @@ export default function CollectionCardsView({
                   Remove
                 </button>
               )}
+              {canRemoveFromWants && (
+                <button
+                  type="button"
+                  onClick={handleBulkRemove}
+                  disabled={removingItems || selectedWantItemIds.length === 0}
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+                >
+                  Remove
+                </button>
+              )}
             </>
           )}
 
@@ -1367,21 +1465,35 @@ export default function CollectionCardsView({
                                   </button>
                                 ) : null
                               ) : (
-                                <CollectionAddCardButton
-                                  card={{
-                                    id: item.card_id,
-                                    name: item.name,
-                                    image_url: item.image_url,
-                                    episode: {
-                                      id: item.episode_id,
-                                      name: item.episode_name,
-                                      code: item.episode_code,
-                                    },
-                                  }}
-                                  initialBinderId={bulkAddBinder?.id ?? null}
-                                  lockedBinderName={bulkAddBinder?.name ?? null}
-                                  className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                                />
+                                <div className="flex shrink-0 items-center gap-1">
+                                  <CollectionAddCardButton
+                                    card={{
+                                      id: item.card_id,
+                                      name: item.name,
+                                      image_url: item.image_url,
+                                      episode: {
+                                        id: item.episode_id,
+                                        name: item.episode_name,
+                                        code: item.episode_code,
+                                      },
+                                    }}
+                                    initialBinderId={bulkAddBinder?.id ?? null}
+                                    lockedBinderName={bulkAddBinder?.name ?? null}
+                                    className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                  />
+                                  {canRemoveFromWants && item.want_item_id ? (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => handleSingleRemove(event, item)}
+                                      disabled={removingItems}
+                                      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                      aria-label={`Remove ${item.name} from Wants`}
+                                      title="Remove from Wants"
+                                    >
+                                      <Minus className="h-3.5 w-3.5" />
+                                    </button>
+                                  ) : null}
+                                </div>
                               ))}
                           </div>
 
@@ -1436,7 +1548,9 @@ export default function CollectionCardsView({
                                   ? `x${item.owned_count} owned`
                                   : item.owned
                                     ? "Owned"
-                                    : "Available"}
+                                    : item.want_item_id
+                                      ? "Wanted"
+                                      : "Available"}
                             </span>
                           </div>
                         </div>
@@ -1618,6 +1732,8 @@ export default function CollectionCardsView({
                               <span>x{item.owned_count} owned</span>
                             ) : item.owned ? (
                               <span>Owned</span>
+                            ) : item.want_item_id ? (
+                              <span>Wanted</span>
                             ) : (
                               <span>Available</span>
                             )}
@@ -1642,21 +1758,35 @@ export default function CollectionCardsView({
                                     </button>
                                   ) : null
                                 ) : (
-                                  <CollectionAddCardButton
-                                    card={{
-                                      id: item.card_id,
-                                      name: item.name,
-                                      image_url: item.image_url,
-                                      episode: {
-                                        id: item.episode_id,
-                                        name: item.episode_name,
-                                        code: item.episode_code,
-                                      },
-                                    }}
-                                    initialBinderId={bulkAddBinder?.id ?? null}
-                                    lockedBinderName={bulkAddBinder?.name ?? null}
-                                    className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                                  />
+                                  <>
+                                    <CollectionAddCardButton
+                                      card={{
+                                        id: item.card_id,
+                                        name: item.name,
+                                        image_url: item.image_url,
+                                        episode: {
+                                          id: item.episode_id,
+                                          name: item.episode_name,
+                                          code: item.episode_code,
+                                        },
+                                      }}
+                                      initialBinderId={bulkAddBinder?.id ?? null}
+                                      lockedBinderName={bulkAddBinder?.name ?? null}
+                                      className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                    />
+                                    {canRemoveFromWants && item.want_item_id ? (
+                                      <button
+                                        type="button"
+                                        onClick={(event) => handleSingleRemove(event, item)}
+                                        disabled={removingItems}
+                                        className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-md border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                        aria-label={`Remove ${item.name} from Wants`}
+                                        title="Remove from Wants"
+                                      >
+                                        <Minus className="h-3.5 w-3.5" />
+                                      </button>
+                                    ) : null}
+                                  </>
                                 ))}
                             </div>
                           </td>
@@ -1736,21 +1866,37 @@ export default function CollectionCardsView({
                         </button>
                       ) : null
                     ) : (
-                      <CollectionAddCardButton
-                        card={{
-                          id: item.card_id,
-                          name: item.name,
-                          image_url: item.image_url,
-                          episode: {
-                            id: item.episode_id,
-                            name: item.episode_name,
-                            code: item.episode_code,
-                          },
-                        }}
-                        initialBinderId={bulkAddBinder?.id ?? null}
-                        lockedBinderName={bulkAddBinder?.name ?? null}
-                        className={collectionTileActionButtonClass(displaySettings.cardSize)}
-                      />
+                      <div className="flex shrink-0 items-center gap-1">
+                        <CollectionAddCardButton
+                          card={{
+                            id: item.card_id,
+                            name: item.name,
+                            image_url: item.image_url,
+                            episode: {
+                              id: item.episode_id,
+                              name: item.episode_name,
+                              code: item.episode_code,
+                            },
+                          }}
+                          initialBinderId={bulkAddBinder?.id ?? null}
+                          lockedBinderName={bulkAddBinder?.name ?? null}
+                          className={collectionTileActionButtonClass(displaySettings.cardSize)}
+                        />
+                        {canRemoveFromWants && item.want_item_id ? (
+                          <button
+                            type="button"
+                            onClick={(event) => handleSingleRemove(event, item)}
+                            disabled={removingItems}
+                            className={collectionTileActionButtonClass(displaySettings.cardSize)}
+                            aria-label={`Remove ${item.name} from Wants`}
+                            title="Remove from Wants"
+                          >
+                            <Minus
+                              className={collectionTileActionIconClass(displaySettings.cardSize)}
+                            />
+                          </button>
+                        ) : null}
+                      </div>
                     )
                   ) : null;
 
@@ -1913,7 +2059,7 @@ export default function CollectionCardsView({
                 ) : !item.owned ? (
                   <div className={collectionMetaWrapClass(displaySettings.cardSize)}>
                     <p className={collectionMissingMetaClass(displaySettings.cardSize)}>
-                      Not in your collection yet
+                      {item.want_item_id ? "Wanted, not in collection yet" : "Not in your collection yet"}
                     </p>
                   </div>
                 ) : null}
@@ -1979,14 +2125,16 @@ export default function CollectionCardsView({
           >
             <div className="mb-5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38">
-                Remove From Collection
+                {removeDialog.target === "wants" ? "Remove From Wants" : "Remove From Collection"}
               </p>
               <h2 className="mt-2 text-2xl font-bold leading-tight">{removeDialog.title}</h2>
               <p className="mt-2 text-sm text-white/55">{removeDialog.description}</p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/68">
-              This removes the saved collection entry entirely. It will not be moved to loose singles.
+              {removeDialog.target === "wants"
+                ? "This only removes the card from Wants. Your collection stays unchanged."
+                : "This removes the saved collection entry entirely. It will not be moved to loose singles."}
             </div>
 
             {removeError && <p className="mt-4 text-sm text-rose-300">{removeError}</p>}
@@ -1994,7 +2142,11 @@ export default function CollectionCardsView({
             <div className="mt-5 flex gap-3">
               <button
                 type="button"
-                onClick={() => void removeItemsFromCollection(removeDialog.itemIds)}
+                onClick={() =>
+                  void (removeDialog.target === "wants"
+                    ? removeItemsFromWants(removeDialog.itemIds)
+                    : removeItemsFromCollection(removeDialog.itemIds))
+                }
                 disabled={removingItems}
                 className="flex-1 rounded-2xl bg-rose-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
