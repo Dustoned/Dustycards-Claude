@@ -97,6 +97,18 @@ function shouldReplaceEpisode(existingId: string, nextId: string): boolean {
   return nextId.localeCompare(existingId, undefined, { numeric: true, sensitivity: "base" }) < 0;
 }
 
+function getKnownEpisodeCardCount(input: {
+  card_count?: number | null;
+  source_actual_card_count?: number | null;
+  _count?: { cards: number } | null;
+}): number {
+  return Math.max(
+    input._count?.cards ?? 0,
+    input.card_count ?? 0,
+    input.source_actual_card_count ?? 0
+  );
+}
+
 export default async function ExpansionsPage() {
   const user = await requirePageUser("/expansions");
   const settings = await getServerUserSettings(user.id);
@@ -262,25 +274,36 @@ export default async function ExpansionsPage() {
               }}
             >
               {sets.map((episode, index) => {
+                const localCardCount = episode._count.cards;
                 const cardCount = getEpisodeDisplayCardCount(episode);
+                const knownCardCount = getKnownEpisodeCardCount(episode);
                 const currentValue = currentValueByEpisodeId.get(episode.id) ?? {
                   priced: 0,
                   value: null,
                 };
                 const releaseYear = episode.release_date?.slice(0, 4) ?? null;
                 const releaseLabel = formatReleaseLabel(episode.release_date);
-                const isUpcomingEmptySet =
-                  cardCount === 0 && isFutureReleaseDate(episode.release_date);
+                const isUpcomingWithoutCards =
+                  localCardCount === 0 && isFutureReleaseDate(episode.release_date);
+                const hasKnownUpcomingCount = isUpcomingWithoutCards && knownCardCount > 0;
                 const setCode = episode.code?.trim().toUpperCase() ?? null;
                 const releaseMeta =
-                  isUpcomingEmptySet && releaseLabel ? `Releases ${releaseLabel}` : releaseYear;
+                  isUpcomingWithoutCards && releaseLabel ? `Releases ${releaseLabel}` : releaseYear;
                 const metaParts = [setCode, releaseMeta].filter(Boolean);
+                const countHint = isUpcomingWithoutCards
+                  ? hasKnownUpcomingCount
+                    ? `${knownCardCount.toLocaleString(
+                        "en-US"
+                      )} cards expected; card list appears after release and sync.`
+                    : "Card list appears after the official release and sync."
+                  : undefined;
 
                 return (
                   <Link
                     key={episode.id}
                     href={`/expansions/${episode.id}`}
                     prefetch={false}
+                    title={countHint}
                 className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-3 ${tileConfig.tileClass}`}
                 >
                     {episode.logo_url ? (
@@ -322,15 +345,21 @@ export default async function ExpansionsPage() {
                           </p>
                           <p
                             className={`mt-2 inline-flex max-w-full items-baseline gap-1.5 rounded-full border px-2 py-1 font-semibold max-[640px]:mt-1.5 max-[640px]:text-[11px] ${
-                              isUpcomingEmptySet
+                              isUpcomingWithoutCards
                                 ? "border-sky-300/22 bg-sky-300/10 text-sky-700 dark:text-sky-200"
                                 : "border-black/7 bg-black/[0.035] text-gray-600 dark:border-white/8 dark:bg-white/[0.055] dark:text-white/68"
                             } ${tileConfig.metaClass}`}
                           >
-                            {isUpcomingEmptySet ? (
+                            {isUpcomingWithoutCards ? (
                               <>
-                                <span className="font-bold tabular-nums">Upcoming</span>
-                                <span>cards after release</span>
+                                <span className="font-bold tabular-nums">
+                                  {hasKnownUpcomingCount
+                                    ? knownCardCount.toLocaleString("en-US")
+                                    : "Upcoming"}
+                                </span>
+                                <span>
+                                  {hasKnownUpcomingCount ? "expected cards" : "cards after release"}
+                                </span>
                               </>
                             ) : (
                               <>

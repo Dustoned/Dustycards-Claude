@@ -83,6 +83,18 @@ function toNormalizedSealedProduct(product: {
   };
 }
 
+function getKnownEpisodeCardCount(episode: {
+  card_count: number | null;
+  source_actual_card_count: number | null;
+  _count: { cards: number };
+}): number {
+  return Math.max(
+    episode._count.cards,
+    episode.card_count ?? 0,
+    episode.source_actual_card_count ?? 0
+  );
+}
+
 export default async function ExpansionDetailPage({
   params,
   searchParams,
@@ -116,7 +128,14 @@ export default async function ExpansionDetailPage({
   const releaseDetailLabel =
     formatReleaseLabel(episode.release_date, { includeDay: true }) ?? releaseLabel;
   const isUpcomingRelease = isFutureReleaseDate(episode.release_date);
-  const isUpcomingEmptySet = isUpcomingRelease && episode._count.cards === 0;
+  const localCardCount = episode._count.cards;
+  const knownCardCount = getKnownEpisodeCardCount(episode);
+  const cardCountDenominator = localCardCount > 0 ? localCardCount : knownCardCount;
+  const isCardListEmpty = localCardCount === 0;
+  const isUpcomingEmptySet = isUpcomingRelease && isCardListEmpty;
+  const hasKnownUpcomingCardCount = isUpcomingEmptySet && knownCardCount > 0;
+  const isReleasedEmptySetWithKnownCount =
+    !isUpcomingRelease && isCardListEmpty && knownCardCount > 0;
 
   const pullRateProfile = episode.code
     ? await db.setPullRateProfile.findFirst({
@@ -184,16 +203,16 @@ export default async function ExpansionDetailPage({
   let pricePanelTitle = "Set Total";
   let pricePanelPoints: Array<{ date: string; label: string; value: number | null }> = [];
   let pricePanelCurrentValue: number | null = null;
-  let pricePanelSubtitle = `0/${episode._count.cards} cards priced`;
+  let pricePanelSubtitle = `0/${cardCountDenominator} cards priced`;
   let pricePanelEmptyText = "No set prices available yet";
   let headerProgressLabel = "Card Pricing";
-  let headerProgressValue = `0 / ${episode._count.cards}`;
+  let headerProgressValue = `0 / ${cardCountDenominator}`;
   let headerProgressPercent = 0;
   let headerHistoryProgressValue: string | null = null;
   let headerHistoryProgressPercent = 0;
   let headerValueLabel = "Set Value";
   let headerCountLabel = "Cards";
-  let headerCountValue = episode._count.cards;
+  let headerCountValue = cardCountDenominator;
   if (activeTab === "cards") {
     const [rawSetPriceSnapshots, dbCards] = await Promise.all([
       db.$queryRaw<
@@ -261,24 +280,24 @@ export default async function ExpansionDetailPage({
     }));
     pricePanelCurrentValue = latestSetPricePoint?.total_market ?? null;
     pricePanelSubtitle = latestSetPricePoint
-      ? `${latestSetPricePoint.priced_cards}/${episode._count.cards} cards priced`
-      : `0/${episode._count.cards} cards priced`;
+      ? `${latestSetPricePoint.priced_cards}/${cardCountDenominator} cards priced`
+      : `0/${cardCountDenominator} cards priced`;
     headerProgressLabel = "Card Pricing";
-    headerProgressValue = `${latestSetPricePoint?.priced_cards ?? 0} / ${episode._count.cards}`;
+    headerProgressValue = `${latestSetPricePoint?.priced_cards ?? 0} / ${cardCountDenominator}`;
     headerProgressPercent =
-      episode._count.cards > 0
-        ? ((latestSetPricePoint?.priced_cards ?? 0) / episode._count.cards) * 100
+      cardCountDenominator > 0
+        ? ((latestSetPricePoint?.priced_cards ?? 0) / cardCountDenominator) * 100
         : 0;
     const historySyncedCards = dbCards.reduce(
       (total, card) => total + (card.native_history_status === "synced" ? 1 : 0),
       0
     );
-    headerHistoryProgressValue = `${historySyncedCards}/${episode._count.cards}`;
+    headerHistoryProgressValue = `${historySyncedCards}/${cardCountDenominator}`;
     headerHistoryProgressPercent =
-      episode._count.cards > 0 ? (historySyncedCards / episode._count.cards) * 100 : 0;
+      cardCountDenominator > 0 ? (historySyncedCards / cardCountDenominator) * 100 : 0;
     headerValueLabel = "Set Value";
     headerCountLabel = "Cards";
-    headerCountValue = episode._count.cards;
+    headerCountValue = cardCountDenominator;
     const pullRateByRarity = new Map(
       (pullRateProfile?.rarities ?? []).map((rarity) => [
         rarity.normalized_rarity,
@@ -397,25 +416,55 @@ export default async function ExpansionDetailPage({
   }
 
   if (activeTab === "cards" && isUpcomingEmptySet) {
-    pricePanelSubtitle = "Cards arrive after release";
-    pricePanelEmptyText = "Card prices will appear once the set is released and synced";
+    pricePanelSubtitle = hasKnownUpcomingCardCount
+      ? `${knownCardCount.toLocaleString("en-US")} cards expected`
+      : "Cards arrive after release";
+    pricePanelEmptyText = hasKnownUpcomingCardCount
+      ? "Card prices will appear after release, once the card list and prices are synced"
+      : "Card prices will appear once the set is released and synced";
     headerProgressLabel = "Release Status";
     headerProgressValue = releaseDetailLabel ? `Releases ${releaseDetailLabel}` : "Upcoming set";
     headerProgressPercent = 0;
     headerHistoryProgressValue = null;
     headerHistoryProgressPercent = 0;
+    headerCountLabel = hasKnownUpcomingCardCount ? "Expected Cards" : "Cards";
+    headerCountValue = hasKnownUpcomingCardCount ? knownCardCount : 0;
+  } else if (activeTab === "cards" && isReleasedEmptySetWithKnownCount) {
+    pricePanelSubtitle = `${knownCardCount.toLocaleString("en-US")} cards known, none loaded`;
+    pricePanelEmptyText = "Run Sync this set to import the card list and prices";
+    headerProgressLabel = "Card Sync";
+    headerProgressValue = `0 / ${knownCardCount.toLocaleString("en-US")}`;
+    headerProgressPercent = 0;
+    headerHistoryProgressValue = null;
+    headerHistoryProgressPercent = 0;
+    headerCountLabel = "Known Cards";
+    headerCountValue = knownCardCount;
   }
 
   const expansionContext = [episode.series, episode.code].filter(Boolean).join(" / ");
   const headerCountFormatted = headerCountValue.toLocaleString("en-US");
   const sealedCountFormatted = episode._count.sealedProducts.toLocaleString("en-US");
   const releaseMetricLabel = isUpcomingRelease ? "Releases" : "Released";
-  const emptyCardsTitle = isUpcomingEmptySet ? "This set is not released yet" : "No cards loaded yet";
+  const emptyCardsTitle = isUpcomingEmptySet
+    ? hasKnownUpcomingCardCount
+      ? "Card list not available yet"
+      : "This set is not released yet"
+    : "No cards loaded yet";
   const emptyCardsText = isUpcomingEmptySet
-    ? `${episode.name} ${
-        releaseDetailLabel ? `releases ${releaseDetailLabel}` : "is still upcoming"
-      }. Cards will appear here after the official release and the next sync.`
-    : "Use refresh to fetch this set.";
+    ? hasKnownUpcomingCardCount
+      ? `${episode.name} has ${knownCardCount.toLocaleString(
+          "en-US"
+        )} cards expected${
+          releaseDetailLabel ? ` and releases ${releaseDetailLabel}` : ""
+        }. Cards will appear here after the official release and the next sync.`
+      : `${episode.name} ${
+          releaseDetailLabel ? `releases ${releaseDetailLabel}` : "is still upcoming"
+        }. Cards will appear here after the official release and the next sync.`
+    : isReleasedEmptySetWithKnownCount
+      ? `${episode.name} has ${knownCardCount.toLocaleString(
+          "en-US"
+        )} cards in the set metadata, but none are imported locally yet. Run Sync this set to load them.`
+      : "Use refresh to fetch this set.";
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -581,7 +630,13 @@ export default async function ExpansionDetailPage({
           >
             {isUpcomingEmptySet ? (
               <div className="mb-3 inline-flex items-center rounded-full border border-sky-300/25 bg-sky-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-sky-700 dark:text-sky-200">
-                Upcoming set
+                {hasKnownUpcomingCardCount
+                  ? `${knownCardCount.toLocaleString("en-US")} expected cards`
+                  : "Upcoming set"}
+              </div>
+            ) : isReleasedEmptySetWithKnownCount ? (
+              <div className="mb-3 inline-flex items-center rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-200">
+                Sync needed
               </div>
             ) : null}
             <p className="mb-1 font-semibold text-gray-800 dark:text-white">{emptyCardsTitle}</p>
