@@ -112,14 +112,14 @@ function SectionShell({
   return (
     <section className={`card-modal-section rounded-[24px] border border-white/10 bg-white/[0.055] p-4 sm:p-6 max-[640px]:rounded-2xl max-[640px]:p-3 ${className}`}>
       {(eyebrow || title || description) && (
-        <div className="mb-5 space-y-2">
+        <div className="mb-4 space-y-1.5 max-[640px]:mb-3">
           {eyebrow && (
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40 max-[640px]:text-[10px] max-[640px]:tracking-[0.14em]">
               {eyebrow}
             </p>
           )}
-          {title && <h3 className="text-xl font-semibold text-white">{title}</h3>}
-          {description && <p className="text-base text-white/48">{description}</p>}
+          {title && <h3 className="text-xl font-semibold text-white max-[640px]:text-base">{title}</h3>}
+          {description && <p className="text-base text-white/48 max-[640px]:text-sm">{description}</p>}
         </div>
       )}
       {children}
@@ -144,22 +144,22 @@ function MetricTile({
           : "border-white/10 bg-black/22";
 
   return (
-    <div className={`card-modal-metric min-w-0 rounded-2xl border px-4 py-4 ${accentClass} ${className}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/38">{label}</p>
-      <p className="mt-2.5 break-words text-xl font-semibold tabular-nums text-white">{value}</p>
-      {hint && <p className="mt-1.5 text-sm text-white/42">{hint}</p>}
+    <div className={`card-modal-metric min-w-0 rounded-2xl border px-4 py-4 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-3 ${accentClass} ${className}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/38 max-[640px]:text-[10px]">{label}</p>
+      <p className="mt-2.5 break-words text-xl font-semibold tabular-nums text-white max-[640px]:mt-1.5 max-[640px]:text-lg">{value}</p>
+      {hint && <p className="mt-1.5 text-sm text-white/42 max-[640px]:text-xs">{hint}</p>}
     </div>
   );
 }
 
 function MarketRow({ label, value, hint }: MarketRowProps) {
   return (
-    <div className="card-modal-market-row flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4">
+    <div className="card-modal-market-row flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-3">
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">{label}</p>
-        {hint && <p className="mt-1 text-sm text-white/40">{hint}</p>}
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36 max-[640px]:text-[10px]">{label}</p>
+        {hint && <p className="mt-1 text-sm text-white/40 max-[640px]:text-xs">{hint}</p>}
       </div>
-      <p className="min-w-0 break-words text-right text-lg font-semibold tabular-nums text-white">{value}</p>
+      <p className="min-w-0 break-words text-right text-lg font-semibold tabular-nums text-white max-[640px]:text-base">{value}</p>
     </div>
   );
 }
@@ -235,7 +235,7 @@ export function CardModalPreview({
 
   return (
     <aside
-      className="mx-auto flex h-full max-w-[min(13rem,62vw)] flex-col gap-3 sm:max-w-full sm:gap-4 max-[640px]:max-w-[min(12rem,58vw)] max-[640px]:gap-1.5 lg:mx-0"
+      className="mx-auto flex h-full max-w-[min(13rem,62vw)] flex-col gap-3 sm:max-w-full sm:gap-4 max-[640px]:max-w-[min(10.5rem,52vw)] max-[640px]:gap-1.5 lg:mx-0"
       style={{ width: mediaWidth }}
     >
       {card.image_url ? (
@@ -322,6 +322,7 @@ export function CardModalHeroSection({
   canManageCardPrices,
   onRefresh,
   onSyncHistory,
+  onAddedToCollection,
   onClose,
 }: {
   card: ModalCardData;
@@ -338,6 +339,7 @@ export function CardModalHeroSection({
   canManageCardPrices: boolean;
   onRefresh: () => void;
   onSyncHistory: () => void;
+  onAddedToCollection?: () => void | Promise<void>;
   onClose: () => void;
 }) {
   const collectionCard = buildCollectionCard(card);
@@ -439,9 +441,9 @@ export function CardModalHeroSection({
       ]
     : heroDetailStats;
   const quickActionButtonClass =
-    "min-h-8 !rounded-xl !border-white/10 !bg-white/[0.08] !px-3 !py-1.5 !text-[11px] hover:!border-white/18 hover:!bg-white/[0.13] max-[640px]:flex-1";
+    "min-h-8 !rounded-xl !border-white/10 !bg-white/[0.08] !px-3 !py-1.5 !text-[11px] hover:!border-white/18 hover:!bg-white/[0.13] max-[640px]:min-w-0 max-[640px]:basis-[calc(50%-0.2rem)] max-[640px]:px-2 max-[640px]:text-[10px]";
   const utilityButtonClass =
-    "inline-flex min-h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[11px] font-semibold text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:flex-1";
+    "inline-flex min-h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[11px] font-semibold text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:basis-[calc(50%-0.2rem)] max-[640px]:px-2 max-[640px]:text-[10px]";
 
   return (
     <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))] !p-3 sm:!p-4">
@@ -500,8 +502,9 @@ export function CardModalHeroSection({
                 card={collectionCard}
                 mode="button"
                 theme="dark"
-                label={collectionItem ? "Add copy" : "Add to DustyCards"}
+                label={collectionItem ? "Add copy" : "Add"}
                 className={quickActionButtonClass}
+                onAdded={onAddedToCollection}
               />
 
               {!collectionItem && (
@@ -876,11 +879,11 @@ export function CardModalHistorySection({
     {
       label: "eBay Sold",
       value: formatCurrency(ebaySoldDisplay.value, ebaySoldDisplay.currency),
-      hint: selectedEbaySoldGradedPrice?.label ?? selectedEbaySoldGradedHistory?.label ?? null,
+      hint:
+        ebaySoldDisplay.sampleSize != null
+          ? `${ebaySoldDisplay.sampleSize} sold listings`
+          : "Recent sold listings",
     },
-    ...(ebaySoldDisplay.sampleSize != null
-      ? [{ label: "Sample", value: `${ebaySoldDisplay.sampleSize} sold` }]
-      : []),
     ...(ebaySoldDisplay.originalUsd
       ? [{ label: "Original", value: ebaySoldDisplay.originalUsd }]
       : []),
@@ -932,18 +935,18 @@ export function CardModalHistorySection({
       ? selectedEbaySoldGradedHistory?.label ?? selectedEbaySoldGradedPrice?.label ?? ""
       : selectedGradedHistory?.label ?? selectedGradedPrice?.label ?? "";
   const historyPillClass =
-    "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-2.5";
+    "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-2";
   const historySegmentClass =
     "inline-flex h-8 min-w-0 !w-auto overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-0.5 max-[640px]:h-7 max-[640px]:!w-full";
   const historySegmentButtonClass =
     "min-w-0 flex-1 rounded-full px-3 text-[11px] font-semibold transition-colors sm:flex-none max-[640px]:px-2.5";
 
   return (
-    <SectionShell className="overflow-hidden">
-      <div className="mb-3 flex flex-col gap-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <SectionShell className="overflow-hidden max-[640px]:!p-2.5">
+      <div className="mb-2.5 flex flex-col gap-2">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <p className="mr-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+            <p className="mr-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
               Price history
             </p>
 
@@ -970,7 +973,7 @@ export function CardModalHistorySection({
             )}
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:justify-end">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:justify-end">
             {effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker && (
               <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap justify-end gap-1.5">
                 {availableCardMarketHistorySeries.map((series) => (
@@ -1107,6 +1110,7 @@ export function CardModalFooter({
   footerGridClass,
   storedCardMarketUrl,
   onOpenCardMarket,
+  onAddedToCollection,
   onClose,
 }: {
   card: ModalCardData;
@@ -1114,6 +1118,7 @@ export function CardModalFooter({
   footerGridClass: string;
   storedCardMarketUrl: string | null;
   onOpenCardMarket: () => void;
+  onAddedToCollection?: () => void | Promise<void>;
   onClose: () => void;
 }) {
   const collectionCard = buildCollectionCard(card);
@@ -1125,7 +1130,7 @@ export function CardModalFooter({
 
   return (
     <div className={footerGridClass}>
-      <div className={footerGroupClass}>
+      <div className={`${footerGroupClass} lg:hidden`}>
         <p className={footerGroupLabelClass}>Collection</p>
         <div className={`mt-2 grid gap-2 ${collectionItem ? "sm:grid-cols-2" : ""}`}>
           <CollectionAddCardButton
@@ -1134,6 +1139,7 @@ export function CardModalFooter({
             theme="dark"
             label="Add to DustyCards"
             className="min-h-11 w-full"
+            onAdded={onAddedToCollection}
           />
 
           {collectionItem && (
@@ -1150,7 +1156,7 @@ export function CardModalFooter({
         </div>
       </div>
 
-      <div className={footerGroupClass}>
+      <div className={`${footerGroupClass} lg:col-span-2`}>
         <p className={footerGroupLabelClass}>Market</p>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           {storedCardMarketUrl ? (

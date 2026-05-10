@@ -4,7 +4,7 @@ import { Geist } from "next/font/google";
 import Link from "next/link";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
-import { HeaderMobileMenu, HeaderNav, HeaderSettingsLink } from "@/components/HeaderNav";
+import { HeaderMobileMenu, HeaderNav } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
 import SettingsProvider from "@/components/SettingsProvider";
 import { getCurrentUser } from "@/lib/auth";
@@ -142,7 +142,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <HeaderNav />
                   <div className="flex-1 lg:hidden" />
                   <HeaderSearch />
-                  <HeaderSettingsLink />
                 </>
               ) : (
                 <div className="flex-1" />

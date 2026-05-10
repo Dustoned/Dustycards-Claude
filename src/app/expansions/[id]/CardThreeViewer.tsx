@@ -1802,9 +1802,10 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
       : "USD";
   const selectedEbaySoldDisplayPrice =
     selectedEbaySoldMedianEur ?? selectedEbaySoldGradedPrice?.median_price ?? null;
-  const selectedEbaySoldMetaLabel = selectedEbaySoldGradedPrice?.sample_size != null
-    ? `${selectedEbaySoldGradedPrice.sample_size} sold`
-    : "Sold median";
+  const selectedEbaySoldMetaLabel =
+    selectedEbaySoldGradedPrice?.sample_size != null
+      ? `${selectedEbaySoldGradedPrice.sample_size} sold`
+      : null;
 
   function isPersistentUiTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Node)) return false;
@@ -2199,7 +2200,7 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
                                   selectedEbaySoldDisplayCurrency
                                 )}
                               </span>
-                              {!compactMobileDetails && (
+                              {!compactMobileDetails && selectedEbaySoldMetaLabel && (
                                 <span className="mt-0.5 block text-[11px] font-medium text-white/45">
                                   {selectedEbaySoldMetaLabel}
                                 </span>

@@ -173,7 +173,7 @@ const DETAIL_METRICS = {
   shellRadius: "rounded-[18px]",
   innerInset: "inset-[1.05%] rounded-[15px]",
   psaLabel:
-    "inset-x-[4%] top-[2.8%] h-[12.7%] min-h-[48px] rounded-[7px] p-[3px]",
+    "inset-x-[4%] top-[2.8%] h-[12.7%] min-h-[42px] rounded-[7px] p-[3px] max-[640px]:min-h-[32px]",
   psaLeft: "left-[14px] right-[31%] top-[8px]",
   psaEyebrow: "text-[8.5px]",
   psaName: "mt-[5px] text-[18px]",
@@ -185,7 +185,7 @@ const DETAIL_METRICS = {
   psaLogoInner: "rounded-t-[2px]",
   psaLogo: "text-[17px]",
   genericLabel:
-    "inset-x-[3.6%] top-[3%] h-[13.2%] min-h-[42px] rounded-[7px] px-[3px]",
+    "inset-x-[3.6%] top-[3%] h-[13.2%] min-h-[38px] rounded-[7px] px-[3px] max-[640px]:min-h-[30px]",
   genericContent: "px-[12px] py-[9px]",
   genericEyebrow: "text-[8.5px]",
   genericName: "mt-[6px] text-[18px]",
@@ -274,7 +274,7 @@ function GradedSlabPreview({
   const isPsa = company === "PSA";
   const metrics = variant === "detail" ? DETAIL_METRICS : TILE_METRICS;
   const detailLabelScale =
-    slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.42, 1.12) : 0.52;
+    slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.36, 1.12) : 0.46;
   const tileLabelScale =
     slabWidth > 0
       ? clampScale(slabWidth / TILE_LABEL_BASE_WIDTH, getTileLabelMinScale(tileSize), 2.05)

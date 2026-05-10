@@ -109,9 +109,9 @@ export function CollectionSealedEmptyState({
           trailing={sectionTrailing}
         />
       )}
-      <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
+      <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
         <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">{emptyTitle}</p>
-        <p className="text-sm text-gray-400">{emptyText}</p>
+        <p className="mx-auto max-w-xl text-sm leading-6 text-gray-400">{emptyText}</p>
       </div>
     </>
   );

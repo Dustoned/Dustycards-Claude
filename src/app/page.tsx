@@ -292,7 +292,7 @@ export default async function HomePage({
           }
           accessory={
             <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.75fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.32fr)_minmax(24rem,0.68fr)]">
-              <div className="sm:hidden">
+              <div className={activeTab === "overview" ? "sm:hidden" : "hidden"}>
                 {showCollectionChart ? (
                   <PriceHistoryPanel
                     compact
@@ -335,7 +335,11 @@ export default async function HomePage({
                   />
                 )}
               </div>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr">
+            <div
+              className={`min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr ${
+                activeTab === "overview" ? "grid" : "hidden sm:grid"
+              }`}
+            >
                 {summaryCards.map((stat) => (
                   <CollectionHeaderStatCard key={stat.label} {...stat} />
                 ))}
@@ -376,13 +380,22 @@ export default async function HomePage({
           </div>
 
           {!hasCollection && activeTab === "overview" && (
-            <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
+            <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
               <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
                 Your collection is still empty
               </p>
-              <p className="text-sm text-gray-400">
+              <p className="mx-auto max-w-xl text-sm leading-6 text-gray-400">
                 Start with a card, create a binder, or add sealed from search and expansion pages.
               </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Link
+                  href="/expansions"
+                  prefetch={false}
+                  className="inline-flex items-center rounded-full border border-black/8 bg-white/80 px-3 py-2 text-sm font-semibold text-gray-800 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white/78 dark:hover:border-white/18 dark:hover:bg-white/12"
+                >
+                  Browse cards
+                </Link>
+              </div>
             </div>
           )}
 
@@ -428,11 +441,11 @@ export default async function HomePage({
           {activeTab === "binders" && (
             <div className="space-y-4">
               {data.binders.length === 0 ? (
-                <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
+                <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
                   <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
                     No binders yet
                   </p>
-                  <p className="text-sm text-gray-400">
+                  <p className="mx-auto max-w-xl text-sm leading-6 text-gray-400">
                     Type a set name for an automatic set binder, or create a custom binder.
                   </p>
                 </div>

@@ -54,7 +54,7 @@ function desktopLinkClasses(active: boolean): string {
 
 export function HeaderNav() {
   const pathname = usePathname() ?? "/";
-  const items = [COLLECTION_ITEM, ...NAV_ITEMS];
+  const items = [COLLECTION_ITEM, ...NAV_ITEMS, ACCOUNT_ITEM, SETTINGS_ITEM];
 
   return (
     <div className="hidden shrink-0 items-center gap-1 rounded-full border border-black/8 bg-black/[0.025] p-1 dark:border-white/8 dark:bg-white/[0.04] 2xl:flex">
@@ -73,33 +73,6 @@ export function HeaderNav() {
         );
       })}
     </div>
-  );
-}
-
-export function HeaderSettingsLink() {
-  const pathname = usePathname() ?? "/";
-  const active = isActive(pathname, SETTINGS_ITEM.matches);
-  const accountActive = isActive(pathname, ACCOUNT_ITEM.matches);
-
-  return (
-    <>
-      <Link
-        href={ACCOUNT_ITEM.href}
-        prefetch={false}
-        aria-current={accountActive ? "page" : undefined}
-        className={`hidden shrink-0 2xl:inline-flex ${desktopLinkClasses(accountActive)}`}
-      >
-        {ACCOUNT_ITEM.label}
-      </Link>
-      <Link
-        href={SETTINGS_ITEM.href}
-        prefetch={false}
-        aria-current={active ? "page" : undefined}
-        className={`hidden shrink-0 2xl:inline-flex ${desktopLinkClasses(active)}`}
-      >
-        {SETTINGS_ITEM.label}
-      </Link>
-    </>
   );
 }
 
@@ -147,14 +120,17 @@ export function HeaderMobileMenu() {
           role="presentation"
           onClick={() => setOpen(false)}
         >
-          <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px]" aria-hidden="true" />
+          <div
+            className="absolute inset-0 bg-black/35 backdrop-blur-[2px] sm:bg-transparent sm:backdrop-blur-0"
+            aria-hidden="true"
+          />
           <div
             id="header-mobile-menu"
             role="menu"
             aria-label="Main navigation"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            className="absolute left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/10 dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40 sm:right-auto sm:w-80"
+            className="absolute left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/10 dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40 sm:left-6 sm:right-auto sm:w-80"
           >
             {items.map((item) => {
               const active = isActive(pathname, item.matches);

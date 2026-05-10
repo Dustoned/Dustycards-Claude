@@ -63,12 +63,12 @@ interface Props {
 
 function metaChipClass(accent = false): string {
   return accent
-    ? "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-blue-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-blue-700 max-[640px]:min-h-9 max-[640px]:px-3 max-[640px]:py-2 max-[640px]:text-sm dark:text-blue-300"
-    : "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 max-[640px]:min-h-9 max-[640px]:px-3 max-[640px]:py-2 max-[640px]:text-sm dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55";
+    ? "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-blue-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-blue-700 max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs dark:text-blue-300"
+    : "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55";
 }
 
 function actionButtonClass(active = false): string {
-  return `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors max-[640px]:min-h-9 max-[640px]:px-3 max-[640px]:py-2 max-[640px]:text-sm ${
+  return `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs ${
     active
       ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
       : "border-black/8 bg-white/70 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
@@ -112,7 +112,7 @@ function activeFilterChipClass(): string {
 }
 
 function mobileSelectClass(): string {
-  return "h-10 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14";
+  return "h-9 w-full rounded-xl border border-black/8 bg-white/78 px-2.5 text-xs font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14";
 }
 
 const mobileOptionClass = "bg-white text-gray-950 dark:bg-gray-950 dark:text-white";
@@ -170,8 +170,8 @@ export default function CardBrowserToolbar({
         : "grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)]";
 
   return (
-    <div className="card-browser-toolbar glass mb-4 space-y-3 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+    <div className="card-browser-toolbar glass mb-3 space-y-2.5 rounded-2xl border border-black/8 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 sm:mb-4 sm:space-y-3 sm:rounded-3xl sm:px-4 sm:py-4">
+      <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
         <div className="relative min-w-[220px] flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
           <input
@@ -179,7 +179,7 @@ export default function CardBrowserToolbar({
             placeholder={searchPlaceholder}
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full rounded-2xl border border-black/8 bg-white/78 py-2.5 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 max-[640px]:h-12 max-[640px]:rounded-xl max-[640px]:text-base dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
+            className="w-full rounded-2xl border border-black/8 bg-white/78 py-2.5 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 max-[640px]:h-10 max-[640px]:rounded-xl max-[640px]:py-2 max-[640px]:text-sm dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
           />
           {searchValue && (
             <button
@@ -222,7 +222,7 @@ export default function CardBrowserToolbar({
       <section className="grid gap-2 sm:hidden">
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/35">
+            <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
               View
             </span>
             <select
@@ -240,7 +240,7 @@ export default function CardBrowserToolbar({
 
           {sizeOptions.length > 0 && (
             <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/35">
+              <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
                 Size
               </span>
               <select
@@ -260,7 +260,7 @@ export default function CardBrowserToolbar({
 
         {sortOptions.length > 0 && (
           <label className="block">
-            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/35">
+            <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
               Sort
             </span>
             <select

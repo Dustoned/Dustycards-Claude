@@ -622,13 +622,22 @@ export default function MoversBrowser({
         </div>
 
         {visibleMovers.length === 0 ? (
-          <div className="rounded-[24px] border border-black/8 bg-black/[0.03] p-8 text-center dark:border-white/8 dark:bg-white/[0.04]">
+          <div className="rounded-2xl border border-black/8 bg-black/[0.03] px-5 py-7 text-center dark:border-white/8 dark:bg-white/[0.04] sm:rounded-[24px] sm:px-8 sm:py-8">
             <p className="text-lg font-semibold text-gray-900 dark:text-white">
               {emptyTitle}
             </p>
-            <p className="mt-2 text-sm text-gray-500 dark:text-white/48">
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-white/48">
               {emptyDescription}
             </p>
+            {activeItemScope === "collection" ? (
+              <Link
+                href={scopeHref("all")}
+                prefetch={false}
+                className="mt-4 inline-flex items-center rounded-full border border-black/8 bg-white/80 px-3.5 py-2 text-sm font-semibold text-gray-800 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white/78 dark:hover:border-white/18 dark:hover:bg-white/12"
+              >
+                View all cards
+              </Link>
+            ) : null}
           </div>
         ) : (
           <>

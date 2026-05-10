@@ -217,9 +217,10 @@ export default async function ExpansionsPage() {
       <PageHeroHeader
         eyebrow="Dusty Cards Collection"
         title="Expansions"
+        description="Browse released sets and upcoming sets. Upcoming sets stay empty until release; cards and prices appear after the next sync."
         gridClassName="xl:grid-cols-[minmax(20rem,0.72fr)_minmax(34rem,1.28fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.66fr)_minmax(48rem,1.34fr)]"
         sideClassName="xl:space-y-0"
-        className="mb-6 sm:mb-8"
+        className="mb-6 max-[640px]:[--ui-page-header-description-size:0.8rem] sm:mb-8"
         accessory={
           <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(28rem,1.35fr)_minmax(12rem,0.65fr)] xl:items-stretch 2xl:grid-cols-[minmax(38rem,1.45fr)_minmax(18rem,0.72fr)]">
             <div className="min-w-0 [&>section]:h-full">
@@ -329,7 +330,7 @@ export default async function ExpansionsPage() {
                             {isUpcomingEmptySet ? (
                               <>
                                 <span className="font-bold tabular-nums">Upcoming</span>
-                                <span>after release</span>
+                                <span>cards after release</span>
                               </>
                             ) : (
                               <>

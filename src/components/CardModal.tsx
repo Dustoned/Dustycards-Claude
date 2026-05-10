@@ -278,6 +278,20 @@ export default function CardModal({ card, onClose }: Props) {
     }
   }
 
+  async function refreshModalCardFromServer() {
+    try {
+      const response = await fetch(`/api/cards/${encodeURIComponent(modalCard.id)}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const data: ModalCardData = await response.json();
+      setModalCard(data);
+      setResolvedUrl(null);
+    } catch {
+      // The page refresh still updates the backing data; keep the modal usable if this request fails.
+    }
+  }
+
   function getCardMarketUrl(): string | null {
     const stored = resolvedUrl ?? modalCard.cardmarket_url;
     if (isDirectCardMarketUrl(stored)) return withCardMarketFilters(stored);
@@ -376,6 +390,7 @@ export default function CardModal({ card, onClose }: Props) {
                     canManageCardPrices={canManageCardPrices}
                     onRefresh={() => void runCardAction("refresh")}
                     onSyncHistory={() => void runCardAction("sync-history")}
+                    onAddedToCollection={refreshModalCardFromServer}
                     onClose={onClose}
                   />
 
@@ -419,6 +434,7 @@ export default function CardModal({ card, onClose }: Props) {
               footerGridClass={layout.footerGridClass}
               storedCardMarketUrl={storedCardMarketUrl}
               onOpenCardMarket={openCardMarket}
+              onAddedToCollection={refreshModalCardFromServer}
               onClose={onClose}
             />
           </div>
