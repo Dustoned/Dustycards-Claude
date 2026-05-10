@@ -861,9 +861,12 @@ export function CardModalHistorySection({
   ];
   const ebaySoldMetrics: PriceMetric[] = [
     {
-      label: "Median",
+      label: "eBay Sold",
       value: formatCurrency(ebaySoldDisplay.value, ebaySoldDisplay.currency),
-      hint: selectedEbaySoldGradedPrice?.label ?? selectedEbaySoldGradedHistory?.label ?? null,
+      hint:
+        selectedEbaySoldGradedPrice?.label || selectedEbaySoldGradedHistory?.label
+          ? `${selectedEbaySoldGradedPrice?.label ?? selectedEbaySoldGradedHistory?.label} median`
+          : "Median sold price",
     },
     ...(ebaySoldDisplay.sampleSize != null
       ? [{ label: "Sample", value: `${ebaySoldDisplay.sampleSize} sold` }]
