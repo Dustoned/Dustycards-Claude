@@ -54,10 +54,11 @@ function desktopLinkClasses(active: boolean): string {
 
 export function HeaderNav() {
   const pathname = usePathname() ?? "/";
+  const items = [COLLECTION_ITEM, ...NAV_ITEMS];
 
   return (
     <div className="hidden shrink-0 items-center gap-1 rounded-full border border-black/8 bg-black/[0.025] p-1 dark:border-white/8 dark:bg-white/[0.04] 2xl:flex">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active = isActive(pathname, item.matches);
         return (
           <Link
