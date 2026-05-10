@@ -180,7 +180,11 @@ function getCardNameTokens(card: EbayMatchCard): string[] {
 
 function getListingSignals(title: string, condition: string | null | undefined): ListingTextSignals {
   const normalizedTitle = normalizeEbayMatchText(title);
-  const tokens = new Set(tokenizeEbayMatchText(title));
+  const titleWithoutSlashDenominators = normalizedTitle.replace(
+    /\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/gi,
+    "$1"
+  );
+  const tokens = new Set(tokenizeEbayMatchText(titleWithoutSlashDenominators));
   const slashRefs = [...normalizedTitle.matchAll(/\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/gi)]
     .map((match) => ({
       left: match[1].replace(/^0+/, "") || match[1],

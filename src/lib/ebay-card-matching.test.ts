@@ -101,6 +101,7 @@ describe("eBay card matching", () => {
 
     expect(wrongDenominator.status).toBe("unmatched");
     expect(wrongDenominator.card).toBeNull();
+    expect(wrongDenominator.candidates).toEqual([]);
     expect(rightSlash.card?.id).toBe("charizard-130");
   });
 
