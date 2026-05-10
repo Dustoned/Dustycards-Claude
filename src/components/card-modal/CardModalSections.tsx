@@ -863,10 +863,7 @@ export function CardModalHistorySection({
     {
       label: "eBay Sold",
       value: formatCurrency(ebaySoldDisplay.value, ebaySoldDisplay.currency),
-      hint:
-        selectedEbaySoldGradedPrice?.label || selectedEbaySoldGradedHistory?.label
-          ? `${selectedEbaySoldGradedPrice?.label ?? selectedEbaySoldGradedHistory?.label} median`
-          : "Median sold price",
+      hint: selectedEbaySoldGradedPrice?.label ?? selectedEbaySoldGradedHistory?.label ?? null,
     },
     ...(ebaySoldDisplay.sampleSize != null
       ? [{ label: "Sample", value: `${ebaySoldDisplay.sampleSize} sold` }]
