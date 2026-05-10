@@ -32,7 +32,6 @@ export interface CollectionOverviewData {
     chart: Array<{ date: string; label: string; value: number | null }>;
   };
   cards: CollectionCardViewItem[];
-  wants: CollectionCardViewItem[];
   looseSingles: CollectionCardViewItem[];
   binderCards: CollectionCardViewItem[];
   sealed: CollectionSealedViewItem[];
@@ -59,7 +58,7 @@ export interface CollectionOverviewData {
   }>;
 }
 
-export type CollectionPageTab = "overview" | "cards" | "wants" | "binders" | "sealed" | "graded";
+export type CollectionPageTab = "overview" | "cards" | "binders" | "sealed" | "graded";
 
 export interface BinderPageData {
   binder: {
@@ -86,6 +85,15 @@ export interface BinderPageData {
     ownedCount: number;
     totalCards: number | null;
   };
+}
+
+export interface WantsPageData {
+  items: CollectionCardViewItem[];
+  totalCards: number;
+  totalSets: number;
+  pricedCards: number;
+  estimatedValue: number;
+  averageValue: number | null;
 }
 
 const collectionCardSelect = {
@@ -872,10 +880,6 @@ function shouldLoadDetailedCards(activeTab: CollectionPageTab): boolean {
   return activeTab === "overview" || activeTab === "cards" || activeTab === "graded";
 }
 
-function shouldLoadDetailedWants(activeTab: CollectionPageTab): boolean {
-  return activeTab === "wants";
-}
-
 function shouldLoadDetailedSealed(activeTab: CollectionPageTab): boolean {
   return activeTab === "overview" || activeTab === "sealed";
 }
@@ -889,24 +893,21 @@ export async function getCollectionOverviewData(
 ): Promise<CollectionOverviewData> {
   const activeTab = options?.activeTab ?? "overview";
   const loadDetailedCards = shouldLoadDetailedCards(activeTab);
-  const loadDetailedWants = shouldLoadDetailedWants(activeTab);
   const loadDetailedSealed = shouldLoadDetailedSealed(activeTab);
   const loadDetailedBinders = shouldLoadDetailedBinders(activeTab);
   const loadCollectionHistory = activeTab === "overview";
   const timer = startPerformanceTimer("collection.overview", {
     activeTab,
     detailedCards: loadDetailedCards,
-    detailedWants: loadDetailedWants,
     detailedSealed: loadDetailedSealed,
     detailedBinders: loadDetailedBinders,
     history: loadCollectionHistory,
   });
 
-  const [collectionCards, wants, collectionSealed, binders] = await Promise.all([
+  const [collectionCards, collectionSealed, binders] = await Promise.all([
     loadDetailedCards
       ? getCollectionCards({ userId: options.userId })
       : getCollectionCardMetrics(options.userId),
-    loadDetailedWants ? getCollectionWants(options.userId) : Promise.resolve([]),
     loadDetailedSealed
       ? getCollectionSealedItems(options.userId, true)
       : getCollectionSealedMetrics(options.userId),
@@ -1045,7 +1046,6 @@ export async function getCollectionOverviewData(
       chart: combinedHistory,
     },
     cards: collectionCardViewItems,
-    wants: loadDetailedWants ? (wants as CollectionWantRecord[]).map(buildWantViewItem) : [],
     looseSingles: looseSingleViewItems,
     binderCards: binderCardViewItems,
     sealed: loadDetailedSealed ? (collectionSealed as CollectionSealedRecord[]).map(buildSealedViewItem) : [],
@@ -1054,7 +1054,6 @@ export async function getCollectionOverviewData(
 
   timer.finish({
     cards: metricCards.length,
-    wants: wants.length,
     sealedItems: metricSealed.length,
     binders: binders.length,
     historyLoaded: loadCollectionHistory,
@@ -1062,6 +1061,32 @@ export async function getCollectionOverviewData(
   });
 
   return result;
+}
+
+export async function getWantsPageData(userId: string): Promise<WantsPageData> {
+  const timer = startPerformanceTimer("collection.wants");
+  const wants = (await getCollectionWants(userId)) as CollectionWantRecord[];
+  const items = wants.map(buildWantViewItem);
+  const pricedItems = items.filter((item) => item.current_value != null);
+  const estimatedValue = Number(
+    pricedItems.reduce((total, item) => total + (item.current_value ?? 0), 0).toFixed(2)
+  );
+
+  timer.finish({
+    wants: items.length,
+    priced: pricedItems.length,
+    estimatedValue,
+  });
+
+  return {
+    items,
+    totalCards: items.length,
+    totalSets: new Set(items.map((item) => item.episode_id)).size,
+    pricedCards: pricedItems.length,
+    estimatedValue,
+    averageValue:
+      pricedItems.length > 0 ? Number((estimatedValue / pricedItems.length).toFixed(2)) : null,
+  };
 }
 
 export async function getBinderPageData(

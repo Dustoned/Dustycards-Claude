@@ -13,6 +13,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
+  { href: "/wants", label: "Wants", matches: ["/wants"] },
   { href: "/expansions", label: "Expansions", matches: ["/expansions"] },
   { href: "/illustrators", label: "Illustrators", matches: ["/illustrators"] },
   { href: "/movers", label: "Movers", matches: ["/movers"] },

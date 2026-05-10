@@ -293,7 +293,7 @@ test.describe("DustyCards smoke", () => {
   });
 
   test("core pages render without scraper requests", async ({ page }) => {
-    for (const path of ["/", "/?tab=wants", "/settings", "/movers", "/expansions"]) {
+    for (const path of ["/", "/wants", "/settings", "/movers", "/expansions"]) {
       await page.goto(path);
       await expect(page.locator("body")).toBeVisible();
       await expect(page.locator("body")).not.toContainText("Application error");
@@ -507,7 +507,7 @@ test.describe("DustyCards smoke", () => {
       { cardSize: "medium" as const, modalSize: "medium" as const, uiScale: "medium" as const, widescreen: false, mobileCardSize: "small" as const, mobileModalSize: "small" as const, mobileUiScale: "small" as const },
       { cardSize: "large" as const, modalSize: "large" as const, uiScale: "large" as const, widescreen: true, mobileCardSize: "small" as const, mobileModalSize: "small" as const, mobileUiScale: "small" as const },
     ];
-    const routes = ["/", "/?tab=wants", "/search?q=pikachu", "/expansions", "/movers", "/settings"];
+    const routes = ["/", "/wants", "/search?q=pikachu", "/expansions", "/movers", "/settings"];
 
     for (const viewport of viewports) {
       await page.setViewportSize(viewport);
