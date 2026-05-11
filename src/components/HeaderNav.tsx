@@ -240,21 +240,33 @@ export function HeaderNav() {
 export function HeaderMobileMenu() {
   const pathname = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape, lock body scroll while open.
+  // Close on outside interaction/Escape, lock body scroll while open.
   useEffect(() => {
     if (!open) return;
 
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
+
+      setOpen(false);
+    };
+
     document.addEventListener("keydown", handleKey);
+    document.addEventListener("pointerdown", handlePointerDown, true);
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     return () => {
       document.removeEventListener("keydown", handleKey);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
       document.body.style.overflow = previousOverflow;
     };
   }, [open]);
@@ -262,6 +274,7 @@ export function HeaderMobileMenu() {
   return (
     <div className="shrink-0 2xl:hidden">
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
@@ -284,6 +297,7 @@ export function HeaderMobileMenu() {
             aria-hidden="true"
           />
           <div
+            ref={menuRef}
             id="header-mobile-menu"
             role="menu"
             aria-label="Main navigation"

@@ -341,6 +341,19 @@ test.describe("DustyCards smoke", () => {
     await expect(page).toHaveURL(`${BASE_URL}/`);
   });
 
+  test("mobile menu closes when tapping outside the menu", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.getByRole("menu", { name: "Main navigation" })).toBeVisible();
+
+    await page.mouse.click(360, 760);
+
+    await expect(page.getByRole("menu", { name: "Main navigation" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible();
+  });
+
   test("mobile collection add dialogs stay fixed in the viewport", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
