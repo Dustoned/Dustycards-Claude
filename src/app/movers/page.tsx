@@ -54,11 +54,15 @@ function getModeCopy(
 ) {
   if (activeScope === "value") {
     return {
-      eyebrow: "Value Changes / Collection",
+      eyebrow:
+        activeItemScope === "all" ? "Value Changes / All Cards" : "Value Changes / Collection",
       title: "Movers",
       description:
-        "See exactly which collection items explain the latest value change, before jumping into raw, graded, targets, or sealed movers.",
-      ranking: "Latest collection value change",
+        activeItemScope === "all"
+          ? "Scan all raw cards for the latest CardMarket value changes, with gains and drops loaded as you scroll."
+          : "See exactly which collection items explain the latest value change, before jumping into raw, graded, targets, or sealed movers.",
+      ranking:
+        activeItemScope === "all" ? "Latest all-card value change" : "Latest collection value change",
     };
   }
 
@@ -167,7 +171,10 @@ export default async function MoversPage({
         {
           label: "Items",
           value: (valueData.gains.length + valueData.drops.length).toLocaleString("en-US"),
-          hint: "Largest item-level contributors in the latest snapshot.",
+          hint:
+            activeItemScope === "all"
+              ? "All raw card-level contributors in the latest snapshot."
+              : "Largest item-level contributors in the latest snapshot.",
           Icon: Gem,
           tone: "sky",
         },
@@ -284,7 +291,7 @@ export default async function MoversPage({
                         <p className="text-[10px] font-semibold uppercase tracking-[0.16em] opacity-70">
                           {metric.label}
                         </p>
-                        <p className="mt-1 text-xl font-bold tracking-tight tabular-nums text-gray-950 dark:text-white sm:text-2xl">
+                        <p className="mt-1 whitespace-nowrap text-lg font-bold tracking-tight tabular-nums text-gray-950 dark:text-white sm:text-2xl">
                           {metric.value}
                         </p>
                       </div>
@@ -303,7 +310,7 @@ export default async function MoversPage({
         </section>
 
         {isValueScope && valueData ? (
-          <CollectionValueDrivers data={valueData} />
+          <CollectionValueDrivers data={valueData} activeItemScope={activeItemScope} />
         ) : isSealedScope && sealedData ? (
           <SealedMoversBrowser
             key={`${activeScope}:${activeItemScope}`}

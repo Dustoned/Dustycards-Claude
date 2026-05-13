@@ -51,6 +51,8 @@ export interface CollectionValueDriverItem {
   previousSource: string;
 }
 
+export type CollectionValueDriversScope = "collection" | "all";
+
 export interface CollectionValueDriversData {
   latestDate: string | null;
   latestLabel: string | null;
@@ -364,6 +366,13 @@ function toHistoryDateKey(value: Date | string): string {
 
 function toHistoryMillis(value: Date | string): number {
   return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+function toValueDriverDateLabel(dateKey: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${dateKey}T00:00:00.000Z`));
 }
 
 function getHistoryCutoffDate(days = COLLECTION_OVERVIEW_CHART_DAYS) {
@@ -987,6 +996,7 @@ function buildCollectionValueDrivers({
   sealedHistory,
   chart,
   currentValue,
+  limit = COLLECTION_VALUE_DRIVER_LIMIT,
 }: {
   cards: CollectionCardViewItem[];
   sealed: CollectionSealedViewItem[];
@@ -994,6 +1004,7 @@ function buildCollectionValueDrivers({
   sealedHistory: EpisodeSealedPriceHistorySnapshot[];
   chart: Array<{ date: string; label: string; value: number | null }>;
   currentValue: number;
+  limit?: number | null;
 }): CollectionValueDriversData {
   const valuedPoints = chart.filter(
     (point): point is { date: string; label: string; value: number } => point.value != null
@@ -1069,14 +1080,14 @@ function buildCollectionValueDrivers({
   const drivers = [...drafts.values()]
     .map(finalizeCollectionValueDriver)
     .filter((item) => Math.abs(item.change) >= 0.01);
-  const gains = drivers
+  const rankedGains = drivers
     .filter((item) => item.change > 0)
-    .sort((a, b) => b.change - a.change || a.name.localeCompare(b.name))
-    .slice(0, COLLECTION_VALUE_DRIVER_LIMIT);
-  const drops = drivers
+    .sort((a, b) => b.change - a.change || a.name.localeCompare(b.name));
+  const rankedDrops = drivers
     .filter((item) => item.change < 0)
-    .sort((a, b) => a.change - b.change || a.name.localeCompare(b.name))
-    .slice(0, COLLECTION_VALUE_DRIVER_LIMIT);
+    .sort((a, b) => a.change - b.change || a.name.localeCompare(b.name));
+  const gains = limit == null ? rankedGains : rankedGains.slice(0, limit);
+  const drops = limit == null ? rankedDrops : rankedDrops.slice(0, limit);
 
   return {
     latestDate: latestPoint.date,
@@ -1364,9 +1375,205 @@ export async function getCollectionOverviewData(
   return result;
 }
 
+interface AllCardValueDriverRow {
+  cardId: string;
+  name: string;
+  imageUrl: string | null;
+  cardNumber: string | null;
+  episodeId: string;
+  episodeName: string;
+  episodeCode: string | null;
+  currentCmEnLowestNm: number | null;
+  currentCmDeLowestNm: number | null;
+  currentCmFrLowestNm: number | null;
+  currentCmEsLowestNm: number | null;
+  currentCmItLowestNm: number | null;
+  previousCmEnLowestNm: number | null;
+  previousCmDeLowestNm: number | null;
+  previousCmFrLowestNm: number | null;
+  previousCmEsLowestNm: number | null;
+  previousCmItLowestNm: number | null;
+}
+
+async function getAllCardValueDriversData(): Promise<CollectionValueDriversData> {
+  const timer = startPerformanceTimer("collection.value-drivers.all");
+  const dates = await db.$queryRaw<Array<{ date: string }>>`
+    SELECT DATE(fetched_at) AS date
+    FROM "Price"
+    WHERE cm_en_lowest_nm IS NOT NULL
+       OR cm_de_lowest_nm IS NOT NULL
+       OR cm_fr_lowest_nm IS NOT NULL
+       OR cm_es_lowest_nm IS NOT NULL
+       OR cm_it_lowest_nm IS NOT NULL
+    GROUP BY DATE(fetched_at)
+    ORDER BY date DESC
+    LIMIT 2
+  `;
+  const latestDate = dates[0]?.date ?? null;
+  const previousDate = dates[1]?.date ?? null;
+
+  if (!latestDate || !previousDate) {
+    timer.finish({ historyDays: dates.length, drivers: 0 });
+    return {
+      ...EMPTY_COLLECTION_VALUE_DRIVERS,
+      latestDate,
+      latestLabel: latestDate ? toValueDriverDateLabel(latestDate) : null,
+    };
+  }
+
+  const rows = await db.$queryRaw<AllCardValueDriverRow[]>`
+    WITH current_prices AS (
+      SELECT *
+      FROM (
+        SELECT
+          p.card_id,
+          p.cm_en_lowest_nm,
+          p.cm_de_lowest_nm,
+          p.cm_fr_lowest_nm,
+          p.cm_es_lowest_nm,
+          p.cm_it_lowest_nm,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        WHERE DATE(p.fetched_at) <= ${latestDate}
+      )
+      WHERE row_num = 1
+    ),
+    previous_prices AS (
+      SELECT *
+      FROM (
+        SELECT
+          p.card_id,
+          p.cm_en_lowest_nm,
+          p.cm_de_lowest_nm,
+          p.cm_fr_lowest_nm,
+          p.cm_es_lowest_nm,
+          p.cm_it_lowest_nm,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        WHERE DATE(p.fetched_at) <= ${previousDate}
+      )
+      WHERE row_num = 1
+    ),
+    changed_card_ids AS (
+      SELECT card_id FROM current_prices
+      UNION
+      SELECT card_id FROM previous_prices
+    )
+    SELECT
+      c.id AS "cardId",
+      c.name AS "name",
+      c.image_url AS "imageUrl",
+      c.card_number AS "cardNumber",
+      e.id AS "episodeId",
+      e.name AS "episodeName",
+      e.code AS "episodeCode",
+      cp.cm_en_lowest_nm AS "currentCmEnLowestNm",
+      cp.cm_de_lowest_nm AS "currentCmDeLowestNm",
+      cp.cm_fr_lowest_nm AS "currentCmFrLowestNm",
+      cp.cm_es_lowest_nm AS "currentCmEsLowestNm",
+      cp.cm_it_lowest_nm AS "currentCmItLowestNm",
+      pp.cm_en_lowest_nm AS "previousCmEnLowestNm",
+      pp.cm_de_lowest_nm AS "previousCmDeLowestNm",
+      pp.cm_fr_lowest_nm AS "previousCmFrLowestNm",
+      pp.cm_es_lowest_nm AS "previousCmEsLowestNm",
+      pp.cm_it_lowest_nm AS "previousCmItLowestNm"
+    FROM changed_card_ids ids
+    INNER JOIN "Card" c ON c.id = ids.card_id
+    INNER JOIN "Episode" e ON e.id = c.episode_id
+    LEFT JOIN current_prices cp ON cp.card_id = ids.card_id
+    LEFT JOIN previous_prices pp ON pp.card_id = ids.card_id
+  `;
+
+  const drafts = new Map<string, CollectionValueDriverDraft>();
+
+  for (const row of rows) {
+    const currentValue =
+      getCardMarketValue({
+        cm_en_lowest_nm: row.currentCmEnLowestNm,
+        cm_de_lowest_nm: row.currentCmDeLowestNm,
+        cm_fr_lowest_nm: row.currentCmFrLowestNm,
+        cm_es_lowest_nm: row.currentCmEsLowestNm,
+        cm_it_lowest_nm: row.currentCmItLowestNm,
+      }) ?? 0;
+    const previousValue =
+      getCardMarketValue({
+        cm_en_lowest_nm: row.previousCmEnLowestNm,
+        cm_de_lowest_nm: row.previousCmDeLowestNm,
+        cm_fr_lowest_nm: row.previousCmFrLowestNm,
+        cm_es_lowest_nm: row.previousCmEsLowestNm,
+        cm_it_lowest_nm: row.previousCmItLowestNm,
+      }) ?? 0;
+
+    addCollectionValueDriverDraft(drafts, {
+      id: `card:${row.cardId}:Raw`,
+      kind: "card",
+      cardId: row.cardId,
+      productId: null,
+      cardNumber: row.cardNumber,
+      episodeId: row.episodeId,
+      episodeName: row.episodeName,
+      episodeCode: row.episodeCode,
+      name: row.name,
+      imageUrl: row.imageUrl,
+      href: `/expansions/${row.episodeId}?card=${encodeURIComponent(row.cardId)}`,
+      detail: row.cardNumber ? `#${row.cardNumber}` : "",
+      quantity: 1,
+      previousValue,
+      currentValue,
+      currentSource: "Raw",
+      previousSource: "Raw",
+    });
+  }
+
+  const drivers = [...drafts.values()]
+    .map(finalizeCollectionValueDriver)
+    .filter((item) => Math.abs(item.change) >= 0.01);
+  const gains = drivers
+    .filter((item) => item.change > 0)
+    .sort((a, b) => b.change - a.change || a.name.localeCompare(b.name));
+  const drops = drivers
+    .filter((item) => item.change < 0)
+    .sort((a, b) => a.change - b.change || a.name.localeCompare(b.name));
+
+  const result = {
+    latestDate,
+    latestLabel: toValueDriverDateLabel(latestDate),
+    previousDate,
+    previousLabel: toValueDriverDateLabel(previousDate),
+    totalChange: roundCurrency(drivers.reduce((total, item) => total + item.change, 0)),
+    gainsTotal: roundCurrency(
+      drivers.reduce((total, item) => total + (item.change > 0 ? item.change : 0), 0)
+    ),
+    dropsTotal: roundCurrency(
+      drivers.reduce((total, item) => total + (item.change < 0 ? item.change : 0), 0)
+    ),
+    gains,
+    drops,
+  };
+
+  timer.finish({
+    historyDays: dates.length,
+    cards: rows.length,
+    drivers: result.gains.length + result.drops.length,
+  });
+
+  return result;
+}
+
 export async function getCollectionValueDriversData(
-  userId: string
+  userId: string,
+  scope: CollectionValueDriversScope = "collection"
 ): Promise<CollectionValueDriversData> {
+  if (scope === "all") {
+    return getAllCardValueDriversData();
+  }
+
   const timer = startPerformanceTimer("collection.value-drivers");
   const [collectionCards, collectionSealed] = await Promise.all([
     getCollectionCards({ userId }),

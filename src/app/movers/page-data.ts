@@ -7,6 +7,7 @@ import {
 import {
   getCollectionValueDriversData,
   type CollectionValueDriversData,
+  type CollectionValueDriversScope,
 } from "@/lib/collection-data";
 import { getSealedMovers, type SealedMoversData } from "@/lib/sealed-movers";
 import { getServerUserSettings } from "@/lib/user-settings-server";
@@ -74,8 +75,11 @@ function getCachedMovers(
   return promise;
 }
 
-function getCachedValueDrivers(userId: string): Promise<CollectionValueDriversData> {
-  const key = `${userId}:value-drivers`;
+function getCachedValueDrivers(
+  userId: string,
+  scope: CollectionValueDriversScope
+): Promise<CollectionValueDriversData> {
+  const key = `${userId}:value-drivers:${scope}`;
   const now = Date.now();
   const cached = valueDriversPageCache.get(key);
 
@@ -83,7 +87,7 @@ function getCachedValueDrivers(userId: string): Promise<CollectionValueDriversDa
     return cached.promise;
   }
 
-  const promise = getCollectionValueDriversData(userId);
+  const promise = getCollectionValueDriversData(userId, scope);
   valueDriversPageCache.set(key, {
     expiresAt: now + MOVERS_PAGE_CACHE_MS,
     promise,
@@ -115,7 +119,7 @@ export async function loadMoversPageData(
   const activeScope: MoversPageScope = normalizeMoversScope(scopeOverride);
   const activeItemScope: MoversItemScope =
     activeScope === "value"
-      ? "collection"
+      ? normalizeMoversItemScope(itemScopeOverride, "collection")
       : activeScope === "all"
       ? "all"
       : activeScope === "collection"
@@ -125,7 +129,7 @@ export async function loadMoversPageData(
           : normalizeMoversItemScope(itemScopeOverride, "all");
   const data =
     activeScope === "value"
-      ? await getCachedValueDrivers(userId)
+      ? await getCachedValueDrivers(userId, activeItemScope)
       : await getCachedMovers(activePriceSource, activeScope as MoversScope, activeItemScope, userId);
 
   return { settings, data, activePriceSource, activeScope, activeItemScope };

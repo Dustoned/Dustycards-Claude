@@ -7,6 +7,9 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { ArrowDownRight, ArrowUpRight, TrendingDown, TrendingUp } from "lucide-react";
 import {
   useCallback,
+  useEffect,
+  useMemo,
+  useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
@@ -31,6 +34,10 @@ const CardModal = dynamic(() => import("@/components/CardModal"), {
 
 type MoversMode = "value" | "raw" | "graded" | "targets" | "sealed";
 type DriverLaneKey = "gain" | "drop";
+type ValueDriverScope = "collection" | "all";
+
+const INITIAL_VALUE_DRIVER_RENDER_COUNT = 24;
+const VALUE_DRIVER_RENDER_BATCH_SIZE = 36;
 
 interface DriverLane {
   key: DriverLaneKey;
@@ -67,6 +74,33 @@ function modeTabClass(active: boolean): string {
       ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
       : "text-gray-500 hover:bg-black/[0.05] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
   }`;
+}
+
+function scopeButtonClass(active: boolean): string {
+  return `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+    active
+      ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
+      : "border-black/8 bg-white/75 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+  }`;
+}
+
+function valueScopeHref(
+  pathname: string,
+  searchParams: { toString(): string },
+  scope: ValueDriverScope
+): string {
+  const params = new URLSearchParams(searchParams.toString());
+  params.delete("scope");
+  params.delete("source");
+
+  if (scope === "all") {
+    params.set("view", "all");
+  } else {
+    params.delete("view");
+  }
+
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
 }
 
 function signedCurrency(value: number | null | undefined): string {
@@ -291,15 +325,18 @@ function DriverList({
   loadingCardId,
   onOpenCard,
   tileMinWidth,
+  renderLimit,
 }: {
   lane: DriverLane;
   loadingCardId: string | null;
   onOpenCard: (cardId: string) => void;
   tileMinWidth: string;
+  renderLimit: number;
 }) {
   const isGain = lane.key === "gain";
   const Icon = isGain ? TrendingUp : TrendingDown;
   const titleText = isGain ? "Gains" : "Drops";
+  const visibleItems = lane.items.slice(0, renderLimit);
 
   return (
     <section className="min-w-0">
@@ -322,7 +359,7 @@ function DriverList({
         </p>
       </div>
 
-      {lane.items.length > 0 ? (
+      {visibleItems.length > 0 ? (
         <div
           className="grid auto-rows-fr items-stretch gap-4"
           style={{
@@ -330,7 +367,7 @@ function DriverList({
             justifyContent: "start",
           }}
         >
-          {lane.items.map((item) => (
+          {visibleItems.map((item) => (
             <DriverRow
               key={item.id}
               item={item}
@@ -350,9 +387,11 @@ function DriverList({
 
 export default function CollectionValueDrivers({
   data,
+  activeItemScope = "collection",
   sectionTrailing,
 }: {
   data: CollectionValueDriversData;
+  activeItemScope?: ValueDriverScope;
   sectionTrailing?: ReactNode;
 }) {
   const { displaySettings } = useSettings();
@@ -363,8 +402,30 @@ export default function CollectionValueDrivers({
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const hasDrivers = data.gains.length > 0 || data.drops.length > 0;
   const visibleDriverCount = data.gains.length + data.drops.length;
+  const shouldLazyRender = activeItemScope === "all";
+  const renderKey = `${activeItemScope}:${data.previousDate ?? "none"}:${data.latestDate ?? "none"}:${data.gains.length}:${data.drops.length}`;
+  const [renderState, setRenderState] = useState({
+    key: "",
+    limit: INITIAL_VALUE_DRIVER_RENDER_COUNT,
+  });
+  const renderLimit =
+    shouldLazyRender && renderState.key === renderKey
+      ? renderState.limit
+      : shouldLazyRender
+        ? INITIAL_VALUE_DRIVER_RENDER_COUNT
+        : Number.POSITIVE_INFINITY;
+  const renderedDriverCount = useMemo(
+    () =>
+      shouldLazyRender
+        ? Math.min(data.gains.length, renderLimit) + Math.min(data.drops.length, renderLimit)
+        : visibleDriverCount,
+    [data.drops.length, data.gains.length, renderLimit, shouldLazyRender, visibleDriverCount]
+  );
+  const hasMoreDrivers =
+    shouldLazyRender && (renderLimit < data.gains.length || renderLimit < data.drops.length);
   const driverTileMinWidth = getRichMoverTrackWidth(
     displaySettings.cardSize,
     displaySettings.widescreen
@@ -385,6 +446,49 @@ export default function CollectionValueDrivers({
     { key: "drop", title: "Drops", total: data.dropsTotal, items: data.drops },
   ];
   const activeLane = lanes.find((lane) => lane.key === mobileLane) ?? lanes[0];
+
+  useEffect(() => {
+    if (!hasMoreDrivers) {
+      return;
+    }
+
+    const loadMoreElement = loadMoreRef.current;
+    if (!loadMoreElement) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) {
+          return;
+        }
+
+        setRenderState((current) => {
+          const currentLimit =
+            current.key === renderKey ? current.limit : INITIAL_VALUE_DRIVER_RENDER_COUNT;
+          const maxItems = Math.max(data.gains.length, data.drops.length);
+          const nextLimit = Math.min(currentLimit + VALUE_DRIVER_RENDER_BATCH_SIZE, maxItems);
+
+          if (current.key === renderKey && nextLimit === current.limit) {
+            return current;
+          }
+
+          return {
+            key: renderKey,
+            limit: nextLimit,
+          };
+        });
+      },
+      { rootMargin: "700px 0px" }
+    );
+
+    observer.observe(loadMoreElement);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [data.drops.length, data.gains.length, hasMoreDrivers, renderKey]);
+
   const openCard = useCallback(
     async (cardId: string) => {
       const cached = cardDetailCache[cardId];
@@ -448,6 +552,32 @@ export default function CollectionValueDrivers({
             </div>
           </div>
 
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+              Scope
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: "collection" as const, label: "Collection" },
+                { key: "all" as const, label: "All Cards" },
+              ].map((scope) => {
+                const active = activeItemScope === scope.key;
+
+                return (
+                  <Link
+                    key={scope.key}
+                    href={valueScopeHref(pathname, searchParams, scope.key)}
+                    prefetch={false}
+                    className={scopeButtonClass(active)}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {scope.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="hidden min-w-[24rem] flex-wrap items-center justify-between gap-3 rounded-xl border border-black/8 bg-black/[0.025] px-3.5 py-2.5 dark:border-white/8 dark:bg-white/[0.035] sm:flex">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/36">
@@ -489,7 +619,10 @@ export default function CollectionValueDrivers({
             description={rangeLabel}
             actions={
               <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
-                {visibleDriverCount.toLocaleString("en-US")} visible
+                {shouldLazyRender
+                  ? `${renderedDriverCount.toLocaleString("en-US")} / ${visibleDriverCount.toLocaleString("en-US")}`
+                  : visibleDriverCount.toLocaleString("en-US")}{" "}
+                visible
               </p>
             }
           />
@@ -524,6 +657,7 @@ export default function CollectionValueDrivers({
               loadingCardId={loadingCardId}
               onOpenCard={handleOpenCard}
               tileMinWidth={driverTileMinWidth}
+              renderLimit={renderLimit}
             />
           </div>
 
@@ -535,9 +669,21 @@ export default function CollectionValueDrivers({
                 loadingCardId={loadingCardId}
                 onOpenCard={handleOpenCard}
                 tileMinWidth={driverTileMinWidth}
+                renderLimit={renderLimit}
               />
             ))}
           </div>
+
+          {hasMoreDrivers ? (
+            <div
+              ref={loadMoreRef}
+              className="mt-5 flex h-10 items-center justify-center text-xs font-semibold text-gray-400 dark:text-white/35"
+              aria-live="polite"
+            >
+              Loading more value changes ({renderedDriverCount.toLocaleString("en-US")} /{" "}
+              {visibleDriverCount.toLocaleString("en-US")})
+            </div>
+          ) : null}
         </>
       )}
 
