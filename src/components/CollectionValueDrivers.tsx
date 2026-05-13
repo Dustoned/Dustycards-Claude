@@ -281,17 +281,14 @@ function DriverRow({
                   Change
                 </p>
                 <p
-                  className={`mt-2 flex max-w-full items-center gap-1 break-words text-xl font-bold leading-tight tabular-nums ${toneTextClass(
+                  className={`mt-2 flex max-w-full items-center gap-1 whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl ${toneTextClass(
                     tone
                   )}`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span>{signedCurrency(item.change)}</span>
+                  <span className="min-w-0">{signedCurrency(item.change)}</span>
                 </p>
               </div>
-              <p className={`shrink-0 text-xs font-bold tabular-nums ${toneTextClass(tone)}`}>
-                {percent ?? ""}
-              </p>
             </div>
             <p className="mt-1 text-xs text-gray-500 dark:text-white/45">
               {formatCollectionCurrency(item.previousValue)}
