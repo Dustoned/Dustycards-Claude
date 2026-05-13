@@ -231,7 +231,7 @@ export function CardModalPreview({
   const previewButtonClass =
     showGradedPreview && gradingCompanyLabel && gradingGradeLabel
       ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.01] max-[640px]:rounded-2xl`
-      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] bg-transparent p-0 drop-shadow-[0_18px_38px_rgba(0,0,0,0.38)] transition-transform after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-white/14 hover:scale-[1.01]`;
+      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] bg-[#d8d5cc] p-0 drop-shadow-[0_18px_38px_rgba(0,0,0,0.38)] transition-transform after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-white/14 hover:scale-[1.01]`;
 
   return (
     <aside
@@ -281,7 +281,7 @@ export function CardModalPreview({
               src={getCachedImageUrl(card.image_url) ?? card.image_url}
               alt={card.name}
               fill
-              className="rounded-[4.75%] object-contain"
+              className="rounded-[4.75%] object-fill"
               sizes={imageSize}
               loading="eager"
               unoptimized
