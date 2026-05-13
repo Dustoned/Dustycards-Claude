@@ -12,8 +12,11 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
+import { SectionHeader } from "@/components/PageHeader";
+import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getFixedTrackGridTemplate, getRichMoverTrackWidth } from "@/lib/display-scale";
 import { RAW_CARD_ASPECT_CLASS } from "@/lib/graded-slabs";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type {
@@ -59,7 +62,7 @@ function modeHref(pathname: string, searchParams: { toString(): string }, mode: 
 }
 
 function modeTabClass(active: boolean): string {
-  return `inline-flex h-8 shrink-0 items-center justify-center rounded-lg px-3 text-[11px] font-semibold transition-colors ${
+  return `inline-flex h-9 min-w-[8rem] flex-1 items-center justify-center rounded-lg px-3 text-xs font-semibold transition-colors sm:flex-none ${
     active
       ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
       : "text-gray-500 hover:bg-black/[0.05] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
@@ -96,6 +99,12 @@ function toneTextClass(tone: DriverLaneKey): string {
     : "text-rose-700 dark:text-rose-300";
 }
 
+function tonePanelClass(tone: DriverLaneKey): string {
+  return tone === "gain"
+    ? "border-emerald-400/16 bg-emerald-400/[0.08]"
+    : "border-rose-400/16 bg-rose-400/[0.08]";
+}
+
 function DriverRow({
   item,
   loading,
@@ -111,10 +120,10 @@ function DriverRow({
   const percent = formatPercent(item.changePct);
   const imageUrl = getCachedImageUrl(item.imageUrl) ?? item.imageUrl;
   const imageFrameClass = item.kind === "card"
-    ? `${RAW_CARD_ASPECT_CLASS} w-10 rounded-[5px] bg-transparent shadow-sm shadow-black/25 sm:w-11`
-    : "h-10 w-10 rounded-lg border border-black/8 bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.05] sm:h-11 sm:w-11";
-  const rowClassName =
-    "group grid min-h-[3.75rem] min-w-0 grid-cols-[2.75rem_minmax(0,1fr)_minmax(4.7rem,auto)] items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-black/[0.035] aria-busy:opacity-60 dark:hover:bg-white/[0.045] sm:grid-cols-[3rem_minmax(0,1fr)_minmax(7rem,auto)] sm:px-3";
+    ? `${RAW_CARD_ASPECT_CLASS} w-[4.1rem] rounded-[6px] bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)] sm:w-[4.55rem]`
+    : "h-16 w-16 rounded-xl border border-black/8 bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.05] sm:h-[4.55rem] sm:w-[4.55rem]";
+  const cardClassName =
+    "group relative flex h-full min-w-0 rounded-2xl border border-black/8 bg-white/74 p-3 text-left shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 aria-busy:opacity-60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]";
 
   function openCardDetails() {
     if (!item.cardId) return;
@@ -136,7 +145,7 @@ function DriverRow({
   }
 
   const content = (
-    <>
+    <div className="flex min-w-0 items-start gap-3">
       <div
         className={`relative shrink-0 overflow-hidden ${imageFrameClass}`}
       >
@@ -145,7 +154,7 @@ function DriverRow({
             src={imageUrl}
             alt={item.name}
             fill
-            sizes="44px"
+            sizes="74px"
             className="object-contain"
             unoptimized
           />
@@ -156,59 +165,98 @@ function DriverRow({
         )}
       </div>
 
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p className="truncate text-[12px] font-semibold leading-4 text-gray-950 dark:text-white sm:text-[13px]">
-            {item.name}
-          </p>
-          {item.quantity > 1 ? (
-            <span className="shrink-0 rounded-full border border-black/8 bg-black/[0.035] px-1 py-0.5 text-[9px] font-semibold leading-none text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/42">
-              x{item.quantity}
-            </span>
-          ) : null}
-        </div>
-        <p className="truncate text-[10px] font-medium leading-3 text-gray-500 dark:text-white/46 sm:text-[11px] sm:leading-4">
-          {item.detail ? (
-            <>
-              <span>{item.detail}</span>
-              <span className="mx-1 text-gray-400 dark:text-white/30">/</span>
-            </>
-          ) : null}
-          {item.kind === "card" ? (
-            <Link
-              href={`/expansions/${item.episodeId}`}
-              prefetch={false}
-              onClick={stopCardOpen}
-              className="underline decoration-black/20 underline-offset-2 hover:text-gray-900 dark:decoration-white/20 dark:hover:text-white"
-            >
-              {episodeLabel(item)}
-            </Link>
-          ) : (
-            <span>{episodeLabel(item)}</span>
-          )}
-        </p>
-        <p className="hidden truncate text-[10px] font-medium leading-3 text-gray-400 dark:text-white/34 sm:block">
-          {sourceLabel(item)}
-        </p>
-      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="truncate text-sm font-semibold leading-5 text-gray-950 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-200">
+                {item.name}
+              </p>
+              {item.quantity > 1 ? (
+                <span className="shrink-0 rounded-full border border-black/8 bg-black/[0.035] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/42">
+                  x{item.quantity}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-0.5 truncate text-[11px] font-medium leading-4 text-gray-500 dark:text-white/46">
+              {item.detail ? (
+                <>
+                  <span>{item.detail}</span>
+                  <span className="mx-1 text-gray-400 dark:text-white/30">/</span>
+                </>
+              ) : null}
+              {item.kind === "card" ? (
+                <Link
+                  href={`/expansions/${item.episodeId}`}
+                  prefetch={false}
+                  onClick={stopCardOpen}
+                  className="underline decoration-black/20 underline-offset-2 hover:text-gray-900 dark:decoration-white/20 dark:hover:text-white"
+                >
+                  {episodeLabel(item)}
+                </Link>
+              ) : (
+                <span>{episodeLabel(item)}</span>
+              )}
+            </p>
+          </div>
 
-      <div className="min-w-0 text-right">
-        <p
-          className={`inline-flex max-w-full items-center justify-end gap-0.5 text-[12px] font-bold leading-4 tabular-nums sm:text-[13px] ${toneTextClass(tone)}`}
-        >
-          <Icon className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" />
-          <span className="truncate">{signedCurrency(item.change)}</span>
-        </p>
-        <p className="text-[9px] font-semibold leading-3 tabular-nums text-gray-400 dark:text-white/34 sm:text-[10px]">
-          {percent ?? formatCollectionCurrency(item.currentValue)}
-        </p>
-        <p className="hidden text-[10px] leading-3 tabular-nums text-gray-500 dark:text-white/45 sm:block">
-          {formatCollectionCurrency(item.previousValue)}
-          {" -> "}
-          {formatCollectionCurrency(item.currentValue)}
-        </p>
+          <span
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tonePanelClass(
+              tone
+            )} ${toneTextClass(tone)}`}
+          >
+            {sourceLabel(item)}
+          </span>
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(7.5rem,0.62fr)]">
+          <div className={`rounded-xl border px-3 py-2.5 ${tonePanelClass(tone)}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500/80 dark:text-white/42">
+                  Change
+                </p>
+                <p
+                  className={`mt-1 inline-flex max-w-full items-center gap-1 text-lg font-bold leading-tight tabular-nums ${toneTextClass(
+                    tone
+                  )}`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{signedCurrency(item.change)}</span>
+                </p>
+              </div>
+              <p className={`shrink-0 text-xs font-bold tabular-nums ${toneTextClass(tone)}`}>
+                {percent ?? ""}
+              </p>
+            </div>
+            <p className="mt-1 truncate text-[11px] text-gray-500 dark:text-white/45">
+              {formatCollectionCurrency(item.previousValue)}
+              {" -> "}
+              {formatCollectionCurrency(item.currentValue)}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
+            <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.035]">
+              <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.13em] text-gray-400 dark:text-white/34">
+                Before
+              </span>
+              <span className="mt-0.5 block truncate text-xs font-bold tabular-nums text-gray-700 dark:text-white/72">
+                {formatCollectionCurrency(item.previousValue)}
+              </span>
+            </span>
+            <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.035]">
+              <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.13em] text-gray-400 dark:text-white/34">
+                Now
+              </span>
+              <span className="mt-0.5 block truncate text-xs font-bold tabular-nums text-gray-900 dark:text-white">
+                {formatCollectionCurrency(item.currentValue)}
+              </span>
+            </span>
+          </div>
+        </div>
       </div>
-    </>
+    </div>
   );
 
   if (item.kind === "card") {
@@ -219,7 +267,7 @@ function DriverRow({
         aria-busy={loading}
         onClick={handleCardClick}
         onKeyDown={handleCardKeyDown}
-        className={`${rowClassName} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/45`}
+        className={`${cardClassName} cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-400/55`}
       >
         {content}
       </div>
@@ -231,7 +279,7 @@ function DriverRow({
       href={item.href}
       prefetch={false}
       aria-busy={loading}
-      className={rowClassName}
+      className={`${cardClassName} focus-visible:ring-2 focus-visible:ring-emerald-400/55`}
     >
       {content}
     </Link>
@@ -242,38 +290,46 @@ function DriverList({
   lane,
   loadingCardId,
   onOpenCard,
+  tileMinWidth,
 }: {
   lane: DriverLane;
   loadingCardId: string | null;
   onOpenCard: (cardId: string) => void;
+  tileMinWidth: string;
 }) {
   const isGain = lane.key === "gain";
   const Icon = isGain ? TrendingUp : TrendingDown;
   const titleText = isGain ? "Gains" : "Drops";
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-xl border border-black/8 bg-white/72 shadow-sm shadow-black/4 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-none">
-      <div className="flex h-10 items-center justify-between gap-3 border-b border-black/8 px-3 dark:border-white/8">
+    <section className="min-w-0">
+      <div className="mb-3 flex items-end justify-between gap-3 border-b border-black/8 pb-3 dark:border-white/8">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-black/8 bg-black/[0.035] text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/50">
-            <Icon className="h-3.5 w-3.5" />
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-black/8 bg-white/72 text-gray-500 shadow-sm shadow-black/4 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/50">
+            <Icon className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[12px] font-semibold leading-4 text-gray-800 dark:text-white/82">
+            <p className="truncate text-lg font-bold leading-6 text-gray-950 dark:text-white">
               {titleText}
             </p>
-            <p className="text-[10px] leading-3 text-gray-400 dark:text-white/34">
+            <p className="text-xs leading-4 text-gray-500 dark:text-white/42">
               {lane.items.length} items
             </p>
           </div>
         </div>
-        <p className={`shrink-0 text-[13px] font-bold tabular-nums ${toneTextClass(lane.key)}`}>
+        <p className={`shrink-0 text-lg font-bold tabular-nums ${toneTextClass(lane.key)}`}>
           {signedCurrency(lane.total)}
         </p>
       </div>
 
       {lane.items.length > 0 ? (
-        <div className="divide-y divide-black/6 dark:divide-white/7">
+        <div
+          className="grid auto-rows-fr items-stretch gap-4"
+          style={{
+            gridTemplateColumns: getFixedTrackGridTemplate(tileMinWidth),
+            justifyContent: "start",
+          }}
+        >
           {lane.items.map((item) => (
             <DriverRow
               key={item.id}
@@ -284,11 +340,11 @@ function DriverList({
           ))}
         </div>
       ) : (
-        <div className="px-4 py-7 text-center text-xs font-medium text-gray-400 dark:text-white/35">
+        <div className="rounded-2xl border border-dashed border-black/10 bg-black/[0.025] px-4 py-7 text-center text-xs font-medium text-gray-400 dark:border-white/10 dark:bg-white/[0.035] dark:text-white/35">
           No movement
         </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -299,6 +355,7 @@ export default function CollectionValueDrivers({
   data: CollectionValueDriversData;
   sectionTrailing?: ReactNode;
 }) {
+  const { displaySettings } = useSettings();
   const pathname = usePathname() ?? "/movers";
   const searchParams = useSearchParams();
   const [mobileLane, setMobileLane] = useState<DriverLaneKey>("gain");
@@ -307,6 +364,11 @@ export default function CollectionValueDrivers({
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
   const hasDrivers = data.gains.length > 0 || data.drops.length > 0;
+  const visibleDriverCount = data.gains.length + data.drops.length;
+  const driverTileMinWidth = getRichMoverTrackWidth(
+    displaySettings.cardSize,
+    displaySettings.widescreen
+  );
   const rangeLabel =
     data.previousLabel && data.latestLabel
       ? `${data.previousLabel} -> ${data.latestLabel}`
@@ -364,41 +426,48 @@ export default function CollectionValueDrivers({
 
   return (
     <div className="space-y-3">
-      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-        <div className="flex min-w-max gap-1 rounded-xl border border-black/8 bg-white/72 p-1 shadow-sm shadow-black/4 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-none">
-          {modes.map((mode) => (
-            <Link
-              key={mode.key}
-              href={modeHref(pathname, searchParams, mode.key)}
-              prefetch={false}
-              className={modeTabClass(mode.key === "value")}
-              aria-current={mode.key === "value" ? "page" : undefined}
-            >
-              <span className="sm:hidden">{mode.shortLabel}</span>
-              <span className="hidden sm:inline">{mode.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
+      <div className="rounded-2xl border border-black/8 bg-white/70 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
+            <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+              Market
+            </span>
+            <div className="mt-1 flex flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
+              {modes.map((mode) => (
+                <Link
+                  key={mode.key}
+                  href={modeHref(pathname, searchParams, mode.key)}
+                  prefetch={false}
+                  className={modeTabClass(mode.key === "value")}
+                  aria-current={mode.key === "value" ? "page" : undefined}
+                >
+                  <span className="sm:hidden">{mode.shortLabel}</span>
+                  <span className="hidden sm:inline">{mode.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
 
-      <div className="hidden flex-wrap items-center justify-between gap-2 rounded-xl border border-black/8 bg-black/[0.025] px-3 py-2 dark:border-white/8 dark:bg-white/[0.035] sm:flex">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/36">
-            Net change
-          </p>
-          <p className="truncate text-[12px] font-medium text-gray-500 dark:text-white/48">
-            {rangeLabel}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {sectionTrailing}
-          <p
-            className={`shrink-0 text-base font-bold tabular-nums ${
-              (data.totalChange ?? 0) >= 0 ? toneTextClass("gain") : toneTextClass("drop")
-            }`}
-          >
-            {signedCurrency(data.totalChange)}
-          </p>
+          <div className="hidden min-w-[24rem] flex-wrap items-center justify-between gap-3 rounded-xl border border-black/8 bg-black/[0.025] px-3.5 py-2.5 dark:border-white/8 dark:bg-white/[0.035] sm:flex">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/36">
+                Net change
+              </p>
+              <p className="truncate text-[12px] font-medium text-gray-500 dark:text-white/48">
+                {rangeLabel}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {sectionTrailing}
+              <p
+                className={`shrink-0 text-lg font-bold tabular-nums ${
+                  (data.totalChange ?? 0) >= 0 ? toneTextClass("gain") : toneTextClass("drop")
+                }`}
+              >
+                {signedCurrency(data.totalChange)}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -413,6 +482,17 @@ export default function CollectionValueDrivers({
               {detailError}
             </div>
           ) : null}
+
+          <SectionHeader
+            eyebrow="Value Changes"
+            title="Latest change"
+            description={rangeLabel}
+            actions={
+              <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
+                {visibleDriverCount.toLocaleString("en-US")} visible
+              </p>
+            }
+          />
 
           <div className="grid grid-cols-2 gap-1 rounded-xl border border-black/8 bg-white/72 p-1 shadow-sm shadow-black/4 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-none md:hidden">
             {lanes.map((lane) => (
@@ -443,16 +523,18 @@ export default function CollectionValueDrivers({
               lane={activeLane}
               loadingCardId={loadingCardId}
               onOpenCard={handleOpenCard}
+              tileMinWidth={driverTileMinWidth}
             />
           </div>
 
-          <div className="hidden gap-3 md:grid md:grid-cols-2">
+          <div className="hidden gap-3 md:grid md:grid-cols-2 xl:gap-4">
             {lanes.map((lane) => (
               <DriverList
                 key={lane.key}
                 lane={lane}
                 loadingCardId={loadingCardId}
                 onOpenCard={handleOpenCard}
+                tileMinWidth={driverTileMinWidth}
               />
             ))}
           </div>

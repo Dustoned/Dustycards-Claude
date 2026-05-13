@@ -241,60 +241,24 @@ export default async function MoversPage({
           tone: "sky",
         },
       ] satisfies SummaryMetric[]);
-  const valueMetricChips = valueData
-    ? [
-        {
-          label: "Net",
-          value: formatSignedCurrency(valueData.totalChange),
-          tone:
-            (valueData.totalChange ?? 0) >= 0
-              ? "text-emerald-700 dark:text-emerald-300"
-              : "text-rose-700 dark:text-rose-300",
-        },
-        {
-          label: "Gains",
-          value: formatSignedCurrency(valueData.gainsTotal),
-          tone: "text-emerald-700 dark:text-emerald-300",
-        },
-        {
-          label: "Drops",
-          value: formatSignedCurrency(valueData.dropsTotal),
-          tone: "text-rose-700 dark:text-rose-300",
-        },
-      ]
-    : [];
-
   return (
     <div
-      className={`page-container mx-auto max-w-7xl ${
-        isValueScope ? "px-3 py-3 sm:px-6 sm:py-6 lg:px-8" : "px-4 py-5 sm:px-6 sm:py-8 lg:px-8"
-      }`}
+      className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8"
     >
-      <div className={`flex w-full flex-col ${isValueScope ? "gap-3 sm:gap-4" : "gap-5 sm:gap-6"}`}>
-        <section className={`rounded-2xl border border-black/8 bg-white/76 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] ${
-          isValueScope ? "px-3 py-3 sm:px-4 sm:py-4" : "px-5 py-5"
-        }`}>
-          <div className={isValueScope
-            ? "grid gap-2 sm:gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.56fr)] md:items-end"
-            : "grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] lg:items-end"
-          }>
+      <div className="flex w-full flex-col gap-5 sm:gap-6">
+        <section className="rounded-2xl border border-black/8 bg-white/76 px-5 py-5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] lg:items-end">
             <div className="min-w-0">
-              <p className={`font-semibold uppercase text-gray-400 dark:text-white/36 ${
-                isValueScope ? "text-[9px] tracking-[0.14em] sm:text-[10px]" : "text-[11px] tracking-[0.18em]"
-              }`}>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/36">
                 {modeCopy.eyebrow}
               </p>
-              <h1 className={`mt-1.5 font-bold tracking-tight text-gray-950 dark:text-white ${
-                isValueScope ? "text-xl sm:text-2xl" : "text-3xl sm:text-4xl"
-              }`}>
+              <h1 className="mt-1.5 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
                 {modeCopy.title}
               </h1>
-              <p className={`mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-white/58 ${
-                isValueScope ? "hidden lg:block" : ""
-              }`}>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-white/58">
                 {modeCopy.description}
               </p>
-              <div className={isValueScope ? "mt-2 hidden flex-wrap gap-2 sm:flex" : "mt-4 flex flex-wrap gap-2"}>
+              <div className="mt-4 flex flex-wrap gap-2">
                 <span className="inline-flex rounded-full border border-black/8 bg-black/[0.035] px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/72">
                   {modeCopy.ranking}
                 </span>
@@ -306,23 +270,6 @@ export default async function MoversPage({
               </div>
             </div>
 
-            {isValueScope && valueData ? (
-              <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
-                {valueMetricChips.map((chip) => (
-                  <div
-                    key={chip.label}
-                    className="min-w-0 rounded-lg border border-black/8 bg-black/[0.03] px-2 py-1.5 dark:border-white/8 dark:bg-white/[0.045] sm:rounded-xl sm:px-2.5 sm:py-2"
-                  >
-                    <p className="truncate text-[8px] font-semibold uppercase tracking-[0.11em] text-gray-400 dark:text-white/38 sm:text-[9px]">
-                      {chip.label}
-                    </p>
-                    <p className={`mt-0.5 truncate text-xs font-bold tabular-nums sm:mt-1 sm:text-sm ${chip.tone}`}>
-                      {chip.value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {metrics.map((metric) => {
                 const Icon = metric.Icon;
@@ -352,7 +299,6 @@ export default async function MoversPage({
                 );
               })}
             </div>
-            )}
           </div>
         </section>
 

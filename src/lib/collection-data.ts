@@ -341,7 +341,7 @@ const collectionBinderMetricSelect = {
 
 const SQLITE_SAFE_CHUNK_SIZE = 250;
 const COLLECTION_OVERVIEW_CHART_DAYS = 120;
-const COLLECTION_VALUE_DRIVER_LIMIT = 8;
+const COLLECTION_VALUE_DRIVER_LIMIT = 24;
 const EMPTY_COLLECTION_VALUE_DRIVERS: CollectionValueDriversData = {
   latestDate: null,
   latestLabel: null,
