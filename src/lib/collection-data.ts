@@ -15,6 +15,7 @@ import {
   sumCollectionPurchasePrices,
 } from "@/lib/collection";
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
+import { getExpansionHref, POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import { startPerformanceTimer } from "@/lib/performance-timing";
 import {
   getCardMarketValue,
@@ -385,6 +386,7 @@ function getHistoryCutoffDate(days = COLLECTION_OVERVIEW_CHART_DAYS) {
 async function fetchCollectionCardsPage(
   options: {
     userId: string;
+    game?: TradingCardGame;
     binderId?: string;
     skip?: number;
     take?: number;
@@ -394,6 +396,7 @@ async function fetchCollectionCardsPage(
   return db.collectionCard.findMany({
     where: {
       user_id: options.userId,
+      ...(options.game ? { card: { game: options.game } } : {}),
       ...(options.binderId ? { binder_id: options.binderId } : {}),
     },
     orderBy: { added_at: "desc" },
@@ -405,6 +408,7 @@ async function fetchCollectionCardsPage(
 
 async function fetchCollectionCards(options: {
   userId: string;
+  game?: TradingCardGame;
   binderId?: string;
   detail?: boolean;
 }) {
@@ -415,6 +419,7 @@ async function fetchCollectionCards(options: {
   while (true) {
     const page = await fetchCollectionCardsPage({
       userId: options.userId,
+      game: options.game,
       binderId: options.binderId,
       skip,
       take: pageSize,
@@ -558,20 +563,25 @@ type CollectionBinderCostBasisRecord = {
   base_purchase_price: number | null;
 };
 
-async function getCollectionCards(options: { userId: string; binderId?: string }) {
+async function getCollectionCards(options: {
+  userId: string;
+  game?: TradingCardGame;
+  binderId?: string;
+}) {
   return fetchCollectionCards({ ...options, detail: true });
 }
 
-async function getCollectionCardMetrics(userId: string) {
-  const records = await fetchCollectionCards({ userId, detail: false });
+async function getCollectionCardMetrics(userId: string, game: TradingCardGame = POKEMON_GAME) {
+  const records = await fetchCollectionCards({ userId, game, detail: false });
   return records as CollectionCardMetricRecord[];
 }
 
-async function getCollectionWants(userId: string) {
+async function getCollectionWants(userId: string, game: TradingCardGame = POKEMON_GAME) {
   return db.collectionWant.findMany({
     where: {
       user_id: userId,
       card: {
+        game,
         collectionItems: {
           none: { user_id: userId },
         },
@@ -582,22 +592,49 @@ async function getCollectionWants(userId: string) {
   });
 }
 
-async function getCollectionSealedItems(userId: string, detail = true) {
+async function getCollectionSealedItems(
+  userId: string,
+  detail = true,
+  game: TradingCardGame = POKEMON_GAME
+) {
   return db.collectionSealed.findMany({
-    where: { user_id: userId },
+    where: { user_id: userId, product: { game } },
     orderBy: { added_at: "desc" },
     select: detail ? collectionSealedSelect : collectionSealedMetricSelect,
   });
 }
 
-async function getCollectionSealedMetrics(userId: string) {
-  const records = await getCollectionSealedItems(userId, false);
+async function getCollectionSealedMetrics(userId: string, game: TradingCardGame = POKEMON_GAME) {
+  const records = await getCollectionSealedItems(userId, false, game);
   return records as CollectionSealedMetricRecord[];
 }
 
-async function getCollectionBinders(userId: string, detail = true) {
+function buildCollectionBinderGameWhere(
+  userId: string,
+  game: TradingCardGame
+): Prisma.CollectionBinderWhereInput {
+  const gameConditions: Prisma.CollectionBinderWhereInput[] = [
+    { episode: { game } },
+    { cards: { some: { card: { game } } } },
+  ];
+
+  if (game === POKEMON_GAME) {
+    gameConditions.push({ episode_id: null, cards: { none: {} } });
+  }
+
+  return {
+    user_id: userId,
+    OR: gameConditions,
+  };
+}
+
+async function getCollectionBinders(
+  userId: string,
+  detail = true,
+  game: TradingCardGame = POKEMON_GAME
+) {
   return db.collectionBinder.findMany({
-    where: { user_id: userId },
+    where: buildCollectionBinderGameWhere(userId, game),
     orderBy: { updated_at: "desc" },
     select: detail ? collectionBinderSelect : collectionBinderMetricSelect,
   });
@@ -1043,7 +1080,7 @@ function buildCollectionValueDrivers({
       episodeCode: item.episode_code,
       name: item.name,
       imageUrl: item.image_url,
-      href: `/expansions/${item.episode_id}?card=${encodeURIComponent(item.card_id)}`,
+      href: `${getExpansionHref(item.episode_id)}?card=${encodeURIComponent(item.card_id)}`,
       detail: buildCardValueDriverDetail(item),
       quantity: 1,
       previousValue: previousItemValue,
@@ -1068,7 +1105,7 @@ function buildCollectionValueDrivers({
       episodeCode: item.episode_code,
       name: item.name,
       imageUrl: item.image_url,
-      href: `/expansions/${item.episode_id}`,
+      href: getExpansionHref(item.episode_id),
       detail: buildSealedValueDriverDetail(item),
       quantity: item.quantity,
       previousValue: currentItemValue === 0 && previousItemValue === 0 ? 0 : previousItemValue,
@@ -1199,15 +1236,17 @@ function shouldLoadDetailedBinders(activeTab: CollectionPageTab): boolean {
 }
 
 export async function getCollectionOverviewData(
-  options: { userId: string; activeTab?: CollectionPageTab }
+  options: { userId: string; activeTab?: CollectionPageTab; game?: TradingCardGame }
 ): Promise<CollectionOverviewData> {
   const activeTab = options?.activeTab ?? "overview";
+  const game = options.game ?? POKEMON_GAME;
   const loadDetailedCards = shouldLoadDetailedCards(activeTab);
   const loadDetailedSealed = shouldLoadDetailedSealed(activeTab);
   const loadDetailedBinders = shouldLoadDetailedBinders(activeTab);
   const loadCollectionHistory = activeTab === "overview";
   const timer = startPerformanceTimer("collection.overview", {
     activeTab,
+    game,
     detailedCards: loadDetailedCards,
     detailedSealed: loadDetailedSealed,
     detailedBinders: loadDetailedBinders,
@@ -1216,12 +1255,12 @@ export async function getCollectionOverviewData(
 
   const [collectionCards, collectionSealed, binders] = await Promise.all([
     loadDetailedCards
-      ? getCollectionCards({ userId: options.userId })
-      : getCollectionCardMetrics(options.userId),
+      ? getCollectionCards({ userId: options.userId, game })
+      : getCollectionCardMetrics(options.userId, game),
     loadDetailedSealed
-      ? getCollectionSealedItems(options.userId, true)
-      : getCollectionSealedMetrics(options.userId),
-    getCollectionBinders(options.userId, loadDetailedBinders),
+      ? getCollectionSealedItems(options.userId, true, game)
+      : getCollectionSealedMetrics(options.userId, game),
+    getCollectionBinders(options.userId, loadDetailedBinders, game),
   ]);
 
   const metricCards = collectionCards as CollectionCardMetricRecord[];
@@ -1417,17 +1456,23 @@ function getSaneAllCardRawValue(
   return value;
 }
 
-async function getAllCardValueDriversData(): Promise<CollectionValueDriversData> {
-  const timer = startPerformanceTimer("collection.value-drivers.all");
+async function getAllCardValueDriversData(
+  game: TradingCardGame = POKEMON_GAME
+): Promise<CollectionValueDriversData> {
+  const timer = startPerformanceTimer("collection.value-drivers.all", { game });
   const dates = await db.$queryRaw<Array<{ date: string }>>`
-    SELECT DATE(fetched_at) AS date
-    FROM "Price"
-    WHERE cm_en_lowest_nm IS NOT NULL
-       OR cm_de_lowest_nm IS NOT NULL
-       OR cm_fr_lowest_nm IS NOT NULL
-       OR cm_es_lowest_nm IS NOT NULL
-       OR cm_it_lowest_nm IS NOT NULL
-    GROUP BY DATE(fetched_at)
+    SELECT DATE(p.fetched_at) AS date
+    FROM "Price" p
+    INNER JOIN "Card" c ON c.id = p.card_id
+    WHERE c.game = ${game}
+      AND (
+        p.cm_en_lowest_nm IS NOT NULL
+        OR p.cm_de_lowest_nm IS NOT NULL
+        OR p.cm_fr_lowest_nm IS NOT NULL
+        OR p.cm_es_lowest_nm IS NOT NULL
+        OR p.cm_it_lowest_nm IS NOT NULL
+      )
+    GROUP BY DATE(p.fetched_at)
     ORDER BY date DESC
     LIMIT 2
   `;
@@ -1592,6 +1637,7 @@ async function getAllCardValueDriversData(): Promise<CollectionValueDriversData>
     LEFT JOIN current_fallback_prices cfp ON cfp.card_id = c.id
     LEFT JOIN previous_fallback_prices pfp ON pfp.card_id = c.id
     LEFT JOIN history_counts hc ON hc.card_id = c.id
+    WHERE c.game = ${game}
   `;
 
   const drafts = new Map<string, CollectionValueDriverDraft>();
@@ -1657,7 +1703,7 @@ async function getAllCardValueDriversData(): Promise<CollectionValueDriversData>
       episodeCode: row.episodeCode,
       name: row.name,
       imageUrl: row.imageUrl,
-      href: `/expansions/${row.episodeId}?card=${encodeURIComponent(row.cardId)}`,
+      href: `${getExpansionHref(row.episodeId)}?card=${encodeURIComponent(row.cardId)}`,
       detail: row.cardNumber ? `#${row.cardNumber}` : "",
       quantity: 1,
       previousValue,
@@ -1704,16 +1750,17 @@ async function getAllCardValueDriversData(): Promise<CollectionValueDriversData>
 
 export async function getCollectionValueDriversData(
   userId: string,
-  scope: CollectionValueDriversScope = "collection"
+  scope: CollectionValueDriversScope = "collection",
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<CollectionValueDriversData> {
   if (scope === "all") {
-    return getAllCardValueDriversData();
+    return getAllCardValueDriversData(game);
   }
 
-  const timer = startPerformanceTimer("collection.value-drivers");
+  const timer = startPerformanceTimer("collection.value-drivers", { game });
   const [collectionCards, collectionSealed] = await Promise.all([
-    getCollectionCards({ userId }),
-    getCollectionSealedItems(userId, true),
+    getCollectionCards({ userId, game }),
+    getCollectionSealedItems(userId, true, game),
   ]);
   const metricCards = collectionCards as CollectionCardMetricRecord[];
   const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
@@ -1755,9 +1802,12 @@ export async function getCollectionValueDriversData(
   return result;
 }
 
-export async function getWantsPageData(userId: string): Promise<WantsPageData> {
-  const timer = startPerformanceTimer("collection.wants");
-  const wants = (await getCollectionWants(userId)) as CollectionWantRecord[];
+export async function getWantsPageData(
+  userId: string,
+  game: TradingCardGame = POKEMON_GAME
+): Promise<WantsPageData> {
+  const timer = startPerformanceTimer("collection.wants", { game });
+  const wants = (await getCollectionWants(userId, game)) as CollectionWantRecord[];
   const items = wants.map(buildWantViewItem);
   const pricedItems = items.filter((item) => item.current_value != null);
   const wantQuantities = buildCardQuantityMap(wants);

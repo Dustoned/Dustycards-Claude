@@ -9,6 +9,7 @@ import {
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
+import { POKEMON_GAME } from "@/lib/games";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -115,6 +116,7 @@ export default async function ExpansionsPage() {
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
 
   const episodes = await db.episode.findMany({
+    where: { game: POKEMON_GAME },
     orderBy: [{ release_date: "desc" }, { name: "asc" }],
     include: { _count: { select: { cards: true } } },
   });

@@ -20,6 +20,7 @@ import {
 } from "@/lib/mover-scoring";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { PriceSource } from "@/lib/user-settings";
+import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 const HISTORY_LOOKBACK_DAYS = 45;
@@ -967,25 +968,45 @@ function resolveBestSource(
   );
 }
 
-function getMoverCandidateCardsCte(scope: MoversScope, userId?: string | null): string {
-  return scope === "all" || scope === "graded" || scope === "grading"
-    ? `SELECT DISTINCT card_id FROM "Price"`
-    : userId
-      ? `SELECT DISTINCT card_id FROM "CollectionCard" WHERE user_id = ?`
-      : `SELECT DISTINCT card_id FROM "CollectionCard"`;
+function getMoverCandidateCardsCte(
+  scope: MoversScope,
+  userId: string | null | undefined,
+  game: TradingCardGame
+): { sql: string; params: unknown[] } {
+  if (scope === "all" || scope === "graded" || scope === "grading") {
+    return {
+      sql: `
+        SELECT DISTINCT p.card_id
+        FROM "Price" p
+        INNER JOIN "Card" c_filter ON c_filter.id = p.card_id
+        WHERE c_filter.game = ?
+      `,
+      params: [game],
+    };
+  }
+
+  return {
+    sql: `
+      SELECT DISTINCT cc.card_id
+      FROM "CollectionCard" cc
+      INNER JOIN "Card" c_filter ON c_filter.id = cc.card_id
+      WHERE ${userId ? "cc.user_id = ? AND " : ""}c_filter.game = ?
+    `,
+    params: userId ? [userId, game] : [game],
+  };
 }
 
 async function fetchMoverCandidateCards(
   scope: MoversScope,
-  userId?: string | null
+  userId?: string | null,
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<MoverCandidateCardRecord[]> {
-  const candidateCardsCte = getMoverCandidateCardsCte(scope, userId);
-  const candidateParams = scope === "collection" && userId ? [userId] : [];
+  const candidateCardsCte = getMoverCandidateCardsCte(scope, userId, game);
   const ownedCountWhere = userId ? "WHERE user_id = ?" : "";
   const rows = await db.$queryRawUnsafe<MoverCandidateCardRow[]>(
     `
     WITH candidate_cards AS (
-      ${candidateCardsCte}
+      ${candidateCardsCte.sql}
     ),
     owned_counts AS (
       SELECT card_id, COUNT(*) AS owned_count
@@ -1038,7 +1059,7 @@ async function fetchMoverCandidateCards(
     )
     ORDER BY c.name ASC
   `,
-    ...candidateParams,
+    ...candidateCardsCte.params,
     ...(userId ? [userId] : [])
   );
 
@@ -1126,10 +1147,16 @@ async function buildGradedMoversData(
   preferredSource: PriceSource,
   scope: Extract<MoversScope, "graded" | "grading"> = "graded",
   itemScope: MoversItemScope = "all",
-  userId?: string | null
+  userId?: string | null,
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<{ result: CollectionMoversData; historyRows: number }> {
   const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS).toISOString();
   const ownedCountWhere = userId ? "WHERE user_id = ?" : "";
+  const gradedWhereParts = ["c.game = ?"];
+  if (itemScope === "collection") {
+    gradedWhereParts.push("COALESCE(oc.owned_count, 0) > 0");
+  }
+  const gradedWhere = `WHERE ${gradedWhereParts.join(" AND ")}`;
 
   const [currentRows, recentHistoryRows, allTimeHistorySummaries, pullRateRows] =
     await Promise.all([
@@ -1207,16 +1234,19 @@ async function buildGradedMoversData(
           ORDER BY p2.fetched_at DESC, p2.id DESC
           LIMIT 1
         )
-        ${itemScope === "collection" ? "WHERE COALESCE(oc.owned_count, 0) > 0" : ""}
+        ${gradedWhere}
         ORDER BY gp.price DESC, c.name ASC, gp.label ASC
       `,
-        ...(userId ? [userId] : [])
+        ...(userId ? [userId] : []),
+        game
       ),
       db.$queryRawUnsafe<GradedHistoryRow[]>(
         `
         WITH current_graded AS (
-          SELECT card_id, label
-          FROM "CardGradedPrice"
+          SELECT gp.card_id, gp.label
+          FROM "CardGradedPrice" gp
+          INNER JOIN "Card" c ON c.id = gp.card_id
+          WHERE c.game = ?
         )
         SELECT
           card_id,
@@ -1242,13 +1272,16 @@ async function buildGradedMoversData(
         WHERE row_num = 1
         ORDER BY card_id ASC, label ASC, fetched_at ASC
       `,
+        game,
         historyCutoff
       ),
       db.$queryRawUnsafe<AllTimeGradedHistorySummaryRow[]>(
         `
         WITH current_graded AS (
-          SELECT card_id, label
-          FROM "CardGradedPrice"
+          SELECT gp.card_id, gp.label
+          FROM "CardGradedPrice" gp
+          INNER JOIN "Card" c ON c.id = gp.card_id
+          WHERE c.game = ?
         ),
         graded_summary AS (
           SELECT
@@ -1306,7 +1339,8 @@ async function buildGradedMoversData(
           ON graded_summary.card_id = cg.card_id
           AND graded_summary.label = cg.label
         ORDER BY cg.card_id ASC, cg.label ASC
-      `
+      `,
+        game
       ),
       db.$queryRawUnsafe<PullRateRarityRow[]>(
         `
@@ -1326,9 +1360,11 @@ async function buildGradedMoversData(
           ON spr.source = ?
           AND spr.set_code = UPPER(e.code)
         WHERE e.code IS NOT NULL
+          AND c.game = ?
         ORDER BY spr.set_code ASC, spr.normalized_rarity ASC
       `,
-        DEFAULT_PULL_RATE_SOURCE
+        DEFAULT_PULL_RATE_SOURCE,
+        game
       ),
     ]);
 
@@ -1646,9 +1682,10 @@ export async function getMovers(
   scope: MoversScope = "collection",
   itemScope: MoversItemScope =
     scope === "collection" ? "collection" : "all",
-  userId?: string | null
+  userId?: string | null,
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<CollectionMoversData> {
-  const timer = startPerformanceTimer(`movers.${scope}`, { preferredSource, scope });
+  const timer = startPerformanceTimer(`movers.${scope}`, { preferredSource, scope, game });
 
   if (scope === "sealed") {
     timer.finish({ skipped: true });
@@ -1660,7 +1697,8 @@ export async function getMovers(
       preferredSource,
       scope,
       itemScope,
-      userId
+      userId,
+      game
     );
     timer.finish({
       trackedCards: result.trackedCards,
@@ -1671,8 +1709,7 @@ export async function getMovers(
   }
 
   const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS).toISOString();
-  const candidateCardsCte = getMoverCandidateCardsCte(scope, userId);
-  const candidateParams = scope === "collection" && userId ? [userId] : [];
+  const candidateCardsCte = getMoverCandidateCardsCte(scope, userId, game);
 
   const [
     candidateCards,
@@ -1681,11 +1718,11 @@ export async function getMovers(
     pullRateRows,
     gradedPriceRows,
   ] = await Promise.all([
-    fetchMoverCandidateCards(scope, userId),
+    fetchMoverCandidateCards(scope, userId, game),
     db.$queryRawUnsafe<RecentHistoryRow[]>(
       `
       WITH candidate_cards AS (
-        ${candidateCardsCte}
+        ${candidateCardsCte.sql}
       )
       SELECT
         card_id,
@@ -1721,13 +1758,13 @@ export async function getMovers(
       WHERE row_num = 1
       ORDER BY card_id ASC, fetched_at ASC
     `,
-      ...candidateParams,
+      ...candidateCardsCte.params,
       historyCutoff
     ),
     db.$queryRawUnsafe<AllTimeHistorySummaryRow[]>(
       `
       WITH candidate_cards AS (
-        ${candidateCardsCte}
+        ${candidateCardsCte.sql}
       ),
       cm_summary AS (
         SELECT
@@ -1894,12 +1931,12 @@ export async function getMovers(
       LEFT JOIN tcp_summary ON tcp_summary.card_id = cc.card_id
       ORDER BY cc.card_id ASC
     `,
-      ...candidateParams
+      ...candidateCardsCte.params
     ),
     db.$queryRawUnsafe<PullRateRarityRow[]>(
       `
       WITH candidate_cards AS (
-        ${candidateCardsCte}
+        ${candidateCardsCte.sql}
       )
       SELECT DISTINCT
         spr.source,
@@ -1919,13 +1956,13 @@ export async function getMovers(
       WHERE e.code IS NOT NULL
       ORDER BY spr.set_code ASC, spr.normalized_rarity ASC
     `,
-      ...candidateParams,
+      ...candidateCardsCte.params,
       DEFAULT_PULL_RATE_SOURCE
     ),
     db.$queryRawUnsafe<GradedPriceRow[]>(
       `
       WITH candidate_cards AS (
-        ${candidateCardsCte}
+        ${candidateCardsCte.sql}
       )
       SELECT
         gp.card_id,
@@ -1935,7 +1972,7 @@ export async function getMovers(
       INNER JOIN candidate_cards cc ON cc.card_id = gp.card_id
       ORDER BY gp.card_id ASC, gp.price DESC, gp.label ASC
     `,
-      ...candidateParams
+      ...candidateCardsCte.params
     ),
   ]);
 
@@ -2247,7 +2284,8 @@ export async function getMovers(
 
 export async function getCollectionMovers(
   preferredSource: PriceSource,
-  userId?: string | null
+  userId?: string | null,
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<CollectionMoversData> {
-  return getMovers(preferredSource, "collection", "collection", userId);
+  return getMovers(preferredSource, "collection", "collection", userId, game);
 }

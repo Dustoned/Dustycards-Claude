@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
+import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import {
   categoryToSupertype,
   findTcgdexSetIdForEpisode,
@@ -8,6 +9,7 @@ import {
 import { extractPrices, type TcggoCardScoreData } from "@/lib/tcggo";
 
 const CARD_FIELDS = [
+  "game",
   "name",
   "card_number",
   "rarity",
@@ -51,6 +53,7 @@ const PRICE_FIELDS = [
 export type PriceSnapshotData = ReturnType<typeof extractPrices>;
 
 export type CardWriteData = {
+  game: TradingCardGame | string;
   name: string;
   card_number: string | null;
   rarity: string | null;
@@ -86,6 +89,7 @@ const latestPriceSnapshotSelect = {
 
 export const syncCardBaseSelect = {
   id: true,
+  game: true,
   name: true,
   card_number: true,
   rarity: true,
@@ -134,6 +138,7 @@ export const syncCardWithEpisodeSelect = {
       code: true,
       name: true,
       card_count: true,
+      game: true,
     },
   },
 } satisfies Prisma.CardSelect;
@@ -143,6 +148,7 @@ export type SyncCardRecord = Prisma.CardGetPayload<{
 }>;
 
 export type EpisodeCardLookupInput = {
+  game?: string | null;
   code?: string | null;
   name?: string | null;
   card_count?: number | null;
@@ -175,6 +181,7 @@ export function buildCardWriteData(
   const normalizedSupertype = categoryToSupertype(card.supertype);
 
   return {
+    game: card.game ?? existing?.game ?? POKEMON_GAME,
     name: card.name,
     card_number: card.card_number ?? existing?.card_number ?? null,
     rarity: card.rarity ?? existing?.rarity ?? null,
@@ -320,6 +327,13 @@ export async function loadEpisodeCardEnrichmentLookups(
   tcgdexIllustratorLookup: ReadonlyMap<string, string>;
 }> {
   if (!episode) {
+    return {
+      tcgdexSupertypeLookup: new Map(),
+      tcgdexIllustratorLookup: new Map(),
+    };
+  }
+
+  if (episode.game && episode.game !== POKEMON_GAME) {
     return {
       tcgdexSupertypeLookup: new Map(),
       tcgdexIllustratorLookup: new Map(),

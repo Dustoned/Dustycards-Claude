@@ -1,4 +1,9 @@
-const CARDMARKET_PRODUCTS_BASE_URL = "https://www.cardmarket.com/Pokemon/Products";
+import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
+
+const CARDMARKET_PRODUCTS_BASE_URL_BY_GAME: Record<TradingCardGame, string> = {
+  pokemon: "https://www.cardmarket.com/Pokemon/Products",
+  "one-piece": "https://www.cardmarket.com/OnePiece/Products",
+};
 const CARDMARKET_LOCALIZED_PRODUCTS_BASE_URL =
   "https://www.cardmarket.com/en/Pokemon/Products";
 const CARDMARKET_FILTERS = {
@@ -17,9 +22,13 @@ export function withCardMarketFilters(url: string): string {
   }
 }
 
-export function buildCardMarketProductUrl(cardmarketId: string): string {
+export function buildCardMarketProductUrl(
+  cardmarketId: string,
+  game: TradingCardGame = POKEMON_GAME
+): string {
+  const baseUrl = CARDMARKET_PRODUCTS_BASE_URL_BY_GAME[game];
   return withCardMarketFilters(
-    `${CARDMARKET_PRODUCTS_BASE_URL}?idProduct=${encodeURIComponent(cardmarketId)}`
+    `${baseUrl}?idProduct=${encodeURIComponent(cardmarketId)}`
   );
 }
 

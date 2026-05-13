@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin, requireUser } from "@/lib/auth";
+import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import {
   buildLinkedBinderCostBasis,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/sync";
 import { isTcggoQuotaExceededError } from "@/lib/tcggo";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
+import { ONE_PIECE_GAME } from "@/lib/games";
 
 type CardAction = "refresh" | "sync-history";
 
@@ -116,6 +118,7 @@ async function getCardDetailPayload(id: string, userId: string) {
     where: { id },
     select: {
       id: true,
+      game: true,
       name: true,
       card_number: true,
       rarity: true,
@@ -226,6 +229,13 @@ async function getCardDetailPayload(id: string, userId: string) {
 
   if (!card) {
     return null;
+  }
+
+  if (card.game === ONE_PIECE_GAME) {
+    const features = await getAppFeatures();
+    if (!features.onePieceLibraryEnabled) {
+      return null;
+    }
   }
 
   const latestPrice = card.prices[card.prices.length - 1] ?? null;

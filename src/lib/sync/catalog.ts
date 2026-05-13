@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma";
 import { db } from "@/lib/db";
 import { isHiddenExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
+import { POKEMON_GAME } from "@/lib/games";
 import type { NormalizedEpisode } from "@/lib/tcggo";
 
 export type EpisodeSourceStatus = "ok" | "partial" | "empty";
@@ -179,6 +180,7 @@ export function buildEpisodeSourceCheckUpdate(input: {
 
 async function loadVisibleAutoCatalogLocalEpisodes(): Promise<AutoCatalogLocalEpisode[]> {
   const localEpisodes = await db.episode.findMany({
+    where: { game: POKEMON_GAME },
     select: {
       id: true,
       name: true,
@@ -357,6 +359,7 @@ export async function upsertVisibleRemoteEpisodes(
 
   const existingEpisodes = await db.episode.findMany({
     where: {
+      game: POKEMON_GAME,
       id: {
         in: visibleEpisodes.map((episode) => episode.id),
       },
@@ -374,6 +377,7 @@ export async function upsertVisibleRemoteEpisodes(
         where: { id: episode.id },
         create: episode,
         update: {
+          game: episode.game,
           name: episode.name,
           code: episode.code,
           release_date: episode.release_date,

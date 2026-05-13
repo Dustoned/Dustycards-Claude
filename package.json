@@ -13,6 +13,7 @@
     "smoke": "playwright test",
     "auth:bootstrap": "node scripts/bootstrap-admin.mjs",
     "backfill:tcgdex-artists": "node scripts/backfill-tcgdex-artists.mjs",
+    "sync:one-piece": "node scripts/sync-one-piece-local.mjs",
     "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs",
     "images:cache": "node scripts/cache-images.mjs"
   },

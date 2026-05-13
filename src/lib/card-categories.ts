@@ -10,6 +10,7 @@ import {
   HIDDEN_EXPANSION_NAMES,
   REDUNDANT_SUBSET_PATTERNS,
 } from "@/lib/episodes";
+import { POKEMON_GAME } from "@/lib/games";
 import type { EpisodePriceHistorySnapshot } from "@/lib/price-history";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -245,6 +246,7 @@ function withVisibleCards(where: Prisma.CardWhereInput): Prisma.CardWhereInput {
   return {
     AND: [
       where,
+      { game: POKEMON_GAME },
       {
         episode: VISIBLE_EPISODE_WHERE,
       },

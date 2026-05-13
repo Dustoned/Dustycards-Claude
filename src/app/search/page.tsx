@@ -21,6 +21,15 @@ import {
   getSealedProductImageSizes,
 } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
+import {
+  GAME_SEARCH_PARAM,
+  getExpansionHref,
+  getGameSearchParamValue,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  parseVisibleTradingCardGame,
+  type TradingCardGame,
+} from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
@@ -92,8 +101,38 @@ function setWithLruEviction<K, V>(map: Map<K, V>, key: K, value: V, max: number)
   }
 }
 
-function SearchPageContent({ initialQuery }: { initialQuery: string }) {
-  const { displaySettings, isMobileViewport } = useSettings();
+function GameToggleLink({
+  href,
+  active,
+  label,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
+        active
+          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function SearchPageContent({
+  initialQuery,
+  initialGameParam,
+}: {
+  initialQuery: string;
+  initialGameParam: string | null;
+}) {
+  const { displaySettings, isMobileViewport, appFeatures } = useSettings();
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
@@ -102,6 +141,23 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
   const abortRef = useRef<AbortController | null>(null);
   const resultsCacheRef = useRef(new Map<string, SearchResults>());
   const trimmedQuery = initialQuery.trim();
+  const activeGame = parseVisibleTradingCardGame(initialGameParam, {
+    onePieceEnabled: appFeatures.onePieceLibraryEnabled,
+  });
+  const searchCacheKey = `${activeGame}:${trimmedQuery}`;
+
+  function buildGameHref(game: TradingCardGame) {
+    const params = new URLSearchParams();
+    if (trimmedQuery) {
+      params.set("q", trimmedQuery);
+    }
+    const gameValue = getGameSearchParamValue(game);
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+    const query = params.toString();
+    return query ? `/search?${query}` : "/search";
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -113,13 +169,13 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
         return;
       }
 
-      const cachedResults = resultsCacheRef.current.get(trimmedQuery);
+      const cachedResults = resultsCacheRef.current.get(searchCacheKey);
       if (cachedResults) {
         abortRef.current?.abort();
         abortRef.current = null;
         // Refresh LRU recency
-        resultsCacheRef.current.delete(trimmedQuery);
-        resultsCacheRef.current.set(trimmedQuery, cachedResults);
+        resultsCacheRef.current.delete(searchCacheKey);
+        resultsCacheRef.current.set(searchCacheKey, cachedResults);
         setResults(cachedResults);
         setLoading(false);
         return;
@@ -133,7 +189,12 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 
       void (async () => {
         try {
-          const res = await fetch(`/api/search?q=${encodeURIComponent(trimmedQuery)}`, {
+          const params = new URLSearchParams({ q: trimmedQuery });
+          const gameValue = getGameSearchParamValue(activeGame);
+          if (gameValue) {
+            params.set(GAME_SEARCH_PARAM, gameValue);
+          }
+          const res = await fetch(`/api/search?${params.toString()}`, {
             signal: controller.signal,
           });
           if (!res.ok) throw new Error("search failed");
@@ -142,7 +203,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
           if (abortRef.current === controller) {
             setWithLruEviction(
               resultsCacheRef.current,
-              trimmedQuery,
+              searchCacheKey,
               data,
               SEARCH_CACHE_MAX_ENTRIES
             );
@@ -165,7 +226,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
       window.clearTimeout(timer);
       abortRef.current?.abort();
     };
-  }, [trimmedQuery]);
+  }, [activeGame, searchCacheKey, trimmedQuery]);
 
   async function openCard(card: SingleResult) {
     if (openingCardId === card.id) return;
@@ -264,6 +325,23 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
         )}
       </div>
 
+      {appFeatures.onePieceLibraryEnabled ? (
+        <div className="mb-4 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
+          <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+            <GameToggleLink
+              href={buildGameHref(POKEMON_GAME)}
+              active={activeGame === POKEMON_GAME}
+              label="Pokemon"
+            />
+            <GameToggleLink
+              href={buildGameHref(ONE_PIECE_GAME)}
+              active={activeGame === ONE_PIECE_GAME}
+              label="One Piece"
+            />
+          </div>
+        </div>
+      ) : null}
+
       {/* Loading */}
       {loading && (
         <div className="mb-4 flex items-center gap-2 rounded-2xl border border-black/8 bg-white/60 px-4 py-3 text-sm text-gray-500 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/45">
@@ -310,7 +388,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                 {allExpansions.map((ep) => (
                   <Link
                     key={ep.id}
-                    href={`/expansions/${ep.id}`}
+                    href={getExpansionHref(ep.id)}
                     prefetch={false}
                     className={`group glass flex flex-col items-center transition-all duration-200 hover:scale-[1.03] hover:bg-white/8 active:scale-[0.98] dark:hover:bg-white/6 ${expansionScale.tileClass}`}
                   >
@@ -409,7 +487,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                               <>
                                 <span className="text-gray-300 dark:text-white/20">/</span>
                                 <Link
-                                  href={`/expansions/${card.episode_id}`}
+                                  href={getExpansionHref(card.episode_id)}
                                   prefetch={false}
                                   onClick={(e) => e.stopPropagation()}
                                   className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
@@ -507,7 +585,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
                           </p>
                           <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium max-[640px]:hidden">
                             <Link
-                              href={`/expansions/${product.episode.id}?tab=sealed`}
+                              href={`${getExpansionHref(product.episode.id)}?tab=sealed`}
                               prefetch={false}
                               onClick={(e) => e.stopPropagation()}
                               className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
@@ -565,6 +643,7 @@ function SearchPageContent({ initialQuery }: { initialQuery: string }) {
 export default function SearchPage() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
+  const initialGameParam = searchParams.get(GAME_SEARCH_PARAM);
 
-  return <SearchPageContent initialQuery={initialQuery} />;
+  return <SearchPageContent initialQuery={initialQuery} initialGameParam={initialGameParam} />;
 }

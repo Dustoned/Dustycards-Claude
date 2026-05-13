@@ -3,7 +3,16 @@ import Link from "next/link";
 import { BadgeEuro, CheckCircle2, Heart, Layers3, Search } from "lucide-react";
 import { HeaderAction, PageHeroHeader, type HeaderStat } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getAppFeatures } from "@/lib/app-settings";
 import { getWantsPageData } from "@/lib/collection-data";
+import {
+  GAME_SEARCH_PARAM,
+  getGameSearchParamValue,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  parseVisibleTradingCardGame,
+  type TradingCardGame,
+} from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
@@ -86,16 +95,61 @@ function WantsHeaderStatCard({
   );
 }
 
-export default async function WantsPage() {
+function GameToggleLink({
+  href,
+  active,
+  label,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
+        active
+          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+export default async function WantsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ game?: string }>;
+}) {
   const user = await requirePageUser("/wants");
-  const data = await getWantsPageData(user.id);
+  const features = await getAppFeatures();
+  const { game: gameParam } = await searchParams;
+  const activeGame = parseVisibleTradingCardGame(gameParam, {
+    onePieceEnabled: features.onePieceLibraryEnabled,
+  });
+  const browseHref = activeGame === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
+  const data = await getWantsPageData(user.id, activeGame);
+
+  function buildGameHref(game: TradingCardGame) {
+    const params = new URLSearchParams();
+    const gameValue = getGameSearchParamValue(game);
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+    const query = params.toString();
+    return query ? `/wants?${query}` : "/wants";
+  }
+
   const unpricedCards = Math.max(data.totalCards - data.pricedCards, 0);
   const valueRangePoints = data.chart.filter((point) => point.value != null);
   const showWantsChart = valueRangePoints.length > 1;
   const stats = [
     {
       label: "Wanted",
-      value: data.totalCards.toLocaleString(),
+      value: data.totalCards.toLocaleString("en-US"),
       hint: "Cards outside your collection totals.",
       Icon: Heart,
       tone: "rose",
@@ -109,14 +163,14 @@ export default async function WantsPage() {
     },
     {
       label: "Priced",
-      value: `${data.pricedCards.toLocaleString()} / ${data.totalCards.toLocaleString()}`,
-      hint: unpricedCards > 0 ? `${unpricedCards.toLocaleString()} missing price.` : "All priced.",
+      value: `${data.pricedCards.toLocaleString("en-US")} / ${data.totalCards.toLocaleString("en-US")}`,
+      hint: unpricedCards > 0 ? `${unpricedCards.toLocaleString("en-US")} missing price.` : "All priced.",
       Icon: CheckCircle2,
       tone: "sky",
     },
     {
       label: "Sets",
-      value: data.totalSets.toLocaleString(),
+      value: data.totalSets.toLocaleString("en-US"),
       hint:
         data.averageValue == null
           ? "Add wants to build a target list."
@@ -131,15 +185,19 @@ export default async function WantsPage() {
       <div className="flex w-full flex-col gap-5 sm:gap-6">
         <PageHeroHeader
           eyebrow="DustyCards"
-          title="Wants"
-          description="Cards you want to pick up later. Prices are tracked here, but they do not count toward collection value, spent or card totals."
+          title={activeGame === ONE_PIECE_GAME ? "One Piece Wants" : "Wants"}
+          description={
+            activeGame === ONE_PIECE_GAME
+              ? "One Piece cards you want to pick up later, kept separate from Pokemon wants."
+              : "Cards you want to pick up later. Prices are tracked here, but they do not count toward collection value, spent or card totals."
+          }
           className="xl:[--ui-page-header-title-size:2rem] max-[640px]:[--ui-page-header-padding:0.75rem] max-[640px]:[--ui-page-header-title-size:1.45rem] max-[640px]:[--ui-page-header-description-size:0.78rem] max-[640px]:[--ui-page-header-action-margin:0.55rem]"
           gridClassName="xl:grid-cols-[minmax(22rem,0.62fr)_minmax(0,1.38fr)] xl:items-stretch"
           sideClassName="space-y-0"
           actions={
             <HeaderAction>
               <Link
-                href="/expansions"
+                href={browseHref}
                 prefetch={false}
                 className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
               >
@@ -157,7 +215,7 @@ export default async function WantsPage() {
                     currency="EUR"
                     points={data.chart}
                     currentValue={data.estimatedValue}
-                    subtitle={`${data.pricedCards.toLocaleString()} / ${data.totalCards.toLocaleString()} priced`}
+                    subtitle={`${data.pricedCards.toLocaleString("en-US")} / ${data.totalCards.toLocaleString("en-US")} priced`}
                     emptyText="Add wanted cards with price history to start tracking target value"
                   />
               </div>
@@ -174,13 +232,30 @@ export default async function WantsPage() {
           }
         />
 
+        {features.onePieceLibraryEnabled ? (
+          <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
+            <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+              <GameToggleLink
+                href={buildGameHref(POKEMON_GAME)}
+                active={activeGame === POKEMON_GAME}
+                label="Pokemon"
+              />
+              <GameToggleLink
+                href={buildGameHref(ONE_PIECE_GAME)}
+                active={activeGame === ONE_PIECE_GAME}
+                label="One Piece"
+              />
+            </div>
+          </div>
+        ) : null}
+
         <CollectionCardsView
           items={data.items}
           allowWantRemoval
           emptyTitle="No wants yet"
           emptyText="Use Want on a card detail to keep it here."
           sectionTitle="Wanted cards"
-          sectionCount={data.totalCards.toLocaleString()}
+          sectionCount={data.totalCards.toLocaleString("en-US")}
           showFilters
           forcedSortBy="cm_en"
           forcedSortDir="desc"

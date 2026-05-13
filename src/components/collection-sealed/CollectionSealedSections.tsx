@@ -23,6 +23,7 @@ import {
   sealedTileTitleClass,
 } from "@/components/sealed-tile-styles";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CardSize } from "@/lib/user-settings";
 import type { CollectionSealedViewItem, RemoveDialogState } from "./types";
@@ -257,7 +258,7 @@ function CollectionSealedTile({
             <p className={sealedTileTitleClass(cardSize)}>{item.name}</p>
             <div className={sealedTileMetaLineClass(cardSize)}>
               <Link
-                href={`/expansions/${item.episode_id}?tab=sealed`}
+                href={`${getExpansionHref(item.episode_id)}?tab=sealed`}
                 prefetch={false}
                 onClick={(event) => event.stopPropagation()}
                 className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"

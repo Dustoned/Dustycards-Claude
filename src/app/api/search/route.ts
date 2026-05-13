@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
+import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
 import { buildCardNumberSearchAliases } from "@/lib/card-search";
@@ -9,6 +10,12 @@ import {
   HIDDEN_EXPANSION_NAMES,
   REDUNDANT_SUBSET_PATTERNS,
 } from "@/lib/episodes";
+import {
+  GAME_SEARCH_PARAM,
+  POKEMON_GAME,
+  parseVisibleTradingCardGame,
+  type TradingCardGame,
+} from "@/lib/games";
 
 const MAX_RESULTS = 100;
 const FUZZY_CARD_CANDIDATE_LIMIT = 180;
@@ -276,8 +283,13 @@ function combineWhere<TWhere extends Record<string, unknown>>(
   return { [operator]: filtered } as TWhere;
 }
 
-function buildVisibleEpisodeWhere(): Prisma.EpisodeWhereInput {
+function buildVisibleEpisodeWhere(
+  game: TradingCardGame = POKEMON_GAME,
+  options?: { includeGame?: boolean }
+): Prisma.EpisodeWhereInput {
   const hiddenConditions: Prisma.EpisodeWhereInput[] = [];
+  const visibleGameWhere: Prisma.EpisodeWhereInput | undefined =
+    options?.includeGame === false ? undefined : { game };
 
   if (HIDDEN_EXPANSION_IDS.length > 0) {
     hiddenConditions.push({ id: { in: [...HIDDEN_EXPANSION_IDS] } });
@@ -301,10 +313,15 @@ function buildVisibleEpisodeWhere(): Prisma.EpisodeWhereInput {
     });
   }
 
-  return hiddenConditions.length === 1 ? { NOT: hiddenConditions[0] } : { NOT: hiddenConditions };
-}
+  const hiddenWhere =
+    hiddenConditions.length === 1 ? { NOT: hiddenConditions[0] } : { NOT: hiddenConditions };
 
-const VISIBLE_EPISODE_WHERE = buildVisibleEpisodeWhere();
+  return (
+    combineWhere<Prisma.EpisodeWhereInput>("AND", [visibleGameWhere, hiddenWhere]) ??
+    visibleGameWhere ??
+    hiddenWhere
+  );
+}
 
 function episodeMatchesSetCode(setCode: string) {
   return {
@@ -780,7 +797,13 @@ function formatExpansionResults(expansions: SearchExpansionRecord[], relevanceQu
   });
 }
 
-async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
+async function runFuzzyFallback(
+  rawQuery: string,
+  parsed: ParsedQuery,
+  activeGame: TradingCardGame,
+  itemEpisodeWhere: Prisma.EpisodeWhereInput,
+  visibleExpansionWhere: Prisma.EpisodeWhereInput
+) {
   const normalizedQuery = normalizeSearchText(rawQuery);
   if (normalizedQuery.length < 4) {
     return { singles: [], sealed: [], expansions: [], total: 0, fuzzy: false };
@@ -789,7 +812,8 @@ async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
   const [cardCandidates, sealedCandidates, expansionCandidates] = await Promise.all([
     db.card.findMany({
       where: combineWhere("AND", [
-        { episode: VISIBLE_EPISODE_WHERE },
+        { game: activeGame },
+        { episode: itemEpisodeWhere },
         buildFuzzyCardCandidateWhere(rawQuery, parsed),
       ]),
       take: FUZZY_CARD_CANDIDATE_LIMIT,
@@ -812,7 +836,8 @@ async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
     }),
     db.sealedProduct.findMany({
       where: combineWhere("AND", [
-        { episode: VISIBLE_EPISODE_WHERE },
+        { game: activeGame },
+        { episode: itemEpisodeWhere },
         buildFuzzySealedCandidateWhere(rawQuery, parsed),
       ]),
       take: FUZZY_SEALED_CANDIDATE_LIMIT,
@@ -830,7 +855,7 @@ async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
     }),
     db.episode.findMany({
       where: combineWhere("AND", [
-        VISIBLE_EPISODE_WHERE,
+        visibleExpansionWhere,
         buildFuzzyExpansionCandidateWhere(rawQuery),
       ]),
       select: { id: true, name: true, code: true, logo_url: true },
@@ -842,7 +867,8 @@ async function runFuzzyFallback(rawQuery: string, parsed: ParsedQuery) {
   const numberCardCandidates = numberCardCandidateWhere
     ? await db.card.findMany({
         where: combineWhere("AND", [
-          { episode: VISIBLE_EPISODE_WHERE },
+          { game: activeGame },
+          { episode: itemEpisodeWhere },
           numberCardCandidateWhere,
         ]),
         take: FUZZY_NUMBER_CARD_CANDIDATE_LIMIT,
@@ -956,6 +982,11 @@ export async function GET(req: NextRequest) {
   }
 
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const features = await getAppFeatures();
+  const activeGame = parseVisibleTradingCardGame(req.nextUrl.searchParams.get(GAME_SEARCH_PARAM), {
+    onePieceEnabled: features.onePieceLibraryEnabled,
+  });
+  const itemEpisodeWhere = buildVisibleEpisodeWhere(activeGame, { includeGame: false });
 
   if (q.length === 0) {
     return NextResponse.json({ singles: [], sealed: [], expansions: [], total: 0 });
@@ -1030,16 +1061,18 @@ export async function GET(req: NextRequest) {
             : undefined;
 
     const visibleCardWhere = combineWhere<Prisma.CardWhereInput>("AND", [
-      { episode: VISIBLE_EPISODE_WHERE },
+      { game: activeGame },
+      { episode: itemEpisodeWhere },
       cardWhere,
     ]);
     const visibleSealedWhere = combineWhere<Prisma.SealedProductWhereInput>("AND", [
-      { episode: VISIBLE_EPISODE_WHERE },
+      { game: activeGame },
+      { episode: itemEpisodeWhere },
       sealedWhere,
     ]);
     const visibleExpansionWhere = shouldSearchExpansions
       ? combineWhere<Prisma.EpisodeWhereInput>("AND", [
-          VISIBLE_EPISODE_WHERE,
+          buildVisibleEpisodeWhere(activeGame),
           expansionNameVariants.length === 1
             ? { name: { contains: expansionQuery } }
             : {
@@ -1112,7 +1145,13 @@ export async function GET(req: NextRequest) {
     const total = singles.length + sealedResults.length + expansionResults.length;
 
     if (total === 0) {
-      const fuzzyResults = await runFuzzyFallback(q, parsed);
+      const fuzzyResults = await runFuzzyFallback(
+        q,
+        parsed,
+        activeGame,
+        itemEpisodeWhere,
+        buildVisibleEpisodeWhere(activeGame)
+      );
 
       return NextResponse.json({
         ...fuzzyResults,

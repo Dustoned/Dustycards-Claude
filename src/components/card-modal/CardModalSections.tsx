@@ -16,6 +16,7 @@ import {
   type CardMarketHistorySeriesKey,
 } from "@/lib/price-history";
 import type { CurrencyCode } from "@/lib/format";
+import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { formatCurrency, rarityBadge } from "./utils";
@@ -366,7 +367,7 @@ export function CardModalHeroSection({
     {
       label: "Set",
       value: (
-        <CompactDetailLink href={`/expansions/${card.episode_id}`} onClick={onClose}>
+        <CompactDetailLink href={getExpansionHref(card.episode_id)} onClick={onClose}>
           {card.episode_name}
         </CompactDetailLink>
       ),

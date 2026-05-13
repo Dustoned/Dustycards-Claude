@@ -1,5 +1,6 @@
 import { Activity, AlertTriangle, RefreshCw, Settings2 } from "lucide-react";
 import { PageHeroHeader, type HeaderStat } from "@/components/PageHeader";
+import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import { decodeSyncLogDetailsJson, decodeSyncLogMessage } from "@/lib/sync-log-details";
 import { timeAsync } from "@/lib/performance-timing";
@@ -15,6 +16,7 @@ import { requirePageUser } from "@/lib/page-auth";
 import ThemeSection from "./ThemeSection";
 import LayoutSection from "./LayoutSection";
 import AutomationSection from "./AutomationSection";
+import AppFeaturesSection from "./AppFeaturesSection";
 import CardDefaultsSection from "./CardDefaultsSection";
 import FiltersSection from "./FiltersSection";
 import HomePageSection from "./HomePageSection";
@@ -153,6 +155,7 @@ export default async function SettingsPage() {
     pullRateSetCount,
     pullRateRarityRowCount,
     latestPullRateProfile,
+    appFeatures,
   ] = await timeAsync("settings.summary-data", () => Promise.all([
     db.syncLog.findFirst({
       where: {
@@ -224,6 +227,7 @@ export default async function SettingsPage() {
         generated_at: true,
       },
     }),
+    getAppFeatures(),
   ]));
 
   const relevantLogs = [
@@ -390,6 +394,7 @@ export default async function SettingsPage() {
         <PersonalSettingsSections className="grid gap-4 md:grid-cols-2 xl:grid-cols-1" />
 
         <div className="grid gap-4">
+          <AppFeaturesSection initialFeatures={appFeatures} />
           <PullRateImportSection
             summary={{
               setCount: pullRateSetCount,

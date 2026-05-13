@@ -30,29 +30,43 @@ const WANTS_ITEM: NavItem = {
   matches: ["/wants"],
 };
 
-const BROWSE_ITEMS: ReadonlyArray<NavItem> = [
+const BASE_BROWSE_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/expansions", label: "Expansions", matches: ["/expansions"] },
   { href: "/categories", label: "Categories", matches: ["/categories"] },
   { href: "/illustrators", label: "Illustrators", matches: ["/illustrators"] },
 ];
+
+const ONE_PIECE_ITEM: NavItem = {
+  href: "/one-piece/expansions",
+  label: "One Piece",
+  matches: ["/one-piece"],
+};
 
 const MARKET_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/movers", label: "Movers", matches: ["/movers"] },
   { href: "/deals", label: "Deals", matches: ["/deals"] },
 ];
 
-const NAV_GROUPS: ReadonlyArray<NavGroup> = [
-  {
-    label: "Browse",
-    matches: ["/expansions", "/categories", "/illustrators"],
-    items: BROWSE_ITEMS,
-  },
-  {
-    label: "Market",
-    matches: ["/movers", "/deals"],
-    items: MARKET_ITEMS,
-  },
-];
+function getBrowseItems(onePieceEnabled: boolean): ReadonlyArray<NavItem> {
+  return onePieceEnabled ? [...BASE_BROWSE_ITEMS, ONE_PIECE_ITEM] : BASE_BROWSE_ITEMS;
+}
+
+function getNavGroups(onePieceEnabled: boolean): ReadonlyArray<NavGroup> {
+  return [
+    {
+      label: "Browse",
+      matches: onePieceEnabled
+        ? ["/expansions", "/categories", "/illustrators", "/one-piece"]
+        : ["/expansions", "/categories", "/illustrators"],
+      items: getBrowseItems(onePieceEnabled),
+    },
+    {
+      label: "Market",
+      matches: ["/movers", "/deals"],
+      items: MARKET_ITEMS,
+    },
+  ];
+}
 
 const SETTINGS_ITEM: NavItem = {
   href: "/settings",
@@ -92,20 +106,23 @@ function menuLinkClasses(active: boolean): string {
   }`;
 }
 
-const MOBILE_SECTIONS: ReadonlyArray<{
+function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
   label: string;
   items: ReadonlyArray<NavItem>;
-}> = [
-  { label: "Collection", items: [COLLECTION_ITEM, WANTS_ITEM] },
-  { label: "Browse", items: BROWSE_ITEMS },
-  { label: "Market", items: MARKET_ITEMS },
-  { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
-];
+}> {
+  return [
+    { label: "Collection", items: [COLLECTION_ITEM, WANTS_ITEM] },
+    { label: "Browse", items: getBrowseItems(onePieceEnabled) },
+    { label: "Market", items: MARKET_ITEMS },
+    { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
+  ];
+}
 
-export function HeaderNav() {
+export function HeaderNav({ onePieceEnabled = false }: { onePieceEnabled?: boolean }) {
   const pathname = usePathname() ?? "/";
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
+  const navGroups = getNavGroups(onePieceEnabled);
 
   useEffect(() => {
     if (!openGroup) return;
@@ -149,7 +166,7 @@ export function HeaderNav() {
         );
       })}
 
-      {NAV_GROUPS.map((group) => {
+      {navGroups.map((group) => {
         const active = isActive(pathname, group.matches);
         const isOpen = openGroup === group.label;
         return (
@@ -237,11 +254,12 @@ export function HeaderNav() {
   );
 }
 
-export function HeaderMobileMenu() {
+export function HeaderMobileMenu({ onePieceEnabled = false }: { onePieceEnabled?: boolean }) {
   const pathname = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const mobileSections = getMobileSections(onePieceEnabled);
 
   // Close on outside interaction/Escape, lock body scroll while open.
   useEffect(() => {
@@ -305,7 +323,7 @@ export function HeaderMobileMenu() {
             onPointerDown={(event) => event.stopPropagation()}
             className="absolute left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/10 dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40 sm:left-6 sm:right-auto sm:w-80"
           >
-            {MOBILE_SECTIONS.map((section, index) => (
+            {mobileSections.map((section, index) => (
               <div
                 key={section.label}
                 className={

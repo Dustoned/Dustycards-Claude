@@ -11,6 +11,7 @@ import {
 } from "@/lib/collection-data";
 import { getSealedMovers, type SealedMoversData } from "@/lib/sealed-movers";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import {
   buildMoversSourceHref,
   type MoversPageScope,
@@ -48,9 +49,10 @@ function getCachedMovers(
   activePriceSource: ReturnType<typeof normalizeMoversPriceSource>,
   activeScope: MoversScope,
   activeItemScope: MoversItemScope,
-  userId: string
+  userId: string,
+  game: TradingCardGame
 ): Promise<CollectionMoversData | SealedMoversData> {
-  const key = `${userId}:${activePriceSource}:${activeScope}:${activeItemScope}`;
+  const key = `${userId}:${game}:${activePriceSource}:${activeScope}:${activeItemScope}`;
   const now = Date.now();
   const cached = moversPageCache.get(key);
 
@@ -60,8 +62,8 @@ function getCachedMovers(
 
   const promise =
     activeScope === "sealed"
-      ? getSealedMovers(activeItemScope, userId)
-      : getMovers(activePriceSource, activeScope, activeItemScope, userId);
+      ? getSealedMovers(activeItemScope, userId, game)
+      : getMovers(activePriceSource, activeScope, activeItemScope, userId, game);
   moversPageCache.set(key, {
     expiresAt: now + MOVERS_PAGE_CACHE_MS,
     promise,
@@ -77,9 +79,10 @@ function getCachedMovers(
 
 function getCachedValueDrivers(
   userId: string,
-  scope: CollectionValueDriversScope
+  scope: CollectionValueDriversScope,
+  game: TradingCardGame
 ): Promise<CollectionValueDriversData> {
-  const key = `${userId}:value-drivers:${scope}`;
+  const key = `${userId}:${game}:value-drivers:${scope}`;
   const now = Date.now();
   const cached = valueDriversPageCache.get(key);
 
@@ -87,7 +90,7 @@ function getCachedValueDrivers(
     return cached.promise;
   }
 
-  const promise = getCollectionValueDriversData(userId, scope);
+  const promise = getCollectionValueDriversData(userId, scope, game);
   valueDriversPageCache.set(key, {
     expiresAt: now + MOVERS_PAGE_CACHE_MS,
     promise,
@@ -105,7 +108,8 @@ export async function loadMoversPageData(
   sourceOverride?: string | null,
   scopeOverride?: string | null,
   itemScopeOverride?: string | null,
-  userId?: string | null
+  userId?: string | null,
+  game: TradingCardGame = POKEMON_GAME
 ) {
   if (!userId) {
     throw new Error("loadMoversPageData requires a user id.");
@@ -129,8 +133,14 @@ export async function loadMoversPageData(
           : normalizeMoversItemScope(itemScopeOverride, "all");
   const data =
     activeScope === "value"
-      ? await getCachedValueDrivers(userId, activeItemScope)
-      : await getCachedMovers(activePriceSource, activeScope as MoversScope, activeItemScope, userId);
+      ? await getCachedValueDrivers(userId, activeItemScope, game)
+      : await getCachedMovers(
+          activePriceSource,
+          activeScope as MoversScope,
+          activeItemScope,
+          userId,
+          game
+        );
 
   return { settings, data, activePriceSource, activeScope, activeItemScope };
 }

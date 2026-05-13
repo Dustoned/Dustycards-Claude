@@ -1,5 +1,12 @@
 import { buildCardMarketProductUrl, buildCardMarketSealedProductUrl } from "@/lib/cardmarket";
 import { getRapidApiHeaders } from "@/lib/env";
+import {
+  getRemoteTcggoId,
+  getTcggoGamePath,
+  POKEMON_GAME,
+  scopeGameId,
+  type TradingCardGame,
+} from "@/lib/games";
 import { assertScraperRequestsEnabled } from "@/lib/scraper-guard";
 import { getTcgdexImageLookup, resolveTcgdexImageUrl } from "@/lib/tcgdex";
 import { recordTcggoQuotaSnapshot } from "@/lib/tcggo-usage";
@@ -59,6 +66,7 @@ interface RawEpisode {
   cards_total?: number;
   logo?: string | null;
   symbol?: string | null;
+  game?: { id?: number; name?: string; slug?: string } | null;
   series?: { id: number; name: string; slug: string } | null;
 }
 
@@ -211,6 +219,7 @@ interface RawSealedProduct {
 
 export interface NormalizedEpisode {
   id: string;
+  game: TradingCardGame;
   name: string;
   code: string | null;
   release_date: string | null;
@@ -222,6 +231,7 @@ export interface NormalizedEpisode {
 
 export interface NormalizedCard {
   id: string;
+  game: TradingCardGame;
   name: string;
   card_number: string | null;
   rarity: string | null;
@@ -282,6 +292,7 @@ export interface TcggoHistoryPricePoint {
 
 export interface NormalizedSealedProduct {
   id: string;
+  game: TradingCardGame;
   name: string;
   image_url: string | null;
   tcggo_url: string | null;
@@ -583,9 +594,13 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function normalizeEpisode(ep: RawEpisode): NormalizedEpisode {
+function normalizeEpisode(
+  ep: RawEpisode,
+  game: TradingCardGame = POKEMON_GAME
+): NormalizedEpisode {
   return {
-    id: String(ep.id),
+    id: scopeGameId(game, ep.id),
+    game,
     name: ep.name,
     code: ep.code ?? null,
     release_date: ep.released_at ?? null,
@@ -698,7 +713,8 @@ function normalizeCardScore(card: RawCard): TcggoCardScoreData {
 
 function normalizeCard(
   card: RawCard,
-  tcgdexImageLookup: ReadonlyMap<string, string>
+  tcgdexImageLookup: ReadonlyMap<string, string>,
+  game: TradingCardGame = POKEMON_GAME
 ): NormalizedCard {
   const cardmarketId = card.cardmarket_id != null ? String(card.cardmarket_id) : null;
   const tcgId = card.tcgid != null ? String(card.tcgid) : null;
@@ -707,7 +723,8 @@ function normalizeCard(
   const tcgplayerId = card.tcgplayer_id != null ? String(card.tcgplayer_id) : null;
 
   return {
-    id: String(card.id),
+    id: scopeGameId(game, card.id),
+    game,
     name: card.name,
     card_number: card.card_number != null ? String(card.card_number) : null,
     rarity: card.rarity ?? null,
@@ -716,7 +733,7 @@ function normalizeCard(
     subtypes: card.subtypes?.join(",") ?? null,
     artist: card.artist?.name ?? null,
     image_url: tcgdexImageUrl ?? card.image ?? tcgplayerImageUrl,
-    cardmarket_url: cardmarketId ? buildCardMarketProductUrl(cardmarketId) : null,
+    cardmarket_url: cardmarketId ? buildCardMarketProductUrl(cardmarketId, game) : null,
     tcggo_url: card.tcggo_url ?? null,
     tcgid: tcgId,
     cardmarket_id: cardmarketId,
@@ -726,13 +743,17 @@ function normalizeCard(
   };
 }
 
-function normalizeSealedProduct(product: RawSealedProduct): NormalizedSealedProduct {
+function normalizeSealedProduct(
+  product: RawSealedProduct,
+  game: TradingCardGame = POKEMON_GAME
+): NormalizedSealedProduct {
   const cardmarketId =
     product.cardmarket_id != null ? String(product.cardmarket_id) : null;
   const cardmarket = product.prices?.cardmarket;
 
   return {
-    id: String(product.id),
+    id: scopeGameId(game, product.id),
+    game,
     name: product.name,
     image_url: product.image ?? null,
     tcggo_url: product.tcggo_url ?? null,
@@ -1060,14 +1081,17 @@ interface RawHistoryPriceResponse {
   results?: number;
 }
 
-export async function fetchAllEpisodes(): Promise<NormalizedEpisode[]> {
+export async function fetchAllEpisodes(
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedEpisode[]> {
   const all: NormalizedEpisode[] = [];
   let page = 1;
+  const gamePath = getTcggoGamePath(game);
   while (true) {
     const data = await apiFetch<{ data: RawEpisode[]; paging?: { total?: number } }>(
-      `/pokemon/episodes?page=${page}&per_page=100`
+      `/${gamePath}/episodes?page=${page}&per_page=100`
     );
-    all.push(...(data.data ?? []).map(normalizeEpisode));
+    all.push(...(data.data ?? []).map((episode) => normalizeEpisode(episode, game)));
     const totalPages = data.paging?.total ?? 1;
     if (page >= totalPages) break;
     page++;
@@ -1075,16 +1099,21 @@ export async function fetchAllEpisodes(): Promise<NormalizedEpisode[]> {
   return all;
 }
 
-export async function fetchCardsForEpisode(episodeId: string): Promise<NormalizedCard[]> {
-  const tcgdexImageLookup = await getTcgdexImageLookup();
+export async function fetchCardsForEpisode(
+  episodeId: string,
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedCard[]> {
+  const tcgdexImageLookup = game === POKEMON_GAME ? await getTcgdexImageLookup() : new Map();
+  const gamePath = getTcggoGamePath(game);
+  const remoteEpisodeId = getRemoteTcggoId(game, episodeId);
 
   const firstPage = await apiFetch<{
     data: RawCard[];
     paging?: { total?: number };
-  }>(`/pokemon/episodes/${episodeId}/cards?page=1&per_page=100`);
+  }>(`/${gamePath}/episodes/${remoteEpisodeId}/cards?page=1&per_page=100`);
 
   const all: NormalizedCard[] = (firstPage.data ?? []).map((card) =>
-    normalizeCard(card, tcgdexImageLookup)
+    normalizeCard(card, tcgdexImageLookup, game)
   );
   const totalPages = firstPage.paging?.total ?? 1;
 
@@ -1097,36 +1126,46 @@ export async function fetchCardsForEpisode(episodeId: string): Promise<Normalize
       apiFetch<{
         data: RawCard[];
         paging?: { total?: number };
-      }>(`/pokemon/episodes/${episodeId}/cards?page=${index + 2}&per_page=100`)
+      }>(`/${gamePath}/episodes/${remoteEpisodeId}/cards?page=${index + 2}&per_page=100`)
     )
   );
 
   for (const page of remainingPages) {
-    all.push(...(page.data ?? []).map((card) => normalizeCard(card, tcgdexImageLookup)));
+    all.push(
+      ...(page.data ?? []).map((card) => normalizeCard(card, tcgdexImageLookup, game))
+    );
   }
 
   return all;
 }
 
 export async function fetchSealedAvailabilityForEpisode(
-  episodeId: string
+  episodeId: string,
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<boolean> {
+  const gamePath = getTcggoGamePath(game);
+  const remoteEpisodeId = getRemoteTcggoId(game, episodeId);
   const data = await apiFetch<{ data: RawSealedProduct[] }>(
-    `/pokemon/episodes/${episodeId}/products?page=1&per_page=1`
+    `/${gamePath}/episodes/${remoteEpisodeId}/products?page=1&per_page=1`
   );
 
   return (data.data?.length ?? 0) > 0;
 }
 
 export async function fetchSealedProductsForEpisode(
-  episodeId: string
+  episodeId: string,
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<NormalizedSealedProduct[]> {
+  const gamePath = getTcggoGamePath(game);
+  const remoteEpisodeId = getRemoteTcggoId(game, episodeId);
   const firstPage = await apiFetch<{
     data: RawSealedProduct[];
     paging?: { total?: number };
-  }>(`/pokemon/episodes/${episodeId}/products?page=1&per_page=100`);
+  }>(`/${gamePath}/episodes/${remoteEpisodeId}/products?page=1&per_page=100`);
 
-  const all: NormalizedSealedProduct[] = (firstPage.data ?? []).map(normalizeSealedProduct);
+  const all: NormalizedSealedProduct[] = (firstPage.data ?? []).map((product) =>
+    normalizeSealedProduct(product, game)
+  );
   const totalPages = firstPage.paging?.total ?? 1;
 
   if (totalPages <= 1) {
@@ -1138,12 +1177,12 @@ export async function fetchSealedProductsForEpisode(
       apiFetch<{
         data: RawSealedProduct[];
         paging?: { total?: number };
-      }>(`/pokemon/episodes/${episodeId}/products?page=${index + 2}&per_page=100`)
+      }>(`/${gamePath}/episodes/${remoteEpisodeId}/products?page=${index + 2}&per_page=100`)
     )
   );
 
   for (const page of remainingPages) {
-    all.push(...(page.data ?? []).map(normalizeSealedProduct));
+    all.push(...(page.data ?? []).map((product) => normalizeSealedProduct(product, game)));
   }
 
   return all;
@@ -1202,14 +1241,19 @@ export async function fetchHistoryPricesByItemId(
     }));
 }
 
-export async function fetchCardDetail(cardId: string): Promise<NormalizedCard | null> {
-  const tcgdexImageLookup = await getTcgdexImageLookup();
-  const data = await apiFetch<{ data?: RawCard }>(`/pokemon/cards/${cardId}`);
+export async function fetchCardDetail(
+  cardId: string,
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedCard | null> {
+  const tcgdexImageLookup = game === POKEMON_GAME ? await getTcgdexImageLookup() : new Map();
+  const gamePath = getTcggoGamePath(game);
+  const remoteCardId = getRemoteTcggoId(game, cardId);
+  const data = await apiFetch<{ data?: RawCard }>(`/${gamePath}/cards/${remoteCardId}`);
   const card = data.data;
 
   if (!card) return null;
 
-  return normalizeCard(card, tcgdexImageLookup);
+  return normalizeCard(card, tcgdexImageLookup, game);
 }
 
 export function extractPrices(prices: RawPrices | undefined) {

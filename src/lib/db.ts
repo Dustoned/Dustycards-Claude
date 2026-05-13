@@ -21,8 +21,10 @@ const REQUIRED_RUNTIME_FIELDS = {
   Session: ["user_id", "token_hash", "expires_at"],
   PasswordResetToken: ["user_id", "token_hash", "expires_at", "used_at"],
   EmailVerificationToken: ["user_id", "token_hash", "expires_at"],
-  Episode: ["source_status", "source_checked_at", "source_actual_card_count"],
+  Episode: ["game", "source_status", "source_checked_at", "source_actual_card_count"],
+  AppSetting: ["key", "value"],
   Card: [
+    "game",
     "price_source_status",
     "price_source_checked_at",
     "native_history_synced_at",
@@ -35,6 +37,7 @@ const REQUIRED_RUNTIME_FIELDS = {
     "tcggo_score_tier",
   ],
   SealedProduct: [
+    "game",
     "cm_avg_7d",
     "cm_avg_30d",
     "native_history_synced_at",

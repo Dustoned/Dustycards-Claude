@@ -4,6 +4,7 @@ import {
   type MoverPriceQuality,
 } from "@/lib/mover-scoring";
 import { startPerformanceTimer } from "@/lib/performance-timing";
+import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import {
   classifySealedProduct,
   getSealedCategoryLabel,
@@ -397,17 +398,19 @@ async function fetchSealedSnapshotRows(input: {
 
 export async function getSealedMovers(
   itemScope: MoversItemScope = "all",
-  userId: string
+  userId: string,
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<SealedMoversData> {
-  const timer = startPerformanceTimer("movers.sealed", { itemScope });
+  const timer = startPerformanceTimer("movers.sealed", { itemScope, game });
   const productWhere =
     itemScope === "collection"
       ? {
+          game,
           collectionItems: {
             some: { user_id: userId },
           },
         }
-      : undefined;
+      : { game };
 
   const products = await db.sealedProduct.findMany({
     where: productWhere,

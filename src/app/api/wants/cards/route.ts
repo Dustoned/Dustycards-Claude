@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
+import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
+import { ONE_PIECE_GAME } from "@/lib/games";
 
 const WANTS_BATCH_LIMIT = 500;
 
@@ -38,11 +40,18 @@ export async function POST(req: NextRequest) {
 
     const card = await db.card.findUnique({
       where: { id: cardId },
-      select: { id: true },
+      select: { id: true, game: true },
     });
 
     if (!card) {
       return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    }
+
+    if (card.game === ONE_PIECE_GAME) {
+      const features = await getAppFeatures();
+      if (!features.onePieceLibraryEnabled) {
+        return NextResponse.json({ error: "One Piece library is not enabled" }, { status: 403 });
+      }
     }
 
     const owned = await db.collectionCard.findFirst({

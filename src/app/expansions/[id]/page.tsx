@@ -13,6 +13,7 @@ import {
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
+import { POKEMON_GAME } from "@/lib/games";
 import {
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
@@ -64,6 +65,7 @@ function toNormalizedSealedProduct(product: {
 }): NormalizedSealedProduct {
   return {
     id: product.id,
+    game: POKEMON_GAME,
     name: product.name,
     image_url: product.image_url,
     tcggo_url: product.tcggo_url,
@@ -111,8 +113,8 @@ export default async function ExpansionDetailPage({
   const nextQuery = nextParams.toString();
   await requirePageUser(`/expansions/${id}${nextQuery ? `?${nextQuery}` : ""}`);
 
-  const episode = await db.episode.findUnique({
-    where: { id },
+  const episode = await db.episode.findFirst({
+    where: { id, game: POKEMON_GAME },
     include: {
       _count: {
         select: { cards: true, sealedProducts: true },

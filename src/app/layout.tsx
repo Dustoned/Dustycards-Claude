@@ -7,6 +7,7 @@ import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import { HeaderMobileMenu, HeaderNav } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
 import SettingsProvider from "@/components/SettingsProvider";
+import { getAppFeatures } from "@/lib/app-settings";
 import { getCurrentUser } from "@/lib/auth";
 import {
   parseResolvedThemeCookie,
@@ -33,6 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const cookieStore = await cookies();
   const currentUser = await getCurrentUser();
   const initialSettings = await getServerUserSettings(currentUser?.id);
+  const appFeatures = await getAppFeatures();
   const resolvedTheme = parseResolvedThemeCookie(
     cookieStore.get(SETTINGS_RESOLVED_THEME_COOKIE_NAME)?.value
   );
@@ -123,6 +125,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
         <SettingsProvider
           initialSettings={initialSettings}
+          appFeatures={appFeatures}
           syncToAccount={Boolean(currentUser)}
           currentUserRole={currentUser?.role ?? null}
         >
@@ -133,13 +136,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             className="fixed inset-x-0 top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8"
           >
             <nav className="page-container relative mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-3 sm:px-6 lg:px-8">
-              {currentUser && <HeaderMobileMenu />}
+              {currentUser && (
+                <HeaderMobileMenu onePieceEnabled={appFeatures.onePieceLibraryEnabled} />
+              )}
               <Link href="/" prefetch={false} className="shrink-0 font-semibold text-gray-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity [font-size:var(--ui-brand-size)]">
                 DustyCards
               </Link>
               {currentUser ? (
                 <>
-                  <HeaderNav />
+                  <HeaderNav onePieceEnabled={appFeatures.onePieceLibraryEnabled} />
                   <div className="flex-1 lg:hidden" />
                   <HeaderSearch />
                 </>

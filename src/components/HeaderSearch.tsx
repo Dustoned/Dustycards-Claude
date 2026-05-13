@@ -9,11 +9,14 @@ import {
   readSearchReturnPath,
   rememberSearchReturnPath,
 } from "@/lib/search-navigation";
+import { GAME_SEARCH_PARAM, ONE_PIECE_GAME } from "@/lib/games";
+import { useSettings } from "@/components/SettingsProvider";
 
 export default function HeaderSearch() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { appFeatures } = useSettings();
   const activeQuery = pathname === "/search" ? searchParams.get("q") ?? "" : "";
   const inputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
@@ -22,6 +25,11 @@ export default function HeaderSearch() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileQuery, setMobileQuery] = useState(activeQuery);
   const currentHref = buildPathWithQuery(pathname, searchParams);
+  const activeGameParam =
+    appFeatures.onePieceLibraryEnabled &&
+    (searchParams.get(GAME_SEARCH_PARAM) === ONE_PIECE_GAME || pathname.startsWith("/one-piece"))
+      ? ONE_PIECE_GAME
+      : null;
 
   useEffect(() => {
     const input = inputRef.current;
@@ -99,7 +107,11 @@ export default function HeaderSearch() {
       startedSearchRef.current = false;
     }
 
-    const href = `/search?q=${encodeURIComponent(trimmed)}`;
+    const params = new URLSearchParams({ q: trimmed });
+    if (activeGameParam) {
+      params.set(GAME_SEARCH_PARAM, activeGameParam);
+    }
+    const href = `/search?${params.toString()}`;
 
     if (preferPush && pathname !== "/search" && !startedSearchRef.current) {
       rememberSearchReturnPath(currentHref);

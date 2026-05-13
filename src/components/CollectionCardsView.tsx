@@ -18,6 +18,7 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import { SectionHeader } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
+import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 import {
@@ -1483,7 +1484,7 @@ export default function CollectionCardsView({
                                 </span>
                                 <span className="text-gray-300 dark:text-white/20">/</span>
                                 <Link
-                                  href={`/expansions/${item.episode_id}`}
+                                  href={getExpansionHref(item.episode_id)}
                                   prefetch={false}
                                   onClick={(event) => event.stopPropagation()}
                                   className="min-w-0 truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
@@ -1693,7 +1694,7 @@ export default function CollectionCardsView({
                                   <span>{item.card_number ? `#${item.card_number}` : "--"}</span>
                                   <span>•</span>
                                   <Link
-                                    href={`/expansions/${item.episode_id}`}
+                                    href={getExpansionHref(item.episode_id)}
                                     prefetch={false}
                                     onClick={(event) => event.stopPropagation()}
                                     className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
@@ -2051,7 +2052,7 @@ export default function CollectionCardsView({
                       </span>
                       <span className="text-gray-300 dark:text-white/20">•</span>
                       <Link
-                        href={`/expansions/${item.episode_id}`}
+                        href={getExpansionHref(item.episode_id)}
                         prefetch={false}
                         onClick={(event) => event.stopPropagation()}
                         className="hidden min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300 sm:inline"

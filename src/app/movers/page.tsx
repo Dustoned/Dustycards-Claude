@@ -1,11 +1,21 @@
+import Link from "next/link";
 import { ArrowDownRight, Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import CollectionValueDrivers from "@/components/CollectionValueDrivers";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import SealedMoversBrowser from "@/app/movers/SealedMoversBrowser";
 import { loadMoversPageData } from "@/app/movers/page-data";
+import { getAppFeatures } from "@/lib/app-settings";
 import { requirePageUser } from "@/lib/page-auth";
 import { formatCollectionCurrency } from "@/lib/collection";
+import {
+  GAME_SEARCH_PARAM,
+  getGameSearchParamValue,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  parseVisibleTradingCardGame,
+  type TradingCardGame,
+} from "@/lib/games";
 import type { MoversPageScope } from "@/app/movers/routing";
 import type { CollectionValueDriversData } from "@/lib/collection-data";
 import type { CollectionMoversData, MoversScope } from "@/lib/movers";
@@ -113,24 +123,68 @@ function formatSignedCurrency(value: number | null | undefined): string {
   return `${value > 0 ? "+" : ""}${formatCollectionCurrency(value)}`;
 }
 
+function GameToggleLink({
+  href,
+  active,
+  label,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
+        active
+          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
 export default async function MoversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; scope?: string; view?: string }>;
+  searchParams: Promise<{ source?: string; scope?: string; view?: string; game?: string }>;
 }) {
-  const { source, scope, view } = await searchParams;
+  const { source, scope, view, game: gameParam } = await searchParams;
+  const features = await getAppFeatures();
+  const activeGame = parseVisibleTradingCardGame(gameParam, {
+    onePieceEnabled: features.onePieceLibraryEnabled,
+  });
   const nextParams = new URLSearchParams();
   if (source) nextParams.set("source", source);
   if (scope) nextParams.set("scope", scope);
   if (view) nextParams.set("view", view);
+  const activeGameValue = getGameSearchParamValue(activeGame);
+  if (activeGameValue) nextParams.set(GAME_SEARCH_PARAM, activeGameValue);
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/movers${nextQuery ? `?${nextQuery}` : ""}`);
   const { activePriceSource, activeScope, activeItemScope, data } = await loadMoversPageData(
     source,
     scope,
     view,
-    user.id
+    user.id,
+    activeGame
   );
+
+  function buildGameHref(game: TradingCardGame) {
+    const params = new URLSearchParams();
+    if (source) params.set("source", source);
+    if (scope) params.set("scope", scope);
+    if (view) params.set("view", view);
+    const gameValue = getGameSearchParamValue(game);
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+    const query = params.toString();
+    return query ? `/movers?${query}` : "/movers";
+  }
   const isValueScope = activeScope === "value";
   const isSealedScope = activeScope === "sealed";
   const isGradedScope = activeScope === "graded";
@@ -308,6 +362,23 @@ export default async function MoversPage({
             </div>
           </div>
         </section>
+
+        {features.onePieceLibraryEnabled ? (
+          <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
+            <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+              <GameToggleLink
+                href={buildGameHref(POKEMON_GAME)}
+                active={activeGame === POKEMON_GAME}
+                label="Pokemon"
+              />
+              <GameToggleLink
+                href={buildGameHref(ONE_PIECE_GAME)}
+                active={activeGame === ONE_PIECE_GAME}
+                label="One Piece"
+              />
+            </div>
+          </div>
+        ) : null}
 
         {isValueScope && valueData ? (
           <CollectionValueDrivers data={valueData} activeItemScope={activeItemScope} />

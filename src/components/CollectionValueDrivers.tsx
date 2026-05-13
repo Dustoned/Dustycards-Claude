@@ -19,6 +19,7 @@ import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getExpansionHref } from "@/lib/games";
 import { getFixedTrackGridTemplate, getRichMoverTrackWidth } from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type {
@@ -242,7 +243,7 @@ function DriverRow({
               ) : null}
               {item.kind === "card" ? (
                 <Link
-                  href={`/expansions/${item.episodeId}`}
+                  href={getExpansionHref(item.episodeId)}
                   prefetch={false}
                   onClick={stopCardOpen}
                   className="underline decoration-black/20 underline-offset-2 hover:text-gray-900 dark:decoration-white/20 dark:hover:text-white"

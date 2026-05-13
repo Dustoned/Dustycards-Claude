@@ -8,6 +8,7 @@ import {
   type HeaderStat,
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getAppFeatures } from "@/lib/app-settings";
 import {
   getCollectionOverviewData,
   type CollectionPageTab,
@@ -18,6 +19,14 @@ import {
   parseOverviewSectionOrderCookie,
 } from "@/lib/overview-section-order";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import {
+  GAME_SEARCH_PARAM,
+  getGameSearchParamValue,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  parseVisibleTradingCardGame,
+  type TradingCardGame,
+} from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"), {
@@ -181,13 +190,18 @@ function CollectionHeaderStatCard({
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; graded?: string }>;
+  searchParams: Promise<{ tab?: string; graded?: string; game?: string }>;
 }) {
   const cookieStore = await cookies();
   const user = await requirePageUser("/");
+  const features = await getAppFeatures();
   const settings = await getServerUserSettings(user.id);
   const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
-  const { tab, graded } = await searchParams;
+  const { tab, graded, game: gameParam } = await searchParams;
+  const activeGame = parseVisibleTradingCardGame(gameParam, {
+    onePieceEnabled: features.onePieceLibraryEnabled,
+  });
+  const browseHref = activeGame === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
   const activeTab =
     tab === "cards" ||
     tab === "binders" ||
@@ -203,6 +217,7 @@ export default async function HomePage({
   const data = await getCollectionOverviewData({
     userId: user.id,
     activeTab: activeTab as CollectionPageTab,
+    game: activeGame,
   });
 
   const summaryCards = [
@@ -214,19 +229,19 @@ export default async function HomePage({
     },
     {
       label: "Cards",
-      value: data.overview.totalCards.toLocaleString(),
+      value: data.overview.totalCards.toLocaleString("en-US"),
       Icon: Sparkles,
       tone: "sky",
     },
     {
       label: "Sealed",
-      value: data.overview.totalSealedUnits.toLocaleString(),
+      value: data.overview.totalSealedUnits.toLocaleString("en-US"),
       Icon: Boxes,
       tone: "rose",
     },
     {
       label: "Binders",
-      value: data.overview.totalBinders.toLocaleString(),
+      value: data.overview.totalBinders.toLocaleString("en-US"),
       Icon: BookOpen,
       tone: "violet",
     },
@@ -252,8 +267,25 @@ export default async function HomePage({
 
   function buildCollectionHref(tabValue: CollectionPageTab) {
     const params = new URLSearchParams();
+    const gameValue = getGameSearchParamValue(activeGame);
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
     if (tabValue !== "overview") {
       params.set("tab", tabValue);
+    }
+    const query = params.toString();
+    return query ? `/?${query}` : "/";
+  }
+
+  function buildGameHref(game: TradingCardGame) {
+    const params = new URLSearchParams();
+    const gameValue = getGameSearchParamValue(game);
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+    if (activeTab !== "overview") {
+      params.set("tab", activeTab);
     }
     const query = params.toString();
     return query ? `/?${query}` : "/";
@@ -272,8 +304,12 @@ export default async function HomePage({
       <div className="flex w-full flex-col gap-5 sm:gap-7">
         <PageHeroHeader
           eyebrow="DustyCards"
-          title="DustyCards Collection"
-          description="Keep track of your singles, binders and sealed with the same live market data you already use everywhere else."
+          title={activeGame === ONE_PIECE_GAME ? "One Piece Collection" : "DustyCards Collection"}
+          description={
+            activeGame === ONE_PIECE_GAME
+              ? "Track your One Piece singles separately from Pokemon while using the same collection tools."
+              : "Keep track of your singles, binders and sealed with the same live market data you already use everywhere else."
+          }
           className="xl:[--ui-page-header-title-size:2rem] 2xl:[--ui-page-header-title-size:2.15rem] max-[640px]:[--ui-page-header-action-margin:0.45rem] max-[640px]:[--ui-page-header-grid-gap:0.55rem] max-[640px]:[--ui-page-header-padding:0.7rem] max-[640px]:[--ui-page-header-title-size:1.35rem] max-[640px]:[--ui-header-action-gap:0.4rem] max-[640px]:[--ui-header-action-x:0.65rem] max-[640px]:[--ui-header-action-y:0.35rem] max-[640px]:[&_h1+div]:hidden"
           gridClassName="xl:grid-cols-[minmax(23rem,0.58fr)_minmax(0,1.42fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.57fr)_minmax(0,1.63fr)] 2xl:items-stretch"
           sideClassName="space-y-2 xl:space-y-0"
@@ -341,34 +377,53 @@ export default async function HomePage({
         />
 
         <div className="space-y-3">
-          <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
-            <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-              <TabLink
-                href={buildCollectionHref("overview")}
-                active={activeTab === "overview"}
-                label="Overview"
-              />
-              <TabLink
-                href={buildCollectionHref("cards")}
-                active={activeTab === "cards"}
-                label="Cards"
-              />
-              <TabLink
-                href={buildCollectionHref("binders")}
-                active={activeTab === "binders"}
-                label="Binders"
-              />
-              <TabLink
-                href={buildCollectionHref("sealed")}
-                active={activeTab === "sealed"}
-                label="Sealed"
-              />
-              <TabLink
-                href={buildCollectionHref("graded")}
-                active={activeTab === "graded"}
-                label="Graded"
-              />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
+              <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+                <TabLink
+                  href={buildCollectionHref("overview")}
+                  active={activeTab === "overview"}
+                  label="Overview"
+                />
+                <TabLink
+                  href={buildCollectionHref("cards")}
+                  active={activeTab === "cards"}
+                  label="Cards"
+                />
+                <TabLink
+                  href={buildCollectionHref("binders")}
+                  active={activeTab === "binders"}
+                  label="Binders"
+                />
+                <TabLink
+                  href={buildCollectionHref("sealed")}
+                  active={activeTab === "sealed"}
+                  label="Sealed"
+                />
+                <TabLink
+                  href={buildCollectionHref("graded")}
+                  active={activeTab === "graded"}
+                  label="Graded"
+                />
+              </div>
             </div>
+
+            {features.onePieceLibraryEnabled ? (
+              <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
+                <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+                  <TabLink
+                    href={buildGameHref(POKEMON_GAME)}
+                    active={activeGame === POKEMON_GAME}
+                    label="Pokemon"
+                  />
+                  <TabLink
+                    href={buildGameHref(ONE_PIECE_GAME)}
+                    active={activeGame === ONE_PIECE_GAME}
+                    label="One Piece"
+                  />
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {!hasCollection && activeTab === "overview" && (
@@ -381,7 +436,7 @@ export default async function HomePage({
               </p>
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 <Link
-                  href="/expansions"
+                  href={browseHref}
                   prefetch={false}
                   className="inline-flex items-center rounded-full border border-black/8 bg-white/80 px-3 py-2 text-sm font-semibold text-gray-800 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white/78 dark:hover:border-white/18 dark:hover:bg-white/12"
                 >

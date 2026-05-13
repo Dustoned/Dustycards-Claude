@@ -5,6 +5,7 @@ import {
   getAutoPriceRefreshPauseRemainingMs,
 } from "@/lib/auto-price-refresh-pause";
 import { isHiddenExpansion, isPromoExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
+import { getGameFromScopedId, normalizeTradingCardGame, POKEMON_GAME } from "@/lib/games";
 import { startPerformanceTimer, timeAsync } from "@/lib/performance-timing";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
 import {
@@ -163,6 +164,7 @@ interface KnownUnavailablePriceCandidate {
 
 async function getHiddenEpisodeIds(): Promise<string[]> {
   const episodes = await db.episode.findMany({
+    where: { game: POKEMON_GAME },
     select: { id: true, code: true, name: true },
   });
 
@@ -1619,7 +1621,7 @@ async function backfillEbaySoldGradedPricesDetailed(
       let shouldCountCard = false;
 
       try {
-        const remoteCard = await fetchCardDetail(cardId);
+        const remoteCard = await fetchCardDetail(cardId, getGameFromScopedId(cardId));
         await options?.throwIfCancelled?.();
 
         const creates = remoteCard
@@ -2062,13 +2064,12 @@ async function syncEpisodeCards(
 ): Promise<EpisodeSyncResult> {
   await options.throwIfCancelled?.();
 
-  const [cards, episode] = await Promise.all([
-    fetchCardsForEpisode(episodeId),
-    db.episode.findUnique({
-      where: { id: episodeId },
-      select: { code: true, name: true, card_count: true },
-    }),
-  ]);
+  const episode = await db.episode.findUnique({
+    where: { id: episodeId },
+    select: { code: true, name: true, card_count: true, game: true },
+  });
+  const game = normalizeTradingCardGame(episode?.game);
+  const cards = await fetchCardsForEpisode(episodeId, game);
 
   await options.throwIfCancelled?.();
 
@@ -2128,11 +2129,13 @@ async function syncEpisodeCards(
             id: card.id,
             episode_id: episodeId,
             ...nextCardData,
+            game,
           },
         });
         existingCardMap.set(card.id, {
           id: card.id,
           ...nextCardData,
+          game,
           price_source_status: null,
           price_source_checked_at: null,
           native_history_synced_at: null,
@@ -2726,22 +2729,22 @@ async function refreshEpisodeDueCards(
 ): Promise<AutoEpisodePriceRefreshResult> {
   await throwIfCancelled?.();
 
-  const [remoteCards, episode] = await Promise.all([
-    fetchCardsForEpisode(episodeId),
-    db.episode.findUnique({
-      where: { id: episodeId },
-      select: {
-        code: true,
-        name: true,
-        card_count: true,
-        _count: {
-          select: {
-            cards: true,
-          },
+  const episode = await db.episode.findUnique({
+    where: { id: episodeId },
+    select: {
+      game: true,
+      code: true,
+      name: true,
+      card_count: true,
+      _count: {
+        select: {
+          cards: true,
         },
       },
-    }),
-  ]);
+    },
+  });
+  const game = normalizeTradingCardGame(episode?.game);
+  const remoteCards = await fetchCardsForEpisode(episodeId, game);
 
   await throwIfCancelled?.();
 
@@ -2926,7 +2929,7 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
       await progress.throwIfCancelled();
       await progress.updateMessage(`Refreshing ${existingCard.name} (${cardId})`);
 
-      const remoteCard = await fetchCardDetail(cardId);
+      const remoteCard = await fetchCardDetail(cardId, normalizeTradingCardGame(existingCard.game));
       if (!remoteCard) {
         throw new Error("Card not found in the scraper source.");
       }
@@ -3183,6 +3186,7 @@ export async function runSealedProductRefresh(
         where: { id: productId },
         select: {
           id: true,
+          game: true,
           name: true,
           episode_id: true,
         },
@@ -3195,7 +3199,10 @@ export async function runSealedProductRefresh(
       await progress.throwIfCancelled();
       await progress.updateMessage(`Refreshing ${existingProduct.name} (${productId})`);
 
-      const remoteProducts = await fetchSealedProductsForEpisode(existingProduct.episode_id);
+      const remoteProducts = await fetchSealedProductsForEpisode(
+        existingProduct.episode_id,
+        normalizeTradingCardGame(existingProduct.game)
+      );
       const remoteProduct = remoteProducts.find((product) => product.id === productId);
 
       if (!remoteProduct) {
@@ -4159,6 +4166,7 @@ async function persistEpisodeSealedProducts(
         where: { id: product.id },
         create: {
           id: product.id,
+          game: product.game,
           episode_id: episodeId,
           name: product.name,
           image_url: product.image_url,
@@ -4177,6 +4185,7 @@ async function persistEpisodeSealedProducts(
           synced_at: syncedAt,
         },
         update: {
+          game: product.game,
           episode_id: episodeId,
           name: product.name,
           image_url: product.image_url,
@@ -4233,7 +4242,10 @@ export async function runSealedSync(): Promise<SealedSyncResult> {
       await progress.throwIfCancelled();
 
       const episodes = (
-        await db.episode.findMany({ select: { id: true, name: true, code: true } })
+        await db.episode.findMany({
+          where: { game: POKEMON_GAME },
+          select: { id: true, game: true, name: true, code: true },
+        })
       ).filter((episode) => !isHiddenExpansion(episode));
       let synced = 0;
       let products = 0;
@@ -4259,7 +4271,10 @@ export async function runSealedSync(): Promise<SealedSyncResult> {
         );
 
         try {
-          const fetched = await fetchSealedProductsForEpisode(ep.id);
+          const fetched = await fetchSealedProductsForEpisode(
+            ep.id,
+            normalizeTradingCardGame(ep.game)
+          );
           if (fetched.length === 0) return;
 
           const syncedAt = new Date();
@@ -4296,7 +4311,12 @@ async function syncEpisodeSealed(
 ): Promise<void> {
   await options.throwIfCancelled?.();
 
-  const products = await fetchSealedProductsForEpisode(episodeId);
+  const episode = await db.episode.findUnique({
+    where: { id: episodeId },
+    select: { game: true },
+  });
+  const game = normalizeTradingCardGame(episode?.game);
+  const products = await fetchSealedProductsForEpisode(episodeId, game);
   if (products.length === 0) return;
 
   await options.throwIfCancelled?.();
@@ -4427,6 +4447,7 @@ export async function runFullSync(): Promise<FullSyncResult> {
       const [remoteEpisodes, localEpisodes] = await Promise.all([
         fetchAllEpisodes(),
         db.episode.findMany({
+          where: { game: POKEMON_GAME },
           select: {
             id: true,
             card_count: true,
@@ -4467,6 +4488,7 @@ export async function runFullSync(): Promise<FullSyncResult> {
           where: { id: episode.id },
           create: episode,
           update: {
+            game: episode.game,
             name: episode.name,
             code: episode.code,
             release_date: episode.release_date,

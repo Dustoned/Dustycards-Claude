@@ -25,6 +25,20 @@ type PendingAction = {
   userId: string;
 } | null;
 
+const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
+const DATE_FORMATTER = new Intl.DateTimeFormat("nl-NL", {
+  dateStyle: "short",
+  timeZone: "Europe/Amsterdam",
+});
+
+function formatCount(value: number): string {
+  return NUMBER_FORMATTER.format(value);
+}
+
+function formatDate(value: string): string {
+  return DATE_FORMATTER.format(new Date(value));
+}
+
 export default function AdminUsersPanel({
   currentUserId,
   users,
@@ -125,11 +139,13 @@ export default function AdminUsersPanel({
                   </span>
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-white/45">
-                  Cards {user.counts.cards.toLocaleString()} | Binders {user.counts.binders.toLocaleString()} | Sealed {user.counts.sealed.toLocaleString()} | Sessions {user.counts.sessions.toLocaleString()}
+                  Cards {formatCount(user.counts.cards)} | Binders{" "}
+                  {formatCount(user.counts.binders)} | Sealed {formatCount(user.counts.sealed)} | Sessions{" "}
+                  {formatCount(user.counts.sessions)}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-gray-400 dark:text-white/35">
-                  Created {new Date(user.createdAt).toLocaleDateString()} | Updated {new Date(user.updatedAt).toLocaleDateString()}
-                  {user.emailVerifiedAt ? ` | Verified ${new Date(user.emailVerifiedAt).toLocaleDateString()}` : ""}
+                  Created {formatDate(user.createdAt)} | Updated {formatDate(user.updatedAt)}
+                  {user.emailVerifiedAt ? ` | Verified ${formatDate(user.emailVerifiedAt)}` : ""}
                 </p>
               </div>
 

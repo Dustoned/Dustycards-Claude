@@ -9,6 +9,7 @@ datasource db {
 
 model Episode {
   id            String   @id
+  game          String   @default("pokemon")
   name          String
   code          String?
   release_date  String?
@@ -27,6 +28,15 @@ model Episode {
   sealedProducts SealedProduct[]
 
   @@index([source_status, source_checked_at])
+  @@index([game, release_date])
+  @@index([game, code])
+}
+
+model AppSetting {
+  key        String   @id
+  value      String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 }
 
 model User {
@@ -145,6 +155,7 @@ model SetPullRateRarity {
 
 model SealedProduct {
   id              String   @id
+  game            String   @default("pokemon")
   episode_id      String
   name            String
   image_url       String?
@@ -169,6 +180,7 @@ model SealedProduct {
   collectionItems CollectionSealed[]
 
   @@index([episode_id])
+  @@index([game, episode_id])
   @@index([name])
   @@index([native_history_synced_at])
   @@index([native_history_status, native_history_checked_at])
@@ -195,6 +207,7 @@ model SealedPriceSnapshot {
 
 model Card {
   id              String   @id
+  game            String   @default("pokemon")
   episode_id      String
   name            String
   card_number     String?
@@ -244,6 +257,7 @@ model Card {
   prices          Price[]
 
   @@index([episode_id])
+  @@index([game, episode_id])
   @@index([episode_id, card_number])
   @@index([price_source_status, price_source_checked_at])
   @@index([native_history_synced_at])

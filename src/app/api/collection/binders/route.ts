@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
+import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
+import { POKEMON_GAME } from "@/lib/games";
 
 const binderSelect = {
   id: true,
@@ -36,11 +38,16 @@ function toNullableNumber(value: unknown): number | null {
   return null;
 }
 
-async function resolveEpisode(input: { episodeId?: unknown; linkedQuery?: unknown }) {
+async function resolveEpisode(input: {
+  episodeId?: unknown;
+  linkedQuery?: unknown;
+  onePieceEnabled?: boolean;
+}) {
+  const gameWhere = input.onePieceEnabled ? {} : { game: POKEMON_GAME };
   const explicitEpisodeId = toNullableString(input.episodeId);
   if (explicitEpisodeId) {
-    return db.episode.findUnique({
-      where: { id: explicitEpisodeId },
+    return db.episode.findFirst({
+      where: { id: explicitEpisodeId, ...gameWhere },
       select: { id: true, name: true, code: true, logo_url: true, series: true },
     });
   }
@@ -51,6 +58,7 @@ async function resolveEpisode(input: { episodeId?: unknown; linkedQuery?: unknow
   const normalized = linkedQuery.toLowerCase();
   const episodes = await db.episode.findMany({
     where: {
+      ...gameWhere,
       OR: [
         { id: linkedQuery },
         { code: { equals: linkedQuery } },
@@ -127,12 +135,14 @@ export async function POST(req: NextRequest) {
     }
 
     const requestedName = toNullableString(body.name);
+    const features = await getAppFeatures();
     const linkedQuery = toNullableString(body.linkedQuery) ?? requestedName;
     const shouldResolveEpisode = type === "linked_set" || type === "auto";
     const episode = shouldResolveEpisode
       ? await resolveEpisode({
           episodeId: body.episodeId,
           linkedQuery,
+          onePieceEnabled: features.onePieceLibraryEnabled,
         })
       : null;
 

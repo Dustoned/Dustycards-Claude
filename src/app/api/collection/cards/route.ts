@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
+import { getAppFeatures } from "@/lib/app-settings";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
+import { ONE_PIECE_GAME } from "@/lib/games";
 
 const COLLECTION_BATCH_LIMIT = 500;
 
@@ -78,16 +80,23 @@ export async function POST(req: NextRequest) {
 
   const cards = await db.card.findMany({
     where: { id: { in: cardIds } },
-    select: { id: true, episode_id: true },
+    select: { id: true, episode_id: true, game: true },
   });
 
   const cardsById = new Map(cards.map((card) => [card.id, card]));
   const orderedCards = cardIds
     .map((cardId) => cardsById.get(cardId) ?? null)
-    .filter((card): card is { id: string; episode_id: string } => Boolean(card));
+    .filter((card): card is { id: string; episode_id: string; game: string } => Boolean(card));
 
   if (orderedCards.length !== cardIds.length) {
     return NextResponse.json({ error: "One or more cards were not found" }, { status: 404 });
+  }
+
+  if (orderedCards.some((card) => card.game === ONE_PIECE_GAME)) {
+    const features = await getAppFeatures();
+    if (!features.onePieceLibraryEnabled) {
+      return NextResponse.json({ error: "One Piece library is not enabled" }, { status: 403 });
+    }
   }
 
   const binderId = toNullableString(body.binderId);
