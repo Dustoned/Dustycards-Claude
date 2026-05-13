@@ -532,49 +532,51 @@ export default function CollectionValueDrivers({
     <div className="space-y-3">
       <div className="rounded-2xl border border-black/8 bg-white/70 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div className="min-w-0">
-            <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-              Market
-            </span>
-            <div className="mt-1 flex flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
-              {modes.map((mode) => (
-                <Link
-                  key={mode.key}
-                  href={modeHref(pathname, searchParams, mode.key)}
-                  prefetch={false}
-                  className={modeTabClass(mode.key === "value")}
-                  aria-current={mode.key === "value" ? "page" : undefined}
-                >
-                  <span className="sm:hidden">{mode.shortLabel}</span>
-                  <span className="hidden sm:inline">{mode.label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-              Scope
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { key: "collection" as const, label: "Collection" },
-                { key: "all" as const, label: "All Cards" },
-              ].map((scope) => {
-                const active = activeItemScope === scope.key;
-
-                return (
+          <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end">
+            <div className="min-w-0">
+              <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                Market
+              </span>
+              <div className="mt-1 flex flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
+                {modes.map((mode) => (
                   <Link
-                    key={scope.key}
-                    href={valueScopeHref(pathname, searchParams, scope.key)}
+                    key={mode.key}
+                    href={modeHref(pathname, searchParams, mode.key)}
                     prefetch={false}
-                    className={scopeButtonClass(active)}
-                    aria-current={active ? "page" : undefined}
+                    className={modeTabClass(mode.key === "value")}
+                    aria-current={mode.key === "value" ? "page" : undefined}
                   >
-                    {scope.label}
+                    <span className="sm:hidden">{mode.shortLabel}</span>
+                    <span className="hidden sm:inline">{mode.label}</span>
                   </Link>
-                );
-              })}
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                Scope
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: "collection" as const, label: "Collection" },
+                  { key: "all" as const, label: "All Cards" },
+                ].map((scope) => {
+                  const active = activeItemScope === scope.key;
+
+                  return (
+                    <Link
+                      key={scope.key}
+                      href={valueScopeHref(pathname, searchParams, scope.key)}
+                      prefetch={false}
+                      className={scopeButtonClass(active)}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      {scope.label}
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

@@ -432,14 +432,26 @@ export const CARD_CATEGORIES: ReadonlyArray<CardCategoryDefinition> = [
     },
   },
   {
-    slug: "gold-secret-rare",
-    title: "Gold / Secret Rare",
+    slug: "gold-cards",
+    title: "Gold Cards",
     shortTitle: "Gold",
-    description: "Gold cards, Hyper Rares and classic Secret Rares with high-end finishes.",
+    description:
+      "Modern Hyper Rare cards with the gold treatment, kept separate from classic Secret Rares.",
     group: "Rarities",
     icon: "gem",
     tone: "amber",
-    where: rarityIn(["Hyper Rare", "Rare Secret", "Secret Rare", "SECRET RARE"]),
+    where: rarityIn(["Hyper Rare", "Mega Hyper Rare"]),
+  },
+  {
+    slug: "gold-secret-rare",
+    title: "Secret Rare",
+    shortTitle: "Secret",
+    description:
+      "Secret-numbered cards from classic Secret Rare and Rare Secret buckets. Gold Hyper Rares have their own list.",
+    group: "Rarities",
+    icon: "sparkles",
+    tone: "amber",
+    where: rarityIn(["Rare Secret", "Secret Rare", "SECRET RARE"]),
   },
   {
     slug: "trainer-gallery",
