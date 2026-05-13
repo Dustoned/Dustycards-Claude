@@ -189,7 +189,6 @@ export default function SealedProductModal({ product, onClose }: Props) {
                 imagePadding={layout.imagePadding}
                 priceHistoryCount={priceHistory.length}
                 priceFetchedAtLabel={priceFetchedAtLabel}
-                onClose={onClose}
               />
 
               <div className="min-w-0 space-y-3">
@@ -206,7 +205,6 @@ export default function SealedProductModal({ product, onClose }: Props) {
                   actionError={actionError}
                   onRefresh={() => void runSealedAction("refresh")}
                   onSyncHistory={() => void runSealedAction("sync-history")}
-                  onClose={onClose}
                 />
 
                 <SealedModalHistorySection

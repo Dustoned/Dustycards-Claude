@@ -214,7 +214,6 @@ export function SealedModalPreview({
   imagePadding,
   priceHistoryCount,
   priceFetchedAtLabel,
-  onClose,
 }: {
   product: SealedDetailResponse;
   mediaWidth: string;
@@ -222,7 +221,6 @@ export function SealedModalPreview({
   imagePadding: string;
   priceHistoryCount: number;
   priceFetchedAtLabel: string | null;
-  onClose: () => void;
 }) {
   return (
     <aside
@@ -260,15 +258,10 @@ export function SealedModalPreview({
             </p>
             <div className="mt-2 text-base font-medium text-white/84">
               {product.episode ? (
-                <Link
-                  href={`/expansions/${product.episode.id}?tab=sealed`}
-                  prefetch={false}
-                  onClick={onClose}
-                  className="transition-colors hover:text-white"
-                >
+                <span>
                   {product.episode.name}
                   {product.episode.code ? ` (${product.episode.code})` : ""}
-                </Link>
+                </span>
               ) : (
                 "--"
               )}
@@ -302,7 +295,6 @@ export function SealedModalHeroSection({
   actionError,
   onRefresh,
   onSyncHistory,
-  onClose,
 }: {
   product: SealedDetailResponse;
   titleClass: string;
@@ -316,7 +308,6 @@ export function SealedModalHeroSection({
   actionError: string | null;
   onRefresh: () => void;
   onSyncHistory: () => void;
-  onClose: () => void;
 }) {
   const heroDetailStats = [
     {
@@ -326,17 +317,12 @@ export function SealedModalHeroSection({
     {
       label: "Set",
       value: product.episode ? (
-        <Link
-          href={`/expansions/${product.episode.id}?tab=sealed`}
-          prefetch={false}
-          onClick={onClose}
-          className="inline-flex max-w-full items-center text-base font-medium text-white/84 transition-colors hover:text-white hover:underline underline-offset-2"
-        >
+        <span className="inline-flex max-w-full items-center text-base font-medium text-white/84">
           <span className="truncate">
             {product.episode.name}
             {product.episode.code ? ` (${product.episode.code})` : ""}
           </span>
-        </Link>
+        </span>
       ) : (
         "--"
       ),

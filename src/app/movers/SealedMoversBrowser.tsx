@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useDeferredValue, useMemo, useState } from "react";
+import { type KeyboardEvent, useDeferredValue, useMemo, useState } from "react";
 import { ExternalLink, Package, Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
@@ -248,16 +248,25 @@ function SealedMoverTile({
   onOpen: (item: SealedMoverItem) => void;
 }) {
   const reason = sealedReasonChip(item);
+  const openDetails = () => onOpen(item);
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openDetails();
+    }
+  };
 
   return (
     <article
-      className="group flex h-full flex-col rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open sealed details for ${item.name}`}
+      onClick={openDetails}
+      onKeyDown={handleKeyDown}
+      className="group flex h-full cursor-pointer flex-col rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
     >
-      <button
-        type="button"
-        onClick={() => onOpen(item)}
-        className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
-      >
+      <div className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-3 text-left">
         <span className="relative aspect-square w-full overflow-hidden rounded-xl bg-black/[0.035] dark:bg-black/24">
           {item.imageUrl ? (
             <Image
@@ -297,7 +306,7 @@ function SealedMoverTile({
             ) : null}
           </span>
         </span>
-      </button>
+      </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <div className="rounded-xl border border-emerald-400/14 bg-emerald-400/[0.07] px-3 py-2">
