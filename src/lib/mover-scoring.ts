@@ -115,6 +115,19 @@ function isSuspiciousRecentMove(input: BuildMoverScoresInput): boolean {
     if (high >= 500 && high / low >= 5 && absPct >= 120) {
       return true;
     }
+
+    if (high >= 1000 && high / low >= 4 && absChange >= 1000 && absPct >= 60) {
+      return true;
+    }
+
+    if (
+      input.currentPrice < input.comparisonPrice &&
+      input.comparisonPrice >= 5000 &&
+      absChange >= 3000 &&
+      absPct >= 50
+    ) {
+      return true;
+    }
   }
 
   return false;

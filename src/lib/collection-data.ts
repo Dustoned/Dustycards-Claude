@@ -22,6 +22,7 @@ import {
   type EpisodePriceHistorySnapshot,
   type EpisodeSealedPriceHistorySnapshot,
 } from "@/lib/price-history";
+import { buildMoverScores } from "@/lib/mover-scoring";
 
 export interface CollectionSummaryMetric {
   investment: number;
@@ -1393,6 +1394,27 @@ interface AllCardValueDriverRow {
   previousCmFrLowestNm: number | null;
   previousCmEsLowestNm: number | null;
   previousCmItLowestNm: number | null;
+  currentFallbackValue: number | null;
+  previousFallbackValue: number | null;
+  valueHistoryPoints: number;
+}
+
+function getSaneAllCardRawValue(
+  value: number | null,
+  fallbackValue: number | null
+): number | null {
+  if (value == null) return null;
+
+  if (
+    fallbackValue != null &&
+    fallbackValue >= 10 &&
+    value < 1 &&
+    value < fallbackValue * 0.15
+  ) {
+    return fallbackValue;
+  }
+
+  return value;
 }
 
 async function getAllCardValueDriversData(): Promise<CollectionValueDriversData> {
@@ -1438,6 +1460,13 @@ async function getAllCardValueDriversData(): Promise<CollectionValueDriversData>
           ) AS row_num
         FROM "Price" p
         WHERE DATE(p.fetched_at) <= ${latestDate}
+          AND (
+            p.cm_en_lowest_nm IS NOT NULL
+            OR p.cm_de_lowest_nm IS NOT NULL
+            OR p.cm_fr_lowest_nm IS NOT NULL
+            OR p.cm_es_lowest_nm IS NOT NULL
+            OR p.cm_it_lowest_nm IS NOT NULL
+          )
       )
       WHERE row_num = 1
     ),
@@ -1457,13 +1486,83 @@ async function getAllCardValueDriversData(): Promise<CollectionValueDriversData>
           ) AS row_num
         FROM "Price" p
         WHERE DATE(p.fetched_at) <= ${previousDate}
+          AND (
+            p.cm_en_lowest_nm IS NOT NULL
+            OR p.cm_de_lowest_nm IS NOT NULL
+            OR p.cm_fr_lowest_nm IS NOT NULL
+            OR p.cm_es_lowest_nm IS NOT NULL
+            OR p.cm_it_lowest_nm IS NOT NULL
+          )
       )
       WHERE row_num = 1
     ),
-    changed_card_ids AS (
-      SELECT card_id FROM current_prices
-      UNION
-      SELECT card_id FROM previous_prices
+    current_fallback_prices AS (
+      SELECT card_id, value
+      FROM (
+        SELECT
+          p.card_id,
+          COALESCE(
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm
+          ) AS value,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        WHERE DATE(p.fetched_at) <= ${latestDate}
+          AND COALESCE(
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm
+          ) >= 1
+      )
+      WHERE row_num = 1
+    ),
+    previous_fallback_prices AS (
+      SELECT card_id, value
+      FROM (
+        SELECT
+          p.card_id,
+          COALESCE(
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm
+          ) AS value,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        WHERE DATE(p.fetched_at) <= ${previousDate}
+          AND COALESCE(
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm
+          ) >= 1
+      )
+      WHERE row_num = 1
+    ),
+    history_counts AS (
+      SELECT
+        card_id,
+        COUNT(*) AS value_history_points
+      FROM "Price"
+      WHERE cm_en_lowest_nm IS NOT NULL
+         OR cm_de_lowest_nm IS NOT NULL
+         OR cm_fr_lowest_nm IS NOT NULL
+         OR cm_es_lowest_nm IS NOT NULL
+         OR cm_it_lowest_nm IS NOT NULL
+      GROUP BY card_id
     )
     SELECT
       c.id AS "cardId",
@@ -1482,33 +1581,70 @@ async function getAllCardValueDriversData(): Promise<CollectionValueDriversData>
       pp.cm_de_lowest_nm AS "previousCmDeLowestNm",
       pp.cm_fr_lowest_nm AS "previousCmFrLowestNm",
       pp.cm_es_lowest_nm AS "previousCmEsLowestNm",
-      pp.cm_it_lowest_nm AS "previousCmItLowestNm"
-    FROM changed_card_ids ids
-    INNER JOIN "Card" c ON c.id = ids.card_id
+      pp.cm_it_lowest_nm AS "previousCmItLowestNm",
+      cfp.value AS "currentFallbackValue",
+      pfp.value AS "previousFallbackValue",
+      COALESCE(hc.value_history_points, 0) AS "valueHistoryPoints"
+    FROM current_prices cp
+    INNER JOIN previous_prices pp ON pp.card_id = cp.card_id
+    INNER JOIN "Card" c ON c.id = cp.card_id
     INNER JOIN "Episode" e ON e.id = c.episode_id
-    LEFT JOIN current_prices cp ON cp.card_id = ids.card_id
-    LEFT JOIN previous_prices pp ON pp.card_id = ids.card_id
+    LEFT JOIN current_fallback_prices cfp ON cfp.card_id = c.id
+    LEFT JOIN previous_fallback_prices pfp ON pfp.card_id = c.id
+    LEFT JOIN history_counts hc ON hc.card_id = c.id
   `;
 
   const drafts = new Map<string, CollectionValueDriverDraft>();
 
   for (const row of rows) {
-    const currentValue =
+    const currentValue = getSaneAllCardRawValue(
       getCardMarketValue({
         cm_en_lowest_nm: row.currentCmEnLowestNm,
         cm_de_lowest_nm: row.currentCmDeLowestNm,
         cm_fr_lowest_nm: row.currentCmFrLowestNm,
         cm_es_lowest_nm: row.currentCmEsLowestNm,
         cm_it_lowest_nm: row.currentCmItLowestNm,
-      }) ?? 0;
-    const previousValue =
+      }),
+      row.currentFallbackValue
+    );
+    const previousValue = getSaneAllCardRawValue(
       getCardMarketValue({
         cm_en_lowest_nm: row.previousCmEnLowestNm,
         cm_de_lowest_nm: row.previousCmDeLowestNm,
         cm_fr_lowest_nm: row.previousCmFrLowestNm,
         cm_es_lowest_nm: row.previousCmEsLowestNm,
         cm_it_lowest_nm: row.previousCmItLowestNm,
-      }) ?? 0;
+      }),
+      row.previousFallbackValue
+    );
+
+    if (currentValue == null || previousValue == null || currentValue <= 0 || previousValue <= 0) {
+      continue;
+    }
+
+    const change = roundCurrency(currentValue - previousValue);
+    const changePct = calculateChangePct(change, previousValue);
+    const coveredDays = Math.max(
+      1,
+      Math.round(
+        (new Date(`${latestDate}T00:00:00.000Z`).getTime() -
+          new Date(`${previousDate}T00:00:00.000Z`).getTime()) /
+          (24 * 60 * 60 * 1000)
+      )
+    );
+    const scores = buildMoverScores({
+      kind: "raw",
+      currentPrice: currentValue,
+      change7d: { change, changePct, coveredDays },
+      change30d: { change, changePct, coveredDays },
+      historyPoints: Number(row.valueHistoryPoints ?? 0),
+      lifetimeHistoryPoints: Number(row.valueHistoryPoints ?? 0),
+      comparisonPrice: previousValue,
+    });
+
+    if (scores.priceQuality.status === "suspicious") {
+      continue;
+    }
 
     addCollectionValueDriverDraft(drafts, {
       id: `card:${row.cardId}:Raw`,

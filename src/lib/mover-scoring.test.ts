@@ -46,6 +46,75 @@ describe("mover scoring", () => {
     expect(scores.rankingScore).toBe(0);
   });
 
+  it("marks extreme high-value raw drops as suspicious", () => {
+    const scores = buildMoverScores({
+      kind: "raw",
+      currentPrice: 2400,
+      change7d: {
+        change: -10100,
+        changePct: -80.8,
+        coveredDays: 2,
+      },
+      change30d: {
+        change: -10100,
+        changePct: -80.8,
+        coveredDays: 2,
+      },
+      historyPoints: 8,
+      lifetimeHistoryPoints: 12,
+      comparisonPrice: 12500,
+    });
+
+    expect(scores.priceQuality.status).toBe("suspicious");
+    expect(scores.rankingScore).toBe(0);
+  });
+
+  it("marks large thin-market raw drops as suspicious even below a 4x ratio", () => {
+    const scores = buildMoverScores({
+      kind: "raw",
+      currentPrice: 3650,
+      change7d: {
+        change: -5850,
+        changePct: -61.6,
+        coveredDays: 2,
+      },
+      change30d: {
+        change: -5850,
+        changePct: -61.6,
+        coveredDays: 2,
+      },
+      historyPoints: 8,
+      lifetimeHistoryPoints: 12,
+      comparisonPrice: 9500,
+    });
+
+    expect(scores.priceQuality.status).toBe("suspicious");
+    expect(scores.rankingScore).toBe(0);
+  });
+
+  it("marks four-figure raw drops to tiny current prices as suspicious", () => {
+    const scores = buildMoverScores({
+      kind: "raw",
+      currentPrice: 45,
+      change7d: {
+        change: -1954.99,
+        changePct: -97.7,
+        coveredDays: 2,
+      },
+      change30d: {
+        change: -1954.99,
+        changePct: -97.7,
+        coveredDays: 2,
+      },
+      historyPoints: 8,
+      lifetimeHistoryPoints: 12,
+      comparisonPrice: 1999.99,
+    });
+
+    expect(scores.priceQuality.status).toBe("suspicious");
+    expect(scores.rankingScore).toBe(0);
+  });
+
   it("ranks a normal recent rise with enough history", () => {
     const scores = buildMoverScores({
       kind: "raw",
