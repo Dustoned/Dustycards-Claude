@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ArrowDownRight, ArrowUpRight, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Search } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -34,16 +34,10 @@ const CardModal = dynamic(() => import("@/components/CardModal"), {
 type MoversMode = "value" | "raw" | "graded" | "targets" | "sealed";
 type DriverLaneKey = "gain" | "drop";
 type ValueDriverScope = "collection" | "all";
+type ValueDriverFilter = "all" | DriverLaneKey;
 
 const INITIAL_VALUE_DRIVER_RENDER_COUNT = 24;
 const VALUE_DRIVER_RENDER_BATCH_SIZE = 36;
-
-interface DriverLane {
-  key: DriverLaneKey;
-  title: string;
-  total: number;
-  items: CollectionValueDriverItem[];
-}
 
 function modeHref(pathname: string, searchParams: { toString(): string }, mode: MoversMode): string {
   const params = new URLSearchParams(searchParams.toString());
@@ -80,6 +74,14 @@ function scopeButtonClass(active: boolean): string {
     active
       ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
       : "border-black/8 bg-white/75 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+  }`;
+}
+
+function valueFilterButtonClass(active: boolean): string {
+  return `inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-semibold transition-colors ${
+    active
+      ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
+      : "text-gray-500 hover:bg-black/[0.05] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
   }`;
 }
 
@@ -122,6 +124,26 @@ function sourceLabel(item: CollectionValueDriverItem): string {
   return `${item.previousSource} -> ${item.currentSource}`;
 }
 
+function driverSearchText(item: CollectionValueDriverItem): string {
+  return [
+    item.name,
+    item.detail,
+    item.cardNumber,
+    item.episodeName,
+    item.episodeCode,
+    sourceLabel(item),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function matchesDriverQuery(item: CollectionValueDriverItem, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  return driverSearchText(item).includes(normalized);
+}
+
 function episodeLabel(item: CollectionValueDriverItem): string {
   return item.episodeCode ? `${item.episodeName} (${item.episodeCode})` : item.episodeName;
 }
@@ -156,7 +178,7 @@ function DriverRow({
     ? "h-24 w-[4.4rem] bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]"
     : "h-24 w-[4.4rem] rounded-xl border border-black/8 bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.05]";
   const cardClassName =
-    "group relative flex h-full min-h-[14.75rem] min-w-0 flex-col rounded-2xl border border-black/8 bg-white/74 p-3 text-left shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 aria-busy:opacity-60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06] sm:min-h-[15.75rem]";
+    "group relative flex h-full min-w-0 flex-col rounded-2xl border border-black/8 bg-white/72 p-3 text-left shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 aria-busy:opacity-60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]";
 
   function openCardDetails() {
     if (!item.cardId) return;
@@ -178,7 +200,7 @@ function DriverRow({
   }
 
   const content = (
-    <div className="flex min-w-0 flex-1 items-start gap-3">
+    <div className="flex min-w-0 items-start gap-3">
       <div
         className={`relative shrink-0 overflow-hidden ${imageFrameClass}`}
       >
@@ -187,8 +209,8 @@ function DriverRow({
             src={imageUrl}
             alt={item.name}
             fill
-            sizes="74px"
-            className="object-contain"
+            sizes="80px"
+            className="object-contain transition-transform duration-300 group-hover:scale-[1.03]"
             unoptimized
           />
         ) : (
@@ -242,15 +264,24 @@ function DriverRow({
           </span>
         </div>
 
-        <div className="mt-4 grid gap-2">
-          <div className={`rounded-2xl border px-3 py-3 ${tonePanelClass(tone)}`}>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${tonePanelClass(tone)} ${toneTextClass(tone)}`}>
+            {percent ?? "Latest"}
+          </span>
+          <span className="inline-flex rounded-full border border-black/8 bg-black/[0.035] px-2.5 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/42">
+            Latest change
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
+          <div className={`relative rounded-2xl border px-3 py-3 ${tonePanelClass(tone)}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500/80 dark:text-white/42">
                   Change
                 </p>
                 <p
-                  className={`mt-2 flex max-w-full items-center gap-1 whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl ${toneTextClass(
+                  className={`mt-2 flex max-w-full items-center gap-1 break-words text-xl font-bold leading-tight tabular-nums ${toneTextClass(
                     tone
                   )}`}
                 >
@@ -262,14 +293,14 @@ function DriverRow({
                 {percent ?? ""}
               </p>
             </div>
-            <p className="mt-1 break-words text-xs text-gray-500 dark:text-white/45">
+            <p className="mt-1 text-xs text-gray-500 dark:text-white/45">
               {formatCollectionCurrency(item.previousValue)}
               {" -> "}
               {formatCollectionCurrency(item.currentValue)}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-2 sm:grid-cols-2">
             <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-3 py-3 dark:border-white/8 dark:bg-white/[0.035]">
               <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
                 Before
@@ -319,68 +350,42 @@ function DriverRow({
   );
 }
 
-function DriverList({
-  lane,
+function DriverGrid({
+  items,
   loadingCardId,
   onOpenCard,
   tileMinWidth,
-  renderLimit,
 }: {
-  lane: DriverLane;
+  items: CollectionValueDriverItem[];
   loadingCardId: string | null;
   onOpenCard: (cardId: string) => void;
   tileMinWidth: string;
-  renderLimit: number;
 }) {
-  const isGain = lane.key === "gain";
-  const Icon = isGain ? TrendingUp : TrendingDown;
-  const titleText = isGain ? "Gains" : "Drops";
-  const visibleItems = lane.items.slice(0, renderLimit);
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-black/10 bg-black/[0.025] px-4 py-7 text-center text-xs font-medium text-gray-400 dark:border-white/10 dark:bg-white/[0.035] dark:text-white/35">
+        No value changes match this view
+      </div>
+    );
+  }
 
   return (
-    <section className="min-w-0">
-      <div className="mb-3 flex items-end justify-between gap-3 border-b border-black/8 pb-3 dark:border-white/8">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-black/8 bg-white/72 text-gray-500 shadow-sm shadow-black/4 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/50">
-            <Icon className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-lg font-bold leading-6 text-gray-950 dark:text-white">
-              {titleText}
-            </p>
-            <p className="text-xs leading-4 text-gray-500 dark:text-white/42">
-              {lane.items.length} items
-            </p>
-          </div>
-        </div>
-        <p className={`shrink-0 text-lg font-bold tabular-nums ${toneTextClass(lane.key)}`}>
-          {signedCurrency(lane.total)}
-        </p>
-      </div>
-
-      {visibleItems.length > 0 ? (
-        <div
-          className="grid auto-rows-fr items-stretch gap-4"
-          style={{
-            gridTemplateColumns: getFixedTrackGridTemplate(tileMinWidth),
-            justifyContent: "start",
-          }}
-        >
-          {visibleItems.map((item) => (
-            <DriverRow
-              key={item.id}
-              item={item}
-              loading={item.cardId === loadingCardId}
-              onOpenCard={onOpenCard}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-black/10 bg-black/[0.025] px-4 py-7 text-center text-xs font-medium text-gray-400 dark:border-white/10 dark:bg-white/[0.035] dark:text-white/35">
-          No movement
-        </div>
-      )}
-    </section>
+    <div
+      className="grid auto-rows-fr items-stretch gap-4"
+      style={{
+        gridTemplateColumns: getFixedTrackGridTemplate(tileMinWidth),
+        justifyContent: "start",
+      }}
+    >
+      {items.map((item) => (
+        <DriverRow
+          key={item.id}
+          item={item}
+          loading={item.cardId === loadingCardId}
+          onOpenCard={onOpenCard}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -396,16 +401,35 @@ export default function CollectionValueDrivers({
   const { displaySettings } = useSettings();
   const pathname = usePathname() ?? "/movers";
   const searchParams = useSearchParams();
-  const [mobileLane, setMobileLane] = useState<DriverLaneKey>("gain");
+  const [driverFilter, setDriverFilter] = useState<ValueDriverFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const hasDrivers = data.gains.length > 0 || data.drops.length > 0;
-  const visibleDriverCount = data.gains.length + data.drops.length;
+  const allDrivers = useMemo(
+    () =>
+      [...data.gains, ...data.drops].sort((a, b) => {
+        const changeDiff = Math.abs(b.change) - Math.abs(a.change);
+        if (changeDiff !== 0) return changeDiff;
+        return Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0);
+      }),
+    [data.drops, data.gains]
+  );
+  const filteredDrivers = useMemo(
+    () =>
+      allDrivers.filter((item) => {
+        if (driverFilter === "gain" && item.change < 0) return false;
+        if (driverFilter === "drop" && item.change >= 0) return false;
+        return matchesDriverQuery(item, searchQuery);
+      }),
+    [allDrivers, driverFilter, searchQuery]
+  );
+  const visibleDriverCount = filteredDrivers.length;
   const shouldLazyRender = activeItemScope === "all";
-  const renderKey = `${activeItemScope}:${data.previousDate ?? "none"}:${data.latestDate ?? "none"}:${data.gains.length}:${data.drops.length}`;
+  const renderKey = `${activeItemScope}:${data.previousDate ?? "none"}:${data.latestDate ?? "none"}:${driverFilter}:${searchQuery}:${data.gains.length}:${data.drops.length}`;
   const [renderState, setRenderState] = useState({
     key: "",
     limit: INITIAL_VALUE_DRIVER_RENDER_COUNT,
@@ -416,15 +440,15 @@ export default function CollectionValueDrivers({
       : shouldLazyRender
         ? INITIAL_VALUE_DRIVER_RENDER_COUNT
         : Number.POSITIVE_INFINITY;
+  const renderedDrivers = filteredDrivers.slice(0, renderLimit);
   const renderedDriverCount = useMemo(
     () =>
       shouldLazyRender
-        ? Math.min(data.gains.length, renderLimit) + Math.min(data.drops.length, renderLimit)
+        ? Math.min(filteredDrivers.length, renderLimit)
         : visibleDriverCount,
-    [data.drops.length, data.gains.length, renderLimit, shouldLazyRender, visibleDriverCount]
+    [filteredDrivers.length, renderLimit, shouldLazyRender, visibleDriverCount]
   );
-  const hasMoreDrivers =
-    shouldLazyRender && (renderLimit < data.gains.length || renderLimit < data.drops.length);
+  const hasMoreDrivers = shouldLazyRender && renderLimit < filteredDrivers.length;
   const driverTileMinWidth = getRichMoverTrackWidth(
     displaySettings.cardSize,
     displaySettings.widescreen
@@ -440,11 +464,15 @@ export default function CollectionValueDrivers({
     { key: "targets", label: "Targets", shortLabel: "Targets" },
     { key: "sealed", label: "Sealed", shortLabel: "Sealed" },
   ];
-  const lanes: DriverLane[] = [
-    { key: "gain", title: "Gains", total: data.gainsTotal, items: data.gains },
-    { key: "drop", title: "Drops", total: data.dropsTotal, items: data.drops },
+  const filterOptions: Array<{
+    key: ValueDriverFilter;
+    label: string;
+    count: number;
+  }> = [
+    { key: "all", label: "All moves", count: allDrivers.length },
+    { key: "gain", label: "Gains", count: data.gains.length },
+    { key: "drop", label: "Drops", count: data.drops.length },
   ];
-  const activeLane = lanes.find((lane) => lane.key === mobileLane) ?? lanes[0];
 
   useEffect(() => {
     if (!hasMoreDrivers) {
@@ -465,7 +493,7 @@ export default function CollectionValueDrivers({
         setRenderState((current) => {
           const currentLimit =
             current.key === renderKey ? current.limit : INITIAL_VALUE_DRIVER_RENDER_COUNT;
-          const maxItems = Math.max(data.gains.length, data.drops.length);
+          const maxItems = filteredDrivers.length;
           const nextLimit = Math.min(currentLimit + VALUE_DRIVER_RENDER_BATCH_SIZE, maxItems);
 
           if (current.key === renderKey && nextLimit === current.limit) {
@@ -486,7 +514,7 @@ export default function CollectionValueDrivers({
     return () => {
       observer.disconnect();
     };
-  }, [data.drops.length, data.gains.length, hasMoreDrivers, renderKey]);
+  }, [filteredDrivers.length, hasMoreDrivers, renderKey]);
 
   const openCard = useCallback(
     async (cardId: string) => {
@@ -616,8 +644,8 @@ export default function CollectionValueDrivers({
 
           <SectionHeader
             eyebrow="Value Changes"
-            title="Latest change"
-            description={rangeLabel}
+            title="Market list"
+            description={`Raw-style value changes for ${rangeLabel.toLowerCase()}.`}
             actions={
               <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
                 {shouldLazyRender
@@ -628,52 +656,55 @@ export default function CollectionValueDrivers({
             }
           />
 
-          <div className="grid grid-cols-2 gap-1 rounded-xl border border-black/8 bg-white/72 p-1 shadow-sm shadow-black/4 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-none md:hidden">
-            {lanes.map((lane) => (
-              <button
-                key={lane.key}
-                type="button"
-                onClick={() => setMobileLane(lane.key)}
-                className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
-                  mobileLane === lane.key
-                    ? "border border-black/10 bg-white text-gray-950 shadow-sm shadow-black/10 dark:border-white dark:bg-white dark:text-gray-950"
-                    : "border border-transparent text-gray-500 dark:text-white/56"
-                }`}
-              >
-                <span className="truncate text-[11px] font-semibold">{lane.title}</span>
-                <span
-                  className={`shrink-0 text-[11px] font-bold tabular-nums ${
-                    mobileLane === lane.key ? "" : toneTextClass(lane.key)
-                  }`}
+          <div className="rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/4 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-none">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+              <div className="min-w-0">
+                <label
+                  htmlFor="value-driver-search"
+                  className="mb-1.5 block px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35"
                 >
-                  {signedCurrency(lane.total)}
+                  Search
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
+                  <input
+                    id="value-driver-search"
+                    type="search"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Card, set, number"
+                    className="h-11 w-full rounded-xl border border-black/8 bg-black/[0.035] pl-9 pr-3 text-sm font-medium text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-400/60 focus:bg-white dark:border-white/8 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/32 dark:focus:border-emerald-300/50 dark:focus:bg-white/[0.06]"
+                  />
+                </div>
+              </div>
+
+              <div className="min-w-0">
+                <span className="mb-1.5 block px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                  View
                 </span>
-              </button>
-            ))}
+                <div className="flex min-w-0 flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
+                  {filterOptions.map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setDriverFilter(option.key)}
+                      className={valueFilterButtonClass(driverFilter === option.key)}
+                    >
+                      <span>{option.label}</span>
+                      <span className="ml-1 opacity-55">{option.count.toLocaleString("en-US")}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="md:hidden">
-            <DriverList
-              lane={activeLane}
-              loadingCardId={loadingCardId}
-              onOpenCard={handleOpenCard}
-              tileMinWidth={driverTileMinWidth}
-              renderLimit={renderLimit}
-            />
-          </div>
-
-          <div className="hidden gap-3 md:grid md:grid-cols-2 xl:gap-4">
-            {lanes.map((lane) => (
-              <DriverList
-                key={lane.key}
-                lane={lane}
-                loadingCardId={loadingCardId}
-                onOpenCard={handleOpenCard}
-                tileMinWidth={driverTileMinWidth}
-                renderLimit={renderLimit}
-              />
-            ))}
-          </div>
+          <DriverGrid
+            items={renderedDrivers}
+            loadingCardId={loadingCardId}
+            onOpenCard={handleOpenCard}
+            tileMinWidth={driverTileMinWidth}
+          />
 
           {hasMoreDrivers ? (
             <div
