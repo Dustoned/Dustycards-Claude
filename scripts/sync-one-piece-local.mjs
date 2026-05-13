@@ -63,6 +63,10 @@ function extractPrices(rawPrices) {
   };
 }
 
+function hasEnglishCardmarketPrice(card) {
+  return asNumber(card.prices?.cardmarket?.lowest_near_mint) != null;
+}
+
 function hasAnyPrice(price) {
   return Object.values(price).some((value) => value != null);
 }
@@ -110,6 +114,45 @@ async function fetchCardsForEpisode(episodeId) {
   }
 
   return cards;
+}
+
+function cleanupOnePieceCards(importedCardIds) {
+  const keepIds = new Set(importedCardIds);
+  const staleCards = db.prepare(`
+    SELECT id
+    FROM "Card"
+    WHERE game = ?
+  `).all(GAME).filter((card) => !keepIds.has(card.id));
+
+  if (staleCards.length === 0) {
+    return 0;
+  }
+
+  const staleIds = staleCards.map((card) => card.id);
+  const deleteChunk = db.transaction((ids) => {
+    const placeholders = ids.map(() => "?").join(", ");
+    db.prepare(`
+      DELETE FROM "CollectionCardTag"
+      WHERE collection_card_id IN (
+        SELECT id FROM "CollectionCard" WHERE card_id IN (${placeholders})
+      )
+    `).run(...ids);
+    db.prepare(`DELETE FROM "CollectionCard" WHERE card_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM "CollectionWant" WHERE card_id IN (${placeholders})`).run(...ids);
+    db.prepare(`UPDATE "EbayListingCardOverride" SET card_id = NULL WHERE card_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM "Price" WHERE card_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM "CardGradedPrice" WHERE card_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM "CardGradedPriceSnapshot" WHERE card_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM "CardEbaySoldGradedPrice" WHERE card_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM "CardEbaySoldGradedPriceSnapshot" WHERE card_id IN (${placeholders})`).run(...ids);
+    db.prepare(`DELETE FROM "Card" WHERE id IN (${placeholders})`).run(...ids);
+  });
+
+  for (let index = 0; index < staleIds.length; index += 200) {
+    deleteChunk(staleIds.slice(index, index + 200));
+  }
+
+  return staleIds.length;
 }
 
 function ensureLiveDb() {
@@ -244,21 +287,32 @@ const importEpisode = db.transaction((episode, cards) => {
 try {
   const episodes = await fetchAllEpisodes();
   let importedCards = 0;
+  let skippedCards = 0;
+  const importedCardIds = [];
 
   console.log(`Importing ${episodes.length} One Piece episodes into ${LIVE_DB_PATH}`);
 
   for (const [index, episode] of episodes.entries()) {
-    const cards = await fetchCardsForEpisode(episode.id).catch((error) => {
+    const rawCards = await fetchCardsForEpisode(episode.id).catch((error) => {
       console.warn(`Skipping ${episode.name}: ${error.message}`);
       return [];
     });
+    const cards = rawCards.filter(hasEnglishCardmarketPrice);
+    skippedCards += rawCards.length - cards.length;
 
     importEpisode(episode, cards);
     importedCards += cards.length;
-    console.log(`${index + 1}/${episodes.length} ${episode.code ?? "--"} ${episode.name}: ${cards.length} cards`);
+    importedCardIds.push(...cards.map((card) => scopeId(card.id)));
+    console.log(
+      `${index + 1}/${episodes.length} ${episode.code ?? "--"} ${episode.name}: ${cards.length}/${rawCards.length} English cards`
+    );
   }
 
-  console.log(`Done. Imported ${episodes.length} episodes and ${importedCards} cards.`);
+  const deletedCards = cleanupOnePieceCards(importedCardIds);
+
+  console.log(
+    `Done. Imported ${episodes.length} episodes and ${importedCards} English cards. Skipped ${skippedCards} non-English/unpriced cards. Deleted ${deletedCards} stale cards.`
+  );
 } finally {
   db.close();
 }

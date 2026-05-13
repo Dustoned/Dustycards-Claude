@@ -3,6 +3,7 @@ import { getRapidApiHeaders } from "@/lib/env";
 import {
   getRemoteTcggoId,
   getTcggoGamePath,
+  ONE_PIECE_GAME,
   POKEMON_GAME,
   scopeGameId,
   type TradingCardGame,
@@ -159,6 +160,21 @@ interface RawPrices {
     mid_price?: number;
     low_price?: number;
   };
+}
+
+function hasEnglishOnePieceCardmarketPrice(card: RawCard): boolean {
+  return (
+    typeof card.prices?.cardmarket?.lowest_near_mint === "number" &&
+    Number.isFinite(card.prices.cardmarket.lowest_near_mint)
+  );
+}
+
+function filterRawCardsForGame(cards: RawCard[], game: TradingCardGame): RawCard[] {
+  if (game !== ONE_PIECE_GAME) {
+    return cards;
+  }
+
+  return cards.filter(hasEnglishOnePieceCardmarketPrice);
 }
 
 type RawGradedPrices =
@@ -1112,7 +1128,7 @@ export async function fetchCardsForEpisode(
     paging?: { total?: number };
   }>(`/${gamePath}/episodes/${remoteEpisodeId}/cards?page=1&per_page=100`);
 
-  const all: NormalizedCard[] = (firstPage.data ?? []).map((card) =>
+  const all: NormalizedCard[] = filterRawCardsForGame(firstPage.data ?? [], game).map((card) =>
     normalizeCard(card, tcgdexImageLookup, game)
   );
   const totalPages = firstPage.paging?.total ?? 1;
@@ -1132,7 +1148,9 @@ export async function fetchCardsForEpisode(
 
   for (const page of remainingPages) {
     all.push(
-      ...(page.data ?? []).map((card) => normalizeCard(card, tcgdexImageLookup, game))
+      ...filterRawCardsForGame(page.data ?? [], game).map((card) =>
+        normalizeCard(card, tcgdexImageLookup, game)
+      )
     );
   }
 
@@ -1252,6 +1270,7 @@ export async function fetchCardDetail(
   const card = data.data;
 
   if (!card) return null;
+  if (game === ONE_PIECE_GAME && !hasEnglishOnePieceCardmarketPrice(card)) return null;
 
   return normalizeCard(card, tcgdexImageLookup, game);
 }
