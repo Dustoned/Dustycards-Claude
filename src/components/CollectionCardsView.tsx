@@ -1878,7 +1878,9 @@ export default function CollectionCardsView({
                   const previewAspectClass = isGradedCard
                     ? GRADED_SLAB_ASPECT_CLASS
                     : RAW_CARD_ASPECT_CLASS;
-                  const baseImageClass = "object-contain";
+                  const baseImageClass = isGradedCard
+                    ? "object-contain"
+                    : "object-contain rounded-[4.75%]";
                   const imageClass =
                     blurMissing && missing
                       ? `${baseImageClass} blur-[2.5px] saturate-[0.72] opacity-55`
@@ -1972,8 +1974,8 @@ export default function CollectionCardsView({
                                   : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
                               }`
                             : isSelected
-                              ? "bg-transparent drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
-                              : "bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
+                              ? "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
+                              : "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
                         }`}
                       >
                         {isGradedCard && gradingCompanyLabel && gradingGradeLabel ? (
@@ -2026,7 +2028,7 @@ export default function CollectionCardsView({
                           </div>
                         )}
 
-                {item.owned_count && item.owned_count > 1 && (
+                {(item.owned_count ?? 0) > 1 && (
                   <span className={`absolute bottom-2 right-2 ${collectionOverlayBadgeClass(displaySettings.cardSize)}`}>
                     x{item.owned_count}
                   </span>
