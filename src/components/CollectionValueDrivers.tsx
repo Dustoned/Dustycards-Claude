@@ -20,7 +20,6 @@ import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getFixedTrackGridTemplate, getRichMoverTrackWidth } from "@/lib/display-scale";
-import { RAW_CARD_ASPECT_CLASS } from "@/lib/graded-slabs";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type {
   CollectionValueDriverItem,
@@ -154,10 +153,10 @@ function DriverRow({
   const percent = formatPercent(item.changePct);
   const imageUrl = getCachedImageUrl(item.imageUrl) ?? item.imageUrl;
   const imageFrameClass = item.kind === "card"
-    ? `${RAW_CARD_ASPECT_CLASS} w-[4.1rem] rounded-[6px] bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)] sm:w-[4.55rem]`
-    : "h-16 w-16 rounded-xl border border-black/8 bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.05] sm:h-[4.55rem] sm:w-[4.55rem]";
+    ? "h-24 w-[4.4rem] bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]"
+    : "h-24 w-[4.4rem] rounded-xl border border-black/8 bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.05]";
   const cardClassName =
-    "group relative flex h-full min-w-0 rounded-2xl border border-black/8 bg-white/74 p-3 text-left shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 aria-busy:opacity-60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]";
+    "group relative flex h-full min-h-[14.75rem] min-w-0 flex-col rounded-2xl border border-black/8 bg-white/74 p-3 text-left shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 aria-busy:opacity-60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06] sm:min-h-[15.75rem]";
 
   function openCardDetails() {
     if (!item.cardId) return;
@@ -179,7 +178,7 @@ function DriverRow({
   }
 
   const content = (
-    <div className="flex min-w-0 items-start gap-3">
+    <div className="flex min-w-0 flex-1 items-start gap-3">
       <div
         className={`relative shrink-0 overflow-hidden ${imageFrameClass}`}
       >
@@ -203,7 +202,7 @@ function DriverRow({
         <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1.5">
-              <p className="truncate text-sm font-semibold leading-5 text-gray-950 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-200">
+              <p className="truncate text-base font-semibold leading-tight text-gray-950 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-200">
                 {item.name}
               </p>
               {item.quantity > 1 ? (
@@ -212,7 +211,7 @@ function DriverRow({
                 </span>
               ) : null}
             </div>
-            <p className="mt-0.5 truncate text-[11px] font-medium leading-4 text-gray-500 dark:text-white/46">
+            <p className="mt-1 truncate text-xs font-medium leading-4 text-gray-500 dark:text-white/46">
               {item.detail ? (
                 <>
                   <span>{item.detail}</span>
@@ -243,27 +242,27 @@ function DriverRow({
           </span>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(7.5rem,0.62fr)]">
-          <div className={`rounded-xl border px-3 py-2.5 ${tonePanelClass(tone)}`}>
-            <div className="flex items-start justify-between gap-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(12rem,1.15fr)_minmax(8.5rem,0.85fr)]">
+          <div className={`rounded-2xl border px-3 py-3 ${tonePanelClass(tone)}`}>
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500/80 dark:text-white/42">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500/80 dark:text-white/42">
                   Change
                 </p>
                 <p
-                  className={`mt-1 inline-flex max-w-full items-center gap-1 text-lg font-bold leading-tight tabular-nums ${toneTextClass(
+                  className={`mt-2 flex max-w-full items-center gap-1 whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl ${toneTextClass(
                     tone
                   )}`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{signedCurrency(item.change)}</span>
+                  <span>{signedCurrency(item.change)}</span>
                 </p>
               </div>
               <p className={`shrink-0 text-xs font-bold tabular-nums ${toneTextClass(tone)}`}>
                 {percent ?? ""}
               </p>
             </div>
-            <p className="mt-1 truncate text-[11px] text-gray-500 dark:text-white/45">
+            <p className="mt-1 truncate text-xs text-gray-500 dark:text-white/45">
               {formatCollectionCurrency(item.previousValue)}
               {" -> "}
               {formatCollectionCurrency(item.currentValue)}
@@ -271,19 +270,19 @@ function DriverRow({
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
-            <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.035]">
-              <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.13em] text-gray-400 dark:text-white/34">
+            <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-3 py-3 dark:border-white/8 dark:bg-white/[0.035]">
+              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
                 Before
               </span>
-              <span className="mt-0.5 block truncate text-xs font-bold tabular-nums text-gray-700 dark:text-white/72">
+              <span className="mt-1 block truncate text-sm font-bold tabular-nums text-gray-700 dark:text-white/72">
                 {formatCollectionCurrency(item.previousValue)}
               </span>
             </span>
-            <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.035]">
-              <span className="block truncate text-[9px] font-semibold uppercase tracking-[0.13em] text-gray-400 dark:text-white/34">
+            <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-3 py-3 dark:border-white/8 dark:bg-white/[0.035]">
+              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
                 Now
               </span>
-              <span className="mt-0.5 block truncate text-xs font-bold tabular-nums text-gray-900 dark:text-white">
+              <span className="mt-1 block truncate text-sm font-bold tabular-nums text-gray-900 dark:text-white">
                 {formatCollectionCurrency(item.currentValue)}
               </span>
             </span>

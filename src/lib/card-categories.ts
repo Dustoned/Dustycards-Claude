@@ -161,6 +161,43 @@ const RAINBOW_LABELED_ALT_ART_WHERE: Prisma.CardWhereInput = {
   ],
 };
 
+const SECRET_RARE_RARITIES = ["Rare Secret", "Secret Rare", "SECRET RARE"];
+
+const SWORD_SHIELD_GOLD_SECRET_RARE_EPISODE_CODES = [
+  "SSH",
+  "RCL",
+  "DAA",
+  "CPA",
+  "VIV",
+  "SHF",
+  "BST",
+  "CRE",
+  "EVS",
+  "FST",
+  "BRS",
+  "ASR",
+  "PGO",
+  "LOR",
+  "SIT",
+];
+
+// The source uses Rare Secret for both classic secret rares and gold-treatment cards.
+const GOLD_SECRET_RARE_WHERE: Prisma.CardWhereInput = {
+  AND: [
+    rarityIn(SECRET_RARE_RARITIES),
+    {
+      OR: [
+        { supertype: { in: ["Trainer", "Energy"] } },
+        { episode: { code: { in: SWORD_SHIELD_GOLD_SECRET_RARE_EPISODE_CODES } } },
+        cardsInEpisodeCode("CRZ", ["GG67", "GG68", "GG69", "GG70"]),
+        cardsInEpisodeCode("HIF", ["SV91", "SV92", "SV93", "SV94"]),
+        cardsInEpisodeCode("UPR", ["172", "173"]),
+        cardsInEpisodeCode("DRM", ["78"]),
+      ],
+    },
+  ],
+};
+
 function buildVisibleEpisodeWhere(): Prisma.EpisodeWhereInput {
   const hiddenConditions: Prisma.EpisodeWhereInput[] = [];
 
@@ -436,22 +473,32 @@ export const CARD_CATEGORIES: ReadonlyArray<CardCategoryDefinition> = [
     title: "Gold Cards",
     shortTitle: "Gold",
     description:
-      "Modern Hyper Rare cards with the gold treatment, kept separate from classic Secret Rares.",
+      "Hyper Rares and gold-treatment Secret Rares, kept separate from classic Secret Rares.",
     group: "Rarities",
     icon: "gem",
     tone: "amber",
-    where: rarityIn(["Hyper Rare", "Mega Hyper Rare"]),
+    where: {
+      OR: [
+        rarityIn(["Hyper Rare", "Mega Hyper Rare"]),
+        GOLD_SECRET_RARE_WHERE,
+      ],
+    },
   },
   {
     slug: "gold-secret-rare",
     title: "Secret Rare",
     shortTitle: "Secret",
     description:
-      "Secret-numbered cards from classic Secret Rare and Rare Secret buckets. Gold Hyper Rares have their own list.",
+      "Secret-numbered chase cards with gold-treatment cards filtered into Gold Cards.",
     group: "Rarities",
     icon: "sparkles",
     tone: "amber",
-    where: rarityIn(["Rare Secret", "Secret Rare", "SECRET RARE"]),
+    where: {
+      AND: [
+        rarityIn(SECRET_RARE_RARITIES),
+        { NOT: GOLD_SECRET_RARE_WHERE },
+      ],
+    },
   },
   {
     slug: "trainer-gallery",
