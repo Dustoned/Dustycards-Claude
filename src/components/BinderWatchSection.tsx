@@ -14,9 +14,11 @@ const CollectionCardsView = dynamic(() => import("@/components/CollectionCardsVi
 
 export default function BinderWatchSection({
   items,
+  showGradedSlabPreview = false,
   sectionTrailing,
 }: {
   items: CollectionCardViewItem[];
+  showGradedSlabPreview?: boolean;
   sectionTrailing?: ReactNode;
 }) {
   const { settings } = useSettings();
@@ -58,6 +60,7 @@ export default function BinderWatchSection({
         emptyText={`No binder cards above ${formatCollectionCurrency(threshold)} yet.`}
         forcedSortBy="cm_en"
         forcedSortDir="desc"
+        showGradedSlabPreview={showGradedSlabPreview}
       />
     </section>
   );

@@ -192,6 +192,7 @@ export default function CollectionOverviewSections({
           <CollectionCardsView
             items={gradedLooseSingles}
             allowCollectionRemoval
+            showGradedSlabPreview
             emptyTitle="No graded cards yet"
             emptyText="Graded cards saved without a binder appear here."
             sectionTitle="Graded Cards"
@@ -219,6 +220,7 @@ export default function CollectionOverviewSections({
           <CollectionCardsView
             items={rawLooseSingles}
             allowCollectionRemoval
+            showGradedSlabPreview
             emptyTitle="No loose singles yet"
             emptyText="Cards saved without a binder appear here."
             sectionTitle="Loose Singles"
@@ -245,6 +247,7 @@ export default function CollectionOverviewSections({
         render: () => (
           <BinderWatchSection
             items={binderCards}
+            showGradedSlabPreview
             sectionTrailing={
               <DragHandle
                 sectionKey="binderWatch"

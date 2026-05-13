@@ -407,6 +407,7 @@ export default async function HomePage({
           <CollectionCardsView
             items={data.cards}
             allowCollectionRemoval
+            showGradedSlabPreview
             emptyTitle="No cards in your collection"
             emptyText="Use the + button on any card to add it here."
             splitByGrading={gradedCards.length > 0 && gradedCards.length < data.cards.length}
@@ -421,6 +422,7 @@ export default async function HomePage({
             <CollectionCardsView
               items={gradedCards}
               allowCollectionRemoval
+              showGradedSlabPreview
               emptyTitle="No graded cards in your collection"
               emptyText="Cards with a grading company and grade will appear here."
               showFilters

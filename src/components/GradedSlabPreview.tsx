@@ -308,7 +308,11 @@ function GradedSlabPreview({
     .join(" ");
 
   return (
-    <div ref={rootRef} className={`relative h-full w-full text-left ${className}`}>
+    <div
+      ref={rootRef}
+      data-graded-slab-preview="true"
+      className={`relative h-full w-full text-left ${className}`}
+    >
       <div
         className={`relative h-full w-full overflow-hidden border shadow-[0_14px_30px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.18)] ${metrics.shellRadius} ${theme.shell}`}
       >

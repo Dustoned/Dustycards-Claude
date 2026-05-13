@@ -70,6 +70,7 @@ interface Props {
   card: ViewerCard;
   frontImageUrl: string;
   cardMarketUrl: string | null;
+  showGradedSlabPreview?: boolean;
   onClose: () => void;
 }
 
@@ -1007,7 +1008,13 @@ function findSavedGradedLabel(
   );
 }
 
-export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, onClose }: Props) {
+export default function CardThreeViewer({
+  card,
+  frontImageUrl,
+  cardMarketUrl,
+  showGradedSlabPreview = false,
+  onClose,
+}: Props) {
   const { displaySettings, isMobileViewport } = useSettings();
   const card3dSize = displaySettings.card3dSize;
   const [priceSource, setPriceSource] = useState<"cardmarket" | "tcgplayer">("cardmarket");
@@ -1051,7 +1058,9 @@ export default function CardThreeViewer({ card, frontImageUrl, cardMarketUrl, on
   const filteredCardMarketUrl = cardMarketUrl ? withCardMarketFilters(cardMarketUrl) : null;
   const gradingCompanyLabel = normalizeGradingCompanyLabel(card.collection_item?.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(card.collection_item?.grading_grade);
-  const isPsaSlabViewer = gradingCompanyLabel === "PSA" && Boolean(gradingGradeLabel);
+  const isPsaSlabViewer = Boolean(
+    showGradedSlabPreview && gradingCompanyLabel === "PSA" && gradingGradeLabel
+  );
 
   useBodyScrollLock();
 

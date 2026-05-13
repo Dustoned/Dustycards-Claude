@@ -42,6 +42,7 @@ const CardThreeViewer = dynamic(() => import("@/app/expansions/[id]/CardThreeVie
 
 interface Props {
   card: ModalCardData;
+  showGradedSlabPreview?: boolean;
   onClose: () => void;
 }
 
@@ -76,7 +77,7 @@ function findSavedGradedLabel(
   );
 }
 
-export default function CardModal({ card, onClose }: Props) {
+export default function CardModal({ card, showGradedSlabPreview = false, onClose }: Props) {
   useBodyScrollLock();
 
   const [modalCard, setModalCard] = useState(card);
@@ -119,7 +120,9 @@ export default function CardModal({ card, onClose }: Props) {
   const ebaySoldGradedPriceHistory = modalCard.ebay_sold_graded_price_history ?? [];
   const gradingCompanyLabel = normalizeGradingCompanyLabel(collectionItem?.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(collectionItem?.grading_grade);
-  const showGradedPreview = Boolean(gradingCompanyLabel && gradingGradeLabel);
+  const showGradedPreview = Boolean(
+    showGradedSlabPreview && gradingCompanyLabel && gradingGradeLabel
+  );
   const previewAspectClass = showGradedPreview
     ? GRADED_SLAB_ASPECT_CLASS
     : RAW_CARD_ASPECT_CLASS;
@@ -447,6 +450,7 @@ export default function CardModal({ card, onClose }: Props) {
           card={modalCard}
           frontImageUrl={modalCard.image_url}
           cardMarketUrl={storedCardMarketUrl}
+          showGradedSlabPreview={showGradedSlabPreview}
           onClose={() => setThreeDOpen(false)}
         />
       )}

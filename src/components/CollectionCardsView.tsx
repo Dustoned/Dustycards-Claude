@@ -109,6 +109,7 @@ interface Props {
   forcedSortBy?: SortBy;
   forcedSortDir?: SortDir;
   hideSortControls?: boolean;
+  showGradedSlabPreview?: boolean;
 }
 
 interface RemoveDialogState {
@@ -142,6 +143,7 @@ export default function CollectionCardsView({
   forcedSortBy,
   forcedSortDir,
   hideSortControls = false,
+  showGradedSlabPreview = false,
 }: Props) {
   const router = useRouter();
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
@@ -1874,7 +1876,9 @@ export default function CollectionCardsView({
                   );
                   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
                   const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
-                  const isGradedCard = Boolean(item.owned && gradingCompanyLabel && gradingGradeLabel);
+                  const isGradedCard = Boolean(
+                    showGradedSlabPreview && item.owned && gradingCompanyLabel && gradingGradeLabel
+                  );
                   const previewAspectClass = isGradedCard
                     ? GRADED_SLAB_ASPECT_CLASS
                     : RAW_CARD_ASPECT_CLASS;
@@ -2213,7 +2217,12 @@ export default function CollectionCardsView({
       )}
 
       {selectedCard && (
-        <CardModal key={selectedCard.id} card={selectedCard} onClose={() => setSelectedCard(null)} />
+        <CardModal
+          key={selectedCard.id}
+          card={selectedCard}
+          showGradedSlabPreview={showGradedSlabPreview}
+          onClose={() => setSelectedCard(null)}
+        />
       )}
     </>
   );
