@@ -458,6 +458,36 @@ describe("GET /api/ebay/deals", () => {
     expect(body.listings[0].reference.valueEur).toBe(899);
   });
 
+  it("shows generic graded listings when an exact graded card search has no pinned matches", async () => {
+    const card = makeUmbreonCard();
+    dbMock.card.findUnique.mockResolvedValue(card);
+    dbMock.card.findMany.mockResolvedValue([]);
+    mockSearchResults([
+      makeListing({
+        itemId: "generic-graded",
+        title: "PSA 10 Charizard 4/102 Base Set Pokemon",
+        totalEur: 300,
+        condition: "Graded",
+      }),
+    ]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/ebay/deals?cardId=21554&mode=graded")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.card.id).toBe(card.id);
+    expect(body.total).toBe(1);
+    expect(body.listings.map((listing: { itemId: string }) => listing.itemId)).toEqual([
+      "generic-graded",
+    ]);
+    expect(body.listings[0].cardMatch).toMatchObject({
+      status: "unmatched",
+      card: null,
+    });
+  });
+
   it("filters cardId searches to listings matched to that exact card", async () => {
     const card = makeUmbreonCard();
     dbMock.card.findUnique.mockResolvedValue(card);

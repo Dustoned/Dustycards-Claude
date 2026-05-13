@@ -707,7 +707,20 @@ async function enrichListingsWithCardMatches(input: {
     });
   }
 
-  return enriched.sort(compareEnrichedListings);
+  const sorted = enriched.sort(compareEnrichedListings);
+  if (
+    sorted.length === 0 &&
+    input.mode === "graded" &&
+    input.pinnedCard &&
+    input.listings.length > 0
+  ) {
+    return enrichListingsWithCardMatches({
+      ...input,
+      pinnedCard: null,
+    });
+  }
+
+  return sorted;
 }
 
 function enrichListingsWithSealedReference(input: {

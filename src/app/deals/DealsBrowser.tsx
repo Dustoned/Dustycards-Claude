@@ -960,13 +960,15 @@ export default function DealsBrowser() {
     );
   }
 
-  function searchExactCard(cardIdToSearch: string) {
-    setQuery("");
+  function searchSuggestedCard(cardToSearch: CardSearchResult) {
+    const nextQuery = mode === "graded" ? cardToSearch.name : "";
+    const nextCardId = mode === "graded" ? null : cardToSearch.id;
+    setQuery(nextQuery);
     router.replace(
       buildDealsHref({
         pathname,
-        q: "",
-        cardId: cardIdToSearch,
+        q: nextQuery,
+        cardId: nextCardId,
         productId: null,
         mode,
         buying,
@@ -1276,7 +1278,7 @@ export default function DealsBrowser() {
                   <button
                     key={card.id}
                     type="button"
-                    onClick={() => searchExactCard(card.id)}
+                    onClick={() => searchSuggestedCard(card)}
                     className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-black/8 bg-black/[0.02] p-2 text-left transition-colors hover:bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.025] dark:hover:bg-white/[0.055]"
                   >
                     {card.image_url ? (
@@ -1306,7 +1308,7 @@ export default function DealsBrowser() {
                       </span>
                     </span>
                     <span className="shrink-0 rounded-lg bg-gray-950 px-2.5 py-1.5 text-xs font-bold text-white dark:bg-white dark:text-gray-950">
-                      Exact
+                      {mode === "graded" ? "Search" : "Exact"}
                     </span>
                   </button>
                 ))}

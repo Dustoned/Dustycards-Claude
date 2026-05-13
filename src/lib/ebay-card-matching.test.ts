@@ -53,6 +53,32 @@ const megaCharizard130: EbayMatchCard = {
   },
 };
 
+const megaGengar56: EbayMatchCard = {
+  id: "gengar-56",
+  name: "Mega Gengar ex",
+  card_number: "56",
+  rarity: "Double Rare",
+  image_url: null,
+  episode: {
+    id: "pfl",
+    name: "Phantasmal Flames",
+    code: "PFL",
+  },
+};
+
+const gengar10: EbayMatchCard = {
+  id: "gengar-10",
+  name: "Gengar",
+  card_number: "10",
+  rarity: "rare",
+  image_url: null,
+  episode: {
+    id: "sk",
+    name: "Skyridge",
+    code: "SK",
+  },
+};
+
 describe("eBay card matching", () => {
   it("matches Umbreon ex 161/131 Prismatic listings to the database card", () => {
     const match = matchEbayListingToCard({
@@ -162,6 +188,18 @@ describe("eBay card matching", () => {
     expect(match.isGradedListing).toBe(true);
     expect(match.gradingCompany).toBe("PSA");
     expect(match.gradingGrade).toBe("9");
+  });
+
+  it("does not use graded 10 as the card number when matching slabs", () => {
+    const match = matchEbayListingToCard({
+      title: "Graded 10 Mega Gengar ex 056/094 2025 Pokemon Phantasmal Flames Promo GM10 PFL",
+      condition: "Graded",
+      candidates: [gengar10, megaGengar56],
+      requestedMode: "graded",
+    });
+
+    expect(match.status).toBe("matched");
+    expect(match.card?.id).toBe("gengar-56");
   });
 
   it("keeps variant mismatches out of automatic matches", () => {

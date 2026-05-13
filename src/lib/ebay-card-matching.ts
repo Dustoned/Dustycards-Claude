@@ -195,11 +195,21 @@ function getListingSignals(title: string, condition: string | null | undefined):
       right: match[2].replace(/^0+/, "") || match[2],
     }));
   const slashRightNumbers = new Set(slashRefs.map((ref) => ref.right));
+  const gradeNumberTokens = new Set(
+    [
+      ...normalizedTitle.matchAll(
+        /\b(?:psa|bgs|cgc|sgc|ace|tag|aigrading|graded|grade|gem\s*mint|gm)\s*(?:gem\s*mint\s*)?(\d+(?:\.\d+)?)\b/gi
+      ),
+      ...normalizedTitle.matchAll(
+        /\b(\d+(?:\.\d+)?)\s*(?:psa|bgs|cgc|sgc|ace|tag|aigrading|graded|grade|gem\s*mint|gm)\b/gi
+      ),
+    ].map((match) => match[1].replace(/^0+/, "") || match[1])
+  );
   const numbers = new Set<string>();
   for (const token of tokens) {
     if (/^\d+[a-z]*$/.test(token)) {
       const normalizedToken = token.replace(/^0+/, "") || token;
-      if (!slashRightNumbers.has(normalizedToken)) {
+      if (!slashRightNumbers.has(normalizedToken) && !gradeNumberTokens.has(normalizedToken)) {
         numbers.add(normalizedToken);
       }
     }
