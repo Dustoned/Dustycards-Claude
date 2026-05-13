@@ -467,7 +467,7 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   },
   {
     pattern:
-      /\b(mystery|mystery\s+(box|pack|lot)|random\s+(card|cards|lot|pack)|chase\s+(card|pack|box|lot)|read\s+please|repack|repacks|orica|proxy|replica|custom)\b/i,
+      /\b(mystery|mystery\s+(box|pack|lot)|random\s+(card|cards|lot|pack)|chase\s+(card|pack|box|lot)|read\s+please|repack|repacks|orica|proxy|proxies|replica|replicas|custom|customs|custom[-\s]+made|fan[-\s]*made|fanmade|fan[-\s]+art|diy|do[-\s]*it[-\s]*yourself|hand[-\s]*made|handmade|home[-\s]*made|homemade|unofficial|fake|fakes|counterfeit|bootleg|repro|reproduction|facsimile|novelty\s+card|art\s+card|altered\s+art|custom\s+art)\b/i,
     reason: "mystery/custom listing",
   },
   {
@@ -487,7 +487,7 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   },
   {
     pattern:
-      /\b(god\s+packs?|chance\s+to\s+get|guaranteed\s+\d|acrylic|keychains?|sleeves?|display\s+stand|mini\s+slab|metal\s+card|stainless\s+steel|extended\s+art(?:work)?\s+(?:case|frame)|artwork\s+case|anime\s+frame|card\s+case|case\s+card)\b/i,
+      /\b(god\s+packs?|chance\s+to\s+get|guaranteed\s+\d|acrylic|keychains?|sleeves?|display\s+stand|mini\s+slab|slab\s+(?:case|holder|stand|guard)|metal\s+card|stainless\s+steel|extended\s+art(?:work)?\s+(?:case|frame)|artwork\s+case|anime\s+frame|card\s+case|case\s+card)\b/i,
     reason: "accessory/pack listing",
   },
   {
@@ -850,24 +850,29 @@ export function getEbayListingGradingReason(input: {
   const title = normalizeListingFilterText(input.title);
   const condition = normalizeListingFilterText(input.condition);
   const combined = [title, condition].filter(Boolean).join(" ");
+  const compactCombined = combined.replace(/[\s._:/#-]+/g, "");
+  const companyWithOptionalDots = String.raw`(?:p\.?s\.?a|b\.?g\.?s|c\.?g\.?c|s\.?g\.?c|beckett|ace|tag|aigrading|ai\s*grading)`;
+  const gradeValue = String.raw`(?:10|9(?:\.5)?|8(?:\.5)?|7(?:\.5)?|6(?:\.5)?|gem\s*mint|gem\s*mt|pristine|black\s*label)`;
 
-  if (/\b(psa|bgs|cgc|sgc)\b(?:\W+\w+){0,3}?\W+\d+(?:\.\d+)?\b/i.test(combined)) {
+  if (
+    new RegExp(
+      String.raw`\b${companyWithOptionalDots}\b(?:\W+\w+){0,4}?\W+${gradeValue}\b`,
+      "i"
+    ).test(combined) ||
+    new RegExp(String.raw`${companyWithOptionalDots}${gradeValue}`, "i").test(compactCombined)
+  ) {
     return "Title mentions a grading company and grade";
   }
 
-  if (/\b(psa|bgs|cgc|sgc)\b/i.test(combined)) {
+  if (new RegExp(String.raw`\b${companyWithOptionalDots}\b`, "i").test(combined)) {
     return "Title mentions a grading company";
   }
 
-  if (/\b(ace|tag)\W+\d+(?:\.\d+)?\b/i.test(combined)) {
-    return "Title mentions a grading company and grade";
-  }
-
-  if (/\b(graded|slabbed?|graad|valutata|professionally\W+graded)\b/i.test(combined)) {
+  if (/\b(graded|slabbed?|slab|graad|valutata|professionally\W+graded|certified|authenticated|encased)\b/i.test(combined)) {
     return "Title mentions graded/slab";
   }
 
-  if (/\bgem\W+mint\b/i.test(combined)) {
+  if (/\b(gem\W+mint|gem\W+mt|pristine\W+10|black\W+label)\b/i.test(combined)) {
     return "Title mentions GEM MINT";
   }
 

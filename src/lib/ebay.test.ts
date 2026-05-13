@@ -227,6 +227,23 @@ describe("ebay deal helpers", () => {
     ).toBe("mystery/custom listing");
     expect(
       getEbayListingRejectionReason({
+        title: "PSA 10 Umbreon ex fan made custom card",
+        listingKind: "graded",
+      })
+    ).toBe("mystery/custom listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "DIY Karten Charizard ex proxy fanmade Pokemon card",
+        listingKind: "graded",
+      })
+    ).toBe("mystery/custom listing");
+    expect(
+      getEbayListingRejectionReason({
+        title: "Umbreon ex 161/131 unofficial art card reproduction",
+      })
+    ).toBe("mystery/custom listing");
+    expect(
+      getEbayListingRejectionReason({
         title: "Mega Charizard X EX SIR 125/094 SIR 130/094 Gold - PFL Chase Pack! Read Please!",
       })
     ).toBe("mystery/custom listing");
@@ -346,6 +363,21 @@ describe("ebay deal helpers", () => {
     ).toBeTruthy();
     expect(
       getEbayListingGradingReason({
+        title: "Umbreon ex PSA10 GEM MINT 161/131 Pokemon Card ENG",
+      })
+    ).toBe("Title mentions a grading company and grade");
+    expect(
+      getEbayListingGradingReason({
+        title: "Umbreon ex CGC10 Pristine 161/131 Pokemon Card ENG",
+      })
+    ).toBe("Title mentions a grading company and grade");
+    expect(
+      getEbayListingGradingReason({
+        title: "Umbreon ex BGS9.5 161/131 Pokemon Card ENG",
+      })
+    ).toBe("Title mentions a grading company and grade");
+    expect(
+      getEbayListingGradingReason({
         title: "Umbreon ex GEM 💎 MINT 161/131 Pokemon Card ENG",
       })
     ).toBe("Title mentions GEM MINT");
@@ -358,6 +390,11 @@ describe("ebay deal helpers", () => {
     expect(
       getEbayListingGradingReason({
         title: "Umbreon ex 161/131 Near Mint Pokemon Card ENG",
+      })
+    ).toBeNull();
+    expect(
+      getEbayListingGradingReason({
+        title: "Charizard 10/102 Base Set Pokemon Card ENG",
       })
     ).toBeNull();
   });
