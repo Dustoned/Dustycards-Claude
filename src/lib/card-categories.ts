@@ -181,14 +181,25 @@ const SWORD_SHIELD_GOLD_SECRET_RARE_EPISODE_CODES = [
   "SIT",
 ];
 
+const FORCE_SECRET_RARE_WHERE: Prisma.CardWhereInput = {
+  OR: [
+    cardsInEpisodeCode("CPA", ["79"]),
+    cardsInEpisodeCode("MT", ["124"]),
+    { name: { contains: "Alph Lithograph" } },
+    { name: { contains: "Here Comes Team Rocket!" } },
+  ],
+};
+
 // The source uses Rare Secret for both classic secret rares and gold-treatment cards.
 const GOLD_SECRET_RARE_WHERE: Prisma.CardWhereInput = {
   AND: [
     rarityIn(SECRET_RARE_RARITIES),
+    { NOT: FORCE_SECRET_RARE_WHERE },
     {
       OR: [
         { supertype: { in: ["Trainer", "Energy"] } },
         { episode: { code: { in: SWORD_SHIELD_GOLD_SECRET_RARE_EPISODE_CODES } } },
+        cardsInEpisodeCode("LTR", ["114", "115"]),
         cardsInEpisodeCode("CRZ", ["GG67", "GG68", "GG69", "GG70"]),
         cardsInEpisodeCode("HIF", ["SV91", "SV92", "SV93", "SV94"]),
         cardsInEpisodeCode("UPR", ["172", "173"]),
