@@ -242,7 +242,7 @@ function DriverRow({
           </span>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(12rem,1.15fr)_minmax(8.5rem,0.85fr)]">
+        <div className="mt-4 grid gap-2">
           <div className={`rounded-2xl border px-3 py-3 ${tonePanelClass(tone)}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -262,19 +262,19 @@ function DriverRow({
                 {percent ?? ""}
               </p>
             </div>
-            <p className="mt-1 truncate text-xs text-gray-500 dark:text-white/45">
+            <p className="mt-1 break-words text-xs text-gray-500 dark:text-white/45">
               {formatCollectionCurrency(item.previousValue)}
               {" -> "}
               {formatCollectionCurrency(item.currentValue)}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
+          <div className="grid grid-cols-2 gap-2">
             <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-3 py-3 dark:border-white/8 dark:bg-white/[0.035]">
               <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
                 Before
               </span>
-              <span className="mt-1 block truncate text-sm font-bold tabular-nums text-gray-700 dark:text-white/72">
+              <span className="mt-1 block break-words text-sm font-bold tabular-nums text-gray-700 dark:text-white/72">
                 {formatCollectionCurrency(item.previousValue)}
               </span>
             </span>
@@ -282,7 +282,7 @@ function DriverRow({
               <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
                 Now
               </span>
-              <span className="mt-1 block truncate text-sm font-bold tabular-nums text-gray-900 dark:text-white">
+              <span className="mt-1 block break-words text-sm font-bold tabular-nums text-gray-900 dark:text-white">
                 {formatCollectionCurrency(item.currentValue)}
               </span>
             </span>
