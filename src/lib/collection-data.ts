@@ -16,12 +16,51 @@ import {
 } from "@/lib/collection";
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
 import { startPerformanceTimer } from "@/lib/performance-timing";
-import type { EpisodePriceHistorySnapshot } from "@/lib/price-history";
+import {
+  getCardMarketValue,
+  getSealedCardMarketValue,
+  type EpisodePriceHistorySnapshot,
+  type EpisodeSealedPriceHistorySnapshot,
+} from "@/lib/price-history";
 
 export interface CollectionSummaryMetric {
   investment: number;
   currentValue: number;
   pnl: number;
+}
+
+export interface CollectionValueDriverItem {
+  id: string;
+  kind: "card" | "sealed";
+  cardId: string | null;
+  productId: string | null;
+  cardNumber: string | null;
+  episodeId: string;
+  episodeName: string;
+  episodeCode: string | null;
+  name: string;
+  imageUrl: string | null;
+  href: string;
+  detail: string;
+  quantity: number;
+  previousValue: number;
+  currentValue: number;
+  change: number;
+  changePct: number | null;
+  currentSource: string;
+  previousSource: string;
+}
+
+export interface CollectionValueDriversData {
+  latestDate: string | null;
+  latestLabel: string | null;
+  previousDate: string | null;
+  previousLabel: string | null;
+  totalChange: number | null;
+  gainsTotal: number;
+  dropsTotal: number;
+  gains: CollectionValueDriverItem[];
+  drops: CollectionValueDriverItem[];
 }
 
 export interface CollectionOverviewData {
@@ -302,6 +341,30 @@ const collectionBinderMetricSelect = {
 
 const SQLITE_SAFE_CHUNK_SIZE = 250;
 const COLLECTION_OVERVIEW_CHART_DAYS = 120;
+const COLLECTION_VALUE_DRIVER_LIMIT = 8;
+const EMPTY_COLLECTION_VALUE_DRIVERS: CollectionValueDriversData = {
+  latestDate: null,
+  latestLabel: null,
+  previousDate: null,
+  previousLabel: null,
+  totalChange: null,
+  gainsTotal: 0,
+  dropsTotal: 0,
+  gains: [],
+  drops: [],
+};
+
+function roundCurrency(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function toHistoryDateKey(value: Date | string): string {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function toHistoryMillis(value: Date | string): number {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
 
 function getHistoryCutoffDate(days = COLLECTION_OVERVIEW_CHART_DAYS) {
   const cutoff = new Date();
@@ -810,6 +873,228 @@ function buildSealedViewItem(record: CollectionSealedRecord): CollectionSealedVi
   };
 }
 
+function buildCardBaselineValueMap(
+  rows: EpisodePriceHistorySnapshot[],
+  baselineDate: string
+): Map<string, number> {
+  const values = new Map<string, number>();
+  const sorted = [...rows].sort((a, b) => toHistoryMillis(a.fetched_at) - toHistoryMillis(b.fetched_at));
+
+  for (const row of sorted) {
+    if (toHistoryDateKey(row.fetched_at) > baselineDate) {
+      continue;
+    }
+
+    const value = getCardMarketValue(row);
+    if (value == null) {
+      values.delete(row.card_id);
+    } else {
+      values.set(row.card_id, value);
+    }
+  }
+
+  return values;
+}
+
+function buildSealedBaselineValueMap(
+  rows: EpisodeSealedPriceHistorySnapshot[],
+  baselineDate: string
+): Map<string, number> {
+  const values = new Map<string, number>();
+  const sorted = [...rows].sort((a, b) => toHistoryMillis(a.fetched_at) - toHistoryMillis(b.fetched_at));
+
+  for (const row of sorted) {
+    if (toHistoryDateKey(row.fetched_at) > baselineDate) {
+      continue;
+    }
+
+    const value = getSealedCardMarketValue(row);
+    if (value == null) {
+      values.delete(row.product_id);
+    } else {
+      values.set(row.product_id, value);
+    }
+  }
+
+  return values;
+}
+
+function calculateChangePct(change: number, previousValue: number): number | null {
+  if (previousValue <= 0) {
+    return null;
+  }
+
+  return Number(((change / previousValue) * 100).toFixed(1));
+}
+
+function buildCardValueDriverDetail(item: CollectionCardViewItem): string {
+  const number = item.card_number ? `#${item.card_number}` : null;
+
+  return number ?? "";
+}
+
+function buildSealedValueDriverDetail(item: CollectionSealedViewItem): string {
+  const episode = item.episode_code
+    ? `${item.episode_name} (${item.episode_code})`
+    : item.episode_name;
+
+  return [`x${item.quantity}`, episode].filter(Boolean).join(" / ");
+}
+
+type CollectionValueDriverDraft = Omit<
+  CollectionValueDriverItem,
+  "previousValue" | "currentValue" | "change" | "changePct"
+> & {
+  previousValue: number;
+  currentValue: number;
+};
+
+function addCollectionValueDriverDraft(
+  drafts: Map<string, CollectionValueDriverDraft>,
+  draft: CollectionValueDriverDraft
+) {
+  const existing = drafts.get(draft.id);
+  if (!existing) {
+    drafts.set(draft.id, draft);
+    return;
+  }
+
+  existing.quantity += draft.quantity;
+  existing.previousValue += draft.previousValue;
+  existing.currentValue += draft.currentValue;
+}
+
+function finalizeCollectionValueDriver(
+  draft: CollectionValueDriverDraft
+): CollectionValueDriverItem {
+  const previousValue = roundCurrency(draft.previousValue);
+  const currentValue = roundCurrency(draft.currentValue);
+  const change = roundCurrency(currentValue - previousValue);
+
+  return {
+    ...draft,
+    previousValue,
+    currentValue,
+    change,
+    changePct: calculateChangePct(change, previousValue),
+  };
+}
+
+function buildCollectionValueDrivers({
+  cards,
+  sealed,
+  cardHistory,
+  sealedHistory,
+  chart,
+  currentValue,
+}: {
+  cards: CollectionCardViewItem[];
+  sealed: CollectionSealedViewItem[];
+  cardHistory: EpisodePriceHistorySnapshot[];
+  sealedHistory: EpisodeSealedPriceHistorySnapshot[];
+  chart: Array<{ date: string; label: string; value: number | null }>;
+  currentValue: number;
+}): CollectionValueDriversData {
+  const valuedPoints = chart.filter(
+    (point): point is { date: string; label: string; value: number } => point.value != null
+  );
+  const latestPoint = valuedPoints[valuedPoints.length - 1] ?? null;
+  const previousPoint = valuedPoints[valuedPoints.length - 2] ?? null;
+
+  if (!latestPoint || !previousPoint) {
+    return {
+      ...EMPTY_COLLECTION_VALUE_DRIVERS,
+      latestDate: latestPoint?.date ?? null,
+      latestLabel: latestPoint?.label ?? null,
+    };
+  }
+
+  const cardBaselineValues = buildCardBaselineValueMap(cardHistory, previousPoint.date);
+  const sealedBaselineValues = buildSealedBaselineValueMap(sealedHistory, previousPoint.date);
+  const drafts = new Map<string, CollectionValueDriverDraft>();
+
+  for (const item of cards) {
+    const currentItemValue = item.current_value ?? 0;
+    const previousItemValue = cardBaselineValues.get(item.card_id) ?? 0;
+    const currentSource = item.current_value_label ? "Graded" : "Raw";
+    const previousSource = item.current_value_label ? "Raw" : "Raw";
+    const key = `card:${item.card_id}:${currentSource}`;
+
+    addCollectionValueDriverDraft(drafts, {
+      id: key,
+      kind: "card",
+      cardId: item.card_id,
+      productId: null,
+      cardNumber: item.card_number,
+      episodeId: item.episode_id,
+      episodeName: item.episode_name,
+      episodeCode: item.episode_code,
+      name: item.name,
+      imageUrl: item.image_url,
+      href: `/expansions/${item.episode_id}?card=${encodeURIComponent(item.card_id)}`,
+      detail: buildCardValueDriverDetail(item),
+      quantity: 1,
+      previousValue: previousItemValue,
+      currentValue: currentItemValue,
+      currentSource,
+      previousSource,
+    });
+  }
+
+  for (const item of sealed) {
+    const currentItemValue = (item.current_value_per_item ?? 0) * item.quantity;
+    const previousItemValue = (sealedBaselineValues.get(item.product_id) ?? 0) * item.quantity;
+
+    addCollectionValueDriverDraft(drafts, {
+      id: `sealed:${item.product_id}`,
+      kind: "sealed",
+      cardId: null,
+      productId: item.product_id,
+      cardNumber: null,
+      episodeId: item.episode_id,
+      episodeName: item.episode_name,
+      episodeCode: item.episode_code,
+      name: item.name,
+      imageUrl: item.image_url,
+      href: `/expansions/${item.episode_id}`,
+      detail: buildSealedValueDriverDetail(item),
+      quantity: item.quantity,
+      previousValue: currentItemValue === 0 && previousItemValue === 0 ? 0 : previousItemValue,
+      currentValue: currentItemValue,
+      currentSource: "Sealed",
+      previousSource: "Sealed",
+    });
+  }
+
+  const drivers = [...drafts.values()]
+    .map(finalizeCollectionValueDriver)
+    .filter((item) => Math.abs(item.change) >= 0.01);
+  const gains = drivers
+    .filter((item) => item.change > 0)
+    .sort((a, b) => b.change - a.change || a.name.localeCompare(b.name))
+    .slice(0, COLLECTION_VALUE_DRIVER_LIMIT);
+  const drops = drivers
+    .filter((item) => item.change < 0)
+    .sort((a, b) => a.change - b.change || a.name.localeCompare(b.name))
+    .slice(0, COLLECTION_VALUE_DRIVER_LIMIT);
+
+  return {
+    latestDate: latestPoint.date,
+    latestLabel: latestPoint.label,
+    previousDate: previousPoint.date,
+    previousLabel: previousPoint.label,
+    totalChange: roundCurrency(currentValue - previousPoint.value),
+    gainsTotal: roundCurrency(
+      drivers.reduce((total, item) => total + (item.change > 0 ? item.change : 0), 0)
+    ),
+    dropsTotal: roundCurrency(
+      drivers.reduce((total, item) => total + (item.change < 0 ? item.change : 0), 0)
+    ),
+    gains,
+    drops,
+  };
+}
+
 function sumCardCurrentValue(records: CollectionCardMetricRecord[]): number {
   return Number(
     records
@@ -1049,6 +1334,9 @@ export async function getCollectionOverviewData(
           });
         })
     : [];
+  const sealedViewItems = loadDetailedSealed
+    ? (collectionSealed as CollectionSealedRecord[]).map(buildSealedViewItem)
+    : [];
 
   const result = {
     overview: {
@@ -1061,7 +1349,7 @@ export async function getCollectionOverviewData(
     cards: collectionCardViewItems,
     looseSingles: looseSingleViewItems,
     binderCards: binderCardViewItems,
-    sealed: loadDetailedSealed ? (collectionSealed as CollectionSealedRecord[]).map(buildSealedViewItem) : [],
+    sealed: sealedViewItems,
     binders: binderSummaries,
   };
 
@@ -1071,6 +1359,54 @@ export async function getCollectionOverviewData(
     binders: binders.length,
     historyLoaded: loadCollectionHistory,
     historyPoints: combinedHistory.length,
+  });
+
+  return result;
+}
+
+export async function getCollectionValueDriversData(
+  userId: string
+): Promise<CollectionValueDriversData> {
+  const timer = startPerformanceTimer("collection.value-drivers");
+  const [collectionCards, collectionSealed] = await Promise.all([
+    getCollectionCards({ userId }),
+    getCollectionSealedItems(userId, true),
+  ]);
+  const metricCards = collectionCards as CollectionCardMetricRecord[];
+  const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
+  const cardQuantities = buildCardQuantityMap(metricCards);
+  const sealedQuantities = buildProductQuantityMap(metricSealed);
+  const [cardHistory, sealedHistory] = await Promise.all([
+    getCardHistoryRows([...cardQuantities.keys()], getHistoryCutoffDate()),
+    getSealedHistoryRows([...sealedQuantities.keys()], getHistoryCutoffDate()),
+  ]);
+  const combinedHistory = combineValueHistories(
+    buildOwnedCardValueHistory(cardHistory, cardQuantities),
+    buildOwnedSealedValueHistory(sealedHistory, sealedQuantities)
+  ).map((point) => ({
+    date: point.date,
+    label: point.label,
+    value: point.total_market,
+  }));
+  const cardItems = (collectionCards as CollectionCardRecord[]).map((record) =>
+    buildCardViewItem(record)
+  );
+  const sealedItems = (collectionSealed as CollectionSealedRecord[]).map(buildSealedViewItem);
+  const currentValue = roundCurrency(sumCardCurrentValue(metricCards) + sumSealedCurrentValue(metricSealed));
+  const result = buildCollectionValueDrivers({
+    cards: cardItems,
+    sealed: sealedItems,
+    cardHistory,
+    sealedHistory,
+    chart: combinedHistory,
+    currentValue,
+  });
+
+  timer.finish({
+    cards: metricCards.length,
+    sealedItems: metricSealed.length,
+    historyPoints: combinedHistory.length,
+    drivers: result.gains.length + result.drops.length,
   });
 
   return result;

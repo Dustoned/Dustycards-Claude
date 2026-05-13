@@ -1,9 +1,13 @@
-import { Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
+import { ArrowDownRight, Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import CollectionValueDrivers from "@/components/CollectionValueDrivers";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import SealedMoversBrowser from "@/app/movers/SealedMoversBrowser";
 import { loadMoversPageData } from "@/app/movers/page-data";
 import { requirePageUser } from "@/lib/page-auth";
+import { formatCollectionCurrency } from "@/lib/collection";
+import type { MoversPageScope } from "@/app/movers/routing";
+import type { CollectionValueDriversData } from "@/lib/collection-data";
 import type { CollectionMoversData, MoversScope } from "@/lib/movers";
 import type { SealedMoversData } from "@/lib/sealed-movers";
 
@@ -14,7 +18,7 @@ interface SummaryMetric {
   value: string;
   hint: string;
   Icon: LucideIcon;
-  tone: "amber" | "emerald" | "sky" | "violet";
+  tone: "amber" | "emerald" | "sky" | "violet" | "rose";
 }
 
 function formatShortDate(value: string): string {
@@ -38,15 +42,26 @@ function metricToneClass(tone: SummaryMetric["tone"]): string {
       "border-emerald-400/14 bg-emerald-400/[0.06] text-emerald-700 dark:text-emerald-200",
     sky: "border-sky-400/14 bg-sky-400/[0.06] text-sky-700 dark:text-sky-200",
     violet: "border-violet-400/14 bg-violet-400/[0.06] text-violet-700 dark:text-violet-200",
+    rose: "border-rose-400/14 bg-rose-400/[0.06] text-rose-700 dark:text-rose-200",
   };
 
   return tones[tone];
 }
 
 function getModeCopy(
-  activeScope: MoversScope,
+  activeScope: MoversPageScope,
   activeItemScope: "collection" | "all"
 ) {
+  if (activeScope === "value") {
+    return {
+      eyebrow: "Value Changes / Collection",
+      title: "Movers",
+      description:
+        "See exactly which collection items explain the latest value change, before jumping into raw, graded, targets, or sealed movers.",
+      ranking: "Latest collection value change",
+    };
+  }
+
   if (activeScope === "sealed") {
     return {
       eyebrow: activeItemScope === "collection" ? "Sealed Movers / Collection" : "Sealed Movers / All Products",
@@ -88,6 +103,12 @@ function getModeCopy(
   };
 }
 
+function formatSignedCurrency(value: number | null | undefined): string {
+  if (value == null) return "--";
+
+  return `${value > 0 ? "+" : ""}${formatCollectionCurrency(value)}`;
+}
+
 export default async function MoversPage({
   searchParams,
 }: {
@@ -106,15 +127,52 @@ export default async function MoversPage({
     view,
     user.id
   );
+  const isValueScope = activeScope === "value";
   const isSealedScope = activeScope === "sealed";
   const isGradedScope = activeScope === "graded";
   const isGradingScope = activeScope === "grading";
-  const isRawScope = !isSealedScope && !isGradedScope && !isGradingScope;
+  const isRawScope = !isValueScope && !isSealedScope && !isGradedScope && !isGradingScope;
   const modeCopy = getModeCopy(activeScope, activeItemScope);
+  const valueData = isValueScope ? (data as CollectionValueDriversData) : null;
   const sealedData = isSealedScope ? (data as SealedMoversData) : null;
-  const cardData = !isSealedScope ? (data as CollectionMoversData) : null;
+  const cardData = !isValueScope && !isSealedScope ? (data as CollectionMoversData) : null;
   const updatedAt = sealedData?.updatedAt ?? cardData?.movers[0]?.latestFetchedAt ?? null;
-  const metrics = isSealedScope && sealedData
+  const metrics = valueData
+    ? ([
+        {
+          label: "Net Change",
+          value: formatSignedCurrency(valueData.totalChange),
+          hint:
+            valueData.previousLabel && valueData.latestLabel
+              ? `${valueData.previousLabel} to ${valueData.latestLabel}`
+              : "No comparison snapshot yet.",
+          Icon: TrendingUp,
+          tone:
+            (valueData.totalChange ?? 0) >= 0 ? "emerald" : "rose",
+        },
+        {
+          label: "Gains",
+          value: formatSignedCurrency(valueData.gainsTotal),
+          hint: `${valueData.gains.length.toLocaleString("en-US")} top gain drivers shown.`,
+          Icon: Sparkles,
+          tone: "emerald",
+        },
+        {
+          label: "Drops",
+          value: formatSignedCurrency(valueData.dropsTotal),
+          hint: `${valueData.drops.length.toLocaleString("en-US")} top drop drivers shown.`,
+          Icon: ArrowDownRight,
+          tone: "rose",
+        },
+        {
+          label: "Items",
+          value: (valueData.gains.length + valueData.drops.length).toLocaleString("en-US"),
+          hint: "Largest item-level contributors in the latest snapshot.",
+          Icon: Gem,
+          tone: "sky",
+        },
+      ] satisfies SummaryMetric[])
+    : isSealedScope && sealedData
     ? ([
         {
           label: activeItemScope === "all" ? "Tracked Products" : "Collection Products",
@@ -183,23 +241,60 @@ export default async function MoversPage({
           tone: "sky",
         },
       ] satisfies SummaryMetric[]);
+  const valueMetricChips = valueData
+    ? [
+        {
+          label: "Net",
+          value: formatSignedCurrency(valueData.totalChange),
+          tone:
+            (valueData.totalChange ?? 0) >= 0
+              ? "text-emerald-700 dark:text-emerald-300"
+              : "text-rose-700 dark:text-rose-300",
+        },
+        {
+          label: "Gains",
+          value: formatSignedCurrency(valueData.gainsTotal),
+          tone: "text-emerald-700 dark:text-emerald-300",
+        },
+        {
+          label: "Drops",
+          value: formatSignedCurrency(valueData.dropsTotal),
+          tone: "text-rose-700 dark:text-rose-300",
+        },
+      ]
+    : [];
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-      <div className="flex w-full flex-col gap-5 sm:gap-6">
-        <section className="rounded-2xl border border-black/8 bg-white/76 px-5 py-5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] lg:items-end">
+    <div
+      className={`page-container mx-auto max-w-7xl ${
+        isValueScope ? "px-3 py-3 sm:px-6 sm:py-6 lg:px-8" : "px-4 py-5 sm:px-6 sm:py-8 lg:px-8"
+      }`}
+    >
+      <div className={`flex w-full flex-col ${isValueScope ? "gap-3 sm:gap-4" : "gap-5 sm:gap-6"}`}>
+        <section className={`rounded-2xl border border-black/8 bg-white/76 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] ${
+          isValueScope ? "px-3 py-3 sm:px-4 sm:py-4" : "px-5 py-5"
+        }`}>
+          <div className={isValueScope
+            ? "grid gap-2 sm:gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.56fr)] md:items-end"
+            : "grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] lg:items-end"
+          }>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/36">
+              <p className={`font-semibold uppercase text-gray-400 dark:text-white/36 ${
+                isValueScope ? "text-[9px] tracking-[0.14em] sm:text-[10px]" : "text-[11px] tracking-[0.18em]"
+              }`}>
                 {modeCopy.eyebrow}
               </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
+              <h1 className={`mt-1.5 font-bold tracking-tight text-gray-950 dark:text-white ${
+                isValueScope ? "text-xl sm:text-2xl" : "text-3xl sm:text-4xl"
+              }`}>
                 {modeCopy.title}
               </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-white/58">
+              <p className={`mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-white/58 ${
+                isValueScope ? "hidden lg:block" : ""
+              }`}>
                 {modeCopy.description}
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className={isValueScope ? "mt-2 hidden flex-wrap gap-2 sm:flex" : "mt-4 flex flex-wrap gap-2"}>
                 <span className="inline-flex rounded-full border border-black/8 bg-black/[0.035] px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/72">
                   {modeCopy.ranking}
                 </span>
@@ -211,6 +306,23 @@ export default async function MoversPage({
               </div>
             </div>
 
+            {isValueScope && valueData ? (
+              <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
+                {valueMetricChips.map((chip) => (
+                  <div
+                    key={chip.label}
+                    className="min-w-0 rounded-lg border border-black/8 bg-black/[0.03] px-2 py-1.5 dark:border-white/8 dark:bg-white/[0.045] sm:rounded-xl sm:px-2.5 sm:py-2"
+                  >
+                    <p className="truncate text-[8px] font-semibold uppercase tracking-[0.11em] text-gray-400 dark:text-white/38 sm:text-[9px]">
+                      {chip.label}
+                    </p>
+                    <p className={`mt-0.5 truncate text-xs font-bold tabular-nums sm:mt-1 sm:text-sm ${chip.tone}`}>
+                      {chip.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {metrics.map((metric) => {
                 const Icon = metric.Icon;
@@ -240,10 +352,13 @@ export default async function MoversPage({
                 );
               })}
             </div>
+            )}
           </div>
         </section>
 
-        {isSealedScope && sealedData ? (
+        {isValueScope && valueData ? (
+          <CollectionValueDrivers data={valueData} />
+        ) : isSealedScope && sealedData ? (
           <SealedMoversBrowser
             key={`${activeScope}:${activeItemScope}`}
             data={sealedData}
@@ -254,7 +369,7 @@ export default async function MoversPage({
             key={`${activeScope}:${activeItemScope}`}
             movers={cardData.movers}
             activePriceSource={activePriceSource}
-            activeScope={activeScope}
+            activeScope={activeScope as MoversScope}
             activeItemScope={activeItemScope}
             emptyTitle={
               isGradingScope

@@ -189,17 +189,21 @@ function buildSealedProductData(item: SealedMoverItem): SealedModalProductData {
 function modeHref(
   pathname: string,
   searchParams: { toString(): string },
-  mode: "raw" | "graded" | "targets" | "sealed",
+  mode: "value" | "raw" | "graded" | "targets" | "sealed",
   activeItemScope: MoversItemScope
 ): string {
   const params = new URLSearchParams(searchParams.toString());
 
-  if (mode === "raw") {
+  if (mode === "value") {
+    params.delete("scope");
+    params.delete("view");
+    params.delete("source");
+  } else if (mode === "raw") {
     params.delete("view");
     if (activeItemScope === "all") {
       params.set("scope", "all");
     } else {
-      params.delete("scope");
+      params.set("scope", "collection");
     }
   } else if (mode === "graded") {
     params.set("scope", "graded");
@@ -439,6 +443,7 @@ export default function SealedMoversBrowser({ data, activeItemScope }: Props) {
             </span>
             <div className="mt-1 flex flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
               {[
+                { key: "value" as const, label: "Value Changes" },
                 { key: "raw" as const, label: "Raw Singles" },
                 { key: "graded" as const, label: "Graded Cards" },
                 { key: "targets" as const, label: "Grade Targets" },

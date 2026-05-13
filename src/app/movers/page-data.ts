@@ -4,10 +4,15 @@ import {
   type MoversItemScope,
   type MoversScope,
 } from "@/lib/movers";
+import {
+  getCollectionValueDriversData,
+  type CollectionValueDriversData,
+} from "@/lib/collection-data";
 import { getSealedMovers, type SealedMoversData } from "@/lib/sealed-movers";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
   buildMoversSourceHref,
+  type MoversPageScope,
   normalizeMoversItemScope,
   normalizeMoversPriceSource,
   normalizeMoversScope,
@@ -27,6 +32,14 @@ const moversPageCache = new Map<
   {
     expiresAt: number;
     promise: Promise<CollectionMoversData | SealedMoversData>;
+  }
+>();
+
+const valueDriversPageCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    promise: Promise<CollectionValueDriversData>;
   }
 >();
 
@@ -61,6 +74,29 @@ function getCachedMovers(
   return promise;
 }
 
+function getCachedValueDrivers(userId: string): Promise<CollectionValueDriversData> {
+  const key = `${userId}:value-drivers`;
+  const now = Date.now();
+  const cached = valueDriversPageCache.get(key);
+
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
+  }
+
+  const promise = getCollectionValueDriversData(userId);
+  valueDriversPageCache.set(key, {
+    expiresAt: now + MOVERS_PAGE_CACHE_MS,
+    promise,
+  });
+  promise.catch(() => {
+    if (valueDriversPageCache.get(key)?.promise === promise) {
+      valueDriversPageCache.delete(key);
+    }
+  });
+
+  return promise;
+}
+
 export async function loadMoversPageData(
   sourceOverride?: string | null,
   scopeOverride?: string | null,
@@ -76,16 +112,21 @@ export async function loadMoversPageData(
     sourceOverride,
     settings.primaryPriceSource
   );
-  const activeScope: MoversScope = normalizeMoversScope(scopeOverride);
+  const activeScope: MoversPageScope = normalizeMoversScope(scopeOverride);
   const activeItemScope: MoversItemScope =
-    activeScope === "all"
+    activeScope === "value"
+      ? "collection"
+      : activeScope === "all"
       ? "all"
       : activeScope === "collection"
         ? "collection"
         : activeScope === "sealed"
           ? normalizeMoversItemScope(itemScopeOverride, "all")
           : normalizeMoversItemScope(itemScopeOverride, "all");
-  const data = await getCachedMovers(activePriceSource, activeScope, activeItemScope, userId);
+  const data =
+    activeScope === "value"
+      ? await getCachedValueDrivers(userId)
+      : await getCachedMovers(activePriceSource, activeScope as MoversScope, activeItemScope, userId);
 
   return { settings, data, activePriceSource, activeScope, activeItemScope };
 }

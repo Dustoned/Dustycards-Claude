@@ -26,7 +26,13 @@ export default async function DiscountWatchPage({
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/movers/discount-watch${nextQuery ? `?${nextQuery}` : ""}`);
   const { data, activePriceSource, activeScope, activeItemScope } =
-    await loadMoversPageData(source, scope === "sealed" ? null : scope, view, user.id);
+    await loadMoversPageData(
+      source,
+      scope === "sealed" ? "collection" : scope ?? "collection",
+      view,
+      user.id
+    );
+  const cardScope = activeScope === "value" ? "collection" : activeScope;
   const cardData = data as CollectionMoversData;
   const movers = cardData.discountedHighRarity;
   const isAllScope = activeItemScope === "all";
@@ -57,7 +63,7 @@ export default async function DiscountWatchPage({
                   href={buildMoversSourceHref(
                     "/movers",
                     activePriceSource,
-                    activeScope,
+                    cardScope,
                     activeItemScope
                   )}
                   prefetch={false}
@@ -70,7 +76,7 @@ export default async function DiscountWatchPage({
                   href={buildMoversSourceHref(
                     "/movers/cheap-high-rarity",
                     activePriceSource,
-                    activeScope,
+                    cardScope,
                     activeItemScope
                   )}
                   prefetch={false}
@@ -109,7 +115,7 @@ export default async function DiscountWatchPage({
         <MoversBrowser
           movers={movers}
           activePriceSource={activePriceSource}
-          activeScope={activeScope}
+          activeScope={cardScope}
           activeItemScope={activeItemScope}
           eyebrow="Discount Watch"
           title="High rarity cards that fell hard"

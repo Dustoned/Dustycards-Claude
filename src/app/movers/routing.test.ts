@@ -14,8 +14,8 @@ describe("movers routing", () => {
     expect(normalizeMoversScope("graded")).toBe("graded");
     expect(normalizeMoversScope("grading")).toBe("grading");
     expect(normalizeMoversScope("collection")).toBe("collection");
-    expect(normalizeMoversScope("bad")).toBe("collection");
-    expect(normalizeMoversScope(undefined)).toBe("collection");
+    expect(normalizeMoversScope("bad")).toBe("value");
+    expect(normalizeMoversScope(undefined)).toBe("value");
   });
 
   it("normalizes mover price source", () => {
@@ -31,6 +31,7 @@ describe("movers routing", () => {
   });
 
   it("maps existing scopes to the simplified mover modes", () => {
+    expect(getMoversMode("value")).toBe("value");
     expect(getMoversMode("collection")).toBe("raw");
     expect(getMoversMode("all")).toBe("raw");
     expect(getMoversMode("graded")).toBe("graded");
@@ -38,7 +39,8 @@ describe("movers routing", () => {
   });
 
   it("builds mode hrefs on top of the existing scope URLs", () => {
-    expect(buildMoversModeHref("/movers", "raw")).toBe("/movers");
+    expect(buildMoversModeHref("/movers", "value", "cm_en")).toBe("/movers");
+    expect(buildMoversModeHref("/movers", "raw")).toBe("/movers?scope=collection");
     expect(buildMoversModeHref("/movers", "raw", "cm_en", "all")).toBe(
       "/movers?source=cm_en&scope=all"
     );
@@ -47,7 +49,9 @@ describe("movers routing", () => {
   });
 
   it("builds hrefs that preserve source and non-default scope", () => {
-    expect(buildMoversSourceHref("/movers", "cm_en")).toBe("/movers?source=cm_en");
+    expect(buildMoversSourceHref("/movers", "cm_en")).toBe(
+      "/movers?source=cm_en&scope=collection"
+    );
     expect(buildMoversSourceHref("/movers", "tcp", "all")).toBe(
       "/movers?source=tcp&scope=all"
     );

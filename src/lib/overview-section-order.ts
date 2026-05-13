@@ -25,7 +25,16 @@ export function normalizeOverviewSectionOrder(raw: unknown): OverviewSectionKey[
 
   for (const key of DEFAULT_OVERVIEW_SECTION_ORDER) {
     if (!unique.includes(key)) {
-      unique.push(key);
+      const defaultIndex = DEFAULT_OVERVIEW_SECTION_ORDER.indexOf(key);
+      const insertIndex = unique.findIndex(
+        (existingKey) => DEFAULT_OVERVIEW_SECTION_ORDER.indexOf(existingKey) > defaultIndex
+      );
+
+      if (insertIndex >= 0) {
+        unique.splice(insertIndex, 0, key);
+      } else {
+        unique.push(key);
+      }
     }
   }
 

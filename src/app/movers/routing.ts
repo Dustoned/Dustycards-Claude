@@ -1,7 +1,8 @@
 import type { MoversItemScope, MoversScope } from "@/lib/movers";
 import type { PriceSource } from "@/lib/user-settings";
 
-export type MoversMode = "raw" | "graded" | "targets" | "sealed";
+export type MoversPageScope = MoversScope | "value";
+export type MoversMode = "value" | "raw" | "graded" | "targets" | "sealed";
 
 export function normalizeMoversPriceSource(
   value: string | null | undefined,
@@ -10,10 +11,14 @@ export function normalizeMoversPriceSource(
   return value === "cm_en" || value === "tcp" ? value : fallback;
 }
 
-export function normalizeMoversScope(value: string | null | undefined): MoversScope {
-  return value === "all" || value === "graded" || value === "grading" || value === "sealed"
+export function normalizeMoversScope(value: string | null | undefined): MoversPageScope {
+  return value === "collection" ||
+    value === "all" ||
+    value === "graded" ||
+    value === "grading" ||
+    value === "sealed"
     ? value
-    : "collection";
+    : "value";
 }
 
 export function normalizeMoversItemScope(
@@ -23,7 +28,11 @@ export function normalizeMoversItemScope(
   return value === "all" || value === "collection" ? value : fallback;
 }
 
-export function getMoversMode(scope: MoversScope): MoversMode {
+export function getMoversMode(scope: MoversPageScope): MoversMode {
+  if (scope === "value") {
+    return "value";
+  }
+
   if (scope === "graded") {
     return "graded";
   }
@@ -47,16 +56,20 @@ export function buildMoversModeHref(
 ): string {
   const params = new URLSearchParams();
 
-  if (source) {
+  if (source && mode !== "value") {
     params.set("source", source);
   }
 
-  if (mode === "graded") {
+  if (mode === "value") {
+    params.delete("source");
+  } else if (mode === "graded") {
     params.set("scope", "graded");
   } else if (mode === "targets") {
     params.set("scope", "grading");
   } else if (mode === "sealed") {
     params.set("scope", "sealed");
+  } else if (rawScope === "collection") {
+    params.set("scope", "collection");
   } else if (rawScope === "all") {
     params.set("scope", "all");
   }
@@ -76,6 +89,8 @@ export function buildMoversSourceHref(
 
   if (scope !== "collection") {
     params.set("scope", scope);
+  } else {
+    params.set("scope", "collection");
   }
 
   if ((scope === "graded" || scope === "grading") && itemScope === "collection") {

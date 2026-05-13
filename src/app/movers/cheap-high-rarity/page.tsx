@@ -30,7 +30,13 @@ export default async function CheapHighRarityMoversPage({
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/movers/cheap-high-rarity${nextQuery ? `?${nextQuery}` : ""}`);
   const { data, activePriceSource, activeScope, activeItemScope } =
-    await loadMoversPageData(source, scope === "sealed" ? null : scope, view, user.id);
+    await loadMoversPageData(
+      source,
+      scope === "sealed" ? "collection" : scope ?? "collection",
+      view,
+      user.id
+    );
+  const cardScope = activeScope === "value" ? "collection" : activeScope;
   const cardData = data as CollectionMoversData;
   const movers = getDisplayedCheapHighRarityMovers(cardData);
   const isAllScope = activeItemScope === "all";
@@ -61,7 +67,7 @@ export default async function CheapHighRarityMoversPage({
                   href={buildMoversSourceHref(
                     "/movers",
                     activePriceSource,
-                    activeScope,
+                    cardScope,
                     activeItemScope
                   )}
                   prefetch={false}
@@ -74,7 +80,7 @@ export default async function CheapHighRarityMoversPage({
                   href={buildMoversSourceHref(
                     "/movers/discount-watch",
                     activePriceSource,
-                    activeScope,
+                    cardScope,
                     activeItemScope
                   )}
                   prefetch={false}
@@ -113,7 +119,7 @@ export default async function CheapHighRarityMoversPage({
         <MoversBrowser
           movers={movers}
           activePriceSource={activePriceSource}
-          activeScope={activeScope}
+          activeScope={cardScope}
           activeItemScope={activeItemScope}
           eyebrow="Secondary Pocket"
           title="Cheap movers with strong rarity"
