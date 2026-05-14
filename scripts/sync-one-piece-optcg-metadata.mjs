@@ -33,24 +33,15 @@ const RARITY_LABELS = new Map([
   ["TR", "Treasure Rare"],
 ]);
 
-const PRESERVED_VARIANT_RARITIES = new Set([
-  "alternate art",
-  "special rare",
-  "don!!",
-]);
-
 const VARIANT_RULES = [
   {
     label: MANGA_RARE_LABEL,
-    currentLabels: [MANGA_RARE_LABEL],
     match: (card) => hasOptcgTag(card, "Manga"),
     minLocalValue: 50,
-    preserveMinLocalValue: 500,
     maxPriceRatio: 4.5,
   },
   {
     label: "Special Rare",
-    currentLabels: ["Special Rare"],
     match: (card) =>
       hasAnyOptcgTag(card, [
         "SP",
@@ -61,23 +52,18 @@ const VARIANT_RULES = [
         "Red Super Alternate Art",
       ]),
     minLocalValue: 2,
-    preserveMinLocalValue: 0,
     maxPriceRatio: 7,
   },
   {
     label: "Treasure Rare",
-    currentLabels: ["Treasure Rare"],
     match: (card) => rarityLabel(card.rarity) === "Treasure Rare" || hasOptcgTag(card, "TR"),
     minLocalValue: 0,
-    preserveMinLocalValue: 0,
     maxPriceRatio: 12,
   },
   {
     label: "Alternate Art",
-    currentLabels: ["Alternate Art"],
     match: (card) => hasAnyOptcgTag(card, ["Alternate Art", "Parallel", "Full Art"]),
     minLocalValue: 0,
-    preserveMinLocalValue: 0,
     maxPriceRatio: 10,
   },
 ];
@@ -138,11 +124,6 @@ function rarityLabel(value) {
   return RARITY_LABELS.get(code) ?? code;
 }
 
-function shouldPreserveRarity(value) {
-  const key = cleanNullable(value)?.toLowerCase();
-  return Boolean(key && PRESERVED_VARIANT_RARITIES.has(key));
-}
-
 function normalizeSourceRarity(value) {
   const clean = cleanNullable(value);
   if (!clean) return null;
@@ -161,7 +142,6 @@ function normalizeSourceRarity(value) {
 }
 
 function chooseRarity(currentRarity, optcgRarity) {
-  if (shouldPreserveRarity(currentRarity)) return currentRarity;
   return rarityLabel(optcgRarity) ?? normalizeSourceRarity(currentRarity);
 }
 
@@ -271,14 +251,6 @@ function buildVariantRarityMap(optcgCards, localCards) {
   const variantRarities = new Map();
 
   for (const rule of VARIANT_RULES) {
-    for (const card of localCards) {
-      if (usedIds.has(card.id) || !rule.currentLabels.includes(card.rarity)) continue;
-      if ((currentLocalValue(card) ?? 0) < rule.preserveMinLocalValue) continue;
-
-      variantRarities.set(card.id, rule.label);
-      usedIds.add(card.id);
-    }
-
     const entries = optcgCards
       .filter(rule.match)
       .sort((a, b) => (b.market_price ?? 0) - (a.market_price ?? 0));
