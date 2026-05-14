@@ -369,6 +369,68 @@ describe("GET /api/ebay/deals", () => {
     );
   });
 
+  it("uses the exact saved eBay sold graded price as the graded reference", async () => {
+    const card = {
+      ...makeUmbreonCard(),
+      gradedPrices: [{ label: "PSA 8", price: 80 }],
+      ebaySoldGradedPrices: [
+        {
+          source: "ebay_sold",
+          label: "PSA 8",
+          company: "PSA",
+          grade: "8",
+          median_price: 100,
+          currency: "USD",
+          sample_size: 5,
+        },
+      ],
+      collectionItems: [
+        {
+          grading_company: "PSA",
+          grading_grade: "8",
+        },
+      ],
+    };
+    collectionMock.getCollectionMatchedGradedPrice.mockReturnValue({
+      label: "PSA 8 eBay sold",
+      price: 92,
+      source: "ebay_sold_graded",
+    });
+    dbMock.card.findUnique.mockResolvedValue(card);
+    mockSearchResults([
+      makeListing({
+        itemId: "psa-8-umbreon",
+        title: "PSA 8 Umbreon ex 161/131 Pokemon",
+        totalEur: 75,
+        condition: "Graded",
+      }),
+    ]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/ebay/deals?cardId=21554&mode=graded")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(exchangeMock.getUsdToEurRate).toHaveBeenCalled();
+    expect(collectionMock.getCollectionMatchedGradedPrice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gradedPrices: card.gradedPrices,
+        ebaySoldGradedPrices: card.ebaySoldGradedPrices,
+      }),
+      expect.objectContaining({
+        gradingCompany: "PSA",
+        gradingGrade: "8",
+        usdToEurRate: 1,
+      })
+    );
+    expect(body.listings[0].reference).toMatchObject({
+      label: "PSA 8 eBay sold",
+      valueEur: 92,
+      source: "ebay_sold_graded",
+    });
+  });
+
   it("falls back to a generic graded card query when the saved grade is too narrow", async () => {
     const card = {
       ...makeUmbreonCard(),

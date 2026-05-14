@@ -153,6 +153,8 @@ export function OverviewTile({ overview }: { overview: OverviewStatus }) {
 }
 
 export function AutoRefreshCard({
+  title = "Background Price Refresh",
+  description = null,
   active,
   lastSuccess,
   lastFailure,
@@ -203,9 +205,10 @@ export function AutoRefreshCard({
                 : "Idle"}
         </span>
         <span className="text-sm font-semibold text-gray-900 dark:text-white">
-          Background Price Refresh
+          {title}
         </span>
       </div>
+      {description && <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{description}</p>}
 
       <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-3">
         <div>

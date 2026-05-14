@@ -1,6 +1,7 @@
 import { buildCardMarketProductUrl, buildCardMarketSealedProductUrl } from "@/lib/cardmarket";
 import { getRapidApiHeaders } from "@/lib/env";
 import {
+  getGameFromScopedId,
   getRemoteTcggoId,
   getTcggoGamePath,
   ONE_PIECE_GAME,
@@ -1209,13 +1210,17 @@ export async function fetchSealedProductsForEpisode(
 export async function fetchHistoryPricesByItemId(
   itemId: string,
   options?: {
+    game?: TradingCardGame;
     lang?: "en" | "de" | "fr" | "es" | "it";
     dateFrom?: string;
     dateTo?: string;
   }
 ): Promise<TcggoHistoryPricePoint[]> {
+  const game = options?.game ?? getGameFromScopedId(itemId);
+  const gamePath = getTcggoGamePath(game);
+  const remoteItemId = getRemoteTcggoId(game, itemId);
   const params = new URLSearchParams({
-    id: itemId,
+    id: remoteItemId,
     sort: "asc",
     page: "1",
   });
@@ -1224,7 +1229,9 @@ export async function fetchHistoryPricesByItemId(
   if (options?.dateFrom) params.set("date_from", options.dateFrom);
   if (options?.dateTo) params.set("date_to", options.dateTo);
 
-  const firstPage = await apiFetch<RawHistoryPriceResponse>(`/pokemon/history-prices?${params}`);
+  const firstPage = await apiFetch<RawHistoryPriceResponse>(
+    `/${gamePath}/history-prices?${params}`
+  );
   const totalPages = firstPage.paging?.total ?? 1;
   const pages = [firstPage];
 
@@ -1234,7 +1241,9 @@ export async function fetchHistoryPricesByItemId(
     const pageParams = new URLSearchParams(params);
     pageParams.set("page", String(pageNumber));
     await sleep(HISTORY_PAGE_FETCH_DELAY_MS);
-    pages.push(await apiFetch<RawHistoryPriceResponse>(`/pokemon/history-prices?${pageParams}`));
+    pages.push(
+      await apiFetch<RawHistoryPriceResponse>(`/${gamePath}/history-prices?${pageParams}`)
+    );
   }
 
   const merged = new Map<string, RawHistoryPriceEntry>();

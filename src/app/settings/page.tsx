@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { decodeSyncLogDetailsJson, decodeSyncLogMessage } from "@/lib/sync-log-details";
 import { timeAsync } from "@/lib/performance-timing";
 import { areScraperRequestsDisabled, SCRAPER_DISABLED_ENV } from "@/lib/scraper-guard";
+import { ONE_PIECE_GAME } from "@/lib/games";
 import {
   countManualCardHistoryCandidates,
   getAutoPriceRefreshSnapshot,
@@ -150,6 +151,7 @@ export default async function SettingsPage() {
     recentFailedSyncs,
     runningNowCount,
     autoRefreshSnapshot,
+    onePieceAutoRefreshSnapshot,
     tcggoUsageSnapshot,
     pendingCardHistoryCards,
     pullRateSetCount,
@@ -212,6 +214,7 @@ export default async function SettingsPage() {
       },
     }),
     getAutoPriceRefreshSnapshot(),
+    getAutoPriceRefreshSnapshot({ game: ONE_PIECE_GAME }),
     getTcggoUsageSnapshot(),
     countManualCardHistoryCandidates(),
     db.setPullRateProfile.count({
@@ -250,10 +253,14 @@ export default async function SettingsPage() {
     [
       ...relevantLogs.map((log) => parseSyncType(log.type).cardId),
       ...autoRefreshSnapshot.nextBatchCardIds,
+      ...onePieceAutoRefreshSnapshot.nextBatchCardIds,
     ]
       .filter((cardId): cardId is string => Boolean(cardId))
   )];
-  for (const episodeId of autoRefreshSnapshot.nextBatchEpisodeIds) {
+  for (const episodeId of [
+    ...autoRefreshSnapshot.nextBatchEpisodeIds,
+    ...onePieceAutoRefreshSnapshot.nextBatchEpisodeIds,
+  ]) {
     if (!episodeIds.includes(episodeId)) {
       episodeIds.push(episodeId);
     }
@@ -370,7 +377,14 @@ export default async function SettingsPage() {
   const recentAutoFailureCount = recentSyncs.filter(
     (log) => log.status === "failed" && log.type === "auto-prices"
   ).length;
-  const activeScraperLabel = toSyncEntry(activeSync)?.label ?? null;
+  const activeSyncEntry = toSyncEntry(activeSync);
+  const activeAutoRefreshEntry = toSyncEntry(activeAutoRefresh);
+  const onePieceActiveAutoRefresh =
+    activeAutoRefreshEntry?.details?.kind === "auto-price-refresh" &&
+    activeAutoRefreshEntry.details.currentSet?.game === ONE_PIECE_GAME
+      ? activeAutoRefreshEntry
+      : null;
+  const activeScraperLabel = activeSyncEntry?.label ?? null;
   const headerStats = [
     { label: "Running", value: runningNowCount.toLocaleString(), Icon: Activity, tone: "sky" },
     { label: "Success 24h", value: recentSuccessCount.toLocaleString(), Icon: RefreshCw, tone: "emerald" },
@@ -422,7 +436,7 @@ export default async function SettingsPage() {
 
         <div className="xl:col-span-2">
           <SyncStatusSection
-            activeSync={toSyncEntry(activeSync)}
+            activeSync={activeSyncEntry}
             lastSuccessfulSync={toSyncEntry(lastSuccessfulSync)}
             lastFailedSync={toSyncEntry(lastFailedSync)}
             overview={{
@@ -433,7 +447,10 @@ export default async function SettingsPage() {
               lastActivity: recentSyncEntries[0] ?? null,
             }}
             autoRefreshStatus={{
-              active: toSyncEntry(activeAutoRefresh),
+              title: "All Games Background Refresh",
+              description:
+                "Combined queue for every enabled library, including Pokemon and One Piece cards.",
+              active: activeAutoRefreshEntry,
               lastSuccess: toSyncEntry(lastAutoRefresh),
               lastFailure: toSyncEntry(lastAutoRefreshFailure),
               dueCards: autoRefreshSnapshot.dueCards,
@@ -458,6 +475,39 @@ export default async function SettingsPage() {
                 : null,
               scraperDisabled,
             }}
+            onePieceAutoRefreshStatus={
+              {
+                title: "One Piece Background Refresh",
+                description:
+                  "Filtered view of the One Piece queue; it runs through the shared background price refresher.",
+                active: onePieceActiveAutoRefresh,
+                lastSuccess: null,
+                lastFailure: null,
+                dueCards: onePieceAutoRefreshSnapshot.dueCards,
+                missingPriceCards: onePieceAutoRefreshSnapshot.missingPriceCards,
+                unavailableCooldownCards: onePieceAutoRefreshSnapshot.unavailableCooldownCards,
+                nextUnavailableRetryLabel: formatDateTime(
+                  onePieceAutoRefreshSnapshot.nextUnavailableRetryAt
+                ),
+                nextBatchCards: onePieceAutoRefreshSnapshot.nextBatchCards,
+                nextBatchEpisodes: onePieceAutoRefreshSnapshot.nextBatchEpisodes,
+                nextBatchSetLabels: onePieceAutoRefreshSnapshot.nextBatchEpisodeIds.map(
+                  (episodeId) => episodeNameById[episodeId] ?? `Set ${episodeId}`
+                ),
+                nextBatchCardLabels: onePieceAutoRefreshSnapshot.nextBatchCardIds.map(
+                  (cardId) => cardNameById[cardId] ?? cardId
+                ),
+                requestsRemaining: tcggoUsageSnapshot.requestsRemaining,
+                requestConcurrency: TCGGO_REQUEST_CONCURRENCY,
+                quotaPaused:
+                  tcggoUsageSnapshot.hasLiveWindow &&
+                  tcggoUsageSnapshot.requestsRemaining === 0,
+                quotaResetLabel: tcggoUsageSnapshot.hasLiveWindow
+                  ? formatScraperQuotaResetTime(tcggoUsageSnapshot.quotaResetsAt)
+                  : null,
+                scraperDisabled,
+              }
+            }
             recentSyncs={recentSyncEntries}
             recentFailures={recentFailedEntries}
           />

@@ -80,6 +80,14 @@ function findSavedGradedLabel(
 export default function CardModal({ card, showGradedSlabPreview = false, onClose }: Props) {
   useBodyScrollLock();
 
+  const savedCardMarketGradedLabel = findSavedGradedLabel(
+    card.graded_prices ?? [],
+    card.collection_item
+  );
+  const savedEbaySoldGradedLabel = findSavedGradedLabel(
+    card.ebay_sold_graded_prices ?? [],
+    card.collection_item
+  );
   const [modalCard, setModalCard] = useState(card);
   const { displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
@@ -87,20 +95,23 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const [refreshing, setRefreshing] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
-  const [historyChartMode, setHistoryChartMode] = useState<"market" | "graded">("market");
+  const [historyChartMode, setHistoryChartMode] = useState<"market" | "graded">(() =>
+    savedCardMarketGradedLabel || savedEbaySoldGradedLabel ? "graded" : "market"
+  );
   const [marketDataSource, setMarketDataSource] = useState<"cardmarket" | "tcgplayer">(
     "cardmarket"
   );
-  const [gradedDataSource, setGradedDataSource] = useState<"cardmarket" | "ebay">("cardmarket");
+  const [gradedDataSource, setGradedDataSource] = useState<"cardmarket" | "ebay">(() =>
+    savedEbaySoldGradedLabel ? "ebay" : "cardmarket"
+  );
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
   const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(() =>
-    findSavedGradedLabel(card.graded_prices ?? [], card.collection_item) ??
-    getPreferredGradedLabel(card.graded_prices ?? [])
+    savedCardMarketGradedLabel ?? getPreferredGradedLabel(card.graded_prices ?? [])
   );
   const [selectedEbaySoldGradedLabel, setSelectedEbaySoldGradedLabel] = useState<string | null>(
     () =>
-      findSavedGradedLabel(card.ebay_sold_graded_prices ?? [], card.collection_item) ??
+      savedEbaySoldGradedLabel ??
       getPreferredGradedLabel(
         (card.ebay_sold_graded_prices ?? []).map((price) => ({
           label: price.label,

@@ -22,6 +22,8 @@ export interface SyncStatusEntry {
 }
 
 export interface AutoRefreshStatus {
+  title?: string;
+  description?: string | null;
   active: SyncStatusEntry | null;
   lastSuccess: SyncStatusEntry | null;
   lastFailure: SyncStatusEntry | null;
@@ -54,6 +56,7 @@ export interface SyncStatusSectionProps {
   lastFailedSync: SyncStatusEntry | null;
   overview: OverviewStatus;
   autoRefreshStatus: AutoRefreshStatus;
+  onePieceAutoRefreshStatus: AutoRefreshStatus | null;
   recentSyncs: SyncStatusEntry[];
   recentFailures: SyncStatusEntry[];
 }

@@ -86,10 +86,29 @@ async function getCardDetailCostBasis(
                 price: true,
               },
             },
+            ebaySoldGradedPrices: {
+              orderBy: [{ median_price: "desc" }, { label: "asc" }],
+              select: {
+                label: true,
+                company: true,
+                grade: true,
+                median_price: true,
+                currency: true,
+              },
+            },
           },
         },
       },
     });
+    const hasUsdEbaySoldGradedPrices = binderCards.some(
+      (item) =>
+        item.grading_company &&
+        item.grading_grade &&
+        item.card.ebaySoldGradedPrices.some(
+          (price) => price.currency.toUpperCase() === "USD"
+        )
+    );
+    const usdToEurRate = hasUsdEbaySoldGradedPrices ? await getUsdToEurRate() : null;
     const allocation = buildLinkedBinderCostBasis({
       binderType: binder.type,
       binderEpisodeId: binder.episode_id,
@@ -101,6 +120,7 @@ async function getCardDetailCostBasis(
         currentValue: getCollectionCardMarketValue(item.card, {
           gradingCompany: item.grading_company,
           gradingGrade: item.grading_grade,
+          usdToEurRate,
         }),
       })),
     });

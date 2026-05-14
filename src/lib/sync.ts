@@ -5,7 +5,13 @@ import {
   getAutoPriceRefreshPauseRemainingMs,
 } from "@/lib/auto-price-refresh-pause";
 import { isHiddenExpansion, isPromoExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
-import { getGameFromScopedId, normalizeTradingCardGame, POKEMON_GAME } from "@/lib/games";
+import {
+  getGameFromScopedId,
+  normalizeTradingCardGame,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  type TradingCardGame,
+} from "@/lib/games";
 import { startPerformanceTimer, timeAsync } from "@/lib/performance-timing";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
 import {
@@ -42,6 +48,7 @@ import {
   mergeKnownEpisodeCardCount,
   previewAutoCatalogSync,
   selectAutoCatalogSyncBatch,
+  type AutoCatalogSyncSelection,
   upsertVisibleRemoteEpisodes,
 } from "@/lib/sync/catalog";
 import { warmEpisodeImages } from "@/lib/sync/image-warmer";
@@ -89,6 +96,7 @@ const KNOWN_UNAVAILABLE_PRICE_CHECK_TYPE = "known-unavailable-prices";
 const AUTO_PRICE_REFRESH_MAX_EPISODES = 12;
 const AUTO_PRICE_REFRESH_MAX_CARDS = 1200;
 const AUTO_PRICE_REFRESH_MIN_INTERVAL_MS = 1000 * 60 * 60 * 6;
+const AUTO_CATALOG_SYNC_GAMES = [POKEMON_GAME, ONE_PIECE_GAME] as const;
 const AUTO_PRICE_BACKFILL_MAX_EPISODES = 6;
 const AUTO_PRICE_BACKFILL_MAX_CARDS = 400;
 const KNOWN_UNAVAILABLE_PRICE_CHECK_MAX_EPISODES = 8;
@@ -118,17 +126,29 @@ const AUTO_NATIVE_HISTORY_CARD_BACKFILL_MAX = 0;
 const AUTO_NATIVE_HISTORY_PRODUCT_BACKFILL_MAX = 0;
 const CANCELLATION_CHECK_INTERVAL_MS = 250;
 const SYNC_WAIT_POLL_INTERVAL_MS = 300;
-const MANUAL_HISTORY_EXCLUDED_RARITIES = [
+const MANUAL_HISTORY_BASE_PRICE_ONLY_RARITIES = [
   "Common",
   "Uncommon",
-  "Rare",
+  "COMMON",
+  "UNCOMMON",
   "common",
   "uncommon",
+  "C",
+  "UC",
+  "c",
+  "uc",
+] as const;
+const MANUAL_HISTORY_POKEMON_RARE_EXCLUDED_RARITIES = [
+  "Rare",
+  "RARE",
   "rare",
+  "R",
+  "r",
 ] as const;
 
 interface DueCardCandidate {
   id: string;
+  game: string;
   episodeId: string;
   rarity: string | null;
   latestFetchedAt: string;
@@ -1889,6 +1909,24 @@ function buildNativeHistoryRetryWindowWhere(retryBefore: Date): Prisma.CardWhere
   };
 }
 
+function buildManualCardHistoryExcludedRarityWhere(): Prisma.CardWhereInput {
+  return {
+    OR: [
+      {
+        rarity: {
+          in: [...MANUAL_HISTORY_BASE_PRICE_ONLY_RARITIES],
+        },
+      },
+      {
+        game: POKEMON_GAME,
+        rarity: {
+          in: [...MANUAL_HISTORY_POKEMON_RARE_EXCLUDED_RARITIES],
+        },
+      },
+    ],
+  };
+}
+
 function buildManualCardHistoryCardWhere(): Prisma.CardWhereInput {
   const retryBefore = new Date(Date.now() - NATIVE_HISTORY_UNAVAILABLE_RETRY_MS);
 
@@ -1896,11 +1934,7 @@ function buildManualCardHistoryCardWhere(): Prisma.CardWhereInput {
     native_history_synced_at: null,
     AND: [
       {
-        NOT: {
-          rarity: {
-            in: [...MANUAL_HISTORY_EXCLUDED_RARITIES],
-          },
-        },
+        NOT: buildManualCardHistoryExcludedRarityWhere(),
       },
       buildNativeHistoryRetryWindowWhere(retryBefore),
     ],
@@ -2052,6 +2086,36 @@ function mergeSelectedByEpisode(...maps: Array<Map<string, string[]>>): Map<stri
   }
 
   return merged;
+}
+
+function mergeAutoCatalogSyncSelections(
+  selections: AutoCatalogSyncSelection[]
+): AutoCatalogSyncSelection {
+  const remoteEpisodeMap = new Map<string, AutoCatalogSyncSelection["remoteEpisodes"][number]>();
+  const selectedEpisodeMap = new Map<
+    string,
+    AutoCatalogSyncSelection["selectedEpisodes"][number]
+  >();
+
+  for (const selection of selections) {
+    for (const episode of selection.remoteEpisodes) {
+      remoteEpisodeMap.set(episode.id, episode);
+    }
+
+    for (const episode of selection.selectedEpisodes) {
+      selectedEpisodeMap.set(episode.id, episode);
+    }
+  }
+
+  return {
+    remoteEpisodes: [...remoteEpisodeMap.values()],
+    selectedEpisodes: [...selectedEpisodeMap.values()],
+    candidateEpisodes: selections.reduce(
+      (total, selection) => total + selection.candidateEpisodes,
+      0
+    ),
+    newEpisodes: selections.reduce((total, selection) => total + selection.newEpisodes, 0),
+  };
 }
 
 async function syncEpisodeCards(
@@ -2285,7 +2349,10 @@ async function syncEpisodeCards(
   return result;
 }
 
-async function selectAutoRefreshBatch(now: Date): Promise<{
+async function selectAutoRefreshBatch(
+  now: Date,
+  options?: { game?: TradingCardGame }
+): Promise<{
   dueCards: number;
   selectedCards: number;
   selectedByEpisode: Map<string, string[]>;
@@ -2295,6 +2362,7 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
   const candidates = await db.$queryRaw<
     Array<{
       id: string;
+      game: string;
       episode_id: string;
       rarity: string | null;
       latest_fetched_at: Date | string;
@@ -2309,6 +2377,7 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
     )
     SELECT
       c.id,
+      c.game,
       c.episode_id,
       c.rarity,
       c.price_source_status,
@@ -2325,6 +2394,7 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
   const dueCandidates: DueCardCandidate[] = [];
 
   for (const candidate of candidates) {
+    if (options?.game && candidate.game !== options.game) continue;
     if (hiddenEpisodeIds.has(candidate.episode_id)) continue;
     // A card can have an old snapshot but no current marketplace price. Do not spin on it.
     if (
@@ -2344,6 +2414,7 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
 
     dueCandidates.push({
       id: candidate.id,
+      game: candidate.game,
       episodeId: candidate.episode_id,
       rarity: candidate.rarity,
       latestFetchedAt,
@@ -2429,6 +2500,7 @@ async function selectAutoRefreshBatch(now: Date): Promise<{
 async function selectMissingPriceBackfillBatch(options?: {
   maxEpisodes?: number;
   maxCards?: number;
+  game?: TradingCardGame;
 }): Promise<{
   missingPriceCards: number;
   selectedCards: number;
@@ -2451,6 +2523,7 @@ async function selectMissingPriceBackfillBatch(options?: {
   const retryBefore = new Date(Date.now() - PRICE_SOURCE_UNAVAILABLE_RETRY_MS);
   const retryableMissingPriceWhere: Prisma.CardWhereInput = {
     ...visibleEpisodeFilter,
+    ...(options?.game ? { game: options.game } : {}),
     tcggo_url: { not: null },
     prices: {
       none: {},
@@ -2667,7 +2740,9 @@ async function selectKnownUnavailablePriceCheckBatch(options?: {
   };
 }
 
-export async function getAutoPriceRefreshSnapshot(): Promise<{
+export async function getAutoPriceRefreshSnapshot(options?: {
+  game?: TradingCardGame;
+}): Promise<{
   dueCards: number;
   missingPriceCards: number;
   unavailableCooldownCards: number;
@@ -2679,12 +2754,13 @@ export async function getAutoPriceRefreshSnapshot(): Promise<{
 }> {
   const timer = startPerformanceTimer("sync.auto-price-refresh.snapshot");
   const now = new Date();
-  const dueBatch = await selectAutoRefreshBatch(now);
+  const dueBatch = await selectAutoRefreshBatch(now, { game: options?.game });
   const backfillBatch = await selectMissingPriceBackfillBatch({
     maxCards: Math.min(
       AUTO_PRICE_BACKFILL_MAX_CARDS,
       Math.max(AUTO_PRICE_REFRESH_MAX_CARDS - dueBatch.selectedCards, 0)
     ),
+    game: options?.game,
   });
   const combinedBatch = mergeSelectedByEpisode(dueBatch.selectedByEpisode, backfillBatch.selectedByEpisode);
   const hiddenEpisodeIds = await getHiddenEpisodeIds();
@@ -2694,6 +2770,7 @@ export async function getAutoPriceRefreshSnapshot(): Promise<{
   const unavailableCooldownCards = await db.card.count({
     where: {
       ...visibleEpisodeFilter,
+      ...(options?.game ? { game: options.game } : {}),
       tcggo_url: { not: null },
       price_source_status: "unavailable",
     },
@@ -3516,7 +3593,7 @@ export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
         );
 
       await progress.updateMessage(
-        `Syncing TCGGO card history for ${candidateCards.length}/${candidateCardCount} cards across expansions (excluding Common, Uncommon, and Rare). This uses scraper requests.`,
+        `Syncing TCGGO card history for ${candidateCards.length}/${candidateCardCount} eligible cards across expansions. Common and Uncommon stay base-price only. This uses scraper requests.`,
         createCardHistoryLogDetails(progress.syncId, "running", {
           candidateCards: candidateCardCount,
           selectedCards: candidateCards.length,
@@ -3616,10 +3693,19 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
     });
   }
 
-  const previewCatalog = await previewAutoCatalogSync({
-    now,
-    minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
-  });
+  const previewCatalogs = await Promise.all(
+    AUTO_CATALOG_SYNC_GAMES.map(async (game) => ({
+      game,
+      preview: await previewAutoCatalogSync({
+        now,
+        minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
+        game,
+      }),
+    }))
+  );
+  const catalogGamesToSync = previewCatalogs
+    .filter(({ preview }) => preview.shouldSync)
+    .map(({ game }) => game);
   const previewDueBatch = await selectAutoRefreshBatch(now);
   const previewBackfillBatch = await selectMissingPriceBackfillBatch({
     maxCards: Math.min(
@@ -3630,6 +3716,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
   const previewNativeHistoryBatch = await selectNativeHistoryBackfillBatch();
 
   const hasAutoRefreshWork =
+    catalogGamesToSync.length > 0 ||
     previewDueBatch.dueCards > 0 ||
     previewBackfillBatch.missingPriceCards > 0 ||
     previewNativeHistoryBatch.cardIds.length > 0 ||
@@ -3657,9 +3744,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
     });
   }
 
-  const shouldRunCatalogWithAutoBatch =
-    previewCatalog.shouldSync &&
-    (previewDueBatch.dueCards > 0 || previewBackfillBatch.missingPriceCards > 0);
+  const shouldRunCatalogWithAutoBatch = catalogGamesToSync.length > 0;
 
   return runAutoLoggedSync(
     "Refreshing due cards and backfilling missing first prices in the background",
@@ -3668,12 +3753,19 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       await progress.throwIfCancelled();
 
       const catalogBatch = shouldRunCatalogWithAutoBatch
-        ? await selectAutoCatalogSyncBatch({
-            now: new Date(),
-            minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
-            maxEpisodes: AUTO_CATALOG_SYNC_MAX_EPISODES,
-            fetchRemoteEpisodes: fetchAllEpisodes,
-          })
+        ? mergeAutoCatalogSyncSelections(
+            await Promise.all(
+              catalogGamesToSync.map((game) =>
+                selectAutoCatalogSyncBatch({
+                  now: new Date(),
+                  minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
+                  maxEpisodes: AUTO_CATALOG_SYNC_MAX_EPISODES,
+                  game,
+                  fetchRemoteEpisodes: () => fetchAllEpisodes(game),
+                })
+              )
+            )
+          )
         : createEmptyAutoCatalogSyncSelection();
       const fetchedAt = new Date();
       let catalogSyncedEpisodes = 0;
@@ -3749,6 +3841,8 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
             {
               index: episodeIndex + 1,
               total: catalogBatch.selectedEpisodes.length,
+              id: episode.id,
+              game: episode.game,
               name: episode.name,
               cards: 0,
               previewCards: [],
@@ -3861,11 +3955,14 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       const episodeRecords = episodeEntries.length
         ? await db.episode.findMany({
             where: { id: { in: episodeEntries.map(([episodeId]) => episodeId) } },
-            select: { id: true, name: true },
+            select: { id: true, name: true, game: true },
           })
         : [];
       const episodeNameById = Object.fromEntries(
         episodeRecords.map((episode) => [episode.id, episode.name])
+      );
+      const episodeGameById = Object.fromEntries(
+        episodeRecords.map((episode) => [episode.id, episode.game])
       );
 
       await progress.throwIfCancelled();
@@ -3892,6 +3989,8 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
             {
               index: episodeIndex + 1,
               total: episodeEntries.length,
+              id: episodeId,
+              game: episodeGameById[episodeId] ?? POKEMON_GAME,
               name: episodeName,
               cards: cardIds.length,
               previewCards: previewNames,

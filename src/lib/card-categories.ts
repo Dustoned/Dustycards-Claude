@@ -4,6 +4,7 @@ import {
   getCollectionCardMarketValue,
   getCollectionMatchedGradedPrice,
 } from "@/lib/collection";
+import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
 import {
   HIDDEN_EXPANSION_CODES,
   HIDDEN_EXPANSION_IDS,
@@ -88,6 +89,16 @@ const CATEGORY_CARD_SELECT = {
     select: {
       label: true,
       price: true,
+    },
+  },
+  ebaySoldGradedPrices: {
+    orderBy: [{ median_price: "desc" }, { label: "asc" }],
+    select: {
+      label: true,
+      company: true,
+      grade: true,
+      median_price: true,
+      currency: true,
     },
   },
   episode: {
@@ -831,7 +842,26 @@ export async function getCardCategorySummaries(
   );
 }
 
-function buildOwnedMap(records: OwnedCategoryRecord[], cardsById: Map<string, CategoryCardRecord>) {
+function hasUsdEbaySoldGradedCategoryPrices(
+  records: OwnedCategoryRecord[],
+  cardsById: Map<string, CategoryCardRecord>
+): boolean {
+  return records.some((item) => {
+    if (!item.grading_company || !item.grading_grade) return false;
+
+    return (
+      cardsById
+        .get(item.card_id)
+        ?.ebaySoldGradedPrices.some((price) => price.currency.toUpperCase() === "USD") ?? false
+    );
+  });
+}
+
+function buildOwnedMap(
+  records: OwnedCategoryRecord[],
+  cardsById: Map<string, CategoryCardRecord>,
+  options?: { usdToEurRate?: CurrencyExchangeRate | null }
+) {
   const ownedByCardId = new Map<
     string,
     {
@@ -857,6 +887,7 @@ function buildOwnedMap(records: OwnedCategoryRecord[], cardsById: Map<string, Ca
       getCollectionCardMarketValue(card, {
         gradingCompany: item.grading_company,
         gradingGrade: item.grading_grade,
+        usdToEurRate: options?.usdToEurRate,
       }) ?? 0;
     const itemCmValue = getCollectionCardMarketValue(card) ?? 0;
     const itemTcpValue = card?.prices[0]?.tcp_market ?? 0;
@@ -895,7 +926,8 @@ function buildOwnedMap(records: OwnedCategoryRecord[], cardsById: Map<string, Ca
 function buildCategoryItem(
   card: CategoryCardRecord,
   owned: ReturnType<typeof buildOwnedMap> extends Map<string, infer T> ? T | undefined : never,
-  wantItemId: string | null
+  wantItemId: string | null,
+  options?: { usdToEurRate?: CurrencyExchangeRate | null }
 ): CollectionCardViewItem {
   const ownedCurrentValue = owned ? Number(owned.currentValue.toFixed(2)) : null;
   const cmValue = owned ? Number(owned.cmValue.toFixed(2)) : getCollectionCardMarketValue(card);
@@ -906,6 +938,7 @@ function buildCategoryItem(
     ? getCollectionMatchedGradedPrice(card, {
         gradingCompany: owned.gradingCompany,
         gradingGrade: owned.gradingGrade,
+        usdToEurRate: options?.usdToEurRate,
       })
     : null;
 
@@ -1102,10 +1135,19 @@ export async function getCardCategoryPageData(
       : [[], [], []];
 
   const cardsById = new Map(cards.map((card) => [card.id, card]));
-  const ownedByCardId = buildOwnedMap(ownedRecords, cardsById);
+  const usdToEurRate = hasUsdEbaySoldGradedCategoryPrices(ownedRecords, cardsById)
+    ? await getUsdToEurRate()
+    : null;
+  const valueOptions = { usdToEurRate };
+  const ownedByCardId = buildOwnedMap(ownedRecords, cardsById, valueOptions);
   const wantByCardId = new Map(wantRecords.map((want) => [want.card_id, want.id]));
   const items = cards.map((card) =>
-    buildCategoryItem(card, ownedByCardId.get(card.id), wantByCardId.get(card.id) ?? null)
+    buildCategoryItem(
+      card,
+      ownedByCardId.get(card.id),
+      wantByCardId.get(card.id) ?? null,
+      valueOptions
+    )
   );
   const pricedItems = items.filter((item) => item.current_value != null);
   const estimatedValue = pricedItems.length

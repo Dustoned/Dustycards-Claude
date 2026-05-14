@@ -15,6 +15,7 @@ export default function SyncStatusSection({
   lastFailedSync,
   overview,
   autoRefreshStatus,
+  onePieceAutoRefreshStatus,
   recentSyncs,
   recentFailures,
 }: SyncStatusSectionProps) {
@@ -68,7 +69,10 @@ export default function SyncStatusSection({
       )}
 
       <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
-        <AutoRefreshCard {...autoRefreshStatus} />
+        <div className="grid gap-3 lg:grid-cols-2">
+          <AutoRefreshCard {...autoRefreshStatus} />
+          {onePieceAutoRefreshStatus && <AutoRefreshCard {...onePieceAutoRefreshStatus} />}
+        </div>
       </div>
 
       <FailureList entries={recentFailures} />

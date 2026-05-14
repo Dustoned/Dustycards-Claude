@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildLinkedBinderCostBasis, combineValueHistories } from "@/lib/collection";
+import {
+  buildLinkedBinderCostBasis,
+  combineValueHistories,
+  getCollectionCardMarketValue,
+  getCollectionMatchedGradedPrice,
+} from "@/lib/collection";
 
 describe("combineValueHistories", () => {
   it("carries sealed value forward when card history has a newer point", () => {
@@ -139,5 +144,94 @@ describe("buildLinkedBinderCostBasis", () => {
 
     expect(values.reduce((sum, value) => sum + value, 0)).toBeCloseTo(10, 2);
     expect(values).toEqual([3.34, 3.33, 3.33]);
+  });
+});
+
+describe("graded collection values", () => {
+  const usdToEurRate = {
+    from: "USD" as const,
+    to: "EUR" as const,
+    rate: 0.92,
+    date: "2026-05-14",
+    source: "frankfurter" as const,
+  };
+
+  it("uses exact eBay sold grade before raw pricing for saved graded cards", () => {
+    const card = {
+      prices: [
+        {
+          cm_en_lowest_nm: 40,
+          cm_de_lowest_nm: null,
+          cm_fr_lowest_nm: null,
+          cm_es_lowest_nm: null,
+          cm_it_lowest_nm: null,
+        },
+      ],
+      gradedPrices: [{ label: "PSA 9", price: 180 }],
+      ebaySoldGradedPrices: [
+        {
+          label: "PSA 8",
+          company: "PSA",
+          grade: "8",
+          median_price: 100,
+          currency: "USD",
+        },
+      ],
+    };
+
+    expect(
+      getCollectionMatchedGradedPrice(card, {
+        gradingCompany: "PSA",
+        gradingGrade: "8",
+        usdToEurRate,
+      })
+    ).toEqual({
+      label: "PSA 8 eBay sold",
+      price: 92,
+      source: "ebay_sold_graded",
+    });
+    expect(
+      getCollectionCardMarketValue(card, {
+        gradingCompany: "PSA",
+        gradingGrade: "8",
+        usdToEurRate,
+      })
+    ).toBe(92);
+  });
+
+  it("falls back to CardMarket graded when no exact eBay sold grade is usable", () => {
+    const card = {
+      prices: [
+        {
+          cm_en_lowest_nm: 40,
+          cm_de_lowest_nm: null,
+          cm_fr_lowest_nm: null,
+          cm_es_lowest_nm: null,
+          cm_it_lowest_nm: null,
+        },
+      ],
+      gradedPrices: [{ label: "PSA 8", price: 120 }],
+      ebaySoldGradedPrices: [
+        {
+          label: "PSA 8",
+          company: "PSA",
+          grade: "8",
+          median_price: 100,
+          currency: "USD",
+        },
+      ],
+    };
+
+    expect(
+      getCollectionMatchedGradedPrice(card, {
+        gradingCompany: "PSA",
+        gradingGrade: "8",
+        usdToEurRate: null,
+      })
+    ).toEqual({
+      label: "PSA 8",
+      price: 120,
+      source: "cardmarket_graded",
+    });
   });
 });

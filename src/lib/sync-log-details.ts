@@ -3,6 +3,8 @@ export const SYNC_LOG_DETAILS_MARKER = "\n\n@@dustycards-sync-details:";
 export interface AutoPriceRefreshCurrentSetDetails {
   index: number;
   total: number;
+  id?: string;
+  game?: string;
   name: string;
   cards: number;
   previewCards: string[];

@@ -1,7 +1,7 @@
 import type { Prisma } from "@/generated/prisma";
 import { db } from "@/lib/db";
 import { isHiddenExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
-import { POKEMON_GAME } from "@/lib/games";
+import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import type { NormalizedEpisode } from "@/lib/tcggo";
 
 export type EpisodeSourceStatus = "ok" | "partial" | "empty";
@@ -44,6 +44,8 @@ export interface AutoCatalogSyncPreview {
   shouldSync: boolean;
 }
 
+const AUTO_CATALOG_CHECK_SETTING_PREFIX = "auto-catalog-sync:last-checked-at:";
+
 export function hasEpisodeSourceIssue(status: string | null): boolean {
   return status === "partial" || status === "empty";
 }
@@ -62,28 +64,6 @@ function shouldRecheckEpisodeSource(
   }
 
   return now.getTime() - episode.source_checked_at.getTime() >= minIntervalMs;
-}
-
-function hasLocalEpisodeCardShortfall(
-  episode: Pick<AutoCatalogLocalEpisode, "card_count" | "_count">
-): boolean {
-  if (episode.card_count == null) {
-    return episode._count.cards === 0;
-  }
-
-  return episode._count.cards < episode.card_count;
-}
-
-function hasLocalEpisodeShortfall(
-  episodes: AutoCatalogLocalEpisode[],
-  now: Date,
-  minIntervalMs: number
-): boolean {
-  return episodes.some(
-    (episode) =>
-      hasLocalEpisodeCardShortfall(episode) ||
-      shouldRecheckEpisodeSource(episode, now, minIntervalMs)
-  );
 }
 
 function getLatestEpisodeCatalogActivityAt(episodes: AutoCatalogLocalEpisode[]): Date | null {
@@ -178,9 +158,11 @@ export function buildEpisodeSourceCheckUpdate(input: {
   };
 }
 
-async function loadVisibleAutoCatalogLocalEpisodes(): Promise<AutoCatalogLocalEpisode[]> {
+async function loadVisibleAutoCatalogLocalEpisodes(
+  game: TradingCardGame = POKEMON_GAME
+): Promise<AutoCatalogLocalEpisode[]> {
   const localEpisodes = await db.episode.findMany({
-    where: { game: POKEMON_GAME },
+    where: { game },
     select: {
       id: true,
       name: true,
@@ -203,25 +185,77 @@ async function loadVisibleAutoCatalogLocalEpisodes(): Promise<AutoCatalogLocalEp
   );
 }
 
+function getAutoCatalogCheckSettingKey(game: TradingCardGame): string {
+  return `${AUTO_CATALOG_CHECK_SETTING_PREFIX}${game}`;
+}
+
+function parseSettingDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function getLastAutoCatalogCheckedAt(game: TradingCardGame): Promise<Date | null> {
+  const setting = await db.appSetting.findUnique({
+    where: { key: getAutoCatalogCheckSettingKey(game) },
+    select: { value: true },
+  });
+
+  return parseSettingDate(setting?.value);
+}
+
+async function markAutoCatalogCheckedAt(
+  games: readonly TradingCardGame[],
+  checkedAt: Date
+): Promise<void> {
+  await db.$transaction(
+    [...new Set(games)].map((game) =>
+      db.appSetting.upsert({
+        where: { key: getAutoCatalogCheckSettingKey(game) },
+        create: {
+          key: getAutoCatalogCheckSettingKey(game),
+          value: checkedAt.toISOString(),
+        },
+        update: {
+          value: checkedAt.toISOString(),
+        },
+      })
+    )
+  );
+}
+
 function shouldRunAutoCatalogSync(
   episodes: AutoCatalogLocalEpisode[],
   now: Date,
-  minIntervalMs: number
+  minIntervalMs: number,
+  lastRemoteCatalogCheckedAt: Date | null
 ): boolean {
   if (episodes.length === 0) {
-    return true;
+    return (
+      !lastRemoteCatalogCheckedAt ||
+      now.getTime() - lastRemoteCatalogCheckedAt.getTime() >= minIntervalMs
+    );
   }
 
-  if (!hasLocalEpisodeShortfall(episodes, now, minIntervalMs)) {
+  const latestLocalCatalogActivityAt = getLatestEpisodeCatalogActivityAt(episodes);
+  const latestCatalogActivityAt =
+    latestLocalCatalogActivityAt &&
+    (!lastRemoteCatalogCheckedAt ||
+      latestLocalCatalogActivityAt.getTime() > lastRemoteCatalogCheckedAt.getTime())
+      ? latestLocalCatalogActivityAt
+      : lastRemoteCatalogCheckedAt;
+
+  if (
+    latestCatalogActivityAt &&
+    now.getTime() - latestCatalogActivityAt.getTime() < minIntervalMs
+  ) {
     return false;
   }
 
-  const latestCatalogActivityAt = getLatestEpisodeCatalogActivityAt(episodes);
-  if (!latestCatalogActivityAt) {
-    return true;
-  }
-
-  return now.getTime() - latestCatalogActivityAt.getTime() >= minIntervalMs;
+  // A stale catalog should still be checked even when local card counts look complete,
+  // otherwise newly released remote episodes are invisible until a manual full sync.
+  return true;
 }
 
 export function createEmptyAutoCatalogSyncSelection(): AutoCatalogSyncSelection {
@@ -236,11 +270,21 @@ export function createEmptyAutoCatalogSyncSelection(): AutoCatalogSyncSelection 
 export async function previewAutoCatalogSync(input: {
   now: Date;
   minIntervalMs: number;
+  game?: TradingCardGame;
 }): Promise<AutoCatalogSyncPreview> {
-  const localEpisodes = await loadVisibleAutoCatalogLocalEpisodes();
+  const game = input.game ?? POKEMON_GAME;
+  const [localEpisodes, lastRemoteCatalogCheckedAt] = await Promise.all([
+    loadVisibleAutoCatalogLocalEpisodes(game),
+    getLastAutoCatalogCheckedAt(game),
+  ]);
 
   return {
-    shouldSync: shouldRunAutoCatalogSync(localEpisodes, input.now, input.minIntervalMs),
+    shouldSync: shouldRunAutoCatalogSync(
+      localEpisodes,
+      input.now,
+      input.minIntervalMs,
+      lastRemoteCatalogCheckedAt
+    ),
   };
 }
 
@@ -326,14 +370,28 @@ export async function selectAutoCatalogSyncBatch(input: {
   minIntervalMs: number;
   maxEpisodes: number;
   fetchRemoteEpisodes: () => Promise<NormalizedEpisode[]>;
+  game?: TradingCardGame;
 }): Promise<AutoCatalogSyncSelection> {
-  const visibleLocalEpisodes = await loadVisibleAutoCatalogLocalEpisodes();
+  const game = input.game ?? POKEMON_GAME;
+  const [visibleLocalEpisodes, lastRemoteCatalogCheckedAt] = await Promise.all([
+    loadVisibleAutoCatalogLocalEpisodes(game),
+    getLastAutoCatalogCheckedAt(game),
+  ]);
 
-  if (!shouldRunAutoCatalogSync(visibleLocalEpisodes, input.now, input.minIntervalMs)) {
+  if (
+    !shouldRunAutoCatalogSync(
+      visibleLocalEpisodes,
+      input.now,
+      input.minIntervalMs,
+      lastRemoteCatalogCheckedAt
+    )
+  ) {
     return createEmptyAutoCatalogSyncSelection();
   }
 
   const remoteEpisodes = await input.fetchRemoteEpisodes();
+  await markAutoCatalogCheckedAt([game], input.now);
+
   return {
     remoteEpisodes,
     ...planAutoCatalogSyncFromEpisodes({
@@ -359,7 +417,6 @@ export async function upsertVisibleRemoteEpisodes(
 
   const existingEpisodes = await db.episode.findMany({
     where: {
-      game: POKEMON_GAME,
       id: {
         in: visibleEpisodes.map((episode) => episode.id),
       },

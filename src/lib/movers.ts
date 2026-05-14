@@ -1,4 +1,9 @@
 import { db } from "@/lib/db";
+import {
+  getCollectionMatchedGradedPrice,
+  type CollectionCardValueLike,
+} from "@/lib/collection";
+import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
 import { startPerformanceTimer } from "@/lib/performance-timing";
 import {
   CARD_MARKET_HISTORY_SERIES,
@@ -28,6 +33,7 @@ const MIN_PERCENT_BASE_VALUE = 1;
 const MIN_RAW_MOVER_PRICE = 3;
 const RECENT_PRICE_SERIES_POINT_LIMIT = 16;
 const MAX_ALL_SCOPE_MOVERS = 500;
+const SQLITE_SAFE_CHUNK_SIZE = 250;
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
@@ -56,6 +62,32 @@ interface MoverCandidateCardRecord {
   prices: LatestPriceSnapshot[];
   tcggoScore: TcggoMoverScore | null;
   ownedCount: number;
+  collectionPriceOverride: CollectionMoverPriceOverride | null;
+}
+
+interface CollectionMoverPriceOverride {
+  label: string;
+  price: number;
+  source: "ebay_sold_graded" | "cardmarket_graded";
+}
+
+interface CollectionMoverOwnedCardRecord {
+  card_id: string;
+  grading_company: string | null;
+  grading_grade: string | null;
+  card: CollectionCardValueLike & {
+    gradedPrices: Array<{
+      label: string;
+      price: number;
+    }>;
+    ebaySoldGradedPrices: Array<{
+      label: string;
+      company: string;
+      grade: string;
+      median_price: number;
+      currency: string;
+    }>;
+  };
 }
 
 export interface TcggoMoverScore {
@@ -996,6 +1028,105 @@ function getMoverCandidateCardsCte(
   };
 }
 
+function chunkValues<T>(values: T[], size = SQLITE_SAFE_CHUNK_SIZE): T[][] {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+function hasUsdEbaySoldGradedMoverPrices(records: CollectionMoverOwnedCardRecord[]): boolean {
+  return records.some(
+    (record) =>
+      record.grading_company &&
+      record.grading_grade &&
+      record.card.ebaySoldGradedPrices.some(
+        (price) => price.currency.toUpperCase() === "USD"
+      )
+  );
+}
+
+function buildCollectionMoverPriceOverrideMap(
+  records: CollectionMoverOwnedCardRecord[],
+  usdToEurRate: CurrencyExchangeRate | null
+): Map<string, CollectionMoverPriceOverride> {
+  const overrides = new Map<string, CollectionMoverPriceOverride>();
+
+  for (const record of records) {
+    if (overrides.has(record.card_id)) continue;
+
+    const matchedGradedPrice = getCollectionMatchedGradedPrice(record.card, {
+      gradingCompany: record.grading_company,
+      gradingGrade: record.grading_grade,
+      usdToEurRate,
+    });
+
+    if (matchedGradedPrice) {
+      overrides.set(record.card_id, matchedGradedPrice);
+    }
+  }
+
+  return overrides;
+}
+
+async function fetchCollectionMoverPriceOverrides(
+  cardIds: string[],
+  userId?: string | null
+): Promise<Map<string, CollectionMoverPriceOverride>> {
+  if (!userId || cardIds.length === 0) {
+    return new Map();
+  }
+
+  const pages = await Promise.all(
+    chunkValues(cardIds).map((chunk) =>
+      db.collectionCard.findMany({
+        where: {
+          user_id: userId,
+          card_id: { in: chunk },
+          grading_company: { not: null },
+          grading_grade: { not: null },
+        },
+        orderBy: [{ updated_at: "desc" }],
+        select: {
+          card_id: true,
+          grading_company: true,
+          grading_grade: true,
+          card: {
+            select: {
+              gradedPrices: {
+                orderBy: [{ price: "desc" }, { label: "asc" }],
+                select: {
+                  label: true,
+                  price: true,
+                },
+              },
+              ebaySoldGradedPrices: {
+                orderBy: [{ median_price: "desc" }, { label: "asc" }],
+                select: {
+                  label: true,
+                  company: true,
+                  grade: true,
+                  median_price: true,
+                  currency: true,
+                },
+              },
+            },
+          },
+        },
+      })
+    )
+  );
+  const records = pages.flat();
+  const usdToEurRate = hasUsdEbaySoldGradedMoverPrices(records)
+    ? await getUsdToEurRate()
+    : null;
+
+  return buildCollectionMoverPriceOverrideMap(records, usdToEurRate);
+}
+
 async function fetchMoverCandidateCards(
   scope: MoversScope,
   userId?: string | null,
@@ -1063,7 +1194,7 @@ async function fetchMoverCandidateCards(
     ...(userId ? [userId] : [])
   );
 
-  return rows.map((row) => ({
+  const candidates = rows.map((row) => ({
     id: row.id,
     name: row.name,
     card_number: row.card_number,
@@ -1092,6 +1223,21 @@ async function fetchMoverCandidateCards(
       : [],
     tcggoScore: buildTcggoMoverScore(row),
     ownedCount: Number(row.owned_count ?? 0),
+    collectionPriceOverride: null,
+  }));
+
+  if (scope !== "collection" || !userId || candidates.length === 0) {
+    return candidates;
+  }
+
+  const collectionPriceOverrides = await fetchCollectionMoverPriceOverrides(
+    candidates.map((card) => card.id),
+    userId
+  );
+
+  return candidates.map((card) => ({
+    ...card,
+    collectionPriceOverride: collectionPriceOverrides.get(card.id) ?? null,
   }));
 }
 
@@ -2079,7 +2225,13 @@ export async function getMovers(
       continue;
     }
 
-    if (resolvedSource.currentPrice < MIN_RAW_MOVER_PRICE) {
+    const collectionPriceOverride = card.collectionPriceOverride;
+    const currentPrice = collectionPriceOverride?.price ?? resolvedSource.currentPrice;
+    const source = collectionPriceOverride ? "graded" : resolvedSource.key;
+    const sourceLabel = collectionPriceOverride ? "Graded" : resolvedSource.label;
+    const currency = collectionPriceOverride ? "EUR" : resolvedSource.currency;
+
+    if (currentPrice < MIN_RAW_MOVER_PRICE) {
       continue;
     }
 
@@ -2090,12 +2242,12 @@ export async function getMovers(
           null
         : null;
     const rarityWeight = resolveMoverRarityWeight(card.rarity, pullRateInfo?.pullRateWeight);
-    const cheapnessWeight = getCheapnessWeight(resolvedSource.currentPrice);
+    const cheapnessWeight = getCheapnessWeight(currentPrice);
     const releaseAgeYears = getReleaseAgeYears(card.episode.release_date);
     const ageWeight = getAgeWeight(releaseAgeYears);
     const olderValueScore = getOlderValueScore({
       releaseAgeYears,
-      currentPrice: resolvedSource.currentPrice,
+      currentPrice,
       rarityWeight,
       cheapnessWeight,
       kind: "raw",
@@ -2114,7 +2266,7 @@ export async function getMovers(
       resolvedSource.key === "cardmarket" ? tcgplayerPrice : cardmarketPrice;
     const scores = buildMoverScores({
       kind: "raw",
-      currentPrice: resolvedSource.currentPrice,
+      currentPrice,
       change7d: resolvedSource.change7d,
       change30d: resolvedSource.change30d,
       changeSinceTrackedPct: resolvedSource.lifetime.changeSinceTracked?.changePct ?? null,
@@ -2142,13 +2294,13 @@ export async function getMovers(
       episodeReleaseDate: card.episode.release_date,
       releaseAgeYears,
       ownedCount: card.ownedCount,
-      source: resolvedSource.key,
-      sourceLabel: resolvedSource.label,
-      currency: resolvedSource.currency,
-      currentPrice: round(resolvedSource.currentPrice),
+      source,
+      sourceLabel,
+      currency,
+      currentPrice: round(currentPrice),
       cardmarketPrice: cardmarketPrice != null ? round(cardmarketPrice) : null,
       tcgplayerPrice: tcgplayerPrice != null ? round(tcgplayerPrice) : null,
-      gradedLabel: null,
+      gradedLabel: collectionPriceOverride?.label ?? null,
       gradedPrices: gradedPricesByCardId.get(card.id) ?? [],
       grading: null,
       latestFetchedAt: latestPrice

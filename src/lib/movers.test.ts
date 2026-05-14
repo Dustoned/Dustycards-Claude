@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import { getMovers, resolveMoverRarityWeight } from "@/lib/movers";
+import { POKEMON_GAME } from "@/lib/games";
 
 describe("mover pull-rate weighting", () => {
   it("uses pull-rate weight before rarity fallback", () => {
@@ -79,7 +80,7 @@ describe("mover scopes", () => {
     async () => {
       const [gradedData, currentGradedCount] = await Promise.all([
         getMovers("cm_en", "graded"),
-        db.cardGradedPrice.count(),
+        db.cardGradedPrice.count({ where: { card: { game: POKEMON_GAME } } }),
       ]);
       const gradedMover = gradedData.movers.find((item) => item.gradedLabel);
 
@@ -101,7 +102,7 @@ describe("mover scopes", () => {
     async () => {
       const [gradingData, currentGradedCount] = await Promise.all([
         getMovers("cm_en", "grading"),
-        db.cardGradedPrice.count(),
+        db.cardGradedPrice.count({ where: { card: { game: POKEMON_GAME } } }),
       ]);
 
       expect(gradingData.scope).toBe("grading");

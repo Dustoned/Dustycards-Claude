@@ -15,6 +15,7 @@ import {
   sumCollectionPurchasePrices,
 } from "@/lib/collection";
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
+import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
 import { getExpansionHref, POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import { startPerformanceTimer } from "@/lib/performance-timing";
 import {
@@ -182,6 +183,16 @@ const collectionCardSelect = {
           price: true,
         },
       },
+      ebaySoldGradedPrices: {
+        orderBy: [{ median_price: "desc" }, { label: "asc" }],
+        select: {
+          label: true,
+          company: true,
+          grade: true,
+          median_price: true,
+          currency: true,
+        },
+      },
       episode: {
         select: {
           id: true,
@@ -224,6 +235,16 @@ const collectionCardMetricSelect = {
           price: true,
         },
       },
+      ebaySoldGradedPrices: {
+        orderBy: [{ median_price: "desc" }, { label: "asc" }],
+        select: {
+          label: true,
+          company: true,
+          grade: true,
+          median_price: true,
+          currency: true,
+        },
+      },
     },
   },
 } satisfies Prisma.CollectionCardSelect;
@@ -256,6 +277,16 @@ const collectionWantSelect = {
         select: {
           label: true,
           price: true,
+        },
+      },
+      ebaySoldGradedPrices: {
+        orderBy: [{ median_price: "desc" }, { label: "asc" }],
+        select: {
+          label: true,
+          company: true,
+          grade: true,
+          median_price: true,
+          currency: true,
         },
       },
       episode: {
@@ -459,6 +490,13 @@ type CollectionCardMetricRecord = {
       label: string;
       price: number;
     }>;
+    ebaySoldGradedPrices: Array<{
+      label: string;
+      company: string;
+      grade: string;
+      median_price: number;
+      currency: string;
+    }>;
   };
 };
 
@@ -504,6 +542,13 @@ type CollectionWantRecord = {
     gradedPrices: Array<{
       label: string;
       price: number;
+    }>;
+    ebaySoldGradedPrices: Array<{
+      label: string;
+      company: string;
+      grade: string;
+      median_price: number;
+      currency: string;
     }>;
     episode: {
       id: string;
@@ -777,7 +822,8 @@ function buildCostBasisFields(costBasis: CollectionCostBasis | null | undefined)
 
 function buildCollectionCostBasisMap(
   records: CollectionCardMetricRecord[],
-  binders: CollectionBinderCostBasisRecord[]
+  binders: CollectionBinderCostBasisRecord[],
+  options?: { usdToEurRate?: CurrencyExchangeRate | null }
 ): Map<string, CollectionCostBasis> {
   const allocations = new Map<string, CollectionCostBasis>();
   const recordsByBinderId = new Map<string, CollectionCardMetricRecord[]>();
@@ -803,7 +849,7 @@ function buildCollectionCostBasisMap(
         itemId: record.id,
         episodeId: record.card.episode_id,
         directPurchasePrice: record.purchase_price,
-        currentValue: getCollectionCardCurrentValue(record),
+        currentValue: getCollectionCardCurrentValue(record, options),
       })),
     });
 
@@ -817,14 +863,16 @@ function buildCollectionCostBasisMap(
 
 function buildCardViewItem(
   record: CollectionCardRecord,
-  costBasis?: CollectionCostBasis | null
+  costBasis?: CollectionCostBasis | null,
+  options?: { usdToEurRate?: CurrencyExchangeRate | null }
 ): CollectionCardViewItem {
   const cmValue = getCollectionCardMarketValue(record.card);
   const tcpValue = record.card.prices[0]?.tcp_market ?? null;
-  const currentValue = getCollectionCardCurrentValue(record);
+  const currentValue = getCollectionCardCurrentValue(record, options);
   const matchedGradedPrice = getCollectionMatchedGradedPrice(record.card, {
     gradingCompany: record.grading_company,
     gradingGrade: record.grading_grade,
+    usdToEurRate: options?.usdToEurRate,
   });
 
   return {
@@ -897,10 +945,14 @@ function buildWantViewItem(record: CollectionWantRecord): CollectionCardViewItem
   };
 }
 
-function getCollectionCardCurrentValue(record: CollectionCardMetricRecord): number | null {
+function getCollectionCardCurrentValue(
+  record: CollectionCardMetricRecord,
+  options?: { usdToEurRate?: CurrencyExchangeRate | null }
+): number | null {
   return getCollectionCardMarketValue(record.card, {
     gradingCompany: record.grading_company,
     gradingGrade: record.grading_grade,
+    usdToEurRate: options?.usdToEurRate,
   });
 }
 
@@ -1027,6 +1079,16 @@ function finalizeCollectionValueDriver(
   };
 }
 
+function getCollectionValueDriverCardSource(item: CollectionCardViewItem): string {
+  if (!item.current_value_label) {
+    return "Raw";
+  }
+
+  return item.current_value_label.toLowerCase().includes("ebay sold")
+    ? "eBay sold"
+    : "Graded";
+}
+
 function buildCollectionValueDrivers({
   cards,
   sealed,
@@ -1065,7 +1127,7 @@ function buildCollectionValueDrivers({
   for (const item of cards) {
     const currentItemValue = item.current_value ?? 0;
     const previousItemValue = cardBaselineValues.get(item.card_id) ?? 0;
-    const currentSource = item.current_value_label ? "Graded" : "Raw";
+    const currentSource = getCollectionValueDriverCardSource(item);
     const previousSource = item.current_value_label ? "Raw" : "Raw";
     const key = `card:${item.card_id}:${currentSource}`;
 
@@ -1144,10 +1206,16 @@ function buildCollectionValueDrivers({
   };
 }
 
-function sumCardCurrentValue(records: CollectionCardMetricRecord[]): number {
+function sumCardCurrentValue(
+  records: CollectionCardMetricRecord[],
+  options?: { usdToEurRate?: CurrencyExchangeRate | null }
+): number {
   return Number(
     records
-      .reduce((total, record) => total + (getCollectionCardCurrentValue(record) ?? 0), 0)
+      .reduce(
+        (total, record) => total + (getCollectionCardCurrentValue(record, options) ?? 0),
+        0
+      )
       .toFixed(2)
   );
 }
@@ -1161,6 +1229,17 @@ function sumSealedCurrentValue(records: CollectionSealedMetricRecord[]): number 
         0
       )
       .toFixed(2)
+  );
+}
+
+function hasUsdEbaySoldGradedPrices(records: CollectionCardMetricRecord[]): boolean {
+  return records.some(
+    (record) =>
+      record.grading_company &&
+      record.grading_grade &&
+      record.card.ebaySoldGradedPrices.some(
+        (price) => price.currency.toUpperCase() === "USD"
+      )
   );
 }
 
@@ -1182,7 +1261,10 @@ function buildProductQuantityMap(
   return quantities;
 }
 
-function buildBinderCardStats(records: CollectionCardMetricRecord[]) {
+function buildBinderCardStats(
+  records: CollectionCardMetricRecord[],
+  options?: { usdToEurRate?: CurrencyExchangeRate | null }
+) {
   const stats = new Map<
     string,
     {
@@ -1199,13 +1281,13 @@ function buildBinderCardStats(records: CollectionCardMetricRecord[]) {
     const existing = stats.get(record.binder_id);
     if (existing) {
       existing.count += 1;
-      existing.currentValue += getCollectionCardCurrentValue(record) ?? 0;
+      existing.currentValue += getCollectionCardCurrentValue(record, options) ?? 0;
       existing.investment += record.purchase_price ?? 0;
       existing.uniqueOwnedCardIds.add(record.card.id);
     } else {
       stats.set(record.binder_id, {
         count: 1,
-        currentValue: getCollectionCardCurrentValue(record) ?? 0,
+        currentValue: getCollectionCardCurrentValue(record, options) ?? 0,
         investment: record.purchase_price ?? 0,
         uniqueOwnedCardIds: new Set([record.card.id]),
       });
@@ -1265,7 +1347,11 @@ export async function getCollectionOverviewData(
 
   const metricCards = collectionCards as CollectionCardMetricRecord[];
   const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
-  const cardCurrentValue = sumCardCurrentValue(metricCards);
+  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards)
+    ? await getUsdToEurRate()
+    : null;
+  const valueOptions = { usdToEurRate };
+  const cardCurrentValue = sumCardCurrentValue(metricCards, valueOptions);
   const sealedCurrentValue = sumSealedCurrentValue(metricSealed);
   const cardInvestment = sumCollectionPurchasePrices(metricCards.map((item) => item.purchase_price));
   const sealedInvestment = sumCollectionPurchasePrices(
@@ -1298,12 +1384,16 @@ export async function getCollectionOverviewData(
     value: point.total_market,
   }));
   const costBasisByItemId = loadDetailedCards
-    ? buildCollectionCostBasisMap(metricCards, binders as CollectionBinderCostBasisRecord[])
+    ? buildCollectionCostBasisMap(
+        metricCards,
+        binders as CollectionBinderCostBasisRecord[],
+        valueOptions
+      )
     : new Map<string, CollectionCostBasis>();
 
   const collectionCardViewItems = loadDetailedCards
     ? (collectionCards as CollectionCardRecord[]).map((record) =>
-        buildCardViewItem(record, costBasisByItemId.get(record.id))
+        buildCardViewItem(record, costBasisByItemId.get(record.id), valueOptions)
       )
     : [];
   const looseSingleViewItems: CollectionCardViewItem[] = [];
@@ -1320,7 +1410,7 @@ export async function getCollectionOverviewData(
   }
 
   const binderCardStats = loadDetailedBinders
-    ? buildBinderCardStats(metricCards)
+    ? buildBinderCardStats(metricCards, valueOptions)
     : new Map<
         string,
         {
@@ -1770,6 +1860,10 @@ export async function getCollectionValueDriversData(
     getCardHistoryRows([...cardQuantities.keys()], getHistoryCutoffDate()),
     getSealedHistoryRows([...sealedQuantities.keys()], getHistoryCutoffDate()),
   ]);
+  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards)
+    ? await getUsdToEurRate()
+    : null;
+  const valueOptions = { usdToEurRate };
   const combinedHistory = combineValueHistories(
     buildOwnedCardValueHistory(cardHistory, cardQuantities),
     buildOwnedSealedValueHistory(sealedHistory, sealedQuantities)
@@ -1779,10 +1873,12 @@ export async function getCollectionValueDriversData(
     value: point.total_market,
   }));
   const cardItems = (collectionCards as CollectionCardRecord[]).map((record) =>
-    buildCardViewItem(record)
+    buildCardViewItem(record, undefined, valueOptions)
   );
   const sealedItems = (collectionSealed as CollectionSealedRecord[]).map(buildSealedViewItem);
-  const currentValue = roundCurrency(sumCardCurrentValue(metricCards) + sumSealedCurrentValue(metricSealed));
+  const currentValue = roundCurrency(
+    sumCardCurrentValue(metricCards, valueOptions) + sumSealedCurrentValue(metricSealed)
+  );
   const result = buildCollectionValueDrivers({
     cards: cardItems,
     sealed: sealedItems,
@@ -1904,6 +2000,16 @@ export async function getBinderPageData(
               price: true,
             },
           },
+          ebaySoldGradedPrices: {
+            orderBy: [{ median_price: "desc" }, { label: "asc" }],
+            select: {
+              label: true,
+              company: true,
+              grade: true,
+              median_price: true,
+              currency: true,
+            },
+          },
           episode: {
             select: { id: true, name: true, code: true },
           },
@@ -1933,6 +2039,16 @@ export async function getBinderPageData(
         },
       }),
     ]);
+
+    const hasUsdEbaySoldForLinkedCards = ownedCards.some((item) => {
+      if (!item.grading_company || !item.grading_grade) return false;
+      const currentCard = allSetCards.find((card) => card.id === item.card.id);
+      return currentCard?.ebaySoldGradedPrices.some(
+        (price) => price.currency.toUpperCase() === "USD"
+      ) ?? false;
+    });
+    const usdToEurRate = hasUsdEbaySoldForLinkedCards ? await getUsdToEurRate() : null;
+    const valueOptions = { usdToEurRate };
 
     const ownedByCardId = new Map<
       string,
@@ -1969,6 +2085,7 @@ export async function getBinderPageData(
             ? getCollectionCardMarketValue(currentCard, {
                 gradingCompany: item.grading_company,
                 gradingGrade: item.grading_grade,
+                usdToEurRate: valueOptions.usdToEurRate,
               })
             : null,
         };
@@ -1981,6 +2098,7 @@ export async function getBinderPageData(
         getCollectionCardMarketValue(currentCard, {
           gradingCompany: item.grading_company,
           gradingGrade: item.grading_grade,
+          usdToEurRate: valueOptions.usdToEurRate,
         }) ?? 0;
       const itemCmValue = getCollectionCardMarketValue(currentCard) ?? 0;
       const itemTcpValue = currentCard?.prices[0]?.tcp_market ?? 0;
@@ -2053,6 +2171,7 @@ export async function getBinderPageData(
             ? getCollectionMatchedGradedPrice(card, {
                 gradingCompany: owned.gradingCompany,
                 gradingGrade: owned.gradingGrade,
+                usdToEurRate: valueOptions.usdToEurRate,
               })?.label ?? null
             : null,
         purchase_price: owned ? Number(owned.purchasePrice.toFixed(2)) : null,
@@ -2095,8 +2214,14 @@ export async function getBinderPageData(
 
   const binderCards = await getCollectionCards({ binderId, userId });
   const metricBinderCards = binderCards as CollectionCardMetricRecord[];
-  const items = (binderCards as CollectionCardRecord[]).map((record) => buildCardViewItem(record));
-  const currentValue = sumCardCurrentValue(metricBinderCards);
+  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricBinderCards)
+    ? await getUsdToEurRate()
+    : null;
+  const valueOptions = { usdToEurRate };
+  const items = (binderCards as CollectionCardRecord[]).map((record) =>
+    buildCardViewItem(record, undefined, valueOptions)
+  );
+  const currentValue = sumCardCurrentValue(metricBinderCards, valueOptions);
   const investment =
     sumCollectionPurchasePrices(binderCards.map((item) => item.purchase_price)) +
     (binder.base_purchase_price ?? 0);

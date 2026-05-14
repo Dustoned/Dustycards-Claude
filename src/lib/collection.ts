@@ -1,5 +1,9 @@
 import { formatCurrency } from "@/lib/format";
 import {
+  convertUsdToEur,
+  type CurrencyExchangeRate,
+} from "@/lib/exchange-rates";
+import {
   buildEpisodeSetPriceHistory,
   buildEpisodeSealedSetPriceHistory,
   getCardMarketValue,
@@ -76,6 +80,13 @@ export interface CollectionCardValueLike {
     label: string;
     price: number;
   }>;
+  ebaySoldGradedPrices?: Array<{
+    label: string;
+    company: string;
+    grade: string;
+    median_price: number;
+    currency: string;
+  }>;
 }
 
 export interface CollectionSealedValueLike {
@@ -150,8 +161,9 @@ export function getCollectionMatchedGradedPrice(
   options?: {
     gradingCompany?: string | null;
     gradingGrade?: string | null;
+    usdToEurRate?: CurrencyExchangeRate | null;
   }
-): { label: string; price: number } | null {
+): { label: string; price: number; source: "ebay_sold_graded" | "cardmarket_graded" } | null {
   const candidates = buildGradedLabelCandidates(
     options?.gradingCompany,
     options?.gradingGrade
@@ -171,6 +183,43 @@ export function getCollectionMatchedGradedPrice(
       )
   );
 
+  const normalizedCompany = options?.gradingCompany
+    ? normalizeGradedLabelKey(options.gradingCompany)
+    : null;
+  const normalizedGrade = normalizeGradeToken(options?.gradingGrade);
+
+  for (const ebaySoldPrice of card?.ebaySoldGradedPrices ?? []) {
+    const currency = ebaySoldPrice.currency.toUpperCase();
+    const price =
+      currency === "EUR"
+        ? ebaySoldPrice.median_price
+        : currency === "USD"
+          ? convertUsdToEur(ebaySoldPrice.median_price, options?.usdToEurRate ?? null)
+          : null;
+
+    if (price == null) continue;
+
+    const structuredMatch =
+      normalizedCompany &&
+      normalizedGrade &&
+      normalizeGradedLabelKey(ebaySoldPrice.company) === normalizedCompany &&
+      normalizeGradeToken(ebaySoldPrice.grade) === normalizedGrade;
+    const normalizedLabel = normalizeGradedLabelKey(ebaySoldPrice.label);
+    const compactLabel = normalizedLabel.replace(/\s+/g, "");
+    const labelMatch =
+      exactCandidates.has(normalizedLabel) ||
+      compactCandidates.has(compactLabel) ||
+      prefixMatchers.some((matcher) => matcher.test(normalizedLabel));
+
+    if (structuredMatch || labelMatch) {
+      return {
+        label: `${ebaySoldPrice.label} eBay sold`,
+        price,
+        source: "ebay_sold_graded",
+      };
+    }
+  }
+
   for (const gradedPrice of card?.gradedPrices ?? []) {
     const normalizedLabel = normalizeGradedLabelKey(gradedPrice.label);
     const compactLabel = normalizedLabel.replace(/\s+/g, "");
@@ -180,7 +229,10 @@ export function getCollectionMatchedGradedPrice(
       compactCandidates.has(compactLabel) ||
       prefixMatchers.some((matcher) => matcher.test(normalizedLabel))
     ) {
-      return gradedPrice;
+      return {
+        ...gradedPrice,
+        source: "cardmarket_graded",
+      };
     }
   }
 
@@ -192,6 +244,7 @@ export function getCollectionCardMarketValue(
   options?: {
     gradingCompany?: string | null;
     gradingGrade?: string | null;
+    usdToEurRate?: CurrencyExchangeRate | null;
   }
 ): number | null {
   const matchedGradedPrice = getCollectionMatchedGradedPrice(card, options);

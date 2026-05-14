@@ -314,7 +314,7 @@ export function HeaderMobileMenu() {
             aria-label="Main navigation"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            className="absolute left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/10 dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40 sm:left-6 sm:right-auto sm:w-80"
+            className="absolute left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] max-h-[calc(100dvh-var(--ui-header-height)-1rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/10 [scrollbar-width:thin] dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40 sm:left-6 sm:right-auto sm:w-80"
           >
             {mobileSections.map((section, index) => (
               <div

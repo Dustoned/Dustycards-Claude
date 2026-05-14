@@ -749,19 +749,28 @@ async function buildReferenceForCard(
   mode: Exclude<DealMode, "sealed">
 ): Promise<EbayDealReference> {
   if (mode === "graded") {
-    const matchedCardMarketGradedPrice = getCollectionMatchedGradedPrice(
-      { gradedPrices: card.gradedPrices },
+    const usdToEurRate = card.ebaySoldGradedPrices.some(
+      (price) => price.currency.toUpperCase() === "USD"
+    )
+      ? await getUsdToEurRate()
+      : null;
+    const matchedGradedPrice = getCollectionMatchedGradedPrice(
+      {
+        gradedPrices: card.gradedPrices,
+        ebaySoldGradedPrices: card.ebaySoldGradedPrices,
+      },
       {
         gradingCompany: card.collectionItem?.grading_company,
         gradingGrade: card.collectionItem?.grading_grade,
+        usdToEurRate,
       }
     );
 
-    if (matchedCardMarketGradedPrice) {
+    if (matchedGradedPrice) {
       return {
-        label: matchedCardMarketGradedPrice.label,
-        valueEur: matchedCardMarketGradedPrice.price,
-        source: "graded",
+        label: matchedGradedPrice.label,
+        valueEur: matchedGradedPrice.price,
+        source: matchedGradedPrice.source === "ebay_sold_graded" ? "ebay_sold_graded" : "graded",
       };
     }
 
@@ -778,7 +787,6 @@ async function buildReferenceForCard(
 
     if (matchedEbaySoldGradedPrice) {
       const currency = matchedEbaySoldGradedPrice.currency.toUpperCase();
-      const usdToEurRate = currency === "USD" ? await getUsdToEurRate() : null;
       const valueEur =
         currency === "EUR"
           ? matchedEbaySoldGradedPrice.median_price
