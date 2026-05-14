@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
-import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
+import { ONE_PIECE_GAME, POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import {
   categoryToSupertype,
   findTcgdexSetIdForEpisode,
@@ -68,6 +68,13 @@ export type CardWriteData = {
   cardmarket_id: string | null;
   tcgplayer_id: string | null;
 } & TcggoCardScoreData;
+
+const ONE_PIECE_VARIANT_RARITIES = new Set([
+  "Alternate Art",
+  "Manga Rare",
+  "Special Rare",
+  "Treasure Rare",
+]);
 
 export interface ExistingPriceRecord extends PriceSnapshotData {
   id: string;
@@ -179,12 +186,13 @@ export function buildCardWriteData(
   fallbackSupertype: string | null = null
 ): CardWriteData {
   const normalizedSupertype = categoryToSupertype(card.supertype);
+  const rarity = resolveCardRarity(existing, card);
 
   return {
     game: card.game ?? existing?.game ?? POKEMON_GAME,
     name: card.name,
     card_number: card.card_number ?? existing?.card_number ?? null,
-    rarity: card.rarity ?? existing?.rarity ?? null,
+    rarity,
     hp: card.hp ?? existing?.hp ?? null,
     supertype: normalizedSupertype ?? fallbackSupertype ?? existing?.supertype ?? null,
     subtypes: card.subtypes ?? existing?.subtypes ?? null,
@@ -214,6 +222,26 @@ export function buildCardWriteData(
     tcggo_score_updated_at:
       card.tcggo_score_updated_at ?? existing?.tcggo_score_updated_at ?? null,
   };
+}
+
+function resolveCardRarity(
+  existing: CardWriteData | undefined,
+  card: CardWriteData
+): string | null {
+  const game = card.game ?? existing?.game ?? POKEMON_GAME;
+  const incomingRarity = card.rarity ?? null;
+  const existingRarity = existing?.rarity ?? null;
+
+  if (
+    game === ONE_PIECE_GAME &&
+    existingRarity &&
+    ONE_PIECE_VARIANT_RARITIES.has(existingRarity) &&
+    (!incomingRarity || !ONE_PIECE_VARIANT_RARITIES.has(incomingRarity))
+  ) {
+    return existingRarity;
+  }
+
+  return incomingRarity ?? existingRarity;
 }
 
 export function hasCardChanges(existing: CardWriteData, next: CardWriteData): boolean {
