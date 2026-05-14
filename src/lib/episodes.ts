@@ -22,11 +22,8 @@ export function getEpisodeDisplayCardCount(input: {
   const remoteCardCount = input.card_count ?? 0;
   const localCardCount = input._count?.cards ?? 0;
 
-  if (input.card_count == null) {
-    return localCardCount;
-  }
-
-  return Math.max(remoteCardCount, localCardCount);
+  if (localCardCount > 0) return localCardCount;
+  return remoteCardCount;
 }
 
 export function isRedundantSubsetExpansion(name: string): boolean {
