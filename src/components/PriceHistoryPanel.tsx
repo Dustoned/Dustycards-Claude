@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type CSSProperties,
   type ReactNode,
 } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -50,6 +49,11 @@ interface ChartCoordinate extends ParsedHistoryPoint {
   y: number;
 }
 
+interface RangeStorageKeys {
+  primary: string | null;
+  legacy: string | null;
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CHART_FALLBACK_WIDTH = 320;
 const CHART_PADDING_X = 10;
@@ -81,22 +85,32 @@ function normalizeStorageKeyPart(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9/_?=&.-]+/g, "-").replace(/-+/g, "-");
 }
 
-function buildRangeStorageKey(input: {
+function buildRangeStorageKeys(input: {
   explicitKey: string | null | undefined;
   pathname: string | null;
   title: string;
   currency: CurrencyCode;
-}): string | null {
-  if (input.explicitKey === null) return null;
+}): RangeStorageKeys {
+  if (input.explicitKey === null) return { primary: null, legacy: null };
 
-  const rawKey =
-    input.explicitKey?.trim() ||
-    [input.pathname || "page", input.title, input.currency].join(":");
+  const explicitKey = input.explicitKey?.trim();
+  if (explicitKey) {
+    return {
+      primary: `${RANGE_STORAGE_PREFIX}:${normalizeStorageKeyPart(explicitKey)}`,
+      legacy: null,
+    };
+  }
 
-  return `${RANGE_STORAGE_PREFIX}:${normalizeStorageKeyPart(rawKey)}`;
+  const pageKey = input.pathname || "page";
+  const legacyKey = [pageKey, input.title, input.currency].join(":");
+
+  return {
+    primary: `${RANGE_STORAGE_PREFIX}:${normalizeStorageKeyPart(pageKey)}`,
+    legacy: `${RANGE_STORAGE_PREFIX}:${normalizeStorageKeyPart(legacyKey)}`,
+  };
 }
 
-function readStoredRange(storageKey: string | null): RangeKey | null {
+function readStoredRangeKey(storageKey: string | null): RangeKey | null {
   if (!storageKey || typeof window === "undefined") return null;
 
   try {
@@ -107,7 +121,15 @@ function readStoredRange(storageKey: string | null): RangeKey | null {
   }
 }
 
-function writeStoredRange(storageKey: string | null, range: RangeKey) {
+function readStoredRange(storageKeys: RangeStorageKeys): RangeKey | null {
+  return readStoredRangeKey(storageKeys.primary) ?? readStoredRangeKey(storageKeys.legacy);
+}
+
+function matchesRangeStorageKey(storageKeys: RangeStorageKeys, storageKey: string | null | undefined) {
+  return Boolean(storageKey && (storageKey === storageKeys.primary || storageKey === storageKeys.legacy));
+}
+
+function persistStoredRangeKey(storageKey: string | null, range: RangeKey) {
   if (!storageKey || typeof window === "undefined") return;
 
   rangeMemoryFallback.set(storageKey, range);
@@ -117,6 +139,12 @@ function writeStoredRange(storageKey: string | null, range: RangeKey) {
   } catch {
     // Browser storage can be blocked; the in-memory selection still works.
   }
+}
+
+function writeStoredRangeKey(storageKey: string | null, range: RangeKey) {
+  if (!storageKey || typeof window === "undefined") return;
+
+  persistStoredRangeKey(storageKey, range);
 
   try {
     window.dispatchEvent(
@@ -127,6 +155,11 @@ function writeStoredRange(storageKey: string | null, range: RangeKey) {
   } catch {
     // Older browsers can fail on CustomEvent construction, but storage already updated.
   }
+}
+
+function writeStoredRange(storageKeys: RangeStorageKeys, range: RangeKey) {
+  writeStoredRangeKey(storageKeys.primary, range);
+  writeStoredRangeKey(storageKeys.legacy, range);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -325,9 +358,9 @@ export default function PriceHistoryPanel({
     index: number;
     pointerX: number;
   } | null>(null);
-  const effectiveRangeStorageKey = useMemo(
+  const effectiveRangeStorageKeys = useMemo(
     () =>
-      buildRangeStorageKey({
+      buildRangeStorageKeys({
         explicitKey: rangeStorageKey,
         pathname,
         title,
@@ -338,19 +371,19 @@ export default function PriceHistoryPanel({
 
   const subscribeSelectedRange = useCallback(
     (onStoreChange: () => void) => {
-      if (!effectiveRangeStorageKey || typeof window === "undefined") return () => {};
+      if (!effectiveRangeStorageKeys.primary || typeof window === "undefined") return () => {};
 
       const handleRangeChange = (event: Event) => {
         const detail = (event as CustomEvent<{ storageKey?: string; range?: unknown }>).detail;
-        if (detail?.storageKey !== effectiveRangeStorageKey || !isRangeKey(detail.range)) return;
+        if (!matchesRangeStorageKey(effectiveRangeStorageKeys, detail?.storageKey) || !isRangeKey(detail.range)) return;
 
         setActiveHover(null);
         onStoreChange();
       };
       const handleStorage = (event: StorageEvent) => {
-        if (event.key !== effectiveRangeStorageKey || !isRangeKey(event.newValue)) return;
+        if (!event.key || !matchesRangeStorageKey(effectiveRangeStorageKeys, event.key) || !isRangeKey(event.newValue)) return;
 
-        rangeMemoryFallback.set(effectiveRangeStorageKey, event.newValue);
+        rangeMemoryFallback.set(event.key, event.newValue);
         setActiveHover(null);
         onStoreChange();
       };
@@ -362,11 +395,11 @@ export default function PriceHistoryPanel({
         window.removeEventListener("storage", handleStorage);
       };
     },
-    [effectiveRangeStorageKey]
+    [effectiveRangeStorageKeys]
   );
   const getSelectedRangeSnapshot = useCallback(
-    () => readStoredRange(effectiveRangeStorageKey) ?? DEFAULT_RANGE_KEY,
-    [effectiveRangeStorageKey]
+    () => readStoredRange(effectiveRangeStorageKeys) ?? DEFAULT_RANGE_KEY,
+    [effectiveRangeStorageKeys]
   );
   const getSelectedRangeServerSnapshot = useCallback((): RangeKey | null => null, []);
   const selectedRangeSnapshot = useSyncExternalStore(
@@ -376,6 +409,17 @@ export default function PriceHistoryPanel({
   );
   const rangeResolved = selectedRangeSnapshot != null;
   const selectedRange = selectedRangeSnapshot ?? DEFAULT_RANGE_KEY;
+
+  useLayoutEffect(() => {
+    if (!rangeResolved || !effectiveRangeStorageKeys.primary) return;
+
+    const storedRange = readStoredRange(effectiveRangeStorageKeys);
+    if (!storedRange || readStoredRangeKey(effectiveRangeStorageKeys.primary) === storedRange) {
+      return;
+    }
+
+    persistStoredRangeKey(effectiveRangeStorageKeys.primary, storedRange);
+  }, [effectiveRangeStorageKeys, rangeResolved]);
 
   const parsedPoints = points.map((point) => ({
     ...point,
@@ -454,6 +498,21 @@ export default function PriceHistoryPanel({
         : isHeroLayout
           ? "rounded-[28px] border border-black/8 bg-black/[0.03] px-5 py-5 dark:border-white/8 dark:bg-white/[0.04] sm:px-6 sm:py-6"
           : "rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-4 dark:border-white/8 dark:bg-white/[0.04]";
+
+  if (!rangeResolved) {
+    return (
+      <section
+        aria-hidden="true"
+        className={shellClass}
+        style={{
+          minHeight: compact ? 214 : isHeroLayout ? 318 : 286,
+          pointerEvents: "none",
+          visibility: "hidden",
+        }}
+      />
+    );
+  }
+
   const titleClass =
     tone === "dark"
       ? "text-xs font-semibold uppercase tracking-[0.08em] text-white/50"
@@ -517,9 +576,6 @@ export default function PriceHistoryPanel({
     : isHeroLayout
       ? "min-h-[var(--ui-chip-min-height)] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)]"
       : "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)]";
-  const panelStyle: CSSProperties | undefined = rangeResolved
-    ? undefined
-    : { opacity: 0, pointerEvents: "none" };
 
   function updateHoverState(event: ReactPointerEvent<SVGSVGElement>) {
     const pointerX = getPointerChartX(event, measuredChartWidth);
@@ -531,11 +587,11 @@ export default function PriceHistoryPanel({
 
   function selectRange(range: RangeKey) {
     setActiveHover(null);
-    writeStoredRange(effectiveRangeStorageKey, range);
+    writeStoredRange(effectiveRangeStorageKeys, range);
   }
 
   return (
-    <section className={shellClass} style={panelStyle}>
+    <section className={shellClass}>
       <div
         className={
           isHeroLayout
