@@ -156,7 +156,7 @@ describe("graded collection values", () => {
     source: "frankfurter" as const,
   };
 
-  it("uses exact eBay sold grade before raw pricing for saved graded cards", () => {
+  it("uses exact eBay sold grade before raw pricing when CardMarket has no matching grade", () => {
     const card = {
       prices: [
         {
@@ -199,7 +199,7 @@ describe("graded collection values", () => {
     ).toBe(92);
   });
 
-  it("falls back to CardMarket graded when no exact eBay sold grade is usable", () => {
+  it("prefers exact CardMarket graded over exact eBay sold graded pricing", () => {
     const card = {
       prices: [
         {
@@ -226,7 +226,7 @@ describe("graded collection values", () => {
       getCollectionMatchedGradedPrice(card, {
         gradingCompany: "PSA",
         gradingGrade: "8",
-        usdToEurRate: null,
+        usdToEurRate,
       })
     ).toEqual({
       label: "PSA 8",

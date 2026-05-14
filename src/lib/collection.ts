@@ -188,6 +188,22 @@ export function getCollectionMatchedGradedPrice(
     : null;
   const normalizedGrade = normalizeGradeToken(options?.gradingGrade);
 
+  for (const gradedPrice of card?.gradedPrices ?? []) {
+    const normalizedLabel = normalizeGradedLabelKey(gradedPrice.label);
+    const compactLabel = normalizedLabel.replace(/\s+/g, "");
+
+    if (
+      exactCandidates.has(normalizedLabel) ||
+      compactCandidates.has(compactLabel) ||
+      prefixMatchers.some((matcher) => matcher.test(normalizedLabel))
+    ) {
+      return {
+        ...gradedPrice,
+        source: "cardmarket_graded",
+      };
+    }
+  }
+
   for (const ebaySoldPrice of card?.ebaySoldGradedPrices ?? []) {
     const currency = ebaySoldPrice.currency.toUpperCase();
     const price =
@@ -216,22 +232,6 @@ export function getCollectionMatchedGradedPrice(
         label: `${ebaySoldPrice.label} eBay sold`,
         price,
         source: "ebay_sold_graded",
-      };
-    }
-  }
-
-  for (const gradedPrice of card?.gradedPrices ?? []) {
-    const normalizedLabel = normalizeGradedLabelKey(gradedPrice.label);
-    const compactLabel = normalizedLabel.replace(/\s+/g, "");
-
-    if (
-      exactCandidates.has(normalizedLabel) ||
-      compactCandidates.has(compactLabel) ||
-      prefixMatchers.some((matcher) => matcher.test(normalizedLabel))
-    ) {
-      return {
-        ...gradedPrice,
-        source: "cardmarket_graded",
       };
     }
   }
