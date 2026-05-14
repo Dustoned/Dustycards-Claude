@@ -86,21 +86,7 @@ function compareByArtistValue(a: IllustratorSummary, b: IllustratorSummary): num
 async function getIllustratorSummaries(game: TradingCardGameFilter): Promise<IllustratorSummary[]> {
   const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e", game);
   const rows = await db.$queryRawUnsafe<IllustratorSummaryRow[]>(`
-    WITH latest_price AS (
-      SELECT
-        p.card_id,
-        p.cm_en_lowest_nm,
-        p.cm_de_lowest_nm,
-        p.cm_fr_lowest_nm,
-        p.cm_es_lowest_nm,
-        p.cm_it_lowest_nm,
-        ROW_NUMBER() OVER (
-          PARTITION BY p.card_id
-          ORDER BY p.fetched_at DESC, p.id DESC
-        ) AS price_rank
-      FROM "Price" p
-    ),
-    visible_cards AS (
+    WITH visible_card_base AS (
       SELECT
         c.id,
         c.name,
@@ -108,7 +94,23 @@ async function getIllustratorSummaries(game: TradingCardGameFilter): Promise<Ill
         c.image_url,
         e.id AS episode_id,
         e.name AS episode_name,
-        e.code AS episode_code,
+        e.code AS episode_code
+      FROM "Card" c
+      INNER JOIN "Episode" e
+        ON e.id = c.episode_id
+      WHERE c.artist IS NOT NULL
+        AND TRIM(c.artist) <> ''
+${visibleEpisodeWhereSql}
+    ),
+    visible_cards AS (
+      SELECT
+        vc.id,
+        vc.name,
+        vc.artist,
+        vc.image_url,
+        vc.episode_id,
+        vc.episode_name,
+        vc.episode_code,
         COALESCE(
           lp.cm_en_lowest_nm,
           lp.cm_de_lowest_nm,
@@ -116,15 +118,15 @@ async function getIllustratorSummaries(game: TradingCardGameFilter): Promise<Ill
           lp.cm_es_lowest_nm,
           lp.cm_it_lowest_nm
         ) AS market_price
-      FROM "Card" c
-      INNER JOIN "Episode" e
-        ON e.id = c.episode_id
-      LEFT JOIN latest_price lp
-        ON lp.card_id = c.id
-       AND lp.price_rank = 1
-      WHERE c.artist IS NOT NULL
-        AND TRIM(c.artist) <> ''
-${visibleEpisodeWhereSql}
+      FROM visible_card_base vc
+      LEFT JOIN "Price" lp
+        ON lp.id = (
+          SELECT p2.id
+          FROM "Price" p2
+          WHERE p2.card_id = vc.id
+          ORDER BY p2.fetched_at DESC, p2.id DESC
+          LIMIT 1
+        )
     ),
     ranked_cards AS (
       SELECT

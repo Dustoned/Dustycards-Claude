@@ -69,44 +69,50 @@ async function getIllustratorCards(
 
   return db.$queryRawUnsafe<IllustratorCardRow[]>(
     `
-      WITH latest_price AS (
+      WITH artist_cards AS (
         SELECT
-          p.card_id,
-          p.fetched_at,
-          p.cm_en_lowest_nm,
-          p.cm_de_lowest_nm,
-          p.cm_fr_lowest_nm,
-          p.cm_es_lowest_nm,
-          p.cm_it_lowest_nm,
-          p.tcp_market,
-          p.tcp_mid,
-          p.tcp_low,
-          p.cm_en_avg_7d,
-          p.cm_en_avg_30d,
-          ROW_NUMBER() OVER (
-            PARTITION BY p.card_id
-            ORDER BY p.fetched_at DESC, p.id DESC
-          ) AS price_rank
-        FROM "Price" p
+          c.id,
+          c.name,
+          c.card_number,
+          c.rarity,
+          c.hp,
+          c.image_url,
+          c.supertype,
+          c.subtypes,
+          c.artist,
+          c.cardmarket_id,
+          c.cardmarket_url,
+          c.tcggo_url,
+          c.price_source_status,
+          c.price_source_checked_at,
+          e.id AS episode_id,
+          e.name AS episode_name,
+          e.code AS episode_code,
+          e.release_date
+        FROM "Card" c
+        INNER JOIN "Episode" e
+          ON e.id = c.episode_id
+        WHERE c.artist = ?
+${visibleEpisodeWhereSql}
       )
       SELECT
-        c.id,
-        c.name,
-        c.card_number,
-        c.rarity,
-        c.hp,
-        c.image_url,
-        c.supertype,
-        c.subtypes,
-        c.artist,
-        c.cardmarket_id,
-        c.cardmarket_url,
-        c.tcggo_url,
-        c.price_source_status,
-        c.price_source_checked_at,
-        e.id AS episode_id,
-        e.name AS episode_name,
-        e.code AS episode_code,
+        ac.id,
+        ac.name,
+        ac.card_number,
+        ac.rarity,
+        ac.hp,
+        ac.image_url,
+        ac.supertype,
+        ac.subtypes,
+        ac.artist,
+        ac.cardmarket_id,
+        ac.cardmarket_url,
+        ac.tcggo_url,
+        ac.price_source_status,
+        ac.price_source_checked_at,
+        ac.episode_id,
+        ac.episode_name,
+        ac.episode_code,
         lp.fetched_at AS price_fetched_at,
         lp.cm_en_lowest_nm,
         lp.cm_de_lowest_nm,
@@ -118,22 +124,23 @@ async function getIllustratorCards(
         lp.tcp_low,
         lp.cm_en_avg_7d,
         lp.cm_en_avg_30d
-      FROM "Card" c
-      INNER JOIN "Episode" e
-        ON e.id = c.episode_id
-      LEFT JOIN latest_price lp
-        ON lp.card_id = c.id
-       AND lp.price_rank = 1
-      WHERE c.artist = ?
-${visibleEpisodeWhereSql}
+      FROM artist_cards ac
+      LEFT JOIN "Price" lp
+        ON lp.id = (
+          SELECT p2.id
+          FROM "Price" p2
+          WHERE p2.card_id = ac.id
+          ORDER BY p2.fetched_at DESC, p2.id DESC
+          LIMIT 1
+        )
       ORDER BY
-        e.release_date DESC,
+        ac.release_date DESC,
         CASE
-          WHEN c.card_number GLOB '[0-9]*' THEN CAST(c.card_number AS INTEGER)
+          WHEN ac.card_number GLOB '[0-9]*' THEN CAST(ac.card_number AS INTEGER)
           ELSE 999999
         END ASC,
-        c.card_number ASC,
-        c.name ASC
+        ac.card_number ASC,
+        ac.name ASC
     `,
     artist
   );

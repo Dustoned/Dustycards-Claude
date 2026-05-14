@@ -61,8 +61,9 @@ type CardDetailData = ModalCardData;
 
 const KNOWN_SUPERTYPE_ORDER = ["Pokémon", "Trainer", "Energy"];
 const INITIAL_IMAGE_PRELOAD_COUNT = 8;
+const DESKTOP_BACKGROUND_IMAGE_PRELOAD_LIMIT = 24;
 const BACKGROUND_IMAGE_PRELOAD_BATCH = 8;
-const BACKGROUND_IMAGE_PRELOAD_DELAY_MS = 240;
+const BACKGROUND_IMAGE_PRELOAD_DELAY_MS = 900;
 const WARMED_CARD_IMAGE_CACHE_LIMIT = 600;
 const INITIAL_RENDERED_CARDS = 36;
 const RENDERED_CARD_BATCH_SIZE = 36;
@@ -166,6 +167,18 @@ function getUniqueCardImageUrls(cards: CardData[]): string[] {
     }
   }
   return [...urls];
+}
+
+function shouldWarmBackgroundCardImages(isMobileViewport: boolean): boolean {
+  if (isMobileViewport || typeof navigator === "undefined") return false;
+
+  const connection = (
+    navigator as Navigator & {
+      connection?: { effectiveType?: string; saveData?: boolean };
+    }
+  ).connection;
+
+  return !connection?.saveData && !/2g/i.test(connection?.effectiveType ?? "");
 }
 
 function buildFilterOptions(
@@ -300,7 +313,12 @@ export default function ExpansionView({
       .slice(0, INITIAL_IMAGE_PRELOAD_COUNT)
       .forEach((url) => warmCardImage(url, "auto"));
 
-    const remaining = imageUrls.slice(INITIAL_IMAGE_PRELOAD_COUNT);
+    const remaining = shouldWarmBackgroundCardImages(isMobileViewport)
+      ? imageUrls.slice(
+          INITIAL_IMAGE_PRELOAD_COUNT,
+          INITIAL_IMAGE_PRELOAD_COUNT + DESKTOP_BACKGROUND_IMAGE_PRELOAD_LIMIT
+        )
+      : [];
     if (remaining.length === 0) return;
 
     let cancelled = false;
@@ -327,7 +345,7 @@ export default function ExpansionView({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [cards, warmCardImages]);
+  }, [cards, isMobileViewport, warmCardImages]);
 
   useEffect(() => {
     if (!selected || cardDetailsById[selected.id]) return;

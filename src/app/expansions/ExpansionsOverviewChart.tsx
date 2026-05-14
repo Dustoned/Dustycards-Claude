@@ -22,6 +22,7 @@ interface Props {
 }
 
 const BROWSER_CACHE_TTL_MS = 10 * 60 * 1000;
+const HISTORY_FETCH_DELAY_MS = 1_200;
 
 function formatCount(value: number): string {
   return value.toLocaleString("en-US");
@@ -107,38 +108,43 @@ export default function ExpansionsOverviewChart({
       setIsLoading(false);
     });
 
-    fetch("/api/expansions/overview-history", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: requestBody,
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Overview history request failed with ${response.status}`);
-        }
+    const fetchTimer = window.setTimeout(() => {
+      if (controller.signal.aborted) return;
 
-        return (await response.json()) as OverviewHistoryResponse;
+      fetch("/api/expansions/overview-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: requestBody,
+        signal: controller.signal,
       })
-      .then((data) => {
-        writeCachedOverviewHistory(episodeIdsKey, data);
-        setPoints(data.points ?? []);
-        setCurrentValue(data.currentValue ?? initialCurrentValue);
-        setPricedCardCount(data.pricedCardCount ?? initialPricedCardCount);
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
-        }
-      });
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`Overview history request failed with ${response.status}`);
+          }
+
+          return (await response.json()) as OverviewHistoryResponse;
+        })
+        .then((data) => {
+          writeCachedOverviewHistory(episodeIdsKey, data);
+          setPoints(data.points ?? []);
+          setCurrentValue(data.currentValue ?? initialCurrentValue);
+          setPricedCardCount(data.pricedCardCount ?? initialPricedCardCount);
+        })
+        .catch((error) => {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setIsLoading(false);
+          }
+        });
+    }, HISTORY_FETCH_DELAY_MS);
 
     return () => {
       window.cancelAnimationFrame(frameId);
+      window.clearTimeout(fetchTimer);
       controller.abort();
     };
   }, [
