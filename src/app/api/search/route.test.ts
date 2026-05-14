@@ -448,7 +448,9 @@ describe("GET /api/search", () => {
       },
     ]);
 
-    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=OP05"));
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=OP05&game=pokemon")
+    );
     const body = await response.json();
     const firstCardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
     const secondCardQuery = dbMock.card.findMany.mock.calls[1]?.[0];
@@ -468,6 +470,48 @@ describe("GET /api/search", () => {
     expect(JSON.stringify(firstCardQuery.where)).toContain('"game":"pokemon"');
     expect(JSON.stringify(secondCardQuery.where)).toContain('"game":"one-piece"');
     expect(JSON.stringify(secondCardQuery.where)).toContain('"card_number":{"startsWith":"OP05-"}');
+    expect(dbMock.card.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not run fuzzy fallback in all-game searches when either game has direct matches", async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      settings_json: JSON.stringify({ onePieceLibraryEnabled: true, settingsVersion: 3 }),
+    });
+    dbMock.card.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "one-piece:op05-001",
+          name: "Sabo",
+          card_number: "OP05-001",
+          rarity: "LEADER",
+          supertype: null,
+          image_url: null,
+          episode: {
+            id: "one-piece:372",
+            name: "Awakening of the New Era",
+            code: "OP05",
+          },
+          prices: [{ cm_en_lowest_nm: 2.5, tcp_market: null }],
+        },
+      ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([
+      {
+        id: "one-piece:372",
+        name: "Awakening of the New Era",
+        code: "OP05",
+        logo_url: null,
+      },
+    ]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=OP05"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.game).toBe("all");
+    expect(body.singles[0].card_number).toBe("OP05-001");
     expect(dbMock.card.findMany).toHaveBeenCalledTimes(2);
   });
 

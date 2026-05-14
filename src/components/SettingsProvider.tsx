@@ -134,17 +134,19 @@ function getDisplaySettingKey<K extends keyof UserSettings>(
 export default function SettingsProvider({
   children,
   initialSettings,
+  initialMobileViewport = false,
   syncToAccount = false,
   currentUserRole = null,
 }: {
   children: React.ReactNode;
   initialSettings?: UserSettings | null;
+  initialMobileViewport?: boolean;
   syncToAccount?: boolean;
   currentUserRole?: "admin" | "user" | null;
 }) {
   const [settings, setSettings] = useState<UserSettings>(initialSettings ?? DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(Boolean(initialSettings));
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(initialMobileViewport);
   const didSyncInitialSettingsRef = useRef(false);
   const displaySettings = getDisplaySettings(settings, isMobileViewport);
 
@@ -154,7 +156,11 @@ export default function SettingsProvider({
     const nextRaw = JSON.stringify(s);
     const initialRaw = JSON.stringify(initial);
     saveToBrowser(s);
-    const frame = window.requestAnimationFrame(() => {
+    let cancelled = false;
+
+    window.queueMicrotask(() => {
+      if (cancelled) return;
+
       if (nextRaw !== initialRaw) {
         setSettings(s);
       }
@@ -162,14 +168,14 @@ export default function SettingsProvider({
     });
 
     return () => {
-      window.cancelAnimationFrame(frame);
+      cancelled = true;
     };
   }, [initialSettings]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 640px)");
     const handleChange = () => {
-      setIsMobileViewport(media.matches);
+      setIsMobileViewport((previous) => (previous === media.matches ? previous : media.matches));
     };
 
     handleChange();

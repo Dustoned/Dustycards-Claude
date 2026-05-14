@@ -1305,33 +1305,53 @@ function toDirectSearchResponse(results: DirectSearchResults) {
   };
 }
 
-async function runSearchForGame(
+async function runFuzzySearchForDirectResults(
   q: string,
-  game: TradingCardGame
-): Promise<SearchResponsePayload & { exactOnePieceReferenceSearch?: boolean }> {
-  const itemEpisodeWhere = buildVisibleEpisodeWhere(game, { includeGame: false });
-  const directResults = await runDirectSearch(q, game, itemEpisodeWhere);
-
-  if (directResults.total === 0 && !directResults.exactOnePieceReferenceSearch) {
-    const fuzzyResults = await runFuzzyFallback(
-      q,
-      directResults.parsed,
-      game,
-      itemEpisodeWhere,
-      buildVisibleEpisodeWhere(game)
-    );
-
-    return {
-      ...fuzzyResults,
-      parsed: directResults.parsed,
-      game,
-    };
-  }
+  directResults: DirectSearchResults,
+  itemEpisodeWhere: Prisma.EpisodeWhereInput
+): Promise<SearchResponsePayload> {
+  const fuzzyResults = await runFuzzyFallback(
+    q,
+    directResults.parsed,
+    directResults.game,
+    itemEpisodeWhere,
+    buildVisibleEpisodeWhere(directResults.game)
+  );
 
   return {
-    ...toDirectSearchResponse(directResults),
-    exactOnePieceReferenceSearch: directResults.exactOnePieceReferenceSearch,
+    ...fuzzyResults,
+    parsed: directResults.parsed,
+    game: directResults.game,
   };
+}
+
+async function runAllGameSearch(q: string): Promise<SearchResponsePayload> {
+  const pokemonEpisodeWhere = buildVisibleEpisodeWhere(POKEMON_GAME, { includeGame: false });
+  const onePieceEpisodeWhere = buildVisibleEpisodeWhere(ONE_PIECE_GAME, { includeGame: false });
+  const [pokemonDirectResults, onePieceDirectResults] = await Promise.all([
+    runDirectSearch(q, POKEMON_GAME, pokemonEpisodeWhere),
+    runDirectSearch(q, ONE_PIECE_GAME, onePieceEpisodeWhere),
+  ]);
+  const directResponses = [
+    toDirectSearchResponse(pokemonDirectResults),
+    toDirectSearchResponse(onePieceDirectResults),
+  ];
+  const hasDirectResults = directResponses.some((response) => response.total > 0);
+  const hasExactReferenceSearch = [
+    pokemonDirectResults,
+    onePieceDirectResults,
+  ].some((result) => result.exactOnePieceReferenceSearch);
+
+  if (hasDirectResults || hasExactReferenceSearch) {
+    return mergeSearchResponses(directResponses);
+  }
+
+  const fuzzyResponses = await Promise.all([
+    runFuzzySearchForDirectResults(q, pokemonDirectResults, pokemonEpisodeWhere),
+    runFuzzySearchForDirectResults(q, onePieceDirectResults, onePieceEpisodeWhere),
+  ]);
+
+  return mergeSearchResponses(fuzzyResponses);
 }
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {
@@ -1391,12 +1411,7 @@ export async function GET(req: NextRequest) {
 
   try {
     if (activeGame === ALL_GAMES) {
-      const results = await Promise.all([
-        runSearchForGame(q, POKEMON_GAME),
-        runSearchForGame(q, ONE_PIECE_GAME),
-      ]);
-
-      return NextResponse.json(mergeSearchResponses(results));
+      return NextResponse.json(await runAllGameSearch(q));
     }
 
     const itemEpisodeWhere = buildVisibleEpisodeWhere(activeGame, { includeGame: false });

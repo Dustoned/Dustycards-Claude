@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Geist } from "next/font/google";
 import Link from "next/link";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
@@ -29,10 +29,26 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+function detectInitialMobileViewport(headerStore: Headers) {
+  const clientHintMobile = headerStore.get("sec-ch-ua-mobile");
+
+  if (clientHintMobile === "?1") return true;
+  if (clientHintMobile === "?0") return false;
+
+  const userAgent = headerStore.get("user-agent") ?? "";
+  return /\b(Android|iPhone|iPod|IEMobile|Mobile|BlackBerry|Opera Mini)\b/i.test(userAgent);
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
+  const headerStore = await headers();
   const currentUser = await getCurrentUser();
   const initialSettings = await getServerUserSettings(currentUser?.id);
+  const initialMobileViewport = detectInitialMobileViewport(headerStore);
+  const initialUiScale = initialMobileViewport
+    ? initialSettings?.mobileUiScale ?? "small"
+    : initialSettings?.uiScale ?? "medium";
+  const initialWidescreen = !initialMobileViewport && (initialSettings?.widescreen ?? false);
   const resolvedTheme = parseResolvedThemeCookie(
     cookieStore.get(SETTINGS_RESOLVED_THEME_COOKIE_NAME)?.value
   );
@@ -102,8 +118,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     "h-full",
     "antialiased",
     serverDark ? "dark" : "",
-    initialSettings?.widescreen ? "widescreen" : "",
-    `ui-scale-${initialSettings?.uiScale ?? "medium"}`,
+    initialWidescreen ? "widescreen" : "",
+    `ui-scale-${initialUiScale}`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -113,7 +129,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang="en"
       className={htmlClassName}
       data-theme={initialTheme}
-      data-ui-scale={initialSettings?.uiScale ?? "medium"}
+      data-ui-scale={initialUiScale}
       suppressHydrationWarning
     >
       <head>
@@ -123,6 +139,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
         <SettingsProvider
           initialSettings={initialSettings}
+          initialMobileViewport={initialMobileViewport}
           syncToAccount={Boolean(currentUser)}
           currentUserRole={currentUser?.role ?? null}
         >
