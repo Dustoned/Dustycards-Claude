@@ -77,11 +77,26 @@ function findSavedGradedLabel(
   );
 }
 
+function getLatestSeriesValue(points: Array<{ value: number | null }>): number | undefined {
+  for (let index = points.length - 1; index >= 0; index -= 1) {
+    const value = points[index]?.value;
+    if (value != null) return value;
+  }
+
+  return undefined;
+}
+
 export default function CardModal({ card, showGradedSlabPreview = false, onClose }: Props) {
   useBodyScrollLock();
 
   const savedCardMarketGradedLabel = findSavedGradedLabel(
-    card.graded_prices ?? [],
+    [
+      ...(card.graded_prices ?? []),
+      ...(card.graded_price_history ?? []).map((series) => ({
+        label: series.label,
+        price: getLatestSeriesValue(series.points),
+      })),
+    ],
     card.collection_item
   );
   const savedEbaySoldGradedLabel = findSavedGradedLabel(
@@ -102,7 +117,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     "cardmarket"
   );
   const [gradedDataSource, setGradedDataSource] = useState<"cardmarket" | "ebay">(() =>
-    savedEbaySoldGradedLabel ? "ebay" : "cardmarket"
+    savedCardMarketGradedLabel ? "cardmarket" : savedEbaySoldGradedLabel ? "ebay" : "cardmarket"
   );
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
