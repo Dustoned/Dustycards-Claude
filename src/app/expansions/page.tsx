@@ -45,8 +45,7 @@ const ERA_ORDER = [
   "Other",
 ];
 
-const NEW_RELEASE_GROUP = "Upcoming / New";
-const NEW_RELEASE_WINDOW_DAYS = 120;
+const UPCOMING_RELEASE_GROUP = "Upcoming";
 
 function getEra(name: string, series: string | null, releaseDate: string | null): string {
   const normalizedName = name.toLowerCase();
@@ -111,39 +110,6 @@ function getKnownEpisodeCardCount(input: {
     input.card_count ?? 0,
     input.source_actual_card_count ?? 0
   );
-}
-
-function getReleaseDateStart(value: string | null): Date | null {
-  if (!value) return null;
-
-  const match = String(value).trim().match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/);
-  if (!match) return null;
-
-  const year = Number(match[1]);
-  const month = match[2] ? Number(match[2]) : 1;
-  const day = match[3] ? Number(match[3]) : 1;
-  const date = new Date(year, month - 1, day);
-
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day
-  ) {
-    return null;
-  }
-
-  return date;
-}
-
-function isUpcomingOrNewReleaseDate(value: string | null, now = new Date()): boolean {
-  const releaseDate = getReleaseDateStart(value);
-  if (!releaseDate) return false;
-
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (releaseDate.getTime() > today.getTime()) return true;
-
-  const ageMs = today.getTime() - releaseDate.getTime();
-  return ageMs <= NEW_RELEASE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 }
 
 function GameToggleLink({
@@ -228,8 +194,8 @@ export default async function ExpansionsPage() {
   const grouped = new Map<string, typeof episodes>();
   for (const episode of withCards) {
     const era = getEra(episode.name, episode.series, episode.release_date);
-    const group = isUpcomingOrNewReleaseDate(episode.release_date, now)
-      ? NEW_RELEASE_GROUP
+    const group = isFutureReleaseDate(episode.release_date, now)
+      ? UPCOMING_RELEASE_GROUP
       : era;
     if (!grouped.has(group)) grouped.set(group, []);
     grouped.get(group)!.push(episode);
@@ -237,8 +203,8 @@ export default async function ExpansionsPage() {
 
   const sortedGroups = [...grouped.entries()]
     .sort(([a], [b]) => {
-      if (a === NEW_RELEASE_GROUP) return -1;
-      if (b === NEW_RELEASE_GROUP) return 1;
+      if (a === UPCOMING_RELEASE_GROUP) return -1;
+      if (b === UPCOMING_RELEASE_GROUP) return 1;
       const aIndex = ERA_ORDER.indexOf(a);
       const bIndex = ERA_ORDER.indexOf(b);
       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
@@ -249,7 +215,7 @@ export default async function ExpansionsPage() {
       return [era, [...nonPromos, ...promos]] as [string, typeof sets];
     });
 
-  const eraCount = sortedGroups.filter(([group]) => group !== NEW_RELEASE_GROUP).length;
+  const eraCount = sortedGroups.filter(([group]) => group !== UPCOMING_RELEASE_GROUP).length;
   const trackedCardCount = withCards.reduce(
     (total, episode) => total + getEpisodeDisplayCardCount(episode),
     0
@@ -363,7 +329,7 @@ export default async function ExpansionsPage() {
               }}
             >
               {sets.map((episode, index) => {
-                const isTimelineGroup = era === NEW_RELEASE_GROUP;
+                const isTimelineGroup = era === UPCOMING_RELEASE_GROUP;
                 const localCardCount = episode._count.cards;
                 const cardCount = getEpisodeDisplayCardCount(episode);
                 const knownCardCount = getKnownEpisodeCardCount(episode);
