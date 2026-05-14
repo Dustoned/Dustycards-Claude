@@ -45,6 +45,7 @@ export default function CollectionInlineBinderCreator({
   );
   const [basePurchasePrice, setBasePurchasePrice] = useState("");
   const [notes, setNotes] = useState("");
+  const [linkToSuggestedEpisode, setLinkToSuggestedEpisode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +60,7 @@ export default function CollectionInlineBinderCreator({
   }, [query, suggestedEpisode]);
 
   function handleOpen() {
+    setLinkToSuggestedEpisode(false);
     setOpen((prev) => {
       const next = !prev;
       if (next && !query && suggestedEpisode) {
@@ -75,6 +77,10 @@ export default function CollectionInlineBinderCreator({
       return;
     }
 
+    const shouldLinkSet = Boolean(
+      suggestedEpisode && looksLikeSuggestedEpisode && linkToSuggestedEpisode
+    );
+
     setSaving(true);
     setError(null);
 
@@ -83,11 +89,13 @@ export default function CollectionInlineBinderCreator({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "auto",
+          type: shouldLinkSet ? "linked_set" : "custom",
           name: query,
-          linkedQuery: query,
+          episodeId: shouldLinkSet ? suggestedEpisode?.id : null,
+          linkedQuery: shouldLinkSet ? query : null,
+          confirmLinkedSet: shouldLinkSet,
           accentColor,
-          iconName,
+          iconName: shouldLinkSet ? null : iconName,
           basePurchasePrice: basePurchasePrice || null,
           notes: notes || null,
         }),
@@ -134,16 +142,32 @@ export default function CollectionInlineBinderCreator({
             <input
               type="text"
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setLinkToSuggestedEpisode(false);
+              }}
               className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]"
               placeholder={suggestedEpisode?.name ?? "Type a set or custom binder name"}
             />
           </label>
 
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/55 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[10px]">
-            {looksLikeSuggestedEpisode
-              ? `This will create a set binder for ${suggestedEpisode?.name}${suggestedEpisode?.code ? ` (${suggestedEpisode.code})` : ""}.`
-              : "If this matches an expansion, the binder gets the full set layout automatically. Otherwise it becomes a custom binder."}
+            {looksLikeSuggestedEpisode ? (
+              <label className="flex gap-2">
+                <input
+                  type="checkbox"
+                  checked={linkToSuggestedEpisode}
+                  onChange={(event) => setLinkToSuggestedEpisode(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-blue-500"
+                />
+                <span>
+                  Link as set binder for {suggestedEpisode?.name}
+                  {suggestedEpisode?.code ? ` (${suggestedEpisode.code})` : ""}. Leave unchecked for a custom binder.
+                </span>
+              </label>
+            ) : (
+              "This will create a custom binder. Set binders are only linked when you confirm the set."
+            )}
           </div>
 
           <div className="grid gap-3 max-[640px]:gap-2.5 sm:grid-cols-2">
@@ -174,7 +198,7 @@ export default function CollectionInlineBinderCreator({
           </div>
 
           <div className="grid gap-3 max-[640px]:gap-2.5 sm:grid-cols-[auto_1fr] sm:items-start">
-            {!looksLikeSuggestedEpisode && (
+            {(!looksLikeSuggestedEpisode || !linkToSuggestedEpisode) && (
               <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
                 <span className="text-white/60">Icon</span>
                 <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">

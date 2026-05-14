@@ -26,6 +26,7 @@ export default function CreateBinderButton() {
   );
   const [basePurchasePrice, setBasePurchasePrice] = useState("");
   const [notes, setNotes] = useState("");
+  const [linkMatchedEpisode, setLinkMatchedEpisode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [episodes, setEpisodes] = useState<EpisodeOption[]>([]);
@@ -85,17 +86,20 @@ export default function CreateBinderButton() {
     setSaving(true);
     setError(null);
 
+    const shouldLinkSet = Boolean(matchedEpisode && linkMatchedEpisode);
+
     try {
       const response = await fetch("/api/collection/binders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "auto",
+          type: shouldLinkSet ? "linked_set" : "custom",
           name: query || null,
-          episodeId: matchedEpisode?.id ?? null,
-          linkedQuery: query || null,
+          episodeId: shouldLinkSet ? matchedEpisode?.id : null,
+          linkedQuery: shouldLinkSet ? query || null : null,
+          confirmLinkedSet: shouldLinkSet,
           accentColor,
-          iconName: matchedEpisode ? null : iconName,
+          iconName: shouldLinkSet ? null : iconName,
           basePurchasePrice: basePurchasePrice || null,
           notes: notes || null,
         }),
@@ -119,6 +123,7 @@ export default function CreateBinderButton() {
   function openModal() {
     setError(null);
     setShowCustomize(false);
+    setLinkMatchedEpisode(false);
     setOpen(true);
   }
 
@@ -149,7 +154,7 @@ export default function CreateBinderButton() {
                     New collection binder
                   </h2>
                   <p className="mt-1 text-sm text-white/50 max-[640px]:hidden">
-                    Type a set name for an automatic set binder, or any other name for a custom binder.
+                    Create a custom binder, or confirm a set link when a matching expansion appears.
                   </p>
                 </div>
                 <button
@@ -171,17 +176,33 @@ export default function CreateBinderButton() {
                     <span className="text-white/60">Set name or binder name</span>
                     <input
                       value={query}
-                      onChange={(event) => setQuery(event.target.value)}
+                      onChange={(event) => {
+                        setQuery(event.target.value);
+                        setLinkMatchedEpisode(false);
+                      }}
                       className={modalInputClasses}
                       placeholder="Type a set name or custom binder name"
                     />
-                    <p className="text-xs text-white/45 max-[640px]:text-[10px]">
-                      {matchedEpisode
-                        ? `This will create a set binder for ${matchedEpisode.name}${matchedEpisode.code ? ` (${matchedEpisode.code})` : ""}.`
-                        : !episodesLoaded
-                          ? "Checking set matches..."
-                          : "No set match yet, so this will become a custom binder."}
-                    </p>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/55 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[10px]">
+                      {matchedEpisode ? (
+                        <label className="flex gap-2">
+                          <input
+                            type="checkbox"
+                            checked={linkMatchedEpisode}
+                            onChange={(event) => setLinkMatchedEpisode(event.target.checked)}
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-blue-500"
+                          />
+                          <span>
+                            Link as set binder for {matchedEpisode.name}
+                            {matchedEpisode.code ? ` (${matchedEpisode.code})` : ""}. Leave unchecked for a custom binder.
+                          </span>
+                        </label>
+                      ) : !episodesLoaded ? (
+                        "Checking set matches..."
+                      ) : (
+                        "This will create a custom binder. Set binders are only linked when you confirm the set."
+                      )}
+                    </div>
                   </label>
 
                   <label className="col-span-2 space-y-1.5 text-sm max-[640px]:text-[12px]">
@@ -210,7 +231,7 @@ export default function CreateBinderButton() {
 
                 {showCustomize && (
                   <div className="mt-3 space-y-3">
-                    {!matchedEpisode && (
+                    {(!matchedEpisode || !linkMatchedEpisode) && (
                       <div className="space-y-1.5 text-sm max-[640px]:text-[12px]">
                         <span className="text-white/60">Icon</span>
                         <div className="flex flex-wrap gap-2 max-[640px]:gap-1.5">

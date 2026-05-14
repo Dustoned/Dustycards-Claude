@@ -38,6 +38,10 @@ function toNullableNumber(value: unknown): number | null {
   return null;
 }
 
+function toBoolean(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
 async function resolveEpisode(input: {
   episodeId?: unknown;
   linkedQuery?: unknown;
@@ -118,6 +122,7 @@ export async function POST(req: NextRequest) {
       type?: unknown;
       episodeId?: unknown;
       linkedQuery?: unknown;
+      confirmLinkedSet?: unknown;
       accentColor?: unknown;
       iconName?: unknown;
       notes?: unknown;
@@ -137,7 +142,8 @@ export async function POST(req: NextRequest) {
     const requestedName = toNullableString(body.name);
     const settings = await getServerUserSettings(user.id);
     const linkedQuery = toNullableString(body.linkedQuery) ?? requestedName;
-    const shouldResolveEpisode = type === "linked_set" || type === "auto";
+    const confirmedLinkedSet = toBoolean(body.confirmLinkedSet);
+    const shouldResolveEpisode = type === "linked_set" || (type === "auto" && confirmedLinkedSet);
     const episode = shouldResolveEpisode
       ? await resolveEpisode({
           episodeId: body.episodeId,
@@ -146,7 +152,7 @@ export async function POST(req: NextRequest) {
         })
       : null;
 
-    if (type === "linked_set" || (type === "auto" && episode)) {
+    if (type === "linked_set" || (type === "auto" && confirmedLinkedSet && episode)) {
       if (!episode) {
         return NextResponse.json({ error: "Expansion not found" }, { status: 400 });
       }
