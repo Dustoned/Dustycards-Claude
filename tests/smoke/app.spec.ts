@@ -338,7 +338,11 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page);
 
     await headerSearch.fill("");
-    await expect(page).toHaveURL(`${BASE_URL}/`);
+    await expect(page).toHaveURL(`${BASE_URL}/search`);
+    await expect(headerSearch).toBeVisible();
+
+    await headerSearch.fill("charizard");
+    await expect(page).toHaveURL(/\/search\?q=charizard/);
   });
 
   test("mobile menu closes when tapping outside the menu", async ({ page }) => {

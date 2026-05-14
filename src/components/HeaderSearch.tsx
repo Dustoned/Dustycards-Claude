@@ -12,6 +12,8 @@ import {
 import { GAME_SEARCH_PARAM, ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import { useSettings } from "@/components/SettingsProvider";
 
+const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
+
 export default function HeaderSearch() {
   const router = useRouter();
   const pathname = usePathname();
@@ -101,10 +103,43 @@ export default function HeaderSearch() {
     }
   }
 
+  function buildEmptySearchHref() {
+    const params = new URLSearchParams();
+    const currentGameParam = searchParams.get(GAME_SEARCH_PARAM);
+    const currentAutoSwitchParam = searchParams.get(AUTO_SWITCH_SEARCH_PARAM);
+
+    if (
+      settings.onePieceLibraryEnabled &&
+      (currentGameParam === ONE_PIECE_GAME || currentGameParam === POKEMON_GAME)
+    ) {
+      params.set(GAME_SEARCH_PARAM, currentGameParam);
+    }
+
+    if (currentAutoSwitchParam === "0") {
+      params.set(AUTO_SWITCH_SEARCH_PARAM, currentAutoSwitchParam);
+    }
+
+    const query = params.toString();
+    return query ? `/search?${query}` : "/search";
+  }
+
+  function clearSearchQuery() {
+    startedSearchRef.current = false;
+    shouldRestoreFocusRef.current = true;
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    setMobileQuery("");
+    router.replace(buildEmptySearchHref(), { scroll: false });
+  }
+
   function routeToSearch(rawQuery: string, preferPush = false) {
     const trimmed = rawQuery.trim();
     if (!trimmed) {
-      returnToPreviousPageOrSearch();
+      if (pathname === "/search") {
+        clearSearchQuery();
+      }
       return;
     }
 
@@ -135,7 +170,12 @@ export default function HeaderSearch() {
       return;
     }
 
-    if (pathname === "/search" || startedSearchRef.current) {
+    if (pathname === "/search") {
+      clearSearchQuery();
+      return;
+    }
+
+    if (startedSearchRef.current) {
       returnToPreviousPageOrSearch();
     }
   }
@@ -157,6 +197,7 @@ export default function HeaderSearch() {
 
   function clearMobileSearch() {
     if (mobileQuery.trim()) {
+      setMobileQuery("");
       handleChange("");
       return;
     }
