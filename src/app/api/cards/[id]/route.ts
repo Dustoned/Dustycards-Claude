@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin, requireUser } from "@/lib/auth";
-import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import {
   buildLinkedBinderCostBasis,
@@ -23,6 +22,7 @@ import {
 import { isTcggoQuotaExceededError } from "@/lib/tcggo";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 import { ONE_PIECE_GAME } from "@/lib/games";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 
 type CardAction = "refresh" | "sync-history";
 
@@ -232,8 +232,8 @@ async function getCardDetailPayload(id: string, userId: string) {
   }
 
   if (card.game === ONE_PIECE_GAME) {
-    const features = await getAppFeatures();
-    if (!features.onePieceLibraryEnabled) {
+    const settings = await getServerUserSettings(userId);
+    if (!settings.onePieceLibraryEnabled) {
       return null;
     }
   }

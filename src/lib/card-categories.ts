@@ -10,7 +10,7 @@ import {
   HIDDEN_EXPANSION_NAMES,
   REDUNDANT_SUBSET_PATTERNS,
 } from "@/lib/episodes";
-import { POKEMON_GAME } from "@/lib/games";
+import { ONE_PIECE_GAME, POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import type { EpisodePriceHistorySnapshot } from "@/lib/price-history";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -191,6 +191,25 @@ const FORCE_SECRET_RARE_WHERE: Prisma.CardWhereInput = {
   ],
 };
 
+const ONE_PIECE_PROMO_WHERE: Prisma.CardWhereInput = {
+  OR: [
+    rarityIn(["Promo", "PR"]),
+    { card_number: { startsWith: "P-" } },
+  ],
+};
+
+const ONE_PIECE_UNCLASSIFIED_WHERE: Prisma.CardWhereInput = {
+  AND: [
+    {
+      OR: [
+        { rarity: null },
+        { rarity: "" },
+      ],
+    },
+    { NOT: ONE_PIECE_PROMO_WHERE },
+  ],
+};
+
 // The source uses Rare Secret for both classic secret rares and gold-treatment cards.
 const GOLD_SECRET_RARE_WHERE: Prisma.CardWhereInput = {
   AND: [
@@ -242,11 +261,14 @@ function buildVisibleEpisodeWhere(): Prisma.EpisodeWhereInput {
 
 const VISIBLE_EPISODE_WHERE = buildVisibleEpisodeWhere();
 
-function withVisibleCards(where: Prisma.CardWhereInput): Prisma.CardWhereInput {
+function withVisibleCards(
+  where: Prisma.CardWhereInput,
+  game: TradingCardGame = POKEMON_GAME
+): Prisma.CardWhereInput {
   return {
     AND: [
       where,
-      { game: POKEMON_GAME },
+      { game },
       {
         episode: VISIBLE_EPISODE_WHERE,
       },
@@ -620,12 +642,162 @@ export const CARD_CATEGORIES: ReadonlyArray<CardCategoryDefinition> = [
   },
 ];
 
+export const ONE_PIECE_CARD_CATEGORIES: ReadonlyArray<CardCategoryDefinition> = [
+  {
+    slug: "one-piece-leaders",
+    title: "Leaders",
+    shortTitle: "Leader",
+    description: "True Leader cards, kept separate from the broad character pool.",
+    group: "Featured",
+    icon: "shield",
+    tone: "amber",
+    where: {
+      OR: [
+        { supertype: "Leader" },
+        rarityIn(["Leader", "LEADER", "L"]),
+      ],
+    },
+  },
+  {
+    slug: "one-piece-alternate-art",
+    title: "Alternate Art",
+    shortTitle: "Alt Art",
+    description: "Alternate Art One Piece cards and chase variants grouped together.",
+    group: "Featured",
+    icon: "image",
+    tone: "violet",
+    where: rarityIn(["Alternate Art"]),
+  },
+  {
+    slug: "one-piece-manga-rare",
+    title: "Manga Rare",
+    shortTitle: "Manga",
+    description: "High-end Manga Rare One Piece cards.",
+    group: "Featured",
+    icon: "sparkles",
+    tone: "rose",
+    where: rarityIn(["Manga Rare"]),
+  },
+  {
+    slug: "one-piece-special-rare",
+    title: "Special Rare",
+    shortTitle: "SP",
+    description: "Special Rare One Piece cards with premium artwork treatments.",
+    group: "Rarities",
+    icon: "gem",
+    tone: "emerald",
+    where: rarityIn(["Special Rare"]),
+  },
+  {
+    slug: "one-piece-secret-rare",
+    title: "Secret Rare",
+    shortTitle: "SEC",
+    description: "Secret Rare One Piece cards.",
+    group: "Rarities",
+    icon: "sparkle",
+    tone: "sky",
+    where: rarityIn(["Secret Rare", "SECRET RARE", "SEC"]),
+  },
+  {
+    slug: "one-piece-super-rare",
+    title: "Super Rare",
+    shortTitle: "SR",
+    description: "Super Rare One Piece cards.",
+    group: "Rarities",
+    icon: "star",
+    tone: "blue",
+    where: rarityIn(["Super Rare", "SUPER RARE", "SR"]),
+  },
+  {
+    slug: "one-piece-rare",
+    title: "Rare",
+    shortTitle: "R",
+    description: "One Piece rare cards, including source variants labeled R or rare.",
+    group: "Rarities",
+    icon: "badge",
+    tone: "slate",
+    where: rarityIn(["Rare", "R", "rare"]),
+  },
+  {
+    slug: "one-piece-treasure-rare",
+    title: "Treasure Rare",
+    shortTitle: "TR",
+    description: "Treasure Rare One Piece cards where the source exposes the TR rarity.",
+    group: "Rarities",
+    icon: "diamond",
+    tone: "violet",
+    where: rarityIn(["Treasure Rare", "TR"]),
+  },
+  {
+    slug: "one-piece-don",
+    title: "DON!! Cards",
+    shortTitle: "DON!!",
+    description: "One Piece DON!! cards kept in their own list.",
+    group: "Mechanics",
+    icon: "circle-dot",
+    tone: "amber",
+    where: {
+      OR: [
+        rarityIn(["DON!!"]),
+        nameContains("DON!!"),
+      ],
+    },
+  },
+  {
+    slug: "one-piece-common",
+    title: "Common",
+    shortTitle: "Common",
+    description: "Common One Piece cards, including source entries marked C.",
+    group: "Mechanics",
+    icon: "archive",
+    tone: "slate",
+    where: rarityIn(["Common", "C"]),
+  },
+  {
+    slug: "one-piece-uncommon",
+    title: "Uncommon",
+    shortTitle: "Uncommon",
+    description: "Uncommon One Piece cards for set building and binder completion.",
+    group: "Mechanics",
+    icon: "layers-3",
+    tone: "blue",
+    where: rarityIn(["Uncommon", "UC"]),
+  },
+  {
+    slug: "one-piece-promos",
+    title: "Promos",
+    shortTitle: "Promo",
+    description: "One Piece promo cards and P-numbered promotional releases.",
+    group: "Mechanics",
+    icon: "ticket",
+    tone: "violet",
+    where: ONE_PIECE_PROMO_WHERE,
+  },
+  {
+    slug: "one-piece-unclassified",
+    title: "Unclassified",
+    shortTitle: "Other",
+    description: "One Piece cards whose source data does not include a rarity yet.",
+    group: "Mechanics",
+    icon: "list-filter",
+    tone: "slate",
+    where: ONE_PIECE_UNCLASSIFIED_WHERE,
+  },
+];
+
+function getCardCategoriesForGame(game: TradingCardGame): ReadonlyArray<CardCategoryDefinition> {
+  return game === ONE_PIECE_GAME ? ONE_PIECE_CARD_CATEGORIES : CARD_CATEGORIES;
+}
+
 export function getCategoryGroups(): CardCategoryGroup[] {
   return CATEGORY_GROUP_ORDER;
 }
 
-export function getCardCategory(slug: string): CardCategoryDefinition | null {
-  return CARD_CATEGORIES.find((category) => category.slug === slug) ?? null;
+export function getCardCategory(
+  slug: string,
+  game: TradingCardGame = POKEMON_GAME
+): CardCategoryDefinition | null {
+  return getCardCategoriesForGame(game).find((category) => category.slug === slug) ?? null;
 }
 
 export function sortCategorySummaries<T extends { group: CardCategoryGroup; title: string }>(
@@ -639,17 +811,20 @@ export function sortCategorySummaries<T extends { group: CardCategoryGroup; titl
   });
 }
 
-export async function getCardCategorySummaries(): Promise<CardCategorySummary[]> {
+export async function getCardCategorySummaries(
+  game: TradingCardGame = POKEMON_GAME
+): Promise<CardCategorySummary[]> {
+  const categories = getCardCategoriesForGame(game);
   const counts = await Promise.all(
-    CARD_CATEGORIES.map((category) =>
+    categories.map((category) =>
       db.card.count({
-        where: withVisibleCards(category.where),
+        where: withVisibleCards(category.where, game),
       })
     )
   );
 
   return sortCategorySummaries(
-    CARD_CATEGORIES.map((category, index) => ({
+    categories.map((category, index) => ({
       ...category,
       count: counts[index] ?? 0,
     })).filter((category) => category.count > 0)
@@ -908,12 +1083,13 @@ async function getCategoryPriceSnapshots(
 
 export async function getCardCategoryPageData(
   slug: string,
-  userId: string
+  userId: string,
+  game: TradingCardGame = POKEMON_GAME
 ): Promise<CardCategoryPageData | null> {
-  const category = getCardCategory(slug);
+  const category = getCardCategory(slug, game);
   if (!category) return null;
 
-  const cards = await getCategoryCards(withVisibleCards(category.where));
+  const cards = await getCategoryCards(withVisibleCards(category.where, game));
 
   const cardIds = cards.map((card) => card.id);
   const [ownedRecords, wantRecords, priceSnapshots] =

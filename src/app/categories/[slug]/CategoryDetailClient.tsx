@@ -34,6 +34,9 @@ const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel")
 
 interface Props {
   category: CardCategoryDefinition;
+  backHref: string;
+  setsHref: string;
+  eyebrow: string;
   items: CollectionCardViewItem[];
   priceSnapshots: EpisodePriceHistorySnapshot[];
   totalCards: number;
@@ -59,6 +62,9 @@ function buildCurrentTotals(items: CollectionCardViewItem[]) {
 
 export default function CategoryDetailClient({
   category,
+  backHref,
+  setsHref,
+  eyebrow,
   items,
   priceSnapshots,
   totalCards,
@@ -181,7 +187,7 @@ export default function CategoryDetailClient({
   return (
     <div className="flex w-full flex-col gap-5 sm:gap-6">
       <PageHeroHeader
-        eyebrow="Category"
+        eyebrow={eyebrow}
         title={category.title}
         description={category.description}
         className="max-[640px]:[--ui-page-header-padding:0.85rem] max-[640px]:[--ui-page-header-title-size:1.65rem] max-[640px]:[--ui-page-header-description-size:0.78rem]"
@@ -189,7 +195,7 @@ export default function CategoryDetailClient({
         sideClassName="xl:space-y-0"
         backLinks={
           <Link
-            href="/categories"
+            href={backHref}
             prefetch={false}
             className="inline-flex items-center gap-2 font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
           >
@@ -208,7 +214,7 @@ export default function CategoryDetailClient({
               Wants
             </Link>
             <Link
-              href="/expansions"
+              href={setsHref}
               prefetch={false}
               className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
             >

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
-import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
 import { POKEMON_GAME } from "@/lib/games";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 
 const binderSelect = {
   id: true,
@@ -135,14 +135,14 @@ export async function POST(req: NextRequest) {
     }
 
     const requestedName = toNullableString(body.name);
-    const features = await getAppFeatures();
+    const settings = await getServerUserSettings(user.id);
     const linkedQuery = toNullableString(body.linkedQuery) ?? requestedName;
     const shouldResolveEpisode = type === "linked_set" || type === "auto";
     const episode = shouldResolveEpisode
       ? await resolveEpisode({
           episodeId: body.episodeId,
           linkedQuery,
-          onePieceEnabled: features.onePieceLibraryEnabled,
+          onePieceEnabled: settings.onePieceLibraryEnabled,
         })
       : null;
 

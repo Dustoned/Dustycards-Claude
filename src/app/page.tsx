@@ -8,7 +8,6 @@ import {
   type HeaderStat,
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
-import { getAppFeatures } from "@/lib/app-settings";
 import {
   getCollectionOverviewData,
   type CollectionPageTab,
@@ -194,12 +193,11 @@ export default async function HomePage({
 }) {
   const cookieStore = await cookies();
   const user = await requirePageUser("/");
-  const features = await getAppFeatures();
   const settings = await getServerUserSettings(user.id);
   const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
   const { tab, graded, game: gameParam } = await searchParams;
   const activeGame = parseVisibleTradingCardGame(gameParam, {
-    onePieceEnabled: features.onePieceLibraryEnabled,
+    onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const browseHref = activeGame === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
   const activeTab =
@@ -408,7 +406,7 @@ export default async function HomePage({
               </div>
             </div>
 
-            {features.onePieceLibraryEnabled ? (
+            {settings.onePieceLibraryEnabled ? (
               <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
                 <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
                   <TabLink

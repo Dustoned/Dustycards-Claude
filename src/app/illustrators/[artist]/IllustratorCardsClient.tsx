@@ -28,6 +28,8 @@ const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel")
 
 interface Props {
   artist: string;
+  backHref: string;
+  eyebrow: string;
   cards: CardData[];
   priceSnapshots: EpisodePriceHistorySnapshot[];
 }
@@ -48,6 +50,8 @@ function buildCurrentTotals(cards: CardData[]) {
 
 export default function IllustratorCardsClient({
   artist,
+  backHref,
+  eyebrow,
   cards,
   priceSnapshots,
 }: Props) {
@@ -127,12 +131,12 @@ export default function IllustratorCardsClient({
     <div className="space-y-6">
       <div className="space-y-4">
         <PageHeroHeader
-          eyebrow="Illustrator"
+          eyebrow={eyebrow}
           title={artist}
           description={`${cards.length} ${cards.length === 1 ? "card" : "cards"}`}
           backLinks={
             <Link
-              href="/illustrators"
+              href={backHref}
               prefetch={false}
               className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
             >

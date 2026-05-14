@@ -3,12 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, Layers3, LibraryBig } from "lucide-react";
 import {
+  HeaderStatCard,
   PageHeroHeader,
   SectionHeader,
   type HeaderStat,
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
-import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
@@ -18,6 +18,7 @@ import { getEpisodeDisplayCardCount } from "@/lib/episodes";
 import { requirePageUser } from "@/lib/page-auth";
 import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import ExpansionsOverviewChart from "@/app/expansions/ExpansionsOverviewChart";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,30 @@ function sortTimelineGroups(groups: Array<[string, OnePieceEpisode[]]>) {
   });
 }
 
+function GameToggleLink({
+  href,
+  active,
+  label,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
+        active
+          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
 type OnePieceEpisode = Awaited<ReturnType<typeof getOnePieceEpisodes>>[number];
 
 async function getOnePieceEpisodes() {
@@ -58,12 +83,11 @@ async function getOnePieceEpisodes() {
 
 export default async function OnePieceExpansionsPage() {
   const user = await requirePageUser("/one-piece/expansions");
-  const features = await getAppFeatures();
-  if (!features.onePieceLibraryEnabled) {
+  const settings = await getServerUserSettings(user.id);
+  if (!settings.onePieceLibraryEnabled) {
     notFound();
   }
 
-  const settings = await getServerUserSettings(user.id);
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
   const episodes = await getOnePieceEpisodes();
   const visibleSets = episodes.filter(
@@ -94,6 +118,16 @@ export default async function OnePieceExpansionsPage() {
     (total, episode) => total + getEpisodeDisplayCardCount(episode),
     0
   );
+  const overviewCurrentValueTotal = currentValueRows.reduce(
+    (total, row) => total + Number(row.total_market ?? 0),
+    0
+  );
+  const overviewPricedCardCount = currentValueRows.reduce(
+    (total, row) => total + Number(row.priced_cards ?? 0),
+    0
+  );
+  const overviewCurrentValue =
+    overviewPricedCardCount > 0 ? Number(overviewCurrentValueTotal.toFixed(2)) : null;
   const latestRelease = visibleSets[0]?.release_date
     ? formatReleaseLabel(visibleSets[0].release_date)
     : "--";
@@ -125,8 +159,33 @@ export default async function OnePieceExpansionsPage() {
         title="One Piece Expansions"
         description="Browse One Piece sets from TCGGO. Upcoming and newest sets stay at the top, with older releases below."
         className="mb-6 max-[640px]:[--ui-page-header-description-size:0.8rem] sm:mb-8"
-        stats={headerStats}
+        gridClassName="xl:grid-cols-[minmax(20rem,0.72fr)_minmax(34rem,1.28fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.66fr)_minmax(48rem,1.34fr)]"
+        sideClassName="xl:space-y-0"
+        accessory={
+          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(28rem,1.35fr)_minmax(12rem,0.65fr)] xl:items-stretch 2xl:grid-cols-[minmax(38rem,1.45fr)_minmax(18rem,0.72fr)]">
+            <div className="min-w-0 [&>section]:h-full">
+              <ExpansionsOverviewChart
+                episodeIds={visibleEpisodeIds}
+                initialCurrentValue={overviewCurrentValue}
+                initialPricedCardCount={overviewPricedCardCount}
+                trackedCardCount={trackedCardCount}
+              />
+            </div>
+            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-1 xl:auto-rows-fr">
+              {headerStats.map((stat) => (
+                <HeaderStatCard key={stat.label} {...stat} />
+              ))}
+            </div>
+          </div>
+        }
       />
+
+      <div className="mb-6 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
+        <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+          <GameToggleLink href="/expansions" active={false} label="Pokemon" />
+          <GameToggleLink href="/one-piece/expansions" active label="One Piece" />
+        </div>
+      </div>
 
       {visibleSets.length === 0 ? (
         <div className="glass rounded-2xl p-8 text-center shadow-lg shadow-black/5">

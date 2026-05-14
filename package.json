@@ -14,6 +14,8 @@
     "auth:bootstrap": "node scripts/bootstrap-admin.mjs",
     "backfill:tcgdex-artists": "node scripts/backfill-tcgdex-artists.mjs",
     "sync:one-piece": "node scripts/sync-one-piece-local.mjs",
+    "sync:one-piece-meta": "node scripts/sync-one-piece-optcg-metadata.mjs",
+    "sync:one-piece-prices": "node scripts/sync-one-piece-price-fallback.mjs",
     "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs",
     "images:cache": "node scripts/cache-images.mjs"
   },

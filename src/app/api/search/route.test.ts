@@ -12,6 +12,9 @@ const { dbMock } = vi.hoisted(() => ({
     episode: {
       findMany: vi.fn(),
     },
+    user: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -36,6 +39,7 @@ describe("GET /api/search", () => {
     dbMock.card.findMany.mockReset();
     dbMock.sealedProduct.findMany.mockReset();
     dbMock.episode.findMany.mockReset();
+    dbMock.user.findUnique.mockReset();
   });
 
   it("adds the hidden-expansion visibility filter to direct card searches", async () => {
@@ -229,6 +233,321 @@ describe("GET /api/search", () => {
     expect(whereJson).not.toContain('"name":{"contains":"SHF"}');
     expect(whereJson).toContain('"card_number":"73"');
     expect(whereJson).not.toContain('"contains":"73"');
+  });
+
+  it("matches One Piece card references by exact stored card number", async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      settings_json: JSON.stringify({ onePieceLibraryEnabled: true, settingsVersion: 3 }),
+    });
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "one-piece:28798",
+        name: "Roronoa Zoro",
+        card_number: "OP12-113",
+        rarity: "LEADER",
+        supertype: null,
+        image_url: null,
+        episode: {
+          id: "one-piece:361",
+          name: "Legacy of the Master",
+          code: "OP12",
+        },
+        prices: [{ cm_en_lowest_nm: 12.5, tcp_market: null }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=OP12-113&game=one-piece")
+    );
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: "113",
+      setCode: "OP12",
+      rawCardRef: "OP12-113",
+    });
+    expect(body.singles).toHaveLength(1);
+    expect(whereJson).toContain('"game":"one-piece"');
+    expect(whereJson).toContain('"card_number":"OP12-113"');
+    expect(whereJson).not.toContain('"contains":"113"');
+  });
+
+  it("matches One Piece unpadded number references to padded stored card numbers", async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      settings_json: JSON.stringify({ onePieceLibraryEnabled: true, settingsVersion: 3 }),
+    });
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "one-piece:op01-016",
+        name: "Nami",
+        card_number: "OP01-016",
+        rarity: "R",
+        supertype: "Character",
+        image_url: null,
+        episode: {
+          id: "one-piece:op01",
+          name: "Romance Dawn",
+          code: "OP01",
+        },
+        prices: [{ cm_en_lowest_nm: 8, tcp_market: null }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=OP01%2016&game=one-piece")
+    );
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: "16",
+      setCode: "OP01",
+      rawCardRef: "OP01-16",
+    });
+    expect(body.singles[0].card_number).toBe("OP01-016");
+    expect(whereJson).toContain('"card_number":"OP01-16"');
+    expect(whereJson).toContain('"card_number":"OP01-016"');
+    expect(whereJson).not.toContain('"contains":"16"');
+  });
+
+  it("keeps One Piece space-separated references exact and skips fuzzy fallback", async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      settings_json: JSON.stringify({ onePieceLibraryEnabled: true, settingsVersion: 3 }),
+    });
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=OP05%20119&game=one-piece")
+    );
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      singles: [],
+      sealed: [],
+      expansions: [],
+      total: 0,
+      fuzzy: false,
+      parsed: {
+        name: null,
+        cardNumber: "119",
+        setCode: "OP05",
+        rawCardRef: "OP05-119",
+      },
+    });
+    expect(whereJson).toContain('"card_number":"OP05-119"');
+    expect(dbMock.card.findMany).toHaveBeenCalledTimes(1);
+    expect(dbMock.sealedProduct.findMany).not.toHaveBeenCalled();
+    expect(dbMock.episode.findMany).not.toHaveBeenCalled();
+  });
+
+  it("treats One Piece set-code searches as broad set and card-prefix matches", async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      settings_json: JSON.stringify({ onePieceLibraryEnabled: true, settingsVersion: 3 }),
+    });
+    dbMock.card.findMany.mockResolvedValue(
+      Array.from({ length: 101 }, (_, index) => {
+        const number = String(index + 1).padStart(3, "0");
+        return {
+          id: `one-piece:op05-${number}`,
+          name: `OP05 Card ${number}`,
+          card_number: `OP05-${number}`,
+          rarity: "R",
+          supertype: null,
+          image_url: null,
+          episode: {
+            id: "one-piece:372",
+            name: "Awakening of the New Era",
+            code: "OP05",
+          },
+          prices: [{ cm_en_lowest_nm: 2.5, tcp_market: null }],
+        };
+      })
+    );
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([
+      {
+        id: "one-piece:372",
+        name: "Awakening of the New Era",
+        code: "OP05",
+        logo_url: null,
+      },
+    ]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=OP05&game=one-piece")
+    );
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const expansionQuery = dbMock.episode.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: null,
+      setCode: "OP05",
+      rawCardRef: null,
+    });
+    expect(body.singles).toHaveLength(101);
+    expect(body.singles[0].card_number).toBe("OP05-001");
+    expect(body.expansions[0].code).toBe("OP05");
+    expect(whereJson).toContain('"code":{"contains":"OP05"}');
+    expect(whereJson).toContain('"card_number":{"startsWith":"OP05-"}');
+    expect(whereJson).not.toContain('"card_number":"OP-05"');
+    expect(JSON.stringify(expansionQuery.where)).toContain('"code":{"contains":"OP05"}');
+  });
+
+  it("auto-switches Pokemon searches to One Piece when a structured One Piece code matches there", async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      settings_json: JSON.stringify({ onePieceLibraryEnabled: true, settingsVersion: 3 }),
+    });
+    dbMock.card.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "one-piece:op05-001",
+          name: "Sabo",
+          card_number: "OP05-001",
+          rarity: "LEADER",
+          supertype: null,
+          image_url: null,
+          episode: {
+            id: "one-piece:372",
+            name: "Awakening of the New Era",
+            code: "OP05",
+          },
+          prices: [{ cm_en_lowest_nm: 2.5, tcp_market: null }],
+        },
+      ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([
+      {
+        id: "one-piece:372",
+        name: "Awakening of the New Era",
+        code: "OP05",
+        logo_url: null,
+      },
+    ]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=OP05"));
+    const body = await response.json();
+    const firstCardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const secondCardQuery = dbMock.card.findMany.mock.calls[1]?.[0];
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.game).toBe("one-piece");
+    expect(body.autoSwitchedFrom).toBe("pokemon");
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: null,
+      setCode: "OP05",
+      rawCardRef: null,
+    });
+    expect(body.singles[0].card_number).toBe("OP05-001");
+    expect(body.expansions[0].code).toBe("OP05");
+    expect(JSON.stringify(firstCardQuery.where)).toContain('"game":"pokemon"');
+    expect(JSON.stringify(secondCardQuery.where)).toContain('"game":"one-piece"');
+    expect(JSON.stringify(secondCardQuery.where)).toContain('"card_number":{"startsWith":"OP05-"}');
+    expect(dbMock.card.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("auto-switches One Piece searches back to Pokemon when only Pokemon has direct matches", async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      settings_json: JSON.stringify({ onePieceLibraryEnabled: true, settingsVersion: 3 }),
+    });
+    dbMock.card.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "base1-4",
+          name: "Charizard",
+          card_number: "4",
+          rarity: "Rare Holo",
+          supertype: "Pokemon",
+          image_url: null,
+          episode: {
+            id: "base1",
+            name: "Base Set",
+            code: "base1",
+          },
+          prices: [{ cm_en_lowest_nm: 199.99, tcp_market: 205 }],
+        },
+      ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=charizard&game=one-piece")
+    );
+    const body = await response.json();
+    const firstCardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const secondCardQuery = dbMock.card.findMany.mock.calls[1]?.[0];
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.game).toBe("pokemon");
+    expect(body.autoSwitchedFrom).toBe("one-piece");
+    expect(body.parsed).toEqual({
+      name: "charizard",
+      cardNumber: null,
+      setCode: null,
+      rawCardRef: null,
+    });
+    expect(body.singles[0].id).toBe("base1-4");
+    expect(JSON.stringify(firstCardQuery.where)).toContain('"game":"one-piece"');
+    expect(JSON.stringify(secondCardQuery.where)).toContain('"game":"pokemon"');
+    expect(dbMock.card.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps manual game-switch searches on the selected game even when another game has matches", async () => {
+    dbMock.user.findUnique.mockResolvedValue({
+      settings_json: JSON.stringify({ onePieceLibraryEnabled: true, settingsVersion: 3 }),
+    });
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=119&game=one-piece&autoswitch=0")
+    );
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const cardQueryJson = dbMock.card.findMany.mock.calls
+      .map((call) => JSON.stringify(call[0]?.where))
+      .join("\n");
+
+    expect(response.status).toBe(200);
+    expect(body.game).toBe("one-piece");
+    expect(body.autoSwitchedFrom).toBeUndefined();
+    expect(body.total).toBe(0);
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: "119",
+      setCode: null,
+      rawCardRef: null,
+    });
+    expect(JSON.stringify(cardQuery.where)).toContain('"game":"one-piece"');
+    expect(cardQueryJson).not.toContain('"game":"pokemon"');
   });
 
   it("allows set name plus number searches to match episode names directly", async () => {

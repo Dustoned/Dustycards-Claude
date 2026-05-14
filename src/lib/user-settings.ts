@@ -13,6 +13,7 @@ export type PriceSource = "cm_en" | "tcp";
 export interface UserSettings {
   theme: Theme;
   widescreen: boolean;
+  onePieceLibraryEnabled: boolean;
   uiScale: UiScale;
   mobileUiScale: UiScale;
   autoPriceRefresh: boolean;
@@ -42,6 +43,7 @@ const SETTINGS_VERSION = 3;
 export const DEFAULT_SETTINGS: UserSettings = {
   theme: "system",
   widescreen: false,
+  onePieceLibraryEnabled: false,
   uiScale: "medium",
   mobileUiScale: "small",
   autoPriceRefresh: true,
@@ -94,6 +96,10 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
     theme: pickEnumValue(source.theme, ["light", "dark", "system"], DEFAULT_SETTINGS.theme),
     widescreen:
       typeof source.widescreen === "boolean" ? source.widescreen : DEFAULT_SETTINGS.widescreen,
+    onePieceLibraryEnabled:
+      typeof source.onePieceLibraryEnabled === "boolean"
+        ? source.onePieceLibraryEnabled
+        : DEFAULT_SETTINGS.onePieceLibraryEnabled,
     uiScale: pickEnumValue(source.uiScale, ["small", "medium", "large"], DEFAULT_SETTINGS.uiScale),
     mobileUiScale: pickEnumValue(
       source.mobileUiScale,

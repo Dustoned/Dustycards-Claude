@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
-import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import { ONE_PIECE_GAME } from "@/lib/games";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 
 const WANTS_BATCH_LIMIT = 500;
 
@@ -48,8 +48,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (card.game === ONE_PIECE_GAME) {
-      const features = await getAppFeatures();
-      if (!features.onePieceLibraryEnabled) {
+      const settings = await getServerUserSettings(user.id);
+      if (!settings.onePieceLibraryEnabled) {
         return NextResponse.json({ error: "One Piece library is not enabled" }, { status: 403 });
       }
     }

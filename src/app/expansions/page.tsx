@@ -9,7 +9,7 @@ import {
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
-import { POKEMON_GAME } from "@/lib/games";
+import { ONE_PIECE_GAME, POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -44,6 +44,9 @@ const ERA_ORDER = [
   "Base",
   "Other",
 ];
+
+const NEW_RELEASE_GROUP = "Upcoming / New";
+const NEW_RELEASE_WINDOW_DAYS = 120;
 
 function getEra(name: string, series: string | null, releaseDate: string | null): string {
   const normalizedName = name.toLowerCase();
@@ -110,6 +113,67 @@ function getKnownEpisodeCardCount(input: {
   );
 }
 
+function getReleaseDateStart(value: string | null): Date | null {
+  if (!value) return null;
+
+  const match = String(value).trim().match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = match[2] ? Number(match[2]) : 1;
+  const day = match[3] ? Number(match[3]) : 1;
+  const date = new Date(year, month - 1, day);
+
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function isUpcomingOrNewReleaseDate(value: string | null, now = new Date()): boolean {
+  const releaseDate = getReleaseDateStart(value);
+  if (!releaseDate) return false;
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (releaseDate.getTime() > today.getTime()) return true;
+
+  const ageMs = today.getTime() - releaseDate.getTime();
+  return ageMs <= NEW_RELEASE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+}
+
+function GameToggleLink({
+  href,
+  active,
+  label,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
+        active
+          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function buildGameHref(game: TradingCardGame) {
+  return game === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
+}
+
 export default async function ExpansionsPage() {
   const user = await requirePageUser("/expansions");
   const settings = await getServerUserSettings(user.id);
@@ -160,15 +224,21 @@ export default async function ExpansionsPage() {
     return cardCount > 0 || era === newestEra;
   });
 
+  const now = new Date();
   const grouped = new Map<string, typeof episodes>();
   for (const episode of withCards) {
     const era = getEra(episode.name, episode.series, episode.release_date);
-    if (!grouped.has(era)) grouped.set(era, []);
-    grouped.get(era)!.push(episode);
+    const group = isUpcomingOrNewReleaseDate(episode.release_date, now)
+      ? NEW_RELEASE_GROUP
+      : era;
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group)!.push(episode);
   }
 
   const sortedGroups = [...grouped.entries()]
     .sort(([a], [b]) => {
+      if (a === NEW_RELEASE_GROUP) return -1;
+      if (b === NEW_RELEASE_GROUP) return 1;
       const aIndex = ERA_ORDER.indexOf(a);
       const bIndex = ERA_ORDER.indexOf(b);
       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
@@ -179,7 +249,7 @@ export default async function ExpansionsPage() {
       return [era, [...nonPromos, ...promos]] as [string, typeof sets];
     });
 
-  const eraCount = sortedGroups.length;
+  const eraCount = sortedGroups.filter(([group]) => group !== NEW_RELEASE_GROUP).length;
   const trackedCardCount = withCards.reduce(
     (total, episode) => total + getEpisodeDisplayCardCount(episode),
     0
@@ -254,6 +324,23 @@ export default async function ExpansionsPage() {
         }
       />
 
+      {settings.onePieceLibraryEnabled ? (
+        <div className="mb-6 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
+          <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+            <GameToggleLink
+              href={buildGameHref(POKEMON_GAME)}
+              active
+              label="Pokemon"
+            />
+            <GameToggleLink
+              href={buildGameHref(ONE_PIECE_GAME)}
+              active={false}
+              label="One Piece"
+            />
+          </div>
+        </div>
+      ) : null}
+
       {needsSync && (
         <div className="glass mb-10 rounded-2xl p-8 text-center shadow-lg shadow-black/5">
           <p className="mb-1 font-semibold text-gray-900 dark:text-white">No expansions loaded yet</p>
@@ -276,6 +363,7 @@ export default async function ExpansionsPage() {
               }}
             >
               {sets.map((episode, index) => {
+                const isTimelineGroup = era === NEW_RELEASE_GROUP;
                 const localCardCount = episode._count.cards;
                 const cardCount = getEpisodeDisplayCardCount(episode);
                 const knownCardCount = getKnownEpisodeCardCount(episode);
@@ -285,12 +373,17 @@ export default async function ExpansionsPage() {
                 };
                 const releaseYear = episode.release_date?.slice(0, 4) ?? null;
                 const releaseLabel = formatReleaseLabel(episode.release_date);
+                const isUpcomingRelease = isFutureReleaseDate(episode.release_date);
                 const isUpcomingWithoutCards =
-                  localCardCount === 0 && isFutureReleaseDate(episode.release_date);
+                  localCardCount === 0 && isUpcomingRelease;
                 const hasKnownUpcomingCount = isUpcomingWithoutCards && knownCardCount > 0;
                 const setCode = episode.code?.trim().toUpperCase() ?? null;
                 const releaseMeta =
-                  isUpcomingWithoutCards && releaseLabel ? `Releases ${releaseLabel}` : releaseYear;
+                  isUpcomingRelease && releaseLabel
+                    ? `Releases ${releaseLabel}`
+                    : isTimelineGroup && releaseLabel
+                      ? releaseLabel
+                      : releaseYear;
                 const metaParts = [setCode, releaseMeta].filter(Boolean);
                 const countHint = isUpcomingWithoutCards
                   ? hasKnownUpcomingCount

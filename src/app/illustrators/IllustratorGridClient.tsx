@@ -34,6 +34,7 @@ interface Props {
   gridTemplateColumns: string;
   priorityGroups: string[];
   tileConfig: IllustratorTileConfig;
+  gameQueryParam?: string | null;
 }
 
 const INITIAL_ILLUSTRATORS = 72;
@@ -48,6 +49,7 @@ export default function IllustratorGridClient({
   gridTemplateColumns,
   priorityGroups,
   tileConfig,
+  gameQueryParam,
 }: Props) {
   const allEntries = useMemo<VisibleIllustratorEntry[]>(() => {
     let globalIndex = 0;
@@ -211,7 +213,11 @@ export default function IllustratorGridClient({
             {entries.map(({ illustrator, globalIndex }) => (
               <Link
                 key={illustrator.artist}
-                href={`/illustrators/${encodeURIComponent(illustrator.artist)}`}
+                href={
+                  gameQueryParam
+                    ? `/illustrators/${encodeURIComponent(illustrator.artist)}?game=${gameQueryParam}`
+                    : `/illustrators/${encodeURIComponent(illustrator.artist)}`
+                }
                 prefetch={false}
                 className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
               >

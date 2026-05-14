@@ -14,6 +14,14 @@ import {
   ILLUSTRATOR_SORT_COOKIE_NAME,
   normalizeIllustratorSort,
 } from "@/lib/illustrators";
+import {
+  GAME_SEARCH_PARAM,
+  getGameSearchParamValue,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  parseVisibleTradingCardGame,
+  type TradingCardGame,
+} from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { requirePageUser } from "@/lib/page-auth";
 import IllustratorGridClient from "./IllustratorGridClient";
@@ -74,8 +82,8 @@ function compareByArtistValue(a: IllustratorSummary, b: IllustratorSummary): num
   return a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" });
 }
 
-async function getIllustratorSummaries(): Promise<IllustratorSummary[]> {
-  const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e");
+async function getIllustratorSummaries(game: TradingCardGame): Promise<IllustratorSummary[]> {
+  const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e", game);
   const rows = await db.$queryRawUnsafe<IllustratorSummaryRow[]>(`
     WITH latest_price AS (
       SELECT
@@ -181,18 +189,25 @@ ${visibleEpisodeWhereSql}
 export default async function IllustratorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string }>;
+  searchParams: Promise<{ sort?: string; game?: string }>;
 }) {
   const cookieStore = await cookies();
-  const { sort: rawSort } = await searchParams;
-  const user = await requirePageUser(rawSort ? `/illustrators?sort=${encodeURIComponent(rawSort)}` : "/illustrators");
+  const { sort: rawSort, game: gameParam } = await searchParams;
+  const requestParams = new URLSearchParams();
+  if (rawSort) requestParams.set("sort", rawSort);
+  if (gameParam) requestParams.set(GAME_SEARCH_PARAM, gameParam);
+  const requestQuery = requestParams.toString();
+  const user = await requirePageUser(`/illustrators${requestQuery ? `?${requestQuery}` : ""}`);
   const settings = await getServerUserSettings(user.id);
+  const activeGame = parseVisibleTradingCardGame(gameParam, {
+    onePieceEnabled: settings.onePieceLibraryEnabled,
+  });
   const sort = rawSort
     ? normalizeIllustratorSort(rawSort)
     : normalizeIllustratorSort(cookieStore.get(ILLUSTRATOR_SORT_COOKIE_NAME)?.value);
   const tileConfig = getIllustratorTileScale(settings.uiScale, settings.widescreen);
   const pageMaxWidth = settings.widescreen ? "max-w-[2000px]" : "max-w-7xl";
-  const illustrators = await getIllustratorSummaries();
+  const illustrators = await getIllustratorSummaries(activeGame);
 
   const sortedIllustrators =
     sort === "value"
@@ -263,12 +278,23 @@ export default async function IllustratorsPage({
     },
   ] satisfies HeaderStat[];
 
+  function buildGameHref(game: TradingCardGame) {
+    const params = new URLSearchParams();
+    if (sort !== "alpha") params.set("sort", sort);
+    const gameValue = getGameSearchParamValue(game);
+    if (gameValue) params.set(GAME_SEARCH_PARAM, gameValue);
+    const query = params.toString();
+    return query ? `/illustrators?${query}` : "/illustrators";
+  }
+
+  const activeGameQuery = getGameSearchParamValue(activeGame);
+
   return (
     <div className={`page-container mx-auto ${pageMaxWidth} px-4 py-5 sm:px-6 sm:py-8 lg:px-8`}>
       <PageHeroHeader
-        eyebrow="Dusty Cards Collection"
-        title="Illustrators"
-        description={`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked cards.`}
+        eyebrow={activeGame === ONE_PIECE_GAME ? "One Piece Library" : "Dusty Cards Collection"}
+        title={activeGame === ONE_PIECE_GAME ? "One Piece Illustrators" : "Illustrators"}
+        description={`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked ${activeGame === ONE_PIECE_GAME ? "One Piece" : "Pokemon"} cards.`}
         className="mb-6 sm:mb-8"
         stats={headerStats}
         actions={
@@ -285,7 +311,7 @@ export default async function IllustratorsPage({
         }
       />
 
-      <div className="glass mb-8 flex flex-col gap-4 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8 sm:flex-row sm:items-center sm:justify-between">
+      <div className="glass mb-8 flex flex-col gap-4 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex h-9 items-center rounded-2xl border border-black/8 bg-white/70 px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/42">
             Sort
@@ -294,6 +320,32 @@ export default async function IllustratorsPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {settings.onePieceLibraryEnabled ? (
+            <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
+              <Link
+                href={buildGameHref(POKEMON_GAME)}
+                prefetch={false}
+                className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
+                  activeGame === POKEMON_GAME
+                    ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                    : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+                }`}
+              >
+                Pokemon
+              </Link>
+              <Link
+                href={buildGameHref(ONE_PIECE_GAME)}
+                prefetch={false}
+                className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
+                  activeGame === ONE_PIECE_GAME
+                    ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                    : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+                }`}
+              >
+                One Piece
+              </Link>
+            </div>
+          ) : null}
           <span className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/58">
             <LibraryBig className="h-3.5 w-3.5" />
             {formatCount(trackedCards)} cards
@@ -310,6 +362,7 @@ export default async function IllustratorsPage({
         gridTemplateColumns={gridTemplateColumns}
         priorityGroups={["A", "Most cards", "Most value"]}
         tileConfig={tileConfig}
+        gameQueryParam={activeGameQuery}
       />
     </div>
   );

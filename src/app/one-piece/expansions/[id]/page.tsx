@@ -9,13 +9,13 @@ import {
   PageHeroHeader,
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
-import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { requirePageUser } from "@/lib/page-auth";
 import { buildEpisodeSetPriceHistory } from "@/lib/price-history";
 import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 import type { CardData } from "@/types/card-data";
 import ExpansionCardsSection from "@/app/expansions/[id]/ExpansionCardsSection";
 
@@ -46,9 +46,9 @@ export default async function OnePieceExpansionDetailPage({
 }) {
   const { id: rawId } = await params;
   const id = decodeURIComponent(rawId);
-  await requirePageUser(`/one-piece/expansions/${rawId}`);
-  const features = await getAppFeatures();
-  if (!features.onePieceLibraryEnabled) {
+  const user = await requirePageUser(`/one-piece/expansions/${rawId}`);
+  const settings = await getServerUserSettings(user.id);
+  if (!settings.onePieceLibraryEnabled) {
     notFound();
   }
 

@@ -3,6 +3,7 @@ import {
   HIDDEN_EXPANSION_IDS,
   HIDDEN_EXPANSION_NAMES,
 } from "@/lib/episodes";
+import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 
 export type IllustratorSort = "alpha" | "cards" | "value";
 
@@ -39,8 +40,12 @@ export function buildIllustratorSortCookie(sort: IllustratorSort): string {
   return `${ILLUSTRATOR_SORT_COOKIE_NAME}=${sort}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
 }
 
-export function buildVisibleEpisodeWhereSql(episodeAlias = "e"): string {
+export function buildVisibleEpisodeWhereSql(
+  episodeAlias = "e",
+  game: TradingCardGame = POKEMON_GAME
+): string {
   const clauses = [
+    `${episodeAlias}.game = ${escapeSqlLiteral(game)}`,
     `${episodeAlias}.id NOT IN (${HIDDEN_EXPANSION_ID_SQL})`,
     `LOWER(COALESCE(${episodeAlias}.code, '')) NOT IN (${HIDDEN_EXPANSION_CODE_SQL})`,
     `LOWER(COALESCE(${episodeAlias}.name, '')) NOT IN (${HIDDEN_EXPANSION_NAME_SQL})`,

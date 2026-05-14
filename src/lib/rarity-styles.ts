@@ -39,6 +39,13 @@ const LIGHT_BADGE: Record<string, string> = {
   "Special Art Rare": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
   "Mega Hyper Rare": "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
   "Black White Rare": "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
+  Leader: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
+  "Super Rare": "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
+  "Treasure Rare": "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300",
+  "Alternate Art": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
+  "Manga Rare": "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300",
+  "Special Rare": "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
+  "DON!!": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
 };
 
 const DARK_BADGE: Record<string, string> = {
@@ -80,6 +87,13 @@ const DARK_BADGE: Record<string, string> = {
   "Special Art Rare": "bg-pink-500/16 text-pink-300",
   "Mega Hyper Rare": "bg-fuchsia-500/16 text-fuchsia-300",
   "Black White Rare": "bg-slate-500/16 text-slate-300",
+  Leader: "bg-amber-500/16 text-amber-300",
+  "Super Rare": "bg-blue-500/16 text-blue-300",
+  "Treasure Rare": "bg-violet-500/16 text-violet-300",
+  "Alternate Art": "bg-purple-500/16 text-purple-300",
+  "Manga Rare": "bg-rose-500/16 text-rose-300",
+  "Special Rare": "bg-emerald-500/16 text-emerald-300",
+  "DON!!": "bg-yellow-500/16 text-yellow-300",
 };
 
 const LIGHT_FALLBACK = "bg-black/5 dark:bg-white/6 text-gray-500 dark:text-gray-400";

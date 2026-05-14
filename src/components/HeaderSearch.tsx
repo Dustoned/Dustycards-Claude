@@ -16,7 +16,7 @@ export default function HeaderSearch() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { appFeatures } = useSettings();
+  const { settings } = useSettings();
   const activeQuery = pathname === "/search" ? searchParams.get("q") ?? "" : "";
   const inputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
@@ -26,7 +26,7 @@ export default function HeaderSearch() {
   const [mobileQuery, setMobileQuery] = useState(activeQuery);
   const currentHref = buildPathWithQuery(pathname, searchParams);
   const activeGameParam =
-    appFeatures.onePieceLibraryEnabled &&
+    settings.onePieceLibraryEnabled &&
     (searchParams.get(GAME_SEARCH_PARAM) === ONE_PIECE_GAME || pathname.startsWith("/one-piece"))
       ? ONE_PIECE_GAME
       : null;

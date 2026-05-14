@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Package } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
@@ -82,10 +82,13 @@ interface SearchResults {
   expansions: ExpansionResult[];
   total: number;
   fuzzy?: boolean;
+  game?: TradingCardGame;
+  autoSwitchedFrom?: TradingCardGame;
 }
 
 const MIN_SEARCH_LENGTH = 1;
 const SEARCH_CACHE_MAX_ENTRIES = 50;
+const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
 
 function formatEur(value: number | null | undefined): string {
   return value == null ? "-" : formatCurrency(value, "EUR");
@@ -128,11 +131,14 @@ function GameToggleLink({
 function SearchPageContent({
   initialQuery,
   initialGameParam,
+  initialAutoSwitchParam,
 }: {
   initialQuery: string;
   initialGameParam: string | null;
+  initialAutoSwitchParam: string | null;
 }) {
-  const { displaySettings, isMobileViewport, appFeatures } = useSettings();
+  const router = useRouter();
+  const { displaySettings, isMobileViewport, settings } = useSettings();
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
@@ -142,9 +148,12 @@ function SearchPageContent({
   const resultsCacheRef = useRef(new Map<string, SearchResults>());
   const trimmedQuery = initialQuery.trim();
   const activeGame = parseVisibleTradingCardGame(initialGameParam, {
-    onePieceEnabled: appFeatures.onePieceLibraryEnabled,
+    onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const searchCacheKey = `${activeGame}:${trimmedQuery}`;
+  const allowAutoSwitch = initialAutoSwitchParam !== "0";
+  const displayGame =
+    settings.onePieceLibraryEnabled && results?.game ? results.game : activeGame;
+  const searchCacheKey = `${activeGame}:${allowAutoSwitch ? "auto" : "manual"}:${trimmedQuery}`;
 
   function buildGameHref(game: TradingCardGame) {
     const params = new URLSearchParams();
@@ -155,6 +164,7 @@ function SearchPageContent({
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
     }
+    params.set(AUTO_SWITCH_SEARCH_PARAM, "0");
     const query = params.toString();
     return query ? `/search?${query}` : "/search";
   }
@@ -194,6 +204,9 @@ function SearchPageContent({
           if (gameValue) {
             params.set(GAME_SEARCH_PARAM, gameValue);
           }
+          if (!allowAutoSwitch) {
+            params.set(AUTO_SWITCH_SEARCH_PARAM, "0");
+          }
           const res = await fetch(`/api/search?${params.toString()}`, {
             signal: controller.signal,
           });
@@ -201,13 +214,31 @@ function SearchPageContent({
 
           const data: SearchResults = await res.json();
           if (abortRef.current === controller) {
+            const resultGame = data.game ?? activeGame;
             setWithLruEviction(
               resultsCacheRef.current,
               searchCacheKey,
               data,
               SEARCH_CACHE_MAX_ENTRIES
             );
+            if (resultGame !== activeGame) {
+              setWithLruEviction(
+                resultsCacheRef.current,
+                `${resultGame}:${allowAutoSwitch ? "auto" : "manual"}:${trimmedQuery}`,
+                data,
+                SEARCH_CACHE_MAX_ENTRIES
+              );
+            }
             setResults(data);
+
+            if (data.autoSwitchedFrom === activeGame && resultGame !== activeGame) {
+              const nextParams = new URLSearchParams({ q: trimmedQuery });
+              const gameValue = getGameSearchParamValue(resultGame);
+              if (gameValue) {
+                nextParams.set(GAME_SEARCH_PARAM, gameValue);
+              }
+              router.replace(`/search?${nextParams.toString()}`, { scroll: false });
+            }
           }
         } catch (e) {
           if (e instanceof Error && e.name === "AbortError") return;
@@ -226,7 +257,7 @@ function SearchPageContent({
       window.clearTimeout(timer);
       abortRef.current?.abort();
     };
-  }, [activeGame, searchCacheKey, trimmedQuery]);
+  }, [activeGame, allowAutoSwitch, router, searchCacheKey, trimmedQuery]);
 
   async function openCard(card: SingleResult) {
     if (openingCardId === card.id) return;
@@ -325,17 +356,17 @@ function SearchPageContent({
         )}
       </div>
 
-      {appFeatures.onePieceLibraryEnabled ? (
+      {settings.onePieceLibraryEnabled ? (
         <div className="mb-4 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
           <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
             <GameToggleLink
               href={buildGameHref(POKEMON_GAME)}
-              active={activeGame === POKEMON_GAME}
+              active={displayGame === POKEMON_GAME}
               label="Pokemon"
             />
             <GameToggleLink
               href={buildGameHref(ONE_PIECE_GAME)}
-              active={activeGame === ONE_PIECE_GAME}
+              active={displayGame === ONE_PIECE_GAME}
               label="One Piece"
             />
           </div>
@@ -644,6 +675,13 @@ export default function SearchPage() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
   const initialGameParam = searchParams.get(GAME_SEARCH_PARAM);
+  const initialAutoSwitchParam = searchParams.get(AUTO_SWITCH_SEARCH_PARAM);
 
-  return <SearchPageContent initialQuery={initialQuery} initialGameParam={initialGameParam} />;
+  return (
+    <SearchPageContent
+      initialQuery={initialQuery}
+      initialGameParam={initialGameParam}
+      initialAutoSwitchParam={initialAutoSwitchParam}
+    />
+  );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
+import { useSettings } from "@/components/SettingsProvider";
 
 interface NavItem {
   href: string;
@@ -36,20 +37,10 @@ const BASE_BROWSE_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/illustrators", label: "Illustrators", matches: ["/illustrators"] },
 ];
 
-const ONE_PIECE_ITEM: NavItem = {
-  href: "/one-piece/expansions",
-  label: "One Piece",
-  matches: ["/one-piece"],
-};
-
 const MARKET_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/movers", label: "Movers", matches: ["/movers"] },
   { href: "/deals", label: "Deals", matches: ["/deals"] },
 ];
-
-function getBrowseItems(onePieceEnabled: boolean): ReadonlyArray<NavItem> {
-  return onePieceEnabled ? [...BASE_BROWSE_ITEMS, ONE_PIECE_ITEM] : BASE_BROWSE_ITEMS;
-}
 
 function getNavGroups(onePieceEnabled: boolean): ReadonlyArray<NavGroup> {
   return [
@@ -58,7 +49,7 @@ function getNavGroups(onePieceEnabled: boolean): ReadonlyArray<NavGroup> {
       matches: onePieceEnabled
         ? ["/expansions", "/categories", "/illustrators", "/one-piece"]
         : ["/expansions", "/categories", "/illustrators"],
-      items: getBrowseItems(onePieceEnabled),
+      items: BASE_BROWSE_ITEMS,
     },
     {
       label: "Market",
@@ -106,20 +97,22 @@ function menuLinkClasses(active: boolean): string {
   }`;
 }
 
-function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
+function getMobileSections(): ReadonlyArray<{
   label: string;
   items: ReadonlyArray<NavItem>;
 }> {
   return [
     { label: "Collection", items: [COLLECTION_ITEM, WANTS_ITEM] },
-    { label: "Browse", items: getBrowseItems(onePieceEnabled) },
+    { label: "Browse", items: BASE_BROWSE_ITEMS },
     { label: "Market", items: MARKET_ITEMS },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
   ];
 }
 
-export function HeaderNav({ onePieceEnabled = false }: { onePieceEnabled?: boolean }) {
+export function HeaderNav() {
   const pathname = usePathname() ?? "/";
+  const { settings } = useSettings();
+  const onePieceEnabled = settings.onePieceLibraryEnabled;
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const navGroups = getNavGroups(onePieceEnabled);
@@ -254,12 +247,12 @@ export function HeaderNav({ onePieceEnabled = false }: { onePieceEnabled?: boole
   );
 }
 
-export function HeaderMobileMenu({ onePieceEnabled = false }: { onePieceEnabled?: boolean }) {
+export function HeaderMobileMenu() {
   const pathname = usePathname() ?? "/";
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const mobileSections = getMobileSections(onePieceEnabled);
+  const mobileSections = getMobileSections();
 
   // Close on outside interaction/Escape, lock body scroll while open.
   useEffect(() => {

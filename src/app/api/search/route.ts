@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
-import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
 import { buildCardNumberSearchAliases } from "@/lib/card-search";
@@ -12,10 +11,12 @@ import {
 } from "@/lib/episodes";
 import {
   GAME_SEARCH_PARAM,
+  ONE_PIECE_GAME,
   POKEMON_GAME,
   parseVisibleTradingCardGame,
   type TradingCardGame,
 } from "@/lib/games";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 
 const MAX_RESULTS = 100;
 const FUZZY_CARD_CANDIDATE_LIMIT = 180;
@@ -76,6 +77,9 @@ interface SearchExpansionRecord {
 
 const SET_CODE_RE = /^[a-z]{1,6}\d[\w]*$/i;
 const COMPACT_CARD_REF_RE = /^([a-z]{1,8})(\d[\w/-]*)$/i;
+const ONE_PIECE_DIRECT_CARD_REF_RE = /^#?\s*((?:(?:op|st|eb|prb)\d{1,2})|p)\s*[-\s]\s*([a-z]?\d{1,4}[a-z]?)\s*$/i;
+const ONE_PIECE_COMPACT_CARD_REF_RE = /^#?\s*([a-z]{1,4}\d{0,2})(\d{3}[a-z]?)\s*$/i;
+const ONE_PIECE_SET_CODE_RE = /^#?\s*(op|st|eb|prb)\s*[-_\s]?\s*(\d{1,2})\s*$/i;
 const PLAIN_SET_CODE_RE = /^[a-z]{2,4}$/i;
 const NON_SET_CODE_TOKENS = new Set([
   "and",
@@ -136,7 +140,64 @@ function parseCompactCardReference(value: string): {
   };
 }
 
-function parseSearchQuery(raw: string): ParsedQuery {
+function normalizeOnePieceSetCode(value: string): string {
+  const cleaned = value.trim().replace(/^#+/, "").replace(/[-_\s]+/g, "").toUpperCase();
+  const match = /^(OP|ST|EB|PRB)(\d{1,2})$/.exec(cleaned);
+  if (!match) return cleaned;
+
+  return `${match[1]}${match[2].padStart(2, "0")}`;
+}
+
+function parseOnePieceSetCode(raw: string): string | null {
+  const q = extractSearchableInput(raw).trim();
+  const match = ONE_PIECE_SET_CODE_RE.exec(q);
+  if (!match) return null;
+
+  return `${match[1].toUpperCase()}${match[2].padStart(2, "0")}`;
+}
+
+function parseOnePieceCardReference(raw: string): ParsedQuery | null {
+  const q = extractSearchableInput(raw).trim();
+  if (!q) return null;
+
+  const directMatch = ONE_PIECE_DIRECT_CARD_REF_RE.exec(q);
+  if (directMatch) {
+    const setCode = normalizeOnePieceSetCode(directMatch[1]);
+    const cardNumber = directMatch[2].toUpperCase();
+    return {
+      name: null,
+      cardNumber,
+      setCode,
+      rawCardRef: `${setCode}-${cardNumber}`,
+    };
+  }
+
+  const compactMatch = ONE_PIECE_COMPACT_CARD_REF_RE.exec(q.replace(/[-\s_]+/g, ""));
+  if (compactMatch) {
+    const setCode = normalizeOnePieceSetCode(compactMatch[1]);
+    const cardNumber = compactMatch[2].toUpperCase();
+    return {
+      name: null,
+      cardNumber,
+      setCode,
+      rawCardRef: `${setCode}-${cardNumber}`,
+    };
+  }
+
+  return null;
+}
+
+function parseSearchQuery(raw: string, game: TradingCardGame = POKEMON_GAME): ParsedQuery {
+  if (game === ONE_PIECE_GAME) {
+    const onePieceReference = parseOnePieceCardReference(raw);
+    if (onePieceReference) return onePieceReference;
+
+    const onePieceSetCode = parseOnePieceSetCode(raw);
+    if (onePieceSetCode) {
+      return { name: null, cardNumber: null, setCode: onePieceSetCode, rawCardRef: null };
+    }
+  }
+
   const q = extractSearchableInput(raw);
   const spacedQ = normalizeSlugSeparators(q);
 
@@ -214,6 +275,13 @@ function parseSearchQuery(raw: string): ParsedQuery {
   }
 
   return { name: spacedQ || null, cardNumber: null, setCode: null, rawCardRef: null };
+}
+
+function isExactOnePieceReferenceSearch(
+  parsed: ParsedQuery,
+  game: TradingCardGame
+): boolean {
+  return game === ONE_PIECE_GAME && Boolean(parsed.setCode && parsed.cardNumber && parsed.rawCardRef);
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
@@ -329,6 +397,28 @@ function episodeMatchesSetCode(setCode: string) {
   } satisfies Prisma.EpisodeWhereInput;
 }
 
+function buildSetCodeCondition(
+  game: TradingCardGame,
+  setCode: string
+): Prisma.CardWhereInput {
+  if (game !== ONE_PIECE_GAME) {
+    return { episode: episodeMatchesSetCode(setCode) };
+  }
+
+  const normalizedSetCode = normalizeOnePieceSetCode(setCode);
+  const prefixes = uniqueStrings([
+    `${normalizedSetCode}-`,
+    `${normalizedSetCode.toLowerCase()}-`,
+  ]);
+
+  return {
+    OR: [
+      { episode: episodeMatchesSetCode(normalizedSetCode) },
+      ...prefixes.map((prefix) => ({ card_number: { startsWith: prefix } })),
+    ],
+  };
+}
+
 function containsCondition(field: string, value: string) {
   return { [field]: { contains: value } } as Record<string, { contains: string }>;
 }
@@ -347,6 +437,56 @@ function buildCardNumberCondition(cardNumber: string): Prisma.CardWhereInput {
 
   const conditions = aliases.map((alias) => ({ card_number: { contains: alias } }));
   return conditions.length === 1 ? conditions[0] : { OR: conditions };
+}
+
+function buildOnePieceCardReferenceCondition(
+  setCode: string,
+  cardNumber: string,
+  rawCardRef: string | null
+): Prisma.CardWhereInput {
+  const normalizedSetCode = setCode.trim().replace(/^#+/, "");
+  const normalizedCardNumber = cardNumber.trim().replace(/^#+/, "");
+  const cardNumberAliases = buildCardNumberSearchAliases(normalizedCardNumber);
+  const exactRefs = cardNumberAliases.flatMap((alias) => [
+    `${normalizedSetCode.toUpperCase()}-${alias.toUpperCase()}`,
+    `${normalizedSetCode.toLowerCase()}-${alias.toLowerCase()}`,
+  ]);
+  const refs = uniqueStrings([
+    ...exactRefs,
+    rawCardRef?.trim(),
+    rawCardRef?.trim().toUpperCase(),
+    rawCardRef?.trim().toLowerCase(),
+  ]);
+
+  return refs.length === 1
+    ? { card_number: refs[0] }
+    : { OR: refs.map((ref) => ({ card_number: ref })) };
+}
+
+function buildSetScopedCardNumberCondition(
+  game: TradingCardGame,
+  setCode: string,
+  cardNumber: string,
+  rawCardRef: string | null
+): Prisma.CardWhereInput {
+  if (game === ONE_PIECE_GAME) {
+    return buildOnePieceCardReferenceCondition(setCode, cardNumber, rawCardRef);
+  }
+
+  const referenceConditions: Prisma.CardWhereInput[] = [
+    {
+      AND: [
+        { episode: episodeMatchesSetCode(setCode) },
+        buildCardNumberCondition(cardNumber),
+      ],
+    },
+  ];
+
+  if (rawCardRef) {
+    referenceConditions.push({ card_number: { contains: rawCardRef } });
+  }
+
+  return referenceConditions.length === 1 ? referenceConditions[0] : { OR: referenceConditions };
 }
 
 function buildCardFreeTextCondition(query: string): Prisma.CardWhereInput {
@@ -646,21 +786,24 @@ function buildFuzzyTextFragments(rawQuery: string): string[] {
 
 function buildFuzzyCardCandidateWhere(
   rawQuery: string,
-  parsed: ParsedQuery
+  parsed: ParsedQuery,
+  activeGame: TradingCardGame
 ): Prisma.CardWhereInput | undefined {
   const textFragments = buildFuzzyTextFragments(rawQuery);
   const conditions: Prisma.CardWhereInput[] = [];
 
   if (parsed.setCode && parsed.cardNumber) {
-    conditions.push({
-      AND: [
-        { episode: episodeMatchesSetCode(parsed.setCode) },
-        buildCardNumberCondition(parsed.cardNumber),
-      ],
-    });
+    conditions.push(
+      buildSetScopedCardNumberCondition(
+        activeGame,
+        parsed.setCode,
+        parsed.cardNumber,
+        parsed.rawCardRef
+      )
+    );
   } else {
     if (parsed.setCode) {
-      conditions.push({ episode: episodeMatchesSetCode(parsed.setCode) });
+      conditions.push(buildSetCodeCondition(activeGame, parsed.setCode));
     }
 
     if (parsed.cardNumber) {
@@ -814,7 +957,7 @@ async function runFuzzyFallback(
       where: combineWhere("AND", [
         { game: activeGame },
         { episode: itemEpisodeWhere },
-        buildFuzzyCardCandidateWhere(rawQuery, parsed),
+        buildFuzzyCardCandidateWhere(rawQuery, parsed, activeGame),
       ]),
       take: FUZZY_CARD_CANDIDATE_LIMIT,
       orderBy: [{ episode: { release_date: "desc" } }, { name: "asc" }, { card_number: "asc" }],
@@ -973,19 +1116,198 @@ async function runFuzzyFallback(
 }
 
 const SEARCH_QUERY_MAX_LENGTH = 200;
+const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
+
+function getAutoSwitchGame(
+  activeGame: TradingCardGame,
+  onePieceEnabled: boolean
+): TradingCardGame | null {
+  if (!onePieceEnabled) return null;
+  return activeGame === ONE_PIECE_GAME ? POKEMON_GAME : ONE_PIECE_GAME;
+}
+
+async function runDirectSearch(
+  q: string,
+  activeGame: TradingCardGame,
+  itemEpisodeWhere: Prisma.EpisodeWhereInput
+) {
+  const parsed = parseSearchQuery(q, activeGame);
+  const { name, cardNumber, setCode, rawCardRef } = parsed;
+
+  // SQLite LIKE is already case-insensitive for ASCII, so we do not use mode:"insensitive".
+  const cardAndConditions: Array<Record<string, unknown>> = [];
+
+  if (name) {
+    cardAndConditions.push(buildCardFreeTextCondition(name));
+  }
+
+  if (cardNumber) {
+    if (setCode) {
+      cardAndConditions.push(
+        buildSetScopedCardNumberCondition(activeGame, setCode, cardNumber, rawCardRef)
+      );
+    } else {
+      cardAndConditions.push(
+        buildCardNumberCondition(cardNumber)
+      );
+    }
+  } else if (setCode) {
+    cardAndConditions.push(buildSetCodeCondition(activeGame, setCode));
+  }
+
+  const cardWhere: Prisma.CardWhereInput | undefined =
+    cardAndConditions.length === 0
+      ? undefined
+      : cardAndConditions.length === 1
+        ? (cardAndConditions[0] as Prisma.CardWhereInput)
+        : { AND: cardAndConditions as Prisma.CardWhereInput[] };
+
+  const shouldSearchSealed = Boolean((name || setCode) && !cardNumber);
+  const shouldSearchExpansions = Boolean(
+    (name && !setCode && !cardNumber) || (setCode && !cardNumber)
+  );
+  const isSetOnlyCardSearch = Boolean(setCode && !cardNumber && !name);
+  const singleResultLimit = isSetOnlyCardSearch ? DIRECT_CARD_CANDIDATE_LIMIT : MAX_RESULTS;
+  const expansionQuery = shouldSearchExpansions ? name ?? "" : "";
+  const expansionNameVariants = shouldSearchExpansions ? nameVariants(expansionQuery) : [];
+
+  const sealedWhere: Prisma.SealedProductWhereInput | undefined =
+    name && setCode
+      ? {
+          AND: [sealedNameContains(name), { episode: episodeMatchesSetCode(setCode) }],
+        }
+      : name
+        ? sealedNameContains(name)
+        : setCode
+          ? { episode: episodeMatchesSetCode(setCode) }
+          : undefined;
+
+  const visibleCardWhere = combineWhere<Prisma.CardWhereInput>("AND", [
+    { game: activeGame },
+    { episode: itemEpisodeWhere },
+    cardWhere,
+  ]);
+  const visibleSealedWhere = combineWhere<Prisma.SealedProductWhereInput>("AND", [
+    { game: activeGame },
+    { episode: itemEpisodeWhere },
+    sealedWhere,
+  ]);
+  const visibleExpansionWhere = shouldSearchExpansions
+    ? combineWhere<Prisma.EpisodeWhereInput>("AND", [
+        buildVisibleEpisodeWhere(activeGame),
+        setCode && !cardNumber
+          ? episodeMatchesSetCode(setCode)
+          : expansionNameVariants.length === 1
+            ? { name: { contains: expansionQuery } }
+            : {
+                OR: expansionNameVariants.map((variant) => ({
+                  name: { contains: variant },
+                })),
+              },
+      ])
+    : undefined;
+
+  const [cards, sealed, expansions] = await Promise.all([
+    db.card.findMany({
+      where: visibleCardWhere,
+      take: DIRECT_CARD_CANDIDATE_LIMIT,
+      select: {
+        id: true,
+        name: true,
+        card_number: true,
+        rarity: true,
+        supertype: true,
+        image_url: true,
+        episode: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+        prices: {
+          orderBy: { fetched_at: "desc" },
+          take: 1,
+          select: { cm_en_lowest_nm: true, tcp_market: true },
+        },
+      },
+      orderBy: [{ episode: { release_date: "desc" } }, { card_number: "asc" }],
+    }),
+
+    shouldSearchSealed
+      ? db.sealedProduct.findMany({
+          where: visibleSealedWhere,
+          take: DIRECT_SEALED_CANDIDATE_LIMIT,
+          select: {
+            id: true,
+            name: true,
+            image_url: true,
+            cardmarket_url: true,
+            cm_lowest: true,
+            cm_avg_7d: true,
+            cm_avg_30d: true,
+            episode: { select: { id: true, name: true, code: true } },
+          },
+          orderBy: { episode: { release_date: "desc" } },
+        })
+      : Promise.resolve([]),
+
+    shouldSearchExpansions
+      ? db.episode.findMany({
+          where: visibleExpansionWhere,
+          select: { id: true, name: true, code: true, logo_url: true },
+          orderBy: { release_date: "desc" },
+          take: 20,
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const relevanceQuery = name ?? q;
+  const singles = formatSingleResults(cards, relevanceQuery).slice(0, singleResultLimit);
+  const sealedResults = formatSealedResults(sealed, relevanceQuery).slice(0, MAX_RESULTS);
+  const expansionResults = formatExpansionResults(expansions, relevanceQuery);
+  const total = singles.length + sealedResults.length + expansionResults.length;
+
+  return {
+    singles,
+    sealed: sealedResults,
+    expansions: expansionResults,
+    total,
+    fuzzy: false,
+    parsed,
+    game: activeGame,
+    exactOnePieceReferenceSearch: isExactOnePieceReferenceSearch(parsed, activeGame),
+  };
+}
+
+type DirectSearchResults = Awaited<ReturnType<typeof runDirectSearch>>;
+
+function toDirectSearchResponse(results: DirectSearchResults) {
+  return {
+    singles: results.singles,
+    sealed: results.sealed,
+    expansions: results.expansions,
+    total: results.total,
+    fuzzy: results.fuzzy,
+    parsed: results.parsed,
+    game: results.game,
+  };
+}
 
 export async function GET(req: NextRequest) {
+  let user: Awaited<ReturnType<typeof requireUser>>;
   try {
-    await requireUser();
+    user = await requireUser();
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Authentication failed" }, { status: 500 });
   }
 
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
-  const features = await getAppFeatures();
+  const settings = await getServerUserSettings(user.id);
   const activeGame = parseVisibleTradingCardGame(req.nextUrl.searchParams.get(GAME_SEARCH_PARAM), {
-    onePieceEnabled: features.onePieceLibraryEnabled,
+    onePieceEnabled: settings.onePieceLibraryEnabled,
   });
+  const allowAutoSwitch = req.nextUrl.searchParams.get(AUTO_SWITCH_SEARCH_PARAM) !== "0";
   const itemEpisodeWhere = buildVisibleEpisodeWhere(activeGame, { includeGame: false });
 
   if (q.length === 0) {
@@ -1000,154 +1322,34 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const parsed = parseSearchQuery(q);
-    const { name, cardNumber, setCode, rawCardRef } = parsed;
+    const directResults = await runDirectSearch(q, activeGame, itemEpisodeWhere);
+    const autoSwitchGame = allowAutoSwitch
+      ? getAutoSwitchGame(activeGame, settings.onePieceLibraryEnabled)
+      : null;
 
-    // SQLite LIKE is already case-insensitive for ASCII, so we do not use mode:"insensitive".
-    const cardAndConditions: Array<Record<string, unknown>> = [];
+    if (
+      directResults.total === 0 &&
+      !directResults.exactOnePieceReferenceSearch &&
+      autoSwitchGame
+    ) {
+      const alternateResults = await runDirectSearch(
+        q,
+        autoSwitchGame,
+        buildVisibleEpisodeWhere(autoSwitchGame, { includeGame: false })
+      );
 
-    if (name) {
-      cardAndConditions.push(buildCardFreeTextCondition(name));
-    }
-
-    if (cardNumber) {
-      if (setCode) {
-        const referenceConditions: Array<Record<string, unknown>> = [
-          {
-            AND: [
-              { episode: episodeMatchesSetCode(setCode) },
-              buildCardNumberCondition(cardNumber),
-            ],
-          },
-        ];
-
-        if (rawCardRef) {
-          referenceConditions.push({ card_number: { contains: rawCardRef } });
-        }
-
-        cardAndConditions.push(
-          referenceConditions.length === 1 ? referenceConditions[0] : { OR: referenceConditions }
-        );
-      } else {
-        cardAndConditions.push(
-          buildCardNumberCondition(cardNumber)
-        );
+      if (alternateResults.total > 0) {
+        return NextResponse.json({
+          ...toDirectSearchResponse(alternateResults),
+          autoSwitchedFrom: activeGame,
+        });
       }
-    } else if (setCode) {
-      cardAndConditions.push({ episode: episodeMatchesSetCode(setCode) });
     }
 
-    const cardWhere: Prisma.CardWhereInput | undefined =
-      cardAndConditions.length === 0
-        ? undefined
-        : cardAndConditions.length === 1
-          ? (cardAndConditions[0] as Prisma.CardWhereInput)
-          : { AND: cardAndConditions as Prisma.CardWhereInput[] };
-
-    const shouldSearchSealed = Boolean((name || setCode) && !cardNumber);
-    const shouldSearchExpansions = Boolean(name && !setCode && !cardNumber);
-    const expansionQuery = shouldSearchExpansions ? name ?? "" : "";
-    const expansionNameVariants = shouldSearchExpansions ? nameVariants(expansionQuery) : [];
-
-    const sealedWhere: Prisma.SealedProductWhereInput | undefined =
-      name && setCode
-        ? {
-            AND: [sealedNameContains(name), { episode: episodeMatchesSetCode(setCode) }],
-          }
-        : name
-          ? sealedNameContains(name)
-          : setCode
-            ? { episode: episodeMatchesSetCode(setCode) }
-            : undefined;
-
-    const visibleCardWhere = combineWhere<Prisma.CardWhereInput>("AND", [
-      { game: activeGame },
-      { episode: itemEpisodeWhere },
-      cardWhere,
-    ]);
-    const visibleSealedWhere = combineWhere<Prisma.SealedProductWhereInput>("AND", [
-      { game: activeGame },
-      { episode: itemEpisodeWhere },
-      sealedWhere,
-    ]);
-    const visibleExpansionWhere = shouldSearchExpansions
-      ? combineWhere<Prisma.EpisodeWhereInput>("AND", [
-          buildVisibleEpisodeWhere(activeGame),
-          expansionNameVariants.length === 1
-            ? { name: { contains: expansionQuery } }
-            : {
-                OR: expansionNameVariants.map((variant) => ({
-                  name: { contains: variant },
-                })),
-              },
-        ])
-      : undefined;
-
-    const [cards, sealed, expansions] = await Promise.all([
-      db.card.findMany({
-        where: visibleCardWhere,
-        take: DIRECT_CARD_CANDIDATE_LIMIT,
-        select: {
-          id: true,
-          name: true,
-          card_number: true,
-          rarity: true,
-          supertype: true,
-          image_url: true,
-          episode: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-            },
-          },
-          prices: {
-            orderBy: { fetched_at: "desc" },
-            take: 1,
-            select: { cm_en_lowest_nm: true, tcp_market: true },
-          },
-        },
-        orderBy: [{ episode: { release_date: "desc" } }, { card_number: "asc" }],
-      }),
-
-      shouldSearchSealed
-        ? db.sealedProduct.findMany({
-            where: visibleSealedWhere,
-            take: DIRECT_SEALED_CANDIDATE_LIMIT,
-            select: {
-              id: true,
-              name: true,
-              image_url: true,
-              cardmarket_url: true,
-              cm_lowest: true,
-              cm_avg_7d: true,
-              cm_avg_30d: true,
-              episode: { select: { id: true, name: true, code: true } },
-            },
-            orderBy: { episode: { release_date: "desc" } },
-          })
-        : Promise.resolve([]),
-
-      shouldSearchExpansions
-        ? db.episode.findMany({
-            where: visibleExpansionWhere,
-            select: { id: true, name: true, code: true, logo_url: true },
-            orderBy: { release_date: "desc" },
-            take: 20,
-          })
-        : Promise.resolve([]),
-    ]);
-
-    const relevanceQuery = name ?? q;
-    const singles = formatSingleResults(cards, relevanceQuery).slice(0, MAX_RESULTS);
-    const sealedResults = formatSealedResults(sealed, relevanceQuery).slice(0, MAX_RESULTS);
-    const expansionResults = formatExpansionResults(expansions, relevanceQuery);
-    const total = singles.length + sealedResults.length + expansionResults.length;
-
-    if (total === 0) {
+    if (directResults.total === 0 && !directResults.exactOnePieceReferenceSearch) {
       const fuzzyResults = await runFuzzyFallback(
         q,
-        parsed,
+        directResults.parsed,
         activeGame,
         itemEpisodeWhere,
         buildVisibleEpisodeWhere(activeGame)
@@ -1155,17 +1357,13 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         ...fuzzyResults,
-        parsed,
+        parsed: directResults.parsed,
+        game: activeGame,
       });
     }
 
     return NextResponse.json({
-      singles,
-      sealed: sealedResults,
-      expansions: expansionResults,
-      total,
-      fuzzy: false,
-      parsed,
+      ...toDirectSearchResponse(directResults),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
-import { getAppFeatures } from "@/lib/app-settings";
 import { db } from "@/lib/db";
 import { isHiddenExpansion, isRedundantSubsetExpansion } from "@/lib/episodes";
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export async function GET() {
+  let user: Awaited<ReturnType<typeof requireUser>>;
   try {
-    await requireUser();
+    user = await requireUser();
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Authentication failed" }, { status: 500 });
   }
 
-  const features = await getAppFeatures();
-  const games = features.onePieceLibraryEnabled
+  const settings = await getServerUserSettings(user.id);
+  const games = settings.onePieceLibraryEnabled
     ? [POKEMON_GAME, ONE_PIECE_GAME]
     : [POKEMON_GAME];
   const episodes = await db.episode.findMany({

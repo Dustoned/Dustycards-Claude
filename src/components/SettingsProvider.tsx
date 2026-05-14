@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import type { AppFeatures } from "@/lib/app-settings";
 import {
   buildResolvedThemeCookie,
   buildSettingsCookie,
@@ -24,10 +23,6 @@ import {
   type UserSettings,
 } from "@/lib/user-settings";
 
-const DEFAULT_CLIENT_APP_FEATURES: AppFeatures = {
-  onePieceLibraryEnabled: false,
-};
-
 export type {
   Theme,
   CardView,
@@ -44,7 +39,6 @@ export type {
 const SettingsContext = createContext<{
   settings: UserSettings;
   displaySettings: UserSettings;
-  appFeatures: AppFeatures;
   isLoaded: boolean;
   isMobileViewport: boolean;
   currentUserRole: "admin" | "user" | null;
@@ -53,7 +47,6 @@ const SettingsContext = createContext<{
 }>({
   settings: DEFAULT_SETTINGS,
   displaySettings: DEFAULT_SETTINGS,
-  appFeatures: DEFAULT_CLIENT_APP_FEATURES,
   isLoaded: false,
   isMobileViewport: false,
   currentUserRole: null,
@@ -141,13 +134,11 @@ function getDisplaySettingKey<K extends keyof UserSettings>(
 export default function SettingsProvider({
   children,
   initialSettings,
-  appFeatures = DEFAULT_CLIENT_APP_FEATURES,
   syncToAccount = false,
   currentUserRole = null,
 }: {
   children: React.ReactNode;
   initialSettings?: UserSettings | null;
-  appFeatures?: AppFeatures;
   syncToAccount?: boolean;
   currentUserRole?: "admin" | "user" | null;
 }) {
@@ -249,7 +240,6 @@ export default function SettingsProvider({
       value={{
         settings,
         displaySettings,
-        appFeatures,
         isLoaded,
         isMobileViewport,
         currentUserRole,

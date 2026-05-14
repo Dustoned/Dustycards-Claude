@@ -9,11 +9,23 @@ import {
   type UserSettings,
 } from "@/lib/user-settings";
 
+async function getCookieSettings(): Promise<UserSettings | null> {
+  try {
+    const cookieStore = await cookies();
+    return parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value);
+  } catch {
+    return null;
+  }
+}
+
 export async function getServerUserSettings(userId: string | null | undefined): Promise<UserSettings> {
-  const cookieStore = await cookies();
-  const cookieSettings = parseCookieSettings(cookieStore.get(SETTINGS_COOKIE_NAME)?.value);
+  const cookieSettings = await getCookieSettings();
 
   if (!userId) {
+    return mergeSettings(cookieSettings ?? DEFAULT_SETTINGS);
+  }
+
+  if (!db.user?.findUnique) {
     return mergeSettings(cookieSettings ?? DEFAULT_SETTINGS);
   }
 
