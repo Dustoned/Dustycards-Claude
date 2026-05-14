@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { usePathname } from "next/navigation";
 import { formatCurrency, type CurrencyCode } from "@/lib/format";
 
 export interface PriceHistoryValuePoint {
@@ -26,6 +27,7 @@ interface Props {
   emptyText?: string;
   compact?: boolean;
   layout?: Layout;
+  rangeStorageKey?: string | null;
 }
 
 interface ParsedHistoryPoint extends PriceHistoryValuePoint {
@@ -42,6 +44,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const CHART_FALLBACK_WIDTH = 320;
 const CHART_PADDING_X = 10;
 const CHART_PADDING_Y = 10;
+const DEFAULT_RANGE_KEY: RangeKey = "3M";
+const RANGE_STORAGE_PREFIX = "dustycards:price-history-range";
+const RANGE_STORAGE_EVENT = "dustycards:price-history-range-change";
 const RANGE_PRESETS: Array<{
   key: RangeKey;
   label: string;
@@ -56,6 +61,55 @@ const RANGE_PRESETS: Array<{
   { key: "1Y", label: "1Y", days: 365, deltaText: "last year" },
   { key: "ALL", label: "All", days: null, deltaText: "since start" },
 ];
+
+function isRangeKey(value: unknown): value is RangeKey {
+  return RANGE_PRESETS.some((range) => range.key === value);
+}
+
+function normalizeStorageKeyPart(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9/_?=&.-]+/g, "-").replace(/-+/g, "-");
+}
+
+function buildRangeStorageKey(input: {
+  explicitKey: string | null | undefined;
+  pathname: string | null;
+  title: string;
+  currency: CurrencyCode;
+}): string | null {
+  if (input.explicitKey === null) return null;
+
+  const rawKey =
+    input.explicitKey?.trim() ||
+    [input.pathname || "page", input.title, input.currency].join(":");
+
+  return `${RANGE_STORAGE_PREFIX}:${normalizeStorageKeyPart(rawKey)}`;
+}
+
+function readStoredRange(storageKey: string | null): RangeKey | null {
+  if (!storageKey || typeof window === "undefined") return null;
+
+  try {
+    const stored = window.localStorage.getItem(storageKey);
+    return isRangeKey(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredRange(storageKey: string | null, range: RangeKey) {
+  if (!storageKey || typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(storageKey, range);
+    window.dispatchEvent(
+      new CustomEvent(RANGE_STORAGE_EVENT, {
+        detail: { storageKey, range },
+      })
+    );
+  } catch {
+    // Browser storage can be blocked; the in-memory selection still works.
+  }
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -240,18 +294,71 @@ export default function PriceHistoryPanel({
   emptyText = "No price history yet",
   compact = false,
   layout = "default",
+  rangeStorageKey,
 }: Props) {
+  const pathname = usePathname();
   const isHeroLayout = !compact && layout === "hero";
   const axisHeight = compact ? 18 : 22;
   const height = compact ? 126 : isHeroLayout ? 188 : 168;
   const chartId = useId().replace(/:/g, "");
   const chartFrameRef = useRef<HTMLDivElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number | null>(null);
-  const [selectedRange, setSelectedRange] = useState<RangeKey>("3M");
+  const [selectedRange, setSelectedRange] = useState<RangeKey>(DEFAULT_RANGE_KEY);
   const [activeHover, setActiveHover] = useState<{
     index: number;
     pointerX: number;
   } | null>(null);
+  const effectiveRangeStorageKey = useMemo(
+    () =>
+      buildRangeStorageKey({
+        explicitKey: rangeStorageKey,
+        pathname,
+        title,
+        currency,
+      }),
+    [currency, pathname, rangeStorageKey, title]
+  );
+
+  useEffect(() => {
+    const storedRange = readStoredRange(effectiveRangeStorageKey);
+    let cancelled = false;
+
+    window.queueMicrotask(() => {
+      if (cancelled) return;
+
+      setSelectedRange(storedRange ?? DEFAULT_RANGE_KEY);
+      setActiveHover(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveRangeStorageKey]);
+
+  useEffect(() => {
+    if (!effectiveRangeStorageKey || typeof window === "undefined") return;
+
+    const handleRangeChange = (event: Event) => {
+      const detail = (event as CustomEvent<{ storageKey?: string; range?: unknown }>).detail;
+      if (detail?.storageKey !== effectiveRangeStorageKey || !isRangeKey(detail.range)) return;
+
+      setSelectedRange(detail.range);
+      setActiveHover(null);
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== effectiveRangeStorageKey || !isRangeKey(event.newValue)) return;
+
+      setSelectedRange(event.newValue);
+      setActiveHover(null);
+    };
+
+    window.addEventListener(RANGE_STORAGE_EVENT, handleRangeChange);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(RANGE_STORAGE_EVENT, handleRangeChange);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [effectiveRangeStorageKey]);
 
   const parsedPoints = points.map((point) => ({
     ...point,
@@ -402,6 +509,12 @@ export default function PriceHistoryPanel({
     });
   }
 
+  function selectRange(range: RangeKey) {
+    setActiveHover(null);
+    setSelectedRange(range);
+    writeStoredRange(effectiveRangeStorageKey, range);
+  }
+
   return (
     <section className={shellClass}>
       <div
@@ -467,10 +580,7 @@ export default function PriceHistoryPanel({
               <button
                 key={range.key}
                 type="button"
-                onClick={() => {
-                  setActiveHover(null);
-                  setSelectedRange(range.key);
-                }}
+                onClick={() => selectRange(range.key)}
                 aria-pressed={selectedRange === range.key}
                 className={`inline-flex items-center rounded-full border font-semibold leading-none transition-colors ${rangeButtonClass} ${
                   selectedRange === range.key
