@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -516,7 +517,9 @@ export default function PriceHistoryPanel({
     : isHeroLayout
       ? "min-h-[var(--ui-chip-min-height)] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)]"
       : "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)]";
-  const panelClass = `${shellClass} ${rangeResolved ? "" : "pointer-events-none opacity-0"}`;
+  const panelStyle: CSSProperties | undefined = rangeResolved
+    ? undefined
+    : { opacity: 0, pointerEvents: "none" };
 
   function updateHoverState(event: ReactPointerEvent<SVGSVGElement>) {
     const pointerX = getPointerChartX(event, measuredChartWidth);
@@ -532,7 +535,7 @@ export default function PriceHistoryPanel({
   }
 
   return (
-    <section className={panelClass}>
+    <section className={shellClass} style={panelStyle}>
       <div
         className={
           isHeroLayout
