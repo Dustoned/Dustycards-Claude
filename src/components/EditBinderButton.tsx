@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Pencil, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Pencil, Trash2, X } from "lucide-react";
 import { COLLECTION_BINDER_ICONS } from "@/lib/collection";
 import BinderAccentColorPicker from "@/components/BinderAccentColorPicker";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
@@ -24,6 +24,7 @@ interface BinderRef {
 
 export default function EditBinderButton({ binder }: { binder: BinderRef }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(binder.name);
   const [accentColor, setAccentColor] = useState<string | null>(binder.accent_color);
@@ -32,6 +33,8 @@ export default function EditBinderButton({ binder }: { binder: BinderRef }) {
     binder.base_purchase_price != null ? String(binder.base_purchase_price) : ""
   );
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useBodyScrollLock(open);
@@ -44,6 +47,7 @@ export default function EditBinderButton({ binder }: { binder: BinderRef }) {
       binder.base_purchase_price != null ? String(binder.base_purchase_price) : ""
     );
     setError(null);
+    setConfirmingDelete(false);
     setOpen(true);
   }
 
@@ -76,6 +80,41 @@ export default function EditBinderButton({ binder }: { binder: BinderRef }) {
       setError(submitError instanceof Error ? submitError.message : "Binder opslaan mislukt");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirmingDelete) {
+      setError(null);
+      setConfirmingDelete(true);
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/collection/binders", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: binder.id }),
+      });
+
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Binder verwijderen mislukt");
+      }
+
+      setOpen(false);
+      if (pathname === `/binders/${binder.id}`) {
+        router.push("/?tab=binders");
+      } else {
+        router.refresh();
+      }
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Binder verwijderen mislukt");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -194,10 +233,36 @@ export default function EditBinderButton({ binder }: { binder: BinderRef }) {
 
               {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
 
+              <div className="mt-5 rounded-2xl border border-rose-400/18 bg-rose-500/8 p-4 max-[640px]:mt-3 max-[640px]:rounded-xl max-[640px]:p-3">
+                <div className="flex items-start gap-3 max-[640px]:gap-2.5">
+                  <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-rose-200" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-rose-100 max-[640px]:text-[13px]">
+                      Delete binder
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-rose-100/58 max-[640px]:text-[11px]">
+                      Cards stay in your collection and move back to loose singles.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={saving || deleting}
+                    className={`shrink-0 rounded-2xl px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl ${
+                      confirmingDelete
+                        ? "bg-rose-500 text-white hover:bg-rose-400"
+                        : "bg-white/8 text-rose-100 hover:bg-rose-500/18"
+                    }`}
+                  >
+                    {deleting ? "Deleting..." : confirmingDelete ? "Confirm delete" : "Delete"}
+                  </button>
+                </div>
+              </div>
+
               <div className="sticky bottom-0 -mx-6 -mb-5 mt-5 flex gap-3 border-t border-white/10 bg-[#0d0d10]/95 px-6 py-4 backdrop-blur-xl max-[640px]:-mx-4 max-[640px]:-mb-2.5 max-[640px]:mt-3 max-[640px]:gap-2 max-[640px]:px-4 max-[640px]:py-2.5">
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || deleting}
                   className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:py-2.5 max-[640px]:text-[13px]"
                 >
                   {saving ? "Saving..." : "Save binder"}

@@ -40,12 +40,14 @@ import {
   type CardCategoryTone,
 } from "@/lib/card-categories";
 import {
+  ALL_GAMES,
+  GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
-  getGameSearchParamValue,
+  getGameFilterLabel,
+  getGameFilterSearchParamValue,
   ONE_PIECE_GAME,
-  POKEMON_GAME,
-  parseVisibleTradingCardGame,
-  type TradingCardGame,
+  parseVisibleGameFilter,
+  type TradingCardGameFilter,
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
@@ -118,9 +120,9 @@ const TONE_CLASSES: Record<CardCategoryTone, { icon: string; surface: string; ch
   },
 };
 
-function buildGameHref(pathname: string, game: TradingCardGame) {
+function buildGameHref(pathname: string, game: TradingCardGameFilter) {
   const params = new URLSearchParams();
-  const gameValue = getGameSearchParamValue(game);
+  const gameValue = getGameFilterSearchParamValue(game);
   if (gameValue) {
     params.set(GAME_SEARCH_PARAM, gameValue);
   }
@@ -157,11 +159,14 @@ function CategoryTile({
   activeGame,
 }: {
   category: CardCategorySummary;
-  activeGame: TradingCardGame;
+  activeGame: TradingCardGameFilter;
 }) {
   const Icon = CATEGORY_ICONS[category.icon] ?? Sparkles;
   const tone = TONE_CLASSES[category.tone];
-  const href = buildGameHref(`/categories/${category.slug}`, activeGame);
+  const href = buildGameHref(
+    `/categories/${category.slug}`,
+    activeGame === ALL_GAMES ? category.game : activeGame
+  );
 
   return (
     <Link
@@ -213,7 +218,7 @@ export default async function CategoriesPage({
     gameParam ? `/categories?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameParam)}` : "/categories"
   );
   const settings = await getServerUserSettings(user.id);
-  const activeGame = parseVisibleTradingCardGame(gameParam, {
+  const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const categories = await getCardCategorySummaries(activeGame);
@@ -275,16 +280,14 @@ export default async function CategoriesPage({
         {settings.onePieceLibraryEnabled ? (
           <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
             <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-              <GameToggleLink
-                href={buildGameHref("/categories", POKEMON_GAME)}
-                active={activeGame === POKEMON_GAME}
-                label="Pokemon"
-              />
-              <GameToggleLink
-                href={buildGameHref("/categories", ONE_PIECE_GAME)}
-                active={activeGame === ONE_PIECE_GAME}
-                label="One Piece"
-              />
+              {GAME_FILTER_OPTIONS.map((game) => (
+                <GameToggleLink
+                  key={game}
+                  href={buildGameHref("/categories", game)}
+                  active={activeGame === game}
+                  label={getGameFilterLabel(game)}
+                />
+              ))}
             </div>
           </div>
         ) : null}

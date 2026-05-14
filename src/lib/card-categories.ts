@@ -11,7 +11,13 @@ import {
   HIDDEN_EXPANSION_NAMES,
   REDUNDANT_SUBSET_PATTERNS,
 } from "@/lib/episodes";
-import { ONE_PIECE_GAME, POKEMON_GAME, type TradingCardGame } from "@/lib/games";
+import {
+  ALL_GAMES,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  type TradingCardGame,
+  type TradingCardGameFilter,
+} from "@/lib/games";
 import type { EpisodePriceHistorySnapshot } from "@/lib/price-history";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -37,10 +43,12 @@ export interface CardCategoryDefinition {
 
 export interface CardCategorySummary extends CardCategoryDefinition {
   count: number;
+  game: TradingCardGame;
 }
 
 export interface CardCategoryPageData {
   category: CardCategoryDefinition;
+  game: TradingCardGame;
   items: CollectionCardViewItem[];
   priceSnapshots: EpisodePriceHistorySnapshot[];
   totalCards: number;
@@ -800,15 +808,45 @@ function getCardCategoriesForGame(game: TradingCardGame): ReadonlyArray<CardCate
   return game === ONE_PIECE_GAME ? ONE_PIECE_CARD_CATEGORIES : CARD_CATEGORIES;
 }
 
+function getCardCategoryEntriesForGame(
+  game: TradingCardGameFilter
+): Array<{ category: CardCategoryDefinition; game: TradingCardGame }> {
+  if (game === ALL_GAMES) {
+    return [
+      ...CARD_CATEGORIES.map(
+        (category): { category: CardCategoryDefinition; game: TradingCardGame } => ({
+          category,
+          game: POKEMON_GAME,
+        })
+      ),
+      ...ONE_PIECE_CARD_CATEGORIES.map(
+        (category): { category: CardCategoryDefinition; game: TradingCardGame } => ({
+          category,
+          game: ONE_PIECE_GAME,
+        })
+      ),
+    ];
+  }
+
+  return getCardCategoriesForGame(game).map((category) => ({ category, game }));
+}
+
 export function getCategoryGroups(): CardCategoryGroup[] {
   return CATEGORY_GROUP_ORDER;
 }
 
 export function getCardCategory(
   slug: string,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): CardCategoryDefinition | null {
-  return getCardCategoriesForGame(game).find((category) => category.slug === slug) ?? null;
+  return getCardCategoryEntriesForGame(game).find((entry) => entry.category.slug === slug)?.category ?? null;
+}
+
+function getCardCategoryEntry(
+  slug: string,
+  game: TradingCardGameFilter = POKEMON_GAME
+): { category: CardCategoryDefinition; game: TradingCardGame } | null {
+  return getCardCategoryEntriesForGame(game).find((entry) => entry.category.slug === slug) ?? null;
 }
 
 export function sortCategorySummaries<T extends { group: CardCategoryGroup; title: string }>(
@@ -823,20 +861,21 @@ export function sortCategorySummaries<T extends { group: CardCategoryGroup; titl
 }
 
 export async function getCardCategorySummaries(
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<CardCategorySummary[]> {
-  const categories = getCardCategoriesForGame(game);
+  const entries = getCardCategoryEntriesForGame(game);
   const counts = await Promise.all(
-    categories.map((category) =>
+    entries.map((entry) =>
       db.card.count({
-        where: withVisibleCards(category.where, game),
+        where: withVisibleCards(entry.category.where, entry.game),
       })
     )
   );
 
   return sortCategorySummaries(
-    categories.map((category, index) => ({
-      ...category,
+    entries.map((entry, index) => ({
+      ...entry.category,
+      game: entry.game,
       count: counts[index] ?? 0,
     })).filter((category) => category.count > 0)
   );
@@ -1117,12 +1156,13 @@ async function getCategoryPriceSnapshots(
 export async function getCardCategoryPageData(
   slug: string,
   userId: string,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<CardCategoryPageData | null> {
-  const category = getCardCategory(slug, game);
-  if (!category) return null;
+  const entry = getCardCategoryEntry(slug, game);
+  if (!entry) return null;
 
-  const cards = await getCategoryCards(withVisibleCards(category.where, game));
+  const { category } = entry;
+  const cards = await getCategoryCards(withVisibleCards(category.where, entry.game));
 
   const cardIds = cards.map((card) => card.id);
   const [ownedRecords, wantRecords, priceSnapshots] =
@@ -1156,6 +1196,7 @@ export async function getCardCategoryPageData(
 
   return {
     category,
+    game: entry.game,
     items,
     priceSnapshots,
     totalCards: items.length,

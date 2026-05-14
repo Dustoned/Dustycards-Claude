@@ -7,6 +7,7 @@ import type { KeyboardEvent, MouseEvent } from "react";
 import { BarChart3, Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
+import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionMoverItem } from "@/lib/movers";
 
@@ -538,7 +539,7 @@ const MoverTile = memo(function MoverTile({
                 <span>{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
                 <span>/</span>
                 <Link
-                  href={`/expansions/${item.episodeId}`}
+                  href={getExpansionHref(item.episodeId)}
                   prefetch={false}
                   onClick={stopCardOpen}
                   className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
@@ -709,7 +710,7 @@ function MoverSpotlightCard({
               <span>{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
               <span>/</span>
               <Link
-                href={`/expansions/${item.episodeId}`}
+                href={getExpansionHref(item.episodeId)}
                 prefetch={false}
                 onClick={stopCardOpen}
                 className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"

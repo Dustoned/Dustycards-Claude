@@ -9,7 +9,18 @@ import {
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
-import { ONE_PIECE_GAME, POKEMON_GAME, type TradingCardGame } from "@/lib/games";
+import {
+  ALL_GAMES,
+  GAME_FILTER_OPTIONS,
+  GAME_SEARCH_PARAM,
+  getExpansionHref,
+  getGameFilterLabel,
+  getGameFilterSearchParamValue,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  parseVisibleGameFilter,
+  type TradingCardGameFilter,
+} from "@/lib/games";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -136,17 +147,38 @@ function GameToggleLink({
   );
 }
 
-function buildGameHref(game: TradingCardGame) {
-  return game === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
+function buildGameHref(game: TradingCardGameFilter) {
+  if (game === ONE_PIECE_GAME) return "/one-piece/expansions";
+
+  const params = new URLSearchParams();
+  const gameValue = getGameFilterSearchParamValue(game);
+  if (gameValue) {
+    params.set(GAME_SEARCH_PARAM, gameValue);
+  }
+  const query = params.toString();
+  return query ? `/expansions?${query}` : "/expansions";
 }
 
-export default async function ExpansionsPage() {
-  const user = await requirePageUser("/expansions");
+export default async function ExpansionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ game?: string }>;
+}) {
+  const { game: gameParam } = await searchParams;
+  const user = await requirePageUser(
+    gameParam ? `/expansions?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameParam)}` : "/expansions"
+  );
   const settings = await getServerUserSettings(user.id);
+  const activeGame = parseVisibleGameFilter(gameParam, {
+    onePieceEnabled: settings.onePieceLibraryEnabled,
+  });
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
 
   const episodes = await db.episode.findMany({
-    where: { game: POKEMON_GAME },
+    where:
+      activeGame === ALL_GAMES
+        ? { game: { in: [POKEMON_GAME, ONE_PIECE_GAME] } }
+        : { game: activeGame },
     orderBy: [{ release_date: "desc" }, { name: "asc" }],
     include: { _count: { select: { cards: true } } },
   });
@@ -156,9 +188,11 @@ export default async function ExpansionsPage() {
   const deduped = [
     ...episodes
       .reduce((map, episode) => {
-        const existing = map.get(episode.name);
+        const dedupeKey =
+          activeGame === ALL_GAMES ? `${episode.game}:${episode.name}` : episode.name;
+        const existing = map.get(dedupeKey);
         if (!existing) {
-          map.set(episode.name, episode);
+          map.set(dedupeKey, episode);
           return map;
         }
 
@@ -167,10 +201,10 @@ export default async function ExpansionsPage() {
 
         if (!keepNew && !keepExisting) {
           if (shouldReplaceEpisode(existing.id, episode.id)) {
-            map.set(episode.name, episode);
+            map.set(dedupeKey, episode);
           }
         } else if (keepNew) {
-          map.set(episode.name, episode);
+          map.set(dedupeKey, episode);
         }
 
         return map;
@@ -193,7 +227,10 @@ export default async function ExpansionsPage() {
   const now = new Date();
   const grouped = new Map<string, typeof episodes>();
   for (const episode of withCards) {
-    const era = getEra(episode.name, episode.series, episode.release_date);
+    const era =
+      episode.game === ONE_PIECE_GAME
+        ? "One Piece"
+        : getEra(episode.name, episode.series, episode.release_date);
     const group = isFutureReleaseDate(episode.release_date, now)
       ? UPCOMING_RELEASE_GROUP
       : era;
@@ -205,6 +242,8 @@ export default async function ExpansionsPage() {
     .sort(([a], [b]) => {
       if (a === UPCOMING_RELEASE_GROUP) return -1;
       if (b === UPCOMING_RELEASE_GROUP) return 1;
+      if (a === "One Piece") return 1;
+      if (b === "One Piece") return -1;
       const aIndex = ERA_ORDER.indexOf(a);
       const bIndex = ERA_ORDER.indexOf(b);
       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
@@ -265,9 +304,15 @@ export default async function ExpansionsPage() {
   return (
     <div className="page-container mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
       <PageHeroHeader
-        eyebrow="Dusty Cards Collection"
-        title="Expansions"
-        description="Browse released sets and upcoming sets. Upcoming sets stay empty until release; cards and prices appear after the next sync."
+        eyebrow={activeGame === ONE_PIECE_GAME ? "One Piece Library" : activeGame === ALL_GAMES ? "DustyCards Library" : "Dusty Cards Collection"}
+        title={activeGame === ONE_PIECE_GAME ? "One Piece Expansions" : activeGame === ALL_GAMES ? "All Expansions" : "Expansions"}
+        description={
+          activeGame === ONE_PIECE_GAME
+            ? "Browse One Piece sets from TCGGO. Upcoming and newest sets stay at the top, with older releases below."
+            : activeGame === ALL_GAMES
+            ? "Browse Pokemon and One Piece sets together, or split them with the game switch below."
+            : "Browse released sets and upcoming sets. Upcoming sets stay empty until release; cards and prices appear after the next sync."
+        }
         gridClassName="xl:grid-cols-[minmax(20rem,0.72fr)_minmax(34rem,1.28fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.66fr)_minmax(48rem,1.34fr)]"
         sideClassName="xl:space-y-0"
         className="mb-6 max-[640px]:[--ui-page-header-description-size:0.8rem] sm:mb-8"
@@ -293,16 +338,14 @@ export default async function ExpansionsPage() {
       {settings.onePieceLibraryEnabled ? (
         <div className="mb-6 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
           <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-            <GameToggleLink
-              href={buildGameHref(POKEMON_GAME)}
-              active
-              label="Pokemon"
-            />
-            <GameToggleLink
-              href={buildGameHref(ONE_PIECE_GAME)}
-              active={false}
-              label="One Piece"
-            />
+            {GAME_FILTER_OPTIONS.map((game) => (
+              <GameToggleLink
+                key={game}
+                href={buildGameHref(game)}
+                active={activeGame === game}
+                label={getGameFilterLabel(game)}
+              />
+            ))}
           </div>
         </div>
       ) : null}
@@ -362,7 +405,7 @@ export default async function ExpansionsPage() {
                 return (
                   <Link
                     key={episode.id}
-                    href={`/expansions/${episode.id}`}
+                    href={getExpansionHref(episode.id)}
                     prefetch={false}
                     title={countHint}
                 className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-3 ${tileConfig.tileClass}`}

@@ -1,8 +1,11 @@
 export type TradingCardGame = "pokemon" | "one-piece";
+export type TradingCardGameFilter = "all" | TradingCardGame;
 
+export const ALL_GAMES = "all" satisfies TradingCardGameFilter;
 export const POKEMON_GAME = "pokemon" satisfies TradingCardGame;
 export const ONE_PIECE_GAME = "one-piece" satisfies TradingCardGame;
 export const GAME_SEARCH_PARAM = "game";
+export const GAME_FILTER_OPTIONS = [ALL_GAMES, POKEMON_GAME, ONE_PIECE_GAME] as const;
 
 export function normalizeTradingCardGame(value: string | null | undefined): TradingCardGame {
   return value === ONE_PIECE_GAME ? ONE_PIECE_GAME : POKEMON_GAME;
@@ -17,8 +20,29 @@ export function parseVisibleTradingCardGame(
     : POKEMON_GAME;
 }
 
+export function parseVisibleGameFilter(
+  value: string | null | undefined,
+  options?: { onePieceEnabled?: boolean }
+): TradingCardGameFilter {
+  if (!options?.onePieceEnabled) return POKEMON_GAME;
+  if (value === POKEMON_GAME || value === ONE_PIECE_GAME || value === ALL_GAMES) {
+    return value;
+  }
+  return ALL_GAMES;
+}
+
 export function getGameSearchParamValue(game: TradingCardGame): string | null {
   return game === ONE_PIECE_GAME ? ONE_PIECE_GAME : null;
+}
+
+export function getGameFilterSearchParamValue(game: TradingCardGameFilter): string | null {
+  return game === ALL_GAMES ? null : game;
+}
+
+export function isSpecificTradingCardGame(
+  game: TradingCardGameFilter | null | undefined
+): game is TradingCardGame {
+  return game === POKEMON_GAME || game === ONE_PIECE_GAME;
 }
 
 export function getTcggoGamePath(game: TradingCardGame): string {
@@ -27,6 +51,10 @@ export function getTcggoGamePath(game: TradingCardGame): string {
 
 export function getGameLabel(game: TradingCardGame): string {
   return game === ONE_PIECE_GAME ? "One Piece" : "Pokemon";
+}
+
+export function getGameFilterLabel(game: TradingCardGameFilter): string {
+  return game === ALL_GAMES ? "All" : getGameLabel(game);
 }
 
 export function scopeGameId(game: TradingCardGame, id: string | number | null | undefined): string {

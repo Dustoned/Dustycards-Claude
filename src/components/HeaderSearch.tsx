@@ -9,7 +9,7 @@ import {
   readSearchReturnPath,
   rememberSearchReturnPath,
 } from "@/lib/search-navigation";
-import { GAME_SEARCH_PARAM, ONE_PIECE_GAME } from "@/lib/games";
+import { GAME_SEARCH_PARAM, ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import { useSettings } from "@/components/SettingsProvider";
 
 export default function HeaderSearch() {
@@ -25,11 +25,16 @@ export default function HeaderSearch() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileQuery, setMobileQuery] = useState(activeQuery);
   const currentHref = buildPathWithQuery(pathname, searchParams);
-  const activeGameParam =
-    settings.onePieceLibraryEnabled &&
-    (searchParams.get(GAME_SEARCH_PARAM) === ONE_PIECE_GAME || pathname.startsWith("/one-piece"))
+  const gameParam = searchParams.get(GAME_SEARCH_PARAM);
+  const activeGameParam = settings.onePieceLibraryEnabled
+    ? gameParam === ONE_PIECE_GAME
       ? ONE_PIECE_GAME
-      : null;
+      : gameParam === POKEMON_GAME
+        ? POKEMON_GAME
+        : pathname.startsWith("/one-piece")
+          ? ONE_PIECE_GAME
+          : null
+    : null;
 
   useEffect(() => {
     const input = inputRef.current;

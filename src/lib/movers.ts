@@ -25,7 +25,13 @@ import {
 } from "@/lib/mover-scoring";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { PriceSource } from "@/lib/user-settings";
-import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
+import {
+  ALL_GAMES,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  type TradingCardGame,
+  type TradingCardGameFilter,
+} from "@/lib/games";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 const HISTORY_LOOKBACK_DAYS = 45;
@@ -409,6 +415,65 @@ export interface CollectionMoversData {
 
 function round(value: number, decimals = 2): number {
   return Number(value.toFixed(decimals));
+}
+
+function pickStrongestCollectionMover(
+  movers: CollectionMoverItem[],
+  metric: "change7dPct" | "change30dPct"
+): CollectionMoverItem | null {
+  return (
+    [...movers]
+      .filter((item) => item.priceQuality.status !== "suspicious" && item[metric] != null)
+      .sort(
+        (a, b) =>
+          (b[metric] ?? Number.NEGATIVE_INFINITY) -
+          (a[metric] ?? Number.NEGATIVE_INFINITY)
+      )[0] ?? null
+  );
+}
+
+function combineCollectionMoversData(
+  results: CollectionMoversData[]
+): CollectionMoversData {
+  const sourceResult = results[0];
+  const movers = results
+    .flatMap((result) => result.movers)
+    .sort((a, b) => b.moverScore - a.moverScore || a.name.localeCompare(b.name))
+    .slice(0, MAX_ALL_SCOPE_MOVERS);
+  const topOpportunities = results
+    .flatMap((result) => result.topOpportunities)
+    .sort((a, b) => b.moverScore - a.moverScore || a.name.localeCompare(b.name))
+    .slice(0, 12);
+  const cheapestHighRarityMovers = results
+    .flatMap((result) => result.cheapestHighRarityMovers)
+    .sort(
+      (a, b) =>
+        a.currentPrice - b.currentPrice ||
+        b.moverScore - a.moverScore ||
+        a.name.localeCompare(b.name)
+    )
+    .slice(0, 16);
+  const discountedHighRarity = results
+    .flatMap((result) => result.discountedHighRarity)
+    .sort(
+      (a, b) =>
+        (a.gapToPeakPct ?? 0) - (b.gapToPeakPct ?? 0) ||
+        a.currentPrice - b.currentPrice ||
+        a.name.localeCompare(b.name)
+    );
+
+  return {
+    scope: sourceResult?.scope ?? "collection",
+    preferredSource: sourceResult?.preferredSource ?? "cm_en",
+    trackedCards: results.reduce((total, result) => total + result.trackedCards, 0),
+    eligibleCards: results.reduce((total, result) => total + result.eligibleCards, 0),
+    movers,
+    topOpportunities,
+    cheapestHighRarityMovers,
+    discountedHighRarity,
+    strongest7d: pickStrongestCollectionMover(movers, "change7dPct"),
+    strongest30d: pickStrongestCollectionMover(movers, "change30dPct"),
+  };
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -1829,8 +1894,17 @@ export async function getMovers(
   itemScope: MoversItemScope =
     scope === "collection" ? "collection" : "all",
   userId?: string | null,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<CollectionMoversData> {
+  if (game === ALL_GAMES) {
+    return combineCollectionMoversData(
+      await Promise.all([
+        getMovers(preferredSource, scope, itemScope, userId, POKEMON_GAME),
+        getMovers(preferredSource, scope, itemScope, userId, ONE_PIECE_GAME),
+      ])
+    );
+  }
+
   const timer = startPerformanceTimer(`movers.${scope}`, { preferredSource, scope, game });
 
   if (scope === "sealed") {
@@ -2437,7 +2511,7 @@ export async function getMovers(
 export async function getCollectionMovers(
   preferredSource: PriceSource,
   userId?: string | null,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<CollectionMoversData> {
   return getMovers(preferredSource, "collection", "collection", userId, game);
 }

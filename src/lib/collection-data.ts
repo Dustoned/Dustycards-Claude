@@ -16,7 +16,14 @@ import {
 } from "@/lib/collection";
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
 import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
-import { getExpansionHref, POKEMON_GAME, type TradingCardGame } from "@/lib/games";
+import {
+  ALL_GAMES,
+  getExpansionHref,
+  isSpecificTradingCardGame,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  type TradingCardGameFilter,
+} from "@/lib/games";
 import { startPerformanceTimer } from "@/lib/performance-timing";
 import {
   getCardMarketValue,
@@ -417,7 +424,7 @@ function getHistoryCutoffDate(days = COLLECTION_OVERVIEW_CHART_DAYS) {
 async function fetchCollectionCardsPage(
   options: {
     userId: string;
-    game?: TradingCardGame;
+    game?: TradingCardGameFilter;
     binderId?: string;
     skip?: number;
     take?: number;
@@ -427,7 +434,7 @@ async function fetchCollectionCardsPage(
   return db.collectionCard.findMany({
     where: {
       user_id: options.userId,
-      ...(options.game ? { card: { game: options.game } } : {}),
+      ...(isSpecificTradingCardGame(options.game) ? { card: { game: options.game } } : {}),
       ...(options.binderId ? { binder_id: options.binderId } : {}),
     },
     orderBy: { added_at: "desc" },
@@ -439,7 +446,7 @@ async function fetchCollectionCardsPage(
 
 async function fetchCollectionCards(options: {
   userId: string;
-  game?: TradingCardGame;
+  game?: TradingCardGameFilter;
   binderId?: string;
   detail?: boolean;
 }) {
@@ -610,23 +617,23 @@ type CollectionBinderCostBasisRecord = {
 
 async function getCollectionCards(options: {
   userId: string;
-  game?: TradingCardGame;
+  game?: TradingCardGameFilter;
   binderId?: string;
 }) {
   return fetchCollectionCards({ ...options, detail: true });
 }
 
-async function getCollectionCardMetrics(userId: string, game: TradingCardGame = POKEMON_GAME) {
+async function getCollectionCardMetrics(userId: string, game: TradingCardGameFilter = POKEMON_GAME) {
   const records = await fetchCollectionCards({ userId, game, detail: false });
   return records as CollectionCardMetricRecord[];
 }
 
-async function getCollectionWants(userId: string, game: TradingCardGame = POKEMON_GAME) {
+async function getCollectionWants(userId: string, game: TradingCardGameFilter = POKEMON_GAME) {
   return db.collectionWant.findMany({
     where: {
       user_id: userId,
       card: {
-        game,
+        ...(isSpecificTradingCardGame(game) ? { game } : {}),
         collectionItems: {
           none: { user_id: userId },
         },
@@ -640,24 +647,31 @@ async function getCollectionWants(userId: string, game: TradingCardGame = POKEMO
 async function getCollectionSealedItems(
   userId: string,
   detail = true,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ) {
   return db.collectionSealed.findMany({
-    where: { user_id: userId, product: { game } },
+    where: {
+      user_id: userId,
+      ...(isSpecificTradingCardGame(game) ? { product: { game } } : {}),
+    },
     orderBy: { added_at: "desc" },
     select: detail ? collectionSealedSelect : collectionSealedMetricSelect,
   });
 }
 
-async function getCollectionSealedMetrics(userId: string, game: TradingCardGame = POKEMON_GAME) {
+async function getCollectionSealedMetrics(userId: string, game: TradingCardGameFilter = POKEMON_GAME) {
   const records = await getCollectionSealedItems(userId, false, game);
   return records as CollectionSealedMetricRecord[];
 }
 
 function buildCollectionBinderGameWhere(
   userId: string,
-  game: TradingCardGame
+  game: TradingCardGameFilter
 ): Prisma.CollectionBinderWhereInput {
+  if (!isSpecificTradingCardGame(game)) {
+    return { user_id: userId };
+  }
+
   const gameConditions: Prisma.CollectionBinderWhereInput[] = [
     { episode: { game } },
     { cards: { some: { card: { game } } } },
@@ -676,7 +690,7 @@ function buildCollectionBinderGameWhere(
 async function getCollectionBinders(
   userId: string,
   detail = true,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ) {
   return db.collectionBinder.findMany({
     where: buildCollectionBinderGameWhere(userId, game),
@@ -1318,7 +1332,7 @@ function shouldLoadDetailedBinders(activeTab: CollectionPageTab): boolean {
 }
 
 export async function getCollectionOverviewData(
-  options: { userId: string; activeTab?: CollectionPageTab; game?: TradingCardGame }
+  options: { userId: string; activeTab?: CollectionPageTab; game?: TradingCardGameFilter }
 ): Promise<CollectionOverviewData> {
   const activeTab = options?.activeTab ?? "overview";
   const game = options.game ?? POKEMON_GAME;
@@ -1546,9 +1560,46 @@ function getSaneAllCardRawValue(
   return value;
 }
 
+function combineCollectionValueDriversData(
+  results: CollectionValueDriversData[]
+): CollectionValueDriversData {
+  const drivers = results.flatMap((result) => [...result.gains, ...result.drops]);
+  const gains = drivers
+    .filter((item) => item.change > 0)
+    .sort((a, b) => b.change - a.change || a.name.localeCompare(b.name));
+  const drops = drivers
+    .filter((item) => item.change < 0)
+    .sort((a, b) => a.change - b.change || a.name.localeCompare(b.name));
+  const latestResult =
+    [...results]
+      .filter((result) => result.latestDate)
+      .sort((a, b) => String(b.latestDate).localeCompare(String(a.latestDate)))[0] ?? null;
+
+  return {
+    latestDate: latestResult?.latestDate ?? null,
+    latestLabel: latestResult?.latestLabel ?? null,
+    previousDate: latestResult?.previousDate ?? null,
+    previousLabel: latestResult?.previousLabel ?? null,
+    totalChange: roundCurrency(drivers.reduce((total, item) => total + item.change, 0)),
+    gainsTotal: roundCurrency(gains.reduce((total, item) => total + item.change, 0)),
+    dropsTotal: roundCurrency(drops.reduce((total, item) => total + item.change, 0)),
+    gains,
+    drops,
+  };
+}
+
 async function getAllCardValueDriversData(
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<CollectionValueDriversData> {
+  if (game === ALL_GAMES) {
+    return combineCollectionValueDriversData(
+      await Promise.all([
+        getAllCardValueDriversData(POKEMON_GAME),
+        getAllCardValueDriversData(ONE_PIECE_GAME),
+      ])
+    );
+  }
+
   const timer = startPerformanceTimer("collection.value-drivers.all", { game });
   const dates = await db.$queryRaw<Array<{ date: string }>>`
     SELECT DATE(p.fetched_at) AS date
@@ -1841,7 +1892,7 @@ async function getAllCardValueDriversData(
 export async function getCollectionValueDriversData(
   userId: string,
   scope: CollectionValueDriversScope = "collection",
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<CollectionValueDriversData> {
   if (scope === "all") {
     return getAllCardValueDriversData(game);
@@ -1900,7 +1951,7 @@ export async function getCollectionValueDriversData(
 
 export async function getWantsPageData(
   userId: string,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<WantsPageData> {
   const timer = startPerformanceTimer("collection.wants", { game });
   const wants = (await getCollectionWants(userId, game)) as CollectionWantRecord[];

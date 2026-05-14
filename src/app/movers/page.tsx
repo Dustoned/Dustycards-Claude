@@ -8,12 +8,12 @@ import { loadMoversPageData } from "@/app/movers/page-data";
 import { requirePageUser } from "@/lib/page-auth";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
+  GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
-  getGameSearchParamValue,
-  ONE_PIECE_GAME,
-  POKEMON_GAME,
-  parseVisibleTradingCardGame,
-  type TradingCardGame,
+  getGameFilterLabel,
+  getGameFilterSearchParamValue,
+  parseVisibleGameFilter,
+  type TradingCardGameFilter,
 } from "@/lib/games";
 import type { MoversPageScope } from "@/app/movers/routing";
 import type { CollectionValueDriversData } from "@/lib/collection-data";
@@ -161,7 +161,7 @@ export default async function MoversPage({
   const requestedQuery = requestedParams.toString();
   const user = await requirePageUser(`/movers${requestedQuery ? `?${requestedQuery}` : ""}`);
   const settings = await getServerUserSettings(user.id);
-  const activeGame = parseVisibleTradingCardGame(gameParam, {
+  const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const { activePriceSource, activeScope, activeItemScope, data } = await loadMoversPageData(
@@ -172,12 +172,12 @@ export default async function MoversPage({
     activeGame
   );
 
-  function buildGameHref(game: TradingCardGame) {
+  function buildGameHref(game: TradingCardGameFilter) {
     const params = new URLSearchParams();
     if (source) params.set("source", source);
     if (scope) params.set("scope", scope);
     if (view) params.set("view", view);
-    const gameValue = getGameSearchParamValue(game);
+    const gameValue = getGameFilterSearchParamValue(game);
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
     }
@@ -365,16 +365,14 @@ export default async function MoversPage({
         {settings.onePieceLibraryEnabled ? (
           <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
             <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-              <GameToggleLink
-                href={buildGameHref(POKEMON_GAME)}
-                active={activeGame === POKEMON_GAME}
-                label="Pokemon"
-              />
-              <GameToggleLink
-                href={buildGameHref(ONE_PIECE_GAME)}
-                active={activeGame === ONE_PIECE_GAME}
-                label="One Piece"
-              />
+              {GAME_FILTER_OPTIONS.map((game) => (
+                <GameToggleLink
+                  key={game}
+                  href={buildGameHref(game)}
+                  active={activeGame === game}
+                  label={getGameFilterLabel(game)}
+                />
+              ))}
             </div>
           </div>
         ) : null}

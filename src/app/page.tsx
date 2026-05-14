@@ -19,12 +19,13 @@ import {
 } from "@/lib/overview-section-order";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
+  GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
-  getGameSearchParamValue,
+  getGameFilterLabel,
+  getGameFilterSearchParamValue,
   ONE_PIECE_GAME,
-  POKEMON_GAME,
-  parseVisibleTradingCardGame,
-  type TradingCardGame,
+  parseVisibleGameFilter,
+  type TradingCardGameFilter,
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 
@@ -196,7 +197,7 @@ export default async function HomePage({
   const settings = await getServerUserSettings(user.id);
   const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
   const { tab, graded, game: gameParam } = await searchParams;
-  const activeGame = parseVisibleTradingCardGame(gameParam, {
+  const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const browseHref = activeGame === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
@@ -265,7 +266,7 @@ export default async function HomePage({
 
   function buildCollectionHref(tabValue: CollectionPageTab) {
     const params = new URLSearchParams();
-    const gameValue = getGameSearchParamValue(activeGame);
+    const gameValue = getGameFilterSearchParamValue(activeGame);
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
     }
@@ -276,9 +277,9 @@ export default async function HomePage({
     return query ? `/?${query}` : "/";
   }
 
-  function buildGameHref(game: TradingCardGame) {
+  function buildGameHref(game: TradingCardGameFilter) {
     const params = new URLSearchParams();
-    const gameValue = getGameSearchParamValue(game);
+    const gameValue = getGameFilterSearchParamValue(game);
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
     }
@@ -410,14 +411,19 @@ export default async function HomePage({
               <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
                 <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
                   <TabLink
-                    href={buildGameHref(POKEMON_GAME)}
-                    active={activeGame === POKEMON_GAME}
-                    label="Pokemon"
+                    href={buildGameHref(GAME_FILTER_OPTIONS[0])}
+                    active={activeGame === GAME_FILTER_OPTIONS[0]}
+                    label={getGameFilterLabel(GAME_FILTER_OPTIONS[0])}
                   />
                   <TabLink
-                    href={buildGameHref(ONE_PIECE_GAME)}
-                    active={activeGame === ONE_PIECE_GAME}
-                    label="One Piece"
+                    href={buildGameHref(GAME_FILTER_OPTIONS[1])}
+                    active={activeGame === GAME_FILTER_OPTIONS[1]}
+                    label={getGameFilterLabel(GAME_FILTER_OPTIONS[1])}
+                  />
+                  <TabLink
+                    href={buildGameHref(GAME_FILTER_OPTIONS[2])}
+                    active={activeGame === GAME_FILTER_OPTIONS[2]}
+                    label={getGameFilterLabel(GAME_FILTER_OPTIONS[2])}
                   />
                 </div>
               </div>

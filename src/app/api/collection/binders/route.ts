@@ -269,3 +269,34 @@ export async function PATCH(req: NextRequest) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to update binder" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    const body = (await req.json()) as {
+      id?: unknown;
+    };
+
+    const binderId = toNullableString(body.id);
+    if (!binderId) {
+      return NextResponse.json({ error: "Binder id is required" }, { status: 400 });
+    }
+
+    const existing = await db.collectionBinder.findFirst({
+      where: { id: binderId, user_id: user.id },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Binder not found" }, { status: 404 });
+    }
+
+    await db.collectionBinder.delete({
+      where: { id: binderId },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to delete binder" }, { status: 500 });
+  }
+}

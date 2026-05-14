@@ -5,12 +5,13 @@ import { HeaderAction, PageHeroHeader, type HeaderStat } from "@/components/Page
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getWantsPageData } from "@/lib/collection-data";
 import {
+  GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
-  getGameSearchParamValue,
+  getGameFilterLabel,
+  getGameFilterSearchParamValue,
   ONE_PIECE_GAME,
-  POKEMON_GAME,
-  parseVisibleTradingCardGame,
-  type TradingCardGame,
+  parseVisibleGameFilter,
+  type TradingCardGameFilter,
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
@@ -127,15 +128,15 @@ export default async function WantsPage({
   const user = await requirePageUser("/wants");
   const settings = await getServerUserSettings(user.id);
   const { game: gameParam } = await searchParams;
-  const activeGame = parseVisibleTradingCardGame(gameParam, {
+  const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const browseHref = activeGame === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
   const data = await getWantsPageData(user.id, activeGame);
 
-  function buildGameHref(game: TradingCardGame) {
+  function buildGameHref(game: TradingCardGameFilter) {
     const params = new URLSearchParams();
-    const gameValue = getGameSearchParamValue(game);
+    const gameValue = getGameFilterSearchParamValue(game);
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
     }
@@ -235,16 +236,14 @@ export default async function WantsPage({
         {settings.onePieceLibraryEnabled ? (
           <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
             <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-              <GameToggleLink
-                href={buildGameHref(POKEMON_GAME)}
-                active={activeGame === POKEMON_GAME}
-                label="Pokemon"
-              />
-              <GameToggleLink
-                href={buildGameHref(ONE_PIECE_GAME)}
-                active={activeGame === ONE_PIECE_GAME}
-                label="One Piece"
-              />
+              {GAME_FILTER_OPTIONS.map((game) => (
+                <GameToggleLink
+                  key={game}
+                  href={buildGameHref(game)}
+                  active={activeGame === game}
+                  label={getGameFilterLabel(game)}
+                />
+              ))}
             </div>
           </div>
         ) : null}

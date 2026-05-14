@@ -4,7 +4,12 @@ import {
   type MoverPriceQuality,
 } from "@/lib/mover-scoring";
 import { startPerformanceTimer } from "@/lib/performance-timing";
-import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
+import {
+  ALL_GAMES,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  type TradingCardGameFilter,
+} from "@/lib/games";
 import {
   classifySealedProduct,
   getSealedCategoryLabel,
@@ -331,6 +336,35 @@ function pickStrongestMover(
   );
 }
 
+function combineSealedMoversData(results: SealedMoversData[]): SealedMoversData {
+  const sourceResult = results[0];
+  const movers = results
+    .flatMap((result) => result.movers)
+    .sort((a, b) => b.rankingScore - a.rankingScore || a.name.localeCompare(b.name, "en", { numeric: true }))
+    .slice(0, MAX_SEALED_MOVERS);
+  const cheapestMovers = results
+    .flatMap((result) => result.cheapestMovers)
+    .sort((a, b) => a.currentPrice - b.currentPrice || b.rankingScore - a.rankingScore)
+    .slice(0, 12);
+
+  return {
+    scope: "sealed",
+    itemScope: sourceResult?.itemScope ?? "all",
+    trackedProducts: results.reduce((total, result) => total + result.trackedProducts, 0),
+    eligibleProducts: results.reduce((total, result) => total + result.eligibleProducts, 0),
+    movers,
+    cheapestMovers,
+    strongest7d: pickStrongestMover(movers, "change7dPct"),
+    strongest30d: pickStrongestMover(movers, "change30dPct"),
+    updatedAt:
+      [...results]
+        .map((result) => result.updatedAt)
+        .filter((value): value is string => Boolean(value))
+        .sort()
+        .at(-1) ?? null,
+  };
+}
+
 function getPricePresenceWhere(): Prisma.SealedPriceSnapshotWhereInput["OR"] {
   return [
     { cm_lowest: { not: null } },
@@ -399,8 +433,17 @@ async function fetchSealedSnapshotRows(input: {
 export async function getSealedMovers(
   itemScope: MoversItemScope = "all",
   userId: string,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<SealedMoversData> {
+  if (game === ALL_GAMES) {
+    return combineSealedMoversData(
+      await Promise.all([
+        getSealedMovers(itemScope, userId, POKEMON_GAME),
+        getSealedMovers(itemScope, userId, ONE_PIECE_GAME),
+      ])
+    );
+  }
+
   const timer = startPerformanceTimer("movers.sealed", { itemScope, game });
   const productWhere =
     itemScope === "collection"

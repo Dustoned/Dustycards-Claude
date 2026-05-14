@@ -2,9 +2,9 @@ import { notFound } from "next/navigation";
 import { getCardCategoryPageData } from "@/lib/card-categories";
 import {
   GAME_SEARCH_PARAM,
-  getGameSearchParamValue,
+  getGameFilterSearchParamValue,
   ONE_PIECE_GAME,
-  parseVisibleTradingCardGame,
+  parseVisibleGameFilter,
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
@@ -27,24 +27,25 @@ export default async function CategoryDetailPage({
       : `/categories/${slug}`
   );
   const settings = await getServerUserSettings(user.id);
-  const activeGame = parseVisibleTradingCardGame(gameParam, {
+  const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const gameValue = getGameSearchParamValue(activeGame);
-  const gameQuery = gameValue ? `?${GAME_SEARCH_PARAM}=${gameValue}` : "";
   const data = await getCardCategoryPageData(slug, user.id, activeGame);
 
   if (!data) {
     notFound();
   }
 
+  const backGameValue = getGameFilterSearchParamValue(activeGame);
+  const backGameQuery = backGameValue ? `?${GAME_SEARCH_PARAM}=${backGameValue}` : "";
+
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <CategoryDetailClient
         category={data.category}
-        backHref={`/categories${gameQuery}`}
-        setsHref={activeGame === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions"}
-        eyebrow={activeGame === ONE_PIECE_GAME ? "One Piece Category" : "Category"}
+        backHref={`/categories${backGameQuery}`}
+        setsHref={data.game === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions"}
+        eyebrow={data.game === ONE_PIECE_GAME ? "One Piece Category" : "Category"}
         items={data.items}
         priceSnapshots={data.priceSnapshots}
         totalCards={data.totalCards}

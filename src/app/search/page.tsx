@@ -22,13 +22,14 @@ import {
 } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
 import {
+  GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
   getExpansionHref,
-  getGameSearchParamValue,
-  ONE_PIECE_GAME,
-  POKEMON_GAME,
-  parseVisibleTradingCardGame,
+  getGameFilterLabel,
+  getGameFilterSearchParamValue,
+  parseVisibleGameFilter,
   type TradingCardGame,
+  type TradingCardGameFilter,
 } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { ModalCardData } from "@/components/card-modal/types";
@@ -82,7 +83,7 @@ interface SearchResults {
   expansions: ExpansionResult[];
   total: number;
   fuzzy?: boolean;
-  game?: TradingCardGame;
+  game?: TradingCardGameFilter;
   autoSwitchedFrom?: TradingCardGame;
 }
 
@@ -147,7 +148,7 @@ function SearchPageContent({
   const abortRef = useRef<AbortController | null>(null);
   const resultsCacheRef = useRef(new Map<string, SearchResults>());
   const trimmedQuery = initialQuery.trim();
-  const activeGame = parseVisibleTradingCardGame(initialGameParam, {
+  const activeGame = parseVisibleGameFilter(initialGameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const allowAutoSwitch = initialAutoSwitchParam !== "0";
@@ -155,12 +156,12 @@ function SearchPageContent({
     settings.onePieceLibraryEnabled && results?.game ? results.game : activeGame;
   const searchCacheKey = `${activeGame}:${allowAutoSwitch ? "auto" : "manual"}:${trimmedQuery}`;
 
-  function buildGameHref(game: TradingCardGame) {
+  function buildGameHref(game: TradingCardGameFilter) {
     const params = new URLSearchParams();
     if (trimmedQuery) {
       params.set("q", trimmedQuery);
     }
-    const gameValue = getGameSearchParamValue(game);
+    const gameValue = getGameFilterSearchParamValue(game);
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
     }
@@ -200,7 +201,7 @@ function SearchPageContent({
       void (async () => {
         try {
           const params = new URLSearchParams({ q: trimmedQuery });
-          const gameValue = getGameSearchParamValue(activeGame);
+          const gameValue = getGameFilterSearchParamValue(activeGame);
           if (gameValue) {
             params.set(GAME_SEARCH_PARAM, gameValue);
           }
@@ -233,7 +234,7 @@ function SearchPageContent({
 
             if (data.autoSwitchedFrom === activeGame && resultGame !== activeGame) {
               const nextParams = new URLSearchParams({ q: trimmedQuery });
-              const gameValue = getGameSearchParamValue(resultGame);
+              const gameValue = getGameFilterSearchParamValue(resultGame);
               if (gameValue) {
                 nextParams.set(GAME_SEARCH_PARAM, gameValue);
               }
@@ -359,16 +360,14 @@ function SearchPageContent({
       {settings.onePieceLibraryEnabled ? (
         <div className="mb-4 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
           <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-            <GameToggleLink
-              href={buildGameHref(POKEMON_GAME)}
-              active={displayGame === POKEMON_GAME}
-              label="Pokemon"
-            />
-            <GameToggleLink
-              href={buildGameHref(ONE_PIECE_GAME)}
-              active={displayGame === ONE_PIECE_GAME}
-              label="One Piece"
-            />
+            {GAME_FILTER_OPTIONS.map((game) => (
+              <GameToggleLink
+                key={game}
+                href={buildGameHref(game)}
+                active={displayGame === game}
+                label={getGameFilterLabel(game)}
+              />
+            ))}
           </div>
         </div>
       ) : null}

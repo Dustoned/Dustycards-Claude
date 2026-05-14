@@ -11,7 +11,7 @@ import {
 } from "@/lib/collection-data";
 import { getSealedMovers, type SealedMoversData } from "@/lib/sealed-movers";
 import { getServerUserSettings } from "@/lib/user-settings-server";
-import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
+import { POKEMON_GAME, type TradingCardGameFilter } from "@/lib/games";
 import {
   buildMoversSourceHref,
   type MoversPageScope,
@@ -50,7 +50,7 @@ function getCachedMovers(
   activeScope: MoversScope,
   activeItemScope: MoversItemScope,
   userId: string,
-  game: TradingCardGame
+  game: TradingCardGameFilter
 ): Promise<CollectionMoversData | SealedMoversData> {
   const key = `${userId}:${game}:${activePriceSource}:${activeScope}:${activeItemScope}`;
   const now = Date.now();
@@ -80,7 +80,7 @@ function getCachedMovers(
 function getCachedValueDrivers(
   userId: string,
   scope: CollectionValueDriversScope,
-  game: TradingCardGame
+  game: TradingCardGameFilter
 ): Promise<CollectionValueDriversData> {
   const key = `${userId}:${game}:value-drivers:${scope}`;
   const now = Date.now();
@@ -109,7 +109,7 @@ export async function loadMoversPageData(
   scopeOverride?: string | null,
   itemScopeOverride?: string | null,
   userId?: string | null,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGameFilter = POKEMON_GAME
 ) {
   if (!userId) {
     throw new Error("loadMoversPageData requires a user id.");

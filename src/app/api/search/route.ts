@@ -10,11 +10,13 @@ import {
   REDUNDANT_SUBSET_PATTERNS,
 } from "@/lib/episodes";
 import {
+  ALL_GAMES,
   GAME_SEARCH_PARAM,
   ONE_PIECE_GAME,
   POKEMON_GAME,
-  parseVisibleTradingCardGame,
+  parseVisibleGameFilter,
   type TradingCardGame,
+  type TradingCardGameFilter,
 } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
@@ -1281,6 +1283,15 @@ async function runDirectSearch(
 }
 
 type DirectSearchResults = Awaited<ReturnType<typeof runDirectSearch>>;
+type SearchResponsePayload = {
+  singles: DirectSearchResults["singles"];
+  sealed: DirectSearchResults["sealed"];
+  expansions: DirectSearchResults["expansions"];
+  total: number;
+  fuzzy: boolean;
+  parsed: ParsedQuery;
+  game: TradingCardGameFilter;
+};
 
 function toDirectSearchResponse(results: DirectSearchResults) {
   return {
@@ -1294,6 +1305,64 @@ function toDirectSearchResponse(results: DirectSearchResults) {
   };
 }
 
+async function runSearchForGame(
+  q: string,
+  game: TradingCardGame
+): Promise<SearchResponsePayload & { exactOnePieceReferenceSearch?: boolean }> {
+  const itemEpisodeWhere = buildVisibleEpisodeWhere(game, { includeGame: false });
+  const directResults = await runDirectSearch(q, game, itemEpisodeWhere);
+
+  if (directResults.total === 0 && !directResults.exactOnePieceReferenceSearch) {
+    const fuzzyResults = await runFuzzyFallback(
+      q,
+      directResults.parsed,
+      game,
+      itemEpisodeWhere,
+      buildVisibleEpisodeWhere(game)
+    );
+
+    return {
+      ...fuzzyResults,
+      parsed: directResults.parsed,
+      game,
+    };
+  }
+
+  return {
+    ...toDirectSearchResponse(directResults),
+    exactOnePieceReferenceSearch: directResults.exactOnePieceReferenceSearch,
+  };
+}
+
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const unique: T[] = [];
+
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+
+  return unique;
+}
+
+function mergeSearchResponses(results: SearchResponsePayload[]): SearchResponsePayload {
+  const singles = uniqueById(results.flatMap((result) => result.singles));
+  const sealed = uniqueById(results.flatMap((result) => result.sealed));
+  const expansions = uniqueById(results.flatMap((result) => result.expansions));
+
+  return {
+    singles,
+    sealed,
+    expansions,
+    total: singles.length + sealed.length + expansions.length,
+    fuzzy: results.some((result) => result.fuzzy),
+    parsed: results[0]?.parsed ?? parseSearchQuery("", POKEMON_GAME),
+    game: ALL_GAMES,
+  };
+}
+
 export async function GET(req: NextRequest) {
   let user: Awaited<ReturnType<typeof requireUser>>;
   try {
@@ -1304,11 +1373,10 @@ export async function GET(req: NextRequest) {
 
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   const settings = await getServerUserSettings(user.id);
-  const activeGame = parseVisibleTradingCardGame(req.nextUrl.searchParams.get(GAME_SEARCH_PARAM), {
+  const activeGame = parseVisibleGameFilter(req.nextUrl.searchParams.get(GAME_SEARCH_PARAM), {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const allowAutoSwitch = req.nextUrl.searchParams.get(AUTO_SWITCH_SEARCH_PARAM) !== "0";
-  const itemEpisodeWhere = buildVisibleEpisodeWhere(activeGame, { includeGame: false });
 
   if (q.length === 0) {
     return NextResponse.json({ singles: [], sealed: [], expansions: [], total: 0 });
@@ -1322,6 +1390,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    if (activeGame === ALL_GAMES) {
+      const results = await Promise.all([
+        runSearchForGame(q, POKEMON_GAME),
+        runSearchForGame(q, ONE_PIECE_GAME),
+      ]);
+
+      return NextResponse.json(mergeSearchResponses(results));
+    }
+
+    const itemEpisodeWhere = buildVisibleEpisodeWhere(activeGame, { includeGame: false });
     const directResults = await runDirectSearch(q, activeGame, itemEpisodeWhere);
     const autoSwitchGame = allowAutoSwitch
       ? getAutoSwitchGame(activeGame, settings.onePieceLibraryEnabled)

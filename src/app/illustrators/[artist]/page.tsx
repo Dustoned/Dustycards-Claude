@@ -3,10 +3,10 @@ import { db } from "@/lib/db";
 import { buildVisibleEpisodeWhereSql } from "@/lib/illustrators";
 import {
   GAME_SEARCH_PARAM,
-  getGameSearchParamValue,
+  getGameFilterSearchParamValue,
   ONE_PIECE_GAME,
-  parseVisibleTradingCardGame,
-  type TradingCardGame,
+  parseVisibleGameFilter,
+  type TradingCardGameFilter,
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
@@ -63,7 +63,7 @@ function toIsoString(value: Date | string | null | undefined): string | null {
 
 async function getIllustratorCards(
   artist: string,
-  game: TradingCardGame
+  game: TradingCardGameFilter
 ): Promise<IllustratorCardRow[]> {
   const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e", game);
 
@@ -141,7 +141,7 @@ ${visibleEpisodeWhereSql}
 
 async function getIllustratorPriceSnapshots(
   artist: string,
-  game: TradingCardGame
+  game: TradingCardGameFilter
 ): Promise<IllustratorPriceSnapshotRow[]> {
   const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e", game);
 
@@ -199,10 +199,10 @@ export default async function IllustratorPage({
       : `/illustrators/${artist}`
   );
   const settings = await getServerUserSettings(user.id);
-  const activeGame = parseVisibleTradingCardGame(gameParam, {
+  const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const gameQuery = getGameSearchParamValue(activeGame);
+  const gameQuery = getGameFilterSearchParamValue(activeGame);
   const resolvedArtist = (() => {
     try {
       return decodeURIComponent(artist);
