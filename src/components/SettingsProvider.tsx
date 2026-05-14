@@ -62,6 +62,22 @@ function load(): UserSettings {
   return parseStoredSettings(localStorage.getItem(SETTINGS_STORAGE_KEY)) ?? DEFAULT_SETTINGS;
 }
 
+function loadBrowserSettings(): UserSettings | null {
+  if (typeof window === "undefined") return null;
+
+  const preloaded = (window as Window & { __dustycardsSettings?: Partial<UserSettings> })
+    .__dustycardsSettings;
+  if (preloaded) {
+    return mergeSettings(preloaded);
+  }
+
+  return parseStoredSettings(localStorage.getItem(SETTINGS_STORAGE_KEY));
+}
+
+function getInitialSettings(initialSettings?: UserSettings | null): UserSettings {
+  return loadBrowserSettings() ?? initialSettings ?? DEFAULT_SETTINGS;
+}
+
 function saveToBrowser(s: UserSettings) {
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   localStorage.setItem(SETTINGS_STORAGE_KEY, serializeSettings(s));
@@ -144,14 +160,14 @@ export default function SettingsProvider({
   syncToAccount?: boolean;
   currentUserRole?: "admin" | "user" | null;
 }) {
-  const [settings, setSettings] = useState<UserSettings>(initialSettings ?? DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<UserSettings>(() => getInitialSettings(initialSettings));
   const [isLoaded, setIsLoaded] = useState(Boolean(initialSettings));
   const [isMobileViewport, setIsMobileViewport] = useState(initialMobileViewport);
   const didSyncInitialSettingsRef = useRef(false);
   const displaySettings = getDisplaySettings(settings, isMobileViewport);
 
   useEffect(() => {
-    const s = mergeSettings(initialSettings ?? load());
+    const s = mergeSettings(loadBrowserSettings() ?? initialSettings ?? load());
     const initial = initialSettings ?? DEFAULT_SETTINGS;
     const nextRaw = JSON.stringify(s);
     const initialRaw = JSON.stringify(initial);

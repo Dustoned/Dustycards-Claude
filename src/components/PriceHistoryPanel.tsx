@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { usePathname } from "next/navigation";
 import { formatCurrency, type CurrencyCode } from "@/lib/format";
@@ -47,6 +56,7 @@ const CHART_PADDING_Y = 10;
 const DEFAULT_RANGE_KEY: RangeKey = "3M";
 const RANGE_STORAGE_PREFIX = "dustycards:price-history-range";
 const RANGE_STORAGE_EVENT = "dustycards:price-history-range-change";
+const rangeMemoryFallback = new Map<string, RangeKey>();
 const RANGE_PRESETS: Array<{
   key: RangeKey;
   label: string;
@@ -90,24 +100,31 @@ function readStoredRange(storageKey: string | null): RangeKey | null {
 
   try {
     const stored = window.localStorage.getItem(storageKey);
-    return isRangeKey(stored) ? stored : null;
+    return isRangeKey(stored) ? stored : rangeMemoryFallback.get(storageKey) ?? null;
   } catch {
-    return null;
+    return rangeMemoryFallback.get(storageKey) ?? null;
   }
 }
 
 function writeStoredRange(storageKey: string | null, range: RangeKey) {
   if (!storageKey || typeof window === "undefined") return;
 
+  rangeMemoryFallback.set(storageKey, range);
+
   try {
     window.localStorage.setItem(storageKey, range);
+  } catch {
+    // Browser storage can be blocked; the in-memory selection still works.
+  }
+
+  try {
     window.dispatchEvent(
       new CustomEvent(RANGE_STORAGE_EVENT, {
         detail: { storageKey, range },
       })
     );
   } catch {
-    // Browser storage can be blocked; the in-memory selection still works.
+    // Older browsers can fail on CustomEvent construction, but storage already updated.
   }
 }
 
@@ -303,7 +320,6 @@ export default function PriceHistoryPanel({
   const chartId = useId().replace(/:/g, "");
   const chartFrameRef = useRef<HTMLDivElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number | null>(null);
-  const [selectedRange, setSelectedRange] = useState<RangeKey>(DEFAULT_RANGE_KEY);
   const [activeHover, setActiveHover] = useState<{
     index: number;
     pointerX: number;
@@ -319,46 +335,46 @@ export default function PriceHistoryPanel({
     [currency, pathname, rangeStorageKey, title]
   );
 
-  useEffect(() => {
-    const storedRange = readStoredRange(effectiveRangeStorageKey);
-    let cancelled = false;
+  const subscribeSelectedRange = useCallback(
+    (onStoreChange: () => void) => {
+      if (!effectiveRangeStorageKey || typeof window === "undefined") return () => {};
 
-    window.queueMicrotask(() => {
-      if (cancelled) return;
+      const handleRangeChange = (event: Event) => {
+        const detail = (event as CustomEvent<{ storageKey?: string; range?: unknown }>).detail;
+        if (detail?.storageKey !== effectiveRangeStorageKey || !isRangeKey(detail.range)) return;
 
-      setSelectedRange(storedRange ?? DEFAULT_RANGE_KEY);
-      setActiveHover(null);
-    });
+        setActiveHover(null);
+        onStoreChange();
+      };
+      const handleStorage = (event: StorageEvent) => {
+        if (event.key !== effectiveRangeStorageKey || !isRangeKey(event.newValue)) return;
 
-    return () => {
-      cancelled = true;
-    };
-  }, [effectiveRangeStorageKey]);
+        rangeMemoryFallback.set(effectiveRangeStorageKey, event.newValue);
+        setActiveHover(null);
+        onStoreChange();
+      };
 
-  useEffect(() => {
-    if (!effectiveRangeStorageKey || typeof window === "undefined") return;
-
-    const handleRangeChange = (event: Event) => {
-      const detail = (event as CustomEvent<{ storageKey?: string; range?: unknown }>).detail;
-      if (detail?.storageKey !== effectiveRangeStorageKey || !isRangeKey(detail.range)) return;
-
-      setSelectedRange(detail.range);
-      setActiveHover(null);
-    };
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key !== effectiveRangeStorageKey || !isRangeKey(event.newValue)) return;
-
-      setSelectedRange(event.newValue);
-      setActiveHover(null);
-    };
-
-    window.addEventListener(RANGE_STORAGE_EVENT, handleRangeChange);
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      window.removeEventListener(RANGE_STORAGE_EVENT, handleRangeChange);
-      window.removeEventListener("storage", handleStorage);
-    };
-  }, [effectiveRangeStorageKey]);
+      window.addEventListener(RANGE_STORAGE_EVENT, handleRangeChange);
+      window.addEventListener("storage", handleStorage);
+      return () => {
+        window.removeEventListener(RANGE_STORAGE_EVENT, handleRangeChange);
+        window.removeEventListener("storage", handleStorage);
+      };
+    },
+    [effectiveRangeStorageKey]
+  );
+  const getSelectedRangeSnapshot = useCallback(
+    () => readStoredRange(effectiveRangeStorageKey) ?? DEFAULT_RANGE_KEY,
+    [effectiveRangeStorageKey]
+  );
+  const getSelectedRangeServerSnapshot = useCallback((): RangeKey | null => null, []);
+  const selectedRangeSnapshot = useSyncExternalStore(
+    subscribeSelectedRange,
+    getSelectedRangeSnapshot,
+    getSelectedRangeServerSnapshot
+  );
+  const rangeResolved = selectedRangeSnapshot != null;
+  const selectedRange = selectedRangeSnapshot ?? DEFAULT_RANGE_KEY;
 
   const parsedPoints = points.map((point) => ({
     ...point,
@@ -500,6 +516,7 @@ export default function PriceHistoryPanel({
     : isHeroLayout
       ? "min-h-[var(--ui-chip-min-height)] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)]"
       : "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)]";
+  const panelClass = `${shellClass} ${rangeResolved ? "" : "pointer-events-none opacity-0"}`;
 
   function updateHoverState(event: ReactPointerEvent<SVGSVGElement>) {
     const pointerX = getPointerChartX(event, measuredChartWidth);
@@ -511,12 +528,11 @@ export default function PriceHistoryPanel({
 
   function selectRange(range: RangeKey) {
     setActiveHover(null);
-    setSelectedRange(range);
     writeStoredRange(effectiveRangeStorageKey, range);
   }
 
   return (
-    <section className={shellClass}>
+    <section className={panelClass}>
       <div
         className={
           isHeroLayout

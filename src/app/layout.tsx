@@ -10,7 +10,10 @@ import SettingsProvider from "@/components/SettingsProvider";
 import { getCurrentUser } from "@/lib/auth";
 import {
   parseResolvedThemeCookie,
+  SETTINGS_COOKIE_MAX_AGE,
+  SETTINGS_COOKIE_NAME,
   SETTINGS_RESOLVED_THEME_COOKIE_NAME,
+  SETTINGS_STORAGE_KEY,
 } from "@/lib/user-settings";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import "./globals.css";
@@ -55,21 +58,36 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const initialTheme = initialSettings?.theme ?? "system";
   const serverDark =
     initialTheme === "dark" || (initialTheme === "system" && resolvedTheme === "dark");
-  const initialDisplaySettingsScript = `
+  const initialBrowserSettingsScript = `
     (function () {
       try {
-        var settings = ${JSON.stringify({
-          widescreen: initialSettings?.widescreen ?? false,
-          uiScale: initialSettings?.uiScale ?? "medium",
-          mobileUiScale: initialSettings?.mobileUiScale ?? "small",
-        }).replace(/</g, "\\u003c")};
+        var fallbackSettings = ${JSON.stringify(initialSettings).replace(/</g, "\\u003c")};
+        var settings = fallbackSettings;
+        try {
+          var raw = window.localStorage && window.localStorage.getItem("${SETTINGS_STORAGE_KEY}");
+          var stored = raw ? JSON.parse(raw) : null;
+          if (stored && typeof stored === "object") {
+            settings = Object.assign({}, fallbackSettings, stored);
+          }
+        } catch (storageError) {}
+
+        var theme = ["light", "dark", "system"].indexOf(settings.theme) >= 0
+          ? settings.theme
+          : "system";
+        var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        var dark = theme === "dark" || (theme === "system" && prefersDark);
         var phone = window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
         var rawUi = phone ? settings.mobileUiScale : settings.uiScale;
         var ui = ["small", "medium", "large"].indexOf(rawUi) >= 0 ? rawUi : (phone ? "small" : "medium");
+        window.__dustycardsSettings = settings;
+        document.documentElement.dataset.theme = theme;
         document.documentElement.dataset.uiScale = ui;
         document.documentElement.classList.remove("ui-scale-small", "ui-scale-medium", "ui-scale-large");
         document.documentElement.classList.add("ui-scale-" + ui);
+        document.documentElement.classList.toggle("dark", dark);
         document.documentElement.classList.toggle("widescreen", !phone && !!settings.widescreen);
+        document.cookie = "${SETTINGS_COOKIE_NAME}=" + encodeURIComponent(JSON.stringify(settings)) + "; Path=/; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; SameSite=Lax";
+        document.cookie = "${SETTINGS_RESOLVED_THEME_COOKIE_NAME}=" + (dark ? "dark" : "light") + "; Path=/; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; SameSite=Lax";
       } catch (error) {}
     })();
   `;
@@ -133,7 +151,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: initialDisplaySettingsScript }} />
+        <script dangerouslySetInnerHTML={{ __html: initialBrowserSettingsScript }} />
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
       </head>
       <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
