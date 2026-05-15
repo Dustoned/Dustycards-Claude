@@ -30,7 +30,7 @@ export default function SyncStatusSection({
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryTile title="Current" entry={activeSync} emptyLabel="Idle right now." />
+        <SummaryTile title="Current" entry={activeSync} emptyLabel="No sync running right now." />
         <SummaryTile
           title="Last Success"
           entry={lastSuccessfulSync}

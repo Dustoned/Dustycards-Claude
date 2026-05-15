@@ -180,11 +180,23 @@ export function AutoRefreshCard({
     activeDetails?.remainingDueCards ?? Math.max(dueCards - batchCards, 0);
   const currentSummary = compactMessage(active?.message ?? null, 220);
   const lastSuccessSummary = compactMessage(lastSuccess?.message ?? null, 220);
+  const hasPendingWork = dueCards > 0 || missingPriceCards > 0 || nextBatchCards > 0;
   const activeStatus = active
     ? visualStatus(active)
     : quotaPaused || scraperDisabled
       ? "paused"
+      : hasPendingWork
+        ? "waiting"
       : "success";
+  const statusLabel = isRunning
+    ? humanStatus(activeStatus)
+    : scraperDisabled
+      ? "Scraper disabled"
+      : quotaPaused
+        ? "Paused at quota"
+        : hasPendingWork
+          ? "Waiting"
+          : "Up to date";
 
   return (
     <div className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
@@ -194,13 +206,7 @@ export function AutoRefreshCard({
             activeStatus
           )}`}
         >
-          {isRunning
-            ? humanStatus(activeStatus)
-            : scraperDisabled
-              ? "Scraper disabled"
-              : quotaPaused
-                ? "Paused at quota"
-                : "Idle"}
+          {statusLabel}
         </span>
         <span className="text-sm font-semibold text-gray-900 dark:text-white">
           Background Price Refresh
@@ -336,6 +342,11 @@ export function AutoRefreshCard({
       {scraperDisabled && !active && (
         <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
           Scraper requests are disabled in this environment, so background refresh will stay paused.
+        </p>
+      )}
+      {hasPendingWork && !active && !quotaPaused && !scraperDisabled && (
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
+          A batch is ready and waiting for the next background refresh window.
         </p>
       )}
       {nextBatchSetLabels.length > 0 && (

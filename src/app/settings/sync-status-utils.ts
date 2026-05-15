@@ -114,6 +114,8 @@ export function statusBadge(status: string): string {
       return "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
     case "cancelled":
       return "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300";
+    case "waiting":
+      return "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
     case "paused":
       return "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
     case "failed":
@@ -133,6 +135,8 @@ export function humanStatus(status: string): string {
       return "Success";
     case "cancelled":
       return "Cancelled";
+    case "waiting":
+      return "Waiting";
     case "paused":
       return "Paused";
     case "failed":
