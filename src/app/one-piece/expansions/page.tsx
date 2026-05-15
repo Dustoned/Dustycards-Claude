@@ -12,12 +12,7 @@ import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
-import {
-  GAME_SEARCH_PARAM,
-  getExpansionHref,
-  ONE_PIECE_GAME,
-  POKEMON_GAME,
-} from "@/lib/games";
+import { getExpansionHref, ONE_PIECE_GAME } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
 import { requirePageUser } from "@/lib/page-auth";
@@ -187,12 +182,7 @@ export default async function OnePieceExpansionsPage() {
 
       <div className="mb-6 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
         <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-          <GameToggleLink href="/expansions" active={false} label="All" />
-          <GameToggleLink
-            href={`/expansions?${GAME_SEARCH_PARAM}=${POKEMON_GAME}`}
-            active={false}
-            label="Pokemon"
-          />
+          <GameToggleLink href="/expansions" active={false} label="Pokemon" />
           <GameToggleLink href="/one-piece/expansions" active label="One Piece" />
         </div>
       </div>

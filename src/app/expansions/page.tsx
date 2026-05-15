@@ -9,18 +9,7 @@ import {
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
-import {
-  ALL_GAMES,
-  GAME_FILTER_OPTIONS,
-  GAME_SEARCH_PARAM,
-  getExpansionHref,
-  getGameFilterLabel,
-  getGameFilterSearchParamValue,
-  ONE_PIECE_GAME,
-  POKEMON_GAME,
-  parseVisibleGameFilter,
-  type TradingCardGameFilter,
-} from "@/lib/games";
+import { getExpansionHref, POKEMON_GAME } from "@/lib/games";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -147,38 +136,13 @@ function GameToggleLink({
   );
 }
 
-function buildGameHref(game: TradingCardGameFilter) {
-  if (game === ONE_PIECE_GAME) return "/one-piece/expansions";
-
-  const params = new URLSearchParams();
-  const gameValue = getGameFilterSearchParamValue(game);
-  if (gameValue) {
-    params.set(GAME_SEARCH_PARAM, gameValue);
-  }
-  const query = params.toString();
-  return query ? `/expansions?${query}` : "/expansions";
-}
-
-export default async function ExpansionsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ game?: string }>;
-}) {
-  const { game: gameParam } = await searchParams;
-  const user = await requirePageUser(
-    gameParam ? `/expansions?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameParam)}` : "/expansions"
-  );
+export default async function ExpansionsPage() {
+  const user = await requirePageUser("/expansions");
   const settings = await getServerUserSettings(user.id);
-  const activeGame = parseVisibleGameFilter(gameParam, {
-    onePieceEnabled: settings.onePieceLibraryEnabled,
-  });
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
 
   const episodes = await db.episode.findMany({
-    where:
-      activeGame === ALL_GAMES
-        ? { game: { in: [POKEMON_GAME, ONE_PIECE_GAME] } }
-        : { game: activeGame },
+    where: { game: POKEMON_GAME },
     orderBy: [{ release_date: "desc" }, { name: "asc" }],
     include: { _count: { select: { cards: true } } },
   });
@@ -188,8 +152,7 @@ export default async function ExpansionsPage({
   const deduped = [
     ...episodes
       .reduce((map, episode) => {
-        const dedupeKey =
-          activeGame === ALL_GAMES ? `${episode.game}:${episode.name}` : episode.name;
+        const dedupeKey = episode.name;
         const existing = map.get(dedupeKey);
         if (!existing) {
           map.set(dedupeKey, episode);
@@ -227,10 +190,7 @@ export default async function ExpansionsPage({
   const now = new Date();
   const grouped = new Map<string, typeof episodes>();
   for (const episode of withCards) {
-    const era =
-      episode.game === ONE_PIECE_GAME
-        ? "One Piece"
-        : getEra(episode.name, episode.series, episode.release_date);
+    const era = getEra(episode.name, episode.series, episode.release_date);
     const group = isFutureReleaseDate(episode.release_date, now)
       ? UPCOMING_RELEASE_GROUP
       : era;
@@ -242,8 +202,6 @@ export default async function ExpansionsPage({
     .sort(([a], [b]) => {
       if (a === UPCOMING_RELEASE_GROUP) return -1;
       if (b === UPCOMING_RELEASE_GROUP) return 1;
-      if (a === "One Piece") return 1;
-      if (b === "One Piece") return -1;
       const aIndex = ERA_ORDER.indexOf(a);
       const bIndex = ERA_ORDER.indexOf(b);
       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
@@ -304,15 +262,9 @@ export default async function ExpansionsPage({
   return (
     <div className="page-container mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
       <PageHeroHeader
-        eyebrow={activeGame === ONE_PIECE_GAME ? "One Piece Library" : activeGame === ALL_GAMES ? "DustyCards Library" : "Dusty Cards Collection"}
-        title={activeGame === ONE_PIECE_GAME ? "One Piece Expansions" : activeGame === ALL_GAMES ? "All Expansions" : "Expansions"}
-        description={
-          activeGame === ONE_PIECE_GAME
-            ? "Browse One Piece sets from TCGGO. Upcoming and newest sets stay at the top, with older releases below."
-            : activeGame === ALL_GAMES
-            ? "Browse Pokemon and One Piece sets together, or split them with the game switch below."
-            : "Browse released sets and upcoming sets. Upcoming sets stay empty until release; cards and prices appear after the next sync."
-        }
+        eyebrow="Dusty Cards Collection"
+        title="Expansions"
+        description="Browse released sets and upcoming sets. Upcoming sets stay empty until release; cards and prices appear after the next sync."
         gridClassName="xl:grid-cols-[minmax(20rem,0.72fr)_minmax(34rem,1.28fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.66fr)_minmax(48rem,1.34fr)]"
         sideClassName="xl:space-y-0"
         className="mb-6 max-[640px]:[--ui-page-header-description-size:0.8rem] sm:mb-8"
@@ -338,14 +290,8 @@ export default async function ExpansionsPage({
       {settings.onePieceLibraryEnabled ? (
         <div className="mb-6 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
           <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-            {GAME_FILTER_OPTIONS.map((game) => (
-              <GameToggleLink
-                key={game}
-                href={buildGameHref(game)}
-                active={activeGame === game}
-                label={getGameFilterLabel(game)}
-              />
-            ))}
+            <GameToggleLink href="/expansions" active label="Pokemon" />
+            <GameToggleLink href="/one-piece/expansions" active={false} label="One Piece" />
           </div>
         </div>
       ) : null}
