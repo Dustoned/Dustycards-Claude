@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { decodeSyncLogDetailsJson, decodeSyncLogMessage } from "@/lib/sync-log-details";
 import { timeAsync } from "@/lib/performance-timing";
 import { areScraperRequestsDisabled, SCRAPER_DISABLED_ENV } from "@/lib/scraper-guard";
-import { ONE_PIECE_GAME } from "@/lib/games";
+import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import {
   countManualCardHistoryCandidates,
   getAutoPriceRefreshSnapshot,
@@ -154,6 +154,8 @@ export default async function SettingsPage() {
     onePieceAutoRefreshSnapshot,
     tcggoUsageSnapshot,
     pendingCardHistoryCards,
+    pendingPokemonCardHistoryCards,
+    pendingOnePieceCardHistoryCards,
     pullRateSetCount,
     pullRateRarityRowCount,
     latestPullRateProfile,
@@ -217,6 +219,8 @@ export default async function SettingsPage() {
     getAutoPriceRefreshSnapshot({ game: ONE_PIECE_GAME }),
     getTcggoUsageSnapshot(),
     countManualCardHistoryCandidates(),
+    countManualCardHistoryCandidates({ game: POKEMON_GAME }),
+    countManualCardHistoryCandidates({ game: ONE_PIECE_GAME }),
     db.setPullRateProfile.count({
       where: { rarity_buckets: { gt: 0 } },
     }),
@@ -427,6 +431,10 @@ export default async function SettingsPage() {
               observedLabel: formatDateTime(tcggoUsageSnapshot.observedAt),
             }}
             pendingCardHistoryCards={pendingCardHistoryCards}
+            pendingCardHistoryByGame={{
+              pokemon: pendingPokemonCardHistoryCards,
+              onePiece: pendingOnePieceCardHistoryCards,
+            }}
             knownUnavailableCards={autoRefreshSnapshot.unavailableCooldownCards}
             activeScraperLabel={activeScraperLabel}
             scraperDisabled={scraperDisabled}

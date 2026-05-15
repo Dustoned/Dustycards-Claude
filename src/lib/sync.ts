@@ -1927,29 +1927,30 @@ function buildManualCardHistoryExcludedRarityWhere(): Prisma.CardWhereInput {
   };
 }
 
-function buildManualCardHistoryCardWhere(): Prisma.CardWhereInput {
+function buildManualCardHistoryCardWhere(options?: {
+  game?: TradingCardGame;
+}): Prisma.CardWhereInput {
   const retryBefore = new Date(Date.now() - NATIVE_HISTORY_UNAVAILABLE_RETRY_MS);
 
   return {
     native_history_synced_at: null,
+    tcggo_url: { not: null },
+    ...(options?.game ? { game: options.game } : {}),
     AND: [
       {
         NOT: buildManualCardHistoryExcludedRarityWhere(),
       },
       buildNativeHistoryRetryWindowWhere(retryBefore),
     ],
-    OR: [
-      { prices: { some: {} } },
-      { cardmarket_id: { not: null } },
-      { tcgplayer_id: { not: null } },
-    ],
   };
 }
 
-export async function countManualCardHistoryCandidates(): Promise<number> {
+export async function countManualCardHistoryCandidates(options?: {
+  game?: TradingCardGame;
+}): Promise<number> {
   return timeAsync("sync.card-history-candidates.count", () =>
     db.card.count({
-      where: buildManualCardHistoryCardWhere(),
+      where: buildManualCardHistoryCardWhere(options),
     })
   );
 }

@@ -255,6 +255,10 @@ interface AutomationSectionProps {
     observedLabel: string | null;
   };
   pendingCardHistoryCards: number;
+  pendingCardHistoryByGame: {
+    pokemon: number;
+    onePiece: number;
+  };
   knownUnavailableCards: number;
   activeScraperLabel: string | null;
   scraperDisabled: boolean;
@@ -288,6 +292,7 @@ function UsageStat({
 export default function AutomationSection({
   scraperUsage,
   pendingCardHistoryCards,
+  pendingCardHistoryByGame,
   knownUnavailableCards,
   activeScraperLabel,
   scraperDisabled,
@@ -369,14 +374,19 @@ export default function AutomationSection({
           <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-white">Card history import</p>
             <p className="mt-0.5 text-xs text-gray-400">
-              Import full TCGGO history for eligible cards. Common and Uncommon stay base-price only.
+              Import full TCGGO history for cards with a TCGGO source. Common and Uncommon stay base-price only.
             </p>
             <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-              Pending eligible expansion cards:{" "}
+              Pending native history cards:{" "}
               <span className="font-semibold text-gray-900 dark:text-white">
                 {pendingCardHistoryCards}
               </span>
             </p>
+            <div className="mt-3 grid max-w-md grid-cols-3 gap-2">
+              <UsageStat label="Total" value={pendingCardHistoryCards} />
+              <UsageStat label="Pokemon" value={pendingCardHistoryByGame.pokemon} />
+              <UsageStat label="One Piece" value={pendingCardHistoryByGame.onePiece} />
+            </div>
           </div>
           <SyncCardHistoryButton
             pendingCards={pendingCardHistoryCards}
