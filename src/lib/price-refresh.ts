@@ -30,21 +30,21 @@ const PRICE_REFRESH_POLICIES: Record<PriceRefreshTier, PriceRefreshPolicy> = {
   low: {
     tier: "low",
     tierLabel: "Low refresh",
-    cadenceLabel: "Every 24h",
+    cadenceLabel: "Fixed daily window",
     intervalMs: 24 * HOUR_MS,
     autoRefreshEnabled: true,
   },
   medium: {
     tier: "medium",
     tierLabel: "Medium refresh",
-    cadenceLabel: "Every 24h",
+    cadenceLabel: "Fixed daily window",
     intervalMs: 24 * HOUR_MS,
     autoRefreshEnabled: true,
   },
   high: {
     tier: "high",
     tierLabel: "High refresh",
-    cadenceLabel: "Every 12h",
+    cadenceLabel: "Fixed 12h windows",
     intervalMs: 12 * HOUR_MS,
     autoRefreshEnabled: true,
   },
@@ -52,6 +52,7 @@ const PRICE_REFRESH_POLICIES: Record<PriceRefreshTier, PriceRefreshPolicy> = {
 
 const BASE_PRICE_ONLY_RARITIES = new Set(["Common", "Uncommon"]);
 const MEDIUM_REFRESH_RARITIES = new Set(["Rare"]);
+const FIXED_REFRESH_BATCH_GRACE_MS = 2 * HOUR_MS;
 
 export function formatPriceRefreshedAt(value: string | null): string | null {
   if (!value) return null;
@@ -78,6 +79,21 @@ export function getPriceRefreshTier(rarity: string | null | undefined): PriceRef
 
 export function getPriceRefreshPolicy(rarity: string | null | undefined): PriceRefreshPolicy {
   return PRICE_REFRESH_POLICIES[getPriceRefreshTier(rarity)];
+}
+
+function getFixedRefreshWindowStart(timestamp: number, intervalMs: number): number {
+  return Math.floor(timestamp / intervalMs) * intervalMs;
+}
+
+export function getNextFixedRefreshAt(fetchedAt: number, intervalMs: number): number {
+  const windowStart = getFixedRefreshWindowStart(fetchedAt, intervalMs);
+
+  if (fetchedAt - windowStart <= FIXED_REFRESH_BATCH_GRACE_MS) {
+    return windowStart + intervalMs;
+  }
+
+  const earliestRefreshAt = fetchedAt + intervalMs;
+  return Math.ceil(earliestRefreshAt / intervalMs) * intervalMs;
 }
 
 export function getPriceRefreshInfo(
@@ -118,7 +134,7 @@ export function getPriceRefreshInfo(
     };
   }
 
-  const nextRefreshAt = fetchedAt + policy.intervalMs;
+  const nextRefreshAt = getNextFixedRefreshAt(fetchedAt, policy.intervalMs);
   const remainingMs = Math.max(0, nextRefreshAt - now);
 
   return {

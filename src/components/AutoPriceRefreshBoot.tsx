@@ -13,14 +13,34 @@ import {
 } from "@/lib/auto-price-refresh-client";
 import { useSettings } from "@/components/SettingsProvider";
 
-const AUTO_PRICE_REFRESH_POLL_MS = 30_000;
 const AUTO_PRICE_REFRESH_START_DELAY_MS = 3_000;
 const AUTO_PRICE_REFRESH_MIN_TRIGGER_GAP_MS = 25_000;
 const AUTO_PRICE_REFRESH_FORCE_GAP_MS = 5_000;
 const AUTO_PRICE_REFRESH_REFRESH_COOLDOWN_MS = 15_000;
 const AUTO_PRICE_REFRESH_CHAIN_DELAY_MS = 2_000;
 const AUTO_PRICE_REFRESH_TAB_LOCK_RENEW_MS = 30_000;
+const AUTO_PRICE_REFRESH_FIXED_WINDOW_MS = 12 * 60 * 60 * 1000;
+const AUTO_PRICE_REFRESH_WINDOW_GRACE_MS = 2 * 60 * 60 * 1000;
+const AUTO_PRICE_REFRESH_WINDOW_DELAY_MS = 10_000;
 const AUTO_PRICE_REFRESH_STORAGE_KEY = "dustycards-auto-price-refresh-last-trigger";
+
+function getFixedWindowStart(now: number): number {
+  return Math.floor(now / AUTO_PRICE_REFRESH_FIXED_WINDOW_MS) * AUTO_PRICE_REFRESH_FIXED_WINDOW_MS;
+}
+
+function getDelayUntilNextWindowTrigger(now: number, lastWindowStart: number | null): number {
+  const windowStart = getFixedWindowStart(now);
+  const windowAge = now - windowStart;
+
+  if (windowAge <= AUTO_PRICE_REFRESH_WINDOW_GRACE_MS && lastWindowStart !== windowStart) {
+    return AUTO_PRICE_REFRESH_START_DELAY_MS;
+  }
+
+  return Math.max(
+    windowStart + AUTO_PRICE_REFRESH_FIXED_WINDOW_MS + AUTO_PRICE_REFRESH_WINDOW_DELAY_MS - now,
+    AUTO_PRICE_REFRESH_START_DELAY_MS
+  );
+}
 
 function readLastTriggerAt(): number {
   try {
@@ -44,7 +64,9 @@ export default function AutoPriceRefreshBoot() {
   const inFlightRef = useRef(false);
   const lastRouterRefreshAtRef = useRef(0);
   const followUpTimeoutRef = useRef<number | null>(null);
+  const windowTimeoutRef = useRef<number | null>(null);
   const chainedFollowUpsRef = useRef(0);
+  const lastScheduledWindowStartRef = useRef<number | null>(null);
   const tabOwnerIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -59,6 +81,45 @@ export default function AutoPriceRefreshBoot() {
 
       window.clearTimeout(followUpTimeoutRef.current);
       followUpTimeoutRef.current = null;
+    }
+
+    function clearWindowTimer() {
+      if (windowTimeoutRef.current == null) return;
+
+      window.clearTimeout(windowTimeoutRef.current);
+      windowTimeoutRef.current = null;
+    }
+
+    function markAndTriggerCurrentWindow() {
+      const windowStart = getFixedWindowStart(Date.now());
+      lastScheduledWindowStartRef.current = windowStart;
+      void trigger(true);
+    }
+
+    function scheduleNextWindowTrigger() {
+      if (cancelled) return;
+
+      clearWindowTimer();
+      const delay = getDelayUntilNextWindowTrigger(
+        Date.now(),
+        lastScheduledWindowStartRef.current
+      );
+
+      windowTimeoutRef.current = window.setTimeout(() => {
+        windowTimeoutRef.current = null;
+        markAndTriggerCurrentWindow();
+        scheduleNextWindowTrigger();
+      }, delay);
+    }
+
+    function triggerIfInsideCurrentWindow() {
+      const now = Date.now();
+      const windowStart = getFixedWindowStart(now);
+      if (now - windowStart > AUTO_PRICE_REFRESH_WINDOW_GRACE_MS) return;
+      if (lastScheduledWindowStartRef.current === windowStart) return;
+
+      markAndTriggerCurrentWindow();
+      scheduleNextWindowTrigger();
     }
 
     function scheduleFollowUp() {
@@ -180,21 +241,15 @@ export default function AutoPriceRefreshBoot() {
       }
     }
 
-    const initialTimeout = window.setTimeout(() => {
-      void trigger(true);
-    }, AUTO_PRICE_REFRESH_START_DELAY_MS);
-
-    const pollInterval = window.setInterval(() => {
-      void trigger(false);
-    }, AUTO_PRICE_REFRESH_POLL_MS);
+    scheduleNextWindowTrigger();
 
     const handleFocus = () => {
-      void trigger(true);
+      triggerIfInsideCurrentWindow();
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        void trigger(true);
+        triggerIfInsideCurrentWindow();
       }
     };
 
@@ -204,8 +259,7 @@ export default function AutoPriceRefreshBoot() {
     return () => {
       cancelled = true;
       clearFollowUpTimer();
-      window.clearTimeout(initialTimeout);
-      window.clearInterval(pollInterval);
+      clearWindowTimer();
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };

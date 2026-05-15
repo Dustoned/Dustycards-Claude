@@ -236,13 +236,13 @@ const TIERS = [
     label: "Medium",
     badge: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
     description: "Rare, Rare Holo, and holo variants",
-    cadence: "Every 24 hours",
+    cadence: "Fixed daily window",
   },
   {
     label: "High",
     badge: "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
     description: "Ultra rares, illustration rares, promos, and higher tiers",
-    cadence: "Every 12 hours",
+    cadence: "Fixed 12h windows",
   },
 ] as const;
 
