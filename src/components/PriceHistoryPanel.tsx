@@ -429,7 +429,7 @@ export default function PriceHistoryPanel({
   const hasDrawablePoints = filteredPoints.some((point) => point.value != null);
 
   useLayoutEffect(() => {
-    if (loading || !hasDrawablePoints) {
+    if (!rangeResolved || loading || !hasDrawablePoints) {
       return;
     }
 
@@ -461,7 +461,7 @@ export default function PriceHistoryPanel({
       window.cancelAnimationFrame(frameId);
       observer.disconnect();
     };
-  }, [hasDrawablePoints, loading]);
+  }, [hasDrawablePoints, loading, rangeResolved]);
 
   const measuredChartWidth = chartWidth ?? CHART_FALLBACK_WIDTH;
   const chart = buildChart(filteredPoints, measuredChartWidth, height, axisHeight);
