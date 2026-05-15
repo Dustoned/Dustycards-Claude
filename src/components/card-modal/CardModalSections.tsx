@@ -495,16 +495,6 @@ export function CardModalHeroSection({
               )}
             </div>
 
-            <div className="mt-2 sm:hidden">
-              <PriceRefreshCountdown
-                rarity={card.rarity}
-                priceFetchedAt={card.price_fetched_at}
-                priceSourceStatus={card.price_source_status}
-                priceSourceCheckedAt={card.price_source_checked_at}
-                compact
-                variant="strip"
-              />
-            </div>
           </div>
 
           <div className="min-w-0 xl:justify-self-end">
@@ -954,6 +944,17 @@ export function CardModalHistorySection({
     "inline-flex h-8 min-w-0 !w-auto overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-0.5 max-[640px]:h-7 max-[640px]:!w-full";
   const historySegmentButtonClass =
     "min-w-0 flex-1 rounded-full px-3 text-[11px] font-semibold transition-colors sm:flex-none max-[640px]:px-2.5";
+  const mobileRefreshIndicator = (
+    <PriceRefreshCountdown
+      rarity={card.rarity}
+      priceFetchedAt={card.price_fetched_at}
+      priceSourceStatus={card.price_source_status}
+      priceSourceCheckedAt={card.price_source_checked_at}
+      className="ml-auto max-w-[9.25rem] justify-end text-right sm:hidden"
+      compact
+      variant="micro"
+    />
+  );
 
   return (
     <SectionShell className="overflow-hidden max-[640px]:!p-2.5">
@@ -1094,6 +1095,7 @@ export function CardModalHistorySection({
               currency={activeGradedHistory.currency}
               points={activeGradedHistory.points}
               currentValue={activeGradedHistory.currentValue}
+              headerAccessory={mobileRefreshIndicator}
               tone="dark"
             />
           </div>
@@ -1104,6 +1106,7 @@ export function CardModalHistorySection({
               currency={activeMarketHistory.currency}
               points={activeMarketHistory.points}
               currentValue={activeMarketHistory.currentValue}
+              headerAccessory={mobileRefreshIndicator}
               tone="dark"
             />
           </div>

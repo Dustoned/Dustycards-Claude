@@ -15,7 +15,7 @@ interface Props {
   priceSourceCheckedAt?: string | null;
   className?: string;
   compact?: boolean;
-  variant?: "panel" | "strip";
+  variant?: "panel" | "micro";
 }
 
 const TIER_STYLES: Record<PriceRefreshTier, string> = {
@@ -31,6 +31,18 @@ const TIER_DOT_STYLES: Record<PriceRefreshTier, string> = {
   medium: "bg-amber-300",
   high: "bg-fuchsia-300",
 };
+
+function formatMicroCountdown(remainingMs: number): string {
+  const totalMinutes = Math.max(0, Math.floor(remainingMs / (60 * 1000)));
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) return `${days}d ${String(hours).padStart(2, "0")}h`;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return "<1m";
+}
 
 export default function PriceRefreshCountdown({
   rarity,
@@ -105,40 +117,43 @@ export default function PriceRefreshCountdown({
       ? "Manual"
       : "Pending";
 
-  if (compact && variant === "strip") {
+  if (compact && variant === "micro") {
+    const titleText = [compactSummary, compactDetail, cadenceText].filter(Boolean).join(" · ");
+    const microSummary = !refreshInfo.hasFetchedAt
+      ? priceSourceStatus === "unavailable"
+        ? "No source"
+        : "Pending sync"
+      : !refreshInfo.autoRefreshEnabled
+        ? "Manual"
+        : refreshInfo.due
+          ? `Overdue ${formatMicroCountdown(overdueMs)}`
+          : formatMicroCountdown(refreshInfo.remainingMs);
+
     return (
       <div
-        className={`rounded-2xl border border-white/10 bg-white/[0.055] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-md ${
+        className={`flex min-w-0 items-center gap-1.5 text-[10px] font-medium leading-none text-white/42 ${
           className ?? ""
         }`}
+        title={titleText}
+        aria-label={titleText}
       >
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span
-            className={`h-2 w-2 shrink-0 rounded-full shadow-[0_0_14px_currentColor] ${
-              TIER_DOT_STYLES[refreshInfo.tier]
-            }`}
-            aria-hidden="true"
-          />
-
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-semibold leading-tight text-white/84">
-              {compactSummary}
-            </p>
-            {compactDetail && (
-              <p className="mt-0.5 truncate text-[10px] font-medium leading-tight text-white/42">
-                {compactDetail}
-              </p>
-            )}
-          </div>
-
-          <span
-            className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-semibold uppercase leading-none tracking-[0.12em] ${
-              TIER_STYLES[refreshInfo.tier]
-            }`}
-          >
-            {shortCadenceText}
-          </span>
-        </div>
+        <span
+          className={`h-1.5 w-1.5 shrink-0 rounded-full ${TIER_DOT_STYLES[refreshInfo.tier]}`}
+          aria-hidden="true"
+        />
+        <span className="min-w-0 truncate">
+          {microSummary}
+        </span>
+        {refreshInfo.autoRefreshEnabled && (
+          <>
+            <span className="shrink-0 text-white/20" aria-hidden="true">
+              /
+            </span>
+            <span className="shrink-0 text-[9px] font-semibold tracking-[0.08em] text-white/34">
+              {shortCadenceText}
+            </span>
+          </>
+        )}
       </div>
     );
   }
