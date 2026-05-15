@@ -494,6 +494,17 @@ export function CardModalHeroSection({
                 </MetaPill>
               )}
             </div>
+
+            <div className="mt-2 sm:hidden">
+              <PriceRefreshCountdown
+                rarity={card.rarity}
+                priceFetchedAt={card.price_fetched_at}
+                priceSourceStatus={card.price_source_status}
+                priceSourceCheckedAt={card.price_source_checked_at}
+                compact
+                variant="strip"
+              />
+            </div>
           </div>
 
           <div className="min-w-0 xl:justify-self-end">
