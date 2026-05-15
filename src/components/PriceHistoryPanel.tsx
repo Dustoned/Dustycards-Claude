@@ -464,7 +464,7 @@ export default function PriceHistoryPanel({
   }, [hasDrawablePoints, loading]);
 
   const measuredChartWidth = chartWidth ?? CHART_FALLBACK_WIDTH;
-  const chart = chartWidth == null ? null : buildChart(filteredPoints, chartWidth, height, axisHeight);
+  const chart = buildChart(filteredPoints, measuredChartWidth, height, axisHeight);
   const visibleCoordinates = chart?.coordinates ?? [];
   const latestPoint = visibleCoordinates[visibleCoordinates.length - 1] ?? null;
   const activePoint =

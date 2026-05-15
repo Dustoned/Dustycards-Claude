@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import ExpansionView from "./ExpansionView";
 import {
   buildEpisodeSetPriceHistory,
@@ -9,12 +9,6 @@ import {
   type EpisodePriceHistorySnapshot,
 } from "@/lib/price-history";
 import type { CardData } from "@/types/card-data";
-
-const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
-  loading: () => (
-    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
-  ),
-});
 
 interface Props {
   cards: CardData[];

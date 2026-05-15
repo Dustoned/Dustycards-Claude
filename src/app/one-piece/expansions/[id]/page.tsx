@@ -1,4 +1,3 @@
-import nextDynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -17,15 +16,10 @@ import { buildEpisodeSetPriceHistory } from "@/lib/price-history";
 import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import type { CardData } from "@/types/card-data";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import ExpansionCardsSection from "@/app/expansions/[id]/ExpansionCardsSection";
 
 export const dynamic = "force-dynamic";
-
-const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
-  loading: () => (
-    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
-  ),
-});
 
 function getKnownEpisodeCardCount(episode: {
   card_count: number | null;

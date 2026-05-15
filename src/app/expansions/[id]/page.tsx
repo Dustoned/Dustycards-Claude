@@ -1,4 +1,3 @@
-import nextDynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -33,18 +32,13 @@ import { requirePageUser } from "@/lib/page-auth";
 import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
 import type { NormalizedSealedProduct } from "@/lib/tcggo";
 import type { CardData } from "@/types/card-data";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import ExpansionCardsSection from "./ExpansionCardsSection";
 import PullRateHoverTable from "./PullRateHoverTable";
 import SealedProductsGrid from "./SealedProductsGrid";
 import SyncEpisodeButton from "./SyncEpisodeButton";
 
 export const dynamic = "force-dynamic";
-
-const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
-  loading: () => (
-    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
-  ),
-});
 
 function toNormalizedSealedProduct(product: {
   id: string;

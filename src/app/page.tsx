@@ -28,14 +28,10 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"), {
   loading: () => null,
-});
-const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
-  loading: () => (
-    <section className="h-full rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
-  ),
 });
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionOverviewSections = nextDynamic(() => import("@/components/CollectionOverviewSections"));
