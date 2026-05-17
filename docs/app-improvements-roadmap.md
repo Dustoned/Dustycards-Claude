@@ -4,7 +4,9 @@ This file tracks the non-sync improvements we want to tackle step by step.
 
 ## 1. Data Quality Center
 
-Build an admin view for missing images, missing source URLs, missing prices, duplicate-ish data, cards without rarity, and sealed products without prices.
+Build an admin-only view for missing images, missing source URLs, missing prices, stale prices, empty histories, duplicate-ish data, cards without rarity, and sealed products without prices.
+
+Status: Next. Keep this behind admin tooling so regular users do not see internal diagnostics noise.
 
 ## 2. Portfolio depth
 
@@ -13,6 +15,8 @@ The app already has collection value, P&L, binders, sealed, movers, and value dr
 ## 3. Card detail clarity
 
 Make each card detail page show last price update, source status, price completeness, trend context, unavailable state, and refresh confidence more clearly.
+
+Status: Completed. Card and sealed detail now show source freshness, selected market/language, eBay sold sample context, stale-price handling, and raw-vs-graded safeguards.
 
 ## 4. Health dashboard
 
@@ -27,6 +31,8 @@ Improve ranking, fuzzy matching, game/product tabs, recent searches, and filter 
 ## 6. Deals and movers intelligence
 
 Show why a deal or mover matters: delta versus market, confidence, seller/condition hints, source context, and quick hide/save actions.
+
+Status: Next. This is the next user-facing price intelligence pass after the admin-only data quality center.
 
 ## 7. Backups visibility
 

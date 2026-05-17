@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "1.0.25",
+    releasedAt: "May 17, 2026",
+    title: "Roadmap focus update",
+    summary: "The roadmap now reflects that price intelligence is complete and the next work is admin data quality plus Deal Radar v2.",
+    tone: "system",
+    highlights: [
+      "Marked the price intelligence layer as completed.",
+      "Added an admin-only data quality center as the next diagnostics step.",
+      "Moved Deal Radar v2 into next-up focus for confidence, risk, shipping, and seller context.",
+    ],
+  },
+  {
     version: "1.0.24",
     releasedAt: "May 17, 2026",
     title: "Sealed language charts",
@@ -279,12 +291,17 @@ export const roadmapItems: RoadmapItem[] = [
   },
   {
     title: "Price intelligence layer",
+    status: "Completed",
+    summary: "Source confidence, eBay sold sample context, currency conversion, stale-price handling, and thin-data warnings are now visible in card and sealed detail.",
+  },
+  {
+    title: "Admin data quality center",
     status: "Next",
-    summary: "Show source confidence, eBay sold sample context, currency conversion, and thin-data warnings.",
+    summary: "Admin-only diagnostics for missing images, missing source URLs, stale prices, empty histories, and unavailable price states.",
   },
   {
     title: "Price alerts and watch rules",
-    status: "Next",
+    status: "Planned",
     summary: "Let users watch cards, binders, sealed, and wants for target prices or sudden movement.",
   },
   {
@@ -304,7 +321,7 @@ export const roadmapItems: RoadmapItem[] = [
   },
   {
     title: "Deal Radar v2",
-    status: "Planned",
+    status: "Next",
     summary: "Add match confidence, risk flags, shipping impact, seller context, and target-margin presets.",
   },
   {
