@@ -34,7 +34,7 @@ export default function SettingsUpdatesPanel() {
             Patch Notes
           </h2>
           <p className="mt-0.5 max-w-2xl text-sm text-gray-500 dark:text-white/45">
-            Small release notes for the latest DustyCards changes.
+            Complete release notes for the latest DustyCards changes.
           </p>
         </div>
 
@@ -60,11 +60,17 @@ export default function SettingsUpdatesPanel() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
         <div className="min-w-0 rounded-2xl border border-black/6 bg-black/[0.018] p-3 dark:border-white/8 dark:bg-white/[0.025]">
-          <div className="space-y-2">
-            {patchNotes.slice(0, 6).map((note, index) => (
+          <div className="space-y-3">
+            {patchNotes.map((note, index) => {
+              const isLatest = index === 0;
+              return (
               <article
                 key={note.version}
-                className="min-w-0 rounded-xl border border-black/6 bg-white/55 p-3 dark:border-white/8 dark:bg-white/[0.035]"
+                className={`min-w-0 rounded-xl border p-3 shadow-sm shadow-black/5 dark:shadow-none ${
+                  isLatest
+                    ? "border-emerald-400/20 bg-emerald-400/[0.055] dark:border-emerald-300/14 dark:bg-emerald-300/[0.045]"
+                    : "border-black/6 bg-white/55 dark:border-white/8 dark:bg-white/[0.035]"
+                }`}
               >
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <span className="rounded-full border border-black/6 bg-black/[0.035] px-2 py-0.5 text-[11px] font-bold tabular-nums text-gray-900 dark:border-white/8 dark:bg-white/[0.055] dark:text-white">
@@ -83,7 +89,7 @@ export default function SettingsUpdatesPanel() {
                 </div>
 
                 <div className="mt-2 min-w-0">
-                  <h3 className="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                  <h3 className="text-sm font-semibold text-gray-950 dark:text-white">
                     {note.title}
                   </h3>
                   <p className="mt-0.5 text-sm leading-5 text-gray-500 dark:text-white/50">
@@ -91,15 +97,21 @@ export default function SettingsUpdatesPanel() {
                   </p>
                 </div>
 
-                <ul className="mt-2 grid gap-1 text-[12px] leading-5 text-gray-500 dark:text-white/48 sm:grid-cols-3">
-                  {note.highlights.slice(0, index === 0 ? 3 : 2).map((highlight) => (
-                    <li key={highlight} className="min-w-0 truncate" title={highlight}>
-                      {highlight}
+                <ul
+                  className={`mt-3 grid gap-1.5 text-[12px] leading-5 text-gray-500 dark:text-white/48 ${
+                    isLatest ? "lg:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3"
+                  }`}
+                >
+                  {note.highlights.map((highlight) => (
+                    <li key={highlight} className="flex min-w-0 gap-2">
+                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-white/35" />
+                      <span className="min-w-0">{highlight}</span>
                     </li>
                   ))}
                 </ul>
               </article>
-            ))}
+              );
+            })}
           </div>
         </div>
 
