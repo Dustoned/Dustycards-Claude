@@ -23,6 +23,7 @@ import { isTcggoQuotaExceededError } from "@/lib/tcggo";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { getDisplayCardNumber } from "@/lib/card-number-display";
 
 type CardAction = "refresh" | "sync-history";
 
@@ -141,6 +142,7 @@ async function getCardDetailPayload(id: string, userId: string) {
       game: true,
       name: true,
       card_number: true,
+      printed_card_number: true,
       rarity: true,
       hp: true,
       image_url: true,
@@ -297,7 +299,7 @@ async function getCardDetailPayload(id: string, userId: string) {
   return {
     id: card.id,
     name: card.name,
-    card_number: card.card_number,
+    card_number: getDisplayCardNumber(card),
     rarity: card.rarity,
     hp: card.hp,
     image_url: card.image_url,

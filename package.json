@@ -1,6 +1,6 @@
 {
   "name": "dustycards",
-  "version": "0.1.0",
+  "version": "1.0.22",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -16,16 +16,17 @@
     "sync:one-piece": "node scripts/sync-one-piece-local.mjs",
     "sync:one-piece-meta": "node scripts/sync-one-piece-optcg-metadata.mjs",
     "sync:one-piece-prices": "node scripts/sync-one-piece-price-fallback.mjs",
+    "backfill:printed-card-numbers": "node scripts/backfill-printed-card-numbers.mjs",
     "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs",
     "images:cache": "node scripts/cache-images.mjs"
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.7.0",
-    "@prisma/client": "^7.7.0",
+    "@prisma/adapter-better-sqlite3": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "better-sqlite3": "^12.9.0",
     "dotenv": "^17.4.2",
     "lucide-react": "^1.8.0",
-    "next": "16.2.4",
+    "next": "^16.2.6",
     "nodemailer": "^8.0.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -41,10 +42,14 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.184.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
-    "prisma": "^7.7.0",
+    "eslint-config-next": "16.2.6",
+    "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.5"
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.13",
+    "postcss": "8.5.10"
   }
 }

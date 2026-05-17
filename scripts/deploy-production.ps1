@@ -40,8 +40,34 @@ set -e
 RemoteAppPath=__REMOTE_APP_PATH__
 
 mkdir -p /opt/dustycards/backups
+prune_predeploy_backups() {
+  backup_dir="/opt/dustycards/backups"
+  keep="${1:-8}"
+  count="$(find "$backup_dir" -maxdepth 1 -type f -name 'dustycards-predeploy-*.db' | wc -l | tr -d '[:space:]')"
+  remove=$((count - keep))
+  if [ "$remove" -le 0 ]; then
+    return 0
+  fi
+
+  find "$backup_dir" -maxdepth 1 -type f -name 'dustycards-predeploy-*.db' -printf '%T@ %p\n' |
+    sort -n |
+    head -n "$remove" |
+    cut -d' ' -f2- |
+    while IFS= read -r file; do
+      case "$file" in
+        "$backup_dir"/dustycards-predeploy-*.db) rm -f -- "$file" ;;
+        *) echo "Refusing to remove unexpected backup path: $file" >&2; exit 1 ;;
+      esac
+    done
+}
+
+prune_predeploy_backups 8
 if [ -f "$RemoteAppPath/dustycards.db" ]; then
-  cp "$RemoteAppPath/dustycards.db" "/opt/dustycards/backups/dustycards-predeploy-$(date -u +%Y%m%d-%H%M%S).db"
+  backup_file="/opt/dustycards/backups/dustycards-predeploy-$(date -u +%Y%m%d-%H%M%S).db"
+  rm -f "$backup_file.tmp"
+  cp "$RemoteAppPath/dustycards.db" "$backup_file.tmp"
+  mv "$backup_file.tmp" "$backup_file"
+  prune_predeploy_backups 8
 fi
 
 release_dir="$(mktemp -d /tmp/dustycards-release.XXXXXX)"
@@ -65,11 +91,64 @@ done
 tar -cf - -C "$release_dir" . | tar -xf - -C "$RemoteAppPath"
 
 cd "$RemoteAppPath"
+if [ -f .env ]; then
+  node - <<'NODE'
+const fs = require("fs");
+const path = ".env";
+const current = fs.readFileSync(path, "utf8");
+const cleaned = current.replace(/\uFEFF/g, "");
+if (cleaned !== current) {
+  fs.writeFileSync(path, cleaned);
+}
+NODE
+  chown dustycards:dustycards .env 2>/dev/null || true
+fi
+
+if ! grep -q '^DUSTYCARDS_SYNC_SCHEDULER_SECRET=' .env; then
+  scheduler_secret="$(openssl rand -hex 32 2>/dev/null || node -e 'console.log(require("crypto").randomBytes(32).toString("hex"))')"
+  printf '\nDUSTYCARDS_SYNC_SCHEDULER_SECRET=%s\n' "$scheduler_secret" >> .env
+fi
+
 npm install
 npx prisma migrate deploy
 npm run build
 systemctl restart dustycards
 systemctl is-active dustycards
+
+cat > /etc/systemd/system/dustycards-sync-scheduler.service <<EOF
+[Unit]
+Description=DustyCards sync scheduler tick
+After=dustycards.service network-online.target
+Wants=dustycards.service network-online.target
+
+[Service]
+Type=oneshot
+User=dustycards
+Group=dustycards
+WorkingDirectory=$RemoteAppPath
+EnvironmentFile=$RemoteAppPath/.env
+ExecStart=/bin/bash -lc '/usr/bin/curl -fsS --max-time 120 -X POST -H "x-dustycards-scheduler-secret: \${DUSTYCARDS_SYNC_SCHEDULER_SECRET}" "\${DUSTYCARDS_SYNC_SCHEDULER_URL:-http://127.0.0.1:3000}/api/internal/sync-scheduler"'
+EOF
+
+cat > /etc/systemd/system/dustycards-sync-scheduler.timer <<'EOF'
+[Unit]
+Description=Run DustyCards sync scheduler every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=dustycards-sync-scheduler.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now dustycards-sync-scheduler.timer
+systemctl start dustycards-sync-scheduler.service
+systemctl is-active dustycards-sync-scheduler.timer
 '@
 
 $remoteScript = $remoteScript.Replace("__REMOTE_APP_PATH__", $remoteAppPathLiteral)

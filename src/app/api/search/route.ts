@@ -19,6 +19,7 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { getDisplayCardNumber } from "@/lib/card-number-display";
 
 const MAX_RESULTS = 100;
 const FUZZY_CARD_CANDIDATE_LIMIT = 180;
@@ -41,6 +42,7 @@ interface SearchCardRecord {
   id: string;
   name: string;
   card_number: string | null;
+  printed_card_number: string | null;
   rarity: string | null;
   supertype: string | null;
   image_url: string | null;
@@ -201,22 +203,46 @@ function parseSearchQuery(raw: string, game: TradingCardGame = POKEMON_GAME): Pa
   }
 
   const q = extractSearchableInput(raw);
-  const spacedQ = normalizeSlugSeparators(q);
+  const spacedQ = normalizeSlugSeparators(q).replace(/\s*\/\s*/g, "/");
 
-  if (/^\d+$/.test(spacedQ)) {
-    return { name: null, cardNumber: spacedQ, setCode: null, rawCardRef: null };
+  const plainNumber = /^#?(\d+)$/.exec(spacedQ);
+  if (plainNumber) {
+    return { name: null, cardNumber: plainNumber[1], setCode: null, rawCardRef: null };
   }
 
-  if (/^\d+\/\d+$/.test(spacedQ)) {
-    return { name: null, cardNumber: spacedQ.split("/")[0], setCode: null, rawCardRef: null };
+  const slashNumber = /^#?(\d+\/\d+)$/.exec(spacedQ);
+  if (slashNumber) {
+    return { name: null, cardNumber: slashNumber[1], setCode: null, rawCardRef: null };
   }
 
-  const withSlash = /^(.+?)\s+(\d+)\/\d+$/.exec(spacedQ);
+  const spacedPrintedNumber = /^#?(\d+)\s+(\d+)$/.exec(spacedQ);
+  if (spacedPrintedNumber) {
+    return {
+      name: null,
+      cardNumber: `${spacedPrintedNumber[1]}/${spacedPrintedNumber[2]}`,
+      setCode: null,
+      rawCardRef: null,
+    };
+  }
+
+  const withSlash = /^(.+?)\s+#?(\d+\/\d+)$/.exec(spacedQ);
   if (withSlash) {
     const prefix = withSlash[1].trim();
     const cardNumber = withSlash[2];
 
-    if (SET_CODE_RE.test(prefix)) {
+    if (isLikelySetCodeToken(prefix)) {
+      return { name: null, cardNumber, setCode: prefix, rawCardRef: `${prefix}${cardNumber}` };
+    }
+
+    return { name: prefix, cardNumber, setCode: null, rawCardRef: null };
+  }
+
+  const withSpacedPrintedNumber = /^(.+?)\s+#?(\d+)\s+(\d+)$/.exec(spacedQ);
+  if (withSpacedPrintedNumber) {
+    const prefix = withSpacedPrintedNumber[1].trim();
+    const cardNumber = `${withSpacedPrintedNumber[2]}/${withSpacedPrintedNumber[3]}`;
+
+    if (isLikelySetCodeToken(prefix)) {
       return { name: null, cardNumber, setCode: prefix, rawCardRef: `${prefix}${cardNumber}` };
     }
 
@@ -433,11 +459,16 @@ function buildCardNumberCondition(cardNumber: string): Prisma.CardWhereInput {
     const conditions = aliases.flatMap((alias) => [
       { card_number: alias },
       { card_number: { startsWith: `${alias}/` } },
+      { printed_card_number: alias },
+      { printed_card_number: { startsWith: `${alias}/` } },
     ]);
     return conditions.length === 1 ? conditions[0] : { OR: conditions };
   }
 
-  const conditions = aliases.map((alias) => ({ card_number: { contains: alias } }));
+  const conditions = aliases.flatMap((alias) => [
+    { card_number: { contains: alias } },
+    { printed_card_number: { contains: alias } },
+  ]);
   return conditions.length === 1 ? conditions[0] : { OR: conditions };
 }
 
@@ -485,7 +516,12 @@ function buildSetScopedCardNumberCondition(
   ];
 
   if (rawCardRef) {
-    referenceConditions.push({ card_number: { contains: rawCardRef } });
+    referenceConditions.push({
+      OR: [
+        { card_number: { contains: rawCardRef } },
+        { printed_card_number: { contains: rawCardRef } },
+      ],
+    });
   }
 
   return referenceConditions.length === 1 ? referenceConditions[0] : { OR: referenceConditions };
@@ -499,6 +535,7 @@ function buildCardFreeTextCondition(query: string): Prisma.CardWhereInput {
 
   if (/\d/.test(query)) {
     conditions.push(fieldContains<Prisma.CardWhereInput>(query, "card_number"));
+    conditions.push(fieldContains<Prisma.CardWhereInput>(query, "printed_card_number"));
 
     const compactReference = parseCompactCardReference(query);
     if (compactReference) {
@@ -523,13 +560,14 @@ function buildCardSearchText(card: {
 }): string {
   const episodeName = card.episode?.name ?? card.episode_name ?? "";
   const episodeCode = card.episode?.code ?? card.episode_code ?? "";
-  const compactRef = episodeCode && card.card_number ? `${episodeCode}${card.card_number}` : "";
-  const cardNumberAliases = buildCardNumberSearchAliases(card.card_number);
+  const displayCardNumber = getDisplayCardNumber(card);
+  const compactRef = episodeCode && displayCardNumber ? `${episodeCode}${displayCardNumber}` : "";
+  const cardNumberAliases = buildCardNumberSearchAliases(displayCardNumber);
   const compactRefAliases = episodeCode
     ? cardNumberAliases.map((cardNumber) => `${episodeCode}${cardNumber}`)
     : [];
 
-  return [card.name, card.card_number ?? "", ...cardNumberAliases, episodeName, episodeCode, compactRef, ...compactRefAliases]
+  return [card.name, displayCardNumber ?? "", ...cardNumberAliases, episodeName, episodeCode, compactRef, ...compactRefAliases]
     .filter(Boolean)
     .join(" ");
 }
@@ -869,7 +907,7 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
     .map((card) => ({
       id: card.id,
       name: card.name,
-      card_number: card.card_number,
+      card_number: getDisplayCardNumber(card),
       rarity: card.rarity,
       supertype: card.supertype,
       image_url: card.image_url,
@@ -967,6 +1005,7 @@ async function runFuzzyFallback(
         id: true,
         name: true,
         card_number: true,
+        printed_card_number: true,
         rarity: true,
         supertype: true,
         image_url: true,
@@ -1022,6 +1061,7 @@ async function runFuzzyFallback(
           id: true,
           name: true,
           card_number: true,
+          printed_card_number: true,
           rarity: true,
           supertype: true,
           image_url: true,
@@ -1058,6 +1098,7 @@ async function runFuzzyFallback(
           id: true,
           name: true,
           card_number: true,
+          printed_card_number: true,
           rarity: true,
           supertype: true,
           image_url: true,
@@ -1217,6 +1258,7 @@ async function runDirectSearch(
         id: true,
         name: true,
         card_number: true,
+        printed_card_number: true,
         rarity: true,
         supertype: true,
         image_url: true,

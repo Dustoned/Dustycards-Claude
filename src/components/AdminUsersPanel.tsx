@@ -2,7 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LoaderCircle, MailCheck, MailWarning, ShieldCheck, ShieldOff } from "lucide-react";
+import {
+  LoaderCircle,
+  MailCheck,
+  MailWarning,
+  Search,
+  ShieldCheck,
+  ShieldOff,
+  UsersRound,
+  X,
+} from "lucide-react";
 
 export type AdminUserSummary = {
   id: string;
@@ -54,6 +63,15 @@ export default function AdminUsersPanel({
   const [pending, setPending] = useState<PendingAction>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredUsers = normalizedQuery
+    ? users.filter((user) => user.email.toLowerCase().includes(normalizedQuery))
+    : users;
+  const activeUsers = users.filter((user) => !user.disabled).length;
+  const adminUsers = users.filter((user) => user.role === "admin").length;
+  const verifiedUsers = users.filter((user) => Boolean(user.emailVerifiedAt)).length;
+  const activeSessions = users.reduce((total, user) => total + user.counts.sessions, 0);
 
   async function updateUser(
     userId: string,
@@ -88,19 +106,79 @@ export default function AdminUsersPanel({
   }
 
   return (
-    <section className="glass grid gap-4 rounded-2xl p-6 shadow-md shadow-black/5">
-      <div>
-        <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Users</h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-white/45">
-          Manage accounts, roles, access and password resets.
-        </p>
+    <section className="glass grid gap-4 rounded-2xl p-5 shadow-md shadow-black/5 sm:p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <UsersRound className="h-4 w-4 text-gray-400 dark:text-white/40" />
+            <h2 className="text-base font-semibold text-gray-950 dark:text-white">
+              User Management
+            </h2>
+          </div>
+          <p className="mt-1 text-sm text-gray-500 dark:text-white/45">
+            Manage accounts, roles, access, and password resets.
+          </p>
+        </div>
+        <label className="relative block min-w-0 lg:w-80">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            id="admin-user-search"
+            name="user-filter-query"
+            type="text"
+            role="searchbox"
+            inputMode="search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search users..."
+            className="w-full rounded-xl border border-black/8 bg-white/75 py-2 pl-9 pr-9 text-sm text-gray-950 outline-none transition focus:border-black/20 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-white/18"
+          />
+          {query ? (
+            <button
+              type="button"
+              aria-label="Clear user search"
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 transition hover:bg-black/5 hover:text-gray-700 dark:hover:bg-white/8 dark:hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </label>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-black/6 px-3 py-2 dark:border-white/8">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Users</p>
+          <p className="mt-1 text-sm font-bold text-gray-950 dark:text-white">{formatCount(users.length)}</p>
+          <p className="mt-0.5 text-[11px] text-gray-400">{formatCount(verifiedUsers)} verified</p>
+        </div>
+        <div className="rounded-xl border border-black/6 px-3 py-2 dark:border-white/8">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Active</p>
+          <p className="mt-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatCount(activeUsers)}</p>
+        </div>
+        <div className="rounded-xl border border-black/6 px-3 py-2 dark:border-white/8">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Admins</p>
+          <p className="mt-1 text-sm font-bold text-gray-950 dark:text-white">{formatCount(adminUsers)}</p>
+        </div>
+        <div className="rounded-xl border border-black/6 px-3 py-2 dark:border-white/8">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Sessions</p>
+          <p className="mt-1 text-sm font-bold text-gray-950 dark:text-white">{formatCount(activeSessions)}</p>
+        </div>
       </div>
 
       {message && <p className="text-sm font-medium text-emerald-600 dark:text-emerald-300">{message}</p>}
       {error && <p className="text-sm font-medium text-red-600 dark:text-red-300">{error}</p>}
 
       <div className="grid min-w-0 gap-3">
-        {users.map((user) => {
+        {filteredUsers.length === 0 ? (
+          <p className="rounded-xl border border-black/6 px-3 py-2 text-sm text-gray-500 dark:border-white/8 dark:text-white/45">
+            No users match this search.
+          </p>
+        ) : null}
+        {filteredUsers.map((user) => {
           const isSelf = user.id === currentUserId;
           const role = draftRoles[user.id] ?? user.role;
           const password = passwords[user.id] ?? { first: "", second: "" };
@@ -192,6 +270,8 @@ export default function AdminUsersPanel({
                   <div className="grid gap-2 sm:grid-cols-2">
                     <input
                       type="password"
+                      name={`admin-new-password-${user.id}`}
+                      autoComplete="new-password"
                       minLength={8}
                       placeholder="New password"
                       value={password.first}
@@ -205,6 +285,8 @@ export default function AdminUsersPanel({
                     />
                     <input
                       type="password"
+                      name={`admin-confirm-password-${user.id}`}
+                      autoComplete="new-password"
                       minLength={8}
                       placeholder="Confirm password"
                       value={password.second}

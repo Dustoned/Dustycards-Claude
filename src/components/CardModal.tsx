@@ -400,6 +400,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                   showGradedPreview={showGradedPreview}
                   gradingCompanyLabel={gradingCompanyLabel}
                   gradingGradeLabel={gradingGradeLabel}
+                  gradedTileSize={displaySettings.cardSize}
                   onOpenThreeD={() => setThreeDOpen(true)}
                 />
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
+import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
@@ -178,6 +179,8 @@ export async function POST(req: NextRequest) {
     return items;
   });
 
+  await syncMissingBinderWantsAfterCollectionChange(user.id);
+
   return NextResponse.json({
     success: true,
     count: created.length,
@@ -277,6 +280,8 @@ export async function PATCH(req: NextRequest) {
     data: { binder_id: binderId },
   });
 
+  await syncMissingBinderWantsAfterCollectionChange(user.id);
+
   return NextResponse.json({
     success: true,
     count: updated.count,
@@ -330,6 +335,8 @@ export async function DELETE(req: NextRequest) {
   const deleted = await db.collectionCard.deleteMany({
     where: { id: { in: itemIds }, user_id: user.id },
   });
+
+  await syncMissingBinderWantsAfterCollectionChange(user.id);
 
   return NextResponse.json({
     success: true,

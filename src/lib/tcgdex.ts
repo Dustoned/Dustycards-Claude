@@ -18,6 +18,10 @@ interface TcgdexSetCardBrief {
 
 interface TcgdexSetResponse {
   cards?: TcgdexSetCardBrief[] | null;
+  cardCount?: {
+    total?: number | null;
+    official?: number | null;
+  } | null;
 }
 
 interface TcgdexSetSearchResult {
@@ -405,6 +409,21 @@ export async function findTcgdexSetIdForEpisode(input: {
 
 async function fetchTcgdexSet(setId: string): Promise<TcgdexSetResponse> {
   return tcgdexFetch<TcgdexSetResponse>(`/sets/${encodeURIComponent(setId)}`);
+}
+
+export async function getTcgdexPrintedCardCountForEpisode(input: {
+  code?: string | null;
+  name?: string | null;
+  cardCount?: number | null;
+}): Promise<number | null> {
+  const setId = await findTcgdexSetIdForEpisode(input);
+  if (!setId) return null;
+
+  const set = await fetchTcgdexSet(setId);
+  const official = set.cardCount?.official ?? null;
+  return typeof official === "number" && Number.isFinite(official) && official > 0
+    ? official
+    : null;
 }
 
 async function fetchTcgdexCard(cardId: string): Promise<TcgdexCardResponse> {

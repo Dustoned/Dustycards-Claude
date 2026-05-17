@@ -22,11 +22,19 @@ export interface SyncStatusEntry {
 }
 
 export interface AutoRefreshStatus {
+  key: "all" | "pokemon" | "one-piece";
+  label: string;
   title?: string;
   description?: string | null;
   active: SyncStatusEntry | null;
   lastSuccess: SyncStatusEntry | null;
   lastFailure: SyncStatusEntry | null;
+  serverJobStatus?: string | null;
+  serverJobRunning?: boolean;
+  serverJobStartedLabel?: string | null;
+  serverJobFinishedLabel?: string | null;
+  serverJobHeartbeatLabel?: string | null;
+  latestPriceLabel?: string | null;
   dueCards: number;
   missingPriceCards: number;
   unavailableCooldownCards: number;
@@ -52,11 +60,7 @@ export interface OverviewStatus {
 
 export interface SyncStatusSectionProps {
   activeSync: SyncStatusEntry | null;
-  lastSuccessfulSync: SyncStatusEntry | null;
-  lastFailedSync: SyncStatusEntry | null;
-  overview: OverviewStatus;
-  autoRefreshStatus: AutoRefreshStatus;
-  onePieceAutoRefreshStatus: AutoRefreshStatus | null;
+  autoRefreshStatuses: AutoRefreshStatus[];
   recentSyncs: SyncStatusEntry[];
   recentFailures: SyncStatusEntry[];
 }
@@ -121,6 +125,12 @@ export function statusBadge(status: string): string {
       return "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
     case "paused":
       return "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+    case "quota-paused":
+      return "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+    case "skipped":
+      return "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300";
+    case "queued":
+      return "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300";
     case "failed":
       return "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300";
     default:
@@ -142,6 +152,12 @@ export function humanStatus(status: string): string {
       return "Waiting";
     case "paused":
       return "Paused";
+    case "quota-paused":
+      return "Quota paused";
+    case "skipped":
+      return "Skipped";
+    case "queued":
+      return "Queued";
     case "failed":
       return "Failed";
     default:

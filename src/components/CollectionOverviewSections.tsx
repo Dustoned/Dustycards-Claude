@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { GripVertical } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
@@ -28,14 +28,25 @@ const CollectionCardsView = dynamic(() => import("@/components/CollectionCardsVi
 const CollectionSealedView = dynamic(() => import("@/components/CollectionSealedView"), {
   loading: () => null,
 });
+const CreateBinderButton = dynamic(() => import("@/components/CreateBinderButton"), {
+  loading: () => null,
+});
 
 interface BinderOverviewItem {
   id: string;
   name: string;
   subtitle: string;
   progressLabel: string;
+  ownedCards: number;
+  totalCards: number | null;
+  completionPct: number | null;
+  missingCards: number | null;
   currentValue: number;
+  investment: number;
   pnl: number;
+  recentChange: number | null;
+  recentChangePct: number | null;
+  recentChangeLabel: string | null;
   accent_color: string | null;
   icon_name: string | null;
   episode: {
@@ -56,27 +67,39 @@ interface Props {
 interface OverviewSection {
   key: OverviewSectionKey;
   show: boolean;
-  render: () => ReactNode;
+  label: string;
+  render: (sectionControls: ReactNode) => ReactNode;
 }
 
-function moveSection(
+function moveVisibleSection(
   order: OverviewSectionKey[],
-  draggedKey: OverviewSectionKey,
-  targetKey: OverviewSectionKey
+  visibleOrder: OverviewSectionKey[],
+  sectionKey: OverviewSectionKey,
+  direction: -1 | 1
 ): OverviewSectionKey[] {
-  if (draggedKey === targetKey) return order;
+  const fromIndex = visibleOrder.indexOf(sectionKey);
+  const toIndex = fromIndex + direction;
 
-  const next = [...order];
-  const fromIndex = next.indexOf(draggedKey);
-  const toIndex = next.indexOf(targetKey);
-
-  if (fromIndex === -1 || toIndex === -1) {
+  if (fromIndex === -1 || toIndex < 0 || toIndex >= visibleOrder.length) {
     return order;
   }
 
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
+  const nextVisibleOrder = [...visibleOrder];
+  const [moved] = nextVisibleOrder.splice(fromIndex, 1);
+  nextVisibleOrder.splice(toIndex, 0, moved);
+
+  const visibleKeys = new Set(visibleOrder);
+  let visibleIndex = 0;
+
+  return normalizeOverviewSectionOrder(order).map((key) => {
+    if (!visibleKeys.has(key)) {
+      return key;
+    }
+
+    const nextKey = nextVisibleOrder[visibleIndex] ?? key;
+    visibleIndex += 1;
+    return nextKey;
+  });
 }
 
 function SectionHeader({
@@ -89,38 +112,52 @@ function SectionHeader({
   trailing?: ReactNode;
 }) {
   return (
-    <SharedSectionHeader title={label} count={count} actions={trailing} compact className="mb-4" />
+    <SharedSectionHeader title={label} count={count} actions={trailing} compact className="mb-2.5" />
   );
 }
 
-function DragHandle({
-  sectionKey,
+function SectionReorderControls({
   label,
-  onDragStart,
-  onDragEnd,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
 }: {
-  sectionKey: OverviewSectionKey;
   label: string;
-  onDragStart: (key: OverviewSectionKey) => void;
-  onDragEnd: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
 }) {
+  const buttonClass =
+    "inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/6 hover:text-gray-950 disabled:pointer-events-none disabled:opacity-30 dark:text-white/50 dark:hover:bg-white/8 dark:hover:text-white";
+
   return (
-    <button
-      type="button"
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", sectionKey);
-        onDragStart(sectionKey);
-      }}
-      onDragEnd={onDragEnd}
-      className="inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-black/[0.03] px-2.5 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-black/14 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/45 dark:hover:border-white/16 dark:hover:text-white/78"
-      aria-label={`Drag ${label}`}
-      title="Drag to reorder"
+    <div
+      className="inline-flex select-none items-center rounded-full border border-black/8 bg-black/[0.03] p-0.5 touch-manipulation dark:border-white/8 dark:bg-white/[0.04]"
+      aria-label={`Reorder ${label}`}
     >
-      <GripVertical className="h-3.5 w-3.5" />
-      Move
-    </button>
+      <button
+        type="button"
+        onClick={onMoveUp}
+        disabled={!canMoveUp}
+        className={buttonClass}
+        aria-label={`Move ${label} up`}
+        title={`Move ${label} up`}
+      >
+        <ArrowUp className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={onMoveDown}
+        disabled={!canMoveDown}
+        className={buttonClass}
+        aria-label={`Move ${label} down`}
+        title={`Move ${label} down`}
+      >
+        <ArrowDown className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }
 
@@ -144,8 +181,6 @@ export default function CollectionOverviewSections({
   const [hasResolvedSectionOrder, setHasResolvedSectionOrder] = useState(
     Boolean(initialSectionOrder)
   );
-  const [draggedSectionKey, setDraggedSectionKey] = useState<OverviewSectionKey | null>(null);
-  const [dropTargetKey, setDropTargetKey] = useState<OverviewSectionKey | null>(null);
 
   useEffect(() => {
     if (hasResolvedSectionOrder) {
@@ -187,8 +222,9 @@ export default function CollectionOverviewSections({
     const sections: OverviewSection[] = [
       {
         key: "graded",
+        label: "Graded Cards",
         show: gradedLooseSingles.length > 0,
-        render: () => (
+        render: (sectionControls) => (
           <CollectionCardsView
             items={gradedLooseSingles}
             allowCollectionRemoval
@@ -199,24 +235,15 @@ export default function CollectionOverviewSections({
             sectionCount={gradedLooseSingles.length}
             forcedSortBy="cm_en"
             forcedSortDir="desc"
-            sectionTrailing={
-              <DragHandle
-                sectionKey="graded"
-                label="Graded Cards"
-                onDragStart={setDraggedSectionKey}
-                onDragEnd={() => {
-                  setDraggedSectionKey(null);
-                  setDropTargetKey(null);
-                }}
-              />
-            }
+            sectionTrailing={sectionControls}
           />
         ),
       },
       {
         key: "raw",
+        label: "Loose Singles",
         show: showRawLooseSinglesSection,
-        render: () => (
+        render: (sectionControls) => (
           <CollectionCardsView
             items={rawLooseSingles}
             allowCollectionRemoval
@@ -227,88 +254,56 @@ export default function CollectionOverviewSections({
             sectionCount={rawLooseSingles.length}
             forcedSortBy="cm_en"
             forcedSortDir="desc"
-            sectionTrailing={
-              <DragHandle
-                sectionKey="raw"
-                label="Loose Singles"
-                onDragStart={setDraggedSectionKey}
-                onDragEnd={() => {
-                  setDraggedSectionKey(null);
-                  setDropTargetKey(null);
-                }}
-              />
-            }
+            sectionTrailing={sectionControls}
           />
         ),
       },
       {
         key: "binderWatch",
+        label: "Binder Watch",
         show: binders.length > 0 && binderCards.length > 0,
-        render: () => (
+        render: (sectionControls) => (
           <BinderWatchSection
             items={binderCards}
             showGradedSlabPreview
-            sectionTrailing={
-              <DragHandle
-                sectionKey="binderWatch"
-                label="Binder Watch"
-                onDragStart={setDraggedSectionKey}
-                onDragEnd={() => {
-                  setDraggedSectionKey(null);
-                  setDropTargetKey(null);
-                }}
-              />
-            }
+            sectionTrailing={sectionControls}
           />
         ),
       },
       {
         key: "sealed",
+        label: "Sealed",
         show: true,
-        render: () => (
+        render: (sectionControls) => (
           <CollectionSealedView
             items={sealed}
             emptyTitle="No sealed saved yet"
             emptyText="Sealed products you add from search or expansion pages will appear here."
             sectionTitle="Sealed"
             sectionCount={sealed.length}
-            sectionTrailing={
-              <DragHandle
-                sectionKey="sealed"
-                label="Sealed"
-                onDragStart={setDraggedSectionKey}
-                onDragEnd={() => {
-                  setDraggedSectionKey(null);
-                  setDropTargetKey(null);
-                }}
-              />
-            }
+            sectionTrailing={sectionControls}
           />
         ),
       },
       {
         key: "binders",
+        label: "Binders",
         show: true,
-        render: () => (
+        render: (sectionControls) => (
           <section>
             <SectionHeader
               label="Binders"
               count={binders.length}
               trailing={
-                <DragHandle
-                  sectionKey="binders"
-                  label="Binders"
-                  onDragStart={setDraggedSectionKey}
-                  onDragEnd={() => {
-                    setDraggedSectionKey(null);
-                    setDropTargetKey(null);
-                  }}
-                />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <CreateBinderButton compact />
+                  {sectionControls}
+                </div>
               }
             />
 
             {binders.length === 0 ? (
-              <div className="glass rounded-3xl p-12 text-center shadow-md shadow-black/5">
+              <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
                 <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">No binders yet</p>
                 <p className="text-sm text-gray-400">
                   Type a set name for an automatic set binder, or create a custom binder.
@@ -357,56 +352,28 @@ export default function CollectionOverviewSections({
     return [...ordered, ...missing];
   }, [sectionMap, sectionOrder]);
 
-  function handleDrop(targetKey: OverviewSectionKey) {
-    if (!draggedSectionKey || draggedSectionKey === targetKey) {
-      setDropTargetKey(null);
-      return;
-    }
-
+  function handleMoveSection(sectionKey: OverviewSectionKey, direction: -1 | 1) {
+    const visibleOrder = orderedVisibleSections.map((section) => section.key);
     setSectionOrder((currentOrder) =>
-      moveSection(normalizeOverviewSectionOrder(currentOrder), draggedSectionKey, targetKey)
+      moveVisibleSection(currentOrder, visibleOrder, sectionKey, direction)
     );
-    setDraggedSectionKey(null);
-    setDropTargetKey(null);
   }
 
   return (
-    <div className={hasResolvedSectionOrder ? "space-y-8" : "invisible space-y-8"}>
-      {orderedVisibleSections.map((section) => (
-        <div
-          key={section.key}
-          onDragOver={(event) => {
-            if (!draggedSectionKey || draggedSectionKey === section.key) return;
-            event.preventDefault();
-            if (dropTargetKey !== section.key) {
-              setDropTargetKey(section.key);
-            }
-          }}
-          onDragLeave={(event) => {
-            const related = event.relatedTarget;
-            if (
-              related instanceof Node &&
-              event.currentTarget.contains(related)
-            ) {
-              return;
-            }
-            if (dropTargetKey === section.key) {
-              setDropTargetKey(null);
-            }
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            handleDrop(section.key);
-          }}
-          className={`rounded-[30px] transition-all ${
-            dropTargetKey === section.key
-              ? "bg-blue-500/[0.07] ring-1 ring-blue-400/35"
-              : ""
-          }`}
-        >
-          {section.render()}
-        </div>
-      ))}
+    <div className={hasResolvedSectionOrder ? "space-y-5 sm:space-y-6" : "invisible space-y-5 sm:space-y-6"}>
+      {orderedVisibleSections.map((section, index) => {
+        const sectionControls = (
+          <SectionReorderControls
+            label={section.label}
+            canMoveUp={index > 0}
+            canMoveDown={index < orderedVisibleSections.length - 1}
+            onMoveUp={() => handleMoveSection(section.key, -1)}
+            onMoveDown={() => handleMoveSection(section.key, 1)}
+          />
+        );
+
+        return <div key={section.key}>{section.render(sectionControls)}</div>;
+      })}
     </div>
   );
 }

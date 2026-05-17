@@ -12,7 +12,10 @@ async function fetchAppVersion(): Promise<string | null> {
 
   if (!response.ok) return null;
 
-  const data = (await response.json().catch(() => null)) as { version?: unknown } | null;
+  const data = (await response.json().catch(() => null)) as
+    | { version?: unknown; build?: unknown }
+    | null;
+  if (typeof data?.build === "string" && data.build) return data.build;
   return typeof data?.version === "string" && data.version ? data.version : null;
 }
 

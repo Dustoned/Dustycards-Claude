@@ -968,7 +968,7 @@ export default function CollectionCardsView({
           compact
           className="mb-2.5"
           actions={
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               {showInlineSelectionButton && (
                 <button
                   type="button"

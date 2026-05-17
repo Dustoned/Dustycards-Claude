@@ -30,6 +30,7 @@ import {
 import { getSealedPriceSnapshotsByEpisode } from "@/lib/sealed-price-snapshots";
 import { requirePageUser } from "@/lib/page-auth";
 import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
+import { getDisplayCardNumber } from "@/lib/card-number-display";
 import type { NormalizedSealedProduct } from "@/lib/tcggo";
 import type { CardData } from "@/types/card-data";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
@@ -318,7 +319,7 @@ export default async function ExpansionDetailPage({
       return {
         id: card.id,
         name: card.name,
-        card_number: card.card_number,
+        card_number: getDisplayCardNumber(card),
         rarity: card.rarity,
         hp: card.hp,
         image_url: card.image_url,

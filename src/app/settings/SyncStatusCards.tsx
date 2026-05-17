@@ -1,421 +1,169 @@
-import type { AutoRefreshStatus, GroupedSyncStatusEntry, OverviewStatus, SyncStatusEntry } from "./sync-status-utils";
+import type { GroupedSyncStatusEntry, SyncStatusEntry } from "./sync-status-utils";
 import {
   compactMessage,
-  describeGroupedWindow,
   formatDateTime,
   formatDuration,
   groupSyncEntries,
   humanStatus,
-  metricBadgeTone,
   parseActivityMetrics,
-  parseAutoRefreshProgress,
   statusBadge,
   visualStatus,
 } from "./sync-status-utils";
 
-export function SyncEntryCard({
-  entry,
-  accent = "default",
-}: {
-  entry: GroupedSyncStatusEntry;
-  accent?: "default" | "failure";
-}) {
-  const duration = formatDuration(entry.started_at, entry.finished_at);
-  const repeatCount = entry.entries.length;
+function getActivitySummary(entry: SyncStatusEntry | GroupedSyncStatusEntry): string {
   const { metrics, detail } = parseActivityMetrics(entry);
-  const isFailure = accent === "failure" || entry.status === "failed";
-  const entryStatus = visualStatus(entry);
+  const metricSummary = metrics
+    .slice(0, 4)
+    .map((metric) => `${metric.value} ${metric.label}`)
+    .join(", ");
 
+  return metricSummary || detail || compactMessage(entry.message, 160) || "No details recorded.";
+}
+
+export function StatusPill({ status }: { status: string }) {
   return (
-    <div
-      className={
-        isFailure
-          ? "min-w-0 rounded-xl border border-rose-200/60 bg-rose-50/45 px-4 py-3 dark:border-rose-400/20 dark:bg-rose-900/10"
-          : "min-w-0 rounded-xl border border-black/6 bg-black/[0.02] px-4 py-3 dark:border-white/8 dark:bg-white/[0.03]"
-      }
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(entryStatus)}`}>
-          {humanStatus(entryStatus)}
-        </span>
-        <span className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-white">
-          {entry.label}
-        </span>
-        {repeatCount > 1 && (
-          <span className="rounded-full border border-black/8 bg-black/[0.03] px-2.5 py-1 text-[11px] font-semibold text-gray-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55">
-            x{repeatCount}
-          </span>
-        )}
-        <span className="text-xs text-gray-400">{describeGroupedWindow(entry)}</span>
-        {duration && <span className="text-xs text-gray-400">| {duration}</span>}
-      </div>
-
-      {metrics.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {metrics.map((metric) => (
-            <span
-              key={`${metric.label}-${metric.value}`}
-              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${metricBadgeTone(metric.tone)}`}
-            >
-              {metric.value} {metric.label}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {detail && (
-        <p
-          className={`mt-3 text-sm ${
-            isFailure ? "text-rose-700 dark:text-rose-200" : "text-gray-500 dark:text-gray-400"
-          }`}
-        >
-          {detail}
-        </p>
-      )}
-    </div>
+    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(status)}`}>
+      {humanStatus(status)}
+    </span>
   );
 }
 
-export function SummaryTile({
-  title,
-  entry,
-  emptyLabel,
+export function MetricCell({
+  label,
+  value,
+  hint,
+  tone = "default",
 }: {
-  title: string;
-  entry: SyncStatusEntry | null;
-  emptyLabel: string;
+  label: string;
+  value: string | number;
+  hint?: string | null;
+  tone?: "default" | "good" | "warning" | "danger";
 }) {
-  const duration = entry ? formatDuration(entry.started_at, entry.finished_at) : null;
-  const summary = compactMessage(entry?.message ?? null, 180);
-  const entryStatus = entry ? visualStatus(entry) : null;
+  const toneClass =
+    tone === "good"
+      ? "text-emerald-700 dark:text-emerald-200"
+      : tone === "warning"
+        ? "text-amber-700 dark:text-amber-200"
+        : tone === "danger"
+          ? "text-rose-700 dark:text-rose-200"
+          : "text-gray-900 dark:text-white";
 
   return (
-    <div className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
-      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">{title}</p>
-      {entry ? (
-        <div className="mt-3 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(entryStatus ?? entry.status)}`}>
-              {humanStatus(entryStatus ?? entry.status)}
-            </span>
-            <span className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-white">
-              {entry.label}
-            </span>
-          </div>
-          <p className="text-xs text-gray-400">
-            Started {formatDateTime(entry.started_at)}
-            {entry.finished_at ? ` | Finished ${formatDateTime(entry.finished_at)}` : ""}
-            {duration ? ` | ${entry.finished_at ? duration : `Running ${duration}`}` : ""}
-          </p>
-          {summary && <p className="break-words text-sm text-gray-500 dark:text-gray-400">{summary}</p>}
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-gray-400">{emptyLabel}</p>
-      )}
-    </div>
-  );
-}
-
-export function OverviewTile({ overview }: { overview: OverviewStatus }) {
-  return (
-    <div className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
-      <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recent Overview</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Running Now</p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{overview.runningNow}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Recent Successes</p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{overview.success24h}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Recent Failures</p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{overview.failed24h}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Recent Auto Failures</p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{overview.autoFailures24h}</p>
-        </div>
-      </div>
-
-      {overview.lastActivity && (
-        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-          Last activity:{" "}
-          <span className="font-medium text-gray-700 dark:text-gray-200">
-            {overview.lastActivity.label}
-          </span>{" "}
-          at {formatDateTime(overview.lastActivity.started_at)}.
-        </p>
-      )}
-    </div>
-  );
-}
-
-export function AutoRefreshCard({
-  title = "Background Price Refresh",
-  description = null,
-  active,
-  lastSuccess,
-  lastFailure,
-  dueCards,
-  missingPriceCards,
-  unavailableCooldownCards,
-  nextUnavailableRetryLabel,
-  nextBatchCards,
-  nextBatchEpisodes,
-  nextBatchSetLabels,
-  nextBatchCardLabels,
-  requestsRemaining,
-  requestConcurrency,
-  quotaPaused,
-  quotaResetLabel,
-  scraperDisabled,
-}: AutoRefreshStatus) {
-  const isRunning = Boolean(active);
-  const activeDetails =
-    active?.details?.kind === "auto-price-refresh" ? active.details : null;
-  const activeProgress = parseAutoRefreshProgress(active?.message ?? null, activeDetails);
-  const batchCards = activeProgress.batchCards ?? nextBatchCards;
-  const batchSets = activeProgress.batchSets ?? nextBatchEpisodes;
-  const remainingAfterBatch =
-    activeDetails?.remainingDueCards ?? Math.max(dueCards - batchCards, 0);
-  const currentSummary = compactMessage(active?.message ?? null, 220);
-  const lastSuccessSummary = compactMessage(lastSuccess?.message ?? null, 220);
-  const hasPendingWork = dueCards > 0 || missingPriceCards > 0 || nextBatchCards > 0;
-  const activeStatus = active
-    ? visualStatus(active)
-    : quotaPaused || scraperDisabled
-      ? "paused"
-      : hasPendingWork
-        ? "waiting"
-      : "success";
-  const statusLabel = isRunning
-    ? humanStatus(activeStatus)
-    : scraperDisabled
-      ? "Scraper disabled"
-      : quotaPaused
-        ? "Paused at quota"
-        : hasPendingWork
-          ? "Waiting"
-          : "Up to date";
-
-  return (
-    <div className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] p-4 dark:border-white/8 dark:bg-white/[0.03]">
-      <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadge(
-            activeStatus
-          )}`}
-        >
-          {statusLabel}
-        </span>
-        <span className="text-sm font-semibold text-gray-900 dark:text-white">
-          {title}
-        </span>
-      </div>
-      {description && <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{description}</p>}
-
-      <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(10.5rem,1fr))] gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Eligible Now
-          </p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{dueCards}</p>
-          <p className="text-xs text-gray-400">Cards currently eligible for auto refresh</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Missing First Prices
-          </p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-            {missingPriceCards}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Known Unavailable
-          </p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-            {unavailableCooldownCards}
-          </p>
-          <p className="text-xs text-gray-400">
-            {nextUnavailableRetryLabel
-              ? `skipped until ${nextUnavailableRetryLabel}`
-              : "skipped by background refresh"}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            {isRunning ? "Current Batch" : "Next Batch Preview"}
-          </p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{batchCards}</p>
-          <p className="text-xs text-gray-400">{batchSets} sets</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            {isRunning ? "Remaining After Current Batch" : "Remaining After Preview"}
-          </p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-            {remainingAfterBatch}
-          </p>
-          <p className="text-xs text-gray-400">Estimated live queue after this batch</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Active Run</p>
-          {active ? (
-            <>
-              <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
-                {activeProgress.currentSet ?? formatDateTime(active.started_at)}
-              </p>
-              <p className="text-xs text-gray-400">
-                {activeProgress.currentSetIndex != null && activeProgress.currentSetTotal != null
-                  ? `Set ${activeProgress.currentSetIndex}/${activeProgress.currentSetTotal}`
-                  : formatDateTime(active.started_at)}
-                {activeProgress.currentSetCards != null
-                  ? ` | ${activeProgress.currentSetCards} selected cards`
-                  : ""}
-              </p>
-              <p className="text-xs text-gray-400">
-                {formatDuration(active.started_at, null) ?? "--"}
-              </p>
-            </>
-          ) : (
-            <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">--</p>
-          )}
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Last Completed Batch
-          </p>
-          <p className="mt-1 break-words text-sm font-medium text-gray-900 dark:text-white">
-            {lastSuccess ? formatDateTime(lastSuccess.finished_at) : "--"}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Last Failure</p>
-          <p className="mt-1 break-words text-sm font-medium text-gray-900 dark:text-white">
-            {lastFailure ? formatDateTime(lastFailure.finished_at) : "--"}
-          </p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Scraper Requests
-          </p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-            {requestsRemaining ?? "--"}
-          </p>
-          <p className="text-xs text-gray-400">remaining in current quota window</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-            Request Concurrency
-          </p>
-          <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-            {requestConcurrency}
-          </p>
-          <p className="text-xs text-gray-400">parallel scraper request slots</p>
-        </div>
-      </div>
-
-      {currentSummary && (
-        <p className="mt-3 break-words text-sm text-gray-500 dark:text-gray-400">
-          Active batch: {currentSummary}
-        </p>
-      )}
-      {!currentSummary && lastSuccessSummary && (
-        <p className="mt-3 break-words text-sm text-gray-500 dark:text-gray-400">
-          Last completed batch: {lastSuccessSummary}
-        </p>
-      )}
-      <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-        Eligible Now is recalculated live across the whole queue, so a completed batch can be done
-        while the current eligible queue is already higher again.
+    <div className="min-w-0 border-l border-black/6 px-3 py-2 first:border-l-0 dark:border-white/8">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+        {label}
       </p>
-      {active?.cancel_requested_at && (
-        <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
-          Stop requested. The current in-flight batch will finish before this run exits.
-        </p>
-      )}
-      {quotaPaused && !active && (
-        <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
-          Paused at scraper quota{quotaResetLabel ? ` until ${quotaResetLabel}` : ""}.
-        </p>
-      )}
-      {scraperDisabled && !active && (
-        <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
-          Scraper requests are disabled in this environment, so background refresh will stay paused.
-        </p>
-      )}
-      {hasPendingWork && !active && !quotaPaused && !scraperDisabled && (
-        <p className="mt-3 text-sm text-amber-700 dark:text-amber-200">
-          A batch is ready and waiting for the next background refresh window.
-        </p>
-      )}
-      {nextBatchSetLabels.length > 0 && (
-        <p className="mt-3 break-words text-sm text-gray-500 dark:text-gray-400">
-          {isRunning ? "Current batch sets:" : "Preview sets:"}{" "}
-          <span className="font-medium text-gray-700 dark:text-gray-200">
-            {nextBatchSetLabels.join(", ")}
-          </span>
-        </p>
-      )}
-      {nextBatchCardLabels.length > 0 && (
-        <p className="mt-1 break-words text-sm text-gray-500 dark:text-gray-400">
-          {isRunning ? "Current batch sample cards:" : "Preview cards:"}{" "}
-          <span className="font-medium text-gray-700 dark:text-gray-200">
-            {nextBatchCardLabels.join(", ")}
-          </span>
+      <p
+        className={`mt-1 truncate text-lg font-semibold leading-tight ${toneClass}`}
+        title={String(value)}
+      >
+        {value}
+      </p>
+      {hint && (
+        <p className="mt-0.5 truncate text-xs text-gray-400" title={hint}>
+          {hint}
         </p>
       )}
     </div>
   );
 }
 
-export function FailureList({ entries }: { entries: SyncStatusEntry[] }) {
+export function CompactFailureList({ entries }: { entries: SyncStatusEntry[] }) {
   const groupedEntries = groupSyncEntries(entries);
+  if (groupedEntries.length === 0) return null;
 
   return (
-    <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recent Issues</p>
-        <p className="text-xs text-gray-400">
-          Only problems without a later successful rerun stay here.
+    <div className="border-t border-black/6 pt-4 dark:border-white/6">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400">
+          Recent Issues
         </p>
+        <p className="text-xs text-gray-400">Only unresolved failures are shown.</p>
       </div>
-
-      {groupedEntries.length === 0 ? (
-        <p className="text-sm text-gray-400">No active sync issues right now.</p>
-      ) : (
-        <div className="space-y-2.5">
-          {groupedEntries.map((entry) => (
-            <SyncEntryCard key={entry.id} entry={entry} accent="failure" />
-          ))}
-        </div>
-      )}
+      <div className="divide-y divide-rose-200/50 overflow-hidden rounded-lg border border-rose-200/60 bg-rose-50/40 dark:divide-rose-400/10 dark:border-rose-400/20 dark:bg-rose-900/10">
+        {groupedEntries.map((entry) => (
+          <div key={entry.id} className="grid gap-2 px-3 py-2.5 md:grid-cols-[8rem_minmax(0,1fr)_9rem] md:items-center">
+            <div className="flex items-center gap-2">
+              <StatusPill status={visualStatus(entry)} />
+              {entry.entries.length > 1 && (
+                <span className="text-xs font-semibold text-rose-700 dark:text-rose-200">
+                  x{entry.entries.length}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                {entry.label}
+              </p>
+              <p className="truncate text-xs text-rose-700 dark:text-rose-200" title={getActivitySummary(entry)}>
+                {getActivitySummary(entry)}
+              </p>
+            </div>
+            <p className="text-xs text-gray-400 md:text-right">
+              {formatDateTime(entry.started_at)}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-export function ActivityList({ entries }: { entries: SyncStatusEntry[] }) {
-  const groupedEntries = groupSyncEntries(entries);
+export function CompactActivityList({ entries }: { entries: SyncStatusEntry[] }) {
+  const groupedEntries = groupSyncEntries(entries).slice(0, 5);
 
   return (
-    <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Recent Activity</p>
-        <p className="text-xs text-gray-400">
-          Identical back-to-back runs are grouped to keep this readable.
+    <div className="border-t border-black/6 pt-4 dark:border-white/6">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400">
+          Recent Activity
         </p>
+        <p className="text-xs text-gray-400">Latest 5 grouped runs.</p>
       </div>
 
       {groupedEntries.length === 0 ? (
         <p className="text-sm text-gray-400">No sync activity yet.</p>
       ) : (
-        <div className="space-y-2.5">
-          {groupedEntries.map((entry) => (
-            <SyncEntryCard key={entry.id} entry={entry} />
-          ))}
+        <div className="overflow-hidden rounded-lg border border-black/6 dark:border-white/8">
+          <div className="hidden grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.7fr)_9rem_5rem] gap-3 border-b border-black/6 bg-black/[0.02] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:border-white/8 dark:bg-white/[0.03] md:grid">
+            <span>Status</span>
+            <span>Sync</span>
+            <span>Result</span>
+            <span className="text-right">When</span>
+            <span className="text-right">Time</span>
+          </div>
+          <div className="divide-y divide-black/6 dark:divide-white/8">
+            {groupedEntries.map((entry) => {
+              const duration = formatDuration(entry.started_at, entry.finished_at);
+              const summary = getActivitySummary(entry);
+
+              return (
+                <div
+                  key={entry.id}
+                  className="grid gap-2 px-3 py-2.5 md:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.7fr)_9rem_5rem] md:items-center md:gap-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusPill status={visualStatus(entry)} />
+                    {entry.entries.length > 1 && (
+                      <span className="rounded-full border border-black/8 px-2 py-0.5 text-[11px] font-semibold text-gray-500 dark:border-white/10 dark:text-white/55">
+                        x{entry.entries.length}
+                      </span>
+                    )}
+                  </div>
+                  <p className="min-w-0 truncate text-sm font-semibold text-gray-900 dark:text-white">
+                    {entry.label}
+                  </p>
+                  <p className="min-w-0 truncate text-sm text-gray-500 dark:text-gray-400" title={summary}>
+                    {summary}
+                  </p>
+                  <p className="text-xs text-gray-400 md:text-right">
+                    {formatDateTime(entry.started_at)}
+                  </p>
+                  <p className="text-xs text-gray-400 md:text-right">{duration ?? "--"}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

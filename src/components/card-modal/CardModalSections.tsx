@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
@@ -8,18 +8,23 @@ import { ChevronRight, ExternalLink, LineChart, RefreshCw } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
-import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
+import type { CardSize } from "@/components/SettingsProvider";
 import { type SupportedGradedSlabCompany } from "@/lib/graded-slabs";
 import {
   type CardEbaySoldGradedPriceHistorySeries,
   type CardGradedPriceHistorySeries,
   type CardMarketHistorySeriesKey,
 } from "@/lib/price-history";
+import {
+  formatPriceRefreshedAt,
+  formatRefreshCountdown,
+  getPriceRefreshInfo,
+} from "@/lib/price-refresh";
 import type { CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
-import { formatCurrency, rarityBadge } from "./utils";
+import { formatCurrency } from "./utils";
 import type { ModalCardCollectionItem, ModalCardData } from "./types";
 
 const GradedSlabPreview = dynamic(() => import("@/components/GradedSlabPreview"), {
@@ -60,11 +65,276 @@ interface PriceMetric {
 }
 
 type PricingAccent = NonNullable<MetricTileProps["accent"]>;
+type PriceStatusTone = "good" | "warning" | "danger" | "neutral";
 
 interface HistoryPointView {
   date: string;
   label: string;
   value: number | null;
+}
+
+interface PriceHistoryStatusPoint {
+  date: string;
+  label: string;
+}
+
+const SHORT_STATUS_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function parseDateMillis(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function formatShortStatusDate(value: string | null | undefined): string | null {
+  const timestamp = parseDateMillis(value);
+  if (timestamp == null) return null;
+  return SHORT_STATUS_DATE_FORMATTER.format(timestamp);
+}
+
+function formatRelativeStatusAge(value: string | null | undefined, now: number): string | null {
+  const timestamp = parseDateMillis(value);
+  if (timestamp == null) return null;
+
+  const diffMs = Math.max(0, now - timestamp);
+  const minutes = Math.floor(diffMs / (60 * 1000));
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return "Just now";
+}
+
+function getPriceHistoryPoints(card: ModalCardData): PriceHistoryStatusPoint[] {
+  return card.price_history
+    .filter((point) =>
+      [
+        point.cm_market,
+        point.cm_market_en,
+        point.cm_market_de,
+        point.cm_market_fr,
+        point.cm_market_es,
+        point.cm_market_it,
+        point.cm_avg_7d,
+        point.cm_avg_30d,
+        point.tcp_market,
+      ].some((value) => value != null)
+    )
+    .map((point) => ({
+      date: point.date,
+      label: point.label,
+    }));
+}
+
+function getCurrentPriceCoverage(card: ModalCardData) {
+  const cardMarketValues = [
+    card.price?.cm_en_lowest_nm,
+    card.price?.cm_de_lowest_nm,
+    card.price?.cm_fr_lowest_nm,
+    card.price?.cm_es_lowest_nm,
+    card.price?.cm_it_lowest_nm,
+  ];
+  const tcgPlayerValues = [card.price?.tcp_market, card.price?.tcp_mid, card.price?.tcp_low];
+  const cardMarketCount = cardMarketValues.filter((value) => value != null).length;
+  const tcgPlayerCount = tcgPlayerValues.filter((value) => value != null).length;
+
+  return {
+    currentCount: cardMarketCount + tcgPlayerCount,
+    totalCount: cardMarketValues.length + tcgPlayerValues.length,
+    cardMarketCount,
+    cardMarketTotal: cardMarketValues.length,
+    tcgPlayerCount,
+    tcgPlayerTotal: tcgPlayerValues.length,
+  };
+}
+
+function getSourceStatusSummary(card: ModalCardData, checkedLabel: string | null): {
+  value: string;
+  hint: string;
+  tone: PriceStatusTone;
+} {
+  if (!card.tcggo_url) {
+    return {
+      value: "No source",
+      hint: "Missing TCGGO source link",
+      tone: "danger",
+    };
+  }
+
+  if (card.price_source_status === "unavailable") {
+    return {
+      value: "Unavailable",
+      hint: checkedLabel ? `Checked ${checkedLabel}` : "Source returned no price",
+      tone: "warning",
+    };
+  }
+
+  if (card.price_fetched_at) {
+    return {
+      value: "Live",
+      hint: checkedLabel ? `Source checked ${checkedLabel}` : "Source price available",
+      tone: "good",
+    };
+  }
+
+  if (card.price_source_checked_at) {
+    return {
+      value: "Checked",
+      hint: `No price after ${checkedLabel ?? "last check"}`,
+      tone: "warning",
+    };
+  }
+
+  return {
+    value: "Pending",
+    hint: "Waiting for first source check",
+    tone: "neutral",
+  };
+}
+
+function getPriceStatusToneClass(tone: PriceStatusTone): string {
+  if (tone === "good") return "text-emerald-300";
+  if (tone === "warning") return "text-amber-300";
+  if (tone === "danger") return "text-rose-300";
+  return "text-white/72";
+}
+
+function PriceStatusInlineItem({
+  value,
+  title,
+  tone = "neutral",
+}: {
+  value: string;
+  title: string;
+  tone?: PriceStatusTone;
+}) {
+  return (
+    <span
+      className={`inline-flex min-w-0 items-center text-[11px] font-semibold leading-none tabular-nums max-[640px]:text-[10px] ${getPriceStatusToneClass(
+        tone
+      )}`}
+      title={title}
+    >
+      {value}
+    </span>
+  );
+}
+
+function CardPriceStatusLine({
+  card,
+  className = "",
+}: {
+  card: ModalCardData;
+  className?: string;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(Date.now()), 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const refreshInfo = useMemo(
+    () => getPriceRefreshInfo(card.rarity, card.price_fetched_at, now),
+    [card.price_fetched_at, card.rarity, now]
+  );
+  const latestPriceLabel = formatPriceRefreshedAt(card.price_fetched_at);
+  const latestPriceAge = formatRelativeStatusAge(card.price_fetched_at, now);
+  const compactLatestPriceAge = latestPriceAge?.replace(/\s+ago$/, "") ?? null;
+  const sourceCheckedLabel = formatShortStatusDate(card.price_source_checked_at);
+  const sourceStatus = getSourceStatusSummary(card, sourceCheckedLabel);
+  const historyPoints = getPriceHistoryPoints(card);
+  const firstHistoryLabel = formatShortStatusDate(historyPoints[0]?.date ?? null);
+  const latestHistoryLabel = formatShortStatusDate(
+    historyPoints[historyPoints.length - 1]?.date ?? null
+  );
+  const coverage = getCurrentPriceCoverage(card);
+  const refreshValue = !refreshInfo.hasFetchedAt
+    ? "Pending"
+    : !refreshInfo.autoRefreshEnabled
+      ? "Manual"
+      : refreshInfo.due
+        ? "Due now"
+        : formatRefreshCountdown(refreshInfo.remainingMs);
+  const shortRefreshValue = !refreshInfo.hasFetchedAt
+    ? "Pending"
+    : !refreshInfo.autoRefreshEnabled
+      ? "Manual"
+      : refreshInfo.due
+        ? "Due"
+        : `Next ${formatRefreshCountdown(refreshInfo.remainingMs).replace(/\s+\d+s$/, "")}`;
+  const refreshHint = !refreshInfo.hasFetchedAt
+    ? refreshInfo.tier === "base"
+      ? "First base sync"
+      : "First price sync"
+    : refreshInfo.autoRefreshEnabled
+      ? refreshInfo.cadenceLabel
+      : "Base price captured";
+  const refreshTone: PriceStatusTone = refreshInfo.due
+    ? refreshInfo.hasFetchedAt
+      ? "warning"
+      : "neutral"
+    : "good";
+  const latestPriceTone: PriceStatusTone = card.price_fetched_at
+    ? card.price_source_status === "unavailable"
+      ? "warning"
+      : "good"
+    : "warning";
+  const coverageTone: PriceStatusTone =
+    coverage.currentCount === 0
+      ? "warning"
+      : coverage.currentCount >= Math.ceil(coverage.totalCount / 2)
+        ? "good"
+        : "neutral";
+  const historyHint =
+    historyPoints.length > 0 && firstHistoryLabel && latestHistoryLabel
+      ? `${firstHistoryLabel} - ${latestHistoryLabel}`
+      : "No history yet";
+
+  return (
+    <div className={`min-w-0 border-b border-white/8 pb-2 ${className}`}>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-none text-white/28 max-[640px]:gap-x-1 max-[640px]:text-[10px]">
+        <PriceStatusInlineItem
+          value={compactLatestPriceAge ? `Price ${compactLatestPriceAge}` : "No price"}
+          title={`Latest price: ${latestPriceAge ?? "No price"}. ${
+            latestPriceLabel ?? sourceCheckedLabel ?? "No source check yet"
+          }`}
+          tone={latestPriceTone}
+        />
+        <span aria-hidden="true">/</span>
+        <PriceStatusInlineItem
+          value={shortRefreshValue}
+          title={`Refresh: ${refreshValue}. ${refreshHint}`}
+          tone={refreshTone}
+        />
+        <span aria-hidden="true">/</span>
+        <PriceStatusInlineItem
+          value={sourceStatus.value}
+          title={`Source: ${sourceStatus.value}. ${sourceStatus.hint}`}
+          tone={sourceStatus.tone}
+        />
+        <span aria-hidden="true">/</span>
+        <PriceStatusInlineItem
+          value={`${coverage.currentCount}/${coverage.totalCount}`}
+          title={`Data: ${coverage.currentCount}/${coverage.totalCount} sources. CM ${coverage.cardMarketCount}/${coverage.cardMarketTotal} / TCG ${coverage.tcgPlayerCount}/${coverage.tcgPlayerTotal}`}
+          tone={coverageTone}
+        />
+        <span aria-hidden="true">/</span>
+        <PriceStatusInlineItem
+          value={historyPoints.length > 0 ? `${historyPoints.length} hist` : "No hist"}
+          title={`History: ${historyPoints.length > 0 ? `${historyPoints.length} points` : "None"}. ${historyHint}`}
+          tone={historyPoints.length > 0 ? "neutral" : "warning"}
+        />
+      </div>
+    </div>
+  );
 }
 
 function parseHistoryPointTimestamp(point: HistoryPointView): number | null {
@@ -189,10 +459,10 @@ function CompactDetailLink({
       href={href}
       prefetch={false}
       onClick={onClick}
-      className="group inline-flex max-w-full items-center gap-1 rounded-full border border-sky-300/18 bg-sky-300/[0.075] px-2 py-0.5 text-sm text-sky-100 transition-colors hover:border-sky-200/32 hover:bg-sky-300/[0.12] hover:text-white max-[640px]:text-[12px]"
+      className="group inline-flex max-w-full items-center gap-0.5 rounded-full border border-sky-300/16 bg-sky-300/[0.06] px-1.5 py-0.5 text-[11px] text-sky-100 transition-colors hover:border-sky-200/32 hover:bg-sky-300/[0.1] hover:text-white"
     >
       <span className="min-w-0 truncate">{children}</span>
-      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-sky-100/64 transition-transform group-hover:translate-x-0.5 group-hover:text-white max-[640px]:h-3 max-[640px]:w-3" />
+      <ChevronRight className="h-3 w-3 shrink-0 text-sky-100/64 transition-transform group-hover:translate-x-0.5 group-hover:text-white" />
     </Link>
   );
 }
@@ -218,6 +488,7 @@ export function CardModalPreview({
   showGradedPreview,
   gradingCompanyLabel,
   gradingGradeLabel,
+  gradedTileSize,
   onOpenThreeD,
 }: {
   card: ModalCardData;
@@ -227,11 +498,12 @@ export function CardModalPreview({
   showGradedPreview: boolean;
   gradingCompanyLabel: SupportedGradedSlabCompany | null;
   gradingGradeLabel: string | null;
+  gradedTileSize: CardSize;
   onOpenThreeD: () => void;
 }) {
   const previewButtonClass =
     showGradedPreview && gradingCompanyLabel && gradingGradeLabel
-      ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)] transition-transform hover:scale-[1.01] max-[640px]:rounded-2xl`
+      ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-xl border border-transparent shadow-md shadow-black/20 transition-all duration-200 hover:scale-[1.01] hover:shadow-xl hover:shadow-black/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35`
       : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] bg-[#d8d5cc] p-0 drop-shadow-[0_18px_38px_rgba(0,0,0,0.38)] transition-transform after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-white/14 hover:scale-[1.01]`;
 
   return (
@@ -275,7 +547,7 @@ export function CardModalPreview({
               sizes={imageSize}
               loading="eager"
               priority
-              variant="detail"
+              tileSize={gradedTileSize}
             />
           ) : (
             <Image
@@ -297,15 +569,6 @@ export function CardModalPreview({
         </div>
       )}
 
-      <div className="hidden sm:block">
-        <PriceRefreshCountdown
-          rarity={card.rarity}
-          priceFetchedAt={card.price_fetched_at}
-          priceSourceStatus={card.price_source_status}
-          priceSourceCheckedAt={card.price_source_checked_at}
-          compact
-        />
-      </div>
     </aside>
   );
 }
@@ -444,9 +707,9 @@ export function CardModalHeroSection({
       ]
     : heroDetailStats;
   const quickActionButtonClass =
-    "min-h-8 !rounded-xl !border-white/10 !bg-white/[0.08] !px-3 !py-1.5 !text-[11px] hover:!border-white/18 hover:!bg-white/[0.13] max-[640px]:min-w-0 max-[640px]:basis-[calc(50%-0.2rem)] max-[640px]:px-2 max-[640px]:text-[10px]";
+    "!h-8 !w-8 !rounded-xl !border-white/10 !bg-white/[0.08] !p-0 hover:!border-white/18 hover:!bg-white/[0.13] max-[640px]:!h-8 max-[640px]:!w-8";
   const utilityButtonClass =
-    "inline-flex min-h-8 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[11px] font-semibold text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:basis-[calc(50%-0.2rem)] max-[640px]:px-2 max-[640px]:text-[10px]";
+    "inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] p-0 text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))] !p-3 sm:!p-4">
@@ -459,22 +722,27 @@ export function CardModalHeroSection({
               {card.name}
             </h2>
 
-            <div className={`mt-2 flex flex-wrap items-center gap-1.5 text-white/54 max-[640px]:mt-1 max-[640px]:gap-1 ${metaClassName}`}>
+            <div
+              className={`mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-white/44 max-[640px]:mt-1 max-[640px]:gap-x-1.5 max-[640px]:text-[10px] ${metaClassName}`}
+            >
               {headerMetaLabel && (
-                <span className="whitespace-nowrap rounded-full border border-white/8 bg-black/12 px-2 py-1 text-sm font-medium leading-none text-white/58 max-[640px]:px-1.5 max-[640px]:py-0.5 max-[640px]:text-[10px]">
+                <span className="whitespace-nowrap">
                   {headerMetaLabel}
                 </span>
               )}
               {normalizedRarity && (
                 <span
-                  className={`inline-flex rounded-full px-2.5 py-1 text-sm font-semibold leading-none max-[640px]:px-2 max-[640px]:py-0.5 max-[640px]:text-[10px] ${rarityBadge(
-                    card.rarity
-                  )}`}
+                  className="whitespace-nowrap font-semibold text-fuchsia-200"
+                  title={card.rarity ?? normalizedRarity}
                 >
                   {normalizedRarity}
                 </span>
               )}
-              <MetaPill className={collectionItem ? "text-emerald-200" : "text-white/60"}>
+              <span
+                className={`whitespace-nowrap ${
+                  collectionItem ? "text-emerald-200/80" : "text-white/48"
+                }`}
+              >
                 {collectionItem ? (
                   <>
                     <span className="max-[640px]:hidden">In DustyCards</span>
@@ -486,15 +754,16 @@ export function CardModalHeroSection({
                     <span className="hidden max-[640px]:inline">Not saved</span>
                   </>
                 )}
-              </MetaPill>
-              {collectionLanguage && <MetaPill>{collectionLanguage}</MetaPill>}
+              </span>
+              {collectionLanguage && (
+                <span className="whitespace-nowrap text-white/44">{collectionLanguage}</span>
+              )}
               {gradingCompanyLabel && gradingGradeLabel && (
-                <MetaPill className="text-violet-200">
+                <span className="whitespace-nowrap text-violet-200/80">
                   {gradingCompanyLabel} {gradingGradeLabel}
-                </MetaPill>
+                </span>
               )}
             </div>
-
           </div>
 
           <div className="min-w-0 xl:justify-self-end">
@@ -504,7 +773,7 @@ export function CardModalHeroSection({
             >
               <CollectionAddCardButton
                 card={collectionCard}
-                mode="button"
+                mode="icon"
                 theme="dark"
                 label={collectionItem ? "Add copy" : "Add"}
                 className={quickActionButtonClass}
@@ -514,7 +783,7 @@ export function CardModalHeroSection({
               {!collectionItem && (
                 <CollectionWantButton
                   card={collectionCard}
-                  mode="button"
+                  mode="icon"
                   theme="dark"
                   label="Want"
                   initialWanted={Boolean(card.want_item)}
@@ -527,7 +796,7 @@ export function CardModalHeroSection({
                 <CollectionEditCardButton
                   card={collectionCard}
                   item={collectionItem}
-                  mode="button"
+                  mode="icon"
                   theme="dark"
                   label="Edit"
                   className={quickActionButtonClass}
@@ -548,7 +817,6 @@ export function CardModalHeroSection({
                     <LineChart
                       className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`}
                     />
-                    <span>{syncingHistory ? "Syncing" : "Sync"}</span>
                   </button>
                   <button
                     type="button"
@@ -559,27 +827,23 @@ export function CardModalHeroSection({
                     title={refreshing ? "Refreshing..." : "Refresh"}
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                    <span>{refreshing ? "Refreshing" : "Refresh"}</span>
                   </button>
                 </>
               )}
             </div>
           </div>
-
         </div>
 
-        <div className="mt-3 grid gap-2 max-[640px]:mt-2 max-[640px]:grid-cols-2 max-[640px]:gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-3 grid gap-1.5 max-[640px]:mt-2 max-[640px]:grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
           {headerDetailStats.map((stat) => (
             <div
               key={stat.label}
-              className={`${detailStatClass} min-w-0 ${
-                stat.wideMobile ? "max-[640px]:col-span-2" : ""
-              }`}
+              className="min-w-0 rounded-xl border border-white/8 bg-black/14 px-3 py-2 backdrop-blur-sm max-[640px]:px-2.5 max-[640px]:py-1.5"
             >
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36 max-[640px]:text-[9px] max-[640px]:tracking-[0.12em]">
+              <p className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-white/32 max-[640px]:tracking-[0.1em]">
                 {stat.label}
               </p>
-              <div className="mt-2 min-w-0 break-words text-base font-medium text-white/84 max-[640px]:mt-1 max-[640px]:text-[13px] max-[640px]:leading-snug">
+              <div className="mt-1 min-w-0 truncate text-[13px] font-semibold leading-snug text-white/82 max-[640px]:text-[12px] [&_*]:truncate">
                 {stat.value}
               </div>
             </div>
@@ -944,18 +1208,6 @@ export function CardModalHistorySection({
     "inline-flex h-8 min-w-0 !w-auto overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-0.5 max-[640px]:h-7 max-[640px]:!w-full";
   const historySegmentButtonClass =
     "min-w-0 flex-1 rounded-full px-3 text-[11px] font-semibold transition-colors sm:flex-none max-[640px]:px-2.5";
-  const mobileRefreshIndicator = (
-    <PriceRefreshCountdown
-      rarity={card.rarity}
-      priceFetchedAt={card.price_fetched_at}
-      priceSourceStatus={card.price_source_status}
-      priceSourceCheckedAt={card.price_source_checked_at}
-      className="ml-auto max-w-[9.25rem] justify-end text-right sm:hidden"
-      compact
-      variant="micro"
-    />
-  );
-
   return (
     <SectionShell className="overflow-hidden max-[640px]:!p-2.5">
       <div className="mb-2.5 flex flex-col gap-2">
@@ -1095,7 +1347,6 @@ export function CardModalHistorySection({
               currency={activeGradedHistory.currency}
               points={activeGradedHistory.points}
               currentValue={activeGradedHistory.currentValue}
-              headerAccessory={mobileRefreshIndicator}
               tone="dark"
             />
           </div>
@@ -1106,11 +1357,12 @@ export function CardModalHistorySection({
               currency={activeMarketHistory.currency}
               points={activeMarketHistory.points}
               currentValue={activeMarketHistory.currentValue}
-              headerAccessory={mobileRefreshIndicator}
               tone="dark"
             />
           </div>
         )}
+
+        <CardPriceStatusLine card={card} />
       </div>
 
       <CardModalCurrentPricingPanel

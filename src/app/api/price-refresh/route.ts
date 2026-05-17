@@ -1,24 +1,24 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
-import { runAutoPriceRefresh, type AutoPriceRefreshResult } from "@/lib/sync";
-import { maybeStartCardHistoryQuotaDrainJob } from "@/lib/sync/card-history-auto-drain";
+import {
+  getAutoPriceRefreshJobSnapshot,
+  startAutoPriceRefreshJob,
+} from "@/lib/sync/auto-price-refresh-job";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 import { getSyncErrorResponse } from "@/app/api/sync-error-response";
 
-function shouldSkipCardHistoryQuotaDrain(result: AutoPriceRefreshResult): boolean {
-  const remainingMissingPriceCards = Math.max(
-    result.missingPriceCards - result.backfillCards,
-    0
-  );
-  const pausedAfterManualStop =
-    result.skipped && result.message.toLowerCase().includes("paused");
-
-  return (
-    result.quotaExceeded ||
-    pausedAfterManualStop ||
-    result.remainingDueCards > 0 ||
-    remainingMissingPriceCards > 0
-  );
+export async function GET() {
+  try {
+    await requireAdmin();
+    const snapshot = await getAutoPriceRefreshJobSnapshot();
+    return NextResponse.json({
+      ok: true,
+      serverJob: true,
+      ...snapshot,
+    });
+  } catch (error) {
+    return authErrorResponse(error) ?? getSyncErrorResponse(error);
+  }
 }
 
 export async function POST() {
@@ -27,17 +27,15 @@ export async function POST() {
 
   try {
     await requireAdmin();
-    const result = await runAutoPriceRefresh();
-    const historyDrain = await maybeStartCardHistoryQuotaDrainJob({
-      skip: shouldSkipCardHistoryQuotaDrain(result),
-    });
+    const result = await startAutoPriceRefreshJob();
 
     return NextResponse.json({
       ok: true,
+      serverJob: true,
+      autoJobStarted: result.started,
+      autoJobRunning: result.running,
+      autoJobPendingCards: result.pendingCards,
       ...result,
-      cardHistoryJobStarted: historyDrain.started,
-      cardHistoryJobRunning: historyDrain.running,
-      cardHistoryPendingCards: historyDrain.pendingCards,
     });
   } catch (error) {
     const authResponse = authErrorResponse(error);

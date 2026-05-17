@@ -2,6 +2,8 @@ export interface CollectionCardViewItem {
   collection_item_id: string | null;
   collection_item_ids?: string[];
   want_item_id?: string | null;
+  want_source?: string | null;
+  want_source_episode_id?: string | null;
   binder_id?: string | null;
   card_id: string;
   name: string;

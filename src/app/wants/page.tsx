@@ -4,6 +4,7 @@ import { BadgeEuro, CheckCircle2, Heart, Layers3, Search } from "lucide-react";
 import { HeaderAction, PageHeroHeader, type HeaderStat } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getWantsPageData } from "@/lib/collection-data";
+import { getSupportTileTrackWidth } from "@/lib/display-scale";
 import {
   GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
@@ -15,6 +16,8 @@ import {
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { syncMissingBinderWantsForUser } from "@/lib/wantlist-planner";
+import WantsPlannerSection from "./WantsPlannerSection";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
@@ -127,11 +130,20 @@ export default async function WantsPage({
 }) {
   const user = await requirePageUser("/wants");
   const settings = await getServerUserSettings(user.id);
+  const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
   const { game: gameParam } = await searchParams;
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const browseHref = activeGame === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
+  try {
+    await syncMissingBinderWantsForUser(user.id, {
+      game: activeGame,
+      includeOnePiece: settings.onePieceLibraryEnabled,
+    });
+  } catch (error) {
+    console.error("Failed to prepare wantlist planner", error);
+  }
   const data = await getWantsPageData(user.id, activeGame);
 
   function buildGameHref(game: TradingCardGameFilter) {
@@ -248,18 +260,31 @@ export default async function WantsPage({
           </div>
         ) : null}
 
-        <CollectionCardsView
-          items={data.items}
-          allowWantRemoval
-          emptyTitle="No wants yet"
-          emptyText="Use Want on a card detail to keep it here."
-          sectionTitle="Wanted cards"
-          sectionCount={data.totalCards.toLocaleString("en-US")}
-          showFilters
-          forcedSortBy="cm_en"
-          forcedSortDir="desc"
-          hideSortControls
+        <WantsPlannerSection
+          groups={data.plannerGroups}
+          needsPlannerSync={data.needsPlannerSync}
+          game={activeGame}
+          tileTrackWidth={binderTileTrackWidth}
         />
+
+        {data.personalItems.length > 0 || data.plannerGroups.length === 0 ? (
+          <CollectionCardsView
+            items={data.personalItems}
+            allowWantRemoval
+            emptyTitle="No wants yet"
+            emptyText="Use Want on a card detail to keep it here."
+            sectionTitle={data.plannerGroups.length > 0 ? "Personal wants" : "Wanted cards"}
+            sectionCount={data.personalItems.length.toLocaleString("en-US")}
+            showFilters
+            forcedSortBy="cm_en"
+            forcedSortDir="desc"
+            hideSortControls
+          />
+        ) : (
+          <section className="rounded-3xl border border-black/8 bg-white/70 px-4 py-3 text-sm text-gray-500 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/48 dark:shadow-none">
+            No personal wants outside binder goals.
+          </section>
+        )}
       </div>
     </div>
   );

@@ -15,7 +15,13 @@ interface EpisodeOption {
   code: string | null;
 }
 
-export default function CreateBinderButton() {
+export default function CreateBinderButton({
+  compact = false,
+  className = "",
+}: {
+  compact?: boolean;
+  className?: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [showCustomize, setShowCustomize] = useState(false);
@@ -304,7 +310,9 @@ export default function CreateBinderButton() {
       <button
         type="button"
         onClick={openModal}
-        className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white max-[640px]:gap-1.5 max-[640px]:px-3 max-[640px]:py-1.5 max-[640px]:text-[12px] dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
+        className={`inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white max-[640px]:gap-1.5 max-[640px]:px-3 max-[640px]:py-1.5 max-[640px]:text-[12px] dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12 ${
+          compact ? "h-8 rounded-full px-2.5 py-0 text-xs max-[640px]:px-2.5" : ""
+        } ${className}`}
       >
         <Plus className="h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5" />
         Add Binder

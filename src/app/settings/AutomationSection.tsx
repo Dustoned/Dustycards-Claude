@@ -5,6 +5,70 @@ import { useRouter } from "next/navigation";
 import { Package, RefreshCw } from "lucide-react";
 import SyncButton from "../expansions/SyncButton";
 
+function StartBackgroundRefreshButton({
+  scraperDisabled,
+  disabledReason,
+}: {
+  scraperDisabled: boolean;
+  disabledReason: string;
+}) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function handleStart() {
+    setLoading(true);
+    setStatus("Starting server-side background refresh...");
+    try {
+      const res = await fetch("/api/price-refresh", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        setStatus(`Error: ${data.error}`);
+        return;
+      }
+
+      const pendingCards = Number(data.pendingCards ?? data.autoJobPendingCards ?? 0);
+      setStatus(
+        data.started || data.autoJobStarted
+          ? `Background job started with ${pendingCards} cards waiting.`
+          : data.running || data.autoJobRunning
+            ? `Background job is already running with ${pendingCards} cards waiting.`
+            : pendingCards > 0
+              ? `${pendingCards} cards are waiting; job is queued.`
+              : "No price work waiting right now."
+      );
+      router.refresh();
+    } catch {
+      setStatus("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex w-full flex-col gap-2 sm:w-auto">
+      <button
+        onClick={handleStart}
+        disabled={loading || scraperDisabled}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08] sm:w-auto"
+      >
+        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        {loading ? "Starting..." : "Start Background Refresh"}
+      </button>
+      {scraperDisabled && (
+        <p className="max-w-sm break-words text-xs text-amber-600 dark:text-amber-300">
+          {disabledReason}
+        </p>
+      )}
+      {status && <p className="max-w-sm break-words text-xs text-gray-400">{status}</p>}
+    </div>
+  );
+}
+
 function SyncSealedButton({
   scraperDisabled,
   disabledReason,
@@ -236,23 +300,46 @@ const TIERS = [
     label: "Medium",
     badge: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
     description: "Rare, Rare Holo, and holo variants",
-    cadence: "Fixed daily window",
+    cadence: "Rolling daily refresh",
   },
   {
     label: "High",
     badge: "bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300",
     description: "Ultra rares, illustration rares, promos, and higher tiers",
-    cadence: "Fixed 12h windows",
+    cadence: "Rolling 12h refresh",
   },
 ] as const;
 
 interface AutomationSectionProps {
-  scraperUsage: {
-    requestsUsed: number;
-    requestsLimit: number | null;
-    requestsRemaining: number | null;
-    resetLabel: string | null;
-    observedLabel: string | null;
+  schedulerHealth: {
+    status: string | null;
+    healthy: boolean;
+    lastTickLabel: string | null;
+    nextTickLabel: string | null;
+    lastActionLabel: string;
+    historyPendingCards: number | null;
+    normalizedPriceCheckedAtCards: number | null;
+    pricedCardsMissingCheckedAt: number;
+  };
+  historyAutomation: {
+    running: boolean;
+    pendingCards: number;
+    startedLabel: string | null;
+    finishedLabel: string | null;
+    drainWindowLabel: string | null;
+    quotaResetLabel: string | null;
+    error: string | null;
+  };
+  knownUnavailableSummary: {
+    total: number;
+    pokemon: number;
+    onePiece: number;
+    retryWindow: number;
+    withoutPriceSnapshot: number;
+    withPriceSnapshot: number;
+    oldestCheckedLabel: string | null;
+    latestCheckedLabel: string | null;
+    nextRetryLabel: string | null;
   };
   pendingCardHistoryCards: number;
   pendingCardHistoryByGame: {
@@ -263,11 +350,6 @@ interface AutomationSectionProps {
   activeScraperLabel: string | null;
   scraperDisabled: boolean;
   scraperDisabledLabel: string;
-}
-
-function formatRequestsUsed(used: number, limit: number | null): string {
-  if (limit == null) return `${used}`;
-  return `${used} / ${limit}`;
 }
 
 function UsageStat({
@@ -289,8 +371,33 @@ function UsageStat({
   );
 }
 
+function HealthPill({
+  healthy,
+  status,
+}: {
+  healthy: boolean;
+  status: string | null;
+}) {
+  const label = healthy ? "Healthy" : status === "paused" ? "Paused" : "Needs attention";
+
+  return (
+    <span
+      className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+        healthy
+          ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-700 dark:text-emerald-200"
+          : "border-amber-400/25 bg-amber-400/[0.08] text-amber-700 dark:text-amber-200"
+      }`}
+      title={status ? `Scheduler status: ${status}` : "Scheduler status is not available yet"}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function AutomationSection({
-  scraperUsage,
+  schedulerHealth,
+  historyAutomation,
+  knownUnavailableSummary,
   pendingCardHistoryCards,
   pendingCardHistoryByGame,
   knownUnavailableCards,
@@ -303,34 +410,66 @@ export default function AutomationSection({
   return (
     <div className="settings-panel glass min-w-0 rounded-2xl p-6 shadow-md shadow-black/5">
       <div className="mb-5">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Automation</h2>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Sync Automation</h2>
         <p className="mt-0.5 text-sm text-gray-400">
-          Keep prices fresh in the background while DustyCards is open.
+          Scheduler state and manual tools for background data work.
         </p>
       </div>
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-white">
             Background price refresh
           </p>
           <p className="mt-0.5 text-xs text-gray-400">
-            Always on for live pricing.
+            Server scheduler checks every 5 minutes and starts work when the queue is ready.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">
-            Always on
-          </span>
-          <button
-            disabled
-            aria-pressed="true"
-            title="Background price refresh is always on"
-            type="button"
-            className="relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center overflow-hidden rounded-full bg-gray-900 opacity-90 transition-colors dark:bg-white"
-          >
-            <span className="inline-block h-4 w-4 translate-x-6 transform rounded-full bg-white transition-transform dark:bg-gray-900" />
-          </button>
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-200">
+              Server job
+            </span>
+            <button
+              disabled
+              aria-pressed="true"
+              title="Background price refresh is always on"
+              type="button"
+              className="relative inline-flex h-6 w-11 shrink-0 cursor-not-allowed items-center overflow-hidden rounded-full bg-gray-900 opacity-90 transition-colors dark:bg-white"
+            >
+              <span className="inline-block h-4 w-4 translate-x-6 transform rounded-full bg-white transition-transform dark:bg-gray-900" />
+            </button>
+          </div>
+          <StartBackgroundRefreshButton
+            scraperDisabled={scraperDisabled}
+            disabledReason={scraperDisabledReason}
+          />
+        </div>
+      </div>
+      <div className="mt-4 rounded-xl border border-black/6 bg-black/[0.02] p-3 dark:border-white/8 dark:bg-white/[0.03]">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-400">
+              Scheduler health
+            </p>
+            <p className="mt-1 truncate text-sm text-gray-600 dark:text-gray-300" title={schedulerHealth.lastActionLabel}>
+              {schedulerHealth.lastActionLabel}
+            </p>
+          </div>
+          <HealthPill healthy={schedulerHealth.healthy} status={schedulerHealth.status} />
+        </div>
+        <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2">
+          <UsageStat label="Last tick" value={schedulerHealth.lastTickLabel ?? "--"} />
+          <UsageStat label="Next tick" value={schedulerHealth.nextTickLabel ?? "--"} />
+          <UsageStat label="History queue" value={schedulerHealth.historyPendingCards ?? "--"} />
+          <UsageStat
+            label="Missing checks"
+            value={schedulerHealth.pricedCardsMissingCheckedAt}
+          />
+          <UsageStat
+            label="Fixed last tick"
+            value={schedulerHealth.normalizedPriceCheckedAtCards ?? 0}
+          />
         </div>
       </div>
 
@@ -346,19 +485,6 @@ export default function AutomationSection({
             <p className="mt-0.5 text-xs text-gray-400">
               Check for new sets, new cards, and missing first prices.
             </p>
-            <div className="mt-3 grid w-full grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] gap-2">
-              <UsageStat
-                label="Scraper requests"
-                value={formatRequestsUsed(scraperUsage.requestsUsed, scraperUsage.requestsLimit)}
-              />
-              <UsageStat label="Remaining" value={scraperUsage.requestsRemaining ?? "--"} />
-              <UsageStat label="Reset" value={scraperUsage.resetLabel ?? "--"} />
-            </div>
-            {scraperUsage.observedLabel && (
-              <p className="mt-2 text-[11px] text-gray-400">
-                Updated {scraperUsage.observedLabel}
-              </p>
-            )}
             {activeScraperLabel ? (
               <p className="mt-2 max-w-xl text-[11px] text-gray-400">
                 Active now: {activeScraperLabel}
@@ -376,17 +502,24 @@ export default function AutomationSection({
             <p className="mt-0.5 text-xs text-gray-400">
               Import full TCGGO history for cards with a TCGGO source. Common and Uncommon stay base-price only.
             </p>
-            <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-              Pending native history cards:{" "}
-              <span className="font-semibold text-gray-900 dark:text-white">
-                {pendingCardHistoryCards}
-              </span>
-            </p>
-            <div className="mt-3 grid max-w-md grid-cols-3 gap-2">
+            <div className="mt-3 grid w-full grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2">
+              <UsageStat label="Job" value={historyAutomation.running ? "Running" : "Idle"} />
               <UsageStat label="Total" value={pendingCardHistoryCards} />
               <UsageStat label="Pokemon" value={pendingCardHistoryByGame.pokemon} />
               <UsageStat label="One Piece" value={pendingCardHistoryByGame.onePiece} />
+              <UsageStat label="Drain window" value={historyAutomation.drainWindowLabel ?? "--"} />
+              <UsageStat label="Last finish" value={historyAutomation.finishedLabel ?? "--"} />
             </div>
+            {historyAutomation.error ? (
+              <p className="mt-2 max-w-xl text-xs text-rose-600 dark:text-rose-300">
+                Last history job error: {historyAutomation.error}
+              </p>
+            ) : historyAutomation.startedLabel ? (
+              <p className="mt-2 max-w-xl text-[11px] text-gray-400">
+                Last started {historyAutomation.startedLabel}
+                {historyAutomation.quotaResetLabel ? `; quota reset ${historyAutomation.quotaResetLabel}` : ""}.
+              </p>
+            ) : null}
           </div>
           <SyncCardHistoryButton
             pendingCards={pendingCardHistoryCards}
@@ -400,17 +533,35 @@ export default function AutomationSection({
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-medium text-gray-900 dark:text-white">
-              Known unavailable price check
+              Unavailable price sources
             </p>
             <p className="mt-0.5 text-xs text-gray-400">
-              Re-check cards that previously had no TCGGO price to see whether prices are available now.
+              Source returned no current price, so normal refresh skips these cards until a retry is useful.
             </p>
-            <p className="mt-2 text-xs text-gray-500 dark:text-white/45">
-              Known unavailable cards:{" "}
-              <span className="font-semibold text-gray-900 dark:text-white">
-                {knownUnavailableCards}
-              </span>
+            <div className="mt-3 grid w-full grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2">
+              <UsageStat label="Unavailable now" value={knownUnavailableSummary.total} />
+              <UsageStat label="Retry ready" value={knownUnavailableSummary.retryWindow} />
+              <UsageStat label="No price data" value={knownUnavailableSummary.withoutPriceSnapshot} />
+              <UsageStat label="Has old price" value={knownUnavailableSummary.withPriceSnapshot} />
+              <UsageStat label="Pokemon" value={knownUnavailableSummary.pokemon} />
+              <UsageStat label="One Piece" value={knownUnavailableSummary.onePiece} />
+            </div>
+            <p className="mt-2 max-w-xl text-[11px] text-gray-400">
+              {knownUnavailableSummary.oldestCheckedLabel || knownUnavailableSummary.latestCheckedLabel
+                ? `Checked range: ${knownUnavailableSummary.oldestCheckedLabel ?? "--"} - ${
+                    knownUnavailableSummary.latestCheckedLabel ?? "--"
+                  }.`
+                : "No unavailable price checks recorded yet."}
             </p>
+            {knownUnavailableSummary.retryWindow > 0 ? (
+              <p className="mt-2 max-w-xl text-[11px] text-gray-400">
+                Retry ready means the last unavailable check is older than 7 days.
+              </p>
+            ) : knownUnavailableSummary.nextRetryLabel ? (
+              <p className="mt-2 max-w-xl text-[11px] text-gray-400">
+                Next retry window opens at {knownUnavailableSummary.nextRetryLabel}.
+              </p>
+            ) : null}
           </div>
           <CheckKnownUnavailablePricesButton
             knownUnavailableCards={knownUnavailableCards}
@@ -441,21 +592,21 @@ export default function AutomationSection({
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
           Refresh Tiers
         </p>
-        <div className="space-y-2.5">
+        <div className="grid gap-2 lg:grid-cols-3">
           {TIERS.map((tier) => (
             <div
               key={tier.label}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/6 bg-black/[0.02] px-4 py-3 dark:border-white/8 dark:bg-white/[0.03]"
+              className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.03]"
             >
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tier.badge}`}>
                   {tier.label}
                 </span>
-                <span className="min-w-0 break-words text-sm text-gray-600 dark:text-gray-300">
+                <span className="min-w-0 truncate text-sm text-gray-600 dark:text-gray-300" title={tier.description}>
                   {tier.description}
                 </span>
               </div>
-              <span className="text-xs font-medium uppercase tracking-wider text-gray-400">
+              <span className="mt-2 block truncate text-xs font-medium uppercase tracking-wider text-gray-400" title={tier.cadence}>
                 {tier.cadence}
               </span>
             </div>

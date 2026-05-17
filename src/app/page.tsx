@@ -3,13 +3,13 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { BookOpen, Boxes, Coins, Sparkles } from "lucide-react";
 import {
-  HeaderAction,
   PageHeroHeader,
   type HeaderStat,
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
   getCollectionOverviewData,
+  type CollectionOverviewData,
   type CollectionPageTab,
 } from "@/lib/collection-data";
 import { getFixedTrackGridTemplate, getSupportTileTrackWidth } from "@/lib/display-scale";
@@ -30,9 +30,6 @@ import {
 import { requirePageUser } from "@/lib/page-auth";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 
-const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"), {
-  loading: () => null,
-});
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionOverviewSections = nextDynamic(() => import("@/components/CollectionOverviewSections"));
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
@@ -183,6 +180,130 @@ function CollectionHeaderStatCard({
   );
 }
 
+function sumCardViewValue(items: CollectionOverviewData["cards"]): number {
+  return Number(
+    items.reduce((total, item) => total + (item.current_value ?? 0), 0).toFixed(2)
+  );
+}
+
+function sumSealedViewValue(items: CollectionOverviewData["sealed"]): number {
+  return Number(
+    items
+      .reduce((total, item) => total + (item.current_value_per_item ?? 0) * item.quantity, 0)
+      .toFixed(2)
+  );
+}
+
+function PortfolioBreakdownItem({
+  label,
+  count,
+  value,
+  share,
+  barClassName,
+}: {
+  label: string;
+  count: string;
+  value: string;
+  share: number;
+  barClassName: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-black/6 bg-white/50 p-2 dark:border-white/8 dark:bg-white/[0.035]">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-gray-900 dark:text-white">{label}</p>
+          <p className="mt-0.5 truncate text-[10px] text-gray-500 dark:text-white/45">{count}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-xs font-bold tabular-nums text-gray-950 dark:text-white">{value}</p>
+          <p className="mt-0.5 text-[10px] text-gray-500 dark:text-white/45">
+            {share.toFixed(0)}%
+          </p>
+        </div>
+      </div>
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/7 dark:bg-white/8">
+        <div className={`h-full rounded-full ${barClassName}`} style={{ width: `${share}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function PortfolioBreakdownPanel({
+  rawLooseSingles,
+  gradedLooseSingles,
+  binderCards,
+  sealed,
+}: {
+  rawLooseSingles: CollectionOverviewData["looseSingles"];
+  gradedLooseSingles: CollectionOverviewData["looseSingles"];
+  binderCards: CollectionOverviewData["binderCards"];
+  sealed: CollectionOverviewData["sealed"];
+}) {
+  const sealedUnits = sealed.reduce((total, item) => total + item.quantity, 0);
+  const segments = [
+    {
+      label: "Loose raw",
+      count: `${rawLooseSingles.length.toLocaleString("en-US")} cards`,
+      itemCount: rawLooseSingles.length,
+      value: sumCardViewValue(rawLooseSingles),
+      color: "bg-sky-500",
+    },
+    {
+      label: "Loose graded",
+      count: `${gradedLooseSingles.length.toLocaleString("en-US")} cards`,
+      itemCount: gradedLooseSingles.length,
+      value: sumCardViewValue(gradedLooseSingles),
+      color: "bg-violet-500",
+    },
+    {
+      label: "Binder cards",
+      count: `${binderCards.length.toLocaleString("en-US")} cards`,
+      itemCount: binderCards.length,
+      value: sumCardViewValue(binderCards),
+      color: "bg-emerald-500",
+    },
+    {
+      label: "Sealed",
+      count: `${sealedUnits.toLocaleString("en-US")} units`,
+      itemCount: sealedUnits,
+      value: sumSealedViewValue(sealed),
+      color: "bg-rose-500",
+    },
+  ].filter((segment) => segment.value > 0 || segment.itemCount > 0);
+  const totalValue = segments.reduce((total, segment) => total + segment.value, 0);
+  const fullSummary = segments
+    .map((segment) => `${segment.label}: ${formatCollectionCurrency(segment.value)}`)
+    .join(" / ");
+
+  return (
+    <section
+      className="rounded-2xl border border-black/8 bg-black/[0.02] p-3 dark:border-white/8 dark:bg-white/[0.03]"
+      title={fullSummary}
+    >
+      <div className="mb-2.5 flex min-w-0 items-center justify-between gap-3">
+        <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
+          Portfolio breakdown
+        </p>
+        <p className="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-white/45">
+          By current value
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-4">
+        {segments.map((segment) => (
+          <PortfolioBreakdownItem
+            key={segment.label}
+            label={segment.label}
+            count={segment.count}
+            value={formatCollectionCurrency(segment.value)}
+            share={totalValue > 0 ? (segment.value / totalValue) * 100 : 0}
+            barClassName={segment.color}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -308,11 +429,6 @@ export default async function HomePage({
           className="xl:[--ui-page-header-title-size:2rem] 2xl:[--ui-page-header-title-size:2.15rem] max-[640px]:[--ui-page-header-action-margin:0.45rem] max-[640px]:[--ui-page-header-grid-gap:0.55rem] max-[640px]:[--ui-page-header-padding:0.7rem] max-[640px]:[--ui-page-header-title-size:1.35rem] max-[640px]:[--ui-header-action-gap:0.4rem] max-[640px]:[--ui-header-action-x:0.65rem] max-[640px]:[--ui-header-action-y:0.35rem] max-[640px]:[&_h1+div]:hidden"
           gridClassName="xl:grid-cols-[minmax(23rem,0.58fr)_minmax(0,1.42fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.57fr)_minmax(0,1.63fr)] 2xl:items-stretch"
           sideClassName="space-y-2 xl:space-y-0"
-          actions={
-            <HeaderAction className="max-[640px]:gap-1.5">
-              <CreateBinderButton />
-            </HeaderAction>
-          }
           accessory={
             <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.75fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.32fr)_minmax(24rem,0.68fr)]">
               <div className={activeTab === "overview" ? "sm:hidden" : "hidden"}>
@@ -444,6 +560,15 @@ export default async function HomePage({
                 </Link>
               </div>
             </div>
+          )}
+
+          {hasCollection && activeTab === "overview" && (
+            <PortfolioBreakdownPanel
+              rawLooseSingles={rawLooseSingles}
+              gradedLooseSingles={gradedLooseSingles}
+              binderCards={data.binderCards}
+              sealed={data.sealed}
+            />
           )}
 
           {activeTab === "overview" && (

@@ -14,6 +14,7 @@ model Episode {
   code          String?
   release_date  String?
   card_count    Int?
+  printed_card_count Int?
   logo_url      String?
   symbol_url    String?
   series        String?
@@ -30,6 +31,7 @@ model Episode {
   @@index([source_status, source_checked_at])
   @@index([game, release_date])
   @@index([game, code])
+  @@index([printed_card_count])
 }
 
 model AppSetting {
@@ -211,6 +213,7 @@ model Card {
   episode_id      String
   name            String
   card_number     String?
+  printed_card_number String?
   rarity          String?
   hp              Int?
   supertype       String?
@@ -259,6 +262,7 @@ model Card {
   @@index([episode_id])
   @@index([game, episode_id])
   @@index([episode_id, card_number])
+  @@index([printed_card_number])
   @@index([price_source_status, price_source_checked_at])
   @@index([native_history_synced_at])
   @@index([native_history_status, native_history_checked_at])
@@ -414,19 +418,25 @@ model CollectionCardTag {
 }
 
 model CollectionWant {
-  id         String   @id @default(cuid())
-  user_id    String
-  card_id    String
-  notes      String?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id                String    @id @default(cuid())
+  user_id           String
+  card_id           String
+  notes             String?
+  source            String    @default("manual")
+  source_episode_id String?
+  dismissed_at      DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
 
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  card       Card     @relation(fields: [card_id], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  card              Card      @relation(fields: [card_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, card_id])
   @@index([user_id])
   @@index([card_id])
+  @@index([source])
+  @@index([source_episode_id])
+  @@index([dismissed_at])
   @@index([created_at])
 }
 

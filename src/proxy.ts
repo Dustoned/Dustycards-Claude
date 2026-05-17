@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth-constants";
 
 const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
-const PUBLIC_API_PREFIXES = ["/api/app-version", "/api/auth"];
+const PUBLIC_API_PREFIXES = ["/api/app-version", "/api/auth", "/api/internal/sync-scheduler"];
 
 function isPublicPath(pathname: string): boolean {
   return (

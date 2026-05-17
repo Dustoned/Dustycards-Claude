@@ -71,7 +71,7 @@ export function CollectionSealedSectionHeader({
       title={sectionTitle}
       count={sectionCount}
       trailing={
-        <>
+        <div className="flex flex-wrap items-center gap-1.5">
           {showInlineSelectionButton && (
             <button
               type="button"
@@ -82,7 +82,7 @@ export function CollectionSealedSectionHeader({
             </button>
           )}
           {sectionTrailing}
-        </>
+        </div>
       }
     />
   );

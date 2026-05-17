@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
+import { appBuildLabel, appVersion, buildVersion, serverStartedAtIso } from "@/lib/app-version";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const serverStartedAt = new Date().toISOString();
-const appVersion =
-  process.env.NEXT_PUBLIC_APP_VERSION ??
-  process.env.APP_VERSION ??
-  process.env.VERCEL_GIT_COMMIT_SHA ??
-  process.env.RAILWAY_GIT_COMMIT_SHA ??
-  serverStartedAt;
-
 export function GET() {
   return NextResponse.json(
-    { version: appVersion },
+    { version: appVersion, build: buildVersion, buildLabel: appBuildLabel, startedAt: serverStartedAtIso },
     {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",

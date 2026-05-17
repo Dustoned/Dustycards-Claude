@@ -23,6 +23,10 @@ export interface AutoPriceRefreshClientResponse {
   cardHistoryJobStarted?: boolean;
   cardHistoryJobRunning?: boolean;
   cardHistoryPendingCards?: number;
+  serverJob?: boolean;
+  autoJobStarted?: boolean;
+  autoJobRunning?: boolean;
+  autoJobPendingCards?: number;
 }
 
 export function hasVisibleRefreshChanges(data: AutoPriceRefreshClientResponse): boolean {
@@ -36,6 +40,8 @@ export function hasVisibleRefreshChanges(data: AutoPriceRefreshClientResponse): 
     (data.refreshedPrices ?? 0) > 0 ||
     (data.refreshedCards ?? 0) > 0 ||
     (data.gradedPricesUpdated ?? 0) > 0 ||
+    data.autoJobStarted === true ||
+    data.autoJobRunning === true ||
     data.cardHistoryJobStarted === true ||
     data.cardHistoryJobRunning === true
   );

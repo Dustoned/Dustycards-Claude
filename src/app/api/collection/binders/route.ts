@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
 import { POKEMON_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
 
 const binderSelect = {
   id: true,
@@ -172,6 +173,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (existing) {
+        await syncMissingBinderWantsAfterCollectionChange(user.id);
         return NextResponse.json({ binder: existing, reused: true });
       }
 
@@ -188,6 +190,8 @@ export async function POST(req: NextRequest) {
         },
         select: binderSelect,
       });
+
+      await syncMissingBinderWantsAfterCollectionChange(user.id);
 
       return NextResponse.json({ binder, reused: false });
     }
@@ -294,6 +298,8 @@ export async function DELETE(req: NextRequest) {
     await db.collectionBinder.delete({
       where: { id: binderId },
     });
+
+    await syncMissingBinderWantsAfterCollectionChange(user.id);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

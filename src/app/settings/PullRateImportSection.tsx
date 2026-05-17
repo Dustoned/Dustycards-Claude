@@ -41,6 +41,8 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
   const [fetching, setFetching] = useState<"missing" | "all" | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [fetchStatus, setFetchStatus] = useState<string | null>(null);
+  const [manualImportOpen, setManualImportOpen] = useState(false);
+  const showManualImport = manualImportOpen || Boolean(content || fileName || status);
 
   async function handleFileChange(file: File | null) {
     if (!file) return;
@@ -224,38 +226,61 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
         ) : null}
       </div>
 
-      <div className="mt-5 space-y-3 border-t border-black/6 pt-5 dark:border-white/6">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json,.csv,application/json,text/csv,text/plain"
-          onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
-          className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-xl file:border-0 file:bg-black/[0.04] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-gray-800 hover:file:bg-black/[0.07] dark:text-white/45 dark:file:bg-white/[0.08] dark:file:text-white dark:hover:file:bg-white/[0.12]"
-        />
-        {fileName ? (
-          <p className="text-xs text-gray-400">Loaded {fileName}</p>
-        ) : null}
-        <textarea
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          rows={6}
-          placeholder='Paste Collectrics set JSON or CSV here, for example {"set-code":"SFA","rarity-breakdown":{...}}'
-          className="w-full resize-y rounded-2xl border border-black/8 bg-white/70 px-3 py-3 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/15 dark:border-white/8 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/18"
-        />
+      <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              Manual import
+            </p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              Use a local JSON or CSV backup only when Collectrics fetch is not enough.
+            </p>
+          </div>
           <button
             type="button"
-            onClick={() => void handleImport()}
-            disabled={loading || content.trim().length === 0}
+            onClick={() => setManualImportOpen((open) => !open)}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08]"
           >
-            <Upload className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
-            {loading ? "Importing..." : "Import Pull Rates"}
+            <Upload className="h-4 w-4" />
+            {showManualImport ? "Hide Import" : "Open Import"}
           </button>
-          {status ? (
-            <p className="min-w-0 break-words text-xs text-gray-500 dark:text-white/45">{status}</p>
-          ) : null}
         </div>
+
+        {showManualImport ? (
+          <div className="mt-4 space-y-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,.csv,application/json,text/csv,text/plain"
+              onChange={(event) => void handleFileChange(event.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-gray-500 file:mr-3 file:rounded-xl file:border-0 file:bg-black/[0.04] file:px-3 file:py-2 file:text-sm file:font-semibold file:text-gray-800 hover:file:bg-black/[0.07] dark:text-white/45 dark:file:bg-white/[0.08] dark:file:text-white dark:hover:file:bg-white/[0.12]"
+            />
+            {fileName ? (
+              <p className="text-xs text-gray-400">Loaded {fileName}</p>
+            ) : null}
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              rows={5}
+              placeholder='Paste Collectrics set JSON or CSV here, for example {"set-code":"SFA","rarity-breakdown":{...}}'
+              className="w-full resize-y rounded-2xl border border-black/8 bg-white/70 px-3 py-3 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/15 dark:border-white/8 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/18"
+            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => void handleImport()}
+                disabled={loading || content.trim().length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08]"
+              >
+                <Upload className={`h-4 w-4 ${loading ? "animate-pulse" : ""}`} />
+                {loading ? "Importing..." : "Import Pull Rates"}
+              </button>
+              {status ? (
+                <p className="min-w-0 break-words text-xs text-gray-500 dark:text-white/45">{status}</p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

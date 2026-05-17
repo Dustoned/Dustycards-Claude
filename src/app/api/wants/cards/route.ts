@@ -3,6 +3,7 @@ import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { WANT_SOURCE_BINDER_MISSING, WANT_SOURCE_MANUAL } from "@/lib/wantlist-planner";
 
 const WANTS_BATCH_LIMIT = 500;
 
@@ -73,10 +74,15 @@ export async function POST(req: NextRequest) {
           card_id: cardId,
         },
       },
-      update: {},
+      update: {
+        source: WANT_SOURCE_MANUAL,
+        source_episode_id: null,
+        dismissed_at: null,
+      },
       create: {
         user_id: user.id,
         card_id: cardId,
+        source: WANT_SOURCE_MANUAL,
       },
       select: {
         id: true,
@@ -126,15 +132,91 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const deleted = await db.collectionWant.deleteMany({
+    const records = await db.collectionWant.findMany({
       where: {
         user_id: user.id,
-        ...(itemIds.length > 0 ? { id: { in: itemIds } } : {}),
-        ...(cardIds.length > 0 ? { card_id: { in: cardIds } } : {}),
+        dismissed_at: null,
+        OR: [
+          ...(itemIds.length > 0 ? [{ id: { in: itemIds } }] : []),
+          ...(cardIds.length > 0 ? [{ card_id: { in: cardIds } }] : []),
+        ],
+      },
+      select: {
+        id: true,
+        card_id: true,
+        card: {
+          select: {
+            episode_id: true,
+            collectionItems: {
+              where: { user_id: user.id },
+              select: { id: true },
+              take: 1,
+            },
+          },
+        },
       },
     });
 
-    return NextResponse.json({ success: true, count: deleted.count });
+    const linkedBinders = await db.collectionBinder.findMany({
+      where: {
+        user_id: user.id,
+        type: "linked_set",
+        episode_id: { in: [...new Set(records.map((record) => record.card.episode_id))] },
+      },
+      select: { episode_id: true },
+    });
+    const linkedEpisodeIds = new Set(
+      linkedBinders
+        .map((binder) => binder.episode_id)
+        .filter((episodeId): episodeId is string => Boolean(episodeId))
+    );
+    const hideRecords = records
+      .filter((record) => linkedEpisodeIds.has(record.card.episode_id))
+      .filter((record) => record.card.collectionItems.length === 0);
+    const hideIds = hideRecords.map((record) => record.id);
+    const deleteIds = records
+      .filter((record) => !hideIds.includes(record.id))
+      .map((record) => record.id);
+
+    const result = await db.$transaction(async (tx) => {
+      let hiddenCount = 0;
+      const now = new Date();
+      const hideByEpisodeId = new Map<string, string[]>();
+
+      for (const record of hideRecords) {
+        const ids = hideByEpisodeId.get(record.card.episode_id) ?? [];
+        ids.push(record.id);
+        hideByEpisodeId.set(record.card.episode_id, ids);
+      }
+
+      for (const [episodeId, ids] of hideByEpisodeId) {
+        const hidden = await tx.collectionWant.updateMany({
+          where: { user_id: user.id, id: { in: ids } },
+          data: {
+            source: WANT_SOURCE_BINDER_MISSING,
+            source_episode_id: episodeId,
+            dismissed_at: now,
+          },
+        });
+        hiddenCount += hidden.count;
+      }
+
+      const deleted =
+        deleteIds.length > 0
+          ? await tx.collectionWant.deleteMany({
+              where: { user_id: user.id, id: { in: deleteIds } },
+            })
+          : { count: 0 };
+
+      return { hidden: hiddenCount, deleted: deleted.count };
+    });
+
+    return NextResponse.json({
+      success: true,
+      count: result.hidden + result.deleted,
+      hidden: result.hidden,
+      deleted: result.deleted,
+    });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to remove wants" }, { status: 500 });
   }

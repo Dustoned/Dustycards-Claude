@@ -2259,26 +2259,22 @@ async function syncEpisodeCards(
       );
 
       if (writeMode === "new") {
-        if (existingCard?.price_source_status || existingCard?.price_source_checked_at) {
-          await tx.card.update({
-            where: { id: card.id },
-            data: {
-              price_source_status: null,
-              price_source_checked_at: null,
-            },
-          });
-        }
+        await tx.card.update({
+          where: { id: card.id },
+          data: {
+            price_source_status: null,
+            price_source_checked_at: fetchedAt,
+          },
+        });
         newPrices += 1;
       } else if (writeMode === "refreshed") {
-        if (existingCard?.price_source_status || existingCard?.price_source_checked_at) {
-          await tx.card.update({
-            where: { id: card.id },
-            data: {
-              price_source_status: null,
-              price_source_checked_at: null,
-            },
-          });
-        }
+        await tx.card.update({
+          where: { id: card.id },
+          data: {
+            price_source_status: null,
+            price_source_checked_at: fetchedAt,
+          },
+        });
         refreshedPrices += 1;
       } else if (!latestPrice) {
         await tx.card.update({
@@ -2639,6 +2635,121 @@ export async function countKnownUnavailablePriceCandidates(): Promise<number> {
   });
 }
 
+export async function getKnownUnavailablePriceSummary(): Promise<{
+  totalCards: number;
+  pokemonCards: number;
+  onePieceCards: number;
+  retryWindowCards: number;
+  withoutPriceSnapshotCards: number;
+  withPriceSnapshotCards: number;
+  oldestCheckedAt: Date | null;
+  latestCheckedAt: Date | null;
+  nextRetryAt: Date | null;
+}> {
+  const where = await getVisibleKnownUnavailablePriceWhere();
+  const retryBefore = new Date(Date.now() - PRICE_SOURCE_UNAVAILABLE_RETRY_MS);
+
+  const [
+    totalCards,
+    byGame,
+    checkedRange,
+    retryWindowCards,
+    withoutPriceSnapshotCards,
+    withPriceSnapshotCards,
+  ] = await Promise.all([
+    db.card.count({ where }),
+    db.card.groupBy({
+      by: ["game"],
+      where,
+      _count: { _all: true },
+    }),
+    db.card.aggregate({
+      where,
+      _min: { price_source_checked_at: true },
+      _max: { price_source_checked_at: true },
+    }),
+    db.card.count({
+      where: {
+        ...where,
+        OR: [
+          { price_source_checked_at: null },
+          { price_source_checked_at: { lt: retryBefore } },
+        ],
+      },
+    }),
+    db.card.count({
+      where: {
+        ...where,
+        prices: { none: {} },
+      },
+    }),
+    db.card.count({
+      where: {
+        ...where,
+        prices: { some: {} },
+      },
+    }),
+  ]);
+
+  const gameCounts = new Map(byGame.map((row) => [row.game, row._count._all]));
+  const nextWaitingCard =
+    totalCards > 0 && retryWindowCards === 0
+      ? await db.card.findFirst({
+          where: {
+            ...where,
+            price_source_checked_at: { not: null },
+          },
+          orderBy: { price_source_checked_at: "asc" },
+          select: { price_source_checked_at: true },
+        })
+      : null;
+
+  return {
+    totalCards,
+    pokemonCards: gameCounts.get(POKEMON_GAME) ?? 0,
+    onePieceCards: gameCounts.get(ONE_PIECE_GAME) ?? 0,
+    retryWindowCards,
+    withoutPriceSnapshotCards,
+    withPriceSnapshotCards,
+    oldestCheckedAt: checkedRange._min.price_source_checked_at ?? null,
+    latestCheckedAt: checkedRange._max.price_source_checked_at ?? null,
+    nextRetryAt: retryWindowCards > 0
+      ? new Date()
+      : nextWaitingCard?.price_source_checked_at
+        ? new Date(nextWaitingCard.price_source_checked_at.getTime() + PRICE_SOURCE_UNAVAILABLE_RETRY_MS)
+        : null,
+  };
+}
+
+export async function reconcilePriceSourceCheckedAtFromSnapshots(): Promise<number> {
+  return runExclusiveDbWrite(() =>
+    db.$executeRaw`
+      UPDATE "Card"
+      SET
+        price_source_status = NULL,
+        price_source_checked_at = (
+          SELECT MAX("Price".fetched_at)
+          FROM "Price"
+          WHERE "Price".card_id = "Card".id
+        )
+      WHERE tcggo_url IS NOT NULL
+        AND EXISTS (
+          SELECT 1
+          FROM "Price"
+          WHERE "Price".card_id = "Card".id
+        )
+        AND (
+          price_source_checked_at IS NULL
+          OR datetime(price_source_checked_at) < datetime((
+            SELECT MAX("Price".fetched_at)
+            FROM "Price"
+            WHERE "Price".card_id = "Card".id
+          ))
+        )
+    `
+  );
+}
+
 async function selectKnownUnavailablePriceCheckBatch(options?: {
   maxEpisodes?: number;
   maxCards?: number;
@@ -2924,19 +3035,15 @@ async function refreshEpisodeDueCards(
       );
 
       if (writeMode === "new") {
-        if (existingCard.price_source_status || existingCard.price_source_checked_at) {
-          cardUpdateData.price_source_status = null;
-          cardUpdateData.price_source_checked_at = null;
-          shouldUpdateCard = true;
-        }
+        cardUpdateData.price_source_status = null;
+        cardUpdateData.price_source_checked_at = fetchedAt;
+        shouldUpdateCard = true;
         newPrices += 1;
         refreshedCards += 1;
       } else if (writeMode === "refreshed") {
-        if (existingCard.price_source_status || existingCard.price_source_checked_at) {
-          cardUpdateData.price_source_status = null;
-          cardUpdateData.price_source_checked_at = null;
-          shouldUpdateCard = true;
-        }
+        cardUpdateData.price_source_status = null;
+        cardUpdateData.price_source_checked_at = fetchedAt;
+        shouldUpdateCard = true;
         refreshedPrices += 1;
         refreshedCards += 1;
       } else {
@@ -3082,26 +3189,22 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
         );
 
         if (writeMode === "new") {
-          if (existingCard.price_source_status || existingCard.price_source_checked_at) {
-            await tx.card.update({
-              where: { id: cardId },
-              data: {
-                price_source_status: null,
-                price_source_checked_at: null,
-              },
-            });
-          }
+          await tx.card.update({
+            where: { id: cardId },
+            data: {
+              price_source_status: null,
+              price_source_checked_at: fetchedAt,
+            },
+          });
           newPrices += 1;
         } else if (writeMode === "refreshed") {
-          if (existingCard.price_source_status || existingCard.price_source_checked_at) {
-            await tx.card.update({
-              where: { id: cardId },
-              data: {
-                price_source_status: null,
-                price_source_checked_at: null,
-              },
-            });
-          }
+          await tx.card.update({
+            where: { id: cardId },
+            data: {
+              price_source_status: null,
+              price_source_checked_at: fetchedAt,
+            },
+          });
           refreshedPrices += 1;
         } else {
           await tx.card.update({

@@ -16,6 +16,7 @@ import {
 } from "@/lib/collection";
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
 import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
+import { getDisplayCardNumber } from "@/lib/card-number-display";
 import {
   ALL_GAMES,
   getExpansionHref,
@@ -32,6 +33,7 @@ import {
   type EpisodeSealedPriceHistorySnapshot,
 } from "@/lib/price-history";
 import { buildMoverScores } from "@/lib/mover-scoring";
+import { WANT_SOURCE_BINDER_MISSING, syncMissingBinderWantsForUser } from "@/lib/wantlist-planner";
 
 export interface CollectionSummaryMetric {
   investment: number;
@@ -102,9 +104,16 @@ export interface CollectionOverviewData {
       _count: { cards: number };
     } | null;
     progressLabel: string;
+    ownedCards: number;
+    totalCards: number | null;
+    completionPct: number | null;
+    missingCards: number | null;
     currentValue: number;
     investment: number;
     pnl: number;
+    recentChange: number | null;
+    recentChangePct: number | null;
+    recentChangeLabel: string | null;
     subtitle: string;
   }>;
 }
@@ -140,12 +149,65 @@ export interface BinderPageData {
 
 export interface WantsPageData {
   items: CollectionCardViewItem[];
+  personalItems: CollectionCardViewItem[];
+  plannerGroups: WantPlannerGroup[];
+  needsPlannerSync: boolean;
   chart: Array<{ date: string; label: string; value: number | null }>;
   totalCards: number;
   totalSets: number;
   pricedCards: number;
   estimatedValue: number;
   averageValue: number | null;
+}
+
+export interface WantBinderPageData {
+  binder: {
+    id: string;
+    name: string;
+    type: string;
+    accent_color: string | null;
+    icon_name: string | null;
+    episode: {
+      id: string;
+      name: string;
+      code: string | null;
+      logo_url: string | null;
+      series: string | null;
+      card_count: number | null;
+      _count: { cards: number };
+    };
+  };
+  items: CollectionCardViewItem[];
+  chart: Array<{ date: string; label: string; value: number | null }>;
+  metrics: {
+    ownedCount: number;
+    totalCards: number;
+    missingCards: number;
+    visibleMissingCards: number;
+    hiddenCards: number;
+    pricedCards: number;
+    estimatedCost: number;
+    averageCost: number | null;
+  };
+}
+
+export interface WantPlannerGroup {
+  binderId: string;
+  episodeId: string;
+  name: string;
+  subtitle: string;
+  logoUrl: string | null;
+  accentColor: string | null;
+  iconName: string | null;
+  progressLabel: string;
+  ownedCards: number;
+  totalCards: number;
+  visibleMissingCards: number;
+  totalMissingCards: number;
+  hiddenCards: number;
+  pricedCards: number;
+  estimatedCost: number;
+  items: CollectionCardViewItem[];
 }
 
 const collectionCardSelect = {
@@ -168,6 +230,7 @@ const collectionCardSelect = {
       name: true,
       image_url: true,
       card_number: true,
+      printed_card_number: true,
       rarity: true,
       supertype: true,
       episode_id: true,
@@ -258,6 +321,9 @@ const collectionCardMetricSelect = {
 
 const collectionWantSelect = {
   id: true,
+  source: true,
+  source_episode_id: true,
+  dismissed_at: true,
   created_at: true,
   card: {
     select: {
@@ -265,6 +331,7 @@ const collectionWantSelect = {
       name: true,
       image_url: true,
       card_number: true,
+      printed_card_number: true,
       rarity: true,
       supertype: true,
       prices: {
@@ -516,6 +583,7 @@ type CollectionCardRecord = CollectionCardMetricRecord & {
     name: string;
     image_url: string | null;
     card_number: string | null;
+    printed_card_number: string | null;
     rarity: string | null;
     supertype: string | null;
     episode: {
@@ -530,12 +598,16 @@ type CollectionCardRecord = CollectionCardMetricRecord & {
 
 type CollectionWantRecord = {
   id: string;
+  source: string;
+  source_episode_id: string | null;
+  dismissed_at: Date | null;
   created_at: Date;
   card: CollectionCardValueLike & {
     id: string;
     name: string;
     image_url: string | null;
     card_number: string | null;
+    printed_card_number: string | null;
     rarity: string | null;
     supertype: string | null;
     prices: Array<{
@@ -632,6 +704,7 @@ async function getCollectionWants(userId: string, game: TradingCardGameFilter = 
   return db.collectionWant.findMany({
     where: {
       user_id: userId,
+      dismissed_at: null,
       card: {
         ...(isSpecificTradingCardGame(game) ? { game } : {}),
         collectionItems: {
@@ -896,7 +969,7 @@ function buildCardViewItem(
     card_id: record.card.id,
     name: record.card.name,
     image_url: record.card.image_url,
-    card_number: record.card.card_number,
+    card_number: getDisplayCardNumber(record.card),
     rarity: record.card.rarity,
     supertype: record.card.supertype,
     episode_id: record.card.episode.id,
@@ -929,10 +1002,12 @@ function buildWantViewItem(record: CollectionWantRecord): CollectionCardViewItem
     collection_item_id: null,
     collection_item_ids: [],
     want_item_id: record.id,
+    want_source: record.source,
+    want_source_episode_id: record.source_episode_id,
     card_id: record.card.id,
     name: record.card.name,
     image_url: record.card.image_url,
-    card_number: record.card.card_number,
+    card_number: getDisplayCardNumber(record.card),
     rarity: record.card.rarity,
     supertype: record.card.supertype,
     episode_id: record.card.episode.id,
@@ -1311,6 +1386,66 @@ function buildBinderCardStats(
   return stats;
 }
 
+function buildBinderCardQuantities(records: CollectionCardMetricRecord[]) {
+  const quantitiesByBinderId = new Map<string, Map<string, number>>();
+
+  for (const record of records) {
+    if (!record.binder_id) continue;
+
+    const quantities = quantitiesByBinderId.get(record.binder_id) ?? new Map<string, number>();
+    quantities.set(record.card.id, (quantities.get(record.card.id) ?? 0) + 1);
+    quantitiesByBinderId.set(record.binder_id, quantities);
+  }
+
+  return quantitiesByBinderId;
+}
+
+function buildBinderTrendSummaries(
+  records: CollectionCardMetricRecord[],
+  cardHistory: EpisodePriceHistorySnapshot[]
+) {
+  const quantitiesByBinderId = buildBinderCardQuantities(records);
+  const summaries = new Map<
+    string,
+    {
+      recentChange: number | null;
+      recentChangePct: number | null;
+      recentChangeLabel: string | null;
+    }
+  >();
+
+  for (const [binderId, quantities] of quantitiesByBinderId.entries()) {
+    const valuedPoints = buildOwnedCardValueHistory(cardHistory, quantities).filter(
+      (point) => point.total_market > 0
+    );
+    const latestPoint = valuedPoints[valuedPoints.length - 1] ?? null;
+    const previousPoint = valuedPoints[valuedPoints.length - 2] ?? null;
+
+    if (!latestPoint || !previousPoint) {
+      summaries.set(binderId, {
+        recentChange: null,
+        recentChangePct: null,
+        recentChangeLabel: latestPoint?.label ?? null,
+      });
+      continue;
+    }
+
+    const recentChange = roundCurrency(latestPoint.total_market - previousPoint.total_market);
+    const recentChangePct =
+      previousPoint.total_market > 0
+        ? Number(((recentChange / previousPoint.total_market) * 100).toFixed(1))
+        : null;
+
+    summaries.set(binderId, {
+      recentChange,
+      recentChangePct,
+      recentChangeLabel: `since ${previousPoint.label}`,
+    });
+  }
+
+  return summaries;
+}
+
 function buildMetric(investment: number, currentValue: number): CollectionSummaryMetric {
   return {
     investment: Number(investment.toFixed(2)),
@@ -1397,6 +1532,24 @@ export async function getCollectionOverviewData(
     label: point.label,
     value: point.total_market,
   }));
+  const binderCardIds = loadDetailedBinders
+    ? [...new Set(metricCards.filter((record) => record.binder_id).map((record) => record.card.id))]
+    : [];
+  const binderHistoryRows = loadDetailedBinders
+    ? loadCollectionHistory
+      ? cardHistory
+      : await getCardHistoryRows(binderCardIds, getHistoryCutoffDate(45))
+    : [];
+  const binderTrendSummaries = loadDetailedBinders
+    ? buildBinderTrendSummaries(metricCards, binderHistoryRows)
+    : new Map<
+        string,
+        {
+          recentChange: number | null;
+          recentChangePct: number | null;
+          recentChangeLabel: string | null;
+        }
+      >();
   const costBasisByItemId = loadDetailedCards
     ? buildCollectionCostBasisMap(
         metricCards,
@@ -1446,6 +1599,9 @@ export async function getCollectionOverviewData(
             const uniqueOwned = binderStats?.uniqueOwnedCardIds.size ?? 0;
             const investment = baseInvestment + (binder.base_purchase_price ?? 0);
             const totalCards = getEpisodeDisplayCardCount(binder.episode);
+            const completionPct =
+              totalCards > 0 ? Number(((uniqueOwned / totalCards) * 100).toFixed(1)) : null;
+            const trend = binderTrendSummaries.get(binder.id) ?? null;
 
             return {
               id: binder.id,
@@ -1455,12 +1611,21 @@ export async function getCollectionOverviewData(
               icon_name: binder.icon_name,
               episode: binder.episode,
               progressLabel: `${uniqueOwned}/${totalCards}`,
+              ownedCards: uniqueOwned,
+              totalCards,
+              completionPct,
+              missingCards: Math.max(totalCards - uniqueOwned, 0),
               subtitle: `${binder.episode.series ?? "Set"} / ${binder.episode.name}`,
+              recentChange: trend?.recentChange ?? null,
+              recentChangePct: trend?.recentChangePct ?? null,
+              recentChangeLabel: trend?.recentChangeLabel ?? null,
               ...buildMetric(investment, currentValue),
             };
           }
 
           const investment = baseInvestment + (binder.base_purchase_price ?? 0);
+          const ownedCards = binderStats?.count ?? 0;
+          const trend = binderTrendSummaries.get(binder.id) ?? null;
 
           return {
             id: binder.id,
@@ -1469,8 +1634,15 @@ export async function getCollectionOverviewData(
             accent_color: binder.accent_color,
             icon_name: binder.icon_name,
             episode: null,
-            progressLabel: `${binderStats?.count ?? 0} cards`,
+            progressLabel: `${ownedCards} cards`,
+            ownedCards,
+            totalCards: null,
+            completionPct: null,
+            missingCards: null,
             subtitle: "Custom binder",
+            recentChange: trend?.recentChange ?? null,
+            recentChangePct: trend?.recentChangePct ?? null,
+            recentChangeLabel: trend?.recentChangeLabel ?? null,
             ...buildMetric(investment, currentValue),
           };
         })
@@ -1949,6 +2121,21 @@ export async function getCollectionValueDriversData(
   return result;
 }
 
+function sortWantPlannerItems(items: CollectionCardViewItem[]) {
+  return [...items].sort((a, b) => {
+    const valueDiff = (b.current_value ?? -1) - (a.current_value ?? -1);
+    if (valueDiff !== 0) return valueDiff;
+
+    const numberDiff = (a.card_number ?? "").localeCompare(b.card_number ?? "", undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (numberDiff !== 0) return numberDiff;
+
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export async function getWantsPageData(
   userId: string,
   game: TradingCardGameFilter = POKEMON_GAME
@@ -1956,6 +2143,159 @@ export async function getWantsPageData(
   const timer = startPerformanceTimer("collection.wants", { game });
   const wants = (await getCollectionWants(userId, game)) as CollectionWantRecord[];
   const items = wants.map(buildWantViewItem);
+  const linkedBinders = await db.collectionBinder.findMany({
+    where: {
+      user_id: userId,
+      type: "linked_set",
+      episode_id: { not: null },
+      episode: {
+        ...(isSpecificTradingCardGame(game) ? { game } : {}),
+      },
+    },
+    orderBy: [{ updated_at: "desc" }, { created_at: "desc" }],
+    select: {
+      id: true,
+      name: true,
+      accent_color: true,
+      icon_name: true,
+      episode_id: true,
+      episode: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          logo_url: true,
+          series: true,
+          card_count: true,
+          _count: { select: { cards: true } },
+        },
+      },
+    },
+  });
+  const linkedEpisodeIds = [
+    ...new Set(
+      linkedBinders
+        .map((binder) => binder.episode_id)
+        .filter((episodeId): episodeId is string => Boolean(episodeId))
+    ),
+  ];
+  const [setCards, ownedCards, plannerWants] =
+    linkedEpisodeIds.length > 0
+      ? await Promise.all([
+          db.card.findMany({
+            where: { episode_id: { in: linkedEpisodeIds } },
+            select: { id: true, episode_id: true },
+          }),
+          db.collectionCard.findMany({
+            where: {
+              user_id: userId,
+              card: { episode_id: { in: linkedEpisodeIds } },
+            },
+            select: { card_id: true },
+          }),
+          db.collectionWant.findMany({
+            where: {
+              user_id: userId,
+              card: { episode_id: { in: linkedEpisodeIds } },
+            },
+            select: {
+              id: true,
+              card_id: true,
+              source: true,
+              source_episode_id: true,
+              dismissed_at: true,
+            },
+          }),
+        ])
+      : ([[], [], []] as const);
+  const ownedCardIds = new Set(ownedCards.map((card) => card.card_id));
+  const setCardsByEpisodeId = new Map<string, string[]>();
+  const allPlannerWantByCardId = new Map(plannerWants.map((want) => [want.card_id, want]));
+  const activeItemsByEpisodeId = new Map<string, CollectionCardViewItem[]>();
+
+  for (const card of setCards) {
+    const episodeCards = setCardsByEpisodeId.get(card.episode_id) ?? [];
+    episodeCards.push(card.id);
+    setCardsByEpisodeId.set(card.episode_id, episodeCards);
+  }
+
+  for (const item of items) {
+    if (!linkedEpisodeIds.includes(item.episode_id)) continue;
+    const groupItems = activeItemsByEpisodeId.get(item.episode_id) ?? [];
+    groupItems.push(item);
+    activeItemsByEpisodeId.set(item.episode_id, groupItems);
+  }
+
+  let needsPlannerSync = false;
+  const plannerGroups = linkedBinders
+    .map((binder) => {
+      if (!binder.episode || !binder.episode_id) return null;
+
+      const setCardIds = setCardsByEpisodeId.get(binder.episode_id) ?? [];
+      const missingCardIds = setCardIds.filter((cardId) => !ownedCardIds.has(cardId));
+      const missingCardIdSet = new Set(missingCardIds);
+      const activeItems = sortWantPlannerItems(
+        (activeItemsByEpisodeId.get(binder.episode_id) ?? []).filter((item) =>
+          missingCardIdSet.has(item.card_id)
+        )
+      );
+      const hiddenCards = plannerWants.filter(
+        (want) =>
+          want.source === WANT_SOURCE_BINDER_MISSING &&
+          want.dismissed_at &&
+          (want.source_episode_id ?? binder.episode_id) === binder.episode_id &&
+          missingCardIdSet.has(want.card_id)
+      ).length;
+
+      if (missingCardIds.some((cardId) => !allPlannerWantByCardId.has(cardId))) {
+        needsPlannerSync = true;
+      }
+
+      if (missingCardIds.length === 0 && hiddenCards === 0 && activeItems.length === 0) {
+        return null;
+      }
+
+      const totalCards = getEpisodeDisplayCardCount(binder.episode);
+      const ownedCount = Math.max(totalCards - missingCardIds.length, 0);
+      const estimatedCost = Number(
+        activeItems.reduce((total, item) => total + (item.current_value ?? 0), 0).toFixed(2)
+      );
+
+      return {
+        binderId: binder.id,
+        episodeId: binder.episode_id,
+        name: binder.name || binder.episode.name,
+        subtitle: `${binder.episode.series ?? "Set"} / ${binder.episode.name}`,
+        logoUrl: binder.episode.logo_url,
+        accentColor: binder.accent_color,
+        iconName: binder.icon_name,
+        progressLabel: `${ownedCount}/${totalCards}`,
+        ownedCards: ownedCount,
+        totalCards,
+        visibleMissingCards: activeItems.length,
+        totalMissingCards: missingCardIds.length,
+        hiddenCards,
+        pricedCards: activeItems.filter((item) => item.current_value != null).length,
+        estimatedCost,
+        items: activeItems,
+      } satisfies WantPlannerGroup;
+    })
+    .filter((group): group is WantPlannerGroup => Boolean(group));
+
+  if (
+    plannerWants.some(
+      (want) =>
+        want.source === WANT_SOURCE_BINDER_MISSING &&
+        (ownedCardIds.has(want.card_id) ||
+          !want.source_episode_id ||
+          !linkedEpisodeIds.includes(want.source_episode_id))
+    )
+  ) {
+    needsPlannerSync = true;
+  }
+
+  const plannerEpisodeIds = new Set(plannerGroups.map((group) => group.episodeId));
+  const personalItems = items.filter((item) => !plannerEpisodeIds.has(item.episode_id));
   const pricedItems = items.filter((item) => item.current_value != null);
   const wantQuantities = buildCardQuantityMap(wants);
   const historyRows = await getCardHistoryRows(
@@ -1976,10 +2316,15 @@ export async function getWantsPageData(
     priced: pricedItems.length,
     estimatedValue,
     historyPoints: chart.length,
+    plannerGroups: plannerGroups.length,
+    needsPlannerSync,
   });
 
   return {
     items,
+    personalItems,
+    plannerGroups,
+    needsPlannerSync,
     chart,
     totalCards: items.length,
     totalSets: new Set(items.map((item) => item.episode_id)).size,
@@ -1987,6 +2332,129 @@ export async function getWantsPageData(
     estimatedValue,
     averageValue:
       pricedItems.length > 0 ? Number((estimatedValue / pricedItems.length).toFixed(2)) : null,
+  };
+}
+
+export async function getWantBinderPageData(
+  binderId: string,
+  userId: string
+): Promise<WantBinderPageData | null> {
+  const binder = await db.collectionBinder.findFirst({
+    where: {
+      id: binderId,
+      user_id: userId,
+      type: "linked_set",
+      episode_id: { not: null },
+      episode: { isNot: null },
+    },
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      accent_color: true,
+      icon_name: true,
+      episode: {
+        select: {
+          id: true,
+          game: true,
+          name: true,
+          code: true,
+          logo_url: true,
+          series: true,
+          card_count: true,
+          _count: { select: { cards: true } },
+        },
+      },
+    },
+  });
+
+  if (!binder?.episode) return null;
+
+  const binderGame: TradingCardGameFilter =
+    binder.episode.game === ONE_PIECE_GAME ? ONE_PIECE_GAME : POKEMON_GAME;
+
+  await syncMissingBinderWantsForUser(userId, { game: binderGame });
+
+  const [wants, ownedCards, hiddenCards] = await Promise.all([
+    db.collectionWant.findMany({
+      where: {
+        user_id: userId,
+        dismissed_at: null,
+        card: {
+          episode_id: binder.episode.id,
+          collectionItems: { none: { user_id: userId } },
+        },
+      },
+      orderBy: { created_at: "desc" },
+      select: collectionWantSelect,
+    }),
+    db.collectionCard.findMany({
+      where: {
+        user_id: userId,
+        card: { episode_id: binder.episode.id },
+      },
+      select: { card_id: true },
+    }),
+    db.collectionWant.count({
+      where: {
+        user_id: userId,
+        source: WANT_SOURCE_BINDER_MISSING,
+        source_episode_id: binder.episode.id,
+        dismissed_at: { not: null },
+        card: {
+          collectionItems: { none: { user_id: userId } },
+        },
+      },
+    }),
+  ]);
+
+  const items = sortWantPlannerItems(
+    (wants as CollectionWantRecord[]).map(buildWantViewItem)
+  );
+  const pricedItems = items.filter((item) => item.current_value != null);
+  const wantQuantities = buildCardQuantityMap(wants as CollectionWantRecord[]);
+  const historyRows = await getCardHistoryRows(
+    [...wantQuantities.keys()],
+    getHistoryCutoffDate()
+  );
+  const chart = buildOwnedCardValueHistory(historyRows, wantQuantities).map((point) => ({
+    date: point.date,
+    label: point.label,
+    value: point.total_market,
+  }));
+  const totalCards = getEpisodeDisplayCardCount(binder.episode);
+  const ownedCount = new Set(ownedCards.map((card) => card.card_id)).size;
+  const missingCards = Math.max(totalCards - ownedCount, 0);
+  const estimatedCost = Number(
+    pricedItems.reduce((total, item) => total + (item.current_value ?? 0), 0).toFixed(2)
+  );
+
+  return {
+    binder: {
+      ...binder,
+      episode: {
+        id: binder.episode.id,
+        name: binder.episode.name,
+        code: binder.episode.code,
+        logo_url: binder.episode.logo_url,
+        series: binder.episode.series,
+        card_count: binder.episode.card_count,
+        _count: binder.episode._count,
+      },
+    },
+    items,
+    chart,
+    metrics: {
+      ownedCount,
+      totalCards,
+      missingCards,
+      visibleMissingCards: items.length,
+      hiddenCards,
+      pricedCards: pricedItems.length,
+      estimatedCost,
+      averageCost:
+        pricedItems.length > 0 ? Number((estimatedCost / pricedItems.length).toFixed(2)) : null,
+    },
   };
 }
 
@@ -2029,6 +2497,7 @@ export async function getBinderPageData(
           name: true,
           image_url: true,
           card_number: true,
+          printed_card_number: true,
           rarity: true,
           supertype: true,
           episode_id: true,
@@ -2201,7 +2670,7 @@ export async function getBinderPageData(
         card_id: card.id,
         name: card.name,
         image_url: card.image_url,
-        card_number: card.card_number,
+        card_number: getDisplayCardNumber(card),
         rarity: card.rarity,
         supertype: card.supertype,
         episode_id: card.episode.id,

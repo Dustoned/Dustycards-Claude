@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
+import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
 
 function toNullableString(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -124,6 +125,8 @@ export async function PATCH(
       });
     }
   });
+
+  await syncMissingBinderWantsAfterCollectionChange(user.id);
 
   return NextResponse.json({ success: true });
   } catch (error) {
