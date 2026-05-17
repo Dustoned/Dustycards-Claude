@@ -311,7 +311,7 @@ export default function CollectionOverviewSections({
               </div>
             ) : (
               <div
-                className="grid justify-start gap-4"
+                className="grid gap-4"
                 style={{
                   gridTemplateColumns: getFixedTrackGridTemplate(binderTileTrackWidth),
                 }}

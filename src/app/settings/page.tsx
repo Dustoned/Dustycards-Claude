@@ -22,8 +22,10 @@ import { getCardHistorySyncJobSnapshot } from "@/lib/sync/card-history-job";
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { requirePageUser } from "@/lib/page-auth";
+import { getFirecrawlConfigSnapshot } from "@/lib/firecrawl";
 import AutomationSection from "./AutomationSection";
 import DataQualitySection from "./DataQualitySection";
+import FirecrawlSection from "./FirecrawlSection";
 import HealthDashboardSection from "./HealthDashboardSection";
 import PullRateImportSection from "./PullRateImportSection";
 import SettingsCollectionDefaultsPanel from "./SettingsCollectionDefaultsPanel";
@@ -774,6 +776,7 @@ export default async function SettingsPage() {
   const latestBackupLabel =
     formatDateTime(systemFileHealth.latestBackupUpdatedAt) ??
     systemFileHealth.latestBackupName;
+  const firecrawlConfig = getFirecrawlConfigSnapshot();
 
   return (
     <div className="settings-page mx-auto px-4 py-10 sm:px-6 lg:px-8">
@@ -863,6 +866,12 @@ export default async function SettingsPage() {
                 />
               </div>
             ),
+          },
+          {
+            key: "firecrawl",
+            label: "Firecrawl",
+            description: "Admin-only web context tools with clear credit guardrails.",
+            content: <FirecrawlSection config={firecrawlConfig} />,
           },
           {
             key: "sync",

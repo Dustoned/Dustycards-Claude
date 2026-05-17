@@ -37,6 +37,7 @@ interface Props {
   searchValue: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder: string;
+  hideSearch?: boolean;
   resultLabel: string;
   sortSummary: string;
   priceSourceLabel?: string | null;
@@ -131,6 +132,7 @@ export default function CardBrowserToolbar({
   searchValue,
   onSearchChange,
   searchPlaceholder,
+  hideSearch = false,
   resultLabel,
   sortSummary,
   priceSourceLabel = null,
@@ -168,58 +170,145 @@ export default function CardBrowserToolbar({
       : quickFilters.length === 0 && filterSections.length === 1
         ? "grid gap-3 xl:grid-cols-[minmax(0,1.6fr)]"
         : "grid gap-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)]";
-
-  return (
-    <div className="card-browser-toolbar glass mb-3 space-y-2.5 rounded-2xl border border-black/8 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 sm:mb-4 sm:space-y-3 sm:rounded-3xl sm:px-4 sm:py-4">
-      <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
-          <input
-            type="text"
-            placeholder={searchPlaceholder}
-            value={searchValue}
-            onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full rounded-2xl border border-black/8 bg-white/78 py-2.5 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 max-[640px]:h-10 max-[640px]:rounded-xl max-[640px]:py-2 max-[640px]:text-sm dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
-          />
-          {searchValue && (
+  const metaControls = (
+    <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+      <span className={metaChipClass()}>{resultLabel}</span>
+      <span className={`${metaChipClass()} max-[640px]:hidden`}>{summaryLabel}</span>
+      <button
+        type="button"
+        onClick={onToggleFilters}
+        className={actionButtonClass(filtersExpanded || filterBadgeCount > 0)}
+        aria-pressed={filtersExpanded}
+      >
+        <SlidersHorizontal className="h-3.5 w-3.5" />
+        Filters
+        {filterBadgeCount > 0 && (
+          <span className={countBadgeClass(filtersExpanded || filterBadgeCount > 0)}>
+            {filterBadgeCount}
+          </span>
+        )}
+      </button>
+      {hasActiveFilters && (
+        <button type="button" onClick={onClearAll} className={actionButtonClass()}>
+          Clear all
+        </button>
+      )}
+      {selectionSlot}
+    </div>
+  );
+  const desktopControls = (
+    <div className="grid gap-2 md:flex md:flex-wrap md:items-center md:gap-x-4 md:gap-y-2">
+      <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
+        <p className={sectionLabelClass()}>View</p>
+        <div className={compactSegmentedShellClass()}>
+          {viewOptions.map((option) => (
             <button
+              key={option.value}
               type="button"
-              onClick={() => onSearchChange("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-900 dark:text-white/35 dark:hover:text-white"
-              aria-label="Clear search"
+              title={option.title}
+              onClick={() => onViewChange(option.value)}
+              className={segmentedButtonClass(activeView === option.value)}
             >
-              <X className="h-4 w-4" />
+              {option.label}
             </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          <span className={metaChipClass()}>{resultLabel}</span>
-          <span className={`${metaChipClass()} max-[640px]:hidden`}>{summaryLabel}</span>
-          <button
-            type="button"
-            onClick={onToggleFilters}
-            className={actionButtonClass(filtersExpanded || filterBadgeCount > 0)}
-            aria-pressed={filtersExpanded}
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            Filters
-            {filterBadgeCount > 0 && (
-              <span className={countBadgeClass(filtersExpanded || filterBadgeCount > 0)}>
-                {filterBadgeCount}
-              </span>
-            )}
-          </button>
-          {hasActiveFilters && (
-            <button type="button" onClick={onClearAll} className={actionButtonClass()}>
-              Clear all
-            </button>
-          )}
-          {selectionSlot}
+          ))}
         </div>
       </div>
 
-      <section className="grid gap-2 sm:hidden">
+      {sortOptions.length > 0 && (
+        <>
+          <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 lg:block" />
+
+          <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
+            <p className={sectionLabelClass()}>Sort</p>
+            <div className={compactSegmentedShellClass()}>
+              {sortOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  title={option.title}
+                  onClick={() => onSortChange(option.value)}
+                  className={segmentedButtonClass(activeSort === option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {sizeOptions.length > 0 && (
+        <>
+          <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 lg:block" />
+
+          <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
+            <p className={sectionLabelClass()}>Size</p>
+            <div className={compactSegmentedShellClass()}>
+              {sizeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  title={option.title}
+                  onClick={() => onSizeChange(option.value)}
+                  className={segmentedButtonClass(activeSize === option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <div
+      className={
+        hideSearch
+          ? "card-browser-toolbar mb-3 space-y-2 sm:mb-4"
+          : "card-browser-toolbar glass mb-3 space-y-2.5 rounded-2xl border border-black/8 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 sm:mb-4 sm:space-y-3 sm:rounded-3xl sm:px-4 sm:py-4"
+      }
+    >
+      {hideSearch ? (
+        <div className="flex flex-col gap-2 rounded-2xl border border-black/8 bg-white/70 p-2 shadow-sm shadow-black/5 backdrop-blur-xl dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20 sm:flex-row sm:items-center sm:justify-between">
+          <section className="hidden min-w-0 sm:block">{desktopControls}</section>
+          {metaControls}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
+          <div className="relative min-w-[220px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
+            <input
+              type="text"
+              placeholder={searchPlaceholder}
+              value={searchValue}
+              onChange={(event) => onSearchChange(event.target.value)}
+              className="w-full rounded-2xl border border-black/8 bg-white/78 py-2.5 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 max-[640px]:h-10 max-[640px]:rounded-xl max-[640px]:py-2 max-[640px]:text-sm dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
+            />
+            {searchValue && (
+              <button
+                type="button"
+                onClick={() => onSearchChange("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-900 dark:text-white/35 dark:hover:text-white"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {metaControls}
+        </div>
+      )}
+
+      <section
+        className={`grid gap-2 sm:hidden ${
+          hideSearch
+            ? "rounded-2xl border border-black/8 bg-white/70 p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]"
+            : ""
+        }`}
+      >
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
             <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
@@ -278,72 +367,11 @@ export default function CardBrowserToolbar({
         )}
       </section>
 
-      <section className={`${controlsStripClass()} max-[640px]:hidden`}>
-        <div className="grid gap-2 md:flex md:flex-wrap md:items-center md:gap-x-4 md:gap-y-2">
-          <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
-            <p className={sectionLabelClass()}>View</p>
-            <div className={compactSegmentedShellClass()}>
-              {viewOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  title={option.title}
-                  onClick={() => onViewChange(option.value)}
-                  className={segmentedButtonClass(activeView === option.value)}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {sortOptions.length > 0 && (
-            <>
-              <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 lg:block" />
-
-              <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
-                <p className={sectionLabelClass()}>Sort</p>
-                <div className={compactSegmentedShellClass()}>
-                  {sortOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      title={option.title}
-                      onClick={() => onSortChange(option.value)}
-                      className={segmentedButtonClass(activeSort === option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {sizeOptions.length > 0 && (
-            <>
-              <div className="hidden h-5 w-px bg-black/8 dark:bg-white/8 lg:block" />
-
-              <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 md:flex">
-                <p className={sectionLabelClass()}>Size</p>
-                <div className={compactSegmentedShellClass()}>
-                  {sizeOptions.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      title={option.title}
-                      onClick={() => onSizeChange(option.value)}
-                      className={segmentedButtonClass(activeSize === option.value)}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
+      {!hideSearch ? (
+        <section className={`${controlsStripClass()} max-[640px]:hidden`}>
+          {desktopControls}
+        </section>
+      ) : null}
 
       {activeFilters.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">

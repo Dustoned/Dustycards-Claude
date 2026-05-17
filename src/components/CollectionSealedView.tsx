@@ -208,7 +208,6 @@ export default function CollectionSealedView({
         imageSizes={tileImageSizes}
         gridTemplateColumns={gridTemplateColumns}
         cardSize={displaySettings.cardSize}
-        isMobileViewport={isMobileViewport}
         selectionMode={selectionMode}
         selectedIdSet={selectedIdSet}
         removingItems={removingItems}

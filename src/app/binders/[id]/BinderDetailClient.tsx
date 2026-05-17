@@ -17,7 +17,7 @@ import type { CollectionCardViewItem } from "@/types/collection-view";
 
 const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
   loading: () => (
-    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+    <section className="min-h-[var(--ui-dashboard-header-panel-min-height)] rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
   ),
 });
 
@@ -196,6 +196,7 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
         }
         accessory={
           <PriceHistoryPanel
+            compact
             title={showingFilteredSubset ? "Filtered Collection Value" : "Binder Value"}
             currency="EUR"
             points={chartPoints}

@@ -126,7 +126,7 @@ export function getRichMoverTrackWidth(cardSize: CardSize, widescreen: boolean):
 }
 
 export function getFixedTrackGridTemplate(trackWidth: string): string {
-  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), min(100%, ${trackWidth})))`;
+  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), 1fr))`;
 }
 
 export function getExpansionTileScale(uiScale: UiScale, widescreen: boolean) {

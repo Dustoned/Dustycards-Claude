@@ -578,6 +578,7 @@ export default async function ExpansionDetailPage({
         }
         accessory={
           <PriceHistoryPanel
+            compact
             title={pricePanelTitle}
             currency="EUR"
             points={pricePanelPoints}

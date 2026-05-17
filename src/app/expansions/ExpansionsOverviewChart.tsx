@@ -157,6 +157,7 @@ export default function ExpansionsOverviewChart({
 
   return (
     <PriceHistoryPanel
+      compact
       title="All Sets Value"
       currency="EUR"
       points={points}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Images, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SectionHeader } from "@/components/PageHeader";
+import { textMatchesSearchQuery } from "@/lib/card-search";
 import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { IllustratorSummary } from "./page";
@@ -87,14 +88,12 @@ export default function IllustratorGridClient({
       }
 
       const topCard = entry.illustrator.topCard;
-      return [
+      return textMatchesSearchQuery([
         entry.illustrator.artist,
         topCard?.name,
         topCard?.episode_name,
         topCard?.episode_code,
-      ]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(normalizedQuery));
+      ], normalizedQuery);
     });
   }, [allEntries, effectiveActiveGroup, normalizedQuery]);
   const renderKey = `${effectiveActiveGroup}:${normalizedQuery}:${filteredEntries.length}:${
@@ -135,15 +134,16 @@ export default function IllustratorGridClient({
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      <div className="glass rounded-3xl border border-black/8 bg-white/70 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:p-4">
-        <div className="relative">
+      <div className="glass rounded-3xl border border-black/8 bg-white/70 p-2.5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:p-4">
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="relative min-w-0">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search illustrator, card, or set..."
-            className="w-full rounded-2xl border border-black/8 bg-white py-3 pl-11 pr-10 text-sm font-medium text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 focus:border-black/20 focus:outline-none dark:border-white/8 dark:bg-white/5 dark:text-white dark:focus:border-white/20"
+            className="h-11 w-full rounded-2xl border border-black/8 bg-white/85 pl-11 pr-10 text-sm font-semibold text-gray-900 shadow-sm transition-colors placeholder:font-medium placeholder:text-gray-400 focus:border-black/18 focus:outline-none dark:border-white/8 dark:bg-white/[0.055] dark:text-white dark:focus:border-white/18"
             autoComplete="off"
             spellCheck={false}
           />
@@ -159,15 +159,21 @@ export default function IllustratorGridClient({
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-black/8 bg-black/[0.025] px-3 text-xs font-bold tabular-nums text-gray-500 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/48">
+            {formatCount(filteredEntries.length)} visible
+          </span>
+        </div>
+
+        <div className="-mx-1 mt-2 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mt-3">
+        <div className="flex w-max min-w-full items-center gap-1.5 rounded-2xl border border-black/8 bg-black/[0.025] p-1.5 dark:border-white/8 dark:bg-black/15">
           <button
             type="button"
             onClick={() => setActiveGroup("All")}
             aria-pressed={activeGroup === "All"}
-            className={`inline-flex min-h-8 items-center rounded-full border px-3 text-xs font-semibold transition-colors ${
+            className={`inline-flex h-8 min-w-12 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-bold transition-colors ${
               effectiveActiveGroup === "All"
                 ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
-                : "border-black/8 bg-white/70 text-gray-500 hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/45 dark:hover:border-white/18 dark:hover:text-white"
+                : "border-transparent bg-transparent text-gray-500 hover:bg-black/[0.045] hover:text-gray-900 dark:text-white/45 dark:hover:bg-white/[0.07] dark:hover:text-white"
             }`}
           >
             All
@@ -178,18 +184,16 @@ export default function IllustratorGridClient({
               type="button"
               onClick={() => setActiveGroup(group)}
               aria-pressed={effectiveActiveGroup === group}
-              className={`inline-flex min-h-8 min-w-8 items-center justify-center rounded-full border px-2.5 text-xs font-semibold transition-colors ${
+              className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full border px-2.5 text-xs font-bold transition-colors ${
                 effectiveActiveGroup === group
                   ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
-                  : "border-black/8 bg-white/70 text-gray-500 hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/45 dark:hover:border-white/18 dark:hover:text-white"
+                  : "border-transparent bg-transparent text-gray-500 hover:bg-black/[0.045] hover:text-gray-900 dark:text-white/45 dark:hover:bg-white/[0.07] dark:hover:text-white"
               }`}
             >
               {group}
             </button>
           ))}
-          <span className="ml-auto inline-flex min-h-8 items-center rounded-full border border-black/8 bg-white/70 px-3 text-xs font-semibold text-gray-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/42">
-            {formatCount(filteredEntries.length)} visible
-          </span>
+        </div>
         </div>
       </div>
 
@@ -205,11 +209,11 @@ export default function IllustratorGridClient({
 
           <div
             className="grid gap-3"
-            style={{
-              gridTemplateColumns,
-              justifyContent: "start",
-            }}
-          >
+              style={{
+                gridTemplateColumns,
+                justifyContent: "stretch",
+              }}
+            >
             {entries.map(({ illustrator, globalIndex }) => (
               <Link
                 key={illustrator.artist}

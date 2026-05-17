@@ -3,10 +3,10 @@ import Image from "next/image";
 import { Layers3, LibraryBig, Shapes } from "lucide-react";
 import {
   HeaderStatCard,
-  PageHeroHeader,
   SectionHeader,
   type HeaderStat,
 } from "@/components/PageHeader";
+import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { getExpansionHref, POKEMON_GAME } from "@/lib/games";
@@ -109,30 +109,6 @@ function getKnownEpisodeCardCount(input: {
     input._count?.cards ?? 0,
     input.card_count ?? 0,
     input.source_actual_card_count ?? 0
-  );
-}
-
-function GameToggleLink({
-  href,
-  active,
-  label,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
-        active
-          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
-      }`}
-    >
-      {label}
-    </Link>
   );
 }
 
@@ -260,41 +236,53 @@ export default async function ExpansionsPage() {
   ] satisfies HeaderStat[];
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
-      <PageHeroHeader
-        eyebrow="Dusty Cards Collection"
-        title="Expansions"
-        description="Browse released sets and upcoming sets. Upcoming sets stay empty until release; cards and prices appear after the next sync."
-        gridClassName="xl:grid-cols-[minmax(20rem,0.72fr)_minmax(34rem,1.28fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.66fr)_minmax(48rem,1.34fr)]"
-        sideClassName="xl:space-y-0"
-        className="mb-6 max-[640px]:[--ui-page-header-description-size:0.8rem] sm:mb-8"
-        accessory={
-          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(28rem,1.35fr)_minmax(12rem,0.65fr)] xl:items-stretch 2xl:grid-cols-[minmax(38rem,1.45fr)_minmax(18rem,0.72fr)]">
-            <div className="min-w-0 [&>section]:h-full">
-              <ExpansionsOverviewChart
-                episodeIds={visibleEpisodeIds}
-                initialCurrentValue={overviewCurrentValue}
-                initialPricedCardCount={overviewPricedCardCount}
-                trackedCardCount={trackedCardCount}
-              />
+    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <section className="relative mb-6 w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:mb-8 sm:p-4 lg:p-5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
+          <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10">
+            <div className="min-w-0">
+              <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                Dusty Cards Collection
+              </p>
+              <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                Expansions
+              </h1>
+              <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+                Browse released sets and upcoming sets. Upcoming sets stay empty until release; cards and prices appear after the next sync.
+              </p>
             </div>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 xl:grid-cols-1 xl:auto-rows-fr">
-              {headerStats.map((stat) => (
-                <HeaderStatCard key={stat.label} {...stat} />
-              ))}
-            </div>
-          </div>
-        }
-      />
 
-      {settings.onePieceLibraryEnabled ? (
-        <div className="mb-6 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
-          <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-            <GameToggleLink href="/expansions" active label="Pokemon" />
-            <GameToggleLink href="/one-piece/expansions" active={false} label="One Piece" />
+            {settings.onePieceLibraryEnabled ? (
+              <div className="mt-[var(--ui-page-header-action-margin)]">
+                <GameFilterSwitch
+                  items={[
+                    { href: "/expansions", active: true, label: "Pokemon" },
+                    { href: "/one-piece/expansions", active: false, label: "One Piece" },
+                  ]}
+                  ariaLabel="Expansion library"
+                  className="max-w-[21rem]"
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+            <ExpansionsOverviewChart
+              episodeIds={visibleEpisodeIds}
+              initialCurrentValue={overviewCurrentValue}
+              initialPricedCardCount={overviewPricedCardCount}
+              trackedCardCount={trackedCardCount}
+            />
+          </div>
+
+          <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
+            {headerStats.map((stat) => (
+              <HeaderStatCard key={stat.label} {...stat} />
+            ))}
           </div>
         </div>
-      ) : null}
+      </section>
 
       {needsSync && (
         <div className="glass mb-10 rounded-2xl p-8 text-center shadow-lg shadow-black/5">
@@ -314,7 +302,7 @@ export default async function ExpansionsPage() {
               className="grid gap-3"
               style={{
                 gridTemplateColumns: getFixedTrackGridTemplate(tileConfig.minWidth),
-                justifyContent: "start",
+                justifyContent: "stretch",
               }}
             >
               {sets.map((episode, index) => {

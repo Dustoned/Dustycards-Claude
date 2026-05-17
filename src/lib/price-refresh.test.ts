@@ -27,35 +27,50 @@ describe("price refresh tiers", () => {
     expect(info.due).toBe(false);
   });
 
-  it("keeps high-refresh cards on their own rolling 12h cadence", () => {
+  it("keeps high-refresh cards on the shared 12h class cadence", () => {
     const first = "2026-05-15T00:08:00.000Z";
     const second = "2026-05-15T01:17:00.000Z";
     const now = Date.UTC(2026, 4, 15, 10, 0, 0);
 
     expect(getPriceRefreshInfo("Special Illustration Rare", first, now).nextRefreshAt).toBe(
-      Date.UTC(2026, 4, 15, 12, 8, 0)
+      Date.UTC(2026, 4, 15, 12, 0, 0)
     );
     expect(getPriceRefreshInfo("Special Illustration Rare", second, now).nextRefreshAt).toBe(
-      Date.UTC(2026, 4, 15, 13, 17, 0)
+      Date.UTC(2026, 4, 15, 12, 0, 0)
     );
   });
 
-  it("schedules the next refresh directly after the tier interval", () => {
+  it("rounds the next refresh to the next shared tier slot", () => {
     expect(getNextRollingRefreshAt(Date.UTC(2026, 4, 15, 6, 30, 0), 12 * 60 * 60 * 1000)).toBe(
-      Date.UTC(2026, 4, 15, 18, 30, 0)
+      Date.UTC(2026, 4, 15, 12, 0, 0)
     );
   });
 
-  it("keeps daily refresh cards on their own rolling cadence", () => {
+  it("keeps daily refresh cards on the shared daily class cadence", () => {
     const first = "2026-05-15T00:12:00.000Z";
     const second = "2026-05-15T01:42:00.000Z";
     const now = Date.UTC(2026, 4, 15, 12, 0, 0);
 
     expect(getPriceRefreshInfo("Rare", first, now).nextRefreshAt).toBe(
-      Date.UTC(2026, 4, 16, 0, 12, 0)
+      Date.UTC(2026, 4, 16, 0, 0, 0)
     );
     expect(getPriceRefreshInfo("Rare", second, now).nextRefreshAt).toBe(
-      Date.UTC(2026, 4, 16, 1, 42, 0)
+      Date.UTC(2026, 4, 16, 0, 0, 0)
+    );
+  });
+
+  it("does not let a manual refresh create a private countdown", () => {
+    const manualRefresh = "2026-05-15T10:37:00.000Z";
+    const anotherCardRefresh = "2026-05-15T08:02:00.000Z";
+    const now = Date.UTC(2026, 4, 15, 10, 45, 0);
+
+    expect(getPriceRefreshInfo("Special Illustration Rare", manualRefresh, now).nextRefreshAt).toBe(
+      Date.UTC(2026, 4, 15, 12, 0, 0)
+    );
+    expect(
+      getPriceRefreshInfo("Special Illustration Rare", anotherCardRefresh, now).nextRefreshAt
+    ).toBe(
+      Date.UTC(2026, 4, 15, 12, 0, 0)
     );
   });
 });

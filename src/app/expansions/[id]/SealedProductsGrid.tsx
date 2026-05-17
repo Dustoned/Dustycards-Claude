@@ -291,7 +291,7 @@ export default function SealedProductsGrid({
                 true,
                 isMobileViewport
               ),
-              justifyContent: isMobileViewport ? "stretch" : "start",
+              justifyContent: "stretch",
             }}
           >
             {activeProducts.map((product) => (
@@ -335,7 +335,7 @@ export default function SealedProductsGrid({
                   false,
                   isMobileViewport
                 ),
-                justifyContent: isMobileViewport ? "stretch" : "start",
+                justifyContent: "stretch",
               }}
             >
               {group.products.map((product) => (

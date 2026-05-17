@@ -30,6 +30,7 @@
   --ui-page-header-logo-height: 3.5rem;
   --ui-page-header-logo-width: 8rem;
   --ui-page-header-logo-padding: 0.5rem;
+  --ui-dashboard-header-panel-min-height: 15rem;
   --ui-header-action-gap: 0.625rem;
   --ui-header-action-font-size: 0.875rem;
   --ui-header-action-x: 1rem;
@@ -98,6 +99,7 @@
     --ui-page-header-description-size: 0.875rem;
     --ui-page-header-description-leading: 1.45;
     --ui-page-header-action-margin: 0.9rem;
+    --ui-dashboard-header-panel-min-height: 12rem;
     --ui-header-action-gap: 0.45rem;
     --ui-header-action-font-size: 0.8125rem;
     --ui-header-action-x: 0.75rem;
@@ -147,6 +149,7 @@ html.ui-scale-small {
   --ui-page-header-logo-height: 3rem;
   --ui-page-header-logo-width: 7rem;
   --ui-page-header-logo-padding: 0.425rem;
+  --ui-dashboard-header-panel-min-height: 13.5rem;
   --ui-header-action-gap: 0.5rem;
   --ui-header-action-font-size: 0.8125rem;
   --ui-header-action-x: 0.875rem;
@@ -216,6 +219,7 @@ html.ui-scale-small {
     --ui-page-header-description-size: 0.8125rem;
     --ui-page-header-description-leading: 1.35;
     --ui-page-header-action-margin: 0.7rem;
+    --ui-dashboard-header-panel-min-height: 10.5rem;
     --ui-header-action-gap: 0.35rem;
     --ui-header-action-font-size: 0.75rem;
     --ui-header-action-x: 0.625rem;
@@ -291,6 +295,7 @@ html.ui-scale-large {
   --ui-page-header-logo-height: 5rem;
   --ui-page-header-logo-width: 11rem;
   --ui-page-header-logo-padding: 0.675rem;
+  --ui-dashboard-header-panel-min-height: 16rem;
   --ui-header-action-gap: 0.75rem;
   --ui-header-action-font-size: 1rem;
   --ui-header-action-x: 1.125rem;
@@ -354,6 +359,7 @@ html.ui-scale-large {
     --ui-page-header-padding: 1.1rem;
     --ui-page-header-title-size: 1.95rem;
     --ui-page-header-description-size: 0.9375rem;
+    --ui-dashboard-header-panel-min-height: 12.5rem;
     --ui-header-stat-padding: 0.75rem;
     --ui-header-stat-min-height: 4.75rem;
     --ui-header-stat-label-size: 0.625rem;

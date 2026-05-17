@@ -2,9 +2,10 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BadgeEuro, CheckCircle2, Layers3, LibraryBig } from "lucide-react";
 import { useCallback, useDeferredValue, useMemo, useState, useTransition } from "react";
-import { PageHeroHeader } from "@/components/PageHeader";
+import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
+import { formatCollectionCurrency } from "@/lib/collection";
 import {
   buildEpisodeSetPriceHistory,
   getCardMarketValue,
@@ -22,7 +23,7 @@ const ExpansionView = dynamic(() => import("@/app/expansions/[id]/ExpansionView"
 });
 const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
   loading: () => (
-    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+    <section className="min-h-[var(--ui-dashboard-header-panel-min-height)] rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
   ),
 });
 
@@ -115,6 +116,42 @@ export default function IllustratorCardsClient({
   const currentValue =
     currentTotals.priced > 0 ? Number(currentTotals.total.toFixed(2)) : null;
   const visibleCardCount = showingFilteredSubset ? deferredVisibleCards.length : cards.length;
+  const visibleSetCount = new Set(
+    (showingFilteredSubset ? deferredVisibleCards : cards)
+      .map((card) => card.episode_id ?? card.episode_name)
+      .filter(Boolean)
+  ).size;
+  const unpricedCards = Math.max(visibleCardCount - currentTotals.priced, 0);
+  const stats = [
+    {
+      label: "Cards",
+      value: visibleCardCount.toLocaleString("en-US"),
+      hint: showingFilteredSubset ? "Visible cards." : "Illustrated cards.",
+      Icon: LibraryBig,
+      tone: "sky",
+    },
+    {
+      label: "Priced",
+      value: `${currentTotals.priced.toLocaleString("en-US")} / ${visibleCardCount.toLocaleString("en-US")}`,
+      hint: unpricedCards > 0 ? `${unpricedCards.toLocaleString("en-US")} without price.` : "All visible cards priced.",
+      Icon: CheckCircle2,
+      tone: "emerald",
+    },
+    {
+      label: "Sets",
+      value: visibleSetCount.toLocaleString("en-US"),
+      hint: "Expansions represented.",
+      Icon: Layers3,
+      tone: "violet",
+    },
+    {
+      label: "Market",
+      value: formatCollectionCurrency(currentValue),
+      hint: showingFilteredSubset ? "Filtered visible total." : "Current visible total.",
+      Icon: BadgeEuro,
+      tone: "amber",
+    },
+  ] satisfies HeaderStat[];
   const subtitle = `${currentTotals.priced}/${visibleCardCount} cards priced`;
   const chartPoints =
     visiblePriceHistory.length > 0
@@ -129,32 +166,50 @@ export default function IllustratorCardsClient({
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
-        <PageHeroHeader
-          eyebrow={eyebrow}
-          title={artist}
-          description={`${cards.length} ${cards.length === 1 ? "card" : "cards"}`}
-          backLinks={
-            <Link
-              href={backHref}
-              prefetch={false}
-              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to illustrators
-            </Link>
-          }
-        />
-      </div>
+      <section className="relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:p-4 lg:p-5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
+          <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10">
+            <div className="min-w-0">
+              <Link
+                href={backHref}
+                prefetch={false}
+                className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to illustrators
+              </Link>
+              <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                {eyebrow}
+              </p>
+              <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                {artist}
+              </h1>
+              <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+                {`${cards.length.toLocaleString("en-US")} ${cards.length === 1 ? "card" : "cards"}`}
+              </p>
+            </div>
+          </div>
 
-      <PriceHistoryPanel
-        title={showingFilteredSubset ? "Filtered Total" : "Illustrator Total"}
-        currency="EUR"
-        points={chartPoints}
-        currentValue={currentValue}
-        subtitle={isPending ? "Updating filters..." : subtitle}
-        emptyText="No illustrator prices available yet"
-      />
+          <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+            <PriceHistoryPanel
+              compact
+              title={showingFilteredSubset ? "Filtered Total" : "Illustrator Total"}
+              currency="EUR"
+              points={chartPoints}
+              currentValue={currentValue}
+              subtitle={isPending ? "Updating filters..." : subtitle}
+              emptyText="No illustrator prices available yet"
+            />
+          </div>
+
+          <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
+            {stats.map((stat) => (
+              <HeaderStatCard key={stat.label} {...stat} />
+            ))}
+          </div>
+        </div>
+      </section>
 
       <ExpansionView
         cards={cards}

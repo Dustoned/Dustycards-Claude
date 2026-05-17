@@ -114,7 +114,6 @@ export default async function DiscountWatchPage({
 
         <MoversBrowser
           movers={movers}
-          activePriceSource={activePriceSource}
           activeScope={cardScope}
           activeItemScope={activeItemScope}
           eyebrow="Discount Watch"

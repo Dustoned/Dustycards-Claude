@@ -7,6 +7,7 @@ import { Plus, X } from "lucide-react";
 import { COLLECTION_BINDER_ICONS } from "@/lib/collection";
 import BinderAccentColorPicker from "@/components/BinderAccentColorPicker";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
+import { textMatchesSearchQuery } from "@/lib/card-search";
 import {
   modalActionRowClass,
   modalBodyClass,
@@ -93,7 +94,7 @@ export default function CreateBinderButton({
     return (
       episodes.find((episode) => episode.name.toLowerCase() === normalized) ??
       episodes.find((episode) => episode.code?.toLowerCase() === normalized) ??
-      episodes.find((episode) => episode.name.toLowerCase().includes(normalized)) ??
+      episodes.find((episode) => textMatchesSearchQuery([episode.name, episode.code], normalized)) ??
       null
     );
   }, [episodes, query]);

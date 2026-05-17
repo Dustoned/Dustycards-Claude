@@ -3,6 +3,7 @@ import {
   buildCardNumberSearchAliases,
   cardMatchesSearchQuery,
   cardNumberMatchesSearch,
+  textMatchesSearchQuery,
 } from "@/lib/card-search";
 
 describe("card search helpers", () => {
@@ -15,6 +16,12 @@ describe("card search helpers", () => {
     expect(cardNumberMatchesSearch("94", "094")).toBe(true);
     expect(cardNumberMatchesSearch("094", "94")).toBe(true);
     expect(cardNumberMatchesSearch("094/182", "94")).toBe(true);
+  });
+
+  it("matches slash card numbers typed with spaces or compacted digits", () => {
+    expect(cardNumberMatchesSearch("002/203", "002 203")).toBe(true);
+    expect(cardNumberMatchesSearch("002/203", "2 203")).toBe(true);
+    expect(cardNumberMatchesSearch("002/203", "002203")).toBe(true);
   });
 
   it("matches compact set references with padded or unpadded numbers", () => {
@@ -46,5 +53,21 @@ describe("card search helpers", () => {
         "https://www.tcggo.com/pokemon/shining-fates/alcremie-vmax-73"
       )
     ).toBe(true);
+  });
+
+  it("keeps short text searches prefix-based to reduce noisy substring matches", () => {
+    expect(textMatchesSearchQuery(["Gengar ex", "Mega Gengar"], "ge")).toBe(true);
+    expect(textMatchesSearchQuery(["Ceruledge ex"], "ge")).toBe(false);
+    expect(
+      cardMatchesSearchQuery(
+        {
+          name: "Ceruledge ex",
+          cardNumber: "147/131",
+          episodeName: "Prismatic Evolutions",
+          episodeCode: "PRE",
+        },
+        "ge"
+      )
+    ).toBe(false);
   });
 });

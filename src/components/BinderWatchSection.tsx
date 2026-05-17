@@ -83,6 +83,10 @@ export default function BinderWatchSection({
   const { settings } = useSettings();
   const threshold = settings.binderWatchMinPrice;
 
+  function isGradedItem(item: CollectionCardViewItem) {
+    return Boolean(item.grading_company || item.grading_grade);
+  }
+
   const watchedItems = useMemo(
     () =>
       items
@@ -90,6 +94,8 @@ export default function BinderWatchSection({
         .sort((a, b) => (b.current_value ?? -1) - (a.current_value ?? -1)),
     [items, threshold]
   );
+  const hasWatchedGraded = watchedItems.some(isGradedItem);
+  const splitBinderWatchByGrading = hasWatchedGraded;
 
   return (
     <section>
@@ -113,6 +119,7 @@ export default function BinderWatchSection({
         forcedSortBy="cm_en"
         forcedSortDir="desc"
         showGradedSlabPreview={showGradedSlabPreview}
+        splitByGrading={splitBinderWatchByGrading}
       />
     </section>
   );

@@ -11,7 +11,7 @@ import { getCachedImageUrl } from "@/lib/image-cache";
 
 const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
   loading: () => (
-    <section className="h-48 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+    <section className="min-h-[var(--ui-dashboard-header-panel-min-height)] rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
   ),
 });
 
@@ -40,7 +40,7 @@ export default function WantBinderDetailClient({ data }: { data: WantBinderPageD
   return (
     <>
       <PageHeroHeader
-        className="mb-8 xl:[--ui-page-header-title-size:2.2rem] max-[640px]:[--ui-page-header-padding:0.85rem] max-[640px]:[--ui-page-header-title-size:1.55rem] max-[640px]:[--ui-page-header-description-size:0.78rem]"
+        className="mb-8"
         eyebrow="Missing Binder Wants"
         title={data.binder.name}
         accentColor={accentColor}
@@ -101,6 +101,7 @@ export default function WantBinderDetailClient({ data }: { data: WantBinderPageD
         }
         accessory={
           <PriceHistoryPanel
+            compact
             title="Missing Wants Value"
             currency="EUR"
             points={chartPoints}

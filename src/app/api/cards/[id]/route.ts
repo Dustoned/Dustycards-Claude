@@ -35,6 +35,7 @@ type CardDetailCollectionItem = {
   grading_grade: string | null;
   binder: {
     id: string;
+    name: string;
     type: string;
     episode_id: string | null;
     base_purchase_price: number | null;
@@ -181,6 +182,7 @@ async function getCardDetailPayload(id: string, userId: string) {
           binder: {
             select: {
               id: true,
+              name: true,
               type: true,
               episode_id: true,
               base_purchase_price: true,
@@ -364,6 +366,8 @@ async function getCardDetailPayload(id: string, userId: string) {
       ? {
           id: collectionItem.id,
           binder_id: collectionItem.binder_id,
+          binder_name: collectionItem.binder?.name ?? null,
+          binder_type: collectionItem.binder?.type ?? null,
           purchase_price: collectionItem.purchase_price,
           cost_basis_value: collectionCostBasis?.value ?? null,
           cost_basis_label: collectionCostBasis?.label ?? "Paid",

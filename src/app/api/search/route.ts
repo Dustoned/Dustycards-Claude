@@ -191,6 +191,17 @@ function parseOnePieceCardReference(raw: string): ParsedQuery | null {
   return null;
 }
 
+function parseCompactPrintedCardNumber(value: string): string | null {
+  const normalized = value.trim().replace(/^#+/, "");
+  if (!/^\d{4,6}$/.test(normalized)) return null;
+
+  const totalDigits = normalized.slice(-3);
+  const cardDigits = normalized.slice(0, -3);
+  if (!cardDigits || totalDigits === "000") return null;
+
+  return `${cardDigits}/${totalDigits}`;
+}
+
 function parseSearchQuery(raw: string, game: TradingCardGame = POKEMON_GAME): ParsedQuery {
   if (game === ONE_PIECE_GAME) {
     const onePieceReference = parseOnePieceCardReference(raw);
@@ -204,6 +215,11 @@ function parseSearchQuery(raw: string, game: TradingCardGame = POKEMON_GAME): Pa
 
   const q = extractSearchableInput(raw);
   const spacedQ = normalizeSlugSeparators(q).replace(/\s*\/\s*/g, "/");
+
+  const compactPrintedNumber = parseCompactPrintedCardNumber(spacedQ);
+  if (compactPrintedNumber) {
+    return { name: null, cardNumber: compactPrintedNumber, setCode: null, rawCardRef: null };
+  }
 
   const plainNumber = /^#?(\d+)$/.exec(spacedQ);
   if (plainNumber) {
@@ -247,6 +263,19 @@ function parseSearchQuery(raw: string, game: TradingCardGame = POKEMON_GAME): Pa
     }
 
     return { name: prefix, cardNumber, setCode: null, rawCardRef: null };
+  }
+
+  const withCompactPrintedNumber = /^(.+?)\s+#?(\d{4,6})$/.exec(spacedQ);
+  if (withCompactPrintedNumber) {
+    const cardNumber = parseCompactPrintedCardNumber(withCompactPrintedNumber[2]);
+    if (cardNumber) {
+      const prefix = withCompactPrintedNumber[1].trim();
+      if (isLikelySetCodeToken(prefix)) {
+        return { name: null, cardNumber, setCode: prefix, rawCardRef: `${prefix}${cardNumber}` };
+      }
+
+      return { name: prefix, cardNumber, setCode: null, rawCardRef: null };
+    }
   }
 
   const tokens = spacedQ.split(/\s+/);
@@ -310,6 +339,10 @@ function isExactOnePieceReferenceSearch(
   game: TradingCardGame
 ): boolean {
   return game === ONE_PIECE_GAME && Boolean(parsed.setCode && parsed.cardNumber && parsed.rawCardRef);
+}
+
+function isExactPrintedCardNumberSearch(parsed: ParsedQuery): boolean {
+  return Boolean(parsed.cardNumber?.includes("/"));
 }
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
@@ -454,6 +487,14 @@ function containsCondition(field: string, value: string) {
 function buildCardNumberCondition(cardNumber: string): Prisma.CardWhereInput {
   const aliases = buildCardNumberSearchAliases(cardNumber);
   if (aliases.length === 0) return { card_number: cardNumber };
+
+  if (cardNumber.includes("/")) {
+    const conditions = aliases.flatMap((alias) => [
+      { card_number: alias },
+      { printed_card_number: alias },
+    ]);
+    return conditions.length === 1 ? conditions[0] : { OR: conditions };
+  }
 
   if (/^\d+$/.test(cardNumber)) {
     const conditions = aliases.flatMap((alias) => [
@@ -1321,6 +1362,7 @@ async function runDirectSearch(
     parsed,
     game: activeGame,
     exactOnePieceReferenceSearch: isExactOnePieceReferenceSearch(parsed, activeGame),
+    exactPrintedCardNumberSearch: isExactPrintedCardNumberSearch(parsed),
   };
 }
 
@@ -1382,7 +1424,7 @@ async function runAllGameSearch(q: string): Promise<SearchResponsePayload> {
   const hasExactReferenceSearch = [
     pokemonDirectResults,
     onePieceDirectResults,
-  ].some((result) => result.exactOnePieceReferenceSearch);
+  ].some((result) => result.exactOnePieceReferenceSearch || result.exactPrintedCardNumberSearch);
 
   if (hasDirectResults || hasExactReferenceSearch) {
     return mergeSearchResponses(directResponses);
@@ -1465,6 +1507,7 @@ export async function GET(req: NextRequest) {
     if (
       directResults.total === 0 &&
       !directResults.exactOnePieceReferenceSearch &&
+      !directResults.exactPrintedCardNumberSearch &&
       autoSwitchGame
     ) {
       const alternateResults = await runDirectSearch(
@@ -1481,7 +1524,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (directResults.total === 0 && !directResults.exactOnePieceReferenceSearch) {
+    if (
+      directResults.total === 0 &&
+      !directResults.exactOnePieceReferenceSearch &&
+      !directResults.exactPrintedCardNumberSearch
+    ) {
       const fuzzyResults = await runFuzzyFallback(
         q,
         directResults.parsed,

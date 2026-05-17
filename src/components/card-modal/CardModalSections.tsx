@@ -4,7 +4,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, LineChart, RefreshCw } from "lucide-react";
+import { ChevronRight, ExternalLink, LineChart, RefreshCw, Trash2 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
@@ -599,8 +599,10 @@ export function CardModalHeroSection({
   syncingHistory,
   refreshError,
   canManageCardPrices,
+  removingCollectionItem,
   onRefresh,
   onSyncHistory,
+  onRemoveCollectionItem,
   onAddedToCollection,
   onClose,
 }: {
@@ -616,8 +618,10 @@ export function CardModalHeroSection({
   syncingHistory: boolean;
   refreshError: string | null;
   canManageCardPrices: boolean;
+  removingCollectionItem: boolean;
   onRefresh: () => void;
   onSyncHistory: () => void;
+  onRemoveCollectionItem: () => void;
   onAddedToCollection?: () => void | Promise<void>;
   onClose: () => void;
 }) {
@@ -629,6 +633,11 @@ export function CardModalHeroSection({
     collectionItem?.language && collectionItem.language.trim().length > 0
       ? collectionItem.language.trim()
       : null;
+  const collectionLocationLabel = collectionItem
+    ? collectionItem.binder_name
+      ? `In ${collectionItem.binder_name}`
+      : "Loose single"
+    : null;
   const headerMeta = [
     card.episode_code ? card.episode_code : null,
     card.card_number ? `#${card.card_number}` : null,
@@ -695,6 +704,12 @@ export function CardModalHeroSection({
   ];
   const collectionStats = [
     {
+      label: "Location",
+      value: collectionLocationLabel ?? "--",
+      show: Boolean(collectionLocationLabel),
+      wideMobile: true,
+    },
+    {
       label: collectionItem?.cost_basis_label ?? "Paid",
       value:
         collectionItem?.cost_basis_value != null
@@ -758,8 +773,12 @@ export function CardModalHeroSection({
               >
                 {collectionItem ? (
                   <>
-                    <span className="max-[640px]:hidden">In DustyCards</span>
-                    <span className="hidden max-[640px]:inline">Saved</span>
+                    <span className="max-[640px]:hidden">
+                      {collectionLocationLabel ?? "In DustyCards"}
+                    </span>
+                    <span className="hidden max-[640px]:inline">
+                      {collectionItem.binder_name ?? "Saved"}
+                    </span>
                   </>
                 ) : (
                   <>
@@ -806,15 +825,35 @@ export function CardModalHeroSection({
               )}
 
               {collectionItem && (
-                <CollectionEditCardButton
-                  card={collectionCard}
-                  item={collectionItem}
-                  mode="icon"
-                  theme="dark"
-                  label="Edit"
-                  className={quickActionButtonClass}
-                  onSaved={onClose}
-                />
+                <>
+                  <CollectionEditCardButton
+                    card={collectionCard}
+                    item={collectionItem}
+                    mode="icon"
+                    theme="dark"
+                    label="Edit"
+                    className={quickActionButtonClass}
+                    onSaved={onClose}
+                  />
+                  <button
+                    type="button"
+                    onClick={onRemoveCollectionItem}
+                    disabled={isBusy || removingCollectionItem}
+                    className={`${quickActionButtonClass} !text-rose-100 hover:!border-rose-200/24 hover:!bg-rose-500/16`}
+                    aria-label={
+                      removingCollectionItem
+                        ? "Removing this saved copy"
+                        : "Remove this saved copy from collection"
+                    }
+                    title={
+                      collectionLocationLabel
+                        ? `Remove this copy: ${collectionLocationLabel}`
+                        : "Remove this saved copy"
+                    }
+                  >
+                    <Trash2 className={`h-3.5 w-3.5 ${removingCollectionItem ? "animate-pulse" : ""}`} />
+                  </button>
+                </>
               )}
 
               {canManageCardPrices && (

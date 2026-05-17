@@ -380,7 +380,7 @@ export function PageHeroHeader({
 
           <div className="min-w-0 flex-1">
             {(eyebrow || titleActions) ? (
-              <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 {eyebrow ? (
                   <p className="min-w-0 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
                     {eyebrow}
@@ -388,7 +388,9 @@ export function PageHeroHeader({
                 ) : (
                   <span />
                 )}
-                {titleActions ? <div className="shrink-0">{titleActions}</div> : null}
+                {titleActions ? (
+                  <div className="min-w-0 max-w-full sm:shrink-0">{titleActions}</div>
+                ) : null}
               </div>
             ) : null}
             <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">

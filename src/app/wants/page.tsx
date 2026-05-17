@@ -1,7 +1,7 @@
 import nextDynamic from "next/dynamic";
-import Link from "next/link";
-import { BadgeEuro, CheckCircle2, Heart, Layers3, Search } from "lucide-react";
-import { HeaderAction, PageHeroHeader, type HeaderStat } from "@/components/PageHeader";
+import { BadgeEuro, CheckCircle2, Heart, Layers3 } from "lucide-react";
+import GameFilterSwitch from "@/components/GameFilterSwitch";
+import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getWantsPageData } from "@/lib/collection-data";
 import { getSupportTileTrackWidth } from "@/lib/display-scale";
@@ -17,111 +17,15 @@ import {
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { syncMissingBinderWantsForUser } from "@/lib/wantlist-planner";
-import WantsPlannerSection from "./WantsPlannerSection";
+import WantsPageContent from "./WantsPageContent";
 
-const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
   loading: () => (
-    <section className="h-full rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+    <section className="h-full min-h-[var(--ui-dashboard-header-panel-min-height)] rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
   ),
 });
 
 export const dynamic = "force-dynamic";
-
-const compactStatToneClasses: Record<
-  NonNullable<HeaderStat["tone"]>,
-  { icon: string; surface: string }
-> = {
-  slate: {
-    icon: "text-gray-500 dark:text-white/55",
-    surface: "border-black/6 bg-white/75 dark:border-white/10 dark:bg-white/[0.055]",
-  },
-  emerald: {
-    icon: "text-emerald-600 dark:text-emerald-300",
-    surface: "border-emerald-400/14 bg-emerald-400/[0.07]",
-  },
-  amber: {
-    icon: "text-amber-600 dark:text-amber-300",
-    surface: "border-amber-400/14 bg-amber-400/[0.07]",
-  },
-  sky: {
-    icon: "text-sky-600 dark:text-sky-300",
-    surface: "border-sky-400/14 bg-sky-400/[0.07]",
-  },
-  rose: {
-    icon: "text-rose-600 dark:text-rose-300",
-    surface: "border-rose-400/14 bg-rose-400/[0.07]",
-  },
-  violet: {
-    icon: "text-violet-600 dark:text-violet-300",
-    surface: "border-violet-400/14 bg-violet-400/[0.07]",
-  },
-  blue: {
-    icon: "text-blue-600 dark:text-blue-300",
-    surface: "border-blue-400/14 bg-blue-400/[0.07]",
-  },
-};
-
-function WantsHeaderStatCard({
-  label,
-  value,
-  hint,
-  Icon,
-  tone = "slate",
-}: HeaderStat) {
-  const toneClass = compactStatToneClasses[tone];
-
-  return (
-    <div className="min-w-0 rounded-2xl border border-black/8 bg-white/70 px-3 py-2.5 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none">
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/42">
-            {label}
-          </p>
-          <p className="mt-1 truncate text-lg font-bold leading-tight tracking-tight text-gray-950 dark:text-white sm:text-xl">
-            {value}
-          </p>
-        </div>
-        {Icon ? (
-          <span
-            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${toneClass.surface} ${toneClass.icon}`}
-          >
-            <Icon className="h-4 w-4" />
-          </span>
-        ) : null}
-      </div>
-      {hint ? (
-        <p className="mt-1.5 line-clamp-1 text-[11px] leading-snug text-gray-500 dark:text-white/50">
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function GameToggleLink({
-  href,
-  active,
-  label,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
-        active
-          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-}
 
 export default async function WantsPage({
   searchParams,
@@ -135,7 +39,6 @@ export default async function WantsPage({
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const browseHref = activeGame === ONE_PIECE_GAME ? "/one-piece/expansions" : "/expansions";
   try {
     await syncMissingBinderWantsForUser(user.id, {
       game: activeGame,
@@ -155,10 +58,13 @@ export default async function WantsPage({
     const query = params.toString();
     return query ? `/wants?${query}` : "/wants";
   }
+  const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
+    href: buildGameHref(game),
+    active: activeGame === game,
+    label: getGameFilterLabel(game),
+  }));
 
   const unpricedCards = Math.max(data.totalCards - data.pricedCards, 0);
-  const valueRangePoints = data.chart.filter((point) => point.value != null);
-  const showWantsChart = valueRangePoints.length > 1;
   const stats = [
     {
       label: "Wanted",
@@ -196,95 +102,59 @@ export default async function WantsPage({
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <div className="flex w-full flex-col gap-5 sm:gap-6">
-        <PageHeroHeader
-          eyebrow="DustyCards"
-          title={activeGame === ONE_PIECE_GAME ? "One Piece Wants" : "Wants"}
-          description={
-            activeGame === ONE_PIECE_GAME
-              ? "One Piece cards you want to pick up later, kept separate from Pokemon wants."
-              : "Cards you want to pick up later. Prices are tracked here, but they do not count toward collection value, spent or card totals."
-          }
-          className="xl:[--ui-page-header-title-size:2rem] max-[640px]:[--ui-page-header-padding:0.75rem] max-[640px]:[--ui-page-header-title-size:1.45rem] max-[640px]:[--ui-page-header-description-size:0.78rem] max-[640px]:[--ui-page-header-action-margin:0.55rem]"
-          gridClassName="xl:grid-cols-[minmax(22rem,0.62fr)_minmax(0,1.38fr)] xl:items-stretch"
-          sideClassName="space-y-0"
-          actions={
-            <HeaderAction>
-              <Link
-                href={browseHref}
-                prefetch={false}
-                className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
-              >
-                <Search className="h-4 w-4" />
-                Browse Cards
-              </Link>
-            </HeaderAction>
-          }
-          accessory={
-            <div className="grid min-w-0 gap-2 sm:gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(19rem,0.92fr)] lg:items-stretch">
-              <div className={showWantsChart ? "min-w-0 [&>section]:h-full" : "hidden"}>
-                  <PriceHistoryPanel
-                    compact
-                    title="Wants Value"
-                    currency="EUR"
-                    points={data.chart}
-                    currentValue={data.estimatedValue}
-                    subtitle={`${data.pricedCards.toLocaleString("en-US")} / ${data.totalCards.toLocaleString("en-US")} priced`}
-                    emptyText="Add wanted cards with price history to start tracking target value"
-                  />
+        <section className="relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:p-4 lg:p-5">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+          <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
+            <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10">
+              <div className="min-w-0">
+                <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                  DustyCards
+                </p>
+                <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                  {activeGame === ONE_PIECE_GAME ? "One Piece Wants" : "Wants"}
+                </h1>
+                <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+                  {activeGame === ONE_PIECE_GAME
+                    ? "One Piece cards you want to pick up later, kept separate from Pokemon wants."
+                    : "Cards you want to pick up later. Prices are tracked here, but they do not count toward collection value, spent or card totals."}
+                </p>
               </div>
-              <div
-                className={`grid min-w-0 grid-cols-2 gap-2 sm:gap-3 ${
-                  showWantsChart ? "" : "lg:col-span-2"
-                }`}
-              >
-                {stats.map((stat) => (
-                  <WantsHeaderStatCard key={stat.label} {...stat} />
-                ))}
-              </div>
-            </div>
-          }
-        />
 
-        {settings.onePieceLibraryEnabled ? (
-          <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
-            <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-              {GAME_FILTER_OPTIONS.map((game) => (
-                <GameToggleLink
-                  key={game}
-                  href={buildGameHref(game)}
-                  active={activeGame === game}
-                  label={getGameFilterLabel(game)}
-                />
+              {settings.onePieceLibraryEnabled ? (
+                <div className="mt-[var(--ui-page-header-action-margin)]">
+                  <GameFilterSwitch items={gameSwitchItems} ariaLabel="Wants library" className="max-w-[21rem]" />
+                </div>
+              ) : null}
+            </div>
+
+            <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+              <PriceHistoryPanel
+                compact
+                title="Wants Value"
+                currency="EUR"
+                points={data.chart}
+                currentValue={data.estimatedValue}
+                subtitle={`${data.pricedCards.toLocaleString("en-US")} / ${data.totalCards.toLocaleString("en-US")} priced`}
+                emptyText="Add wanted cards with price history to start tracking target value"
+              />
+            </div>
+
+            <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
+              {stats.map((stat) => (
+                <HeaderStatCard key={stat.label} {...stat} />
               ))}
             </div>
           </div>
-        ) : null}
+        </section>
 
-        <WantsPlannerSection
-          groups={data.plannerGroups}
+        <WantsPageContent
+          plannerGroups={data.plannerGroups}
+          personalItems={data.personalItems}
           needsPlannerSync={data.needsPlannerSync}
           game={activeGame}
           tileTrackWidth={binderTileTrackWidth}
+          widescreen={settings.widescreen}
         />
-
-        {data.personalItems.length > 0 || data.plannerGroups.length === 0 ? (
-          <CollectionCardsView
-            items={data.personalItems}
-            allowWantRemoval
-            emptyTitle="No wants yet"
-            emptyText="Use Want on a card detail to keep it here."
-            sectionTitle={data.plannerGroups.length > 0 ? "Personal wants" : "Wanted cards"}
-            sectionCount={data.personalItems.length.toLocaleString("en-US")}
-            showFilters
-            forcedSortBy="cm_en"
-            forcedSortDir="desc"
-            hideSortControls
-          />
-        ) : (
-          <section className="rounded-3xl border border-black/8 bg-white/70 px-4 py-3 text-sm text-gray-500 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/48 dark:shadow-none">
-            No personal wants outside binder goals.
-          </section>
-        )}
       </div>
     </div>
   );

@@ -95,7 +95,6 @@ const EBAY_SOLD_GRADED_PRICE_SYNC_TYPE = "ebay-sold-graded-prices";
 const KNOWN_UNAVAILABLE_PRICE_CHECK_TYPE = "known-unavailable-prices";
 const AUTO_PRICE_REFRESH_MAX_EPISODES = 12;
 const AUTO_PRICE_REFRESH_MAX_CARDS = 1200;
-const AUTO_PRICE_REFRESH_MIN_INTERVAL_MS = 1000 * 60 * 60 * 6;
 const AUTO_CATALOG_SYNC_GAMES = [POKEMON_GAME, ONE_PIECE_GAME] as const;
 const AUTO_PRICE_BACKFILL_MAX_EPISODES = 6;
 const AUTO_PRICE_BACKFILL_MAX_CARDS = 400;
@@ -2354,7 +2353,6 @@ async function selectAutoRefreshBatch(
   selectedCards: number;
   selectedByEpisode: Map<string, string[]>;
 }> {
-  const potentialCutoff = new Date(now.getTime() - AUTO_PRICE_REFRESH_MIN_INTERVAL_MS);
   const retryBefore = new Date(now.getTime() - PRICE_SOURCE_UNAVAILABLE_RETRY_MS);
   const candidates = await db.$queryRaw<
     Array<{
@@ -2383,7 +2381,6 @@ async function selectAutoRefreshBatch(
     FROM "Card" c
     INNER JOIN latest_prices ON latest_prices.card_id = c.id
     WHERE c.tcggo_url IS NOT NULL
-      AND latest_prices.latest_fetched_at <= ${potentialCutoff}
       AND (c.price_source_status IS NULL OR c.price_source_status <> 'unavailable')
   `;
   const hiddenEpisodeIds = new Set(await getHiddenEpisodeIds());

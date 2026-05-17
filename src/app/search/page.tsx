@@ -9,6 +9,7 @@ import { Package } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import {
@@ -105,30 +106,6 @@ function setWithLruEviction<K, V>(map: Map<K, V>, key: K, value: V, max: number)
   }
 }
 
-function GameToggleLink({
-  href,
-  active,
-  label,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
-        active
-          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
-      }`}
-    >
-      {label}
-    </Link>
-  );
-}
-
 function SearchPageContent({
   initialQuery,
   initialGameParam,
@@ -169,6 +146,11 @@ function SearchPageContent({
     const query = params.toString();
     return query ? `/search?${query}` : "/search";
   }
+  const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
+    href: buildGameHref(game),
+    active: displayGame === game,
+    label: getGameFilterLabel(game),
+  }));
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -343,34 +325,28 @@ function SearchPageContent({
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-      <div className="mb-4 flex flex-col gap-2 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+      <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-white/35">
             Search
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-3xl">
             {trimmedQuery ? `Results for "${trimmedQuery}"` : "Search"}
           </h1>
+          {settings.onePieceLibraryEnabled ? (
+            <div className="mt-3 max-w-[21.5rem]">
+              <GameFilterSwitch items={gameSwitchItems} className="w-full" />
+            </div>
+          ) : null}
         </div>
-        {resultSummary && (
-          <p className="text-sm font-medium text-gray-500 dark:text-white/45">{resultSummary}</p>
-        )}
-      </div>
-
-      {settings.onePieceLibraryEnabled ? (
-        <div className="mb-4 -mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
-          <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-            {GAME_FILTER_OPTIONS.map((game) => (
-              <GameToggleLink
-                key={game}
-                href={buildGameHref(game)}
-                active={displayGame === game}
-                label={getGameFilterLabel(game)}
-              />
-            ))}
+        {resultSummary ? (
+          <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
+            <p className="text-sm font-medium text-gray-500 dark:text-white/45">
+              {resultSummary}
+            </p>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {/* Loading */}
       {loading && (
@@ -412,7 +388,7 @@ function SearchPageContent({
                 className="grid gap-3"
                 style={{
                   gridTemplateColumns: getFixedTrackGridTemplate(expansionScale.minWidth),
-                  justifyContent: "start",
+                  justifyContent: "stretch",
                 }}
               >
                 {allExpansions.map((ep) => (
@@ -465,7 +441,7 @@ function SearchPageContent({
                 className={`grid ${singlesGridGapClass}`}
                 style={{
                   gridTemplateColumns: singlesGridTemplateColumns,
-                  justifyContent: isMobileViewport ? "stretch" : "start",
+                  justifyContent: "stretch",
                 }}
               >
                 {results.singles.map((card, index) => (
@@ -572,7 +548,7 @@ function SearchPageContent({
                 className="grid gap-2"
                 style={{
                   gridTemplateColumns: sealedGridTemplateColumns,
-                  justifyContent: isMobileViewport ? "stretch" : "start",
+                  justifyContent: "stretch",
                 }}
               >
                 {results.sealed.map((product, index) => (

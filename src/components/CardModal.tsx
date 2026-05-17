@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import {
@@ -123,6 +124,7 @@ function shouldOpenOnRawMarket(
 
 export default function CardModal({ card, showGradedSlabPreview = false, onClose }: Props) {
   useBodyScrollLock();
+  const router = useRouter();
 
   const savedCardMarketGradedLabel = findSavedGradedLabel(
     [
@@ -150,6 +152,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const [refreshing, setRefreshing] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [removingCollectionItem, setRemovingCollectionItem] = useState(false);
   const [historyChartMode, setHistoryChartMode] = useState<"market" | "graded">(() =>
     defaultToRawMarket || (!savedCardMarketGradedLabel && !savedEbaySoldGradedLabel)
       ? "market"
@@ -363,6 +366,36 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     }
   }
 
+  async function removeCurrentCollectionItem() {
+    if (!collectionItem || removingCollectionItem) return;
+
+    const location = collectionItem.binder_name ?? "loose singles";
+    const confirmed = window.confirm(`Remove this saved copy from ${location}?`);
+    if (!confirmed) return;
+
+    setRemovingCollectionItem(true);
+    setRefreshError(null);
+
+    try {
+      const response = await fetch("/api/collection/cards", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: collectionItem.id }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not remove this copy");
+      }
+
+      router.refresh();
+      onClose();
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : "Could not remove this copy");
+    } finally {
+      setRemovingCollectionItem(false);
+    }
+  }
+
   function getCardMarketUrl(): string | null {
     const stored = resolvedUrl ?? modalCard.cardmarket_url;
     if (isDirectCardMarketUrl(stored)) return withCardMarketFilters(stored);
@@ -460,8 +493,10 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                     syncingHistory={syncingHistory}
                     refreshError={refreshError}
                     canManageCardPrices={canManageCardPrices}
+                    removingCollectionItem={removingCollectionItem}
                     onRefresh={() => void runCardAction("refresh")}
                     onSyncHistory={() => void runCardAction("sync-history")}
+                    onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
                     onAddedToCollection={refreshModalCardFromServer}
                     onClose={onClose}
                   />

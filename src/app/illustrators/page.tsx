@@ -1,11 +1,10 @@
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { ArrowUpRight, BrushCleaning, LibraryBig, Sparkles } from "lucide-react";
 import {
-  HeaderAction,
-  PageHeroHeader,
+  HeaderStatCard,
   type HeaderStat,
 } from "@/components/PageHeader";
+import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { db } from "@/lib/db";
 import { getFixedTrackGridTemplate, getIllustratorTileScale } from "@/lib/display-scale";
 import IllustratorSortToggle from "@/app/illustrators/IllustratorSortToggle";
@@ -260,6 +259,7 @@ export default async function IllustratorsPage({
     (total, illustrator) => total + illustrator.pricedCount,
     0
   );
+  const featuredCards = sortedIllustrators.filter((illustrator) => illustrator.topCard).length;
   const headerStats = [
     {
       label: "Illustrators",
@@ -279,6 +279,12 @@ export default async function IllustratorsPage({
       Icon: Sparkles,
       tone: "rose",
     },
+    {
+      label: "Featured",
+      value: formatCount(featuredCards),
+      Icon: ArrowUpRight,
+      tone: "sky",
+    },
   ] satisfies HeaderStat[];
 
   function buildGameHref(game: TradingCardGameFilter) {
@@ -289,66 +295,55 @@ export default async function IllustratorsPage({
     const query = params.toString();
     return query ? `/illustrators?${query}` : "/illustrators";
   }
+  const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
+    href: buildGameHref(game),
+    active: activeGame === game,
+    label: getGameFilterLabel(game),
+  }));
 
   const activeGameQuery = getGameFilterSearchParamValue(activeGame);
+  const libraryLabel =
+    activeGame === ONE_PIECE_GAME ? "One Piece" : activeGame === "pokemon" ? "Pokemon" : "Pokemon and One Piece";
 
   return (
     <div className={`page-container mx-auto ${pageMaxWidth} px-4 py-5 sm:px-6 sm:py-8 lg:px-8`}>
-      <PageHeroHeader
-        eyebrow={activeGame === ONE_PIECE_GAME ? "One Piece Library" : "Dusty Cards Collection"}
-        title={activeGame === ONE_PIECE_GAME ? "One Piece Illustrators" : "Illustrators"}
-        description={`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked ${activeGame === ONE_PIECE_GAME ? "One Piece" : activeGame === "pokemon" ? "Pokemon" : "Pokemon and One Piece"} cards.`}
-        className="mb-6 sm:mb-8"
-        stats={headerStats}
-        actions={
-          <HeaderAction>
-            <Link
-              href="/settings"
-              prefetch={false}
-              className="inline-flex items-center gap-2 rounded-full border border-black/8 bg-white/75 px-3 py-1.5 font-semibold text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/58 dark:hover:border-white/18 dark:hover:text-white"
-            >
-              Display tools in Settings
-              <ArrowUpRight className="h-4 w-4" />
-            </Link>
-          </HeaderAction>
-        }
-      />
-
-      <div className="glass mb-8 flex flex-col gap-4 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          {settings.onePieceLibraryEnabled ? (
-            <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-              {GAME_FILTER_OPTIONS.map((game) => (
-                <Link
-                  key={game}
-                  href={buildGameHref(game)}
-                  prefetch={false}
-                  className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
-                    activeGame === game
-                      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                      : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
-                  }`}
-                >
-                  {getGameFilterLabel(game)}
-                </Link>
-              ))}
+      <section className="relative mb-6 w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:mb-8 sm:p-4 lg:p-5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
+          <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10 xl:col-span-2">
+            <div className="min-w-0">
+              <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                {activeGame === ONE_PIECE_GAME ? "One Piece Library" : "Dusty Cards Collection"}
+              </p>
+              <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                {activeGame === ONE_PIECE_GAME ? "One Piece Illustrators" : "Illustrators"}
+              </h1>
+              <p className="mt-3 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+                {`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked ${libraryLabel} cards.`}
+              </p>
             </div>
-          ) : null}
+
+            {settings.onePieceLibraryEnabled ? (
+              <div className="mt-[var(--ui-page-header-action-margin)]">
+                <GameFilterSwitch items={gameSwitchItems} ariaLabel="Illustrator library" />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
+            {headerStats.map((stat) => (
+              <HeaderStatCard key={stat.label} {...stat} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <div className="glass mb-8 flex flex-col gap-4 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8 lg:flex-row lg:items-center">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex h-9 items-center rounded-2xl border border-black/8 bg-white/70 px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/42">
             Sort
           </span>
           <IllustratorSortToggle activeSort={sort} />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/58">
-            <LibraryBig className="h-3.5 w-3.5" />
-            {formatCount(trackedCards)} cards
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/70 px-3 py-2 text-xs font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/58">
-            <Sparkles className="h-3.5 w-3.5" />
-            {formatCount(pricedCards)} priced
-          </span>
         </div>
       </div>
 

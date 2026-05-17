@@ -938,7 +938,7 @@ export function MoverGrid({
       className="grid auto-rows-fr items-stretch gap-4"
       style={{
         gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
-        justifyContent: "start",
+        justifyContent: "stretch",
       }}
     >
       {movers.map((item) => (

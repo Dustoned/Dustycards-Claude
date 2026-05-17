@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
 import { ArrowDownRight, ArrowUpRight, Search } from "lucide-react";
 import {
   useCallback,
@@ -13,11 +12,11 @@ import {
   useState,
   type KeyboardEvent,
   type MouseEvent,
-  type ReactNode,
 } from "react";
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
+import { textMatchesSearchQuery } from "@/lib/card-search";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getExpansionHref } from "@/lib/games";
 import { getFixedTrackGridTemplate, getRichMoverTrackWidth } from "@/lib/display-scale";
@@ -32,7 +31,6 @@ const CardModal = dynamic(() => import("@/components/CardModal"), {
   loading: () => null,
 });
 
-type MoversMode = "value" | "raw" | "graded" | "targets" | "sealed";
 type DriverLaneKey = "gain" | "drop";
 type ValueDriverScope = "collection" | "all";
 type ValueDriverFilter = "all" | DriverLaneKey;
@@ -40,69 +38,12 @@ type ValueDriverFilter = "all" | DriverLaneKey;
 const INITIAL_VALUE_DRIVER_RENDER_COUNT = 24;
 const VALUE_DRIVER_RENDER_BATCH_SIZE = 36;
 
-function modeHref(pathname: string, searchParams: { toString(): string }, mode: MoversMode): string {
-  const params = new URLSearchParams(searchParams.toString());
-
-  params.delete("view");
-
-  if (mode === "value") {
-    params.delete("scope");
-    params.delete("source");
-  } else if (mode === "raw") {
-    params.set("scope", "collection");
-  } else if (mode === "graded") {
-    params.set("scope", "graded");
-  } else if (mode === "targets") {
-    params.set("scope", "grading");
-  } else {
-    params.set("scope", "sealed");
-  }
-
-  const query = params.toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
-
-function modeTabClass(active: boolean): string {
-  return `inline-flex h-9 min-w-[8rem] flex-1 items-center justify-center rounded-lg px-3 text-xs font-semibold transition-colors sm:flex-none ${
-    active
-      ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
-      : "text-gray-500 hover:bg-black/[0.05] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
-  }`;
-}
-
-function scopeButtonClass(active: boolean): string {
-  return `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-    active
-      ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
-      : "border-black/8 bg-white/75 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
-  }`;
-}
-
 function valueFilterButtonClass(active: boolean): string {
   return `inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-semibold transition-colors ${
     active
       ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
       : "text-gray-500 hover:bg-black/[0.05] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
   }`;
-}
-
-function valueScopeHref(
-  pathname: string,
-  searchParams: { toString(): string },
-  scope: ValueDriverScope
-): string {
-  const params = new URLSearchParams(searchParams.toString());
-  params.delete("scope");
-  params.delete("source");
-
-  if (scope === "all") {
-    params.set("view", "all");
-  } else {
-    params.delete("view");
-  }
-
-  const query = params.toString();
-  return query ? `${pathname}?${query}` : pathname;
 }
 
 function signedCurrency(value: number | null | undefined): string {
@@ -140,9 +81,7 @@ function driverSearchText(item: CollectionValueDriverItem): string {
 }
 
 function matchesDriverQuery(item: CollectionValueDriverItem, query: string): boolean {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return true;
-  return driverSearchText(item).includes(normalized);
+  return textMatchesSearchQuery(driverSearchText(item), query);
 }
 
 function episodeLabel(item: CollectionValueDriverItem): string {
@@ -372,7 +311,7 @@ function DriverGrid({
       className="grid auto-rows-fr items-stretch gap-4"
       style={{
         gridTemplateColumns: getFixedTrackGridTemplate(tileMinWidth),
-        justifyContent: "start",
+        justifyContent: "stretch",
       }}
     >
       {items.map((item) => (
@@ -390,15 +329,11 @@ function DriverGrid({
 export default function CollectionValueDrivers({
   data,
   activeItemScope = "collection",
-  sectionTrailing,
 }: {
   data: CollectionValueDriversData;
   activeItemScope?: ValueDriverScope;
-  sectionTrailing?: ReactNode;
 }) {
   const { displaySettings } = useSettings();
-  const pathname = usePathname() ?? "/movers";
-  const searchParams = useSearchParams();
   const [driverFilter, setDriverFilter] = useState<ValueDriverFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
@@ -455,13 +390,6 @@ export default function CollectionValueDrivers({
     data.previousLabel && data.latestLabel
       ? `${data.previousLabel} -> ${data.latestLabel}`
       : "Latest snapshot";
-  const modes: Array<{ key: MoversMode; label: string; shortLabel: string }> = [
-    { key: "value", label: "Value Changes", shortLabel: "Value" },
-    { key: "raw", label: "Raw Singles", shortLabel: "Raw" },
-    { key: "graded", label: "Graded", shortLabel: "Graded" },
-    { key: "targets", label: "Targets", shortLabel: "Targets" },
-    { key: "sealed", label: "Sealed", shortLabel: "Sealed" },
-  ];
   const filterOptions: Array<{
     key: ValueDriverFilter;
     label: string;
@@ -555,79 +483,6 @@ export default function CollectionValueDrivers({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-2xl border border-black/8 bg-white/70 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-end">
-            <div className="min-w-0">
-              <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-                Market
-              </span>
-              <div className="mt-1 flex flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
-                {modes.map((mode) => (
-                  <Link
-                    key={mode.key}
-                    href={modeHref(pathname, searchParams, mode.key)}
-                    prefetch={false}
-                    className={modeTabClass(mode.key === "value")}
-                    aria-current={mode.key === "value" ? "page" : undefined}
-                  >
-                    <span className="sm:hidden">{mode.shortLabel}</span>
-                    <span className="hidden sm:inline">{mode.label}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-                Scope
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { key: "collection" as const, label: "Collection" },
-                  { key: "all" as const, label: "All Cards" },
-                ].map((scope) => {
-                  const active = activeItemScope === scope.key;
-
-                  return (
-                    <Link
-                      key={scope.key}
-                      href={valueScopeHref(pathname, searchParams, scope.key)}
-                      prefetch={false}
-                      className={scopeButtonClass(active)}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      {scope.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden min-w-[24rem] flex-wrap items-center justify-between gap-3 rounded-xl border border-black/8 bg-black/[0.025] px-3.5 py-2.5 dark:border-white/8 dark:bg-white/[0.035] sm:flex">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/36">
-                Net change
-              </p>
-              <p className="truncate text-[12px] font-medium text-gray-500 dark:text-white/48">
-                {rangeLabel}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {sectionTrailing}
-              <p
-                className={`shrink-0 text-lg font-bold tabular-nums ${
-                  (data.totalChange ?? 0) >= 0 ? toneTextClass("gain") : toneTextClass("drop")
-                }`}
-              >
-                {signedCurrency(data.totalChange)}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {!hasDrivers ? (
         <div className="rounded-xl border border-dashed border-black/10 bg-black/[0.025] px-4 py-8 text-center text-sm text-gray-500 dark:border-white/10 dark:bg-white/[0.035] dark:text-white/40">
           No item-level value changes in the latest comparison window.

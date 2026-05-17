@@ -2,10 +2,8 @@ import nextDynamic from "next/dynamic";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { BookOpen, Boxes, Coins, Sparkles } from "lucide-react";
-import {
-  PageHeroHeader,
-  type HeaderStat,
-} from "@/components/PageHeader";
+import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
+import GameFilterSwitch, { SegmentedNavLinks } from "@/components/GameFilterSwitch";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
   getCollectionOverviewData,
@@ -42,30 +40,6 @@ function isGradedCollectionCard(item: {
   grading_grade: string | null;
 }) {
   return Boolean(item.grading_company && item.grading_grade);
-}
-
-function TabLink({
-  href,
-  active,
-  label,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
-        active
-          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
-      }`}
-    >
-      {label}
-    </Link>
-  );
 }
 
 function CollectionValueSummaryCard({
@@ -109,77 +83,6 @@ function CollectionValueSummaryCard({
   );
 }
 
-const collectionHeaderStatToneClasses: Record<
-  NonNullable<HeaderStat["tone"]>,
-  { icon: string; surface: string }
-> = {
-  slate: {
-    icon: "text-gray-500 dark:text-white/55",
-    surface: "border-black/6 bg-white/75 dark:border-white/10 dark:bg-white/[0.055]",
-  },
-  emerald: {
-    icon: "text-emerald-600 dark:text-emerald-300",
-    surface: "border-emerald-400/14 bg-emerald-400/[0.07]",
-  },
-  amber: {
-    icon: "text-amber-600 dark:text-amber-300",
-    surface: "border-amber-400/14 bg-amber-400/[0.07]",
-  },
-  sky: {
-    icon: "text-sky-600 dark:text-sky-300",
-    surface: "border-sky-400/14 bg-sky-400/[0.07]",
-  },
-  rose: {
-    icon: "text-rose-600 dark:text-rose-300",
-    surface: "border-rose-400/14 bg-rose-400/[0.07]",
-  },
-  violet: {
-    icon: "text-violet-600 dark:text-violet-300",
-    surface: "border-violet-400/14 bg-violet-400/[0.07]",
-  },
-  blue: {
-    icon: "text-blue-600 dark:text-blue-300",
-    surface: "border-blue-400/14 bg-blue-400/[0.07]",
-  },
-};
-
-function CollectionHeaderStatCard({
-  label,
-  value,
-  hint,
-  Icon,
-  tone = "slate",
-}: HeaderStat) {
-  const toneClass = collectionHeaderStatToneClasses[tone];
-
-  return (
-    <div className="flex min-h-[8.4rem] min-w-0 flex-col justify-between rounded-2xl border border-black/8 bg-white/70 p-4 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <p className="min-w-0 truncate text-[0.66rem] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
-          {label}
-        </p>
-        {Icon ? (
-          <span
-            className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${toneClass.surface} ${toneClass.icon}`}
-          >
-            <Icon className="h-4.5 w-4.5" />
-          </span>
-        ) : null}
-      </div>
-      <div className="min-w-0">
-        <p className="truncate whitespace-nowrap text-[clamp(1.45rem,1.45vw,1.75rem)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
-          {value}
-        </p>
-        {hint ? (
-          <p className="mt-1 truncate text-xs leading-snug text-gray-500 dark:text-white/50">
-            {hint}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 function sumCardViewValue(items: CollectionOverviewData["cards"]): number {
   return Number(
     items.reduce((total, item) => total + (item.current_value ?? 0), 0).toFixed(2)
@@ -199,30 +102,40 @@ function PortfolioBreakdownItem({
   count,
   value,
   share,
-  barClassName,
+  dotClassName,
+  surfaceClassName,
 }: {
   label: string;
   count: string;
   value: string;
   share: number;
-  barClassName: string;
+  dotClassName: string;
+  surfaceClassName: string;
 }) {
   return (
-    <div className="min-w-0 rounded-lg border border-black/6 bg-white/50 p-2 dark:border-white/8 dark:bg-white/[0.035]">
+    <div
+      className={`min-w-0 rounded-xl border px-2.5 py-2 shadow-sm shadow-black/5 dark:shadow-none ${surfaceClassName}`}
+    >
       <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate text-xs font-semibold text-gray-900 dark:text-white">{label}</p>
-          <p className="mt-0.5 truncate text-[10px] text-gray-500 dark:text-white/45">{count}</p>
+        <div className="flex min-w-0 items-start gap-1.5">
+          <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${dotClassName}`} />
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-bold leading-tight text-gray-950 dark:text-white sm:text-xs">
+              {label}
+            </p>
+            <p className="mt-0.5 truncate text-[9px] font-semibold text-gray-500 dark:text-white/42 sm:text-[10px]">
+              {count}
+            </p>
+          </div>
         </div>
-        <div className="shrink-0 text-right">
-          <p className="text-xs font-bold tabular-nums text-gray-950 dark:text-white">{value}</p>
-          <p className="mt-0.5 text-[10px] text-gray-500 dark:text-white/45">
+        <div className="min-w-0 shrink-0 text-right">
+          <p className="max-w-[5.6rem] truncate text-[11px] font-black leading-tight tabular-nums text-gray-950 dark:text-white sm:max-w-[7rem] sm:text-xs">
+            {value}
+          </p>
+          <p className="mt-0.5 text-[9px] font-bold tabular-nums text-gray-500 dark:text-white/42 sm:text-[10px]">
             {share.toFixed(0)}%
           </p>
         </div>
-      </div>
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/7 dark:bg-white/8">
-        <div className={`h-full rounded-full ${barClassName}`} style={{ width: `${share}%` }} />
       </div>
     </div>
   );
@@ -240,34 +153,40 @@ function PortfolioBreakdownPanel({
   sealed: CollectionOverviewData["sealed"];
 }) {
   const sealedUnits = sealed.reduce((total, item) => total + item.quantity, 0);
+  const rawBinderCards = binderCards.filter((item) => !isGradedCollectionCard(item));
+  const gradedBinderCards = binderCards.filter(isGradedCollectionCard);
+  const rawCards = [...rawLooseSingles, ...rawBinderCards];
+  const gradedCards = [...gradedLooseSingles, ...gradedBinderCards];
   const segments = [
     {
-      label: "Loose raw",
-      count: `${rawLooseSingles.length.toLocaleString("en-US")} cards`,
-      itemCount: rawLooseSingles.length,
-      value: sumCardViewValue(rawLooseSingles),
-      color: "bg-sky-500",
+      label: "Raw",
+      count: `${rawCards.length.toLocaleString("en-US")} cards`,
+      itemCount: rawCards.length,
+      value: sumCardViewValue(rawCards),
+      dotClassName: "bg-sky-400",
+      fillClassName: "bg-sky-400",
+      surfaceClassName:
+        "border-sky-400/14 bg-sky-400/[0.065] dark:border-sky-300/14 dark:bg-sky-300/[0.055]",
     },
     {
-      label: "Loose graded",
-      count: `${gradedLooseSingles.length.toLocaleString("en-US")} cards`,
-      itemCount: gradedLooseSingles.length,
-      value: sumCardViewValue(gradedLooseSingles),
-      color: "bg-violet-500",
-    },
-    {
-      label: "Binder cards",
-      count: `${binderCards.length.toLocaleString("en-US")} cards`,
-      itemCount: binderCards.length,
-      value: sumCardViewValue(binderCards),
-      color: "bg-emerald-500",
+      label: "Graded",
+      count: `${gradedCards.length.toLocaleString("en-US")} cards`,
+      itemCount: gradedCards.length,
+      value: sumCardViewValue(gradedCards),
+      dotClassName: "bg-violet-400",
+      fillClassName: "bg-violet-400",
+      surfaceClassName:
+        "border-violet-400/14 bg-violet-400/[0.065] dark:border-violet-300/14 dark:bg-violet-300/[0.055]",
     },
     {
       label: "Sealed",
       count: `${sealedUnits.toLocaleString("en-US")} units`,
       itemCount: sealedUnits,
       value: sumSealedViewValue(sealed),
-      color: "bg-rose-500",
+      dotClassName: "bg-rose-400",
+      fillClassName: "bg-rose-400",
+      surfaceClassName:
+        "border-rose-400/14 bg-rose-400/[0.065] dark:border-rose-300/14 dark:bg-rose-300/[0.055]",
     },
   ].filter((segment) => segment.value > 0 || segment.itemCount > 0);
   const totalValue = segments.reduce((total, segment) => total + segment.value, 0);
@@ -277,28 +196,67 @@ function PortfolioBreakdownPanel({
 
   return (
     <section
-      className="rounded-2xl border border-black/8 bg-black/[0.02] p-3 dark:border-white/8 dark:bg-white/[0.03]"
+      className="relative overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20"
       title={fullSummary}
     >
-      <div className="mb-2.5 flex min-w-0 items-center justify-between gap-3">
-        <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
-          Portfolio breakdown
-        </p>
-        <p className="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-white/45">
-          By current value
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-4">
-        {segments.map((segment) => (
-          <PortfolioBreakdownItem
-            key={segment.label}
-            label={segment.label}
-            count={segment.count}
-            value={formatCollectionCurrency(segment.value)}
-            share={totalValue > 0 ? (segment.value / totalValue) * 100 : 0}
-            barClassName={segment.color}
-          />
-        ))}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+      <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(10rem,0.22fr)_minmax(0,1fr)_minmax(26rem,0.72fr)] lg:items-center">
+        <div className="min-w-0">
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-bold leading-tight text-gray-950 dark:text-white">
+              Breakdown
+            </h2>
+          </div>
+          <p className="mt-1.5 truncate text-sm font-semibold leading-tight tabular-nums text-gray-950 dark:text-white">
+            {formatCollectionCurrency(totalValue)}
+          </p>
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] p-2 dark:border-white/8 dark:bg-black/10">
+          <div className="flex h-2.5 overflow-hidden rounded-full bg-black/7 dark:bg-white/8">
+            {segments.map((segment) => {
+              const share = totalValue > 0 ? (segment.value / totalValue) * 100 : 0;
+              return (
+                <div
+                  key={segment.label}
+                  className={segment.fillClassName}
+                  style={{
+                    width: `${share}%`,
+                    minWidth: share > 0 ? "0.65rem" : undefined,
+                  }}
+                  title={`${segment.label}: ${share.toFixed(1)}%`}
+                />
+              );
+            })}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            {segments.map((segment) => {
+              const share = totalValue > 0 ? (segment.value / totalValue) * 100 : 0;
+              return (
+                <div key={segment.label} className="flex items-center gap-1.5">
+                  <span className={`h-1.5 w-1.5 rounded-full ${segment.dotClassName}`} />
+                  <span className="text-[10px] font-semibold text-gray-500 dark:text-white/45">
+                    {segment.label} {share.toFixed(0)}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid min-w-0 grid-cols-3 gap-1.5">
+          {segments.map((segment) => (
+            <PortfolioBreakdownItem
+              key={segment.label}
+              label={segment.label}
+              count={segment.count}
+              value={formatCollectionCurrency(segment.value)}
+              share={totalValue > 0 ? (segment.value / totalValue) * 100 : 0}
+              dotClassName={segment.dotClassName}
+              surfaceClassName={segment.surfaceClassName}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -377,9 +335,7 @@ export default async function HomePage({
     activeTab === "overview"
       ? data.looseSingles.filter((item) => !isGradedCollectionCard(item))
       : [];
-  const showRawLooseSinglesSection =
-    activeTab === "overview" &&
-    (rawLooseSingles.length > 0 || data.looseSingles.length === 0);
+  const showRawLooseSinglesSection = activeTab === "overview" && rawLooseSingles.length > 0;
 
   function buildCollectionHref(tabValue: CollectionPageTab) {
     const params = new URLSearchParams();
@@ -406,32 +362,63 @@ export default async function HomePage({
     const query = params.toString();
     return query ? `/?${query}` : "/";
   }
+  const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
+    href: buildGameHref(game),
+    active: activeGame === game,
+    label: getGameFilterLabel(game),
+  }));
+  const viewSwitchItems = [
+    { href: buildCollectionHref("overview"), active: activeTab === "overview", label: "Overview" },
+    { href: buildCollectionHref("cards"), active: activeTab === "cards", label: "Cards" },
+    { href: buildCollectionHref("binders"), active: activeTab === "binders", label: "Binders" },
+    { href: buildCollectionHref("sealed"), active: activeTab === "sealed", label: "Sealed" },
+    { href: buildCollectionHref("graded"), active: activeTab === "graded", label: "Graded" },
+  ];
   const valueRangePoints = data.overview.chart.filter((point) => point.value != null);
   const collectionValueRange =
-    activeTab !== "overview"
-      ? "Live collection summary"
-      : valueRangePoints.length > 1
+    valueRangePoints.length > 1
       ? `${valueRangePoints[0].label} - ${valueRangePoints[valueRangePoints.length - 1].label}`
       : valueRangePoints[0]?.label ?? "No history yet";
-  const showCollectionChart = activeTab === "overview" && valueRangePoints.length > 1;
+  const showCollectionChart = valueRangePoints.length > 1;
+  const collectionTitle =
+    activeGame === ONE_PIECE_GAME ? "One Piece Collection" : "DustyCards Collection";
+  const collectionDescription =
+    activeGame === ONE_PIECE_GAME
+      ? "Track your One Piece singles separately from Pokemon while using the same collection tools."
+      : "Keep track of your singles, binders and sealed.";
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <div className="flex w-full flex-col gap-5 sm:gap-7">
-        <PageHeroHeader
-          eyebrow="DustyCards"
-          title={activeGame === ONE_PIECE_GAME ? "One Piece Collection" : "DustyCards Collection"}
-          description={
-            activeGame === ONE_PIECE_GAME
-              ? "Track your One Piece singles separately from Pokemon while using the same collection tools."
-              : "Keep track of your singles, binders and sealed with the same live market data you already use everywhere else."
-          }
-          className="xl:[--ui-page-header-title-size:2rem] 2xl:[--ui-page-header-title-size:2.15rem] max-[640px]:[--ui-page-header-action-margin:0.45rem] max-[640px]:[--ui-page-header-grid-gap:0.55rem] max-[640px]:[--ui-page-header-padding:0.7rem] max-[640px]:[--ui-page-header-title-size:1.35rem] max-[640px]:[--ui-header-action-gap:0.4rem] max-[640px]:[--ui-header-action-x:0.65rem] max-[640px]:[--ui-header-action-y:0.35rem] max-[640px]:[&_h1+div]:hidden"
-          gridClassName="xl:grid-cols-[minmax(23rem,0.58fr)_minmax(0,1.42fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.57fr)_minmax(0,1.63fr)] 2xl:items-stretch"
-          sideClassName="space-y-2 xl:space-y-0"
-          accessory={
-            <div className="grid min-w-0 gap-2 sm:gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.75fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.32fr)_minmax(24rem,0.68fr)]">
-              <div className={activeTab === "overview" ? "sm:hidden" : "hidden"}>
+        <div className="space-y-3">
+          <section className="relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:p-4 lg:p-5">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
+              <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10">
+                <div className="min-w-0">
+                  <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                    DustyCards
+                  </p>
+                  <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                    {collectionTitle}
+                  </h1>
+                  <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+                    {collectionDescription}
+                  </p>
+                </div>
+
+                {settings.onePieceLibraryEnabled ? (
+                  <div className="mt-[var(--ui-page-header-action-margin)]">
+                    <GameFilterSwitch
+                      items={gameSwitchItems}
+                      ariaLabel="Collection library"
+                      className="max-w-[21rem]"
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
                 {showCollectionChart ? (
                   <PriceHistoryPanel
                     compact
@@ -443,105 +430,47 @@ export default async function HomePage({
                       data.overview.pnl
                     )}`}
                     emptyText="Add cards or sealed to start tracking your value"
+                    rangeStorageKey="collection-dashboard"
                   />
                 ) : (
                   <CollectionValueSummaryCard
                     currentValue={data.overview.currentValue}
                     pnl={data.overview.pnl}
                     rangeLabel={collectionValueRange}
+                    className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] flex-col justify-center px-5 py-4"
                   />
                 )}
               </div>
-              <div className="hidden min-w-0 sm:block [&>section]:h-full">
-                {showCollectionChart ? (
-                  <PriceHistoryPanel
-                    layout="hero"
-                    title="Collection Value"
-                    currency="EUR"
-                    points={data.overview.chart}
-                    currentValue={data.overview.currentValue}
-                    subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
-                      data.overview.pnl
-                    )}`}
-                    emptyText="Add cards or sealed to start tracking your value"
-                  />
-                ) : (
-                  <CollectionValueSummaryCard
-                    currentValue={data.overview.currentValue}
-                    pnl={data.overview.pnl}
-                    rangeLabel={collectionValueRange}
-                    className="flex h-full min-h-[9rem] flex-col justify-center px-5 py-4"
-                  />
-                )}
-              </div>
-            <div
-              className={`min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:auto-rows-fr ${
-                activeTab === "overview" ? "grid" : "hidden sm:grid"
-              }`}
-            >
+
+              <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
                 {summaryCards.map((stat) => (
-                  <CollectionHeaderStatCard key={stat.label} {...stat} />
+                  <HeaderStatCard key={stat.label} {...stat} />
                 ))}
               </div>
             </div>
-          }
-        />
+          </section>
+
+          {hasCollection && activeTab === "overview" && (
+            <PortfolioBreakdownPanel
+              rawLooseSingles={rawLooseSingles}
+              gradedLooseSingles={gradedLooseSingles}
+              binderCards={data.binderCards}
+              sealed={data.sealed}
+            />
+          )}
+
+          <section className="w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.02] p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.03]">
+            <div className="flex min-w-0 justify-end">
+              <SegmentedNavLinks
+                items={viewSwitchItems}
+                ariaLabel="Collection view"
+                className="w-fit max-w-full"
+              />
+            </div>
+          </section>
+        </div>
 
         <div className="space-y-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
-              <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-                <TabLink
-                  href={buildCollectionHref("overview")}
-                  active={activeTab === "overview"}
-                  label="Overview"
-                />
-                <TabLink
-                  href={buildCollectionHref("cards")}
-                  active={activeTab === "cards"}
-                  label="Cards"
-                />
-                <TabLink
-                  href={buildCollectionHref("binders")}
-                  active={activeTab === "binders"}
-                  label="Binders"
-                />
-                <TabLink
-                  href={buildCollectionHref("sealed")}
-                  active={activeTab === "sealed"}
-                  label="Sealed"
-                />
-                <TabLink
-                  href={buildCollectionHref("graded")}
-                  active={activeTab === "graded"}
-                  label="Graded"
-                />
-              </div>
-            </div>
-
-            {settings.onePieceLibraryEnabled ? (
-              <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
-                <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-                  <TabLink
-                    href={buildGameHref(GAME_FILTER_OPTIONS[0])}
-                    active={activeGame === GAME_FILTER_OPTIONS[0]}
-                    label={getGameFilterLabel(GAME_FILTER_OPTIONS[0])}
-                  />
-                  <TabLink
-                    href={buildGameHref(GAME_FILTER_OPTIONS[1])}
-                    active={activeGame === GAME_FILTER_OPTIONS[1]}
-                    label={getGameFilterLabel(GAME_FILTER_OPTIONS[1])}
-                  />
-                  <TabLink
-                    href={buildGameHref(GAME_FILTER_OPTIONS[2])}
-                    active={activeGame === GAME_FILTER_OPTIONS[2]}
-                    label={getGameFilterLabel(GAME_FILTER_OPTIONS[2])}
-                  />
-                </div>
-              </div>
-            ) : null}
-          </div>
-
           {!hasCollection && activeTab === "overview" && (
             <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
               <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
@@ -560,15 +489,6 @@ export default async function HomePage({
                 </Link>
               </div>
             </div>
-          )}
-
-          {hasCollection && activeTab === "overview" && (
-            <PortfolioBreakdownPanel
-              rawLooseSingles={rawLooseSingles}
-              gradedLooseSingles={gradedLooseSingles}
-              binderCards={data.binderCards}
-              sealed={data.sealed}
-            />
           )}
 
           {activeTab === "overview" && (
@@ -625,7 +545,7 @@ export default async function HomePage({
                 </div>
               ) : (
                 <div
-                  className="grid justify-start gap-4"
+                  className="grid gap-4"
                   style={{
                     gridTemplateColumns: getFixedTrackGridTemplate(binderTileTrackWidth),
                   }}

@@ -254,6 +254,7 @@ export default async function OnePieceExpansionDetailPage({
         }
         accessory={
           <PriceHistoryPanel
+            compact
             title="Set Total"
             currency="EUR"
             points={pricePanelPoints}

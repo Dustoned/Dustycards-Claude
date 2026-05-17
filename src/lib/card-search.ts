@@ -44,14 +44,48 @@ function normalizeSearchText(value: string): string {
     .replace(/\s+/g, " ");
 }
 
+function tokenizeSearchText(value: string): string[] {
+  return normalizeSearchText(value).split(" ").filter(Boolean);
+}
+
+function cardNumberReferenceVariants(left: string, right: string): string[] {
+  const leftVariants = /^\d+$/.test(left)
+    ? [
+        stripNumericLeadingZeros(left),
+        stripNumericLeadingZeros(left).padStart(2, "0"),
+        stripNumericLeadingZeros(left).padStart(3, "0"),
+        stripNumericLeadingZeros(left).padStart(4, "0"),
+      ]
+    : [left];
+
+  return leftVariants.flatMap((variant) => [
+    `${variant}/${right}`,
+    `${variant} ${right}`,
+    `${variant}${right}`,
+  ]);
+}
+
 export function buildCardNumberSearchAliases(value: string | null | undefined): string[] {
   const normalized = value?.trim().replace(/^#+/, "").toLowerCase() ?? "";
   if (!normalized) return [];
 
   const aliases: Array<string | null> = [normalized];
+  const compact = normalized.replace(/[^a-z0-9]+/g, "");
+  const spaced = normalized.replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  aliases.push(compact, spaced);
+
+  const refMatch = /^([a-z]*\d+[a-z]*)(?:\s+)([a-z]*\d+[a-z]*)$/.exec(spaced);
+  if (refMatch) {
+    aliases.push(...cardNumberReferenceVariants(refMatch[1], refMatch[2]));
+  }
+
   const slashMatch = /^(\d+)(\/.+)$/.exec(normalized);
   if (slashMatch) {
-    aliases.push(`${stripNumericLeadingZeros(slashMatch[1])}${slashMatch[2]}`);
+    const withoutLeadingZeros = stripNumericLeadingZeros(slashMatch[1]);
+    aliases.push(`${withoutLeadingZeros}${slashMatch[2]}`);
+    aliases.push(`${withoutLeadingZeros.padStart(2, "0")}${slashMatch[2]}`);
+    aliases.push(`${withoutLeadingZeros.padStart(3, "0")}${slashMatch[2]}`);
+    aliases.push(`${withoutLeadingZeros.padStart(4, "0")}${slashMatch[2]}`);
   }
 
   if (/^\d+$/.test(normalized)) {
@@ -79,6 +113,28 @@ export function cardNumberMatchesSearch(
   return buildCardNumberSearchAliases(normalizedQuery).some((alias) => cardAliases.has(alias));
 }
 
+export function textMatchesSearchQuery(
+  values: Array<string | number | null | undefined> | string | null | undefined,
+  query: string
+): boolean {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return true;
+
+  const haystack = Array.isArray(values) ? values.filter(Boolean).join(" ") : (values ?? "");
+  const normalizedHaystack = normalizeSearchText(String(haystack));
+  if (!normalizedHaystack) return false;
+
+  const haystackTokens = normalizedHaystack.split(" ").filter(Boolean);
+  const queryTokens = tokenizeSearchText(normalizedQuery);
+  return queryTokens.every((token) => {
+    if (token.length <= 2 && !/\d/.test(token)) {
+      return haystackTokens.some((haystackToken) => haystackToken.startsWith(token));
+    }
+
+    return normalizedHaystack.includes(token);
+  });
+}
+
 export function cardMatchesSearchQuery(
   card: {
     name: string | null | undefined;
@@ -104,13 +160,7 @@ export function cardMatchesSearchQuery(
     card.episodeCode,
     card.rarity,
     ...compactRefs,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const normalizedHaystack = normalizeSearchText(haystack);
+  ];
 
-  return (
-    normalizedHaystack.includes(normalizedQuery) ||
-    cardNumberMatchesSearch(card.cardNumber, normalizedQuery)
-  );
+  return cardNumberMatchesSearch(card.cardNumber, query) || textMatchesSearchQuery(haystack, query);
 }

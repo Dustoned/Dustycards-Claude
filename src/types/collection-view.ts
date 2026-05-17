@@ -5,6 +5,8 @@ export interface CollectionCardViewItem {
   want_source?: string | null;
   want_source_episode_id?: string | null;
   binder_id?: string | null;
+  binder_name?: string | null;
+  binder_type?: string | null;
   card_id: string;
   name: string;
   image_url: string | null;

@@ -119,6 +119,9 @@ interface Props {
   forcedSortBy?: SortBy;
   forcedSortDir?: SortDir;
   hideSortControls?: boolean;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  hideToolbarSearch?: boolean;
   showGradedSlabPreview?: boolean;
 }
 
@@ -153,6 +156,9 @@ export default function CollectionCardsView({
   forcedSortBy,
   forcedSortDir,
   hideSortControls = false,
+  searchValue,
+  onSearchChange,
+  hideToolbarSearch = false,
   showGradedSlabPreview = false,
 }: Props) {
   const router = useRouter();
@@ -164,11 +170,13 @@ export default function CollectionCardsView({
   const sortDir = forcedSortDir ?? settings.sortDir;
   const sortLocked = forcedSortBy != null || forcedSortDir != null;
   const primaryPriceSource = settings.primaryPriceSource;
-  const [search, setSearch] = useState("");
+  const [internalSearch, setInternalSearch] = useState("");
+  const search = searchValue ?? internalSearch;
+  const setSearch = onSearchChange ?? setInternalSearch;
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [showOnlyGraded, setShowOnlyGraded] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
-  const [openingCardId, setOpeningCardId] = useState<string | null>(null);
+  const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
@@ -527,9 +535,14 @@ export default function CollectionCardsView({
     [preparedEntries, selectedKeySet]
   );
 
-  async function openCard(item: CollectionCardViewItem) {
-    if (openingCardId === item.card_id) return;
-    setOpeningCardId(item.card_id);
+  function getOpeningItemKey(item: CollectionCardViewItem, selectionKey: string): string {
+    return item.collection_item_id ?? item.want_item_id ?? selectionKey;
+  }
+
+  async function openCard(item: CollectionCardViewItem, selectionKey: string) {
+    const openingKey = getOpeningItemKey(item, selectionKey);
+    if (openingItemKey === openingKey) return;
+    setOpeningItemKey(openingKey);
     try {
       const response = await fetch(`/api/cards/${encodeURIComponent(item.card_id)}`, {
         cache: "no-store",
@@ -543,6 +556,8 @@ export default function CollectionCardsView({
             ? {
                 id: item.collection_item_id,
                 binder_id: item.binder_id ?? null,
+                binder_name: item.binder_name ?? null,
+                binder_type: item.binder_type ?? null,
                 purchase_price: item.purchase_price,
                 cost_basis_value: item.cost_basis_value,
                 cost_basis_label: item.cost_basis_label,
@@ -559,7 +574,7 @@ export default function CollectionCardsView({
     } catch {
       // ignore
     } finally {
-      setOpeningCardId(null);
+      setOpeningItemKey(null);
     }
   }
 
@@ -582,7 +597,7 @@ export default function CollectionCardsView({
       return;
     }
 
-    void openCard(item);
+    void openCard(item, selectionKey);
   }
 
   function toggleSelectionMode() {
@@ -999,6 +1014,7 @@ export default function CollectionCardsView({
             searchValue={search}
             onSearchChange={setSearch}
             searchPlaceholder="Search name, number, set..."
+            hideSearch={hideToolbarSearch}
             resultLabel={`${visibleItems.length} / ${items.length}${isFilteringPending ? " ..." : ""}`}
             sortSummary={sortSummary}
             priceSourceLabel={
@@ -1873,7 +1889,7 @@ export default function CollectionCardsView({
                 className={`grid ${gridGapClass}`}
                 style={{
                   gridTemplateColumns,
-                  justifyContent: isMobileViewport ? "stretch" : "start",
+                  justifyContent: "stretch",
                 }}
               >
                 {group.entries.map(({ item, selectionKey }, index) => {
@@ -2032,7 +2048,9 @@ export default function CollectionCardsView({
 
                         {isSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
 
-                        {openingCardId === item.card_id && <CardLoadingOverlay />}
+                        {openingItemKey === getOpeningItemKey(item, selectionKey) && (
+                          <CardLoadingOverlay />
+                        )}
 
                         {blurMissing && missing && (
                           <div className="absolute left-2 top-2">

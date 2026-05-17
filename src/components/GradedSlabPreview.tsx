@@ -75,10 +75,11 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
           "border-white/28 bg-[linear-gradient(180deg,rgba(255,244,214,0.18),rgba(255,244,214,0.06)_35%,rgba(255,255,255,0.03)_100%)]",
         inner:
           "border-white/12 bg-[linear-gradient(180deg,rgba(255,244,214,0.08),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.015)_100%)]",
-        labelOuter: "border border-amber-300/55 bg-[linear-gradient(180deg,rgba(83,55,21,0.94),rgba(51,35,17,0.9))]",
-        labelInner: "bg-transparent",
-        labelDivider: "bg-amber-300/25",
-        gradeDivider: "border-l border-amber-300/30",
+        labelOuter:
+          "border border-amber-200/70 bg-[linear-gradient(180deg,#f7e4a5_0%,#d9b75f_44%,#8a6522_100%)]",
+        labelInner: "bg-[linear-gradient(180deg,rgba(255,248,218,0.72),rgba(156,108,34,0.18))]",
+        labelDivider: "bg-black/35",
+        gradeDivider: "border-l border-black/28",
         window:
           "border-white/14 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))]",
       };
@@ -209,6 +210,24 @@ const DETAIL_METRICS = {
 const TILE_LABEL_BASE_WIDTH = 176;
 const DETAIL_LABEL_BASE_WIDTH = 420;
 
+function getBgsGradeDescriptor(grade: string): string {
+  const normalized = grade.trim().toUpperCase();
+  if (normalized.includes("BLACK")) return "BLACK LABEL";
+
+  const numericGrade = Number(normalized.replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(numericGrade)) return "GRADE";
+  if (numericGrade >= 10) return "PRISTINE";
+  if (numericGrade >= 9.5) return "GEM MINT";
+  if (numericGrade >= 9) return "MINT";
+  if (numericGrade >= 8.5) return "NM-MT+";
+  if (numericGrade >= 8) return "NM-MT";
+  if (numericGrade >= 7) return "NM";
+  if (numericGrade >= 6) return "EX-MT";
+  if (numericGrade >= 5) return "EX";
+
+  return "GRADE";
+}
+
 function getTileLabelMinScale(tileSize: "small" | "medium" | "large"): number {
   if (tileSize === "small") return 0.46;
   if (tileSize === "medium") return 0.52;
@@ -279,6 +298,7 @@ function GradedSlabPreview({
 
   const theme = getGradedSlabTheme(company);
   const isPsa = company === "PSA";
+  const isBgs = company === "BGS";
   const metrics = variant === "detail" ? DETAIL_METRICS : TILE_METRICS;
   const detailLabelScale =
     slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.36, 1.12) : 0.46;
@@ -370,6 +390,55 @@ function GradedSlabPreview({
                   className={`flex h-full w-full items-center justify-center bg-[#fffefe] ${metrics.psaLogoInner}`}
                 >
                   <PsaLogoMark className={metrics.psaLogo} />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : isBgs ? (
+          <div
+            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/15 ${metrics.genericLabel} ${theme.labelOuter}`}
+          >
+            <div className="relative h-full w-full" style={scaledLabelContentStyle}>
+              <div className={`relative flex h-full w-full overflow-hidden ${theme.labelInner}`}>
+                <div className={`absolute inset-x-0 top-0 h-[3px] ${theme.labelDivider}`} />
+                <div className="absolute inset-x-0 bottom-0 h-px bg-white/35" />
+                <div
+                  className={`relative min-w-0 flex-1 text-left leading-none text-[#17110a] ${metrics.genericContent}`}
+                >
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <span
+                      className={`font-black uppercase tracking-[0.18em] ${metrics.genericEyebrow}`}
+                    >
+                      BECKETT
+                    </span>
+                    <span
+                      className={`font-bold uppercase tracking-[0.16em] text-[#6a1d16] ${metrics.genericEyebrow}`}
+                    >
+                      BGS
+                    </span>
+                  </div>
+                  <p
+                    className={`truncate font-black uppercase tracking-[0.07em] ${metrics.genericName}`}
+                  >
+                    {name}
+                  </p>
+                  <p
+                    className={`truncate font-bold uppercase tracking-[0.12em] text-[#33230b]/78 ${metrics.genericSet}`}
+                  >
+                    {slabSubtitle}
+                  </p>
+                </div>
+                <div
+                  className={`relative flex flex-col items-center justify-center bg-[linear-gradient(180deg,rgba(35,23,9,0.95),rgba(8,7,6,0.96))] text-[#f6d778] ${metrics.genericGradeColumn} ${theme.gradeDivider}`}
+                >
+                  <span
+                    className={`font-black uppercase tracking-[0.16em] text-[#f7e7ad] ${metrics.genericGradeLabel}`}
+                  >
+                    {getBgsGradeDescriptor(grade)}
+                  </span>
+                  <span className={`font-black leading-none tracking-[0] text-white ${metrics.genericGrade}`}>
+                    {grade}
+                  </span>
                 </div>
               </div>
             </div>

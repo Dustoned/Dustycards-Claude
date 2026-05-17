@@ -118,7 +118,6 @@ export default async function CheapHighRarityMoversPage({
 
         <MoversBrowser
           movers={movers}
-          activePriceSource={activePriceSource}
           activeScope={cardScope}
           activeItemScope={activeItemScope}
           eyebrow="Secondary Pocket"

@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "1.1.0",
+    releasedAt: "May 18, 2026",
+    title: "Dashboard and workflow refresh",
+    summary: "Collection, Wants, Movers, search, admin tooling, and pricing behavior were cleaned up into a bigger release.",
+    tone: "new",
+    highlights: [
+      "Rebuilt the Collection, Wants, and Movers headers around a shared dashboard layout with chart panels, stat cards, and cleaner segmented controls.",
+      "Added a cleaner collection Breakdown panel that groups value into raw, graded, and sealed positions.",
+      "Upgraded Wants binder quick view with a modal layout, sorting, priced/unpriced filters, search match previews, and full binder links.",
+      "Added admin-only Firecrawl settings, server-side configuration checks, and environment documentation for API key and credit budget guardrails.",
+      "Improved search for exact printed card numbers, compact slash references like 002203, and short text queries with less noisy matching.",
+      "Aligned price refreshes to shared tier slots so manual refreshes no longer create private countdown schedules.",
+      "Polished card detail actions, BGS slab labels, chart range controls, and several grid layouts across search, movers, illustrators, categories, and expansions.",
+    ],
+  },
+  {
     version: "1.0.25",
     releasedAt: "May 17, 2026",
     title: "Roadmap focus update",

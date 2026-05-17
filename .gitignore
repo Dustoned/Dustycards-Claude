@@ -18,6 +18,7 @@
 /polish-screenshots-*/
 /screenshots-ui/
 /test-results/
+/.firecrawl/
 
 # next.js
 /.next/

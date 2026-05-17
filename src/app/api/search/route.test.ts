@@ -157,7 +157,8 @@ describe("GET /api/search", () => {
       rawCardRef: null,
     });
     expect(body.singles[0].card_number).toBe("161/131");
-    expect(whereJson).toContain('"printed_card_number":{"contains":"161/131"}');
+    expect(whereJson).toContain('"printed_card_number":"161/131"');
+    expect(whereJson).not.toContain('"contains":"161/131"');
   });
 
   it("supports names before space-separated printed references", async () => {
@@ -196,7 +197,141 @@ describe("GET /api/search", () => {
       rawCardRef: null,
     });
     expect(whereJson).toContain('"name":{"contains":"umbreon"');
-    expect(whereJson).toContain('"printed_card_number":{"contains":"161/131"}');
+    expect(whereJson).toContain('"printed_card_number":"161/131"');
+    expect(whereJson).not.toContain('"contains":"161/131"');
+  });
+
+  it("keeps full printed card number searches exact", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "card-002-203",
+        name: "Exact Card",
+        card_number: "002",
+        printed_card_number: "002/203",
+        rarity: "Rare",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "set",
+          name: "Exact Set",
+          code: "EXA",
+        },
+        prices: [{ cm_en_lowest_nm: 12, tcp_market: 14 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=002%2F203"));
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: "002/203",
+      setCode: null,
+      rawCardRef: null,
+    });
+    expect(whereJson).toContain('"printed_card_number":"002/203"');
+    expect(whereJson).toContain('"printed_card_number":"2/203"');
+    expect(whereJson).not.toContain('"contains":"2/203"');
+    expect(whereJson).not.toContain('"startsWith":"002/"');
+  });
+
+  it("supports compact printed card number searches without slash or spaces", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "card-002-203",
+        name: "Exact Card",
+        card_number: "002",
+        printed_card_number: "002/203",
+        rarity: "Rare",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "set",
+          name: "Exact Set",
+          code: "EXA",
+        },
+        prices: [{ cm_en_lowest_nm: 12, tcp_market: 14 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=002203"));
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: "002/203",
+      setCode: null,
+      rawCardRef: null,
+    });
+    expect(whereJson).toContain('"printed_card_number":"002/203"');
+    expect(whereJson).not.toContain('"contains":"2/203"');
+  });
+
+  it("supports unpadded space-separated printed card number searches", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "card-002-203",
+        name: "Exact Card",
+        card_number: "002",
+        printed_card_number: "002/203",
+        rarity: "Rare",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "set",
+          name: "Exact Set",
+          code: "EXA",
+        },
+        prices: [{ cm_en_lowest_nm: 12, tcp_market: 14 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=2%20203"));
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: "2/203",
+      setCode: null,
+      rawCardRef: null,
+    });
+    expect(whereJson).toContain('"printed_card_number":"2/203"');
+    expect(whereJson).toContain('"printed_card_number":"002/203"');
+    expect(whereJson).not.toContain('"contains":"2/203"');
+  });
+
+  it("does not fuzzy fallback for missing exact printed card number searches", async () => {
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=002%2F203"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.total).toBe(0);
+    expect(dbMock.card.findMany).toHaveBeenCalledTimes(1);
+    expect(dbMock.sealedProduct.findMany).not.toHaveBeenCalled();
+    expect(dbMock.episode.findMany).not.toHaveBeenCalled();
   });
 
   it("matches numeric card searches with or without leading zeroes", async () => {

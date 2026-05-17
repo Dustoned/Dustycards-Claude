@@ -30,21 +30,21 @@ const PRICE_REFRESH_POLICIES: Record<PriceRefreshTier, PriceRefreshPolicy> = {
   low: {
     tier: "low",
     tierLabel: "Low refresh",
-    cadenceLabel: "Rolling daily refresh",
+    cadenceLabel: "Shared daily refresh",
     intervalMs: 24 * HOUR_MS,
     autoRefreshEnabled: true,
   },
   medium: {
     tier: "medium",
     tierLabel: "Medium refresh",
-    cadenceLabel: "Rolling daily refresh",
+    cadenceLabel: "Shared daily refresh",
     intervalMs: 24 * HOUR_MS,
     autoRefreshEnabled: true,
   },
   high: {
     tier: "high",
     tierLabel: "High refresh",
-    cadenceLabel: "Rolling 12h refresh",
+    cadenceLabel: "Shared 12h refresh",
     intervalMs: 12 * HOUR_MS,
     autoRefreshEnabled: true,
   },
@@ -81,7 +81,8 @@ export function getPriceRefreshPolicy(rarity: string | null | undefined): PriceR
 }
 
 export function getNextRollingRefreshAt(fetchedAt: number, intervalMs: number): number {
-  return fetchedAt + intervalMs;
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) return fetchedAt;
+  return Math.floor(fetchedAt / intervalMs) * intervalMs + intervalMs;
 }
 
 export function getPriceRefreshInfo(

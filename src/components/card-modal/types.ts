@@ -71,6 +71,8 @@ export interface ModalCardData {
   collection_item?: {
     id: string;
     binder_id: string | null;
+    binder_name?: string | null;
+    binder_type?: string | null;
     purchase_price: number | null;
     cost_basis_value: number | null;
     cost_basis_label: "Paid" | "Set Spend";

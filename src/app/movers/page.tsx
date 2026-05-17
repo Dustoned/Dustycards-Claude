@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { ArrowDownRight, Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import CollectionValueDrivers from "@/components/CollectionValueDrivers";
+import GameFilterSwitch, { SegmentedNavLinks } from "@/components/GameFilterSwitch";
+import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
+import PriceHistoryPanel, { type PriceHistoryValuePoint } from "@/components/PriceHistoryPanel";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import SealedMoversBrowser from "@/app/movers/SealedMoversBrowser";
 import { loadMoversPageData } from "@/app/movers/page-data";
@@ -15,20 +16,23 @@ import {
   parseVisibleGameFilter,
   type TradingCardGameFilter,
 } from "@/lib/games";
-import type { MoversPageScope } from "@/app/movers/routing";
+import { getMoversMode, type MoversMode, type MoversPageScope } from "@/app/movers/routing";
 import type { CollectionValueDriversData } from "@/lib/collection-data";
 import type { CollectionMoversData, MoversScope } from "@/lib/movers";
 import type { SealedMoversData } from "@/lib/sealed-movers";
+import type { PriceSource } from "@/lib/user-settings";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export const dynamic = "force-dynamic";
 
-interface SummaryMetric {
-  label: string;
-  value: string;
-  hint: string;
-  Icon: LucideIcon;
-  tone: "amber" | "emerald" | "sky" | "violet" | "rose";
+type SummaryMetric = HeaderStat;
+
+interface PulseChartData {
+  title: string;
+  currency: "EUR" | "USD";
+  points: PriceHistoryValuePoint[];
+  currentValue: number | null;
+  subtitle: string;
 }
 
 function formatShortDate(value: string): string {
@@ -43,19 +47,6 @@ function formatDateTime(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-function metricToneClass(tone: SummaryMetric["tone"]): string {
-  const tones: Record<SummaryMetric["tone"], string> = {
-    amber: "border-amber-400/14 bg-amber-400/[0.06] text-amber-700 dark:text-amber-200",
-    emerald:
-      "border-emerald-400/14 bg-emerald-400/[0.06] text-emerald-700 dark:text-emerald-200",
-    sky: "border-sky-400/14 bg-sky-400/[0.06] text-sky-700 dark:text-sky-200",
-    violet: "border-violet-400/14 bg-violet-400/[0.06] text-violet-700 dark:text-violet-200",
-    rose: "border-rose-400/14 bg-rose-400/[0.06] text-rose-700 dark:text-rose-200",
-  };
-
-  return tones[tone];
 }
 
 function getModeCopy(
@@ -81,7 +72,7 @@ function getModeCopy(
       eyebrow: activeItemScope === "collection" ? "Sealed Movers / Collection" : "Sealed Movers / All Products",
       title: "Movers",
       description:
-        "Track sealed Pokemon products by recent CardMarket movement, lifetime highs and lows, and collection scope.",
+        "Track sealed Pokemon products by recent CardMarket movement, lifetime highs and lows, across owned and all-product views.",
       ranking: "Sealed products",
     };
   }
@@ -123,28 +114,80 @@ function formatSignedCurrency(value: number | null | undefined): string {
   return `${value > 0 ? "+" : ""}${formatCollectionCurrency(value)}`;
 }
 
-function GameToggleLink({
-  href,
-  active,
-  label,
-}: {
-  href: string;
-  active: boolean;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className={`shrink-0 rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors sm:rounded-xl sm:px-4 sm:text-sm ${
-        active
-          ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-          : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
-      }`}
-    >
-      {label}
-    </Link>
-  );
+function buildValuePulseChart(data: CollectionValueDriversData): PulseChartData {
+  const previousDate = data.previousDate;
+  const latestDate = data.latestDate;
+  const hasComparison = Boolean(previousDate && latestDate && data.totalChange != null);
+
+  return {
+    title: "Value Change",
+    currency: "EUR",
+    points: hasComparison
+      ? [
+          {
+            date: previousDate as string,
+            label: data.previousLabel ?? "Previous",
+            value: 0,
+          },
+          {
+            date: latestDate as string,
+            label: data.latestLabel ?? "Latest",
+            value: data.totalChange,
+          },
+        ]
+      : [],
+    currentValue: data.totalChange,
+    subtitle:
+      data.previousLabel && data.latestLabel
+        ? `${data.previousLabel} to ${data.latestLabel}`
+        : "Latest collection movement",
+  };
+}
+
+function buildMoverPulseChart(
+  items: Array<{
+    name: string;
+    currency: "EUR" | "USD";
+    currentPrice: number;
+    recentPriceSeries: Array<{ date: string; label: string; value: number }>;
+  }>,
+  fallbackTitle: string
+): PulseChartData {
+  const selected = items
+    .filter((item) => item.recentPriceSeries.length > 1)
+    .slice(0, 12);
+  const totalsByDate = new Map<string, { label: string; value: number }>();
+
+  for (const item of selected) {
+    for (const point of item.recentPriceSeries) {
+      const current = totalsByDate.get(point.date) ?? { label: point.label, value: 0 };
+      current.value += point.value;
+      totalsByDate.set(point.date, current);
+    }
+  }
+
+  const points = [...totalsByDate.entries()]
+    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+    .map(([date, point]) => ({
+      date,
+      label: point.label,
+      value: Number(point.value.toFixed(2)),
+    }));
+  const fallbackValue =
+    selected.length > 0
+      ? Number(selected.reduce((total, item) => total + item.currentPrice, 0).toFixed(2))
+      : null;
+
+  return {
+    title: "Mover Pulse",
+    currency: selected[0]?.currency ?? "EUR",
+    points,
+    currentValue: points.at(-1)?.value ?? fallbackValue,
+    subtitle:
+      selected.length > 0
+        ? `${selected.length.toLocaleString("en-US")} top movers / ${fallbackTitle}`
+        : fallbackTitle,
+  };
 }
 
 export default async function MoversPage({
@@ -171,29 +214,107 @@ export default async function MoversPage({
     user.id,
     activeGame
   );
-
-  function buildGameHref(game: TradingCardGameFilter) {
-    const params = new URLSearchParams();
-    if (source) params.set("source", source);
-    if (scope) params.set("scope", scope);
-    if (view) params.set("view", view);
-    const gameValue = getGameFilterSearchParamValue(game);
-    if (gameValue) {
-      params.set(GAME_SEARCH_PARAM, gameValue);
-    }
-    const query = params.toString();
-    return query ? `/movers?${query}` : "/movers";
-  }
   const isValueScope = activeScope === "value";
   const isSealedScope = activeScope === "sealed";
   const isGradedScope = activeScope === "graded";
   const isGradingScope = activeScope === "grading";
   const isRawScope = !isValueScope && !isSealedScope && !isGradedScope && !isGradingScope;
+  const activeMode = getMoversMode(activeScope);
+  const hasExplicitSource = source === "cm_en" || source === "tcp";
+
+  function buildMoversHref({
+    mode = activeMode,
+    itemScope = activeItemScope,
+    priceSource,
+    game = activeGame,
+  }: {
+    mode?: MoversMode;
+    itemScope?: "collection" | "all";
+    priceSource?: PriceSource;
+    game?: TradingCardGameFilter;
+  }) {
+    const params = new URLSearchParams();
+    const nextSource = priceSource ?? activePriceSource;
+    const shouldCarrySource = mode !== "value" && (priceSource != null || hasExplicitSource);
+    const gameValue = getGameFilterSearchParamValue(game);
+
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+
+    if (shouldCarrySource) {
+      params.set("source", nextSource);
+    }
+
+    if (mode === "value") {
+      if (itemScope === "all") {
+        params.set("view", "all");
+      }
+    } else if (mode === "raw") {
+      params.set("scope", itemScope === "all" ? "all" : "collection");
+    } else if (mode === "graded") {
+      params.set("scope", "graded");
+      if (itemScope === "collection") params.set("view", "collection");
+    } else if (mode === "targets") {
+      params.set("scope", "grading");
+      if (itemScope === "collection") params.set("view", "collection");
+    } else {
+      params.set("scope", "sealed");
+      if (itemScope === "collection") params.set("view", "collection");
+    }
+
+    const query = params.toString();
+    return query ? `/movers?${query}` : "/movers";
+  }
+
+  const marketSwitchItems = [
+    { href: buildMoversHref({ mode: "value" }), active: activeMode === "value", label: "Value" },
+    { href: buildMoversHref({ mode: "raw" }), active: activeMode === "raw", label: "Raw" },
+    { href: buildMoversHref({ mode: "graded" }), active: activeMode === "graded", label: "Graded" },
+    { href: buildMoversHref({ mode: "targets" }), active: activeMode === "targets", label: "Targets" },
+    { href: buildMoversHref({ mode: "sealed" }), active: activeMode === "sealed", label: "Sealed" },
+  ];
+  const scopeSwitchItems = [
+    {
+      href: buildMoversHref({ itemScope: "collection" }),
+      active: activeItemScope === "collection",
+      label: "Collection",
+    },
+    {
+      href: buildMoversHref({ itemScope: "all" }),
+      active: activeItemScope === "all",
+      label: activeMode === "sealed" ? "All Products" : "All Cards",
+    },
+  ];
+  const sourceSwitchItems = [
+    {
+      href: buildMoversHref({ mode: "raw", priceSource: "cm_en" }),
+      active: activePriceSource === "cm_en",
+      label: "CardMarket",
+    },
+    {
+      href: buildMoversHref({ mode: "raw", priceSource: "tcp" }),
+      active: activePriceSource === "tcp",
+      label: "TCGPlayer",
+    },
+  ];
+  const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
+    href: buildMoversHref({ game }),
+    active: activeGame === game,
+    label: getGameFilterLabel(game),
+  }));
   const modeCopy = getModeCopy(activeScope, activeItemScope);
   const valueData = isValueScope ? (data as CollectionValueDriversData) : null;
   const sealedData = isSealedScope ? (data as SealedMoversData) : null;
   const cardData = !isValueScope && !isSealedScope ? (data as CollectionMoversData) : null;
   const updatedAt = sealedData?.updatedAt ?? cardData?.movers[0]?.latestFetchedAt ?? null;
+  const pulseChart = valueData
+    ? buildValuePulseChart(valueData)
+    : sealedData
+      ? buildMoverPulseChart(sealedData.movers, modeCopy.ranking)
+      : cardData
+        ? buildMoverPulseChart(cardData.movers, modeCopy.ranking)
+        : null;
   const metrics = valueData
     ? ([
         {
@@ -306,76 +427,83 @@ export default async function MoversPage({
       className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8"
     >
       <div className="flex w-full flex-col gap-5 sm:gap-6">
-        <section className="rounded-2xl border border-black/8 bg-white/76 px-5 py-5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] lg:items-end">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/36">
-                {modeCopy.eyebrow}
-              </p>
-              <h1 className="mt-1.5 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
-                {modeCopy.title}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600 dark:text-white/58">
-                {modeCopy.description}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="inline-flex rounded-full border border-black/8 bg-black/[0.035] px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/72">
-                  {modeCopy.ranking}
-                </span>
-                {isRawScope ? (
-                  <span className="inline-flex rounded-full border border-black/8 bg-black/[0.035] px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/72">
-                    {activePriceSource === "tcp" ? "TCGPlayer first" : "CardMarket first"}
-                  </span>
-                ) : null}
+        <section className="relative overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:p-4 lg:p-5">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+          <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(17rem,0.66fr)_minmax(0,1.05fr)] xl:grid-cols-[minmax(18rem,0.62fr)_minmax(0,1fr)_minmax(21rem,0.7fr)] xl:items-stretch">
+            <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10">
+              <div className="min-w-0">
+                <p className="min-w-0 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                  {modeCopy.eyebrow}
+                </p>
+                <h1 className="mt-2 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                  {modeCopy.title}
+                </h1>
+                <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+                  {modeCopy.description}
+                </p>
               </div>
+              {settings.onePieceLibraryEnabled ? (
+                <div className="mt-[var(--ui-page-header-action-margin)]">
+                  <GameFilterSwitch
+                    items={gameSwitchItems}
+                    ariaLabel="Movers library"
+                    className="max-w-[21rem]"
+                  />
+                </div>
+              ) : null}
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              {metrics.map((metric) => {
-                const Icon = metric.Icon;
+            <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+              {pulseChart ? (
+                <PriceHistoryPanel
+                  compact
+                  title={pulseChart.title}
+                  currency={pulseChart.currency}
+                  points={pulseChart.points}
+                  currentValue={pulseChart.currentValue}
+                  emptyText="Not enough mover history yet"
+                  fixedRange="ALL"
+                  hideRangeControls
+                  rangeStorageKey={`movers-${activeMode}-${activeItemScope}`}
+                />
+              ) : (
+                <section className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] items-center justify-center rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.03] text-sm font-semibold text-gray-400 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/35">
+                  Not enough mover history yet
+                </section>
+              )}
+            </div>
 
-                return (
-                  <div
-                    key={metric.label}
-                    className={`min-w-0 rounded-2xl border px-3 py-3 sm:px-4 ${metricToneClass(metric.tone)}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] opacity-70">
-                          {metric.label}
-                        </p>
-                        <p className="mt-1 whitespace-nowrap text-lg font-bold tracking-tight tabular-nums text-gray-950 dark:text-white sm:text-2xl">
-                          {metric.value}
-                        </p>
-                      </div>
-                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-current/12 bg-white/55 dark:bg-black/16 sm:h-9 sm:w-9">
-                        <Icon className="h-4 w-4" />
-                      </span>
-                    </div>
-                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-white/46">
-                      {metric.hint}
-                    </p>
-                  </div>
-                );
-              })}
+            <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
+              {metrics.map((metric) => (
+                <HeaderStatCard key={metric.label} {...metric} />
+              ))}
             </div>
           </div>
         </section>
 
-        {settings.onePieceLibraryEnabled ? (
-          <div className="-mx-1 overflow-x-auto pb-1 sm:mx-0 sm:overflow-visible sm:pb-0">
-            <div className="inline-flex min-w-max flex-nowrap rounded-2xl border border-black/8 bg-black/3 p-1 dark:border-white/8 dark:bg-white/5">
-              {GAME_FILTER_OPTIONS.map((game) => (
-                <GameToggleLink
-                  key={game}
-                  href={buildGameHref(game)}
-                  active={activeGame === game}
-                  label={getGameFilterLabel(game)}
+        <section className="w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.02] p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.03]">
+          <div className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+            <SegmentedNavLinks
+              items={marketSwitchItems}
+              ariaLabel="Movers market"
+              className="w-fit max-w-full"
+            />
+            <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
+              <SegmentedNavLinks
+                items={scopeSwitchItems}
+                ariaLabel="Movers scope"
+                className="w-fit max-w-full"
+              />
+              {isRawScope ? (
+                <SegmentedNavLinks
+                  items={sourceSwitchItems}
+                  ariaLabel="Movers price source"
+                  className="w-fit max-w-full"
                 />
-              ))}
+              ) : null}
             </div>
           </div>
-        ) : null}
+        </section>
 
         {isValueScope && valueData ? (
           <CollectionValueDrivers data={valueData} activeItemScope={activeItemScope} />
@@ -383,13 +511,11 @@ export default async function MoversPage({
           <SealedMoversBrowser
             key={`${activeScope}:${activeItemScope}`}
             data={sealedData}
-            activeItemScope={activeItemScope}
           />
         ) : cardData ? (
           <MoversBrowser
             key={`${activeScope}:${activeItemScope}`}
             movers={cardData.movers}
-            activePriceSource={activePriceSource}
             activeScope={activeScope as MoversScope}
             activeItemScope={activeItemScope}
             emptyTitle={
@@ -417,7 +543,7 @@ export default async function MoversPage({
                 ? "Sorted by raw-to-graded upside with the extra details available per card."
                 : isGradedScope
                   ? "Every graded label is listed separately, with its own movement and price history."
-                  : "Raw cards ranked by recent and lifetime movement, with collection scope and source controls nearby."
+                  : "Raw cards ranked by recent and lifetime movement, with owned/all and source controls nearby."
             }
           />
         ) : null}

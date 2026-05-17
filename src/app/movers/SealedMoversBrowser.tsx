@@ -3,14 +3,13 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
 import { type KeyboardEvent, useDeferredValue, useMemo, useState } from "react";
 import { ExternalLink, Package, Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
+import { textMatchesSearchQuery } from "@/lib/card-search";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { formatCurrency } from "@/lib/format";
-import type { MoversItemScope } from "@/lib/movers";
 import type { SealedMoverItem, SealedMoversData } from "@/lib/sealed-movers";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
@@ -33,21 +32,12 @@ type SealedSortKey =
 
 interface Props {
   data: SealedMoversData;
-  activeItemScope: MoversItemScope;
 }
 
 interface FilterChipOption {
   key: string;
   label: string;
   count: number;
-}
-
-function filterButtonClass(active: boolean): string {
-  return `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-    active
-      ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
-      : "border-black/8 bg-white/75 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
-  }`;
 }
 
 const SELECT_OPTION_CLASS = "bg-white text-gray-950 dark:bg-gray-950 dark:text-white";
@@ -186,60 +176,6 @@ function buildSealedProductData(item: SealedMoverItem): SealedModalProductData {
   };
 }
 
-function modeHref(
-  pathname: string,
-  searchParams: { toString(): string },
-  mode: "value" | "raw" | "graded" | "targets" | "sealed",
-  activeItemScope: MoversItemScope
-): string {
-  const params = new URLSearchParams(searchParams.toString());
-
-  if (mode === "value") {
-    params.delete("scope");
-    params.delete("view");
-    params.delete("source");
-  } else if (mode === "raw") {
-    params.delete("view");
-    if (activeItemScope === "all") {
-      params.set("scope", "all");
-    } else {
-      params.set("scope", "collection");
-    }
-  } else if (mode === "graded") {
-    params.set("scope", "graded");
-    if (activeItemScope === "collection") params.set("view", "collection");
-    else params.delete("view");
-  } else if (mode === "targets") {
-    params.set("scope", "grading");
-    if (activeItemScope === "collection") params.set("view", "collection");
-    else params.delete("view");
-  } else {
-    params.set("scope", "sealed");
-    if (activeItemScope === "collection") params.set("view", "collection");
-    else params.delete("view");
-  }
-
-  const query = params.toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
-
-function scopeHref(
-  pathname: string,
-  searchParams: { toString(): string },
-  itemScope: MoversItemScope
-): string {
-  const params = new URLSearchParams(searchParams.toString());
-  params.set("scope", "sealed");
-  if (itemScope === "collection") {
-    params.set("view", "collection");
-  } else {
-    params.delete("view");
-  }
-
-  const query = params.toString();
-  return query ? `${pathname}?${query}` : pathname;
-}
-
 function SealedMoverTile({
   item,
   onOpen,
@@ -362,9 +298,7 @@ function SealedMoverTile({
   );
 }
 
-export default function SealedMoversBrowser({ data, activeItemScope }: Props) {
-  const pathname = usePathname() ?? "/movers";
-  const searchParams = useSearchParams();
+export default function SealedMoversBrowser({ data }: Props) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SealedSortKey>("move");
   const [direction, setDirection] = useState<DirectionFilter>("all");
@@ -402,11 +336,8 @@ export default function SealedMoversBrowser({ data, activeItemScope }: Props) {
         item.episodeName,
         item.episodeCode,
         item.categoryLabel,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(normalizedSearch);
+      ];
+      return textMatchesSearchQuery(haystack, normalizedSearch);
     });
 
     return [...filtered].sort((a, b) => compareSealedMovers(a, b, sortKey, direction));
@@ -444,64 +375,6 @@ export default function SealedMoversBrowser({ data, activeItemScope }: Props) {
 
   return (
     <div className="space-y-10">
-      <div className="rounded-2xl border border-black/8 bg-white/70 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-          <div className="min-w-0">
-            <span className="px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-              Market
-            </span>
-            <div className="mt-1 flex flex-wrap gap-1 rounded-xl border border-black/8 bg-black/[0.035] p-1 dark:border-white/8 dark:bg-white/[0.04]">
-              {[
-                { key: "value" as const, label: "Value Changes" },
-                { key: "raw" as const, label: "Raw Singles" },
-                { key: "graded" as const, label: "Graded Cards" },
-                { key: "targets" as const, label: "Grade Targets" },
-                { key: "sealed" as const, label: "Sealed Products" },
-              ].map((option) => (
-                <Link
-                  key={option.key}
-                  href={modeHref(pathname, searchParams, option.key, activeItemScope)}
-                  prefetch={false}
-                  className={`inline-flex h-9 min-w-[8rem] flex-1 items-center justify-center rounded-lg px-3 text-xs font-semibold transition-colors sm:flex-none ${
-                    option.key === "sealed"
-                      ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
-                      : "text-gray-500 hover:bg-black/[0.05] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
-                  }`}
-                  aria-current={option.key === "sealed" ? "page" : undefined}
-                >
-                  {option.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-              Scope
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { key: "collection" as const, label: "Collection" },
-                { key: "all" as const, label: "All Products" },
-              ].map((option) => {
-                const active = activeItemScope === option.key;
-                return (
-                  <Link
-                    key={option.key}
-                    href={scopeHref(pathname, searchParams, option.key)}
-                    prefetch={false}
-                    className={filterButtonClass(active)}
-                    aria-current={active ? "page" : undefined}
-                  >
-                    {option.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
       <section>
         <SectionHeader
           eyebrow="Sealed Movers"

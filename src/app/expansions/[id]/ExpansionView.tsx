@@ -1251,7 +1251,7 @@ export default function ExpansionView({
           className={`grid ${gridGapClass}`}
           style={{
             gridTemplateColumns,
-            justifyContent: isMobileViewport ? "stretch" : "start",
+            justifyContent: "stretch",
           }}
         >
           {renderedCards.map((card, index) => {

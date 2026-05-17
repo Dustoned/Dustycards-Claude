@@ -37,6 +37,8 @@ interface Props {
   compact?: boolean;
   layout?: Layout;
   rangeStorageKey?: string | null;
+  fixedRange?: RangeKey;
+  hideRangeControls?: boolean;
 }
 
 interface ParsedHistoryPoint extends PriceHistoryValuePoint {
@@ -346,6 +348,8 @@ export default function PriceHistoryPanel({
   compact = false,
   layout = "default",
   rangeStorageKey,
+  fixedRange,
+  hideRangeControls = false,
 }: Props) {
   const pathname = usePathname();
   const isHeroLayout = !compact && layout === "hero";
@@ -407,11 +411,11 @@ export default function PriceHistoryPanel({
     getSelectedRangeSnapshot,
     getSelectedRangeServerSnapshot
   );
-  const rangeResolved = selectedRangeSnapshot != null;
-  const selectedRange = selectedRangeSnapshot ?? DEFAULT_RANGE_KEY;
+  const rangeResolved = fixedRange != null || selectedRangeSnapshot != null;
+  const selectedRange = fixedRange ?? selectedRangeSnapshot ?? DEFAULT_RANGE_KEY;
 
   useLayoutEffect(() => {
-    if (!rangeResolved || !effectiveRangeStorageKeys.primary) return;
+    if (fixedRange || !rangeResolved || !effectiveRangeStorageKeys.primary) return;
 
     const storedRange = readStoredRange(effectiveRangeStorageKeys);
     if (!storedRange || readStoredRangeKey(effectiveRangeStorageKeys.primary) === storedRange) {
@@ -419,7 +423,7 @@ export default function PriceHistoryPanel({
     }
 
     persistStoredRangeKey(effectiveRangeStorageKeys.primary, storedRange);
-  }, [effectiveRangeStorageKeys, rangeResolved]);
+  }, [effectiveRangeStorageKeys, fixedRange, rangeResolved]);
 
   const parsedPoints = points.map((point) => ({
     ...point,
@@ -483,7 +487,7 @@ export default function PriceHistoryPanel({
   const primaryMetaText = rangeSummary;
   const secondaryMetaText = subtitle ?? null;
   const axisTicks = buildAxisTicks(visibleCoordinates, compact);
-  const showRangeControls = parsedPoints.length > 1;
+  const showRangeControls = !hideRangeControls && fixedRange == null && parsedPoints.length > 1;
   const reserveDateSlot = visibleCoordinates.length > 0;
 
   const shellClass =
@@ -705,7 +709,7 @@ export default function PriceHistoryPanel({
 
             <svg
               viewBox={`0 0 ${measuredChartWidth} ${height}`}
-              className="block w-full cursor-crosshair overflow-visible touch-none select-none"
+              className="block w-full cursor-crosshair overflow-visible touch-pan-y select-none"
               style={{ height }}
               onPointerMove={updateHoverState}
               onPointerDown={updateHoverState}

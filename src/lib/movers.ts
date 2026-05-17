@@ -849,6 +849,17 @@ function isGradeTenLabel(label: string | null | undefined): boolean {
   return /\b(?:PSA|BGS|CGC|SGC)?\s*10\b/.test(normalized) || normalized.includes("GEM MINT");
 }
 
+function getGradingDifficultyWeight(label: string | null | undefined): number {
+  if (!label) return 1;
+
+  const normalized = label.toUpperCase().replace(/[^A-Z0-9.]+/g, " ");
+  const isBgs = /\bBGS\b/.test(normalized);
+  const isTen = /\b10\b/.test(normalized) || normalized.includes("PRISTINE");
+  if (!isBgs || !isTen) return 1;
+
+  return normalized.includes("BLACK") ? 0.62 : 0.76;
+}
+
 function getOlderValueScore(input: {
   releaseAgeYears: number | null;
   currentPrice: number;
@@ -886,6 +897,7 @@ interface GradingInsightOptions {
   ageWeight?: number;
   olderValueScore?: number;
   isGradeTen?: boolean;
+  gradeDifficultyWeight?: number;
 }
 
 function buildGradingInsight(
@@ -920,15 +932,16 @@ function buildGradingInsight(
   const gapScore = Math.min(positiveGap, 700) / 6;
   const ageMultiplier = clamp(options.ageWeight ?? 1, 1, 1.24);
   const gradeTenMultiplier = options.isGradeTen ? 1.07 : 1;
+  const gradeDifficultyWeight = clamp(options.gradeDifficultyWeight ?? 1, 0.5, 1);
   const olderValueScore = options.olderValueScore ?? 0;
-  const score = round(
+  const rawScore =
     Math.max(0, multiplierScore + gapScore) *
       rawAffordabilityBoost *
       clamp(rarityWeight, 0.75, 1.85) *
       ageMultiplier *
       gradeTenMultiplier +
-      olderValueScore
-  );
+    olderValueScore;
+  const score = round(rawScore * gradeDifficultyWeight);
 
   return {
     rawPrice: round(rawPrice),
@@ -1676,6 +1689,7 @@ async function buildGradedMoversData(
       ageWeight,
       olderValueScore,
       isGradeTen,
+      gradeDifficultyWeight: getGradingDifficultyWeight(row.graded_label),
     });
     const scores = buildMoverScores({
       kind: "graded",

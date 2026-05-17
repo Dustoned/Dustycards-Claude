@@ -352,7 +352,6 @@ export function CollectionSealedGrid({
   imageSizes,
   gridTemplateColumns,
   cardSize,
-  isMobileViewport,
   selectionMode,
   selectedIdSet,
   removingItems,
@@ -363,7 +362,6 @@ export function CollectionSealedGrid({
   imageSizes: string;
   gridTemplateColumns: string;
   cardSize: CardSize;
-  isMobileViewport: boolean;
   selectionMode: boolean;
   selectedIdSet: Set<string>;
   removingItems: boolean;
@@ -375,7 +373,7 @@ export function CollectionSealedGrid({
       className={`grid ${sealedTileGridGapClass(cardSize)}`}
       style={{
         gridTemplateColumns,
-        justifyContent: isMobileViewport ? "stretch" : "start",
+        justifyContent: "stretch",
       }}
     >
       {items.map((item, index) => (

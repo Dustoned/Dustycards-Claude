@@ -224,6 +224,12 @@ const collectionCardSelect = {
       label: true,
     },
   },
+  binder: {
+    select: {
+      name: true,
+      type: true,
+    },
+  },
   card: {
     select: {
       id: true,
@@ -579,6 +585,10 @@ type CollectionCardRecord = CollectionCardMetricRecord & {
   language: string | null;
   notes: string | null;
   tags: Array<{ label: string }>;
+  binder: {
+    name: string;
+    type: string;
+  } | null;
   card: CollectionCardMetricRecord["card"] & {
     name: string;
     image_url: string | null;
@@ -965,6 +975,8 @@ function buildCardViewItem(
     collection_item_id: record.id,
     collection_item_ids: [record.id],
     binder_id: record.binder_id,
+    binder_name: record.binder?.name ?? null,
+    binder_type: record.binder?.type ?? null,
     card_id: record.card.id,
     name: record.card.name,
     image_url: record.card.image_url,
@@ -1473,7 +1485,7 @@ export async function getCollectionOverviewData(
   const loadDetailedCards = shouldLoadDetailedCards(activeTab);
   const loadDetailedSealed = shouldLoadDetailedSealed(activeTab);
   const loadDetailedBinders = shouldLoadDetailedBinders(activeTab);
-  const loadCollectionHistory = activeTab === "overview";
+  const loadCollectionHistory = true;
   const timer = startPerformanceTimer("collection.overview", {
     activeTab,
     game,

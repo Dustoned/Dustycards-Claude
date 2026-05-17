@@ -15,7 +15,7 @@ import { useCallback, useDeferredValue, useMemo, useState, useTransition } from 
 import CollectionCardsView from "@/components/CollectionCardsView";
 import {
   HeaderAction,
-  PageHeroHeader,
+  HeaderStatCard,
   type HeaderStat,
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
@@ -28,7 +28,7 @@ import type { CollectionCardViewItem } from "@/types/collection-view";
 
 const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
   loading: () => (
-    <section className="h-40 rounded-[28px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+    <section className="min-h-[var(--ui-dashboard-header-panel-min-height)] rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
   ),
 });
 
@@ -186,88 +186,75 @@ export default function CategoryDetailClient({
 
   return (
     <div className="flex w-full flex-col gap-5 sm:gap-6">
-      <PageHeroHeader
-        eyebrow={eyebrow}
-        title={category.title}
-        description={category.description}
-        className="max-[640px]:[--ui-page-header-padding:0.85rem] max-[640px]:[--ui-page-header-title-size:1.65rem] max-[640px]:[--ui-page-header-description-size:0.78rem]"
-        gridClassName="xl:grid-cols-[minmax(20rem,0.66fr)_minmax(30rem,1.34fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.62fr)_minmax(42rem,1.38fr)]"
-        sideClassName="xl:space-y-0"
-        backLinks={
-          <Link
-            href={backHref}
-            prefetch={false}
-            className="inline-flex items-center gap-2 font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to categories
-          </Link>
-        }
-        actions={
-          <HeaderAction>
-            <Link
-              href="/wants"
-              prefetch={false}
-              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
-            >
-              <Heart className="h-4 w-4" />
-              Wants
-            </Link>
-            <Link
-              href={setsHref}
-              prefetch={false}
-              className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
-            >
-              <Sparkles className="h-4 w-4" />
-              Browse Sets
-            </Link>
-          </HeaderAction>
-        }
-        accessory={
-          <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(23rem,1.18fr)_minmax(11rem,0.82fr)] xl:items-stretch 2xl:grid-cols-[minmax(32rem,1.25fr)_minmax(14rem,0.75fr)]">
-            <div className="min-w-0 [&>section]:h-full">
-              <PriceHistoryPanel
-                layout="hero"
-                title={showingFilteredSubset ? "Filtered Category Value" : "Category Value"}
-                currency="EUR"
-                points={chartPoints}
-                currentValue={currentValue}
-                subtitle={
-                  isPending
-                    ? "Updating filters..."
-                    : `${currentTotals.priced.toLocaleString("en-US")} / ${visibleCardCount.toLocaleString(
-                        "en-US"
-                      )} cards priced`
-                }
-                emptyText="No category prices available yet"
-              />
+      <section className="relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:p-4 lg:p-5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
+          <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10">
+            <div className="min-w-0">
+              <Link
+                href={backHref}
+                prefetch={false}
+                className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to categories
+              </Link>
+              <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                {eyebrow}
+              </p>
+              <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                {category.title}
+              </h1>
+              <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+                {category.description}
+              </p>
             </div>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2 xl:auto-rows-fr">
-              {stats.map(({ Icon, ...stat }) => (
-                <div
-                  key={stat.label}
-                  className="flex min-h-[5.4rem] min-w-0 flex-col justify-between rounded-2xl border border-black/8 bg-white/70 p-3 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none"
-                >
-                  <div className="flex min-w-0 items-start justify-between gap-2">
-                    <p className="min-w-0 truncate text-[0.58rem] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
-                      {stat.label}
-                    </p>
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-white/38" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[1.05rem] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
-                      {stat.value}
-                    </p>
-                    <p className="mt-1 line-clamp-1 text-[0.68rem] leading-tight text-gray-500 dark:text-white/48">
-                      {stat.hint}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+
+            <HeaderAction className="mt-[var(--ui-page-header-action-margin)]">
+              <Link
+                href="/wants"
+                prefetch={false}
+                className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
+              >
+                <Heart className="h-4 w-4" />
+                Wants
+              </Link>
+              <Link
+                href={setsHref}
+                prefetch={false}
+                className="inline-flex items-center gap-2 rounded-2xl border border-black/8 bg-white/80 px-4 py-2 text-sm font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
+              >
+                <Sparkles className="h-4 w-4" />
+                Browse Sets
+              </Link>
+            </HeaderAction>
           </div>
-        }
-      />
+
+          <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+            <PriceHistoryPanel
+              compact
+              title={showingFilteredSubset ? "Filtered Category Value" : "Category Value"}
+              currency="EUR"
+              points={chartPoints}
+              currentValue={currentValue}
+              subtitle={
+                isPending
+                  ? "Updating filters..."
+                  : `${currentTotals.priced.toLocaleString("en-US")} / ${visibleCardCount.toLocaleString(
+                      "en-US"
+                    )} cards priced`
+              }
+              emptyText="No category prices available yet"
+            />
+          </div>
+
+          <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
+            {stats.map((stat) => (
+              <HeaderStatCard key={stat.label} {...stat} />
+            ))}
+          </div>
+        </div>
+      </section>
 
       <CollectionCardsView
         items={items}
