@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "1.0.24",
+    releasedAt: "May 17, 2026",
+    title: "Sealed language charts",
+    summary: "Sealed product charts now handle CardMarket language prices the same way card detail does.",
+    tone: "improved",
+    highlights: [
+      "Sealed detail now has Market, EU, DE, FR, ES, and IT chart series where data is available.",
+      "The selected sealed series drives the chart, current price, 7D average, and 30D average.",
+      "Removed the duplicate language price rows so sealed pricing looks cleaner and closer to normal cards.",
+    ],
+  },
+  {
     version: "1.0.23",
     releasedAt: "May 17, 2026",
     title: "Sealed detail and sync polish",

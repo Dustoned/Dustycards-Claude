@@ -87,14 +87,17 @@ export interface EpisodeSealedPriceHistorySnapshot extends SealedPriceHistorySna
   product_id: string;
 }
 
-export interface SealedPriceHistorySnapshot {
-  fetched_at: Date | string;
+export interface SealedMarketPriceSnapshot {
   cm_lowest: number | null;
   cm_lowest_eu: number | null;
   cm_lowest_de: number | null;
   cm_lowest_fr: number | null;
   cm_lowest_es: number | null;
   cm_lowest_it: number | null;
+}
+
+export interface SealedPriceHistorySnapshot extends SealedMarketPriceSnapshot {
+  fetched_at: Date | string;
   cm_avg_7d: number | null;
   cm_avg_30d: number | null;
 }
@@ -103,9 +106,26 @@ export interface SealedPriceHistoryPoint {
   date: string;
   label: string;
   cm_market: number | null;
+  cm_market_eu: number | null;
+  cm_market_de: number | null;
+  cm_market_fr: number | null;
+  cm_market_es: number | null;
+  cm_market_it: number | null;
   cm_avg_7d: number | null;
   cm_avg_30d: number | null;
 }
+
+export const SEALED_MARKET_HISTORY_SERIES = [
+  { key: "cm_market", label: "Market" },
+  { key: "cm_market_eu", label: "EU" },
+  { key: "cm_market_de", label: "DE" },
+  { key: "cm_market_fr", label: "FR" },
+  { key: "cm_market_es", label: "ES" },
+  { key: "cm_market_it", label: "IT" },
+] as const;
+
+export type SealedMarketHistorySeriesKey =
+  (typeof SEALED_MARKET_HISTORY_SERIES)[number]["key"];
 
 const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
@@ -498,7 +518,7 @@ export function buildEpisodeSealedSetPriceHistory(
 }
 
 export function getSealedCardMarketValue(
-  snapshot: SealedPriceHistorySnapshot | null | undefined
+  snapshot: SealedMarketPriceSnapshot | null | undefined
 ): number | null {
   if (!snapshot) return null;
 
@@ -527,7 +547,61 @@ export function buildSealedPriceHistory(
     date,
     label: toDateLabel(date),
     cm_market: getSealedCardMarketValue(price),
+    cm_market_eu: price.cm_lowest_eu ?? null,
+    cm_market_de: price.cm_lowest_de ?? null,
+    cm_market_fr: price.cm_lowest_fr ?? null,
+    cm_market_es: price.cm_lowest_es ?? null,
+    cm_market_it: price.cm_lowest_it ?? null,
     cm_avg_7d: price.cm_avg_7d ?? null,
     cm_avg_30d: price.cm_avg_30d ?? null,
   }));
+}
+
+export function getSealedMarketHistorySeriesValue(
+  point: SealedPriceHistoryPoint,
+  key: SealedMarketHistorySeriesKey
+): number | null {
+  switch (key) {
+    case "cm_market":
+      return point.cm_market ?? null;
+    case "cm_market_eu":
+      return point.cm_market_eu ?? null;
+    case "cm_market_de":
+      return point.cm_market_de ?? null;
+    case "cm_market_fr":
+      return point.cm_market_fr ?? null;
+    case "cm_market_es":
+      return point.cm_market_es ?? null;
+    case "cm_market_it":
+      return point.cm_market_it ?? null;
+  }
+}
+
+export function getSealedMarketHistorySeriesCurrentValue(
+  snapshot: SealedMarketPriceSnapshot | null | undefined,
+  key: SealedMarketHistorySeriesKey
+): number | null {
+  if (!snapshot) return null;
+
+  switch (key) {
+    case "cm_market":
+      return getSealedCardMarketValue(snapshot);
+    case "cm_market_eu":
+      return snapshot.cm_lowest_eu ?? null;
+    case "cm_market_de":
+      return snapshot.cm_lowest_de ?? null;
+    case "cm_market_fr":
+      return snapshot.cm_lowest_fr ?? null;
+    case "cm_market_es":
+      return snapshot.cm_lowest_es ?? null;
+    case "cm_market_it":
+      return snapshot.cm_lowest_it ?? null;
+  }
+}
+
+export function hasSealedMarketHistorySeries(
+  points: SealedPriceHistoryPoint[],
+  key: SealedMarketHistorySeriesKey
+): boolean {
+  return points.some((point) => getSealedMarketHistorySeriesValue(point, key) != null);
 }

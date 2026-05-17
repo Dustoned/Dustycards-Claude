@@ -8,6 +8,7 @@ import { ChevronRight, ExternalLink, LineChart, Package, RefreshCw } from "lucid
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import type { SealedMarketHistorySeriesKey } from "@/lib/price-history";
 import { formatCurrency } from "./utils";
 import type { SealedDetailResponse } from "./types";
 
@@ -632,6 +633,10 @@ export function SealedModalHistorySection({
   currentValue,
   priceFetchedAtLabel,
   loading,
+  availableHistorySeries,
+  activeHistorySeries,
+  activeHistorySeriesLabel,
+  onSelectHistorySeries,
 }: {
   productId: string;
   product: SealedDetailResponse;
@@ -639,44 +644,47 @@ export function SealedModalHistorySection({
   currentValue: number | null;
   priceFetchedAtLabel: string | null;
   loading: boolean;
+  availableHistorySeries: Array<{
+    key: SealedMarketHistorySeriesKey;
+    label: string;
+  }>;
+  activeHistorySeries: SealedMarketHistorySeriesKey;
+  activeHistorySeriesLabel: string;
+  onSelectHistorySeries: (series: SealedMarketHistorySeriesKey) => void;
 }) {
   const derivedAverage7d = getRecentHistoryAverage(chartPoints, 7);
   const derivedAverage30d = getRecentHistoryAverage(chartPoints, 30);
+  const hasMultipleHistorySeries = availableHistorySeries.length > 1;
+  const activeAverage7d =
+    derivedAverage7d ?? (activeHistorySeries === "cm_market" ? product.price.cm_avg_7d : null);
+  const activeAverage30d =
+    derivedAverage30d ?? (activeHistorySeries === "cm_market" ? product.price.cm_avg_30d : null);
   const primaryMetrics: PriceMetric[] = [
     {
       label: "Current",
       value: formatCurrency(currentValue, "EUR"),
-      hint: priceFetchedAtLabel ? `Updated ${priceFetchedAtLabel}` : null,
+      hint: [
+        hasMultipleHistorySeries ? `Using ${activeHistorySeriesLabel}` : null,
+        priceFetchedAtLabel ? `Updated ${priceFetchedAtLabel}` : null,
+      ]
+        .filter(Boolean)
+        .join(" / ") || null,
     },
     {
       label: "7D Avg",
-      value: formatCurrency(derivedAverage7d ?? product.price.cm_avg_7d, "EUR"),
+      value: formatCurrency(activeAverage7d, "EUR"),
     },
     {
       label: "30D Avg",
-      value: formatCurrency(derivedAverage30d ?? product.price.cm_avg_30d, "EUR"),
+      value: formatCurrency(activeAverage30d, "EUR"),
     },
-    {
-      label: "EU Only",
-      value: formatCurrency(product.price.cm_lowest_eu, "EUR"),
-    },
-    {
-      label: "DE",
-      value: formatCurrency(product.price.cm_lowest_de, "EUR"),
-    },
-    {
-      label: "FR",
-      value: formatCurrency(product.price.cm_lowest_fr, "EUR"),
-    },
-    {
-      label: "ES",
-      value: formatCurrency(product.price.cm_lowest_es, "EUR"),
-    },
-    {
-      label: "IT",
-      value: formatCurrency(product.price.cm_lowest_it, "EUR"),
-    },
-  ].filter((metric, index) => index < 3 || metric.value !== "--");
+  ];
+  const historyPillClass =
+    "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-2";
+  const chartTitle =
+    activeHistorySeries === "cm_market"
+      ? "CardMarket History"
+      : `${activeHistorySeriesLabel} CardMarket History`;
 
   return (
     <SectionShell className="overflow-hidden max-[640px]:!p-2.5">
@@ -685,20 +693,40 @@ export function SealedModalHistorySection({
           <p className="mr-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
             Price history
           </p>
-          <p className="inline-flex h-8 w-fit items-center justify-center rounded-full border border-white/10 px-3 text-[11px] font-semibold text-white/54 max-[640px]:h-7 max-[640px]:px-2">
-            CardMarket
-          </p>
+          {hasMultipleHistorySeries ? (
+            <div className="card-modal-series-picker flex min-w-0 flex-wrap gap-1.5 md:justify-end">
+              {availableHistorySeries.map((series) => (
+                <button
+                  key={series.key}
+                  type="button"
+                  onClick={() => onSelectHistorySeries(series.key)}
+                  className={`${historyPillClass} ${
+                    activeHistorySeries === series.key
+                      ? "border-white/24 bg-white/14 text-white"
+                      : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                  }`}
+                >
+                  {series.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="inline-flex h-8 w-fit items-center justify-center rounded-full border border-white/10 px-3 text-[11px] font-semibold text-white/54 max-[640px]:h-7 max-[640px]:px-2">
+              CardMarket
+            </p>
+          )}
         </div>
 
         <div id={`sealed-history-charts-${productId}`} className="min-h-0 overflow-hidden">
           <PriceHistoryPanel
-            title="CardMarket History"
+            title={chartTitle}
             currency="EUR"
             points={chartPoints}
             currentValue={currentValue}
             tone="dark"
             loading={loading}
             emptyText="No sealed price history yet"
+            rangeStorageKey={`sealed:${productId}:cardmarket`}
           />
         </div>
 

@@ -4,6 +4,9 @@ import {
   buildCardGradedPriceHistory,
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
+  buildSealedPriceHistory,
+  getSealedMarketHistorySeriesCurrentValue,
+  getSealedMarketHistorySeriesValue,
   getSaneCardMarketHistorySeriesCurrentValue,
 } from "@/lib/price-history";
 
@@ -201,6 +204,50 @@ describe("graded card price history", () => {
       currency: "EUR",
       points: [{ date: "2026-04-25", value: 92 }],
     });
+  });
+});
+
+describe("sealed price history series", () => {
+  it("keeps CardMarket language prices available for chart series", () => {
+    const history = buildSealedPriceHistory([
+      {
+        fetched_at: "2026-05-13T19:20:00.000Z",
+        cm_lowest: 290,
+        cm_lowest_eu: 290,
+        cm_lowest_de: 229.9,
+        cm_lowest_fr: 169,
+        cm_lowest_es: 230,
+        cm_lowest_it: 138,
+        cm_avg_7d: 290,
+        cm_avg_30d: 263.63,
+      },
+    ]);
+
+    expect(history[0]).toMatchObject({
+      cm_market: 290,
+      cm_market_eu: 290,
+      cm_market_de: 229.9,
+      cm_market_fr: 169,
+      cm_market_es: 230,
+      cm_market_it: 138,
+    });
+    expect(getSealedMarketHistorySeriesValue(history[0], "cm_market_fr")).toBe(169);
+  });
+
+  it("reads current values for sealed language series", () => {
+    expect(
+      getSealedMarketHistorySeriesCurrentValue(
+        {
+          cm_lowest: 290,
+          cm_lowest_eu: 290,
+          cm_lowest_de: 229.9,
+          cm_lowest_fr: null,
+          cm_lowest_es: 230,
+          cm_lowest_it: null,
+        },
+        "cm_market_de"
+      )
+    ).toBe(229.9);
   });
 });
 

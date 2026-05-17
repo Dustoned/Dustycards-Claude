@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import { resolveCardMarketSealedProductUrl } from "@/lib/cardmarket";
+import {
+  getSealedMarketHistorySeriesCurrentValue,
+  getSealedMarketHistorySeriesValue,
+  hasSealedMarketHistorySeries,
+  SEALED_MARKET_HISTORY_SERIES,
+  type SealedMarketHistorySeriesKey,
+} from "@/lib/price-history";
 import { getSealedProductPrice } from "@/lib/sealed-products";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import {
@@ -41,6 +48,8 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [sealedHistorySeries, setSealedHistorySeries] =
+    useState<SealedMarketHistorySeriesKey>("cm_market");
 
   const layout = getSealedModalLayoutClasses(
     displaySettings.modalSize,
@@ -48,16 +57,32 @@ export default function SealedProductModal({ product, onClose }: Props) {
   );
   const primaryPrice = getSealedProductPrice(modalProduct);
   const priceHistory = modalProduct.price_history;
-  const chartPoints =
-    priceHistory.length > 0
-      ? priceHistory.map((point) => ({
-          date: point.date,
-          label: point.label,
-          value: point.cm_market,
-        }))
-      : primaryPrice != null
-        ? [{ date: "current", label: "Nu", value: primaryPrice }]
-        : [];
+  const availableSealedHistorySeries = SEALED_MARKET_HISTORY_SERIES.filter(
+    (series) =>
+      hasSealedMarketHistorySeries(priceHistory, series.key) ||
+      getSealedMarketHistorySeriesCurrentValue(modalProduct.price, series.key) != null
+  );
+  const activeSealedHistorySeries = availableSealedHistorySeries.some(
+    (series) => series.key === sealedHistorySeries
+  )
+    ? sealedHistorySeries
+    : availableSealedHistorySeries[0]?.key ?? "cm_market";
+  const activeSealedHistorySeriesLabel =
+    availableSealedHistorySeries.find((series) => series.key === activeSealedHistorySeries)
+      ?.label ?? "Market";
+  const activeSealedCurrentValue =
+    getSealedMarketHistorySeriesCurrentValue(modalProduct.price, activeSealedHistorySeries) ??
+    primaryPrice;
+  const historySeriesPoints = priceHistory.map((point) => ({
+    date: point.date,
+    label: point.label,
+    value: getSealedMarketHistorySeriesValue(point, activeSealedHistorySeries),
+  }));
+  const chartPoints = historySeriesPoints.some((point) => point.value != null)
+    ? historySeriesPoints
+    : activeSealedCurrentValue != null
+      ? [{ date: "current", label: "Now", value: activeSealedCurrentValue }]
+      : [];
   const cardMarketUrl = resolveCardMarketSealedProductUrl(modalProduct);
   const isBusy = refreshing || syncingHistory;
   const priceFetchedAtLabel = formatTimestamp(modalProduct.price_fetched_at);
@@ -224,9 +249,13 @@ export default function SealedProductModal({ product, onClose }: Props) {
                   productId={modalProduct.id}
                   product={modalProduct}
                   chartPoints={chartPoints}
-                  currentValue={primaryPrice}
+                  currentValue={activeSealedCurrentValue}
                   priceFetchedAtLabel={priceFetchedAtLabel}
                   loading={detailsLoading && priceHistory.length === 0}
+                  availableHistorySeries={availableSealedHistorySeries}
+                  activeHistorySeries={activeSealedHistorySeries}
+                  activeHistorySeriesLabel={activeSealedHistorySeriesLabel}
+                  onSelectHistorySeries={setSealedHistorySeries}
                 />
               </div>
             </div>
