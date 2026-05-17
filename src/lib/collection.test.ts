@@ -3,6 +3,7 @@ import {
   buildLinkedBinderCostBasis,
   combineValueHistories,
   getCollectionCardMarketValue,
+  getCollectionCardValueInfo,
   getCollectionMatchedGradedPrice,
 } from "@/lib/collection";
 
@@ -232,6 +233,56 @@ describe("graded collection values", () => {
       label: "PSA 8",
       price: 120,
       source: "cardmarket_graded",
+    });
+  });
+
+  it("uses raw CardMarket as a floor when eBay sold graded is below raw", () => {
+    const card = {
+      prices: [
+        {
+          cm_en_lowest_nm: 117,
+          cm_de_lowest_nm: null,
+          cm_fr_lowest_nm: null,
+          cm_es_lowest_nm: null,
+          cm_it_lowest_nm: null,
+        },
+      ],
+      gradedPrices: [],
+      ebaySoldGradedPrices: [
+        {
+          label: "PSA 8",
+          company: "PSA",
+          grade: "8",
+          median_price: 93.32,
+          currency: "USD",
+        },
+      ],
+    };
+
+    expect(
+      getCollectionMatchedGradedPrice(card, {
+        gradingCompany: "PSA",
+        gradingGrade: "8",
+        usdToEurRate,
+      })?.price
+    ).toBe(85.85);
+    expect(
+      getCollectionCardMarketValue(card, {
+        gradingCompany: "PSA",
+        gradingGrade: "8",
+        usdToEurRate,
+      })
+    ).toBe(117);
+    expect(
+      getCollectionCardValueInfo(card, {
+        gradingCompany: "PSA",
+        gradingGrade: "8",
+        usdToEurRate,
+      })
+    ).toMatchObject({
+      value: 117,
+      label: "CardMarket raw floor",
+      source: "raw_floor",
     });
   });
 });

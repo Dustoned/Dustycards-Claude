@@ -19,6 +19,16 @@ const AUTO_PRICE_REFRESH_REFRESH_COOLDOWN_MS = 15_000;
 const AUTO_PRICE_REFRESH_TAB_LOCK_RENEW_MS = 30_000;
 const AUTO_PRICE_REFRESH_STORAGE_KEY = "dustycards-auto-price-refresh-last-trigger";
 
+function isLocalBrowserHost(): boolean {
+  const hostname = window.location.hostname.toLowerCase();
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname.endsWith(".localhost")
+  );
+}
+
 function readLastTriggerAt(): number {
   try {
     const raw = localStorage.getItem(AUTO_PRICE_REFRESH_STORAGE_KEY);
@@ -35,8 +45,8 @@ function writeLastTriggerAt(value: number) {
   } catch {}
 }
 
-export default function AutoPriceRefreshBoot() {
-  const { currentUserRole, isLoaded } = useSettings();
+export default function AutoPriceRefreshBoot({ enabled = false }: { enabled?: boolean }) {
+  const { currentUserRole, isLoaded, settings } = useSettings();
   const router = useRouter();
   const inFlightRef = useRef(false);
   const lastRouterRefreshAtRef = useRef(0);
@@ -44,7 +54,13 @@ export default function AutoPriceRefreshBoot() {
   const tabOwnerIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!isLoaded || currentUserRole !== "admin") {
+    if (
+      !enabled ||
+      !settings.autoPriceRefresh ||
+      !isLoaded ||
+      currentUserRole !== "admin" ||
+      isLocalBrowserHost()
+    ) {
       return;
     }
 
@@ -165,7 +181,7 @@ export default function AutoPriceRefreshBoot() {
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentUserRole, isLoaded, router]);
+  }, [currentUserRole, enabled, isLoaded, router, settings.autoPriceRefresh]);
 
   return null;
 }

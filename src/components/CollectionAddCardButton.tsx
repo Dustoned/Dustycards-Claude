@@ -12,6 +12,20 @@ import {
 import CollectionInlineBinderCreator, {
   type InlineBinderOption,
 } from "@/components/CollectionInlineBinderCreator";
+import {
+  modalActionRowClass,
+  modalBodyClass,
+  modalCenteredMobileOverlayClass,
+  modalCenteredPanelClass,
+  modalCloseButtonClass,
+  modalCompactHeaderClass,
+  modalInputClass as modalInputClasses,
+  modalLabelClass as modalLabelClasses,
+  modalOptionClass as modalOptionClasses,
+  modalPrimaryButtonClass,
+  modalSecondaryButtonClass,
+  modalSelectClass as modalSelectClasses,
+} from "@/components/modal-glass-styles";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
 type BinderOption = InlineBinderOption;
@@ -53,12 +67,6 @@ function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", classNa
   return [base, palette, className].filter(Boolean).join(" ");
 }
 
-const modalSelectClasses =
-  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[16px]";
-const modalInputClasses =
-  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[16px]";
-const modalLabelClasses = "space-y-1.5 text-sm max-[640px]:text-[12px]";
-const modalOptionClasses = "bg-white text-gray-900";
 type CardKind = "raw" | "graded";
 
 export default function CollectionAddCardButton({
@@ -212,7 +220,7 @@ export default function CollectionAddCardButton({
     open && typeof document !== "undefined"
       ? createPortal(
           <div
-            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/72 p-4 backdrop-blur-xl max-[640px]:items-center max-[640px]:p-3"
+            className={`${modalCenteredMobileOverlayClass} z-[90]`}
             onClick={(event) => {
               event.stopPropagation();
               setOpen(false);
@@ -223,10 +231,10 @@ export default function CollectionAddCardButton({
               aria-modal="true"
               aria-label={`Add ${card.name} to DustyCards`}
               data-collection-add-modal="true"
-              className="glass relative flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-white/12 bg-[#0d0d10]/92 text-white shadow-2xl shadow-black/45 max-[640px]:max-h-[calc(100dvh-1rem)] max-[640px]:max-w-[min(26rem,100%)] max-[640px]:rounded-[22px]"
+              className={`${modalCenteredPanelClass} max-w-xl`}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-start gap-3 border-b border-white/10 px-6 py-5 max-[640px]:px-4 max-[640px]:py-3">
+              <div className={modalCompactHeaderClass}>
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-white/38 max-[640px]:text-[9px]">
                     Add Card
@@ -242,7 +250,7 @@ export default function CollectionAddCardButton({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/60 transition-colors hover:bg-white/12 hover:text-white max-[640px]:h-8 max-[640px]:w-8"
+                  className={modalCloseButtonClass}
                   aria-label="Close add card"
                 >
                   <X className="h-4 w-4" />
@@ -250,7 +258,7 @@ export default function CollectionAddCardButton({
               </div>
 
               <form
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-5 max-[640px]:px-4 max-[640px]:py-3"
+                className={modalBodyClass}
                 onSubmit={handleSubmit}
               >
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -445,18 +453,18 @@ export default function CollectionAddCardButton({
 
                 {saveError && <p className="mt-3 text-sm text-rose-300">{saveError}</p>}
 
-                <div className="sticky bottom-0 -mx-6 -mb-5 mt-5 flex gap-3 border-t border-white/10 bg-[#0d0d10]/95 px-6 py-4 backdrop-blur-xl max-[640px]:-mx-4 max-[640px]:-mb-3 max-[640px]:mt-3 max-[640px]:gap-2 max-[640px]:px-4 max-[640px]:py-3">
+                <div className={modalActionRowClass}>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:py-2.5 max-[640px]:text-[13px]"
+                    className={modalPrimaryButtonClass}
                   >
                     {saving ? "Saving..." : "Save"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-2.5 max-[640px]:text-[13px]"
+                    className={modalSecondaryButtonClass}
                   >
                     Cancel
                   </button>

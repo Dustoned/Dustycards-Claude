@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "1.0.23",
+    releasedAt: "May 17, 2026",
+    title: "Sealed detail and sync polish",
+    summary: "Sealed product detail, pricing freshness, local sync safety, modal styling, and promo numbers were cleaned up.",
+    tone: "improved",
+    highlights: [
+      "Sealed product detail now matches the normal card detail layout more closely.",
+      "Card detail is clearer about eBay sold pricing freshness and avoids stale graded values overriding stronger raw prices.",
+      "Local development no longer runs background price sync unless it is explicitly enabled.",
+      "Collection popups now share the same clean glassy action row without the old dark footer bar.",
+      "Black Star promo card numbers now show the printed single promo number, such as SM241.",
+    ],
+  },
+  {
     version: "1.0.22",
     releasedAt: "May 17, 2026",
     title: "Card metadata restored",

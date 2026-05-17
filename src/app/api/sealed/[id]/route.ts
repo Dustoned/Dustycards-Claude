@@ -15,7 +15,7 @@ import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response"
 
 type SealedAction = "refresh" | "sync-history";
 
-async function getSealedDetailPayload(id: string) {
+async function getSealedDetailPayload(id: string, userId: string) {
   const product = await db.sealedProduct.findUnique({
     where: { id },
     select: {
@@ -42,6 +42,23 @@ async function getSealedDetailPayload(id: string) {
           code: true,
         },
       },
+      collectionItems: {
+        where: { user_id: userId },
+        orderBy: { updated_at: "desc" },
+        select: {
+          id: true,
+          quantity: true,
+          purchase_price_per_item: true,
+          notes: true,
+          added_at: true,
+          updated_at: true,
+          tags: {
+            select: {
+              label: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -50,6 +67,26 @@ async function getSealedDetailPayload(id: string) {
   }
 
   const snapshots = await getSealedPriceSnapshotsByProduct(id);
+  const collectionItem = product.collectionItems[0] ?? null;
+  const collectionQuantity = product.collectionItems.reduce(
+    (total, item) => total + item.quantity,
+    0
+  );
+  const paidEntries = product.collectionItems.filter(
+    (item) => item.purchase_price_per_item != null
+  );
+  const paidTotal =
+    paidEntries.length > 0
+      ? Number(
+          paidEntries
+            .reduce(
+              (total, item) =>
+                total + (item.purchase_price_per_item ?? 0) * item.quantity,
+              0
+            )
+            .toFixed(2)
+        )
+      : null;
 
   return {
     id: product.id,
@@ -74,6 +111,25 @@ async function getSealedDetailPayload(id: string) {
     },
     price_history: buildSealedPriceHistory(snapshots),
     episode: product.episode,
+    collection_item: collectionItem
+      ? {
+          id: collectionItem.id,
+          quantity: collectionItem.quantity,
+          purchase_price_per_item: collectionItem.purchase_price_per_item,
+          notes: collectionItem.notes,
+          added_at: collectionItem.added_at.toISOString(),
+          updated_at: collectionItem.updated_at.toISOString(),
+          tags: collectionItem.tags.map((tag) => tag.label),
+        }
+      : null,
+    collection_summary:
+      collectionQuantity > 0
+        ? {
+            item_count: product.collectionItems.length,
+            quantity: collectionQuantity,
+            paid_total: paidTotal,
+          }
+        : null,
   };
 }
 
@@ -82,9 +138,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const { id } = await params;
-    const payload = await getSealedDetailPayload(id);
+    const payload = await getSealedDetailPayload(id, user.id);
 
     if (!payload) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -101,9 +157,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireAdmin();
+    const user = await requireAdmin();
     const { id } = await params;
-    const scraperDisabled = getScraperDisabledResponse();
+    const scraperDisabled = getScraperDisabledResponse(req);
     if (scraperDisabled) return scraperDisabled;
 
     let action: SealedAction = "refresh";
@@ -123,7 +179,7 @@ export async function POST(
       await runSealedProductRefresh(id);
     }
 
-    const payload = await getSealedDetailPayload(id);
+    const payload = await getSealedDetailPayload(id, user.id);
 
     if (!payload) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

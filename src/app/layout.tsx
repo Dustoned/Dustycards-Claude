@@ -19,6 +19,8 @@ import { getServerUserSettings } from "@/lib/user-settings-server";
 import "./globals.css";
 
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const BROWSER_AUTO_PRICE_REFRESH_ENV = "DUSTYCARDS_ENABLE_BROWSER_AUTO_PRICE_REFRESH";
+const ENABLED_ENV_VALUES = new Set(["1", "true", "yes", "on"]);
 
 export const metadata: Metadata = {
   title: "DustyCards",
@@ -42,10 +44,16 @@ function detectInitialMobileViewport(headerStore: Headers) {
   return /\b(Android|iPhone|iPod|IEMobile|Mobile|BlackBerry|Opera Mini)\b/i.test(userAgent);
 }
 
+function isBrowserAutoPriceRefreshEnabled(): boolean {
+  const value = process.env[BROWSER_AUTO_PRICE_REFRESH_ENV]?.trim().toLowerCase();
+  return value ? ENABLED_ENV_VALUES.has(value) : false;
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const headerStore = await headers();
   const currentUser = await getCurrentUser();
+  const browserAutoPriceRefreshEnabled = isBrowserAutoPriceRefreshEnabled();
   const initialSettings = await getServerUserSettings(currentUser?.id);
   const initialMobileViewport = detectInitialMobileViewport(headerStore);
   const initialUiScale = initialMobileViewport
@@ -162,7 +170,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           currentUserRole={currentUser?.role ?? null}
         >
           <AppVersionWatcher />
-          {currentUser && <AutoPriceRefreshBoot />}
+          {currentUser && <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} />}
           <header
             data-app-header
             className="fixed inset-x-0 top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8"

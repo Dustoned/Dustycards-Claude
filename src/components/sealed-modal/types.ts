@@ -33,6 +33,20 @@ export interface SealedDetailResponse extends SealedModalProductData {
   price_fetched_at: string | null;
   history_synced_at: string | null;
   price_history: SealedPriceHistoryPoint[];
+  collection_item?: {
+    id: string;
+    quantity: number;
+    purchase_price_per_item: number | null;
+    notes: string | null;
+    added_at: string;
+    updated_at: string;
+    tags: string[];
+  } | null;
+  collection_summary?: {
+    item_count: number;
+    quantity: number;
+    paid_total: number | null;
+  } | null;
 }
 
 export interface SealedActionResponse extends Partial<SealedDetailResponse> {

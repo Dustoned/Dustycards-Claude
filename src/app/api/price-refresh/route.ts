@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import {
   getAutoPriceRefreshJobSnapshot,
@@ -21,8 +21,8 @@ export async function GET() {
   }
 }
 
-export async function POST() {
-  const scraperDisabled = getScraperDisabledResponse();
+export async function POST(req: NextRequest) {
+  const scraperDisabled = getScraperDisabledResponse(req);
   if (scraperDisabled) return scraperDisabled;
 
   try {

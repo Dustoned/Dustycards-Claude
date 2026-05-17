@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import { runFullSync } from "@/lib/sync";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 import { getSyncErrorResponse } from "@/app/api/sync-error-response";
 
-export async function POST() {
-  const scraperDisabled = getScraperDisabledResponse();
+export async function POST(req: NextRequest) {
+  const scraperDisabled = getScraperDisabledResponse(req);
   if (scraperDisabled) return scraperDisabled;
 
   try {

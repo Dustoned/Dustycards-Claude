@@ -7,6 +7,17 @@ import { Plus, X } from "lucide-react";
 import { COLLECTION_BINDER_ICONS } from "@/lib/collection";
 import BinderAccentColorPicker from "@/components/BinderAccentColorPicker";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
+import {
+  modalActionRowClass,
+  modalBodyClass,
+  modalBottomSheetOverlayClass,
+  modalBottomSheetPanelClass,
+  modalCloseButtonClass,
+  modalHeaderClass,
+  modalInputClass,
+  modalPrimaryButtonClass,
+  modalSecondaryButtonClass,
+} from "@/components/modal-glass-styles";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
 interface EpisodeOption {
@@ -133,13 +144,11 @@ export default function CreateBinderButton({
     setOpen(true);
   }
 
-  const modalInputClasses =
-    "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/18 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[13px]";
   const binderModal =
     open && typeof document !== "undefined"
       ? createPortal(
           <div
-            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/72 p-4 backdrop-blur-xl max-[640px]:items-end max-[640px]:p-0"
+            className={`${modalBottomSheetOverlayClass} z-[90]`}
             onClick={() => setOpen(false)}
           >
             <div
@@ -147,10 +156,10 @@ export default function CreateBinderButton({
               aria-modal="true"
               aria-label="Create binder"
               data-create-binder-modal="true"
-              className="glass relative flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-white/12 bg-[#0d0d10]/92 text-white shadow-2xl shadow-black/45 max-[640px]:max-h-[calc(100dvh-0.75rem)] max-[640px]:rounded-b-none max-[640px]:rounded-t-[26px] max-[640px]:border-x-0 max-[640px]:border-b-0"
+              className={`${modalBottomSheetPanelClass} max-w-2xl`}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="flex items-start gap-3 border-b border-white/10 px-6 py-5 max-[640px]:px-4 max-[640px]:py-3.5">
+              <div className={modalHeaderClass}>
                 <div className="min-w-0 flex-1">
                   <div className="mx-auto mb-3 hidden h-1 w-12 rounded-full bg-white/18 max-[640px]:block" />
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
@@ -166,7 +175,7 @@ export default function CreateBinderButton({
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/60 transition-colors hover:bg-white/12 hover:text-white max-[640px]:h-8 max-[640px]:w-8"
+                  className={modalCloseButtonClass}
                   aria-label="Close create binder"
                 >
                   <X className="h-4 w-4" />
@@ -174,7 +183,7 @@ export default function CreateBinderButton({
               </div>
 
               <form
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 py-5 max-[640px]:px-4 max-[640px]:py-2.5"
+                className={modalBodyClass}
                 onSubmit={handleSubmit}
               >
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -186,7 +195,7 @@ export default function CreateBinderButton({
                         setQuery(event.target.value);
                         setLinkMatchedEpisode(false);
                       }}
-                      className={modalInputClasses}
+                      className={modalInputClass}
                       placeholder="Type a set name or custom binder name"
                     />
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/55 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[10px]">
@@ -220,7 +229,7 @@ export default function CreateBinderButton({
                       inputMode="decimal"
                       value={basePurchasePrice}
                       onChange={(event) => setBasePurchasePrice(event.target.value)}
-                      className={modalInputClasses}
+                      className={modalInputClass}
                       placeholder="0.00"
                     />
                   </label>
@@ -273,7 +282,7 @@ export default function CreateBinderButton({
                         rows={2}
                         value={notes}
                         onChange={(event) => setNotes(event.target.value)}
-                        className={`${modalInputClasses} resize-none`}
+                        className={`${modalInputClass} resize-none`}
                         placeholder="Optional notes"
                       />
                     </label>
@@ -282,18 +291,18 @@ export default function CreateBinderButton({
 
                 {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
 
-                <div className="sticky bottom-0 -mx-6 -mb-5 mt-5 flex gap-3 border-t border-white/10 bg-[#0d0d10]/95 px-6 py-4 backdrop-blur-xl max-[640px]:-mx-4 max-[640px]:-mb-2.5 max-[640px]:mt-3 max-[640px]:gap-2 max-[640px]:px-4 max-[640px]:py-2.5">
+                <div className={modalActionRowClass}>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:py-2.5 max-[640px]:text-[13px]"
+                    className={modalPrimaryButtonClass}
                   >
                     {saving ? "Saving..." : "Create binder"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-2.5 max-[640px]:text-[13px]"
+                    className={modalSecondaryButtonClass}
                   >
                     Cancel
                   </button>

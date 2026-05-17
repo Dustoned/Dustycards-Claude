@@ -2,7 +2,7 @@ import type { Prisma } from "@/generated/prisma";
 import { db } from "@/lib/db";
 import {
   getCollectionCardMarketValue,
-  getCollectionMatchedGradedPrice,
+  getCollectionCardValueInfo,
 } from "@/lib/collection";
 import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
 import {
@@ -973,8 +973,8 @@ function buildCategoryItem(
   const tcpValue = owned
     ? Number(owned.tcpValue.toFixed(2))
     : card.prices[0]?.tcp_market ?? null;
-  const matchedGradedPrice = owned
-    ? getCollectionMatchedGradedPrice(card, {
+  const valueInfo = owned
+    ? getCollectionCardValueInfo(card, {
         gradingCompany: owned.gradingCompany,
         gradingGrade: owned.gradingGrade,
         usdToEurRate: options?.usdToEurRate,
@@ -998,7 +998,7 @@ function buildCategoryItem(
     cm_value: cmValue,
     tcp_value: tcpValue,
     current_value: ownedCurrentValue ?? cmValue,
-    current_value_label: matchedGradedPrice?.label ?? null,
+    current_value_label: valueInfo?.label ?? null,
     purchase_price: owned ? Number(owned.purchasePrice.toFixed(2)) : null,
     cost_basis_value: owned ? Number(owned.purchasePrice.toFixed(2)) : null,
     cost_basis_label: "Paid",

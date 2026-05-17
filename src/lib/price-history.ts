@@ -57,6 +57,7 @@ export interface CardEbaySoldGradedPriceHistorySeries {
   currency: "EUR" | "USD";
   points: CardGradedPriceHistoryPoint[];
   latest_sample_size: number | null;
+  latest_fetched_at: string | null;
 }
 
 export const CARD_MARKET_HISTORY_SERIES = [
@@ -278,6 +279,9 @@ export function buildCardEbaySoldGradedPriceHistory(
         label,
         currency: latestSnapshot?.displayCurrency ?? "USD",
         latest_sample_size: latestSnapshot?.sample_size ?? null,
+        latest_fetched_at: latestSnapshot
+          ? new Date(toMillis(latestSnapshot.fetched_at)).toISOString()
+          : null,
         points: daySnapshots.map(([date, snapshot]) => ({
           date,
           label: toDateLabel(date),

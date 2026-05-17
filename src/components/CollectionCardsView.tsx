@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Minus } from "lucide-react";
+import { Minus, X } from "lucide-react";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -37,6 +37,15 @@ import {
 import { rarityBadge } from "@/lib/rarity-styles";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { ModalCardData } from "@/components/card-modal/types";
+import {
+  modalActionRowClass,
+  modalCenteredMobileOverlayClass,
+  modalCenteredPanelClass,
+  modalCloseButtonClass,
+  modalCompactHeaderClass,
+  modalDangerButtonClass,
+  modalSecondaryButtonClass,
+} from "@/components/modal-glass-styles";
 import {
   KNOWN_SUPERTYPE_ORDER,
   buildFilterOptions,
@@ -2068,7 +2077,7 @@ export default function CollectionCardsView({
                       <span
                         title={
                           item.current_value_label
-                            ? `Using ${item.current_value_label} graded price`
+                            ? `Using ${item.current_value_label}`
                             : undefined
                         }
                         className={collectionTilePriceClass(displaySettings.cardSize)}
@@ -2155,8 +2164,7 @@ export default function CollectionCardsView({
 
       {removeDialog && (
         <div
-          className="fixed inset-0 z-[73] flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
+          className={`${modalCenteredMobileOverlayClass} z-[73]`}
           onClick={() => {
             if (!removingItems) {
               setRemoveDialog(null);
@@ -2165,42 +2173,21 @@ export default function CollectionCardsView({
           }}
         >
           <div
-            className="glass w-full max-w-md rounded-3xl border border-white/12 bg-[#0d0d10]/90 p-6 text-white shadow-2xl shadow-black/45"
+            className={`${modalCenteredPanelClass} max-w-md`}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38">
-                {removeDialog.target === "wants" ? "Remove From Wants" : "Remove From Collection"}
-              </p>
-              <h2 className="mt-2 text-2xl font-bold leading-tight">{removeDialog.title}</h2>
-              <p className="mt-2 text-sm text-white/55">{removeDialog.description}</p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/68">
-              {removeDialog.target === "wants"
-                ? "This only removes the card from Wants. Your collection stays unchanged."
-                : "This removes the saved collection entry entirely. It will not be moved to loose singles."}
-            </div>
-
-            {removeError && <p className="mt-4 text-sm text-rose-300">{removeError}</p>}
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  void (removeDialog.target === "wants"
-                    ? removeItemsFromWants(removeDialog.itemIds)
-                    : removeItemsFromCollection(removeDialog.itemIds))
-                }
-                disabled={removingItems}
-                className="flex-1 rounded-2xl bg-rose-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {removingItems
-                  ? "Removing..."
-                  : removeDialog.itemIds.length > 1
-                    ? "Remove cards"
-                    : "Remove card"}
-              </button>
+            <div className={modalCompactHeaderClass}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+                  {removeDialog.target === "wants" ? "Remove From Wants" : "Remove From Collection"}
+                </p>
+                <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+                  {removeDialog.title}
+                </h2>
+                <p className="mt-2 text-sm text-white/55 max-[640px]:text-[12px]">
+                  {removeDialog.description}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => {
@@ -2208,10 +2195,51 @@ export default function CollectionCardsView({
                   setRemoveError(null);
                 }}
                 disabled={removingItems}
-                className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className={modalCloseButtonClass}
+                aria-label="Close remove dialog"
               >
-                Cancel
+                <X className="h-4 w-4" />
               </button>
+            </div>
+
+            <div className="px-6 pb-6 pt-5 max-[640px]:px-4 max-[640px]:pb-4 max-[640px]:pt-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/68 max-[640px]:rounded-xl max-[640px]:text-[12px]">
+                {removeDialog.target === "wants"
+                  ? "This only removes the card from Wants. Your collection stays unchanged."
+                  : "This removes the saved collection entry entirely. It will not be moved to loose singles."}
+              </div>
+
+              {removeError && <p className="mt-4 text-sm text-rose-300">{removeError}</p>}
+
+              <div className={modalActionRowClass}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void (removeDialog.target === "wants"
+                      ? removeItemsFromWants(removeDialog.itemIds)
+                      : removeItemsFromCollection(removeDialog.itemIds))
+                  }
+                  disabled={removingItems}
+                  className={modalDangerButtonClass}
+                >
+                  {removingItems
+                    ? "Removing..."
+                    : removeDialog.itemIds.length > 1
+                      ? "Remove cards"
+                      : "Remove card"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRemoveDialog(null);
+                    setRemoveError(null);
+                  }}
+                  disabled={removingItems}
+                  className={modalSecondaryButtonClass}
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

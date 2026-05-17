@@ -3,8 +3,17 @@
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Package } from "lucide-react";
+import { Minus, Package, X } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import {
+  modalActionRowClass,
+  modalCenteredMobileOverlayClass,
+  modalCenteredPanelClass,
+  modalCloseButtonClass,
+  modalCompactHeaderClass,
+  modalDangerButtonClass,
+  modalSecondaryButtonClass,
+} from "@/components/modal-glass-styles";
 import { SectionHeader } from "@/components/PageHeader";
 import {
   sealedTileActionButtonClass,
@@ -406,8 +415,7 @@ export function CollectionSealedRemoveDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[73] flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
+      className={`${modalCenteredMobileOverlayClass} z-[73]`}
       onClick={() => {
         if (!removingItems) {
           onClose();
@@ -415,44 +423,61 @@ export function CollectionSealedRemoveDialog({
       }}
     >
       <div
-        className="glass w-full max-w-md rounded-3xl border border-white/12 bg-[#0d0d10]/90 p-6 text-white shadow-2xl shadow-black/45"
+        className={`${modalCenteredPanelClass} max-w-md`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38">
-            Remove From Collection
-          </p>
-          <h2 className="mt-2 text-2xl font-bold leading-tight">{removeDialog.title}</h2>
-          <p className="mt-2 text-sm text-white/55">{removeDialog.description}</p>
-        </div>
-
-        <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/68">
-          This removes the saved sealed entry entirely, including its quantity.
-        </div>
-
-        {removeError && <p className="mt-4 text-sm text-rose-300">{removeError}</p>}
-
-        <div className="mt-5 flex gap-3">
-          <button
-            type="button"
-            onClick={() => onConfirm(removeDialog.itemIds)}
-            disabled={removingItems}
-            className="flex-1 rounded-2xl bg-rose-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {removingItems
-              ? "Removing..."
-              : removeDialog.itemIds.length > 1
-                ? "Remove products"
-                : "Remove product"}
-          </button>
+        <div className={modalCompactHeaderClass}>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+              Remove From Collection
+            </p>
+            <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+              {removeDialog.title}
+            </h2>
+            <p className="mt-2 text-sm text-white/55 max-[640px]:text-[12px]">
+              {removeDialog.description}
+            </p>
+          </div>
           <button
             type="button"
             onClick={onClose}
             disabled={removingItems}
-            className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className={modalCloseButtonClass}
+            aria-label="Close sealed remove dialog"
           >
-            Cancel
+            <X className="h-4 w-4" />
           </button>
+        </div>
+
+        <div className="px-6 pb-6 pt-5 max-[640px]:px-4 max-[640px]:pb-4 max-[640px]:pt-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/68 max-[640px]:rounded-xl max-[640px]:text-[12px]">
+            This removes the saved sealed entry entirely, including its quantity.
+          </div>
+
+          {removeError && <p className="mt-4 text-sm text-rose-300">{removeError}</p>}
+
+          <div className={modalActionRowClass}>
+            <button
+              type="button"
+              onClick={() => onConfirm(removeDialog.itemIds)}
+              disabled={removingItems}
+              className={modalDangerButtonClass}
+            >
+              {removingItems
+                ? "Removing..."
+                : removeDialog.itemIds.length > 1
+                  ? "Remove products"
+                  : "Remove product"}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={removingItems}
+              className={modalSecondaryButtonClass}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     </div>

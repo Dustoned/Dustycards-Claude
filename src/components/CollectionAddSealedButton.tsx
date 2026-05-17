@@ -2,7 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
+import {
+  modalActionRowClass,
+  modalBodyClass,
+  modalCenteredMobileOverlayClass,
+  modalCenteredPanelClass,
+  modalCloseButtonClass,
+  modalCompactHeaderClass,
+  modalInputClass,
+  modalPrimaryButtonClass,
+  modalSecondaryButtonClass,
+} from "@/components/modal-glass-styles";
 
 interface CollectionSealedRef {
   id: string;
@@ -125,31 +136,42 @@ export default function CollectionAddSealedButton({
 
       {open && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
+          className={`${modalCenteredMobileOverlayClass} z-[70]`}
           onClick={(event) => {
             event.stopPropagation();
             setOpen(false);
           }}
         >
           <div
-            className="glass w-full max-w-lg rounded-3xl border border-white/12 bg-[#0d0d10]/90 p-6 text-white shadow-2xl shadow-black/45"
+            className={`${modalCenteredPanelClass} max-w-lg`}
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="mb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38">
-                Add Sealed
-              </p>
-              <h2 className="mt-2 text-2xl font-bold leading-tight">{product.name}</h2>
-              {product.episode && (
-                <p className="mt-1 text-sm text-white/48">
-                  {product.episode.name}
-                  {product.episode.code ? ` (${product.episode.code})` : ""}
+            <div className={modalCompactHeaderClass}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+                  Add Sealed
                 </p>
-              )}
+                <h2 className="mt-1.5 line-clamp-2 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+                  {product.name}
+                </h2>
+                {product.episode && (
+                  <p className="mt-1 truncate text-sm text-white/48 max-[640px]:text-[12px]">
+                    {product.episode.name}
+                    {product.episode.code ? ` (${product.episode.code})` : ""}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className={modalCloseButtonClass}
+                aria-label="Close add sealed"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
-            <form className="space-y-4" onSubmit={handleSubmit}>
+            <form className={`${modalBodyClass} space-y-4`} onSubmit={handleSubmit}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="space-y-1.5 text-sm">
                   <span className="text-white/60">Quantity</span>
@@ -160,7 +182,7 @@ export default function CollectionAddSealedButton({
                     inputMode="numeric"
                     value={quantity}
                     onChange={(event) => setQuantity(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                    className={modalInputClass}
                   />
                 </label>
 
@@ -173,7 +195,7 @@ export default function CollectionAddSealedButton({
                     inputMode="decimal"
                     value={purchasePricePerItem}
                     onChange={(event) => setPurchasePricePerItem(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                    className={modalInputClass}
                     placeholder="0.00"
                   />
                 </label>
@@ -185,7 +207,7 @@ export default function CollectionAddSealedButton({
                   type="text"
                   value={tags}
                   onChange={(event) => setTags(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                  className={modalInputClass}
                   placeholder="sealed, booster box, display"
                 />
               </label>
@@ -196,25 +218,25 @@ export default function CollectionAddSealedButton({
                   rows={3}
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                  className={`${modalInputClass} resize-none`}
                   placeholder="Optional notes"
                 />
               </label>
 
               {saveError && <p className="text-sm text-rose-300">{saveError}</p>}
 
-              <div className="flex gap-3 pt-1">
+              <div className={modalActionRowClass}>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className={modalPrimaryButtonClass}
                 >
                   {saving ? "Saving..." : "Save to collection"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white"
+                  className={modalSecondaryButtonClass}
                 >
                   Cancel
                 </button>

@@ -84,6 +84,13 @@ const SHORT_STATUS_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
 });
+const FULL_STATUS_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 function parseDateMillis(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -95,6 +102,12 @@ function formatShortStatusDate(value: string | null | undefined): string | null 
   const timestamp = parseDateMillis(value);
   if (timestamp == null) return null;
   return SHORT_STATUS_DATE_FORMATTER.format(timestamp);
+}
+
+function formatFullStatusDate(value: string | null | undefined): string | null {
+  const timestamp = parseDateMillis(value);
+  if (timestamp == null) return null;
+  return FULL_STATUS_DATE_FORMATTER.format(timestamp);
 }
 
 function formatRelativeStatusAge(value: string | null | undefined, now: number): string | null {
@@ -941,10 +954,18 @@ function getUniqueGradeLabels(...labelGroups: string[][]): string[] {
   return labels;
 }
 
+interface EbaySoldDisplayInfo {
+  currency: CurrencyCode;
+  value: number | null;
+  sampleSize: number | null;
+  originalUsd: string | null;
+  fetchedAt: string | null;
+}
+
 function getEbaySoldDisplayInfo(
   price: NonNullable<ModalCardData["ebay_sold_graded_prices"]>[number] | null,
   history: CardEbaySoldGradedPriceHistorySeries | null
-) {
+): EbaySoldDisplayInfo {
   const historyValue = history ? getLatestHistoryValue(history.points) : null;
   const currency = price?.median_price_eur != null
     ? "EUR"
@@ -957,6 +978,7 @@ function getEbaySoldDisplayInfo(
     historyValue ??
     null;
   const sampleSize = price?.sample_size ?? history?.latest_sample_size ?? null;
+  const fetchedAt = price?.fetched_at ?? history?.latest_fetched_at ?? null;
   const originalUsd =
     price &&
     price.currency.toUpperCase() === "USD" &&
@@ -969,7 +991,131 @@ function getEbaySoldDisplayInfo(
     value,
     sampleSize,
     originalUsd,
+    fetchedAt,
   };
+}
+
+function getEbaySoldUpdatedAt(display: EbaySoldDisplayInfo, card: ModalCardData): string | null {
+  return (
+    display.fetchedAt ??
+    card.ebay_sold_graded_synced_at ??
+    card.ebay_sold_graded_checked_at ??
+    null
+  );
+}
+
+function getEbaySoldAgeDays(updatedAt: string | null, now: number): number | null {
+  const timestamp = parseDateMillis(updatedAt);
+  if (timestamp == null) return null;
+  return Math.floor(Math.max(0, now - timestamp) / (24 * 60 * 60 * 1000));
+}
+
+function getEbaySoldStatusTone(updatedAt: string | null, now: number): PriceStatusTone {
+  const ageDays = getEbaySoldAgeDays(updatedAt, now);
+  if (ageDays == null) return "warning";
+  if (ageDays >= 30) return "danger";
+  if (ageDays >= 14) return "warning";
+  return "good";
+}
+
+function formatEbaySoldUpdatedHint(updatedAt: string | null, now: number): string | null {
+  const fullDate = formatFullStatusDate(updatedAt);
+  const age = formatRelativeStatusAge(updatedAt, now);
+
+  if (!fullDate) return null;
+  return age ? `Updated ${fullDate} / ${age}` : `Updated ${fullDate}`;
+}
+
+function EbaySoldStatusLine({
+  card,
+  display,
+  now,
+  rawFloorValue,
+}: {
+  card: ModalCardData;
+  display: EbaySoldDisplayInfo;
+  now: number;
+  rawFloorValue: number | null;
+}) {
+  const updatedAt = getEbaySoldUpdatedAt(display, card);
+  const updatedLabel = formatFullStatusDate(updatedAt);
+  const updatedAge = formatRelativeStatusAge(updatedAt, now);
+  const compactUpdatedAge = updatedAge?.replace(/\s+ago$/, "") ?? null;
+  const checkedLabel = formatShortStatusDate(card.ebay_sold_graded_checked_at);
+  const syncedLabel = formatShortStatusDate(card.ebay_sold_graded_synced_at);
+  const statusLabel =
+    card.ebay_sold_graded_status === "unavailable"
+      ? "Unavailable"
+      : card.ebay_sold_graded_status === "synced"
+        ? "Synced"
+        : card.ebay_sold_graded_status
+          ? card.ebay_sold_graded_status
+          : "eBay sold";
+  const updateTone = getEbaySoldStatusTone(updatedAt, now);
+  const statusTone: PriceStatusTone =
+    card.ebay_sold_graded_status === "unavailable" ? "warning" : updateTone;
+  const belowRawFloor =
+    display.currency === "EUR" &&
+    display.value != null &&
+    rawFloorValue != null &&
+    rawFloorValue > display.value;
+
+  return (
+    <div className="min-w-0 border-b border-white/8 pb-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-none text-white/28 max-[640px]:gap-x-1 max-[640px]:text-[10px]">
+        <PriceStatusInlineItem
+          value={updatedLabel ? `Updated ${updatedLabel}` : "eBay not synced"}
+          title={
+            updatedLabel
+              ? `eBay sold price fetched ${updatedLabel}`
+              : "No eBay sold update timestamp stored"
+          }
+          tone={updateTone}
+        />
+        <span aria-hidden="true">/</span>
+        <PriceStatusInlineItem
+          value={compactUpdatedAge ? `${compactUpdatedAge} old` : "No age"}
+          title={`eBay sold age: ${updatedAge ?? "unknown"}`}
+          tone={updateTone}
+        />
+        <span aria-hidden="true">/</span>
+        <PriceStatusInlineItem
+          value={display.sampleSize != null ? `${display.sampleSize} sold` : "No sample"}
+          title={
+            display.sampleSize != null
+              ? `${display.sampleSize} sold listings in the current eBay sample`
+              : "No sold-listing sample size stored"
+          }
+          tone={display.sampleSize != null ? "neutral" : "warning"}
+        />
+        <span aria-hidden="true">/</span>
+        {belowRawFloor && (
+          <>
+            <PriceStatusInlineItem
+              value={`Below raw ${formatCurrency(rawFloorValue, "EUR")}`}
+              title={`This eBay sold graded value is below current raw CardMarket ${formatCurrency(
+                rawFloorValue,
+                "EUR"
+              )}`}
+              tone="danger"
+            />
+            <span aria-hidden="true">/</span>
+          </>
+        )}
+        <PriceStatusInlineItem
+          value={statusLabel}
+          title={[
+            `Status: ${statusLabel}`,
+            syncedLabel ? `Synced ${syncedLabel}` : null,
+            checkedLabel ? `Checked ${checkedLabel}` : null,
+          ]
+            .filter(Boolean)
+            .join(". ")}
+          tone={statusTone}
+        />
+      </div>
+    </div>
+  );
 }
 
 export function CardModalHistorySection({
@@ -1036,6 +1182,13 @@ export function CardModalHistorySection({
   selectedEbaySoldGradedHistory: CardEbaySoldGradedPriceHistorySeries | null;
   onSelectEbaySoldGradedLabel: (label: string) => void;
 }) {
+  const [statusNow, setStatusNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setStatusNow(Date.now()), 60 * 1000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const hasCardMarketGradedHistory = gradedPriceHistory.some((series) =>
     series.points.some((point) => point.value != null)
   );
@@ -1092,6 +1245,15 @@ export function CardModalHistorySection({
     selectedEbaySoldGradedPrice,
     selectedEbaySoldGradedHistory
   );
+  const ebaySoldUpdatedAt = getEbaySoldUpdatedAt(ebaySoldDisplay, card);
+  const ebaySoldUpdatedHint = formatEbaySoldUpdatedHint(ebaySoldUpdatedAt, statusNow);
+  const ebaySoldBelowRawHint =
+    ebaySoldDisplay.currency === "EUR" &&
+    ebaySoldDisplay.value != null &&
+    activeCardMarketCurrentValue != null &&
+    activeCardMarketCurrentValue > ebaySoldDisplay.value
+      ? `Below raw CM ${formatCurrency(activeCardMarketCurrentValue, "EUR")}`
+      : null;
   const rawPricingMetrics: PriceMetric[] =
     activeMarketSource === "tcgplayer"
       ? [
@@ -1147,10 +1309,15 @@ export function CardModalHistorySection({
     {
       label: "eBay Sold",
       value: formatCurrency(ebaySoldDisplay.value, ebaySoldDisplay.currency),
-      hint:
+      hint: [
         ebaySoldDisplay.sampleSize != null
           ? `${ebaySoldDisplay.sampleSize} sold listings`
-          : "Recent sold listings",
+          : "No sample size",
+        ebaySoldUpdatedHint,
+        ebaySoldBelowRawHint,
+      ]
+        .filter(Boolean)
+        .join(" / "),
     },
     ...(ebaySoldDisplay.originalUsd
       ? [{ label: "Original", value: ebaySoldDisplay.originalUsd }]
@@ -1362,7 +1529,16 @@ export function CardModalHistorySection({
           </div>
         )}
 
-        <CardPriceStatusLine card={card} />
+        {effectiveHistoryChartMode === "graded" && effectiveGradedSource === "ebay" ? (
+          <EbaySoldStatusLine
+            card={card}
+            display={ebaySoldDisplay}
+            now={statusNow}
+            rawFloorValue={activeCardMarketCurrentValue}
+          />
+        ) : (
+          <CardPriceStatusLine card={card} />
+        )}
       </div>
 
       <CardModalCurrentPricingPanel

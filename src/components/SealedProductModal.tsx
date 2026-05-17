@@ -33,7 +33,7 @@ interface Props {
 export default function SealedProductModal({ product, onClose }: Props) {
   useBodyScrollLock();
 
-  const { displaySettings } = useSettings();
+  const { displaySettings, currentUserRole } = useSettings();
   const [modalProduct, setModalProduct] = useState<SealedDetailResponse>(() =>
     buildInitialSealedDetail(product)
   );
@@ -61,6 +61,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const cardMarketUrl = resolveCardMarketSealedProductUrl(modalProduct);
   const isBusy = refreshing || syncingHistory;
   const priceFetchedAtLabel = formatTimestamp(modalProduct.price_fetched_at);
+  const canManageSealedPrices = currentUserRole === "admin";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -146,6 +147,19 @@ export default function SealedProductModal({ product, onClose }: Props) {
     }
   }
 
+  async function refreshModalProductFromServer() {
+    try {
+      const response = await fetch(`/api/sealed/${encodeURIComponent(modalProduct.id)}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const data = (await response.json()) as SealedDetailResponse;
+      setModalProduct(data);
+    } catch {
+      // The page refresh still updates collection state; keep the modal usable if this fails.
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
@@ -187,8 +201,6 @@ export default function SealedProductModal({ product, onClose }: Props) {
                 mediaWidth={layout.mediaWidth}
                 imageSize={layout.imageSize}
                 imagePadding={layout.imagePadding}
-                priceHistoryCount={priceHistory.length}
-                priceFetchedAtLabel={priceFetchedAtLabel}
               />
 
               <div className="min-w-0 space-y-3">
@@ -197,14 +209,15 @@ export default function SealedProductModal({ product, onClose }: Props) {
                   titleClass={layout.titleClass}
                   metaClassName={layout.metaClassName}
                   detailStatClass={layout.detailStatClass}
-                  priceHistoryCount={priceHistory.length}
-                  priceFetchedAtLabel={priceFetchedAtLabel}
                   isBusy={isBusy}
                   refreshing={refreshing}
                   syncingHistory={syncingHistory}
                   actionError={actionError}
+                  canManageSealedPrices={canManageSealedPrices}
                   onRefresh={() => void runSealedAction("refresh")}
                   onSyncHistory={() => void runSealedAction("sync-history")}
+                  onAddedToCollection={refreshModalProductFromServer}
+                  onClose={onClose}
                 />
 
                 <SealedModalHistorySection
@@ -223,6 +236,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
             product={modalProduct}
             footerGridClass={layout.footerGridClass}
             cardMarketUrl={cardMarketUrl}
+            onAddedToCollection={refreshModalProductFromServer}
             onClose={onClose}
           />
         </div>

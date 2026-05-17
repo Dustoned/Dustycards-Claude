@@ -23,6 +23,7 @@ import {
 
 describe("TCGGO request limiter", () => {
   beforeEach(() => {
+    vi.stubEnv("DUSTYCARDS_ENABLE_LOCAL_SYNC", "1");
     __tcggoTestUtils.resetRequestRuntime();
     vi.restoreAllMocks();
   });

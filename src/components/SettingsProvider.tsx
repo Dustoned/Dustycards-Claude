@@ -234,13 +234,12 @@ export default function SettingsProvider({
 
   function set<K extends keyof UserSettings>(key: K, value: UserSettings[K]) {
     setSettings((prev) => {
-      const effectiveValue = key === "autoPriceRefresh" ? true : value;
-      const next = { ...prev, [key]: effectiveValue };
+      const next = { ...prev, [key]: value };
       saveToBrowser(next);
       if (syncToAccount) {
         void saveToAccount(next).catch(() => undefined);
       }
-      if (key === "theme") applyTheme(effectiveValue as Theme);
+      if (key === "theme") applyTheme(value as Theme);
       if (key === "widescreen") {
         const effectiveSettings = getDisplaySettings(next, isMobileViewport);
         applyWidescreen(effectiveSettings.widescreen);

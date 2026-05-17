@@ -86,6 +86,41 @@ function getLatestSeriesValue(points: Array<{ value: number | null }>): number |
   return undefined;
 }
 
+function getInitialCardMarketFloorValue(card: ModalCardData): number | null {
+  return (
+    card.price?.cm_en_lowest_nm ??
+    card.price?.cm_de_lowest_nm ??
+    card.price?.cm_fr_lowest_nm ??
+    card.price?.cm_es_lowest_nm ??
+    card.price?.cm_it_lowest_nm ??
+    null
+  );
+}
+
+function getEbaySoldDisplayValueEur(
+  price: NonNullable<ModalCardData["ebay_sold_graded_prices"]>[number] | null | undefined
+): number | null {
+  if (!price) return null;
+  if (price.median_price_eur != null) return price.median_price_eur;
+  return price.currency.toUpperCase() === "EUR" ? price.median_price : null;
+}
+
+function shouldOpenOnRawMarket(
+  card: ModalCardData,
+  savedCardMarketGradedLabel: string | null,
+  savedEbaySoldGradedLabel: string | null
+): boolean {
+  if (savedCardMarketGradedLabel || !savedEbaySoldGradedLabel) return false;
+
+  const rawFloorValue = getInitialCardMarketFloorValue(card);
+  const savedEbaySoldPrice = (card.ebay_sold_graded_prices ?? []).find(
+    (price) => price.label === savedEbaySoldGradedLabel
+  );
+  const ebaySoldValue = getEbaySoldDisplayValueEur(savedEbaySoldPrice);
+
+  return rawFloorValue != null && ebaySoldValue != null && rawFloorValue > ebaySoldValue;
+}
+
 export default function CardModal({ card, showGradedSlabPreview = false, onClose }: Props) {
   useBodyScrollLock();
 
@@ -103,6 +138,11 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     card.ebay_sold_graded_prices ?? [],
     card.collection_item
   );
+  const defaultToRawMarket = shouldOpenOnRawMarket(
+    card,
+    savedCardMarketGradedLabel,
+    savedEbaySoldGradedLabel
+  );
   const [modalCard, setModalCard] = useState(card);
   const { displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
@@ -111,7 +151,9 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [historyChartMode, setHistoryChartMode] = useState<"market" | "graded">(() =>
-    savedCardMarketGradedLabel || savedEbaySoldGradedLabel ? "graded" : "market"
+    defaultToRawMarket || (!savedCardMarketGradedLabel && !savedEbaySoldGradedLabel)
+      ? "market"
+      : "graded"
   );
   const [marketDataSource, setMarketDataSource] = useState<"cardmarket" | "tcgplayer">(
     "cardmarket"

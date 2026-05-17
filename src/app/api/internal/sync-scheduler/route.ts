@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runSyncSchedulerTick } from "@/lib/sync/scheduler";
+import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 import { getSyncErrorResponse } from "@/app/api/sync-error-response";
 
 export const runtime = "nodejs";
@@ -29,6 +30,9 @@ function secretsMatch(requestSecret: string, configuredSecret: string): boolean 
 }
 
 export async function POST(req: NextRequest) {
+  const scraperDisabled = getScraperDisabledResponse(req);
+  if (scraperDisabled) return scraperDisabled;
+
   const configuredSecret = getConfiguredSecret();
   const requestSecret = getRequestSecret(req);
 

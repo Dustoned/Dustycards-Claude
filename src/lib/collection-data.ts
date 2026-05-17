@@ -9,8 +9,8 @@ import {
   type CollectionCostBasis,
   type CollectionCardValueLike,
   type CollectionSealedValueLike,
-  getCollectionMatchedGradedPrice,
   getCollectionCardMarketValue,
+  getCollectionCardValueInfo,
   getCollectionSealedMarketValue,
   sumCollectionPurchasePrices,
 } from "@/lib/collection";
@@ -955,8 +955,7 @@ function buildCardViewItem(
 ): CollectionCardViewItem {
   const cmValue = getCollectionCardMarketValue(record.card);
   const tcpValue = record.card.prices[0]?.tcp_market ?? null;
-  const currentValue = getCollectionCardCurrentValue(record, options);
-  const matchedGradedPrice = getCollectionMatchedGradedPrice(record.card, {
+  const valueInfo = getCollectionCardValueInfo(record.card, {
     gradingCompany: record.grading_company,
     gradingGrade: record.grading_grade,
     usdToEurRate: options?.usdToEurRate,
@@ -979,8 +978,8 @@ function buildCardViewItem(
     episode_release_date: record.card.episode.release_date,
     cm_value: cmValue,
     tcp_value: tcpValue,
-    current_value: currentValue,
-    current_value_label: matchedGradedPrice?.label ?? null,
+    current_value: valueInfo.value,
+    current_value_label: valueInfo.label,
     purchase_price: record.purchase_price,
     ...buildCostBasisFields(costBasis ?? buildDirectCostBasis(record.purchase_price)),
     condition: record.condition,
@@ -1038,11 +1037,11 @@ function getCollectionCardCurrentValue(
   record: CollectionCardMetricRecord,
   options?: { usdToEurRate?: CurrencyExchangeRate | null }
 ): number | null {
-  return getCollectionCardMarketValue(record.card, {
+  return getCollectionCardValueInfo(record.card, {
     gradingCompany: record.grading_company,
     gradingGrade: record.grading_grade,
     usdToEurRate: options?.usdToEurRate,
-  });
+  }).value;
 }
 
 function buildSealedViewItem(record: CollectionSealedRecord): CollectionSealedViewItem {
@@ -2688,11 +2687,11 @@ export async function getBinderPageData(
             : getCollectionCardMarketValue(card),
         current_value_label:
           owned
-            ? getCollectionMatchedGradedPrice(card, {
+            ? getCollectionCardValueInfo(card, {
                 gradingCompany: owned.gradingCompany,
                 gradingGrade: owned.gradingGrade,
                 usdToEurRate: valueOptions.usdToEurRate,
-              })?.label ?? null
+              }).label
             : null,
         purchase_price: owned ? Number(owned.purchasePrice.toFixed(2)) : null,
         cost_basis_value: owned ? Number(owned.costBasisValue.toFixed(2)) : null,

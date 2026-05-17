@@ -5,7 +5,7 @@ import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response"
 import { getSyncErrorResponse } from "@/app/api/sync-error-response";
 
 export async function POST(request: NextRequest) {
-  const scraperDisabled = getScraperDisabledResponse();
+  const scraperDisabled = getScraperDisabledResponse(request);
   if (scraperDisabled) return scraperDisabled;
 
   try {

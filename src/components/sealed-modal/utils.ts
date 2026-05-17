@@ -34,6 +34,8 @@ export function buildInitialSealedDetail(
     price_fetched_at: null,
     history_synced_at: null,
     price_history: [],
+    collection_item: null,
+    collection_summary: null,
   };
 }
 
@@ -43,10 +45,10 @@ export function getSealedModalLayoutClasses(size: ModalSize, widescreen: boolean
     size === "small" ? "p-2" : size === "large" ? "p-5 sm:p-6" : "p-2.5 sm:p-3";
   const detailStatClass =
     size === "small"
-      ? "rounded-[16px] border border-white/8 bg-black/18 px-3 py-2.5 backdrop-blur-sm"
+      ? "rounded-[14px] border border-white/8 bg-black/18 px-3 py-2 backdrop-blur-sm max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2"
       : size === "large"
-        ? "rounded-[22px] border border-white/8 bg-black/18 px-5 py-4 backdrop-blur-sm"
-        : "rounded-[19px] border border-white/8 bg-black/18 px-4 py-3 backdrop-blur-sm";
+        ? "rounded-[18px] border border-white/8 bg-black/18 px-4 py-3 backdrop-blur-sm max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2"
+        : "rounded-[16px] border border-white/8 bg-black/18 px-3.5 py-2.5 backdrop-blur-sm max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2";
   const footerGridClass = `grid gap-3 border-t border-white/8 bg-black/12 ${scale.footerPad} pt-3 sm:pt-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]`;
 
   return {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import {
   COLLECTION_CONDITIONS,
   COLLECTION_GRADING_COMPANIES,
@@ -10,6 +11,19 @@ import {
 import CollectionInlineBinderCreator, {
   type InlineBinderOption,
 } from "@/components/CollectionInlineBinderCreator";
+import {
+  modalActionRowClass,
+  modalBodyClass,
+  modalCenteredMobileOverlayClass,
+  modalCenteredPanelClass,
+  modalCloseButtonClass,
+  modalCompactHeaderClass,
+  modalInputClass,
+  modalOptionClass as modalOptionClasses,
+  modalPrimaryButtonClass,
+  modalSecondaryButtonClass,
+  modalSelectClass as modalSelectClasses,
+} from "@/components/modal-glass-styles";
 
 type BinderOption = InlineBinderOption;
 
@@ -31,10 +45,6 @@ interface Props {
   initialBinderId?: string | null;
   lockedBinderName?: string | null;
 }
-
-const modalSelectClasses =
-  "w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18";
-const modalOptionClasses = "bg-white text-gray-900";
 
 export default function CollectionBulkAddCardsModal({
   cards,
@@ -173,32 +183,41 @@ export default function CollectionBulkAddCardsModal({
 
   return (
     <div
-      className="fixed inset-0 z-[72] flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(12px)" }}
+      className={`${modalCenteredMobileOverlayClass} z-[72]`}
       onClick={onClose}
     >
       <div
-        className="glass w-full max-w-xl rounded-3xl border border-white/12 bg-[#0d0d10]/90 p-6 text-white shadow-2xl shadow-black/45"
+        className={`${modalCenteredPanelClass} max-w-xl`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38">
-            Bulk Add Cards
-          </p>
-          <h2 className="mt-2 text-2xl font-bold leading-tight">
-            {cards.length} {cards.length === 1 ? "card" : "cards"}
-          </h2>
-          <p className="mt-1 text-sm text-white/48">
-            {sharedEpisode
-              ? `${sharedEpisode.name}${sharedEpisode.code ? ` (${sharedEpisode.code})` : ""}`
-              : "Mixed selections"}
-          </p>
-          <p className="mt-3 rounded-2xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white/65">
-            {previewNames}
-          </p>
+        <div className={modalCompactHeaderClass}>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+              Bulk Add Cards
+            </p>
+            <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+              {cards.length} {cards.length === 1 ? "card" : "cards"}
+            </h2>
+            <p className="mt-1 truncate text-sm text-white/48 max-[640px]:text-[12px]">
+              {sharedEpisode
+                ? `${sharedEpisode.name}${sharedEpisode.code ? ` (${sharedEpisode.code})` : ""}`
+                : "Mixed selections"}
+            </p>
+            <p className="mt-3 rounded-2xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white/65 max-[640px]:rounded-xl max-[640px]:text-[12px]">
+              {previewNames}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className={modalCloseButtonClass}
+            aria-label="Close bulk add"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className={`${modalBodyClass} space-y-4`} onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             {binderLocked ? (
               <div className="space-y-1.5 text-sm">
@@ -239,7 +258,7 @@ export default function CollectionBulkAddCardsModal({
                 inputMode="decimal"
                 value={purchasePrice}
                 onChange={(event) => setPurchasePrice(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                className={modalInputClass}
                 placeholder="0.00"
               />
             </label>
@@ -296,7 +315,7 @@ export default function CollectionBulkAddCardsModal({
                 type="text"
                 value={gradingGrade}
                 onChange={(event) => setGradingGrade(event.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+                className={modalInputClass}
                 placeholder="10 / 9.5 / Pristine"
               />
             </label>
@@ -315,7 +334,7 @@ export default function CollectionBulkAddCardsModal({
               type="text"
               value={tags}
               onChange={(event) => setTags(event.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+              className={modalInputClass}
               placeholder="favorite, binder hit, want graded"
             />
           </label>
@@ -326,25 +345,25 @@ export default function CollectionBulkAddCardsModal({
               rows={3}
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition-colors focus:border-white/18"
+              className={`${modalInputClass} resize-none`}
               placeholder="Optional notes"
             />
           </label>
 
           {saveError && <p className="text-sm text-rose-300">{saveError}</p>}
 
-          <div className="flex gap-3 pt-1">
+          <div className={modalActionRowClass}>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className={modalPrimaryButtonClass}
             >
               {saving ? "Saving..." : `Save ${cards.length} card${cards.length === 1 ? "" : "s"}`}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white"
+              className={modalSecondaryButtonClass}
             >
               Cancel
             </button>

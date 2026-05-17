@@ -46,7 +46,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   onePieceLibraryEnabled: false,
   uiScale: "medium",
   mobileUiScale: "small",
-  autoPriceRefresh: true,
+  autoPriceRefresh: false,
   binderWatchMinPrice: 50,
   defaultView: "table",
   mobileDefaultView: "grid",
@@ -106,7 +106,10 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       ["small", "medium", "large"],
       DEFAULT_SETTINGS.mobileUiScale
     ),
-    autoPriceRefresh: true,
+    autoPriceRefresh:
+      typeof source.autoPriceRefresh === "boolean"
+        ? source.autoPriceRefresh
+        : DEFAULT_SETTINGS.autoPriceRefresh,
     binderWatchMinPrice: pickNonNegativeNumber(
       source.binderWatchMinPrice,
       DEFAULT_SETTINGS.binderWatchMinPrice

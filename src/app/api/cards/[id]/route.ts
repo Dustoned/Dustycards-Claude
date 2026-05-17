@@ -154,6 +154,9 @@ async function getCardDetailPayload(id: string, userId: string) {
       tcggo_url: true,
       price_source_status: true,
       price_source_checked_at: true,
+      ebay_sold_graded_status: true,
+      ebay_sold_graded_checked_at: true,
+      ebay_sold_graded_synced_at: true,
       episode: {
         select: { id: true, name: true, code: true, series: true, release_date: true },
       },
@@ -210,6 +213,7 @@ async function getCardDetailPayload(id: string, userId: string) {
           median_price: true,
           currency: true,
           sample_size: true,
+          fetched_at: true,
         },
       },
       ebaySoldGradedPriceSnapshots: {
@@ -293,6 +297,7 @@ async function getCardDetailPayload(id: string, userId: string) {
       median_price_eur: medianPriceEur,
       exchange_rate_usd_eur: currency === "USD" ? usdToEurRate?.rate ?? null : null,
       exchange_rate_date: currency === "USD" ? usdToEurRate?.date ?? null : null,
+      fetched_at: price.fetched_at ? price.fetched_at.toISOString() : null,
     };
   });
 
@@ -312,6 +317,13 @@ async function getCardDetailPayload(id: string, userId: string) {
     price_source_status: card.price_source_status,
     price_source_checked_at: card.price_source_checked_at
       ? card.price_source_checked_at.toISOString()
+      : null,
+    ebay_sold_graded_status: card.ebay_sold_graded_status,
+    ebay_sold_graded_checked_at: card.ebay_sold_graded_checked_at
+      ? card.ebay_sold_graded_checked_at.toISOString()
+      : null,
+    ebay_sold_graded_synced_at: card.ebay_sold_graded_synced_at
+      ? card.ebay_sold_graded_synced_at.toISOString()
       : null,
     price_fetched_at: latestPrice ? latestPrice.fetched_at.toISOString() : null,
     price: latestPrice
@@ -399,7 +411,7 @@ export async function POST(
   try {
     const user = await requireAdmin();
     const { id } = await params;
-    const scraperDisabled = getScraperDisabledResponse();
+    const scraperDisabled = getScraperDisabledResponse(req);
     if (scraperDisabled) return scraperDisabled;
 
     let action: CardAction = "refresh";

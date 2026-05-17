@@ -349,7 +349,7 @@ interface AutomationSectionProps {
   knownUnavailableCards: number;
   activeScraperLabel: string | null;
   scraperDisabled: boolean;
-  scraperDisabledLabel: string;
+  scraperDisabledReason: string;
 }
 
 function UsageStat({
@@ -403,10 +403,8 @@ export default function AutomationSection({
   knownUnavailableCards,
   activeScraperLabel,
   scraperDisabled,
-  scraperDisabledLabel,
+  scraperDisabledReason,
 }: AutomationSectionProps) {
-  const scraperDisabledReason = `Scraper requests are disabled by ${scraperDisabledLabel}.`;
-
   return (
     <div className="settings-panel glass min-w-0 rounded-2xl p-6 shadow-md shadow-black/5">
       <div className="mb-5">

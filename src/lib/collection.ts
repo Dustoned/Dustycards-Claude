@@ -239,6 +239,56 @@ export function getCollectionMatchedGradedPrice(
   return null;
 }
 
+export interface CollectionCardValueInfo {
+  value: number | null;
+  label: string | null;
+  source: "raw" | "raw_floor" | "cardmarket_graded" | "ebay_sold_graded" | "none";
+  matchedGradedPrice:
+    | { label: string; price: number; source: "ebay_sold_graded" | "cardmarket_graded" }
+    | null;
+}
+
+export function getCollectionCardValueInfo(
+  card: CollectionCardValueLike | null | undefined,
+  options?: {
+    gradingCompany?: string | null;
+    gradingGrade?: string | null;
+    usdToEurRate?: CurrencyExchangeRate | null;
+  }
+): CollectionCardValueInfo {
+  const rawValue = getCardMarketValue(card?.prices?.[0] ?? null);
+  const matchedGradedPrice = getCollectionMatchedGradedPrice(card, options);
+
+  if (!matchedGradedPrice) {
+    return {
+      value: rawValue,
+      label: null,
+      source: rawValue == null ? "none" : "raw",
+      matchedGradedPrice: null,
+    };
+  }
+
+  if (
+    matchedGradedPrice.source === "ebay_sold_graded" &&
+    rawValue != null &&
+    rawValue > matchedGradedPrice.price
+  ) {
+    return {
+      value: rawValue,
+      label: "CardMarket raw floor",
+      source: "raw_floor",
+      matchedGradedPrice,
+    };
+  }
+
+  return {
+    value: matchedGradedPrice.price,
+    label: matchedGradedPrice.label,
+    source: matchedGradedPrice.source,
+    matchedGradedPrice,
+  };
+}
+
 export function getCollectionCardMarketValue(
   card: CollectionCardValueLike | null | undefined,
   options?: {
@@ -247,12 +297,7 @@ export function getCollectionCardMarketValue(
     usdToEurRate?: CurrencyExchangeRate | null;
   }
 ): number | null {
-  const matchedGradedPrice = getCollectionMatchedGradedPrice(card, options);
-  if (matchedGradedPrice) {
-    return matchedGradedPrice.price;
-  }
-
-  return getCardMarketValue(card?.prices?.[0] ?? null);
+  return getCollectionCardValueInfo(card, options).value;
 }
 
 export function getCollectionSealedMarketValue(

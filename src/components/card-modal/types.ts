@@ -19,6 +19,9 @@ export interface ModalCardData {
   tcggo_url: string | null;
   price_source_status: string | null;
   price_source_checked_at: string | null;
+  ebay_sold_graded_status?: string | null;
+  ebay_sold_graded_checked_at?: string | null;
+  ebay_sold_graded_synced_at?: string | null;
   price_fetched_at: string | null;
   price: {
     cm_en_lowest_nm: number | null;
@@ -44,6 +47,7 @@ export interface ModalCardData {
     median_price: number;
     currency: string;
     sample_size: number | null;
+    fetched_at?: string | null;
     median_price_eur?: number | null;
     exchange_rate_usd_eur?: number | null;
     exchange_rate_date?: string | null;

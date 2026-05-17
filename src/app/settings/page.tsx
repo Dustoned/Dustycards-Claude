@@ -6,7 +6,10 @@ import { db } from "@/lib/db";
 import { LIVE_DB_PATH } from "@/lib/db-paths";
 import { decodeSyncLogDetailsJson, decodeSyncLogMessage } from "@/lib/sync-log-details";
 import { timeAsync } from "@/lib/performance-timing";
-import { areScraperRequestsDisabled, SCRAPER_DISABLED_ENV } from "@/lib/scraper-guard";
+import {
+  areScraperRequestsDisabled,
+  getScraperRequestsDisabledReason,
+} from "@/lib/scraper-guard";
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import {
   countManualCardHistoryCandidates,
@@ -290,6 +293,7 @@ export default async function SettingsPage() {
   }
 
   const scraperDisabled = areScraperRequestsDisabled();
+  const scraperDisabledReason = getScraperRequestsDisabledReason();
 
   await reconcileStaleSyncLogs();
 
@@ -914,7 +918,7 @@ export default async function SettingsPage() {
                   knownUnavailableCards={knownUnavailablePriceSummary.totalCards}
                   activeScraperLabel={activeScraperLabel}
                   scraperDisabled={scraperDisabled}
-                  scraperDisabledLabel={SCRAPER_DISABLED_ENV}
+                  scraperDisabledReason={scraperDisabledReason ?? "Scraper requests are disabled."}
                 />
               </div>
             ),
