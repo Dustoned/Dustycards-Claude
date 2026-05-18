@@ -61,6 +61,7 @@ import {
   fetchCardsForEpisode,
   fetchHistoryPricesByItemId,
   fetchSealedProductsForEpisode,
+  isTcggoHttpStatusError,
   isTcggoQuotaExceededError,
   type NormalizedCard,
   type NormalizedSealedProduct,
@@ -144,6 +145,14 @@ const MANUAL_HISTORY_POKEMON_RARE_EXCLUDED_RARITIES = [
   "R",
   "r",
 ] as const;
+
+function getAutoCatalogGameLabel(game: TradingCardGame): string {
+  return game === ONE_PIECE_GAME ? "One Piece" : "Pokemon";
+}
+
+function shouldSkipAutoCatalogStatusError(error: unknown): boolean {
+  return isTcggoHttpStatusError(error, 403);
+}
 
 interface DueCardCandidate {
   id: string;
@@ -3856,13 +3865,23 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       const catalogBatch = shouldRunCatalogWithAutoBatch
         ? mergeAutoCatalogSyncSelections(
             await Promise.all(
-              catalogGamesToSync.map((game) =>
+              catalogGamesToSync.map(async (game) =>
                 selectAutoCatalogSyncBatch({
                   now: new Date(),
                   minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
                   maxEpisodes: AUTO_CATALOG_SYNC_MAX_EPISODES,
                   game,
                   fetchRemoteEpisodes: () => fetchAllEpisodes(game),
+                }).catch(async (error) => {
+                  if (!shouldSkipAutoCatalogStatusError(error)) {
+                    throw error;
+                  }
+
+                  await progress.updateMessage(
+                    `Skipping ${getAutoCatalogGameLabel(game)} catalog refresh after TCGGO returned 403; continuing with price batch.`
+                  );
+
+                  return createEmptyAutoCatalogSyncSelection();
                 })
               )
             )

@@ -16,10 +16,14 @@ vi.mock("@/lib/tcgdex", () => ({
 import {
   __tcggoTestUtils,
   extractEbaySoldGradedPrices,
+  fetchAllEpisodes,
   fetchCardsForEpisode,
+  isTcggoHttpStatusError,
   TCGGO_REQUEST_CONCURRENCY,
+  TcggoHttpStatusError,
   TcggoQuotaExceededError,
 } from "@/lib/tcggo";
+import { ONE_PIECE_GAME } from "@/lib/games";
 
 describe("TCGGO request limiter", () => {
   beforeEach(() => {
@@ -80,6 +84,29 @@ describe("TCGGO request limiter", () => {
     await expect(fetchCardsForEpisode("1")).rejects.toBeInstanceOf(
       TcggoQuotaExceededError
     );
+  });
+
+  it("exposes scraper status errors for catalog recovery", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ data: [] }), {
+          status: 403,
+        })
+      )
+    );
+
+    try {
+      await fetchAllEpisodes(ONE_PIECE_GAME);
+      throw new Error("Expected fetchAllEpisodes to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(TcggoHttpStatusError);
+      expect(isTcggoHttpStatusError(error, 403)).toBe(true);
+      expect(error).toMatchObject({
+        path: "/one-piece/episodes?page=1&per_page=100",
+        status: 403,
+      });
+    }
   });
 });
 

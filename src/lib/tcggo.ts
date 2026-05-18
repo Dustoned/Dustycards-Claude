@@ -346,6 +346,28 @@ export function isTcggoQuotaExceededError(
   return error instanceof TcggoQuotaExceededError;
 }
 
+export class TcggoHttpStatusError extends Error {
+  path: string;
+  status: number;
+
+  constructor(path: string, status: number) {
+    super(`TCGGO API ${status}: ${path}`);
+    this.name = "TcggoHttpStatusError";
+    this.path = path;
+    this.status = status;
+  }
+}
+
+export function isTcggoHttpStatusError(
+  error: unknown,
+  status?: number
+): error is TcggoHttpStatusError {
+  return (
+    error instanceof TcggoHttpStatusError &&
+    (status == null || error.status === status)
+  );
+}
+
 interface RuntimeQuotaSnapshot {
   requestsLimit: number | null;
   requestsRemaining: number | null;
@@ -571,7 +593,7 @@ async function apiFetch<T>(path: string): Promise<T> {
           throw rateLimitError;
         }
 
-        const statusError = new Error(`TCGGO API ${res.status}: ${path}`);
+        const statusError = new TcggoHttpStatusError(path, res.status);
         if (attempt < MAX_RETRY_ATTEMPTS && RETRYABLE_STATUS_CODES.has(res.status)) {
           lastError = statusError;
           attempt += 1;

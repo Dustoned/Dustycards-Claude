@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.12",
+    releasedAt: "May 18, 2026",
+    title: "TCGGO catalog refresh guard",
+    summary: "Background price refresh now keeps running when TCGGO blocks the optional One Piece catalog endpoint.",
+    tone: "fixed",
+    highlights: [
+      "Changed TCGGO HTTP failures into typed status errors so the scraper can react safely.",
+      "Made the auto catalog preflight skip a 403 catalog response instead of failing the whole price batch.",
+      "Kept quota errors and real price refresh failures visible so broken core scraping is still reported.",
+    ],
+  },
+  {
     version: "2.1.11",
     releasedAt: "May 18, 2026",
     title: "Larger quick view card thumbnails",
