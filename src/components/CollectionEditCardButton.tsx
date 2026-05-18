@@ -9,6 +9,12 @@ import {
   COLLECTION_GRADING_COMPANIES,
   COLLECTION_LANGUAGES,
 } from "@/lib/collection";
+import {
+  BGS_SUBGRADE_KEYS,
+  formatBgsSubgradeName,
+  type BgsSubgradeKey,
+  type BgsSubgrades,
+} from "@/lib/graded-slabs";
 import CollectionInlineBinderCreator, {
   type InlineBinderOption,
 } from "@/components/CollectionInlineBinderCreator";
@@ -52,6 +58,7 @@ interface CollectionCardItemRef {
   tags: string[];
   grading_company: string | null;
   grading_grade: string | null;
+  grading_subgrades?: BgsSubgrades | null;
 }
 
 interface Props {
@@ -113,6 +120,7 @@ export default function CollectionEditCardButton({
   const [tags, setTags] = useState(item.tags.join(", "));
   const [gradingCompany, setGradingCompany] = useState(item.grading_company ?? "");
   const [gradingGrade, setGradingGrade] = useState(item.grading_grade ?? "");
+  const [bgsSubgrades, setBgsSubgrades] = useState<BgsSubgrades>(item.grading_subgrades ?? {});
 
   useBodyScrollLock(open);
 
@@ -160,7 +168,7 @@ export default function CollectionEditCardButton({
     [binders, binderId]
   );
   const purchasePriceLabel =
-    selectedBinder?.type === "linked_set" ? "Card paid (adds to set spend)" : "Purchase price";
+    selectedBinder?.type === "linked_set" ? "Card paid (adds to overall spend)" : "Purchase price";
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -180,6 +188,8 @@ export default function CollectionEditCardButton({
           tags,
           gradingCompany: cardKind === "graded" ? gradingCompany || null : null,
           gradingGrade: cardKind === "graded" ? gradingGrade || null : null,
+          gradingSubgrades:
+            cardKind === "graded" && gradingCompany === "BGS" ? bgsSubgrades : null,
         }),
       });
 
@@ -211,11 +221,19 @@ export default function CollectionEditCardButton({
     setTags(item.tags.join(", "));
     setGradingCompany(item.grading_company ?? "");
     setGradingGrade(item.grading_grade ?? "");
+    setBgsSubgrades(item.grading_subgrades ?? {});
     setCardKind(getInitialCardKind(item));
     setShowAdvanced(Boolean(item.notes || item.tags.length > 0));
     setBindersLoading(true);
     setSaveError(null);
     setOpen(true);
+  }
+
+  function updateBgsSubgrade(key: BgsSubgradeKey, value: string) {
+    setBgsSubgrades((prev) => ({
+      ...prev,
+      [key]: value,
+    }));
   }
 
   function handleBinderCreated(binder: BinderOption) {
@@ -349,7 +367,7 @@ export default function CollectionEditCardButton({
                         Card type
                       </p>
                       <p className="text-xs text-white/42 max-[640px]:text-[10px]">
-                        Use graded only for slabbed copies.
+                        Graded copies still keep the selected raw condition.
                       </p>
                     </div>
                     <div className="inline-flex shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-1">
@@ -365,6 +383,7 @@ export default function CollectionEditCardButton({
                             if (option.key === "raw") {
                               setGradingCompany("");
                               setGradingGrade("");
+                              setBgsSubgrades({});
                             }
                           }}
                           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors max-[640px]:px-2.5 ${
@@ -385,7 +404,13 @@ export default function CollectionEditCardButton({
                         <span className="text-white/60">Grading company</span>
                         <select
                           value={gradingCompany}
-                          onChange={(event) => setGradingCompany(event.target.value)}
+                          onChange={(event) => {
+                            const nextCompany = event.target.value;
+                            setGradingCompany(nextCompany);
+                            if (nextCompany !== "BGS") {
+                              setBgsSubgrades({});
+                            }
+                          }}
                           className={modalSelectClasses}
                         >
                           <option value="" className={modalOptionClasses}>
@@ -409,6 +434,32 @@ export default function CollectionEditCardButton({
                           placeholder="10 / 9.5"
                         />
                       </label>
+
+                      {gradingCompany === "BGS" && (
+                        <div className="col-span-2 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-3 max-[640px]:rounded-xl max-[640px]:p-2.5">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-100/65 max-[640px]:text-[10px]">
+                            BGS subgrades
+                          </p>
+                          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {BGS_SUBGRADE_KEYS.map((key) => (
+                              <label key={key} className="space-y-1 text-xs text-white/55">
+                                <span>{formatBgsSubgradeName(key)}</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="10"
+                                  step="0.5"
+                                  inputMode="decimal"
+                                  value={bgsSubgrades[key] ?? ""}
+                                  onChange={(event) => updateBgsSubgrade(key, event.target.value)}
+                                  className={`${modalInputClasses} py-2 text-center font-semibold tabular-nums`}
+                                  placeholder="9.5"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

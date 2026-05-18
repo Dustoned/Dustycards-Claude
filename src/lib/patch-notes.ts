@@ -17,6 +17,25 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.0.0",
+    releasedAt: "May 18, 2026",
+    title: "Binder and graded card upgrade",
+    summary: "Mobile binder flows, graded slabs, 3D card viewing, and collection spend language received a bigger polish pass.",
+    tone: "new",
+    highlights: [
+      "Bumped the app release to 2.0.0 for the larger binder and graded card refresh.",
+      "Changed binder spend language to Overall Spend so shared collection costs read more clearly.",
+      "Moved Add Binder on mobile into a centered floating popup and made linked binder suggestions harder to miss.",
+      "Added BGS subgrade entry when adding or editing graded BGS cards, while keeping the selected raw condition attached to the graded copy.",
+      "Improved BGS slab previews and added a real BGS slab treatment in the 3D card viewer.",
+      "Matched the PSA slab back in the 3D viewer more closely to the existing PSA card model.",
+      "Added an Add button beside CardMarket inside the 3D card model view.",
+      "Reduced holo effect readability loss so card text stays sharper while preserving the foil feel.",
+      "Added a mobile 4-up binder/card grid option and a tap info popup for mobile card details.",
+      "Cleaned up the Illustrators header so its stats no longer duplicate the same count.",
+    ],
+  },
+  {
     version: "1.1.0",
     releasedAt: "May 18, 2026",
     title: "Dashboard and workflow refresh",

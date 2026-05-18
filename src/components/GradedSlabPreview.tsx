@@ -3,13 +3,19 @@
 import { memo, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
+  BGS_SUBGRADE_KEYS,
+  formatBgsSubgradeName,
   formatPsaHeaderLine,
   formatPsaNameLine,
   formatPsaSetLine,
+  getBgsGradeDescriptor,
   getPsaGradeDescriptor,
+  type BgsSubgrades,
   type SupportedGradedSlabCompany,
 } from "@/lib/graded-slabs";
 import { getCachedImageUrl } from "@/lib/image-cache";
+
+type GradedPreviewTileSize = "xsmall" | "small" | "medium" | "large";
 
 interface Props {
   company: SupportedGradedSlabCompany;
@@ -28,7 +34,8 @@ interface Props {
   loading?: "lazy" | "eager";
   priority?: boolean;
   variant?: "tile" | "detail";
-  tileSize?: "small" | "medium" | "large";
+  tileSize?: GradedPreviewTileSize;
+  bgsSubgrades?: BgsSubgrades | null;
 }
 
 function PsaLogoMark({ className = "" }: { className?: string }) {
@@ -210,31 +217,15 @@ const DETAIL_METRICS = {
 const TILE_LABEL_BASE_WIDTH = 176;
 const DETAIL_LABEL_BASE_WIDTH = 420;
 
-function getBgsGradeDescriptor(grade: string): string {
-  const normalized = grade.trim().toUpperCase();
-  if (normalized.includes("BLACK")) return "BLACK LABEL";
-
-  const numericGrade = Number(normalized.replace(/[^\d.]/g, ""));
-  if (!Number.isFinite(numericGrade)) return "GRADE";
-  if (numericGrade >= 10) return "PRISTINE";
-  if (numericGrade >= 9.5) return "GEM MINT";
-  if (numericGrade >= 9) return "MINT";
-  if (numericGrade >= 8.5) return "NM-MT+";
-  if (numericGrade >= 8) return "NM-MT";
-  if (numericGrade >= 7) return "NM";
-  if (numericGrade >= 6) return "EX-MT";
-  if (numericGrade >= 5) return "EX";
-
-  return "GRADE";
-}
-
-function getTileLabelMinScale(tileSize: "small" | "medium" | "large"): number {
+function getTileLabelMinScale(tileSize: GradedPreviewTileSize): number {
+  if (tileSize === "xsmall") return 0.42;
   if (tileSize === "small") return 0.46;
   if (tileSize === "medium") return 0.52;
   return 0.58;
 }
 
-function getTileLabelFallbackScale(tileSize: "small" | "medium" | "large"): number {
+function getTileLabelFallbackScale(tileSize: GradedPreviewTileSize): number {
+  if (tileSize === "xsmall") return 0.46;
   if (tileSize === "small") return 0.52;
   if (tileSize === "large") return 1.6;
   return 1;
@@ -262,6 +253,7 @@ function GradedSlabPreview({
   priority = false,
   variant = "tile",
   tileSize = "medium",
+  bgsSubgrades = null,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [slabWidth, setSlabWidth] = useState(0);
@@ -396,14 +388,29 @@ function GradedSlabPreview({
           </div>
         ) : isBgs ? (
           <div
-            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/15 ${metrics.genericLabel} ${theme.labelOuter}`}
+            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/20 ${metrics.genericLabel} ${theme.labelOuter}`}
           >
             <div className="relative h-full w-full" style={scaledLabelContentStyle}>
-              <div className={`relative flex h-full w-full overflow-hidden ${theme.labelInner}`}>
+              <div className={`relative grid h-full w-full grid-cols-[26%_minmax(0,1fr)_26%] overflow-hidden ${theme.labelInner}`}>
                 <div className={`absolute inset-x-0 top-0 h-[3px] ${theme.labelDivider}`} />
                 <div className="absolute inset-x-0 bottom-0 h-px bg-white/35" />
+                <div className="relative z-[1] grid grid-cols-2 border-r border-black/25 bg-black/12 text-[#17110a]">
+                  {BGS_SUBGRADE_KEYS.map((key) => (
+                    <div
+                      key={key}
+                      className="flex flex-col items-center justify-center border-b border-r border-black/16 px-0.5 last:border-r-0"
+                    >
+                      <span className="truncate text-[4.6px] font-black uppercase leading-none tracking-[0.08em] opacity-70">
+                        {formatBgsSubgradeName(key).slice(0, 4)}
+                      </span>
+                      <span className="mt-[1px] text-[8px] font-black leading-none">
+                        {bgsSubgrades?.[key] ?? "-"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
                 <div
-                  className={`relative min-w-0 flex-1 text-left leading-none text-[#17110a] ${metrics.genericContent}`}
+                  className={`relative min-w-0 text-left leading-none text-[#17110a] ${metrics.genericContent}`}
                 >
                   <div className="flex min-w-0 items-baseline gap-2">
                     <span

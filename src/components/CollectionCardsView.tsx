@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Minus, X } from "lucide-react";
+import { Info, Minus, X } from "lucide-react";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -179,6 +179,7 @@ export default function CollectionCardsView({
   const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [mobileInfoItem, setMobileInfoItem] = useState<CollectionCardViewItem | null>(null);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [removingItems, setRemovingItems] = useState(false);
   const [removeDialog, setRemoveDialog] = useState<RemoveDialogState | null>(null);
@@ -568,6 +569,7 @@ export default function CollectionCardsView({
                 tags: item.tags ?? [],
                 grading_company: item.grading_company,
                 grading_grade: item.grading_grade,
+                grading_subgrades: item.grading_subgrades ?? null,
               }
             : null,
       });
@@ -781,6 +783,7 @@ export default function CollectionCardsView({
     { value: "tcp", label: "TCP" },
   ];
   const SIZE_OPTIONS: Array<{ value: CardSize; label: string }> = [
+    { value: "xsmall", label: "4" },
     { value: "small", label: "S" },
     { value: "medium", label: "M" },
     { value: "large", label: "L" },
@@ -836,7 +839,9 @@ export default function CollectionCardsView({
     isMobileViewport
   );
   const gridGapClass = isMobileViewport
-    ? displaySettings.cardSize === "large"
+    ? displaySettings.cardSize === "xsmall"
+      ? "gap-x-1.5 gap-y-3"
+      : displaySettings.cardSize === "large"
       ? "gap-x-0 gap-y-5"
       : displaySettings.cardSize === "medium"
         ? "gap-x-3 gap-y-4"
@@ -869,6 +874,7 @@ export default function CollectionCardsView({
     },
   ];
   const toolbarSizeOptions: CardBrowserToolbarOption[] = [
+    ...(isMobileViewport ? [{ value: "xsmall", label: "4" }] : []),
     { value: "small", label: "S" },
     { value: "medium", label: "M" },
     { value: "large", label: "L" },
@@ -982,6 +988,22 @@ export default function CollectionCardsView({
       ? ["Saved filters matched 0 cards here, so this view is shown without them."]
       : []),
   ];
+  const mobileInfoDisplayPrice = mobileInfoItem
+    ? getCollectionItemPrice(mobileInfoItem, primaryPriceSource)
+    : null;
+  const mobileInfoDisplayCurrency = mobileInfoItem
+    ? getCollectionItemPriceCurrency(mobileInfoItem, primaryPriceSource)
+    : "EUR";
+  const mobileInfoCostBasis = mobileInfoItem
+    ? getCollectionItemCostBasis(mobileInfoItem)
+    : null;
+  const mobileInfoCostBasisLabel = mobileInfoItem
+    ? getCollectionItemCostBasisLabel(mobileInfoItem)
+    : "Paid";
+  const mobileInfoPnl =
+    mobileInfoItem?.current_value != null && mobileInfoCostBasis != null
+      ? Number((mobileInfoItem.current_value - mobileInfoCostBasis).toFixed(2))
+      : null;
 
   return (
     <>
@@ -2018,6 +2040,7 @@ export default function CollectionCardsView({
                             episodeSeries={item.episode_series}
                             episodeReleaseDate={item.episode_release_date}
                             cardNumber={item.card_number}
+                            bgsSubgrades={item.grading_subgrades ?? null}
                             imageUrl={item.image_url}
                             alt={item.name}
                             className="absolute inset-0"
@@ -2058,6 +2081,21 @@ export default function CollectionCardsView({
                               Missing
                             </span>
                           </div>
+                        )}
+
+                        {isMobileViewport && (
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setMobileInfoItem(item);
+                            }}
+                            className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/18 bg-black/62 text-white/86 shadow-lg shadow-black/25 backdrop-blur transition-colors hover:bg-black/74 sm:hidden"
+                            aria-label={`Show details for ${item.name}`}
+                            title="Details"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
                         )}
 
                 {(item.owned_count ?? 0) > 1 && (
@@ -2258,6 +2296,108 @@ export default function CollectionCardsView({
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mobileInfoItem && (
+        <div
+          className={`${modalCenteredMobileOverlayClass} z-[72]`}
+          onClick={() => setMobileInfoItem(null)}
+        >
+          <div
+            className={`${modalCenteredPanelClass} max-w-sm`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={modalCompactHeaderClass}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+                  Card Details
+                </p>
+                <h2 className="mt-1.5 line-clamp-2 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+                  {mobileInfoItem.name}
+                </h2>
+                <p className="mt-1 truncate text-sm text-white/48 max-[640px]:text-[12px]">
+                  {mobileInfoItem.card_number ? `#${mobileInfoItem.card_number}` : "--"} /{" "}
+                  {mobileInfoItem.episode_name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileInfoItem(null)}
+                className={modalCloseButtonClass}
+                aria-label="Close card details"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid gap-2 px-4 pb-4 pt-3">
+              {[
+                {
+                  label: primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket",
+                  value:
+                    mobileInfoDisplayPrice != null
+                      ? formatMarketCurrency(mobileInfoDisplayPrice, mobileInfoDisplayCurrency)
+                      : "No price",
+                },
+                {
+                  label: mobileInfoCostBasisLabel,
+                  value:
+                    mobileInfoCostBasis != null
+                      ? formatCollectionCurrency(mobileInfoCostBasis)
+                      : "--",
+                },
+                {
+                  label: "P&L",
+                  value:
+                    mobileInfoPnl != null
+                      ? `${mobileInfoPnl >= 0 ? "+" : ""}${formatCollectionCurrency(mobileInfoPnl)}`
+                      : "--",
+                  tone:
+                    mobileInfoPnl == null
+                      ? "neutral"
+                      : mobileInfoPnl >= 0
+                        ? "positive"
+                        : "negative",
+                },
+                {
+                  label: "Condition",
+                  value: mobileInfoItem.condition ?? "--",
+                },
+                {
+                  label: "Status",
+                  value:
+                    mobileInfoItem.owned_count && mobileInfoItem.owned_count > 1
+                      ? `${mobileInfoItem.owned_count} owned`
+                      : mobileInfoItem.owned
+                        ? "Owned"
+                        : mobileInfoItem.want_item_id
+                          ? "Wanted"
+                          : "Available",
+                },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2.5"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/38">
+                    {row.label}
+                  </span>
+                  <span
+                    className={`min-w-0 truncate text-sm font-semibold tabular-nums ${
+                      row.tone === "positive"
+                        ? "text-emerald-200"
+                        : row.tone === "negative"
+                          ? "text-rose-200"
+                          : "text-white/82"
+                    }`}
+                  >
+                    {row.value}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -530,12 +530,10 @@ export function CardModalPreview({
           onPointerDown={(event) => {
             if (event.button !== 0) return;
             event.stopPropagation();
-            onOpenThreeD();
           }}
           onMouseDown={(event) => {
             if (event.button !== 0) return;
             event.stopPropagation();
-            onOpenThreeD();
           }}
           onClick={(event) => {
             event.stopPropagation();
@@ -554,6 +552,7 @@ export function CardModalPreview({
               episodeSeries={card.episode_series}
               episodeReleaseDate={card.episode_release_date}
               cardNumber={card.card_number}
+              bgsSubgrades={card.collection_item?.grading_subgrades ?? null}
               imageUrl={card.image_url}
               alt={card.name}
               className="absolute inset-0"

@@ -2,15 +2,18 @@ import type { CardSize, ModalSize, UiScale } from "@/lib/user-settings";
 
 type DisplayMode = "normal" | "wide";
 
-type TrackScale = Record<CardSize, Record<DisplayMode, number>>;
+type TrackScale = Record<UiScale, Record<DisplayMode, number>>;
+type CardTrackScale = Record<CardSize, Record<DisplayMode, number>>;
 
-const CARD_GRID_TRACK: TrackScale = {
+const CARD_GRID_TRACK: CardTrackScale = {
+  xsmall: { normal: 132, wide: 152 },
   small: { normal: 160, wide: 192 },
   medium: { normal: 220, wide: 280 },
   large: { normal: 340, wide: 430 },
 };
 
 const MOBILE_CARD_GRID_COLUMNS: Record<CardSize, number> = {
+  xsmall: 4,
   small: 3,
   medium: 2,
   large: 1,
@@ -50,6 +53,10 @@ function px(value: number): string {
   return `${value}px`;
 }
 
+function getSharedTrackSize(cardSize: CardSize): UiScale {
+  return cardSize === "xsmall" ? "small" : cardSize;
+}
+
 function responsiveTwoColumnTrack(value: number, min = 150): string {
   return `clamp(${min}px, calc((100vw - 3rem) / 2), ${value}px)`;
 }
@@ -86,15 +93,18 @@ export function getCardGridImageSizes(
   const columns = MOBILE_CARD_GRID_COLUMNS[cardSize];
   if (columns === 1) return "calc(100vw - 2rem)";
   if (columns === 2) return "calc((100vw - 2.75rem) / 2)";
+  if (columns === 4) return "calc((100vw - 3.25rem) / 4)";
   return "calc((100vw - 3rem) / 3)";
 }
 
 export function getSupportTileTrackWidth(cardSize: CardSize, widescreen: boolean): string {
-  return responsiveTwoColumnTrack(SUPPORT_TILE_TRACK[cardSize][displayMode(widescreen)]);
+  return responsiveTwoColumnTrack(
+    SUPPORT_TILE_TRACK[getSharedTrackSize(cardSize)][displayMode(widescreen)]
+  );
 }
 
 export function getSealedProductTrackWidth(cardSize: CardSize, widescreen: boolean): string {
-  return px(SEALED_PRODUCT_TRACK[cardSize][displayMode(widescreen)]);
+  return px(SEALED_PRODUCT_TRACK[getSharedTrackSize(cardSize)][displayMode(widescreen)]);
 }
 
 export function getSealedProductGridTemplateColumns(
@@ -122,7 +132,7 @@ export function getSealedProductImageSizes(
 }
 
 export function getRichMoverTrackWidth(cardSize: CardSize, widescreen: boolean): string {
-  return px(RICH_MOVER_TRACK[cardSize][displayMode(widescreen)]);
+  return px(RICH_MOVER_TRACK[getSharedTrackSize(cardSize)][displayMode(widescreen)]);
 }
 
 export function getFixedTrackGridTemplate(trackWidth: string): string {

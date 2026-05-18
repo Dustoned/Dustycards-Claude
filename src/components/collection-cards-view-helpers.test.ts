@@ -203,8 +203,8 @@ describe("getCollectionItemCostBasis / Label", () => {
   it("uses cost_basis_label or default", () => {
     expect(getCollectionItemCostBasisLabel(makeItem())).toBe("Paid");
     expect(
-      getCollectionItemCostBasisLabel(makeItem({ cost_basis_label: "Set Spend" }))
-    ).toBe("Set Spend");
+      getCollectionItemCostBasisLabel(makeItem({ cost_basis_label: "Overall Spend" }))
+    ).toBe("Overall Spend");
   });
 });
 

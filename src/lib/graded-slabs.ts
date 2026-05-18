@@ -12,8 +12,11 @@ export const PSA_SLAB_MODEL_DIMENSIONS = {
 export const RAW_CARD_ASPECT_CLASS = "aspect-[63/88]";
 export const GRADED_SLAB_ASPECT_CLASS = "aspect-[80.3/135.2]";
 export const GRADED_SLAB_COMPANIES = ["PSA", "BGS", "CGC", "SGC", "ACE", "TAG"] as const;
+export const BGS_SUBGRADE_KEYS = ["centering", "corners", "edges", "surface"] as const;
 
 export type SupportedGradedSlabCompany = (typeof GRADED_SLAB_COMPANIES)[number];
+export type BgsSubgradeKey = (typeof BGS_SUBGRADE_KEYS)[number];
+export type BgsSubgrades = Partial<Record<BgsSubgradeKey, string>>;
 
 const SUPPORTED_GRADED_SLAB_SET = new Set<string>(GRADED_SLAB_COMPANIES);
 
@@ -37,6 +40,81 @@ export function normalizeGradingGradeLabel(grade: string | null | undefined): st
   }
 
   return normalized;
+}
+
+export function normalizeBgsSubgradeValue(value: unknown): string | null {
+  const normalized =
+    typeof value === "number" && Number.isFinite(value)
+      ? String(value)
+      : typeof value === "string"
+        ? value.trim().toUpperCase().replace(/\s+/g, " ")
+        : "";
+
+  if (!normalized) return null;
+
+  const numeric = Number(normalized.replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(numeric)) return null;
+  if (numeric < 1 || numeric > 10) return null;
+
+  return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1).replace(/\.0$/, "");
+}
+
+export function normalizeBgsSubgrades(value: unknown): BgsSubgrades | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const input = value as Record<string, unknown>;
+  const subgrades: BgsSubgrades = {};
+
+  for (const key of BGS_SUBGRADE_KEYS) {
+    const normalized = normalizeBgsSubgradeValue(input[key]);
+    if (normalized) {
+      subgrades[key] = normalized;
+    }
+  }
+
+  return Object.keys(subgrades).length > 0 ? subgrades : null;
+}
+
+export function serializeBgsSubgrades(value: unknown): string | null {
+  const normalized = normalizeBgsSubgrades(value);
+  return normalized ? JSON.stringify(normalized) : null;
+}
+
+export function parseBgsSubgrades(value: string | null | undefined): BgsSubgrades | null {
+  if (!value) return null;
+
+  try {
+    return normalizeBgsSubgrades(JSON.parse(value));
+  } catch {
+    return null;
+  }
+}
+
+export function formatBgsSubgradeName(key: BgsSubgradeKey): string {
+  if (key === "centering") return "Centering";
+  if (key === "corners") return "Corners";
+  if (key === "edges") return "Edges";
+  return "Surface";
+}
+
+export function getBgsGradeDescriptor(grade: string): string {
+  const normalized = grade.trim().toUpperCase();
+  if (normalized.includes("BLACK")) return "BLACK LABEL";
+
+  const numericGrade = Number(normalized.replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(numericGrade)) return "GRADE";
+  if (numericGrade >= 10) return "PRISTINE";
+  if (numericGrade >= 9.5) return "GEM MINT";
+  if (numericGrade >= 9) return "MINT";
+  if (numericGrade >= 8.5) return "NM-MT+";
+  if (numericGrade >= 8) return "NM-MT";
+  if (numericGrade >= 7) return "NM";
+  if (numericGrade >= 6) return "EX-MT";
+  if (numericGrade >= 5) return "EX";
+
+  return "GRADE";
 }
 
 export function getPsaGradeDescriptor(grade: string | null): string | null {

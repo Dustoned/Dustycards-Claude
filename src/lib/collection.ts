@@ -323,7 +323,7 @@ export function sumCollectionPurchasePrices(
   return Number(total.toFixed(2));
 }
 
-export type CollectionCostBasisLabel = "Paid" | "Set Spend";
+export type CollectionCostBasisLabel = "Paid" | "Overall Spend";
 export type CollectionCostBasisSource = "direct" | "linked_binder_allocation";
 
 export interface CollectionCostBasis {
@@ -418,7 +418,7 @@ export function buildLinkedBinderCostBasis({
   for (const allocation of allocations) {
     result.set(allocation.item.itemId, {
       value: fromCentValue(allocation.cents),
-      label: "Set Spend",
+      label: "Overall Spend",
       source: "linked_binder_allocation",
     });
   }

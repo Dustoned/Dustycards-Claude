@@ -1,4 +1,7 @@
 import type {
+  BgsSubgrades,
+} from "@/lib/graded-slabs";
+import type {
   CardEbaySoldGradedPriceHistorySeries,
   CardGradedPriceHistorySeries,
   CardPriceHistoryPoint,
@@ -75,7 +78,7 @@ export interface ModalCardData {
     binder_type?: string | null;
     purchase_price: number | null;
     cost_basis_value: number | null;
-    cost_basis_label: "Paid" | "Set Spend";
+    cost_basis_label: "Paid" | "Overall Spend";
     cost_basis_source: "direct" | "linked_binder_allocation";
     condition: string | null;
     language: string | null;
@@ -83,6 +86,7 @@ export interface ModalCardData {
     tags: string[];
     grading_company: string | null;
     grading_grade: string | null;
+    grading_subgrades?: BgsSubgrades | null;
   } | null;
   want_item?: {
     id: string;

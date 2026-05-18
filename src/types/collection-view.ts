@@ -1,3 +1,5 @@
+import type { BgsSubgrades } from "@/lib/graded-slabs";
+
 export interface CollectionCardViewItem {
   collection_item_id: string | null;
   collection_item_ids?: string[];
@@ -24,7 +26,7 @@ export interface CollectionCardViewItem {
   current_value_label?: string | null;
   purchase_price: number | null;
   cost_basis_value: number | null;
-  cost_basis_label: "Paid" | "Set Spend";
+  cost_basis_label: "Paid" | "Overall Spend";
   cost_basis_source: "direct" | "linked_binder_allocation";
   condition: string | null;
   language?: string | null;
@@ -32,6 +34,7 @@ export interface CollectionCardViewItem {
   tags?: string[];
   grading_company: string | null;
   grading_grade: string | null;
+  grading_subgrades?: BgsSubgrades | null;
   owned: boolean;
   owned_count?: number;
 }

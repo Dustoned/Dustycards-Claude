@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
+import { serializeBgsSubgrades } from "@/lib/graded-slabs";
 import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
 
 function toNullableString(value: unknown): string | null {
@@ -35,6 +36,7 @@ export async function PATCH(
     tags?: unknown;
     gradingCompany?: unknown;
     gradingGrade?: unknown;
+    gradingSubgrades?: unknown;
     };
 
   const purchasePrice = toNullableNumber(body.purchasePrice);
@@ -97,6 +99,8 @@ export async function PATCH(
   const notes = toNullableString(body.notes);
   const gradingCompany = toNullableString(body.gradingCompany);
   const gradingGrade = toNullableString(body.gradingGrade);
+  const gradingSubgradesJson =
+    gradingCompany?.toUpperCase() === "BGS" ? serializeBgsSubgrades(body.gradingSubgrades) : null;
 
   await db.$transaction(async (tx) => {
     await tx.collectionCard.update({
@@ -109,6 +113,7 @@ export async function PATCH(
         notes,
         grading_company: gradingCompany,
         grading_grade: gradingGrade,
+        grading_subgrades_json: gradingSubgradesJson,
       },
     });
 

@@ -10,10 +10,21 @@ import {
 } from "@/components/SettingsProvider";
 
 const SIZE_OPTIONS: Array<{
+  value: UiScale;
+  label: string;
+  desc: string;
+}> = [
+  { value: "small", label: "Small", desc: "Most compact" },
+  { value: "medium", label: "Medium", desc: "Balanced" },
+  { value: "large", label: "Large", desc: "Big preview" },
+];
+
+const CARD_SIZE_OPTIONS: Array<{
   value: CardSize;
   label: string;
   desc: string;
 }> = [
+  { value: "xsmall", label: "4-up", desc: "4 slots" },
   { value: "small", label: "Small", desc: "Most compact" },
   { value: "medium", label: "Medium", desc: "Balanced" },
   { value: "large", label: "Large", desc: "Big preview" },
@@ -88,7 +99,7 @@ export default function MobileDisplaySection() {
 
         <OptionGrid<CardSize>
           label="Phone Cards"
-          options={SIZE_OPTIONS}
+          options={CARD_SIZE_OPTIONS}
           value={settings.mobileCardSize}
           onChange={(value) => set("mobileCardSize", value)}
         />

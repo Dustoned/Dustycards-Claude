@@ -17,6 +17,7 @@ import {
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
 import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
+import { parseBgsSubgrades } from "@/lib/graded-slabs";
 import {
   ALL_GAMES,
   getExpansionHref,
@@ -219,6 +220,7 @@ const collectionCardSelect = {
   notes: true,
   grading_company: true,
   grading_grade: true,
+  grading_subgrades_json: true,
   tags: {
     select: {
       label: true,
@@ -288,6 +290,7 @@ const collectionCardMetricSelect = {
   purchase_price: true,
   grading_company: true,
   grading_grade: true,
+  grading_subgrades_json: true,
   card: {
     select: {
       id: true,
@@ -555,6 +558,7 @@ type CollectionCardMetricRecord = {
   purchase_price: number | null;
   grading_company: string | null;
   grading_grade: string | null;
+  grading_subgrades_json?: string | null;
   card: CollectionCardValueLike & {
     id: string;
     episode_id: string;
@@ -1000,6 +1004,7 @@ function buildCardViewItem(
     tags: record.tags.map((tag) => tag.label),
     grading_company: record.grading_company,
     grading_grade: record.grading_grade,
+    grading_subgrades: parseBgsSubgrades(record.grading_subgrades_json),
     owned: true,
     owned_count: 1,
   };
@@ -1040,6 +1045,7 @@ function buildWantViewItem(record: CollectionWantRecord): CollectionCardViewItem
     tags: [],
     grading_company: null,
     grading_grade: null,
+    grading_subgrades: null,
     owned: false,
     owned_count: 0,
   };
@@ -2556,6 +2562,7 @@ export async function getBinderPageData(
           notes: true,
           grading_company: true,
           grading_grade: true,
+          grading_subgrades_json: true,
           tags: {
             select: {
               label: true,
@@ -2592,6 +2599,7 @@ export async function getBinderPageData(
         tags: string[];
         gradingCompany: string | null;
         gradingGrade: string | null;
+        gradingSubgrades: ReturnType<typeof parseBgsSubgrades>;
         itemIds: string[];
         currentValue: number;
         cmValue: number;
@@ -2653,6 +2661,7 @@ export async function getBinderPageData(
           tags: item.tags.map((tag) => tag.label),
           gradingCompany: item.grading_company,
           gradingGrade: item.grading_grade,
+          gradingSubgrades: parseBgsSubgrades(item.grading_subgrades_json),
           itemIds: [item.id],
           currentValue: itemCurrentValue,
           cmValue: itemCmValue,
@@ -2707,7 +2716,7 @@ export async function getBinderPageData(
             : null,
         purchase_price: owned ? Number(owned.purchasePrice.toFixed(2)) : null,
         cost_basis_value: owned ? Number(owned.costBasisValue.toFixed(2)) : null,
-        cost_basis_label: owned ? "Set Spend" : "Paid",
+        cost_basis_label: owned ? "Overall Spend" : "Paid",
         cost_basis_source: owned ? "linked_binder_allocation" : "direct",
         condition: owned?.condition ?? null,
         language: owned?.language ?? null,
@@ -2715,6 +2724,7 @@ export async function getBinderPageData(
         tags: owned?.tags ?? [],
         grading_company: owned?.gradingCompany ?? null,
         grading_grade: owned?.gradingGrade ?? null,
+        grading_subgrades: owned?.gradingSubgrades ?? null,
         owned: Boolean(owned),
         owned_count: owned?.count ?? 0,
       };

@@ -259,7 +259,7 @@ export default async function IllustratorsPage({
     (total, illustrator) => total + illustrator.pricedCount,
     0
   );
-  const featuredCards = sortedIllustrators.filter((illustrator) => illustrator.topCard).length;
+  const pricedArtists = sortedIllustrators.filter((illustrator) => illustrator.pricedCount > 0).length;
   const headerStats = [
     {
       label: "Illustrators",
@@ -280,8 +280,8 @@ export default async function IllustratorsPage({
       tone: "rose",
     },
     {
-      label: "Featured",
-      value: formatCount(featuredCards),
+      label: "Priced artists",
+      value: formatCount(pricedArtists),
       Icon: ArrowUpRight,
       tone: "sky",
     },

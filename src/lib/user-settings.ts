@@ -2,7 +2,7 @@ export type Theme = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
 export type CardView = "table" | "grid" | "binder";
 export type DisplaySize = "small" | "medium" | "large";
-export type CardSize = DisplaySize;
+export type CardSize = "xsmall" | DisplaySize;
 export type SortBy = "number" | "cm_en" | "tcp";
 export type SortDir = "asc" | "desc";
 export type ModalSize = DisplaySize;
@@ -124,10 +124,14 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       ["table", "grid", "binder"],
       DEFAULT_SETTINGS.mobileDefaultView
     ),
-    cardSize: pickEnumValue(source.cardSize, ["small", "medium", "large"], DEFAULT_SETTINGS.cardSize),
+    cardSize: pickEnumValue(
+      source.cardSize,
+      ["xsmall", "small", "medium", "large"],
+      DEFAULT_SETTINGS.cardSize
+    ),
     mobileCardSize: pickEnumValue(
       source.mobileCardSize,
-      ["small", "medium", "large"],
+      ["xsmall", "small", "medium", "large"],
       DEFAULT_SETTINGS.mobileCardSize
     ),
     defaultRarities: pickStringArray(source.defaultRarities),

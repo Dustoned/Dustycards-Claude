@@ -158,7 +158,7 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
                 <HeaderMetricChip label="Cards" value={totalCardsLabel} tone="sky" />
               )}
               <HeaderMetricChip
-                label="Set Spend"
+                label="Overall Spend"
                 value={formatCollectionCurrency(data.metrics.investment)}
                 tone="amber"
               />

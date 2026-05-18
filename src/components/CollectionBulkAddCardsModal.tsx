@@ -119,7 +119,7 @@ export default function CollectionBulkAddCardsModal({
   );
   const purchasePriceLabel =
     selectedBinder?.type === "linked_set" || binderLocked
-      ? "Card paid (adds to set spend)"
+      ? "Card paid (adds to overall spend)"
       : "Purchase price per card";
 
   const previewNames = useMemo(() => {

@@ -390,6 +390,7 @@ model CollectionCard {
   notes           String?
   grading_company String?
   grading_grade   String?
+  grading_subgrades_json String?
   added_at        DateTime @default(now())
   updated_at      DateTime @updatedAt
 

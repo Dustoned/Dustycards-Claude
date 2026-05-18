@@ -24,6 +24,7 @@ import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response"
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
+import { parseBgsSubgrades } from "@/lib/graded-slabs";
 
 type CardAction = "refresh" | "sync-history";
 
@@ -33,6 +34,7 @@ type CardDetailCollectionItem = {
   purchase_price: number | null;
   grading_company: string | null;
   grading_grade: string | null;
+  grading_subgrades_json: string | null;
   binder: {
     id: string;
     name: string;
@@ -174,6 +176,7 @@ async function getCardDetailPayload(id: string, userId: string) {
           notes: true,
           grading_company: true,
           grading_grade: true,
+          grading_subgrades_json: true,
           tags: {
             select: {
               label: true,
@@ -378,6 +381,7 @@ async function getCardDetailPayload(id: string, userId: string) {
           tags: collectionItem.tags.map((tag) => tag.label),
           grading_company: collectionItem.grading_company,
           grading_grade: collectionItem.grading_grade,
+          grading_subgrades: parseBgsSubgrades(collectionItem.grading_subgrades_json),
         }
       : null,
     want_item: wantItem

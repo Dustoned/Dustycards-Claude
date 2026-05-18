@@ -11,8 +11,8 @@ import { textMatchesSearchQuery } from "@/lib/card-search";
 import {
   modalActionRowClass,
   modalBodyClass,
-  modalBottomSheetOverlayClass,
-  modalBottomSheetPanelClass,
+  modalCenteredMobileOverlayClass,
+  modalCenteredPanelClass,
   modalCloseButtonClass,
   modalHeaderClass,
   modalInputClass,
@@ -149,7 +149,7 @@ export default function CreateBinderButton({
     open && typeof document !== "undefined"
       ? createPortal(
           <div
-            className={`${modalBottomSheetOverlayClass} z-[90]`}
+            className={`${modalCenteredMobileOverlayClass} z-[90]`}
             onClick={() => setOpen(false)}
           >
             <div
@@ -157,12 +157,11 @@ export default function CreateBinderButton({
               aria-modal="true"
               aria-label="Create binder"
               data-create-binder-modal="true"
-              className={`${modalBottomSheetPanelClass} max-w-2xl`}
+              className={`${modalCenteredPanelClass} max-w-2xl`}
               onClick={(event) => event.stopPropagation()}
             >
               <div className={modalHeaderClass}>
                 <div className="min-w-0 flex-1">
-                  <div className="mx-auto mb-3 hidden h-1 w-12 rounded-full bg-white/18 max-[640px]:block" />
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
                     Create Binder
                   </p>
@@ -199,18 +198,29 @@ export default function CreateBinderButton({
                       className={modalInputClass}
                       placeholder="Type a set name or custom binder name"
                     />
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/55 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-[10px]">
+                    <div
+                      className={`rounded-2xl px-3 py-2 text-xs max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[10px] ${
+                        matchedEpisode
+                          ? "border border-blue-300/35 bg-blue-500/[0.12] text-blue-50 shadow-[0_0_0_1px_rgba(96,165,250,0.12),0_10px_30px_rgba(37,99,235,0.18)]"
+                          : "border border-white/10 bg-white/[0.04] text-white/55"
+                      }`}
+                    >
                       {matchedEpisode ? (
-                        <label className="flex gap-2">
+                        <label className="flex gap-2.5">
                           <input
                             type="checkbox"
                             checked={linkMatchedEpisode}
                             onChange={(event) => setLinkMatchedEpisode(event.target.checked)}
                             className="mt-0.5 h-4 w-4 shrink-0 accent-blue-500"
                           />
-                          <span>
-                            Link as set binder for {matchedEpisode.name}
-                            {matchedEpisode.code ? ` (${matchedEpisode.code})` : ""}. Leave unchecked for a custom binder.
+                          <span className="min-w-0">
+                            <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-[0.16em] text-blue-100/72">
+                              Matched set link
+                            </span>
+                            <span>
+                              Link as set binder for {matchedEpisode.name}
+                              {matchedEpisode.code ? ` (${matchedEpisode.code})` : ""}. Leave unchecked for a custom binder.
+                            </span>
                           </span>
                         </label>
                       ) : !episodesLoaded ? (
@@ -222,7 +232,7 @@ export default function CreateBinderButton({
                   </label>
 
                   <label className="col-span-2 space-y-1.5 text-sm max-[640px]:text-[12px]">
-                    <span className="text-white/60">Binder spend</span>
+                    <span className="text-white/60">Overall spend</span>
                     <input
                       type="number"
                       min="0"

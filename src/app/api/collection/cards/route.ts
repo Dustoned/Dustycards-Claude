@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
+import { serializeBgsSubgrades } from "@/lib/graded-slabs";
 import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     tags?: unknown;
     gradingCompany?: unknown;
     gradingGrade?: unknown;
+    gradingSubgrades?: unknown;
     };
 
   const cardIds = (() => {
@@ -144,6 +146,8 @@ export async function POST(req: NextRequest) {
   const notes = toNullableString(body.notes);
   const gradingCompany = toNullableString(body.gradingCompany);
   const gradingGrade = toNullableString(body.gradingGrade);
+  const gradingSubgradesJson =
+    gradingCompany?.toUpperCase() === "BGS" ? serializeBgsSubgrades(body.gradingSubgrades) : null;
 
   const created = await db.$transaction(async (tx) => {
     const items = await Promise.all(
@@ -159,6 +163,7 @@ export async function POST(req: NextRequest) {
             notes,
             grading_company: gradingCompany,
             grading_grade: gradingGrade,
+            grading_subgrades_json: gradingSubgradesJson,
             tags: tags.length > 0 ? { create: tags.map((label) => ({ label })) } : undefined,
           },
           select: {

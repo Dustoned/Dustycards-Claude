@@ -23,7 +23,19 @@ const VIEW_OPTIONS: Option<CardView>[] = [
   { value: "binder", label: "Binder", description: "Binder layout" },
 ];
 
-const SIZE_OPTIONS: Option<CardSize>[] = [
+const CARD_SIZE_OPTIONS: Option<CardSize>[] = [
+  { value: "small", label: "Small", description: "Compact" },
+  { value: "medium", label: "Medium", description: "Balanced" },
+  { value: "large", label: "Large", description: "Bigger preview" },
+];
+
+const DETAIL_SIZE_OPTIONS: Option<ModalSize>[] = [
+  { value: "small", label: "Small", description: "Compact" },
+  { value: "medium", label: "Medium", description: "Balanced" },
+  { value: "large", label: "Large", description: "Bigger preview" },
+];
+
+const CARD_3D_SIZE_OPTIONS: Option<Card3dSize>[] = [
   { value: "small", label: "Small", description: "Compact" },
   { value: "medium", label: "Medium", description: "Balanced" },
   { value: "large", label: "Large", description: "Bigger preview" },
@@ -205,19 +217,19 @@ export default function SettingsCollectionDefaultsPanel() {
           <div className="grid gap-4">
             <SegmentGroup<CardSize>
               label="Cards"
-              options={SIZE_OPTIONS}
+              options={CARD_SIZE_OPTIONS}
               value={settings.cardSize}
               onChange={(value) => set("cardSize", value)}
             />
             <SegmentGroup<ModalSize>
               label="Details"
-              options={SIZE_OPTIONS}
+              options={DETAIL_SIZE_OPTIONS}
               value={settings.modalSize}
               onChange={(value) => set("modalSize", value)}
             />
             <SegmentGroup<Card3dSize>
               label="3D"
-              options={SIZE_OPTIONS}
+              options={CARD_3D_SIZE_OPTIONS}
               value={settings.card3dSize}
               onChange={(value) => set("card3dSize", value)}
             />

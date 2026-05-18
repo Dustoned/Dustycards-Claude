@@ -5,27 +5,35 @@ import { RotateCcw, X } from "lucide-react";
 import { useSettings, type Card3dSize } from "@/components/SettingsProvider";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import IllustratorLink from "@/components/IllustratorLink";
+import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import { withCardMarketFilters } from "@/lib/cardmarket";
 import { formatCurrency } from "@/lib/format";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import { getPreferredGradedLabel } from "@/components/card-modal/utils";
 import {
+  BGS_SUBGRADE_KEYS,
   PSA_SLAB_MODEL_DIMENSIONS,
   RAW_TCG_CARD_DIMENSIONS,
+  formatBgsSubgradeName,
   formatPsaNameLine,
   formatPsaSetLine,
+  getBgsGradeDescriptor,
   getPsaGradeDescriptor,
   normalizeGradingCompanyLabel,
   normalizeGradingGradeLabel,
+  type BgsSubgrades,
 } from "@/lib/graded-slabs";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
 
 interface ViewerCard {
+  id: string;
   name: string;
   card_number: string | null;
+  episode_id: string;
   episode_name?: string | null;
+  episode_code?: string | null;
   rarity: string | null;
   hp: number | string | null;
   supertype: string | null;
@@ -63,6 +71,7 @@ interface ViewerCard {
   collection_item?: {
     grading_company: string | null;
     grading_grade: string | null;
+    grading_subgrades?: BgsSubgrades | null;
   } | null;
 }
 
@@ -368,7 +377,15 @@ function createFoilOverlayMaterial(
           mix(40.0, 14.0, gradientStrength)
         ) * (0.12 + artDetail * 0.88);
         float detailPresence = clamp(gradientStrength * 0.72 + artDetail * 0.58, 0.0, 1.0);
-        float readabilityMask = mix(1.0, 0.88, smoothstep(0.24, 0.92, detailPresence));
+        float textInkMask =
+          smoothstep(0.28, 0.82, detailPresence) *
+          smoothstep(0.02, 0.22, 1.0 - artSaturation) *
+          smoothstep(0.12, 0.74, 1.0 - artLuma);
+        float readabilityMask = mix(
+          mix(1.0, 0.74, smoothstep(0.24, 0.92, detailPresence)),
+          0.42,
+          textInkMask
+        );
         float localFoilFocus = clamp(
           artDetail * 0.82 + gradientStrength * 0.68 + artSpecular * 0.52 + artSaturation * 0.28,
           0.0,
@@ -708,6 +725,121 @@ function createPsaLabelTexture(
   );
   context.fill();
   drawPsaLogoMark(context, canvas.width / 2, canvas.height - s(24), s(52));
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createBgsLabelTexture(
+  THREE: typeof import("three"),
+  cardName: string,
+  episodeName: string | null | undefined,
+  cardNumber: string | null,
+  grade: string,
+  subgrades: BgsSubgrades | null | undefined
+) {
+  const scale = 2;
+  const s = (value: number) => value * scale;
+  const canvas = document.createElement("canvas");
+  canvas.width = s(1500);
+  canvas.height = s(420);
+
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+
+  const goldGradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+  goldGradient.addColorStop(0, "#fff4bc");
+  goldGradient.addColorStop(0.25, "#ddb95a");
+  goldGradient.addColorStop(0.62, "#8b631e");
+  goldGradient.addColorStop(1, "#f2d57a");
+  context.fillStyle = goldGradient;
+  drawRoundedRect(context, 0, 0, canvas.width, canvas.height, s(26));
+  context.fill();
+
+  context.strokeStyle = "rgba(39,24,7,0.72)";
+  context.lineWidth = s(7);
+  context.stroke();
+
+  context.fillStyle = "rgba(255,255,255,0.42)";
+  context.fillRect(s(18), s(18), canvas.width - s(36), s(48));
+
+  context.fillStyle = "#1b1207";
+  context.font = `900 ${s(30)}px Arial Black, Arial, sans-serif`;
+  context.fillText("BECKETT GRADING SERVICES", s(36), s(52));
+  context.textAlign = "right";
+  context.fillStyle = "#771b14";
+  context.font = `900 ${s(35)}px Arial Black, Arial, sans-serif`;
+  context.fillText("BGS", canvas.width - s(36), s(54));
+  context.textAlign = "left";
+
+  const subgradeX = s(34);
+  const subgradeY = s(92);
+  const subgradeW = s(390);
+  const subgradeH = s(258);
+  context.fillStyle = "rgba(255,249,222,0.62)";
+  drawRoundedRect(context, subgradeX, subgradeY, subgradeW, subgradeH, s(16));
+  context.fill();
+  context.strokeStyle = "rgba(37,24,9,0.46)";
+  context.lineWidth = s(3);
+  context.stroke();
+
+  const cellW = subgradeW / 2;
+  const cellH = subgradeH / 2;
+  BGS_SUBGRADE_KEYS.forEach((key, index) => {
+    const x = subgradeX + (index % 2) * cellW;
+    const y = subgradeY + Math.floor(index / 2) * cellH;
+    context.strokeStyle = "rgba(37,24,9,0.26)";
+    context.lineWidth = s(2);
+    context.strokeRect(x, y, cellW, cellH);
+    context.fillStyle = "#33230b";
+    context.font = `800 ${s(22)}px Arial, sans-serif`;
+    context.fillText(formatBgsSubgradeName(key).toUpperCase(), x + s(18), y + s(38));
+    context.fillStyle = "#111";
+    context.font = `900 ${s(54)}px Arial Black, Arial, sans-serif`;
+    context.fillText(subgrades?.[key] ?? "-", x + s(20), y + s(98));
+  });
+
+  const detailsX = s(456);
+  const detailsRight = canvas.width - s(330);
+  context.fillStyle = "#17110a";
+  context.font = `900 ${s(52)}px Arial Black, Arial, sans-serif`;
+  context.fillText(formatPsaNameLine(cardName), detailsX, s(150), detailsRight - detailsX);
+  context.globalAlpha = 0.82;
+  context.font = `800 ${s(32)}px Arial, sans-serif`;
+  context.fillText(formatPsaSetLine(episodeName ?? cardName, cardNumber), detailsX, s(206), detailsRight - detailsX);
+  context.globalAlpha = 1;
+  context.font = `700 ${s(24)}px Arial, sans-serif`;
+  context.fillText("CERTIFIED AUTHENTIC", detailsX, s(284));
+  context.fillText("SUBGRADES", subgradeX, s(384));
+
+  const gradeX = canvas.width - s(292);
+  const gradeY = s(92);
+  const gradeW = s(258);
+  const gradeH = s(258);
+  const gradeGradient = context.createLinearGradient(gradeX, gradeY, gradeX, gradeY + gradeH);
+  gradeGradient.addColorStop(0, "#2b1c09");
+  gradeGradient.addColorStop(1, "#050403");
+  context.fillStyle = gradeGradient;
+  drawRoundedRect(context, gradeX, gradeY, gradeW, gradeH, s(16));
+  context.fill();
+  context.strokeStyle = "rgba(255,229,151,0.44)";
+  context.lineWidth = s(4);
+  context.stroke();
+  context.textAlign = "center";
+  context.fillStyle = "#f9df83";
+  context.font = `900 ${s(25)}px Arial Black, Arial, sans-serif`;
+  context.fillText(getBgsGradeDescriptor(grade), gradeX + gradeW / 2, gradeY + s(52));
+  context.fillStyle = "#ffffff";
+  context.font = `900 ${s(132)}px Arial Black, Arial, sans-serif`;
+  context.fillText(grade, gradeX + gradeW / 2, gradeY + s(190));
+  context.textAlign = "left";
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -1061,6 +1193,10 @@ export default function CardThreeViewer({
   const isPsaSlabViewer = Boolean(
     showGradedSlabPreview && gradingCompanyLabel === "PSA" && gradingGradeLabel
   );
+  const isBgsSlabViewer = Boolean(
+    showGradedSlabPreview && gradingCompanyLabel === "BGS" && gradingGradeLabel
+  );
+  const isSlabViewer = isPsaSlabViewer || isBgsSlabViewer;
 
   useBodyScrollLock();
 
@@ -1145,6 +1281,9 @@ export default function CardThreeViewer({
               (texture) => {
                 texture.colorSpace = THREE.SRGBColorSpace;
                 texture.anisotropy = renderer?.capabilities.getMaxAnisotropy() ?? 1;
+                texture.generateMipmaps = true;
+                texture.minFilter = THREE.LinearMipmapLinearFilter;
+                texture.magFilter = THREE.LinearFilter;
                 resolve(texture);
               },
               undefined,
@@ -1183,7 +1322,7 @@ export default function CardThreeViewer({
           foilProfile,
           frontTexture
         );
-        if (isPsaSlabViewer) {
+        if (isSlabViewer) {
           holoUniforms.uFoilStrength.value *= 0.72;
           holoUniforms.uRainbowStrength.value *= 0.58;
         }
@@ -1248,7 +1387,7 @@ export default function CardThreeViewer({
         backMesh.position.z = -(CARD_DEPTH / 2 + CARD_FACE_OFFSET);
         backMesh.rotation.y = Math.PI;
 
-        if (isPsaSlabViewer) {
+        if (isSlabViewer) {
           edgeMesh.scale.setScalar(PSA_CARD_SCALE);
           frontMesh.scale.setScalar(PSA_CARD_SCALE);
           holoMesh.scale.setScalar(PSA_CARD_SCALE);
@@ -1267,6 +1406,7 @@ export default function CardThreeViewer({
         pickTargets.push(frontMesh, backMesh, edgeMesh);
 
         let slabGeometry: import("three").BufferGeometry | null = null;
+        let slabShellGeometry: import("three").BufferGeometry | null = null;
         let slabFrontGeometry: import("three").BufferGeometry | null = null;
         let slabBackGeometry: import("three").BufferGeometry | null = null;
         let slabFrontMaterial: import("three").Material | null = null;
@@ -1435,6 +1575,103 @@ export default function CardThreeViewer({
             labelCoverMesh.renderOrder = 2.16;
             cardGroup.add(labelCoverMesh);
           }
+        }
+
+        if (isBgsSlabViewer && gradingGradeLabel) {
+          const slabShape = createRoundedRectShape(
+            THREE,
+            PSA_SLAB_WIDTH * 1.018,
+            PSA_SLAB_HEIGHT * 1.012,
+            0.2
+          );
+          slabShellGeometry = new THREE.ExtrudeGeometry(slabShape, {
+            depth: PSA_SLAB_DEPTH * 0.88,
+            steps: 1,
+            bevelEnabled: true,
+            bevelSegments: 8,
+            bevelSize: 0.025,
+            bevelThickness: 0.022,
+            curveSegments: 28,
+          });
+          slabShellGeometry.translate(0, 0, -(PSA_SLAB_DEPTH * 0.88) / 2);
+          slabFrontMaterial = new THREE.MeshPhysicalMaterial({
+            color: "#f6f2e6",
+            roughness: 0.06,
+            metalness: 0,
+            transparent: true,
+            opacity: 0.28,
+            transmission: 0.22,
+            thickness: 0.18,
+            ior: 1.46,
+            clearcoat: 1,
+            clearcoatRoughness: 0.05,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          });
+          slabFrontMesh = new THREE.Mesh(slabShellGeometry, slabFrontMaterial);
+          slabFrontMesh.renderOrder = 2.1;
+          cardGroup.add(slabFrontMesh);
+          pickTargets.push(slabFrontMesh);
+
+          const labelShape = createRoundedRectShape(
+            THREE,
+            PSA_LABEL_WIDTH * 1.05,
+            PSA_LABEL_HEIGHT * 1.08,
+            0.09
+          );
+          labelFaceGeometry = new THREE.ShapeGeometry(labelShape, 18);
+          normalizeGeometryUvs(THREE, labelFaceGeometry);
+          labelTexture = createBgsLabelTexture(
+            THREE,
+            card.name,
+            card.episode_name,
+            card.card_number,
+            gradingGradeLabel,
+            card.collection_item?.grading_subgrades ?? null
+          );
+
+          if (labelTexture) {
+            labelBackMaterial = new THREE.MeshBasicMaterial({
+              color: "#d8b45f",
+              side: THREE.DoubleSide,
+            });
+            const labelBackMesh = new THREE.Mesh(labelFaceGeometry, labelBackMaterial);
+            labelBackMesh.position.set(0, PSA_LABEL_Y, PSA_SLAB_DEPTH * 0.42);
+            labelBackMesh.renderOrder = 2.12;
+            cardGroup.add(labelBackMesh);
+
+            labelFrontMaterial = new THREE.MeshBasicMaterial({
+              map: labelTexture,
+              transparent: true,
+              alphaTest: 0.02,
+              toneMapped: false,
+            });
+            const labelFrontMesh = new THREE.Mesh(labelFaceGeometry, labelFrontMaterial);
+            labelFrontMesh.position.set(0, PSA_LABEL_Y, PSA_SLAB_DEPTH * 0.43);
+            labelFrontMesh.renderOrder = 2.18;
+            cardGroup.add(labelFrontMesh);
+            pickTargets.push(labelFrontMesh);
+          }
+
+          const cardCoverShape = createRoundedRectShape(
+            THREE,
+            CARD_WIDTH * PSA_CARD_SCALE * 1.03,
+            CARD_HEIGHT * PSA_CARD_SCALE * 1.025,
+            CARD_CORNER_RADIUS * PSA_CARD_SCALE
+          );
+          cardCoverGeometry = new THREE.ShapeGeometry(cardCoverShape, 18);
+          normalizeGeometryUvs(THREE, cardCoverGeometry);
+          cardCoverMaterial = new THREE.MeshBasicMaterial({
+            color: "#ffffff",
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          });
+          const cardCoverMesh = new THREE.Mesh(cardCoverGeometry, cardCoverMaterial);
+          cardCoverMesh.position.set(0, PSA_CARD_CENTER_Y, PSA_SLAB_DEPTH * 0.435);
+          cardCoverMesh.renderOrder = 2.2;
+          cardGroup.add(cardCoverMesh);
         }
 
         cardGroup.rotation.set(
@@ -1645,6 +1882,7 @@ export default function CardThreeViewer({
           backMaterial.dispose();
           hiddenFaceMaterial.dispose();
           slabGeometry?.dispose();
+          slabShellGeometry?.dispose();
           slabFrontGeometry?.dispose();
           slabBackGeometry?.dispose();
           slabFrontMaterial?.dispose();
@@ -1747,8 +1985,11 @@ export default function CardThreeViewer({
     card.name,
     card.card_number,
     card.episode_name,
+    card.collection_item?.grading_subgrades,
     gradingGradeLabel,
     isPsaSlabViewer,
+    isBgsSlabViewer,
+    isSlabViewer,
     card3dSize,
     isMobileViewport,
   ]);
@@ -1886,6 +2127,8 @@ export default function CardThreeViewer({
         );
         clickAwayRef.current.active = false;
         if (delta < 8) {
+          event.preventDefault();
+          event.stopPropagation();
           onClose();
         }
       }}
@@ -2241,20 +2484,48 @@ export default function CardThreeViewer({
                     </p>
                   )}
 
-                  {filteredCardMarketUrl && (
-                    <a
-                      href={filteredCardMarketUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`inline-flex w-full items-center justify-center bg-blue-600 text-center font-semibold text-white transition-colors hover:bg-blue-500 ${
+                  <div
+                    className={`grid gap-2 ${
+                      compactMobileDetails
+                        ? `mt-2 ${filteredCardMarketUrl ? "grid-cols-2" : "grid-cols-1"}`
+                        : `mt-4 ${filteredCardMarketUrl ? "sm:grid-cols-2" : ""}`
+                    }`}
+                  >
+                    {filteredCardMarketUrl && (
+                      <a
+                        href={filteredCardMarketUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`inline-flex w-full items-center justify-center bg-blue-600 text-center font-semibold text-white transition-colors hover:bg-blue-500 ${
+                          compactMobileDetails
+                            ? "rounded-xl px-3 py-2 text-[13px]"
+                            : "rounded-2xl px-4 py-3"
+                        }`}
+                      >
+                        CardMarket
+                      </a>
+                    )}
+                    <CollectionAddCardButton
+                      card={{
+                        id: card.id,
+                        name: card.name,
+                        image_url: frontImageUrl,
+                        episode: {
+                          id: card.episode_id,
+                          name: card.episode_name ?? "Set",
+                          code: card.episode_code ?? null,
+                        },
+                      }}
+                      mode="button"
+                      theme="dark"
+                      label="Add"
+                      className={`w-full border-emerald-400/20 bg-emerald-600 text-white hover:border-emerald-300/40 hover:bg-emerald-500 ${
                         compactMobileDetails
-                          ? "mt-2 rounded-xl px-3 py-2 text-[13px]"
-                          : "mt-4 rounded-2xl px-4 py-3"
+                          ? "min-h-0 rounded-xl px-3 py-2 text-[13px]"
+                          : "rounded-2xl px-4 py-3"
                       }`}
-                    >
-                      CardMarket
-                    </a>
-                  )}
+                    />
+                  </div>
 
                   {!compactMobileDetails && (
                     <p className="mt-4 text-sm text-white/55">
@@ -2271,7 +2542,16 @@ export default function CardThreeViewer({
       <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between p-4 sm:p-6">
         <button
           type="button"
-          onClick={onClose}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            clickAwayRef.current.active = false;
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose();
+          }}
           data-viewer-keepopen="true"
           className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/45 text-white/85 backdrop-blur-xl transition-colors hover:bg-black/60"
           aria-label="Close 3D view"
@@ -2281,7 +2561,16 @@ export default function CardThreeViewer({
 
         <button
           type="button"
-          onClick={() => controlsRef.current?.reset()}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            clickAwayRef.current.active = false;
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            controlsRef.current?.reset();
+          }}
           data-viewer-keepopen="true"
           className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/45 text-white/85 backdrop-blur-xl transition-colors hover:bg-black/60 max-[640px]:h-10 max-[640px]:w-10"
           aria-label="Reset 3D view"
