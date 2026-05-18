@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.16",
+    releasedAt: "May 18, 2026",
+    title: "Cleaner mobile binder cards",
+    summary: "Wantlist planner and collection binder tiles now show fewer, clearer stats on phone.",
+    tone: "improved",
+    highlights: [
+      "Reduced mobile Wantlist planner binder metrics to the most useful scan info.",
+      "Hid tiny secondary metric text on phone while keeping it available on desktop.",
+      "Simplified collection binder tiles on mobile so linked binders rely on the progress bar plus value stats.",
+    ],
+  },
+  {
     version: "2.1.15",
     releasedAt: "May 18, 2026",
     title: "Widescreen quick view room",

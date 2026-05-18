@@ -60,16 +60,20 @@ function getWantBinderMetrics(group: WantPlannerGroup) {
   return [
     {
       label: "Progress",
+      mobileLabel: "Owned",
       value: group.progressLabel,
       subValue: `${group.totalMissingCards.toLocaleString("en-US")} missing total`,
     },
     {
-      label: "Wants",
+      label: "Missing",
+      mobileLabel: "Missing",
       value: missingLabel(group),
       subValue: `${group.pricedCards.toLocaleString("en-US")} priced - ${hiddenLabel}`,
+      mobileHidden: true,
     },
     {
       label: "Est. Cost",
+      mobileLabel: "Cost",
       value: formatCollectionCurrency(group.estimatedCost),
       subValue: formatAverageCost(group),
     },
@@ -780,16 +784,19 @@ function WantBinderTile({
           {metrics.map((metric) => (
             <div
               key={metric.label}
-              className="min-w-0 rounded-xl border border-black/8 bg-black/[0.03] px-2.5 py-2 max-[640px]:px-2 max-[640px]:py-1.5 dark:border-white/8 dark:bg-white/[0.04]"
+              className={`min-w-0 rounded-xl border border-black/8 bg-black/[0.03] px-2.5 py-2 max-[640px]:px-2.5 max-[640px]:py-2 dark:border-white/8 dark:bg-white/[0.04] ${
+                metric.mobileHidden ? "max-[640px]:hidden" : ""
+              }`}
               title={`${metric.label}: ${metric.value} - ${metric.subValue}`}
             >
               <p className="truncate text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 max-[640px]:text-[8px] max-[640px]:tracking-[0.08em] dark:text-white/35">
-                {metric.label}
+                <span className="max-[640px]:hidden">{metric.label}</span>
+                <span className="hidden max-[640px]:inline">{metric.mobileLabel}</span>
               </p>
-              <p className="mt-1.5 truncate text-[13px] font-semibold text-gray-900 max-[640px]:mt-1 max-[640px]:text-[10px] dark:text-white">
+              <p className="mt-1.5 truncate text-[13px] font-semibold tracking-tight text-gray-900 max-[640px]:mt-1 max-[640px]:text-[12px] dark:text-white">
                 {metric.value}
               </p>
-              <p className="mt-1 truncate text-[10px] font-medium leading-none text-gray-500 max-[640px]:text-[8px] dark:text-white/45">
+              <p className="mt-1 truncate text-[10px] font-medium leading-none text-gray-500 max-[640px]:hidden dark:text-white/45">
                 {metric.subValue}
               </p>
             </div>
