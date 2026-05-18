@@ -821,7 +821,7 @@ export function CardModalHeroSection({
                     type="button"
                     onClick={onRemoveCollectionItem}
                     disabled={isBusy || removingCollectionItem}
-                    className={`${quickActionButtonClass} !text-rose-100 hover:!border-rose-200/24 hover:!bg-rose-500/16`}
+                    className={`${quickActionButtonClass} !border-rose-300/18 !bg-rose-500/[0.09] !text-rose-100 hover:!border-rose-200/32 hover:!bg-rose-500/18 active:!bg-rose-500/22`}
                     aria-label={
                       removingCollectionItem
                         ? "Removing this saved copy"

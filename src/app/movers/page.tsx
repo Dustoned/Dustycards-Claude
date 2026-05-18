@@ -486,19 +486,19 @@ export default async function MoversPage({
             <SegmentedNavLinks
               items={marketSwitchItems}
               ariaLabel="Movers market"
-              className="w-fit max-w-full"
+              className="w-full max-w-full sm:w-fit"
             />
             <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
               <SegmentedNavLinks
                 items={scopeSwitchItems}
                 ariaLabel="Movers scope"
-                className="w-fit max-w-full"
+                className="w-full max-w-full sm:w-fit"
               />
               {isRawScope ? (
                 <SegmentedNavLinks
                   items={sourceSwitchItems}
                   ariaLabel="Movers price source"
-                  className="w-fit max-w-full"
+                  className="w-full max-w-full sm:w-fit"
                 />
               ) : null}
             </div>

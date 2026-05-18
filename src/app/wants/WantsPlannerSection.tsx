@@ -467,7 +467,7 @@ function WantBinderTile({
       subValue: formatAverageCost(group),
     },
   ];
-  const quickViewPanelClassName = `fixed inset-x-2 bottom-2 z-50 max-h-[82dvh] overflow-hidden rounded-[1.35rem] border border-white/12 bg-neutral-950/94 shadow-2xl shadow-black/45 backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[calc(100dvh-3rem)] sm:w-[min(52rem,calc(100vw-3rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[1.5rem] xl:w-[min(62rem,calc(100vw-4rem))] ${
+  const quickViewPanelClassName = `fixed inset-x-3 bottom-[calc(0.75rem_+_env(safe-area-inset-bottom))] z-[71] flex max-h-[calc(100dvh_-_1.5rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-[1.35rem] border border-white/12 bg-neutral-950/94 shadow-2xl shadow-black/45 backdrop-blur-xl sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[calc(100dvh-3rem)] sm:w-[min(52rem,calc(100vw-3rem))] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[1.5rem] xl:w-[min(62rem,calc(100vw-4rem))] ${
     widescreen
       ? "2xl:w-[min(94rem,calc(100vw-4rem))]"
       : "2xl:w-[min(68rem,calc(100vw-5rem))]"
@@ -593,7 +593,7 @@ function WantBinderTile({
           <button
             type="button"
             aria-label="Close quick view"
-            className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
             onClick={onToggle}
           />
           <div
@@ -601,8 +601,9 @@ function WantBinderTile({
             aria-modal="true"
             aria-label={`${group.name} quick view`}
             className={quickViewPanelClassName}
+            onPointerDown={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4 sm:py-4">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4 sm:py-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">
                   Quick view
@@ -616,15 +617,19 @@ function WantBinderTile({
               </div>
               <button
                 type="button"
-                onClick={onToggle}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/72 transition-colors hover:bg-white/12 hover:text-white"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onToggle();
+                }}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/8 text-white/72 transition-colors hover:bg-white/12 hover:text-white sm:h-10 sm:w-10"
                 aria-label="Close quick view"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div
-              className={`grid gap-3 px-3 py-3 sm:px-4 sm:py-4 ${
+              className={`grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-3 py-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] sm:px-4 sm:py-4 ${
                 widescreen
                   ? "xl:grid-cols-[minmax(13rem,0.34fr)_minmax(0,1.66fr)]"
                   : "lg:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.2fr)]"
@@ -699,7 +704,7 @@ function WantBinderTile({
                   onResetHidden={onResetHidden}
                   scrollable={!widescreen}
                   scrollClassName={
-                    widescreen ? "max-h-none" : "max-h-[44dvh] sm:max-h-[calc(100dvh-16rem)]"
+                    widescreen ? "max-h-none" : "max-h-none sm:max-h-[calc(100dvh-16rem)]"
                   }
                   listClassName={widescreen ? "xl:grid-cols-2 2xl:grid-cols-3" : ""}
                 />

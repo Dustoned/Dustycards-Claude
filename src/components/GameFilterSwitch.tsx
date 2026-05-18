@@ -44,8 +44,13 @@ export function SegmentedNavLinks({
     const activeItem = activeItemRef.current;
     const scrollContainer = scrollContainerRef.current;
     if (!activeItem || !scrollContainer) return;
+    if (scrollContainer.scrollWidth <= scrollContainer.clientWidth + 1) return;
 
-    activeItem.scrollIntoView({ block: "nearest", inline: "center" });
+    const activeCenter = activeItem.offsetLeft + activeItem.offsetWidth / 2;
+    scrollContainer.scrollTo({
+      left: Math.max(0, activeCenter - scrollContainer.clientWidth / 2),
+      behavior: "smooth",
+    });
   }, [even, items]);
 
   if (items.length <= 0) return null;
@@ -63,16 +68,16 @@ export function SegmentedNavLinks({
         className={
           even
             ? "grid min-w-0 gap-1"
-            : "flex w-max min-w-full gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            : "grid min-w-0 gap-1"
         }
-        style={even ? { gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` } : undefined}
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
       >
         {items.map((item) => {
           const itemClassName = cx(
             "inline-flex min-w-0 shrink-0 items-center justify-center rounded-full font-bold leading-none transition-colors",
             even
               ? "h-8 px-1 text-[10px] min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-9 sm:px-4 sm:text-[13px]"
-              : "h-9 min-w-max px-4 text-[13px]",
+              : "h-8 px-1 text-[10px] min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-9 sm:min-w-max sm:px-4 sm:text-[13px]",
             item.active
               ? "bg-gray-950 text-white shadow-sm shadow-black/12 dark:bg-white dark:text-gray-950 dark:shadow-none"
               : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
@@ -136,7 +141,10 @@ function HeaderSegmentedGroup({
           {group.label}
         </span>
       ) : null}
-      <span className="inline-flex min-w-0 overflow-x-auto rounded-full [scrollbar-width:none]">
+      <span
+        className="grid min-w-0 flex-1 gap-0.5 rounded-full sm:inline-flex sm:flex-none"
+        style={{ gridTemplateColumns: `repeat(${group.items.length}, minmax(0, 1fr))` }}
+      >
         {group.items.map((item) => (
           <Link
             key={`${item.href}:${item.label}`}
@@ -144,7 +152,7 @@ function HeaderSegmentedGroup({
             prefetch={false}
             aria-current={item.active ? "page" : undefined}
             className={cx(
-              "inline-flex h-7 shrink-0 items-center justify-center rounded-full px-3 text-[12px] font-semibold leading-none transition-colors sm:px-3.5",
+              "inline-flex h-7 min-w-0 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold leading-none transition-colors min-[390px]:px-2 min-[390px]:text-[11px] sm:min-w-max sm:px-3.5 sm:text-[12px]",
               item.active
                 ? "bg-gray-950 text-white shadow-sm shadow-black/12 dark:bg-white dark:text-gray-950 dark:shadow-none"
                 : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/52 dark:hover:bg-white/[0.07] dark:hover:text-white"

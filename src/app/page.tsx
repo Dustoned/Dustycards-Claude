@@ -114,25 +114,25 @@ function PortfolioBreakdownItem({
 }) {
   return (
     <div
-      className={`min-w-0 rounded-xl border px-3 py-2.5 shadow-sm shadow-black/5 dark:shadow-none sm:px-2.5 sm:py-2 ${surfaceClassName}`}
+      className={`min-w-0 rounded-xl border px-2.5 py-2 shadow-sm shadow-black/5 dark:shadow-none sm:px-2.5 sm:py-2 ${surfaceClassName}`}
     >
-      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-start gap-2 sm:gap-1.5">
-          <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${dotClassName}`} />
+      <div className="flex min-w-0 flex-row items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-1.5">
+          <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full sm:h-2 sm:w-2 ${dotClassName}`} />
           <div className="min-w-0">
-            <p className="break-words text-sm font-bold leading-tight text-gray-950 dark:text-white sm:text-xs">
+            <p className="break-words text-xs font-bold leading-tight text-gray-950 dark:text-white sm:text-xs">
               {label}
             </p>
-            <p className="mt-1 break-words text-xs font-semibold text-gray-500 dark:text-white/42 sm:mt-0.5 sm:text-[10px]">
+            <p className="mt-0.5 break-words text-[10px] font-semibold leading-tight text-gray-500 dark:text-white/42">
               {count}
             </p>
           </div>
         </div>
-        <div className="min-w-0 sm:shrink-0 sm:text-right">
-          <p className="whitespace-nowrap text-lg font-black leading-tight tabular-nums text-gray-950 dark:text-white sm:max-w-[7rem] sm:truncate sm:text-xs">
+        <div className="min-w-0 shrink-0 text-right">
+          <p className="whitespace-nowrap text-sm font-black leading-tight tabular-nums text-gray-950 dark:text-white sm:max-w-[7rem] sm:truncate sm:text-xs">
             {value}
           </p>
-          <p className="mt-1 text-xs font-bold tabular-nums text-gray-500 dark:text-white/42 sm:mt-0.5 sm:text-[10px]">
+          <p className="mt-0.5 text-[10px] font-bold tabular-nums text-gray-500 dark:text-white/42">
             {share.toFixed(0)}%
           </p>
         </div>
@@ -196,24 +196,24 @@ function PortfolioBreakdownPanel({
 
   return (
     <section
-      className="relative overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20"
+      className="relative overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-2.5 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:p-3"
       title={fullSummary}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
-      <div className="grid min-w-0 gap-2 lg:grid-cols-[minmax(10rem,0.22fr)_minmax(0,1fr)_minmax(26rem,0.72fr)] lg:items-center">
-        <div className="min-w-0">
+      <div className="grid min-w-0 gap-1.5 sm:gap-2 lg:grid-cols-[minmax(10rem,0.22fr)_minmax(0,1fr)_minmax(26rem,0.72fr)] lg:items-center">
+        <div className="flex min-w-0 items-end justify-between gap-3 lg:block">
           <div className="min-w-0">
-            <h2 className="truncate text-base font-bold leading-tight text-gray-950 dark:text-white">
+            <h2 className="truncate text-sm font-bold leading-tight text-gray-950 dark:text-white sm:text-base">
               Breakdown
             </h2>
           </div>
-          <p className="mt-1.5 truncate text-sm font-semibold leading-tight tabular-nums text-gray-950 dark:text-white">
+          <p className="truncate text-sm font-semibold leading-tight tabular-nums text-gray-950 dark:text-white lg:mt-1.5">
             {formatCollectionCurrency(totalValue)}
           </p>
         </div>
 
-        <div className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] p-2 dark:border-white/8 dark:bg-black/10">
-          <div className="flex h-2.5 overflow-hidden rounded-full bg-black/7 dark:bg-white/8">
+        <div className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] p-1.5 dark:border-white/8 dark:bg-black/10 sm:p-2">
+          <div className="flex h-2 overflow-hidden rounded-full bg-black/7 dark:bg-white/8 sm:h-2.5">
             {segments.map((segment) => {
               const share = totalValue > 0 ? (segment.value / totalValue) * 100 : 0;
               return (
@@ -229,7 +229,7 @@ function PortfolioBreakdownPanel({
               );
             })}
           </div>
-          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 sm:mt-1.5 sm:gap-x-3 sm:gap-y-1">
             {segments.map((segment) => {
               const share = totalValue > 0 ? (segment.value / totalValue) * 100 : 0;
               return (
@@ -244,7 +244,7 @@ function PortfolioBreakdownPanel({
           </div>
         </div>
 
-        <div className="grid min-w-0 grid-cols-1 gap-2 min-[390px]:grid-cols-2 sm:grid-cols-3 sm:gap-1.5">
+        <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:grid-cols-3">
           {segments.map((segment) => (
             <PortfolioBreakdownItem
               key={segment.label}
@@ -459,18 +459,16 @@ export default async function HomePage({
             />
           )}
 
-          <section className="w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.02] p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.03]">
-            <div className="flex min-w-0 justify-start sm:justify-end">
-              <SegmentedNavLinks
-                items={viewSwitchItems}
-                ariaLabel="Collection view"
-                even
-                buttonNavigation
-                preserveScroll
-                className="w-full max-w-full sm:w-fit"
-              />
-            </div>
-          </section>
+          <div className="flex min-w-0 justify-start sm:justify-end">
+            <SegmentedNavLinks
+              items={viewSwitchItems}
+              ariaLabel="Collection view"
+              even
+              buttonNavigation
+              preserveScroll
+              className="w-full max-w-full sm:w-fit"
+            />
+          </div>
         </div>
 
         <div className="space-y-3">

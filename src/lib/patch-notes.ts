@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.2",
+    releasedAt: "May 18, 2026",
+    title: "Mobile tab and quick view polish",
+    summary: "Collection breakdown, segmented tabs, card detail actions, and Wants Quick View received a tighter mobile polish pass.",
+    tone: "fixed",
+    highlights: [
+      "Made the portfolio breakdown shorter on phones while keeping values, counts, and percentages readable.",
+      "Removed the extra outer frame around the collection view tabs so only the segmented control remains.",
+      "Standardized mobile segmented tabs across collection, movers, settings, account, and sync views with no horizontal tab scrolling.",
+      "Gave the card detail remove action a subtle destructive red tint that still fits the dark premium UI.",
+      "Changed Wants Quick View into a safe-area-aware floating mobile popup with its own scrollable body and clear close behavior.",
+    ],
+  },
+  {
     version: "2.1.1",
     releasedAt: "May 18, 2026",
     title: "Mobile hover and card tile cleanup",

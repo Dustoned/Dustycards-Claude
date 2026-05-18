@@ -140,7 +140,7 @@ export default function SyncStatusTabs({
   return (
     <div className="mt-5">
       <div
-        className="grid grid-cols-3 rounded-lg border border-black/6 bg-black/[0.02] p-1 dark:border-white/8 dark:bg-white/[0.03]"
+        className="grid min-w-0 grid-cols-3 rounded-lg border border-black/6 bg-black/[0.02] p-1 dark:border-white/8 dark:bg-white/[0.03]"
         role="tablist"
         aria-label="Background refresh views"
       >
@@ -153,7 +153,7 @@ export default function SyncStatusTabs({
               type="button"
               role="tab"
               aria-selected={isSelected}
-              className={`min-h-9 rounded-md px-3 text-sm font-semibold transition ${
+              className={`min-h-9 min-w-0 rounded-md px-1.5 text-[11px] font-semibold leading-none transition sm:px-3 sm:text-sm ${
                 isSelected
                   ? "bg-white text-gray-950 shadow-sm dark:bg-white/12 dark:text-white"
                   : "text-gray-500 hover:bg-white/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/8 dark:hover:text-white"

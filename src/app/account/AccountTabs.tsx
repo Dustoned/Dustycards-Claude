@@ -28,14 +28,13 @@ export default function AccountTabs({
   return (
     <div className="space-y-4">
       <div
-        className="overflow-x-auto rounded-2xl border border-black/6 bg-black/[0.025] p-1 dark:border-white/8 dark:bg-white/[0.035]"
+        className="min-w-0 overflow-hidden rounded-2xl border border-black/6 bg-black/[0.025] p-1 dark:border-white/8 dark:bg-white/[0.035]"
         role="tablist"
         aria-label="Account sections"
       >
         <div
-          className={`grid min-w-[18rem] gap-1 sm:min-w-0 ${
-            tabs.length >= 3 ? "grid-cols-3" : "grid-cols-2"
-          }`}
+          className="grid min-w-0 gap-1"
+          style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
         >
           {tabs.map((tab) => {
             const active = selected.key === tab.key;
@@ -48,7 +47,7 @@ export default function AccountTabs({
                 aria-selected={active}
                 aria-controls={`account-tab-${tab.key}`}
                 onClick={() => setSelectedKey(tab.key)}
-                className={`min-h-10 rounded-xl px-3 text-sm font-semibold transition sm:px-4 ${
+                className={`min-h-9 min-w-0 rounded-xl px-1.5 text-[11px] font-semibold leading-none transition sm:min-h-10 sm:px-4 sm:text-sm ${
                   active
                     ? "bg-white text-gray-950 shadow-sm dark:bg-white/12 dark:text-white"
                     : "text-gray-500 hover:bg-white/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/8 dark:hover:text-white"
