@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
@@ -179,6 +179,8 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
         }))
       )
   );
+  const modalFrameRef = useRef<HTMLDivElement | null>(null);
+  const threeDClosingGuardUntilRef = useRef(0);
 
   const collectionItem = modalCard.collection_item ?? null;
   const layout = getCardModalLayoutClasses(
@@ -298,6 +300,22 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     gradedPriceHistory.some((series) => series.points.some((point) => point.value != null)) ||
     ebaySoldGradedPriceHistory.some((series) => series.points.some((point) => point.value != null));
   const effectiveHistoryChartMode = hasGradedData ? historyChartMode : "market";
+
+  useEffect(() => {
+    const frame = modalFrameRef.current;
+    if (!frame) return;
+    frame.scrollTo({ top: 0, left: 0 });
+  }, [modalCard.id]);
+
+  function openThreeDView() {
+    if (Date.now() < threeDClosingGuardUntilRef.current) return;
+    setThreeDOpen(true);
+  }
+
+  function closeThreeDView() {
+    threeDClosingGuardUntilRef.current = Date.now() + 450;
+    setThreeDOpen(false);
+  }
 
   async function runCardAction(action: "refresh" | "sync-history") {
     if (action === "refresh") {
@@ -433,19 +451,31 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
-        style={{ backgroundColor: "rgba(0,0,0,0.72)", backdropFilter: "blur(14px)" }}
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 py-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-center sm:p-4"
+        style={{
+          backgroundColor: "rgba(0,0,0,0.72)",
+          backdropFilter: "blur(14px)",
+          overscrollBehavior: "contain",
+        }}
         onClick={onClose}
       >
         <div
-          className="relative w-full"
+          className="relative w-[min(100%,calc(100vw-1.5rem))] max-w-full sm:w-full"
           style={{ maxWidth: layout.maxW }}
           onClick={(event) => event.stopPropagation()}
         >
           <button
             type="button"
-            onClick={onClose}
-            className="absolute right-2.5 top-2.5 z-40 inline-flex h-8 w-8 items-center justify-center rounded-xl text-white/42 transition-colors hover:bg-white/[0.055] hover:text-white/86 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:right-3 sm:top-3"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onClose();
+            }}
+            className="absolute right-3 top-3 z-40 hidden h-10 w-10 items-center justify-center rounded-xl text-white/50 transition-colors hover:bg-white/[0.055] hover:text-white/86 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:inline-flex"
             aria-label="Close card details"
             title="Close"
           >
@@ -453,17 +483,37 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
           </button>
 
           <div
+            ref={modalFrameRef}
             role="dialog"
             aria-modal="true"
             aria-label={modalCard.name}
-            className="card-modal-frame glass relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)]"
+            className="card-modal-frame glass relative max-h-[calc(100dvh-1.5rem)] w-full max-w-full overflow-y-auto overscroll-contain rounded-[32px] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)]"
             data-modal-size={displaySettings.modalSize}
             style={{
               background: "rgba(10,10,12,0.92)",
               border: "1px solid rgba(255,255,255,0.12)",
             }}
           >
-            <div className={layout.pad}>
+            <div className="card-modal-mobile-close-row sticky top-0 z-40 flex justify-end border-b border-white/8 bg-[linear-gradient(180deg,rgba(10,10,12,0.96),rgba(10,10,12,0.78))] px-2 py-2 backdrop-blur-xl sm:hidden">
+              <button
+                type="button"
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onClose();
+                }}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] text-white/78 transition-colors hover:bg-white/[0.095] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35"
+                aria-label="Close card details"
+                title="Close"
+              >
+                <X className="h-5 w-5 stroke-[1.8]" />
+              </button>
+            </div>
+            <div className={`card-modal-content-pad ${layout.pad}`}>
               <div
                 className={`grid ${layout.gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-stretch`}
               >
@@ -476,7 +526,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                   gradingCompanyLabel={gradingCompanyLabel}
                   gradingGradeLabel={gradingGradeLabel}
                   gradedTileSize={displaySettings.cardSize}
-                  onOpenThreeD={() => setThreeDOpen(true)}
+                  onOpenThreeD={openThreeDView}
                 />
 
                 <div className="min-w-0 space-y-3">
@@ -555,7 +605,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
           frontImageUrl={modalCard.image_url}
           cardMarketUrl={storedCardMarketUrl}
           showGradedSlabPreview={showGradedSlabPreview}
-          onClose={() => setThreeDOpen(false)}
+          onClose={closeThreeDView}
         />
       )}
     </>

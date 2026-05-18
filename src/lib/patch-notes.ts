@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.0.1",
+    releasedAt: "May 18, 2026",
+    title: "Mobile collection polish",
+    summary: "Collection overview, card detail, 3D view, and price history panels are now easier to use on small screens.",
+    tone: "fixed",
+    highlights: [
+      "Made the collection breakdown cards readable on mobile with one or two columns instead of cramped three-column truncation.",
+      "Changed overview tabs into mobile-safe scrollable tabs that keep every label reachable and readable.",
+      "Compacted the card detail header and action row on phones while keeping desktop behavior intact.",
+      "Reduced mobile price chart height and replaced noisy technical status text with clearer live price chips.",
+      "Improved modal width, safe-area spacing, scroll-to-top behavior, and 3D close handling so the card cannot reopen from the same tap.",
+    ],
+  },
+  {
     version: "2.0.0",
     releasedAt: "May 18, 2026",
     title: "Binder and graded card upgrade",

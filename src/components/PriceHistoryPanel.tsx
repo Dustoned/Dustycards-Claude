@@ -63,6 +63,7 @@ const CHART_PADDING_Y = 10;
 const DEFAULT_RANGE_KEY: RangeKey = "3M";
 const RANGE_STORAGE_PREFIX = "dustycards:price-history-range";
 const RANGE_STORAGE_EVENT = "dustycards:price-history-range-change";
+const MOBILE_VIEWPORT_QUERY = "(max-width: 640px)";
 const rangeMemoryFallback = new Map<string, RangeKey>();
 const RANGE_PRESETS: Array<{
   key: RangeKey;
@@ -162,6 +163,22 @@ function writeStoredRangeKey(storageKey: string | null, range: RangeKey) {
 function writeStoredRange(storageKeys: RangeStorageKeys, range: RangeKey) {
   writeStoredRangeKey(storageKeys.primary, range);
   writeStoredRangeKey(storageKeys.legacy, range);
+}
+
+function subscribeMobileViewport(onStoreChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+
+  const media = window.matchMedia(MOBILE_VIEWPORT_QUERY);
+  media.addEventListener("change", onStoreChange);
+  return () => media.removeEventListener("change", onStoreChange);
+}
+
+function getMobileViewportSnapshot() {
+  return typeof window !== "undefined" && window.matchMedia(MOBILE_VIEWPORT_QUERY).matches;
+}
+
+function getMobileViewportServerSnapshot() {
+  return false;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -353,8 +370,23 @@ export default function PriceHistoryPanel({
 }: Props) {
   const pathname = usePathname();
   const isHeroLayout = !compact && layout === "hero";
-  const axisHeight = compact ? 18 : 22;
-  const height = compact ? 126 : isHeroLayout ? 188 : 168;
+  const isMobileViewport = useSyncExternalStore(
+    subscribeMobileViewport,
+    getMobileViewportSnapshot,
+    getMobileViewportServerSnapshot
+  );
+  const axisHeight = isMobileViewport ? (compact ? 16 : 18) : compact ? 18 : 22;
+  const height = isMobileViewport
+    ? compact
+      ? 108
+      : isHeroLayout
+        ? 156
+        : 142
+    : compact
+      ? 126
+      : isHeroLayout
+        ? 188
+        : 168;
   const chartId = useId().replace(/:/g, "");
   const chartFrameRef = useRef<HTMLDivElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number | null>(null);
@@ -493,15 +525,15 @@ export default function PriceHistoryPanel({
   const shellClass =
     tone === "dark"
       ? compact
-        ? "rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3"
+        ? "rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3 max-[640px]:px-2.5 max-[640px]:py-2.5"
         : isHeroLayout
           ? "rounded-[28px] border border-white/10 bg-white/[0.06] px-5 py-5 sm:px-6 sm:py-6"
-          : "rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-4"
+          : "rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-4 max-[640px]:px-3 max-[640px]:py-3"
       : compact
-        ? "rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-3 dark:border-white/8 dark:bg-white/[0.04]"
+        ? "rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-3 max-[640px]:px-2.5 max-[640px]:py-2.5 dark:border-white/8 dark:bg-white/[0.04]"
         : isHeroLayout
           ? "rounded-[28px] border border-black/8 bg-black/[0.03] px-5 py-5 dark:border-white/8 dark:bg-white/[0.04] sm:px-6 sm:py-6"
-          : "rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-4 dark:border-white/8 dark:bg-white/[0.04]";
+          : "rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-4 max-[640px]:px-3 max-[640px]:py-3 dark:border-white/8 dark:bg-white/[0.04]";
 
   if (!rangeResolved) {
     return (
@@ -576,10 +608,10 @@ export default function PriceHistoryPanel({
         ? "-translate-x-full"
         : "-translate-x-1/2";
   const rangeButtonClass = compact
-    ? "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)]"
+    ? "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]"
     : isHeroLayout
-      ? "min-h-[var(--ui-chip-min-height)] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)]"
-      : "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)]";
+      ? "min-h-[var(--ui-chip-min-height)] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]"
+      : "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]";
 
   function updateHoverState(event: ReactPointerEvent<SVGSVGElement>) {
     const pointerX = getPointerChartX(event, measuredChartWidth);

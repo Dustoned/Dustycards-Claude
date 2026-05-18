@@ -537,16 +537,22 @@ html.widescreen .settings-page {
 
 @media (max-width: 640px) {
   .card-modal-frame {
-    max-height: calc(100dvh - 0.25rem) !important;
+    width: min(100%, calc(100vw - 1.5rem)) !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
     border-radius: 1.1rem !important;
   }
 
-  .card-modal-frame > div:first-child {
+  .card-modal-frame .card-modal-content-pad {
     padding: 0.55rem !important;
   }
 
-  .card-modal-frame > div:first-child > div:first-child {
+  .card-modal-frame .card-modal-content-pad > div:first-child {
     gap: 0.55rem !important;
+  }
+
+  .card-modal-frame > div:last-child {
+    padding-bottom: calc(0.8rem + env(safe-area-inset-bottom)) !important;
   }
 
   .card-modal-frame aside {

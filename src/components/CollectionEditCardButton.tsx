@@ -537,6 +537,7 @@ export default function CollectionEditCardButton({
         onClick={openModal}
         className={buttonClasses(mode, theme, className)}
         aria-label={`Edit ${card.name} in collection`}
+        title={`Edit ${card.name} in collection`}
       >
         <Pencil className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
         {mode === "button" && <span>{label}</span>}

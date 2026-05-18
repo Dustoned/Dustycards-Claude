@@ -230,7 +230,7 @@ function PriceStatusInlineItem({
 }) {
   return (
     <span
-      className={`inline-flex min-w-0 items-center text-[11px] font-semibold leading-none tabular-nums max-[640px]:text-[10px] ${getPriceStatusToneClass(
+      className={`inline-flex min-w-0 items-center rounded-full border border-white/8 bg-white/[0.045] px-2.5 py-1.5 text-[11px] font-semibold leading-none tabular-nums max-[640px]:px-2 max-[640px]:py-1 max-[640px]:text-[10px] ${getPriceStatusToneClass(
         tone
       )}`}
       title={title}
@@ -260,7 +260,6 @@ function CardPriceStatusLine({
   );
   const latestPriceLabel = formatPriceRefreshedAt(card.price_fetched_at);
   const latestPriceAge = formatRelativeStatusAge(card.price_fetched_at, now);
-  const compactLatestPriceAge = latestPriceAge?.replace(/\s+ago$/, "") ?? null;
   const sourceCheckedLabel = formatShortStatusDate(card.price_source_checked_at);
   const sourceStatus = getSourceStatusSummary(card, sourceCheckedLabel);
   const historyPoints = getPriceHistoryPoints(card);
@@ -276,13 +275,14 @@ function CardPriceStatusLine({
       : refreshInfo.due
         ? "Due now"
         : formatRefreshCountdown(refreshInfo.remainingMs);
-  const shortRefreshValue = !refreshInfo.hasFetchedAt
-    ? "Pending"
+  const updatedValue = latestPriceAge ? `Updated ${latestPriceAge}` : "No price yet";
+  const nextUpdateValue = !refreshInfo.hasFetchedAt
+    ? "Update pending"
     : !refreshInfo.autoRefreshEnabled
-      ? "Manual"
+      ? "Manual updates"
       : refreshInfo.due
-        ? "Due"
-        : `Next ${formatRefreshCountdown(refreshInfo.remainingMs).replace(/\s+\d+s$/, "")}`;
+        ? "Update due"
+        : `Next update in ${formatRefreshCountdown(refreshInfo.remainingMs).replace(/\s+\d+s$/, "")}`;
   const refreshHint = !refreshInfo.hasFetchedAt
     ? refreshInfo.tier === "base"
       ? "First base sync"
@@ -313,35 +313,31 @@ function CardPriceStatusLine({
 
   return (
     <div className={`min-w-0 border-b border-white/8 pb-2 ${className}`}>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-none text-white/28 max-[640px]:gap-x-1 max-[640px]:text-[10px]">
-        <PriceStatusInlineItem
-          value={compactLatestPriceAge ? `Price ${compactLatestPriceAge}` : "No price"}
-          title={`Latest price: ${latestPriceAge ?? "No price"}. ${
-            latestPriceLabel ?? sourceCheckedLabel ?? "No source check yet"
-          }`}
-          tone={latestPriceTone}
-        />
-        <span aria-hidden="true">/</span>
-        <PriceStatusInlineItem
-          value={shortRefreshValue}
-          title={`Refresh: ${refreshValue}. ${refreshHint}`}
-          tone={refreshTone}
-        />
-        <span aria-hidden="true">/</span>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] leading-none text-white/28 max-[640px]:gap-1 max-[640px]:text-[10px]">
         <PriceStatusInlineItem
           value={sourceStatus.value}
           title={`Source: ${sourceStatus.value}. ${sourceStatus.hint}`}
           tone={sourceStatus.tone}
         />
-        <span aria-hidden="true">/</span>
         <PriceStatusInlineItem
-          value={`${coverage.currentCount}/${coverage.totalCount}`}
+          value={updatedValue}
+          title={`Latest price: ${latestPriceAge ?? "No price"}. ${
+            latestPriceLabel ?? sourceCheckedLabel ?? "No source check yet"
+          }`}
+          tone={latestPriceTone}
+        />
+        <PriceStatusInlineItem
+          value={nextUpdateValue}
+          title={`Refresh: ${refreshValue}. ${refreshHint}`}
+          tone={refreshTone}
+        />
+        <PriceStatusInlineItem
+          value={`${coverage.currentCount} of ${coverage.totalCount} sources`}
           title={`Data: ${coverage.currentCount}/${coverage.totalCount} sources. CM ${coverage.cardMarketCount}/${coverage.cardMarketTotal} / TCG ${coverage.tcgPlayerCount}/${coverage.tcgPlayerTotal}`}
           tone={coverageTone}
         />
-        <span aria-hidden="true">/</span>
         <PriceStatusInlineItem
-          value={historyPoints.length > 0 ? `${historyPoints.length} hist` : "No hist"}
+          value={historyPoints.length > 0 ? `${historyPoints.length} history points` : "No history yet"}
           title={`History: ${historyPoints.length > 0 ? `${historyPoints.length} points` : "None"}. ${historyHint}`}
           tone={historyPoints.length > 0 ? "neutral" : "warning"}
         />
@@ -474,7 +470,7 @@ function CompactDetailLink({
       onClick={onClick}
       className="group inline-flex max-w-full items-center gap-0.5 rounded-full border border-sky-300/16 bg-sky-300/[0.06] px-1.5 py-0.5 text-[11px] text-sky-100 transition-colors hover:border-sky-200/32 hover:bg-sky-300/[0.1] hover:text-white"
     >
-      <span className="min-w-0 truncate">{children}</span>
+      <span className="min-w-0 break-words sm:truncate">{children}</span>
       <ChevronRight className="h-3 w-3 shrink-0 text-sky-100/64 transition-transform group-hover:translate-x-0.5 group-hover:text-white" />
     </Link>
   );
@@ -734,18 +730,19 @@ export function CardModalHeroSection({
       ]
     : heroDetailStats;
   const quickActionButtonClass =
-    "!h-8 !w-8 !rounded-xl !border-white/10 !bg-white/[0.08] !p-0 hover:!border-white/18 hover:!bg-white/[0.13] max-[640px]:!h-8 max-[640px]:!w-8";
+    "!h-11 !w-11 !rounded-xl !border-white/10 !bg-white/[0.08] !p-0 hover:!border-white/18 hover:!bg-white/[0.13] sm:!h-8 sm:!w-8";
   const utilityButtonClass =
-    "inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] p-0 text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50";
+    "inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] p-0 text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:w-8";
+  const mobileActionLabelClass = "mt-1 text-center text-[10px] font-semibold leading-none text-white/45 sm:hidden";
 
   return (
-    <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))] !p-3 sm:!p-4">
+    <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))] !p-2.5 sm:!p-4">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_48%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.16),transparent_42%)]" />
 
       <div className="relative">
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
           <div className="min-w-0">
-            <h2 className={`${titleClass} break-words !text-[1.45rem] font-bold leading-tight text-white sm:!text-[1.9rem]`}>
+            <h2 className={`${titleClass} break-words !text-[1.22rem] font-bold leading-tight text-white min-[390px]:!text-[1.32rem] sm:!text-[1.9rem]`}>
               {card.name}
             </h2>
 
@@ -776,7 +773,7 @@ export function CardModalHeroSection({
                       {collectionLocationLabel ?? "In DustyCards"}
                     </span>
                     <span className="hidden max-[640px]:inline">
-                      {collectionItem.binder_name ?? "Saved"}
+                      Saved
                     </span>
                   </>
                 ) : (
@@ -802,83 +799,105 @@ export function CardModalHeroSection({
               className="flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:w-fit xl:justify-end"
               aria-label="Quick actions"
             >
-              <CollectionAddCardButton
-                card={collectionCard}
-                mode="icon"
-                theme="dark"
-                label={collectionItem ? "Add copy" : "Add"}
-                className={quickActionButtonClass}
-                onAdded={onAddedToCollection}
-              />
-
-              {!collectionItem && (
-                <CollectionWantButton
+              <div className="flex flex-col items-center">
+                <CollectionAddCardButton
                   card={collectionCard}
                   mode="icon"
                   theme="dark"
-                  label="Want"
-                  initialWanted={Boolean(card.want_item)}
-                  wantItemId={card.want_item?.id ?? null}
+                  label={collectionItem ? "Add copy" : "Add"}
                   className={quickActionButtonClass}
+                  onAdded={onAddedToCollection}
                 />
+                <span className={mobileActionLabelClass}>
+                  {collectionItem ? "Copy" : "Add"}
+                </span>
+              </div>
+
+              {!collectionItem && (
+                <div className="flex flex-col items-center">
+                  <CollectionWantButton
+                    card={collectionCard}
+                    mode="icon"
+                    theme="dark"
+                    label="Want"
+                    initialWanted={Boolean(card.want_item)}
+                    wantItemId={card.want_item?.id ?? null}
+                    className={quickActionButtonClass}
+                  />
+                  <span className={mobileActionLabelClass}>
+                    {card.want_item ? "Wanted" : "Want"}
+                  </span>
+                </div>
               )}
 
               {collectionItem && (
                 <>
-                  <CollectionEditCardButton
-                    card={collectionCard}
-                    item={collectionItem}
-                    mode="icon"
-                    theme="dark"
-                    label="Edit"
-                    className={quickActionButtonClass}
-                    onSaved={onClose}
-                  />
-                  <button
-                    type="button"
-                    onClick={onRemoveCollectionItem}
-                    disabled={isBusy || removingCollectionItem}
-                    className={`${quickActionButtonClass} !text-rose-100 hover:!border-rose-200/24 hover:!bg-rose-500/16`}
-                    aria-label={
-                      removingCollectionItem
-                        ? "Removing this saved copy"
-                        : "Remove this saved copy from collection"
-                    }
-                    title={
-                      collectionLocationLabel
-                        ? `Remove this copy: ${collectionLocationLabel}`
-                        : "Remove this saved copy"
-                    }
-                  >
-                    <Trash2 className={`h-3.5 w-3.5 ${removingCollectionItem ? "animate-pulse" : ""}`} />
-                  </button>
+                  <div className="flex flex-col items-center">
+                    <CollectionEditCardButton
+                      card={collectionCard}
+                      item={collectionItem}
+                      mode="icon"
+                      theme="dark"
+                      label="Edit"
+                      className={quickActionButtonClass}
+                      onSaved={onClose}
+                    />
+                    <span className={mobileActionLabelClass}>Edit</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={onRemoveCollectionItem}
+                      disabled={isBusy || removingCollectionItem}
+                      className={`${quickActionButtonClass} !text-rose-100 hover:!border-rose-200/24 hover:!bg-rose-500/16`}
+                      aria-label={
+                        removingCollectionItem
+                          ? "Removing this saved copy"
+                          : "Remove this saved copy from collection"
+                      }
+                      title={
+                        collectionLocationLabel
+                          ? `Remove this copy: ${collectionLocationLabel}`
+                          : "Remove this saved copy"
+                      }
+                    >
+                      <Trash2 className={`h-3.5 w-3.5 ${removingCollectionItem ? "animate-pulse" : ""}`} />
+                    </button>
+                    <span className={mobileActionLabelClass}>Remove</span>
+                  </div>
                 </>
               )}
 
               {canManageCardPrices && (
                 <>
-                  <button
-                    type="button"
-                    onClick={onSyncHistory}
-                    disabled={isBusy}
-                    className={utilityButtonClass}
-                    aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
-                    title={syncingHistory ? "Syncing..." : "Sync history"}
-                  >
-                    <LineChart
-                      className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onRefresh}
-                    disabled={isBusy}
-                    className={utilityButtonClass}
-                    aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
-                    title={refreshing ? "Refreshing..." : "Refresh"}
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                  </button>
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={onSyncHistory}
+                      disabled={isBusy}
+                      className={utilityButtonClass}
+                      aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
+                      title={syncingHistory ? "Syncing..." : "Sync history"}
+                    >
+                      <LineChart
+                        className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`}
+                      />
+                    </button>
+                    <span className={mobileActionLabelClass}>History</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={onRefresh}
+                      disabled={isBusy}
+                      className={utilityButtonClass}
+                      aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
+                      title={refreshing ? "Refreshing..." : "Refresh"}
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                    </button>
+                    <span className={mobileActionLabelClass}>Refresh</span>
+                  </div>
                 </>
               )}
             </div>
@@ -891,10 +910,10 @@ export function CardModalHeroSection({
               key={stat.label}
               className="min-w-0 rounded-xl border border-white/8 bg-black/14 px-3 py-2 backdrop-blur-sm max-[640px]:px-2.5 max-[640px]:py-1.5"
             >
-              <p className="truncate text-[9px] font-semibold uppercase tracking-[0.14em] text-white/32 max-[640px]:tracking-[0.1em]">
+              <p className="break-words text-[9px] font-semibold uppercase tracking-[0.14em] text-white/32 max-[640px]:tracking-[0.1em] sm:truncate">
                 {stat.label}
               </p>
-              <div className="mt-1 min-w-0 truncate text-[13px] font-semibold leading-snug text-white/82 max-[640px]:text-[12px] [&_*]:truncate">
+              <div className="mt-1 min-w-0 break-words text-[13px] font-semibold leading-snug text-white/82 max-[640px]:text-[12px] sm:truncate sm:[&_*]:truncate">
                 {stat.value}
               </div>
             </div>
@@ -942,8 +961,8 @@ function CardModalCurrentPricingPanel({
   const [activePrimaryMetric, ...activeSecondaryMetrics] = metrics;
 
   return (
-    <div className="card-modal-current-pricing-panel mt-4 border-t border-white/8 pt-4">
-      <div className="card-modal-pricing-metrics grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+    <div className="card-modal-current-pricing-panel mt-4 border-t border-white/8 pt-4 max-[640px]:mt-2.5 max-[640px]:pt-2.5">
+      <div className="card-modal-pricing-metrics grid gap-4 max-[640px]:gap-2 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
         <MetricTile
           label={activePrimaryMetric.label}
           value={activePrimaryMetric.value}
@@ -1078,7 +1097,6 @@ function EbaySoldStatusLine({
   const updatedAt = getEbaySoldUpdatedAt(display, card);
   const updatedLabel = formatFullStatusDate(updatedAt);
   const updatedAge = formatRelativeStatusAge(updatedAt, now);
-  const compactUpdatedAge = updatedAge?.replace(/\s+ago$/, "") ?? null;
   const checkedLabel = formatShortStatusDate(card.ebay_sold_graded_checked_at);
   const syncedLabel = formatShortStatusDate(card.ebay_sold_graded_synced_at);
   const statusLabel =
@@ -1100,46 +1118,7 @@ function EbaySoldStatusLine({
 
   return (
     <div className="min-w-0 border-b border-white/8 pb-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] leading-none text-white/28 max-[640px]:gap-x-1 max-[640px]:text-[10px]">
-        <PriceStatusInlineItem
-          value={updatedLabel ? `Updated ${updatedLabel}` : "eBay not synced"}
-          title={
-            updatedLabel
-              ? `eBay sold price fetched ${updatedLabel}`
-              : "No eBay sold update timestamp stored"
-          }
-          tone={updateTone}
-        />
-        <span aria-hidden="true">/</span>
-        <PriceStatusInlineItem
-          value={compactUpdatedAge ? `${compactUpdatedAge} old` : "No age"}
-          title={`eBay sold age: ${updatedAge ?? "unknown"}`}
-          tone={updateTone}
-        />
-        <span aria-hidden="true">/</span>
-        <PriceStatusInlineItem
-          value={display.sampleSize != null ? `${display.sampleSize} sold` : "No sample"}
-          title={
-            display.sampleSize != null
-              ? `${display.sampleSize} sold listings in the current eBay sample`
-              : "No sold-listing sample size stored"
-          }
-          tone={display.sampleSize != null ? "neutral" : "warning"}
-        />
-        <span aria-hidden="true">/</span>
-        {belowRawFloor && (
-          <>
-            <PriceStatusInlineItem
-              value={`Below raw ${formatCurrency(rawFloorValue, "EUR")}`}
-              title={`This eBay sold graded value is below current raw CardMarket ${formatCurrency(
-                rawFloorValue,
-                "EUR"
-              )}`}
-              tone="danger"
-            />
-            <span aria-hidden="true">/</span>
-          </>
-        )}
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] leading-none text-white/28 max-[640px]:gap-1 max-[640px]:text-[10px]">
         <PriceStatusInlineItem
           value={statusLabel}
           title={[
@@ -1151,6 +1130,34 @@ function EbaySoldStatusLine({
             .join(". ")}
           tone={statusTone}
         />
+        <PriceStatusInlineItem
+          value={updatedAge ? `Updated ${updatedAge}` : updatedLabel ? `Updated ${updatedLabel}` : "eBay not synced"}
+          title={
+            updatedLabel
+              ? `eBay sold price fetched ${updatedLabel}`
+              : "No eBay sold update timestamp stored"
+          }
+          tone={updateTone}
+        />
+        <PriceStatusInlineItem
+          value={display.sampleSize != null ? `${display.sampleSize} sold` : "No sample"}
+          title={
+            display.sampleSize != null
+              ? `${display.sampleSize} sold listings in the current eBay sample`
+              : "No sold-listing sample size stored"
+          }
+          tone={display.sampleSize != null ? "neutral" : "warning"}
+        />
+        {belowRawFloor && (
+          <PriceStatusInlineItem
+            value={`Below raw ${formatCurrency(rawFloorValue, "EUR")}`}
+            title={`This eBay sold graded value is below current raw CardMarket ${formatCurrency(
+              rawFloorValue,
+              "EUR"
+            )}`}
+            tone="danger"
+          />
+        )}
       </div>
     </div>
   );
@@ -1298,6 +1305,7 @@ export function CardModalHistorySection({
           {
             label: "Current",
             value: formatCurrency(card.price?.tcp_market ?? null, "USD"),
+            hint: "Source: TCGPlayer",
           },
           {
             label: "TCP Mid",
@@ -1314,10 +1322,11 @@ export function CardModalHistorySection({
             value: formatCurrency(activeCardMarketCurrentValue, "EUR"),
             hint:
               ignoredCardMarketCurrentValue != null
-                ? `Ignored suspicious ${formatCurrency(ignoredCardMarketCurrentValue, "EUR")}`
-                : showCardMarketSeriesPicker
-                  ? `Using ${activeCardMarketSeriesLabel}`
-                  : null,
+                ? `Source: ${activeCardMarketSeriesLabel} CardMarket / ignored suspicious ${formatCurrency(
+                    ignoredCardMarketCurrentValue,
+                    "EUR"
+                  )}`
+                : `Source: ${activeCardMarketSeriesLabel} CardMarket`,
           },
           {
             label: "7D Avg",

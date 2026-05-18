@@ -114,25 +114,25 @@ function PortfolioBreakdownItem({
 }) {
   return (
     <div
-      className={`min-w-0 rounded-xl border px-2.5 py-2 shadow-sm shadow-black/5 dark:shadow-none ${surfaceClassName}`}
+      className={`min-w-0 rounded-xl border px-3 py-2.5 shadow-sm shadow-black/5 dark:shadow-none sm:px-2.5 sm:py-2 ${surfaceClassName}`}
     >
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="flex min-w-0 items-start gap-1.5">
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2 sm:gap-1.5">
           <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${dotClassName}`} />
           <div className="min-w-0">
-            <p className="truncate text-[11px] font-bold leading-tight text-gray-950 dark:text-white sm:text-xs">
+            <p className="break-words text-sm font-bold leading-tight text-gray-950 dark:text-white sm:text-xs">
               {label}
             </p>
-            <p className="mt-0.5 truncate text-[9px] font-semibold text-gray-500 dark:text-white/42 sm:text-[10px]">
+            <p className="mt-1 break-words text-xs font-semibold text-gray-500 dark:text-white/42 sm:mt-0.5 sm:text-[10px]">
               {count}
             </p>
           </div>
         </div>
-        <div className="min-w-0 shrink-0 text-right">
-          <p className="max-w-[5.6rem] truncate text-[11px] font-black leading-tight tabular-nums text-gray-950 dark:text-white sm:max-w-[7rem] sm:text-xs">
+        <div className="min-w-0 sm:shrink-0 sm:text-right">
+          <p className="whitespace-nowrap text-lg font-black leading-tight tabular-nums text-gray-950 dark:text-white sm:max-w-[7rem] sm:truncate sm:text-xs">
             {value}
           </p>
-          <p className="mt-0.5 text-[9px] font-bold tabular-nums text-gray-500 dark:text-white/42 sm:text-[10px]">
+          <p className="mt-1 text-xs font-bold tabular-nums text-gray-500 dark:text-white/42 sm:mt-0.5 sm:text-[10px]">
             {share.toFixed(0)}%
           </p>
         </div>
@@ -244,7 +244,7 @@ function PortfolioBreakdownPanel({
           </div>
         </div>
 
-        <div className="grid min-w-0 grid-cols-3 gap-1.5">
+        <div className="grid min-w-0 grid-cols-1 gap-2 min-[390px]:grid-cols-2 sm:grid-cols-3 sm:gap-1.5">
           {segments.map((segment) => (
             <PortfolioBreakdownItem
               key={segment.label}
@@ -460,11 +460,11 @@ export default async function HomePage({
           )}
 
           <section className="w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.02] p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.03]">
-            <div className="flex min-w-0 justify-end">
+            <div className="flex min-w-0 justify-start sm:justify-end">
               <SegmentedNavLinks
                 items={viewSwitchItems}
                 ariaLabel="Collection view"
-                className="w-fit max-w-full"
+                className="w-full max-w-full sm:w-fit"
               />
             </div>
           </section>

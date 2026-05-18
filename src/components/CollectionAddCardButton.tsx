@@ -533,6 +533,7 @@ export default function CollectionAddCardButton({
         onClick={openModal}
         className={buttonClasses(mode, theme, className)}
         aria-label={`Add ${card.name} to collection`}
+        title={`Add ${card.name} to collection`}
       >
         <Plus className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
         {mode === "button" && <span>{flashAdded ? "Added" : label}</span>}

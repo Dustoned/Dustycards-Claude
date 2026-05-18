@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 
 export interface GameFilterSwitchItem {
@@ -27,38 +30,52 @@ export function SegmentedNavLinks({
   even?: boolean;
   className?: string;
 }) {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const activeItemRef = useRef<HTMLAnchorElement | null>(null);
+
+  useEffect(() => {
+    const activeItem = activeItemRef.current;
+    const scrollContainer = scrollContainerRef.current;
+    if (!activeItem || !scrollContainer) return;
+
+    activeItem.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [items]);
+
   if (items.length <= 0) return null;
 
   return (
     <nav
       aria-label={ariaLabel}
       className={cx(
-        "min-w-0 rounded-[1.35rem] border border-black/10 bg-black/[0.035] p-1 shadow-sm shadow-black/5 dark:border-white/12 dark:bg-white/[0.055] dark:shadow-black/20",
+        "relative min-w-0 max-w-full overflow-hidden rounded-[1.35rem] border border-black/10 bg-black/[0.035] p-1 shadow-sm shadow-black/5 dark:border-white/12 dark:bg-white/[0.055] dark:shadow-black/20",
         className
       )}
     >
       <div
+        ref={scrollContainerRef}
         className={
           even
             ? "grid min-w-0 gap-1"
-            : "flex min-w-0 overflow-x-auto [scrollbar-width:none]"
+            : "flex w-max min-w-full gap-1 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         }
         style={even ? { gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` } : undefined}
       >
         {items.map((item) => (
           <Link
             key={`${item.href}:${item.label}`}
+            ref={item.active ? activeItemRef : undefined}
             href={item.href}
             prefetch={false}
             aria-current={item.active ? "page" : undefined}
             className={cx(
-              "inline-flex h-9 min-w-0 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-bold leading-none transition-colors",
+              "inline-flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-bold leading-none transition-colors",
+              even ? "min-w-0" : "min-w-max",
               item.active
                 ? "bg-gray-950 text-white shadow-sm shadow-black/12 dark:bg-white dark:text-gray-950 dark:shadow-none"
                 : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
             )}
           >
-            <span className="truncate">{item.label}</span>
+            <span className={even ? "truncate" : "whitespace-nowrap"}>{item.label}</span>
           </Link>
         ))}
       </div>

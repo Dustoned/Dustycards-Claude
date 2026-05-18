@@ -2539,7 +2539,7 @@ export default function CardThreeViewer({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between p-4 sm:p-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6">
         <button
           type="button"
           onPointerDown={(event) => {
