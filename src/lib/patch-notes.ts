@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.3",
+    releasedAt: "May 18, 2026",
+    title: "Wants Quick View modal hotfix",
+    summary: "Wants Quick View now opens as a real popup on mobile instead of expanding inside the binder tile.",
+    tone: "fixed",
+    highlights: [
+      "Moved Wants Quick View into a portal-based modal rendered outside the tile layout.",
+      "Kept the binder tile height stable when opening Quick View on mobile.",
+      "Preserved the dark glassy modal styling, backdrop close behavior, and internal scrolling.",
+    ],
+  },
+  {
     version: "2.1.2",
     releasedAt: "May 18, 2026",
     title: "Mobile tab and quick view polish",
