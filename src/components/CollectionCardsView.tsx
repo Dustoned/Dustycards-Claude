@@ -782,10 +782,10 @@ export default function CollectionCardsView({
     { value: "tcp", label: "TCP" },
   ];
   const SIZE_OPTIONS: Array<{ value: CardSize; label: string }> = [
-    { value: "xsmall", label: "4" },
-    { value: "small", label: "S" },
-    { value: "medium", label: "M" },
-    { value: "large", label: "L" },
+    { value: "xsmall", label: "4-up" },
+    { value: "small", label: "3-up" },
+    { value: "medium", label: "2-up" },
+    { value: "large", label: "1-up" },
   ];
 
   useEffect(() => {
@@ -873,10 +873,24 @@ export default function CollectionCardsView({
     },
   ];
   const toolbarSizeOptions: CardBrowserToolbarOption[] = [
-    ...(isMobileViewport ? [{ value: "xsmall", label: "4" }] : []),
-    { value: "small", label: "S" },
-    { value: "medium", label: "M" },
-    { value: "large", label: "L" },
+    ...(isMobileViewport
+      ? [{ value: "xsmall", label: "4-up", title: "Show four cards per row" }]
+      : []),
+    {
+      value: "small",
+      label: isMobileViewport ? "3-up" : "Small",
+      title: isMobileViewport ? "Show three cards per row" : "Small card tiles",
+    },
+    {
+      value: "medium",
+      label: isMobileViewport ? "2-up" : "Medium",
+      title: isMobileViewport ? "Show two cards per row" : "Medium card tiles",
+    },
+    {
+      value: "large",
+      label: isMobileViewport ? "1-up" : "Large",
+      title: isMobileViewport ? "Show one card per row" : "Large card tiles",
+    },
   ];
   const toolbarActiveFilters: CardBrowserToolbarActiveFilter[] = [
     ...(search.trim()

@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
-import { useSettings } from "@/components/SettingsProvider";
+import { useSettings, type CardSize } from "@/components/SettingsProvider";
 import { getFixedTrackGridTemplate, getSupportTileTrackWidth } from "@/lib/display-scale";
 import {
   buildOverviewSectionOrderCookie,
@@ -70,6 +70,27 @@ interface OverviewSection {
   label: string;
   render: (sectionControls: ReactNode) => ReactNode;
 }
+
+const MOBILE_CARD_LAYOUT_OPTIONS: Array<{
+  value: CardSize;
+  label: string;
+  title: string;
+}> = [
+  { value: "xsmall", label: "4-up", title: "Show four cards per row" },
+  { value: "small", label: "3-up", title: "Show three cards per row" },
+  { value: "medium", label: "2-up", title: "Show two cards per row" },
+  { value: "large", label: "1-up", title: "Show one card per row" },
+];
+
+const DESKTOP_CARD_LAYOUT_OPTIONS: Array<{
+  value: CardSize;
+  label: string;
+  title: string;
+}> = [
+  { value: "small", label: "Small", title: "Small card tiles" },
+  { value: "medium", label: "Medium", title: "Medium card tiles" },
+  { value: "large", label: "Large", title: "Large card tiles" },
+];
 
 function moveVisibleSection(
   order: OverviewSectionKey[],
@@ -170,11 +191,12 @@ export default function CollectionOverviewSections({
   binders,
   initialSectionOrder = null,
 }: Props) {
-  const { displaySettings } = useSettings();
+  const { displaySettings, isMobileViewport, setDisplay } = useSettings();
   const binderTileTrackWidth = getSupportTileTrackWidth(
     displaySettings.uiScale,
     displaySettings.widescreen
   );
+  const layoutOptions = isMobileViewport ? MOBILE_CARD_LAYOUT_OPTIONS : DESKTOP_CARD_LAYOUT_OPTIONS;
   const [sectionOrder, setSectionOrder] = useState<OverviewSectionKey[]>(
     initialSectionOrder ?? DEFAULT_OVERVIEW_SECTION_ORDER
   );
@@ -361,6 +383,42 @@ export default function CollectionOverviewSections({
 
   return (
     <div className={hasResolvedSectionOrder ? "space-y-5 sm:space-y-6" : "invisible space-y-5 sm:space-y-6"}>
+      <div className="glass flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-black/8 px-3 py-2.5 shadow-sm shadow-black/5 dark:border-white/8 sm:px-4">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400 dark:text-white/35">
+            Card layout
+          </p>
+          <p className="mt-0.5 hidden text-xs font-medium text-gray-500 dark:text-white/45 sm:block">
+            Adjust card density on this collection view.
+          </p>
+        </div>
+        <div
+          className="grid min-w-0 shrink-0 gap-1 rounded-xl border border-black/8 bg-white/70 p-1 dark:border-white/8 dark:bg-white/[0.045]"
+          style={{ gridTemplateColumns: `repeat(${layoutOptions.length}, minmax(0, 1fr))` }}
+        >
+          {layoutOptions.map((option) => {
+            const active = displaySettings.cardSize === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                title={option.title}
+                aria-pressed={active}
+                onClick={() => setDisplay("cardSize", option.value)}
+                className={`min-h-8 min-w-[2.8rem] rounded-lg px-2 text-[11px] font-black leading-none transition-colors sm:min-w-[4rem] sm:text-xs ${
+                  active
+                    ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
+                    : "text-gray-500 hover:bg-black/[0.035] hover:text-gray-950 dark:text-white/55 dark:hover:bg-white/8 dark:hover:text-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {orderedVisibleSections.map((section, index) => {
         const sectionControls = (
           <SectionReorderControls

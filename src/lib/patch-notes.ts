@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.9",
+    releasedAt: "May 18, 2026",
+    title: "Clearer collection size controls",
+    summary: "Collection card sizing is now easier to understand and available directly from the overview on phone.",
+    tone: "improved",
+    highlights: [
+      "Renamed mobile card density buttons from 4, S, M, and L to 4-up, 3-up, 2-up, and 1-up.",
+      "Added a compact Card layout control above the collection overview sections.",
+      "Kept desktop controls clear with Small, Medium, and Large labels.",
+    ],
+  },
+  {
     version: "2.1.8",
     releasedAt: "May 18, 2026",
     title: "PSA slab and mobile 4-up polish",
