@@ -57,6 +57,8 @@ export default function PullRateHoverTable({
       className={`group relative min-w-0 ${className}`}
       tabIndex={0}
       aria-label={`Pull-rate data: ${profile.rarities.length} rarity tiers`}
+      data-mobile-tooltip="Tap to show pull-rate details"
+      onClick={(event) => event.currentTarget.focus()}
     >
       <div className="flex min-h-full min-w-0 cursor-default flex-wrap items-center justify-between gap-[var(--ui-header-action-gap)] rounded-[var(--ui-binder-metric-radius)] border border-amber-400/14 bg-amber-400/[0.055] px-[var(--ui-binder-metric-x)] py-[var(--ui-binder-metric-y)] text-gray-800 transition-colors group-hover:bg-amber-400/[0.075] group-focus-visible:ring-2 group-focus-visible:ring-amber-300/45 dark:text-amber-50">
         <div className="min-w-0">
@@ -68,7 +70,8 @@ export default function PullRateHoverTable({
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center rounded-full border border-black/8 bg-white/60 px-[var(--ui-header-pill-x)] py-[var(--ui-header-pill-y)] text-[length:var(--ui-header-pill-font-size)] font-bold text-gray-600 transition-colors group-hover:bg-white/75 dark:border-white/8 dark:bg-white/[0.06] dark:text-white/68 dark:group-hover:bg-white/[0.09]">
-          Hover
+          <span className="hidden sm:inline">Hover</span>
+          <span className="sm:hidden">Tap</span>
         </span>
       </div>
 

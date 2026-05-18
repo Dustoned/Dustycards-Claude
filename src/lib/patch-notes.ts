@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.1",
+    releasedAt: "May 18, 2026",
+    title: "Mobile hover and card tile cleanup",
+    summary: "Mobile hover information is now accessible without extra card tile info buttons, and card detail action icons are better aligned.",
+    tone: "fixed",
+    highlights: [
+      "Added a mobile long-press tooltip layer for hover-only labels and title/aria-label information.",
+      "Removed the extra info button from card tiles so tapping the card itself opens the full details.",
+      "Centered the remove icon inside the card detail action button.",
+      "Made Pull Rate hover panels clearer on mobile by changing the hint to Tap and focusing the panel on tap.",
+    ],
+  },
+  {
     version: "2.1.0",
     releasedAt: "May 18, 2026",
     title: "Compact mobile detail controls",

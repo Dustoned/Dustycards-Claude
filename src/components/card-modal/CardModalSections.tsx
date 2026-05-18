@@ -729,7 +729,7 @@ export function CardModalHeroSection({
       ]
     : heroDetailStats;
   const quickActionButtonClass =
-    "!h-10 !w-10 !rounded-xl !border-white/10 !bg-white/[0.08] !p-0 hover:!border-white/18 hover:!bg-white/[0.13] sm:!h-9 sm:!w-9";
+    "!inline-flex !h-10 !w-10 !items-center !justify-center !rounded-xl !border-white/10 !bg-white/[0.08] !p-0 !leading-none hover:!border-white/18 hover:!bg-white/[0.13] sm:!h-9 sm:!w-9";
   const utilityButtonClass =
     "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] p-0 text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9";
 
@@ -833,7 +833,11 @@ export function CardModalHeroSection({
                         : "Remove this saved copy"
                     }
                   >
-                    <Trash2 className={`h-3.5 w-3.5 ${removingCollectionItem ? "animate-pulse" : ""}`} />
+                    <Trash2
+                      className={`h-3.5 w-3.5 shrink-0 ${
+                        removingCollectionItem ? "animate-pulse" : ""
+                      }`}
+                    />
                   </button>
                 </>
               )}

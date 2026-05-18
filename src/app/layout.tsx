@@ -6,6 +6,7 @@ import AppVersionWatcher from "@/components/AppVersionWatcher";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import { HeaderMobileMenu, HeaderNav } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
+import MobileHoverTooltip from "@/components/MobileHoverTooltip";
 import SettingsProvider from "@/components/SettingsProvider";
 import { getCurrentUser } from "@/lib/auth";
 import {
@@ -170,6 +171,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           currentUserRole={currentUser?.role ?? null}
         >
           <AppVersionWatcher />
+          <MobileHoverTooltip />
           {currentUser && <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} />}
           <header
             data-app-header
