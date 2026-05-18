@@ -7,7 +7,6 @@ import Link from "next/link";
 import { ChevronRight, ExternalLink, LineChart, RefreshCw, Trash2 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
-import CollectionWantButton from "@/components/CollectionWantButton";
 import type { CardSize } from "@/components/SettingsProvider";
 import { type SupportedGradedSlabCompany } from "@/lib/graded-slabs";
 import {
@@ -730,18 +729,17 @@ export function CardModalHeroSection({
       ]
     : heroDetailStats;
   const quickActionButtonClass =
-    "!h-11 !w-11 !rounded-xl !border-white/10 !bg-white/[0.08] !p-0 hover:!border-white/18 hover:!bg-white/[0.13] sm:!h-8 sm:!w-8";
+    "!h-10 !w-10 !rounded-xl !border-white/10 !bg-white/[0.08] !p-0 hover:!border-white/18 hover:!bg-white/[0.13] sm:!h-9 sm:!w-9";
   const utilityButtonClass =
-    "inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] p-0 text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:w-8";
-  const mobileActionLabelClass = "mt-1 text-center text-[10px] font-semibold leading-none text-white/45 sm:hidden";
+    "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] p-0 text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9";
 
   return (
-    <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.075),rgba(255,255,255,0.04))] !p-2.5 sm:!p-4">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_48%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.16),transparent_42%)]" />
+    <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04))] !p-2.5 sm:!p-4">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),transparent_48%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.13),transparent_42%)] sm:h-32" />
 
       <div className="relative">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-          <div className="min-w-0">
+        <div className="flex min-w-0 items-start justify-between gap-2.5 sm:gap-3">
+          <div className="min-w-0 flex-1">
             <h2 className={`${titleClass} break-words !text-[1.22rem] font-bold leading-tight text-white min-[390px]:!text-[1.32rem] sm:!text-[1.9rem]`}>
               {card.name}
             </h2>
@@ -794,110 +792,76 @@ export function CardModalHeroSection({
             </div>
           </div>
 
-          <div className="min-w-0 xl:justify-self-end">
+          <div className="shrink-0">
             <div
-              className="flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:w-fit xl:justify-end"
+              className="flex max-w-[8rem] flex-wrap items-center justify-end gap-1.5 min-[390px]:max-w-[10rem] sm:max-w-none"
               aria-label="Quick actions"
             >
-              <div className="flex flex-col items-center">
-                <CollectionAddCardButton
-                  card={collectionCard}
-                  mode="icon"
-                  theme="dark"
-                  label={collectionItem ? "Add copy" : "Add"}
-                  className={quickActionButtonClass}
-                  onAdded={onAddedToCollection}
-                />
-                <span className={mobileActionLabelClass}>
-                  {collectionItem ? "Copy" : "Add"}
-                </span>
-              </div>
-
-              {!collectionItem && (
-                <div className="flex flex-col items-center">
-                  <CollectionWantButton
-                    card={collectionCard}
-                    mode="icon"
-                    theme="dark"
-                    label="Want"
-                    initialWanted={Boolean(card.want_item)}
-                    wantItemId={card.want_item?.id ?? null}
-                    className={quickActionButtonClass}
-                  />
-                  <span className={mobileActionLabelClass}>
-                    {card.want_item ? "Wanted" : "Want"}
-                  </span>
-                </div>
-              )}
+              <CollectionAddCardButton
+                card={collectionCard}
+                mode="icon"
+                theme="dark"
+                label={collectionItem ? "Add copy" : "Add"}
+                className={quickActionButtonClass}
+                onAdded={onAddedToCollection}
+              />
 
               {collectionItem && (
                 <>
-                  <div className="flex flex-col items-center">
-                    <CollectionEditCardButton
-                      card={collectionCard}
-                      item={collectionItem}
-                      mode="icon"
-                      theme="dark"
-                      label="Edit"
-                      className={quickActionButtonClass}
-                      onSaved={onClose}
-                    />
-                    <span className={mobileActionLabelClass}>Edit</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={onRemoveCollectionItem}
-                      disabled={isBusy || removingCollectionItem}
-                      className={`${quickActionButtonClass} !text-rose-100 hover:!border-rose-200/24 hover:!bg-rose-500/16`}
-                      aria-label={
-                        removingCollectionItem
-                          ? "Removing this saved copy"
-                          : "Remove this saved copy from collection"
-                      }
-                      title={
-                        collectionLocationLabel
-                          ? `Remove this copy: ${collectionLocationLabel}`
-                          : "Remove this saved copy"
-                      }
-                    >
-                      <Trash2 className={`h-3.5 w-3.5 ${removingCollectionItem ? "animate-pulse" : ""}`} />
-                    </button>
-                    <span className={mobileActionLabelClass}>Remove</span>
-                  </div>
+                  <CollectionEditCardButton
+                    card={collectionCard}
+                    item={collectionItem}
+                    mode="icon"
+                    theme="dark"
+                    label="Edit"
+                    className={quickActionButtonClass}
+                    onSaved={onClose}
+                  />
+                  <button
+                    type="button"
+                    onClick={onRemoveCollectionItem}
+                    disabled={isBusy || removingCollectionItem}
+                    className={`${quickActionButtonClass} !text-rose-100 hover:!border-rose-200/24 hover:!bg-rose-500/16`}
+                    aria-label={
+                      removingCollectionItem
+                        ? "Removing this saved copy"
+                        : "Remove this saved copy from collection"
+                    }
+                    title={
+                      collectionLocationLabel
+                        ? `Remove this copy: ${collectionLocationLabel}`
+                        : "Remove this saved copy"
+                    }
+                  >
+                    <Trash2 className={`h-3.5 w-3.5 ${removingCollectionItem ? "animate-pulse" : ""}`} />
+                  </button>
                 </>
               )}
 
               {canManageCardPrices && (
                 <>
-                  <div className="flex flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={onSyncHistory}
-                      disabled={isBusy}
-                      className={utilityButtonClass}
-                      aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
-                      title={syncingHistory ? "Syncing..." : "Sync history"}
-                    >
-                      <LineChart
-                        className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`}
-                      />
-                    </button>
-                    <span className={mobileActionLabelClass}>History</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={onRefresh}
-                      disabled={isBusy}
-                      className={utilityButtonClass}
-                      aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
-                      title={refreshing ? "Refreshing..." : "Refresh"}
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                    </button>
-                    <span className={mobileActionLabelClass}>Refresh</span>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={onSyncHistory}
+                    disabled={isBusy}
+                    className={utilityButtonClass}
+                    aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
+                    title={syncingHistory ? "Syncing..." : "Sync history"}
+                  >
+                    <LineChart
+                      className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`}
+                    />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    disabled={isBusy}
+                    className={utilityButtonClass}
+                    aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
+                    title={refreshing ? "Refreshing..." : "Refresh"}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                  </button>
                 </>
               )}
             </div>
@@ -1417,107 +1381,103 @@ export function CardModalHistorySection({
       ? selectedEbaySoldGradedHistory?.label ?? selectedEbaySoldGradedPrice?.label ?? ""
       : selectedGradedHistory?.label ?? selectedGradedPrice?.label ?? "";
   const historyPillClass =
-    "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-2";
+    "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySegmentClass =
-    "inline-flex h-8 min-w-0 !w-auto overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-0.5 max-[640px]:h-7 max-[640px]:!w-full";
+    "inline-flex h-8 min-w-0 w-auto overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-0.5 max-[640px]:h-7";
   const historySegmentButtonClass =
-    "min-w-0 flex-1 rounded-full px-3 text-[11px] font-semibold transition-colors sm:flex-none max-[640px]:px-2.5";
+    "min-w-0 flex-none rounded-full px-3 text-[11px] font-semibold transition-colors max-[640px]:px-2";
   return (
     <SectionShell className="overflow-hidden max-[640px]:!p-2.5">
       <div className="mb-2.5 flex flex-col gap-2">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <p className="mr-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
-              Price history
-            </p>
+        <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5">
+          <p className="mr-0.5 shrink-0 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/40 sm:mr-1 sm:text-[10px] sm:tracking-[0.16em]">
+            Price history
+          </p>
 
-            {hasGradedData && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {[
-                  { key: "market" as const, label: "Raw" },
-                  { key: "graded" as const, label: "Graded" },
-                ].map((mode) => (
-                  <button
-                    key={mode.key}
-                    type="button"
-                    onClick={() => onSelectHistoryChartMode(mode.key)}
-                    className={`${historyPillClass} ${
-                      effectiveHistoryChartMode === mode.key
-                        ? "border-white/24 bg-white/14 text-white"
-                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                    }`}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {hasGradedData && (
+            <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5">
+              {[
+                { key: "market" as const, label: "Raw" },
+                { key: "graded" as const, label: "Graded" },
+              ].map((mode) => (
+                <button
+                  key={mode.key}
+                  type="button"
+                  onClick={() => onSelectHistoryChartMode(mode.key)}
+                  className={`${historyPillClass} ${
+                    effectiveHistoryChartMode === mode.key
+                      ? "border-white/24 bg-white/14 text-white"
+                      : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:justify-end">
-            {effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker && (
-              <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap justify-end gap-1.5">
-                {availableCardMarketHistorySeries.map((series) => (
-                  <button
-                    key={series.key}
-                    type="button"
-                    onClick={() => onSelectCardMarketHistorySeries(series.key)}
-                    className={`${historyPillClass} ${
-                      activeCardMarketHistorySeries === series.key
-                        ? "border-white/24 bg-white/14 text-white"
-                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                    }`}
-                  >
-                    {series.label}
-                  </button>
-                ))}
-              </div>
-            )}
+          {effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker && (
+            <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5">
+              {availableCardMarketHistorySeries.map((series) => (
+                <button
+                  key={series.key}
+                  type="button"
+                  onClick={() => onSelectCardMarketHistorySeries(series.key)}
+                  className={`${historyPillClass} ${
+                    activeCardMarketHistorySeries === series.key
+                      ? "border-white/24 bg-white/14 text-white"
+                      : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                  }`}
+                >
+                  {series.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-            {effectiveHistoryChartMode === "market" && showRawSourceToggle && (
-              <div className={`card-modal-source-toggle ${historySegmentClass}`}>
-                {[
-                  { key: "cardmarket" as const, label: "CardMarket" },
-                  { key: "tcgplayer" as const, label: "TCGPlayer" },
-                ].map((source) => (
-                  <button
-                    key={source.key}
-                    type="button"
-                    onClick={() => onSelectMarketSource(source.key)}
-                    className={`${historySegmentButtonClass} ${
-                      activeMarketSource === source.key
-                        ? "bg-white text-gray-950"
-                        : "text-white/48 hover:text-white/78"
-                    }`}
-                  >
-                    {source.label}
-                  </button>
-                ))}
-              </div>
-            )}
+          {effectiveHistoryChartMode === "market" && showRawSourceToggle && (
+            <div className={`card-modal-source-toggle ${historySegmentClass}`}>
+              {[
+                { key: "cardmarket" as const, label: "CardMarket" },
+                { key: "tcgplayer" as const, label: "TCGPlayer" },
+              ].map((source) => (
+                <button
+                  key={source.key}
+                  type="button"
+                  onClick={() => onSelectMarketSource(source.key)}
+                  className={`${historySegmentButtonClass} ${
+                    activeMarketSource === source.key
+                      ? "bg-white text-gray-950"
+                      : "text-white/48 hover:text-white/78"
+                  }`}
+                >
+                  {source.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-            {effectiveHistoryChartMode === "graded" && showGradedSourceToggle && (
-              <div className={`card-modal-source-toggle ${historySegmentClass}`}>
-                {[
-                  { key: "cardmarket" as const, label: "CardMarket" },
-                  { key: "ebay" as const, label: "eBay sold" },
-                ].map((source) => (
-                  <button
-                    key={source.key}
-                    type="button"
-                    onClick={() => onSelectGradedSource(source.key)}
-                    className={`${historySegmentButtonClass} ${
-                      effectiveGradedSource === source.key
-                        ? "bg-white text-gray-950"
-                        : "text-white/48 hover:text-white/78"
-                    }`}
-                  >
-                    {source.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {effectiveHistoryChartMode === "graded" && showGradedSourceToggle && (
+            <div className={`card-modal-source-toggle ${historySegmentClass}`}>
+              {[
+                { key: "cardmarket" as const, label: "CardMarket" },
+                { key: "ebay" as const, label: "eBay sold" },
+              ].map((source) => (
+                <button
+                  key={source.key}
+                  type="button"
+                  onClick={() => onSelectGradedSource(source.key)}
+                  className={`${historySegmentButtonClass} ${
+                    effectiveGradedSource === source.key
+                      ? "bg-white text-gray-950"
+                      : "text-white/48 hover:text-white/78"
+                  }`}
+                >
+                  {source.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {effectiveHistoryChartMode === "graded" ? (

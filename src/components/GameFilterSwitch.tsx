@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export interface GameFilterSwitchItem {
   href: string;
@@ -23,23 +24,29 @@ export function SegmentedNavLinks({
   items,
   ariaLabel,
   even = false,
+  buttonNavigation = false,
+  preserveScroll = false,
   className = "",
 }: {
   items: readonly GameFilterSwitchItem[];
   ariaLabel: string;
   even?: boolean;
+  buttonNavigation?: boolean;
+  preserveScroll?: boolean;
   className?: string;
 }) {
+  const router = useRouter();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const activeItemRef = useRef<HTMLAnchorElement | null>(null);
+  const activeItemRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    if (even) return;
     const activeItem = activeItemRef.current;
     const scrollContainer = scrollContainerRef.current;
     if (!activeItem || !scrollContainer) return;
 
     activeItem.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [items]);
+  }, [even, items]);
 
   if (items.length <= 0) return null;
 
@@ -60,24 +67,53 @@ export function SegmentedNavLinks({
         }
         style={even ? { gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` } : undefined}
       >
-        {items.map((item) => (
-          <Link
-            key={`${item.href}:${item.label}`}
-            ref={item.active ? activeItemRef : undefined}
-            href={item.href}
-            prefetch={false}
-            aria-current={item.active ? "page" : undefined}
-            className={cx(
-              "inline-flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-[13px] font-bold leading-none transition-colors",
-              even ? "min-w-0" : "min-w-max",
-              item.active
-                ? "bg-gray-950 text-white shadow-sm shadow-black/12 dark:bg-white dark:text-gray-950 dark:shadow-none"
-                : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
-            )}
-          >
-            <span className={even ? "truncate" : "whitespace-nowrap"}>{item.label}</span>
-          </Link>
-        ))}
+        {items.map((item) => {
+          const itemClassName = cx(
+            "inline-flex min-w-0 shrink-0 items-center justify-center rounded-full font-bold leading-none transition-colors",
+            even
+              ? "h-8 px-1 text-[10px] min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-9 sm:px-4 sm:text-[13px]"
+              : "h-9 min-w-max px-4 text-[13px]",
+            item.active
+              ? "bg-gray-950 text-white shadow-sm shadow-black/12 dark:bg-white dark:text-gray-950 dark:shadow-none"
+              : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
+          );
+          const label = (
+            <span className={even ? "whitespace-nowrap" : "whitespace-nowrap"}>{item.label}</span>
+          );
+
+          if (buttonNavigation) {
+            return (
+              <button
+                key={`${item.href}:${item.label}`}
+                ref={item.active ? (node) => { activeItemRef.current = node; } : undefined}
+                type="button"
+                aria-current={item.active ? "page" : undefined}
+                onClick={() => {
+                  if (!item.active) {
+                    router.push(item.href, { scroll: !preserveScroll });
+                  }
+                }}
+                className={itemClassName}
+              >
+                {label}
+              </button>
+            );
+          }
+
+          return (
+            <Link
+              key={`${item.href}:${item.label}`}
+              ref={item.active ? (node) => { activeItemRef.current = node; } : undefined}
+              href={item.href}
+              prefetch={false}
+              scroll={preserveScroll ? false : undefined}
+              aria-current={item.active ? "page" : undefined}
+              className={itemClassName}
+            >
+              {label}
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );

@@ -313,7 +313,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   }
 
   function closeThreeDView() {
-    threeDClosingGuardUntilRef.current = Date.now() + 450;
+    threeDClosingGuardUntilRef.current = Date.now() + 300;
     setThreeDOpen(false);
   }
 
@@ -475,7 +475,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
               event.stopPropagation();
               onClose();
             }}
-            className="absolute right-3 top-3 z-40 hidden h-10 w-10 items-center justify-center rounded-xl text-white/50 transition-colors hover:bg-white/[0.055] hover:text-white/86 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:inline-flex"
+            className="absolute right-2 top-2 z-50 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-black/35 text-white/72 backdrop-blur-xl transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:right-3 sm:top-3 sm:h-10 sm:w-10 sm:border-transparent sm:bg-transparent sm:text-white/50"
             aria-label="Close card details"
             title="Close"
           >
@@ -494,25 +494,6 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
               border: "1px solid rgba(255,255,255,0.12)",
             }}
           >
-            <div className="card-modal-mobile-close-row sticky top-0 z-40 flex justify-end border-b border-white/8 bg-[linear-gradient(180deg,rgba(10,10,12,0.96),rgba(10,10,12,0.78))] px-2 py-2 backdrop-blur-xl sm:hidden">
-              <button
-                type="button"
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onClose();
-                }}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] text-white/78 transition-colors hover:bg-white/[0.095] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35"
-                aria-label="Close card details"
-                title="Close"
-              >
-                <X className="h-5 w-5 stroke-[1.8]" />
-              </button>
-            </div>
             <div className={`card-modal-content-pad ${layout.pad}`}>
               <div
                 className={`grid ${layout.gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-stretch`}

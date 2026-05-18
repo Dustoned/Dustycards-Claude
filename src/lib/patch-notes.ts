@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.0",
+    releasedAt: "May 18, 2026",
+    title: "Compact mobile detail controls",
+    summary: "Card detail actions, collection tabs, 3D viewing, and price history controls were tightened for mobile without changing the DustyCards look.",
+    tone: "improved",
+    highlights: [
+      "Moved card detail actions into a compact top-right icon group with admin-only History and Refresh controls.",
+      "Made the collection overview tabs fit on mobile without horizontal scrolling and preserved scroll position when switching tabs.",
+      "Removed the bulky mobile modal header and kept close buttons floating with safe tap targets.",
+      "Restored the 3D card viewer to a larger premium size while preventing close taps from reopening the card.",
+      "Placed Price History language buttons next to Raw and Graded so the controls take less vertical space.",
+    ],
+  },
+  {
     version: "2.0.1",
     releasedAt: "May 18, 2026",
     title: "Mobile collection polish",

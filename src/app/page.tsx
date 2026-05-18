@@ -464,6 +464,9 @@ export default async function HomePage({
               <SegmentedNavLinks
                 items={viewSwitchItems}
                 ariaLabel="Collection view"
+                even
+                buttonNavigation
+                preserveScroll
                 className="w-full max-w-full sm:w-fit"
               />
             </div>

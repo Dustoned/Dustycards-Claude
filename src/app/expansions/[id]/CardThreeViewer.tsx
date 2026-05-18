@@ -150,24 +150,24 @@ function getCard3dSizeConfig(size: Card3dSize, isMobileViewport: boolean): Card3
 
   if (size === "large") {
     return {
-      resetDistanceScale: 0.7,
-      minimumFitScale: 0.72,
-      offsetScale: 0.98,
+      resetDistanceScale: 0.64,
+      minimumFitScale: 0.66,
+      offsetScale: 0.94,
     };
   }
 
   if (size === "medium") {
     return {
-      resetDistanceScale: 0.9,
-      minimumFitScale: 0.86,
-      offsetScale: 1.04,
+      resetDistanceScale: 0.78,
+      minimumFitScale: 0.78,
+      offsetScale: 0.98,
     };
   }
 
   return {
-    resetDistanceScale: 1.1,
-    minimumFitScale: 1.02,
-    offsetScale: 1.1,
+    resetDistanceScale: 0.94,
+    minimumFitScale: 0.9,
+    offsetScale: 1.02,
   };
 }
 
@@ -2162,7 +2162,7 @@ export default function CardThreeViewer({
           aria-label={`3D view of ${card.name}`}
         />
 
-        <div className="pointer-events-none absolute inset-0 z-20 px-3 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-16 sm:px-6 sm:py-6">
+        <div className="pointer-events-none absolute inset-0 z-20 px-3 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6 sm:py-6">
           <div className="relative mx-auto h-full max-w-[84rem] lg:max-w-[88rem]">
             <div className="pointer-events-none relative flex h-full flex-col justify-end md:grid md:grid-cols-[minmax(19rem,22rem)_minmax(0,1fr)] md:items-center md:gap-5 lg:grid-cols-[minmax(20rem,23rem)_minmax(0,1fr)] lg:gap-6">
               <div className="pointer-events-none mt-4 md:mt-0 md:flex md:items-center">
@@ -2539,7 +2539,7 @@ export default function CardThreeViewer({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:p-6">
+      <div className="pointer-events-none absolute right-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 flex items-center gap-2 sm:right-6 sm:top-6">
         <button
           type="button"
           onPointerDown={(event) => {
@@ -2547,21 +2547,7 @@ export default function CardThreeViewer({
             event.stopPropagation();
             clickAwayRef.current.active = false;
           }}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onClose();
-          }}
-          data-viewer-keepopen="true"
-          className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/45 text-white/85 backdrop-blur-xl transition-colors hover:bg-black/60"
-          aria-label="Close 3D view"
-        >
-          <X className="h-5 w-5" />
-        </button>
-
-        <button
-          type="button"
-          onPointerDown={(event) => {
+          onPointerUp={(event) => {
             event.preventDefault();
             event.stopPropagation();
             clickAwayRef.current.active = false;
@@ -2577,6 +2563,31 @@ export default function CardThreeViewer({
           title="Reset view"
         >
           <RotateCcw className="h-5 w-5 max-[640px]:h-4 max-[640px]:w-4" />
+        </button>
+
+        <button
+          type="button"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            clickAwayRef.current.active = false;
+          }}
+          onPointerUp={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            clickAwayRef.current.active = false;
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose();
+          }}
+          data-viewer-keepopen="true"
+          className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/45 text-white/85 backdrop-blur-xl transition-colors hover:bg-black/60"
+          aria-label="Close 3D view"
+          title="Close 3D view"
+        >
+          <X className="h-5 w-5" />
         </button>
       </div>
 
