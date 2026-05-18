@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.5",
+    releasedAt: "May 18, 2026",
+    title: "Mobile Wants Quick View cleanup",
+    summary: "Wants Quick View now opens straight into the card list on phones, while desktop keeps the contextual header and side panel.",
+    tone: "fixed",
+    highlights: [
+      "Removed the Quick View title header from the mobile popup.",
+      "Hid the binder artwork and summary panel on phone so the missing-card list appears immediately.",
+      "Kept the desktop Quick View header and side context intact.",
+    ],
+  },
+  {
     version: "2.1.4",
     releasedAt: "May 18, 2026",
     title: "3D card mobile sizing hotfix",

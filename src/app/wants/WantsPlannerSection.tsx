@@ -512,7 +512,7 @@ function WantsQuickViewModal({
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <div className={modalCompactHeaderClass}>
+        <div className={`${modalCompactHeaderClass} max-[640px]:hidden`}>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">
               Quick view
@@ -537,15 +537,27 @@ function WantsQuickViewModal({
             <X className="h-4 w-4" />
           </button>
         </div>
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose();
+          }}
+          className={`${modalCloseButtonClass} absolute right-2 top-2 z-10 h-10 w-10 sm:hidden`}
+          aria-label="Close quick view"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
         <div
-          className={`grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4 ${
+          className={`grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-3 py-3 max-[640px]:pr-12 sm:px-4 sm:py-4 ${
             widescreen
               ? "xl:grid-cols-[minmax(13rem,0.34fr)_minmax(0,1.66fr)]"
               : "lg:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.2fr)]"
           }`}
         >
-          <div className="rounded-2xl border border-white/10 bg-white/[0.055] p-3">
+          <div className="hidden rounded-2xl border border-white/10 bg-white/[0.055] p-3 sm:block">
             <div
               className="relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/20"
               style={accentColor ? { boxShadow: `inset 0 0 0 1px ${accentColor}30` } : undefined}
