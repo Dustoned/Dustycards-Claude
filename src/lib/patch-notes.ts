@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.15",
+    releasedAt: "May 18, 2026",
+    title: "Widescreen quick view room",
+    summary: "Wants Quick View now uses widescreen mode more aggressively so more missing cards fit without scrolling.",
+    tone: "improved",
+    highlights: [
+      "Made the Quick View popup much wider in widescreen mode starting at desktop widths.",
+      "Moved the wide-mode header into the side panel so the card list gets more vertical space.",
+      "Expanded the missing-card list to 3, 4, or 5 columns depending on available screen width.",
+    ],
+  },
+  {
     version: "2.1.14",
     releasedAt: "May 18, 2026",
     title: "Catalog set 403 guard",

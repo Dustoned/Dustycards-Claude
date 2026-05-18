@@ -481,6 +481,12 @@ function WantsQuickViewModal({
 }) {
   const accentColor = group.accentColor;
   const metrics = getWantBinderMetrics(group);
+  const panelWidthClass = widescreen
+    ? "max-w-[min(64rem,calc(100vw-1.5rem))] lg:max-w-[min(118rem,calc(100vw-2rem))] min-[1800px]:max-w-[min(132rem,calc(100vw-2rem))]"
+    : "max-w-[min(52rem,calc(100vw-1.5rem))] xl:max-w-[min(62rem,calc(100vw-4rem))] 2xl:max-w-[min(68rem,calc(100vw-5rem))]";
+  const bodyGridClass = widescreen
+    ? "lg:grid-cols-[minmax(10.5rem,14rem)_minmax(0,1fr)] min-[1800px]:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)]"
+    : "lg:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.2fr)]";
 
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -513,15 +519,28 @@ function WantsQuickViewModal({
         role="dialog"
         aria-modal="true"
         aria-label={`${group.name} quick view`}
-        className={`${modalPanelBaseClass} max-w-[min(52rem,calc(100vw-1.5rem))] max-[640px]:max-h-[calc(100dvh-1rem)] max-[640px]:rounded-[22px] xl:max-w-[min(62rem,calc(100vw-4rem))] ${
-          widescreen
-            ? "2xl:max-w-[min(94rem,calc(100vw-4rem))]"
-            : "2xl:max-w-[min(68rem,calc(100vw-5rem))]"
-        }`}
+        className={`${modalPanelBaseClass} ${panelWidthClass} ${
+          widescreen ? "max-h-[calc(100dvh-1rem)]" : ""
+        } max-[640px]:max-h-[calc(100dvh-1rem)] max-[640px]:rounded-[22px]`}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <div className={`${modalCompactHeaderClass} max-[640px]:hidden`}>
+        {widescreen ? (
+          <button
+            type="button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose();
+            }}
+            className={`${modalCloseButtonClass} absolute right-3 top-3 z-20 h-10 w-10`}
+            aria-label="Close quick view"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+
+        <div className={`${modalCompactHeaderClass} max-[640px]:hidden ${widescreen ? "lg:hidden" : ""}`}>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">
               Quick view
@@ -547,13 +566,22 @@ function WantsQuickViewModal({
           </button>
         </div>
         <div
-          className={`grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4 ${
-            widescreen
-              ? "xl:grid-cols-[minmax(13rem,0.34fr)_minmax(0,1.66fr)]"
-              : "lg:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.2fr)]"
-          }`}
+          className={`grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4 ${bodyGridClass}`}
         >
           <div className="hidden rounded-2xl border border-white/10 bg-white/[0.055] p-3 sm:block">
+            {widescreen ? (
+              <div className="mb-3 pr-9">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">
+                  Quick view
+                </p>
+                <h3 className="mt-0.5 line-clamp-2 text-sm font-bold leading-tight text-white">
+                  {group.name}
+                </h3>
+                <p className="mt-1 text-[11px] font-semibold leading-snug text-white/48">
+                  {missingLabel(group)} missing - {formatCollectionCurrency(group.estimatedCost)}
+                </p>
+              </div>
+            ) : null}
             <div
               className="relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/20"
               style={accentColor ? { boxShadow: `inset 0 0 0 1px ${accentColor}30` } : undefined}
@@ -638,7 +666,11 @@ function WantsQuickViewModal({
               scrollClassName={
                 widescreen ? "max-h-none" : "max-h-none sm:max-h-[calc(100dvh-16rem)]"
               }
-              listClassName={widescreen ? "xl:grid-cols-2 2xl:grid-cols-3" : ""}
+              listClassName={
+                widescreen
+                  ? "lg:grid-cols-3 2xl:grid-cols-4 min-[2200px]:grid-cols-5"
+                  : ""
+              }
             />
           </div>
         </div>
