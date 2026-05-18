@@ -243,15 +243,15 @@ function PlannerCardRow({
     item.current_value == null ? "No price" : formatCollectionCurrency(item.current_value);
 
   return (
-    <div className="group/quickrow grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-center gap-2 rounded-xl border border-black/6 bg-white/70 px-2 py-1.5 transition-colors hover:border-emerald-400/25 hover:bg-emerald-400/[0.055] dark:border-white/8 dark:bg-white/[0.045] dark:hover:border-emerald-300/22 dark:hover:bg-emerald-300/[0.07]">
+    <div className="group/quickrow grid min-w-0 grid-cols-[minmax(0,1fr)_2.25rem] items-center gap-2.5 rounded-xl border border-black/6 bg-white/70 px-2 py-2 transition-colors hover:border-emerald-400/25 hover:bg-emerald-400/[0.055] dark:border-white/8 dark:bg-white/[0.045] dark:hover:border-emerald-300/22 dark:hover:bg-emerald-300/[0.07] sm:px-2.5">
       <button
         type="button"
         onClick={() => onOpenCard(item)}
         disabled={disabled}
-        className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-2 rounded-lg text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-emerald-400/45 disabled:cursor-wait disabled:opacity-60"
+        className="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)] items-center gap-2.5 rounded-lg text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-emerald-400/45 disabled:cursor-wait disabled:opacity-60 sm:grid-cols-[4.65rem_minmax(0,1fr)]"
         title={`Open ${item.name}`}
       >
-        <span className="flex h-16 w-12 items-center justify-center overflow-hidden rounded-lg border border-black/6 bg-black/5 transition-transform group-hover/quickrow:scale-[1.035] dark:border-white/8 dark:bg-white/8">
+        <span className="flex h-[5.35rem] w-[3.85rem] items-center justify-center overflow-hidden rounded-lg border border-black/6 bg-black/5 shadow-sm shadow-black/10 transition-transform group-hover/quickrow:scale-[1.035] dark:border-white/8 dark:bg-white/8 sm:h-24 sm:w-[4.35rem]">
           {item.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -266,7 +266,7 @@ function PlannerCardRow({
         </span>
         <span className="min-w-0">
           <span className="flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 flex-1 truncate text-[12px] font-bold leading-tight text-gray-950 transition-colors group-hover/quickrow:text-emerald-700 dark:text-white dark:group-hover/quickrow:text-emerald-100">
+            <span className="min-w-0 flex-1 truncate text-[13px] font-bold leading-tight text-gray-950 transition-colors group-hover/quickrow:text-emerald-700 dark:text-white dark:group-hover/quickrow:text-emerald-100 sm:text-sm">
               {item.name}
             </span>
             {cardNumber ? (
@@ -275,10 +275,10 @@ function PlannerCardRow({
               </span>
             ) : null}
           </span>
-        <span className="mt-0.5 block truncate text-[9.5px] font-semibold uppercase tracking-[0.08em] text-gray-400 dark:text-white/38">
+        <span className="mt-1 block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 dark:text-white/38 sm:text-[10.5px]">
           {item.rarity || item.supertype || "Missing card"}
         </span>
-        <span className="mt-0.5 block truncate text-[10px] font-semibold text-gray-500 dark:text-white/46">
+        <span className="mt-1 block truncate text-[11px] font-semibold text-gray-500 dark:text-white/46">
           {priceLabel}
         </span>
         </span>
@@ -288,7 +288,7 @@ function PlannerCardRow({
           type="button"
           onClick={() => onAddToBinder(item.card_id)}
           disabled={disabled}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-400/18 bg-emerald-400/[0.08] text-emerald-700 transition-colors hover:border-emerald-400/35 hover:bg-emerald-400/[0.14] disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-200"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-400/18 bg-emerald-400/[0.08] text-emerald-700 transition-colors hover:border-emerald-400/35 hover:bg-emerald-400/[0.14] disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-200"
           title="Add to binder"
           aria-label={`Add ${item.name} to binder`}
         >

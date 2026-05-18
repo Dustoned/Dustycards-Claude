@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.11",
+    releasedAt: "May 18, 2026",
+    title: "Larger quick view card thumbnails",
+    summary: "Wants Quick View rows now show larger card previews on phone and desktop.",
+    tone: "improved",
+    highlights: [
+      "Increased Quick View card thumbnails so the artwork is easier to recognize.",
+      "Gave rows a touch more breathing room while keeping the popup compact.",
+      "Kept the add action aligned and the modal within the viewport on mobile and desktop.",
+    ],
+  },
+  {
     version: "2.1.10",
     releasedAt: "May 18, 2026",
     title: "Simpler card layout labels",
