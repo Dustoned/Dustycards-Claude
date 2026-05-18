@@ -31,6 +31,13 @@ const SIZE_OPTIONS: Option<UiScale>[] = [
   { value: "large", label: "Large", description: "Roomy" },
 ];
 
+const PHONE_CARD_SIZE_OPTIONS: Option<CardSize>[] = [
+  { value: "xsmall", label: "4-up", description: "Four cards per row on phones" },
+  { value: "small", label: "Small", description: "Three cards per row" },
+  { value: "medium", label: "Medium", description: "Two cards per row" },
+  { value: "large", label: "Large", description: "One large card" },
+];
+
 const PHONE_VIEW_OPTIONS: Option<CardView>[] = [
   { value: "grid", label: "Grid", description: "2-up cards" },
   { value: "table", label: "List", description: "Thin rows" },
@@ -97,7 +104,10 @@ function CompactSelectRow<T extends string>({
   return (
     <div className="grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
       <p className="text-xs font-semibold text-gray-500 dark:text-white/45">{label}</p>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div
+        className="grid gap-1.5"
+        style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      >
         {options.map((option) => {
           const active = option.value === value;
 
@@ -228,7 +238,7 @@ export default function SettingsPreferencesPanel() {
             />
             <CompactSelectRow<CardSize>
               label="Cards"
-              options={SIZE_OPTIONS}
+              options={PHONE_CARD_SIZE_OPTIONS}
               value={settings.mobileCardSize}
               onChange={(value) => set("mobileCardSize", value)}
             />

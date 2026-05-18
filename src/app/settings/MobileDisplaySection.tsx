@@ -60,7 +60,10 @@ function OptionGrid<T extends string>({
       <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
         {label}
       </p>
-      <div className="grid grid-cols-3 gap-2.5">
+      <div
+        className="grid gap-2.5"
+        style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      >
         {options.map((option) => (
           <button
             key={option.value}

@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.8",
+    releasedAt: "May 18, 2026",
+    title: "PSA slab and mobile 4-up polish",
+    summary: "PSA slabs now have a detailed label back, the mobile 3D card opens higher, and phone grids can switch to four cards per row.",
+    tone: "fixed",
+    highlights: [
+      "Added a PSA-style back label texture in the 3D slab viewer instead of the blank label back.",
+      "Raised the mobile 3D card framing so the card no longer sits over the detail panel.",
+      "Added a visible 4/S/M/L mobile size control on collection and expansion card grids.",
+      "Added the 4-up phone card option to settings so it can be saved as the mobile default.",
+    ],
+  },
+  {
     version: "2.1.7",
     releasedAt: "May 18, 2026",
     title: "Wants Quick View edge alignment",

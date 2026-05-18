@@ -567,6 +567,7 @@ export default function ExpansionView({
   ];
 
   const SIZE_OPTIONS: Array<{ value: CardSize; label: string }> = [
+    ...(isMobileViewport ? [{ value: "xsmall" as const, label: "4" }] : []),
     { value: "small", label: "S" },
     { value: "medium", label: "M" },
     { value: "large", label: "L" },
@@ -595,6 +596,7 @@ export default function ExpansionView({
     },
   ];
   const toolbarSizeOptions: CardBrowserToolbarOption[] = [
+    ...(isMobileViewport ? [{ value: "xsmall", label: "4" }] : []),
     { value: "small", label: "S" },
     { value: "medium", label: "M" },
     { value: "large", label: "L" },

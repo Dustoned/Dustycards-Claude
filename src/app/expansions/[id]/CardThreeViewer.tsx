@@ -115,7 +115,7 @@ const DEFAULT_CAMERA_DISTANCE = 8.55;
 const MIN_CAMERA_DISTANCE = 4.4;
 const MAX_CAMERA_DISTANCE = 22;
 const CAMERA_TARGET_FOLLOW = 0.16;
-const MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET = 0.14;
+const MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET = 0.78;
 
 interface Card3dSizeConfig {
   resetDistanceScale: number;
@@ -725,6 +725,128 @@ function createPsaLabelTexture(
   );
   context.fill();
   drawPsaLogoMark(context, canvas.width / 2, canvas.height - s(24), s(52));
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createPsaCertNumber(cardName: string, cardNumber: string | null, grade: string) {
+  const input = `${cardName}|${cardNumber ?? ""}|${grade}`;
+  let hash = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+
+  return String(10000000 + (hash % 90000000));
+}
+
+function createPsaLabelBackTexture(
+  THREE: typeof import("three"),
+  cardName: string,
+  cardNumber: string | null,
+  grade: string
+) {
+  const scale = 2;
+  const s = (value: number) => value * scale;
+  const canvas = document.createElement("canvas");
+  canvas.width = s(1400);
+  canvas.height = s(420);
+
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  const certNumber = createPsaCertNumber(cardName, cardNumber, grade);
+
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+
+  const background = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+  background.addColorStop(0, "#f8f7f3");
+  background.addColorStop(0.5, "#eeece6");
+  background.addColorStop(1, "#faf9f5");
+  context.fillStyle = background;
+  drawRoundedRect(context, 0, 0, canvas.width, canvas.height, s(28));
+  context.fill();
+
+  context.fillStyle = "#d93431";
+  drawRoundedRect(context, 0, 0, canvas.width, s(62), s(24));
+  context.fill();
+  context.fillRect(0, s(34), canvas.width, s(34));
+
+  context.strokeStyle = "rgba(20,34,55,0.12)";
+  context.lineWidth = s(3);
+  for (let y = s(96); y < canvas.height - s(70); y += s(42)) {
+    context.beginPath();
+    context.moveTo(s(56), y);
+    context.lineTo(canvas.width - s(56), y);
+    context.stroke();
+  }
+
+  context.fillStyle = "#17223a";
+  context.font = `900 ${s(34)}px Arial Black, Arial, sans-serif`;
+  context.fillText("PSA CERTIFICATION", s(56), s(120));
+  context.font = `700 ${s(24)}px Arial, sans-serif`;
+  context.fillStyle = "rgba(23,34,58,0.72)";
+  context.fillText("Verify certification and population data at PSAcard.com/cert", s(56), s(160));
+
+  context.fillStyle = "#101828";
+  context.font = `900 ${s(78)}px Arial Black, Arial, sans-serif`;
+  context.fillText(certNumber, s(56), s(250));
+  context.font = `800 ${s(30)}px Arial, sans-serif`;
+  context.fillStyle = "rgba(16,24,40,0.62)";
+  context.fillText(`GRADE ${grade}`, s(58), s(300));
+
+  const barcodeX = s(56);
+  const barcodeY = s(326);
+  const barcodeH = s(56);
+  let x = barcodeX;
+  for (let index = 0; index < 52; index += 1) {
+    const digit = Number(certNumber[index % certNumber.length]);
+    const width = s(2 + (digit % 4));
+    context.fillStyle = digit % 2 === 0 ? "#111827" : "#334155";
+    context.fillRect(x, barcodeY, width, barcodeH);
+    x += width + s(3 + (digit % 3));
+  }
+
+  const qrSize = s(180);
+  const qrX = canvas.width - s(260);
+  const qrY = s(122);
+  context.fillStyle = "#f9fafb";
+  drawRoundedRect(context, qrX - s(14), qrY - s(14), qrSize + s(28), qrSize + s(28), s(16));
+  context.fill();
+  context.strokeStyle = "rgba(17,24,39,0.18)";
+  context.lineWidth = s(3);
+  context.stroke();
+
+  context.fillStyle = "#111827";
+  const cell = qrSize / 9;
+  for (let row = 0; row < 9; row += 1) {
+    for (let col = 0; col < 9; col += 1) {
+      const seed = certNumber[(row + col * 3) % certNumber.length].charCodeAt(0);
+      const finder =
+        (row < 3 && col < 3) ||
+        (row < 3 && col > 5) ||
+        (row > 5 && col < 3);
+      if (finder || (seed + row + col) % 3 === 0) {
+        context.fillRect(qrX + col * cell, qrY + row * cell, cell * 0.72, cell * 0.72);
+      }
+    }
+  }
+
+  drawPsaLogoMark(context, canvas.width - s(150), canvas.height - s(42), s(56));
+
+  context.fillStyle = "rgba(255,255,255,0.92)";
+  context.font = `900 ${s(28)}px Arial Black, Arial, sans-serif`;
+  context.fillText("PSA", s(56), s(43));
+  context.textAlign = "right";
+  context.font = `700 ${s(22)}px Arial, sans-serif`;
+  context.fillText("AUTHENTICATED AND GRADED", canvas.width - s(56), s(42));
+  context.textAlign = "left";
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -1414,6 +1536,7 @@ export default function CardThreeViewer({
         let slabFrontMesh: import("three").Mesh | null = null;
         let slabBackMesh: import("three").Mesh | null = null;
         let labelTexture: import("three").Texture | null = null;
+        let labelBackTexture: import("three").Texture | null = null;
         let cardCoverGeometry: import("three").BufferGeometry | null = null;
         let cardCoverMaterial: import("three").Material | null = null;
         let labelWellGeometry: import("three").BufferGeometry | null = null;
@@ -1531,6 +1654,12 @@ export default function CardThreeViewer({
             gradingGradeLabel
           );
           if (labelTexture) {
+            labelBackTexture = createPsaLabelBackTexture(
+              THREE,
+              card.name,
+              card.card_number,
+              gradingGradeLabel
+            );
             const labelShape = createRoundedRectShape(
               THREE,
               PSA_LABEL_WIDTH,
@@ -1552,7 +1681,9 @@ export default function CardThreeViewer({
             pickTargets.push(labelFrontMesh);
 
             labelBackMaterial = new THREE.MeshBasicMaterial({
-              color: "#f2f1ed",
+              map: labelBackTexture ?? undefined,
+              color: labelBackTexture ? "#ffffff" : "#f2f1ed",
+              toneMapped: false,
             });
             const labelBackMesh = new THREE.Mesh(labelFaceGeometry, labelBackMaterial);
             labelBackMesh.position.set(0, PSA_LABEL_Y, PSA_LABEL_Z - 0.0002);
@@ -1893,6 +2024,7 @@ export default function CardThreeViewer({
           labelFrontMaterial?.dispose();
           labelBackMaterial?.dispose();
           labelTexture?.dispose();
+          labelBackTexture?.dispose();
           labelWellGeometry?.dispose();
           labelWellMaterial?.dispose();
           labelCoverGeometry?.dispose();

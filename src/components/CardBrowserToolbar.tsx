@@ -118,6 +118,54 @@ function mobileSelectClass(): string {
 
 const mobileOptionClass = "bg-white text-gray-950 dark:bg-gray-950 dark:text-white";
 
+function mobileSegmentedShellClass(): string {
+  return "grid min-w-0 gap-1 rounded-xl border border-black/8 bg-white/72 p-1 dark:border-white/8 dark:bg-white/[0.05]";
+}
+
+function mobileSegmentedButtonClass(active: boolean): string {
+  return `min-h-8 min-w-0 rounded-lg px-1.5 text-[11px] font-black leading-none transition-colors ${
+    active
+      ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
+      : "text-gray-500 hover:bg-black/[0.035] hover:text-gray-950 dark:text-white/55 dark:hover:bg-white/8 dark:hover:text-white"
+  }`;
+}
+
+function MobileSegmentedControl({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: CardBrowserToolbarOption[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+        {label}
+      </span>
+      <div
+        className={mobileSegmentedShellClass()}
+        style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      >
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            title={option.title}
+            onClick={() => onChange(option.value)}
+            className={mobileSegmentedButtonClass(value === option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function toolbarFilterButtonClass(className: string): string {
   return `${className} max-w-full whitespace-nowrap outline-none ring-0 shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0`;
 }
@@ -309,7 +357,7 @@ export default function CardBrowserToolbar({
             : ""
         }`}
       >
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2">
           <label className="block">
             <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
               View
@@ -328,42 +376,22 @@ export default function CardBrowserToolbar({
           </label>
 
           {sizeOptions.length > 0 && (
-            <label className="block">
-              <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-                Size
-              </span>
-              <select
-                value={activeSize}
-                onChange={(event) => onSizeChange(event.target.value)}
-                className={mobileSelectClass()}
-              >
-                {sizeOptions.map((option) => (
-                  <option key={option.value} value={option.value} className={mobileOptionClass}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <MobileSegmentedControl
+              label="Size"
+              options={sizeOptions}
+              value={activeSize}
+              onChange={onSizeChange}
+            />
           )}
         </div>
 
         {sortOptions.length > 0 && (
-          <label className="block">
-            <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-              Sort
-            </span>
-            <select
-              value={activeSort}
-              onChange={(event) => onSortChange(event.target.value)}
-              className={mobileSelectClass()}
-            >
-              {sortOptions.map((option) => (
-                <option key={option.value} value={option.value} className={mobileOptionClass}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <MobileSegmentedControl
+            label="Sort"
+            options={sortOptions}
+            value={activeSort}
+            onChange={onSortChange}
+          />
         )}
       </section>
 
