@@ -24,10 +24,10 @@ const CARD_SIZE_OPTIONS: Array<{
   label: string;
   desc: string;
 }> = [
+  { value: "large", label: "1-up", desc: "1 slot" },
+  { value: "medium", label: "2-up", desc: "2 slots" },
+  { value: "small", label: "3-up", desc: "3 slots" },
   { value: "xsmall", label: "4-up", desc: "4 slots" },
-  { value: "small", label: "Small", desc: "Most compact" },
-  { value: "medium", label: "Medium", desc: "Balanced" },
-  { value: "large", label: "Large", desc: "Big preview" },
 ];
 
 const VIEW_OPTIONS: Array<{ value: CardView; label: string; desc: string }> = [

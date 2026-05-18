@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.10",
+    releasedAt: "May 18, 2026",
+    title: "Simpler card layout labels",
+    summary: "Mobile collection density now uses the clearer 1-up, 2-up, 3-up, and 4-up order.",
+    tone: "fixed",
+    highlights: [
+      "Changed the mobile card layout controls to read 1-up, 2-up, 3-up, and 4-up.",
+      "Kept the 4-up option working as four cards per row on phones.",
+      "Applied the same ordering to collection overview, card grids, expansion grids, and phone settings.",
+    ],
+  },
+  {
     version: "2.1.9",
     releasedAt: "May 18, 2026",
     title: "Clearer collection size controls",

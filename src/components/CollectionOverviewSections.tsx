@@ -76,10 +76,10 @@ const MOBILE_CARD_LAYOUT_OPTIONS: Array<{
   label: string;
   title: string;
 }> = [
-  { value: "xsmall", label: "4-up", title: "Show four cards per row" },
-  { value: "small", label: "3-up", title: "Show three cards per row" },
-  { value: "medium", label: "2-up", title: "Show two cards per row" },
   { value: "large", label: "1-up", title: "Show one card per row" },
+  { value: "medium", label: "2-up", title: "Show two cards per row" },
+  { value: "small", label: "3-up", title: "Show three cards per row" },
+  { value: "xsmall", label: "4-up", title: "Show four cards per row" },
 ];
 
 const DESKTOP_CARD_LAYOUT_OPTIONS: Array<{

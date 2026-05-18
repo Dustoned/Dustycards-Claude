@@ -567,10 +567,10 @@ export default function ExpansionView({
   ];
 
   const SIZE_OPTIONS: Array<{ value: CardSize; label: string }> = [
-    ...(isMobileViewport ? [{ value: "xsmall" as const, label: "4-up" }] : []),
-    { value: "small", label: isMobileViewport ? "3-up" : "Small" },
-    { value: "medium", label: isMobileViewport ? "2-up" : "Medium" },
     { value: "large", label: isMobileViewport ? "1-up" : "Large" },
+    { value: "medium", label: isMobileViewport ? "2-up" : "Medium" },
+    { value: "small", label: isMobileViewport ? "3-up" : "Small" },
+    ...(isMobileViewport ? [{ value: "xsmall" as const, label: "4-up" }] : []),
   ];
   const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
   const filterBadgeCount =
@@ -596,13 +596,10 @@ export default function ExpansionView({
     },
   ];
   const toolbarSizeOptions: CardBrowserToolbarOption[] = [
-    ...(isMobileViewport
-      ? [{ value: "xsmall", label: "4-up", title: "Show four cards per row" }]
-      : []),
     {
-      value: "small",
-      label: isMobileViewport ? "3-up" : "Small",
-      title: isMobileViewport ? "Show three cards per row" : "Small card tiles",
+      value: "large",
+      label: isMobileViewport ? "1-up" : "Large",
+      title: isMobileViewport ? "Show one card per row" : "Large card tiles",
     },
     {
       value: "medium",
@@ -610,10 +607,13 @@ export default function ExpansionView({
       title: isMobileViewport ? "Show two cards per row" : "Medium card tiles",
     },
     {
-      value: "large",
-      label: isMobileViewport ? "1-up" : "Large",
-      title: isMobileViewport ? "Show one card per row" : "Large card tiles",
+      value: "small",
+      label: isMobileViewport ? "3-up" : "Small",
+      title: isMobileViewport ? "Show three cards per row" : "Small card tiles",
     },
+    ...(isMobileViewport
+      ? [{ value: "xsmall", label: "4-up", title: "Show four cards per row" }]
+      : []),
   ];
   const toolbarActiveFilters: CardBrowserToolbarActiveFilter[] = [
     ...(search.trim()
