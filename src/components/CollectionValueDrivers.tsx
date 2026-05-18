@@ -16,6 +16,7 @@ import {
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
+import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getExpansionHref } from "@/lib/games";
@@ -27,6 +28,10 @@ import type {
 } from "@/lib/collection-data";
 
 const CardModal = dynamic(() => import("@/components/CardModal"), {
+  ssr: false,
+  loading: () => null,
+});
+const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
   loading: () => null,
 });
@@ -100,14 +105,42 @@ function tonePanelClass(tone: DriverLaneKey): string {
     : "border-rose-400/16 bg-rose-400/[0.08]";
 }
 
+function buildSealedProductData(item: CollectionValueDriverItem): SealedModalProductData {
+  const perItemPrice = item.quantity > 0 ? item.currentValue / item.quantity : item.currentValue;
+
+  return {
+    id: item.productId ?? item.id,
+    name: item.name,
+    image_url: item.imageUrl,
+    cardmarket_url: null,
+    price: {
+      cm_lowest: Number.isFinite(perItemPrice) ? perItemPrice : null,
+      cm_lowest_eu: null,
+      cm_lowest_de: null,
+      cm_lowest_fr: null,
+      cm_lowest_es: null,
+      cm_lowest_it: null,
+      cm_avg_7d: null,
+      cm_avg_30d: null,
+    },
+    episode: {
+      id: item.episodeId,
+      name: item.episodeName,
+      code: item.episodeCode,
+    },
+  };
+}
+
 function DriverRow({
   item,
   loading,
   onOpenCard,
+  onOpenSealed,
 }: {
   item: CollectionValueDriverItem;
   loading: boolean;
   onOpenCard: (cardId: string) => void;
+  onOpenSealed: (item: CollectionValueDriverItem) => void;
 }) {
   const isGain = item.change >= 0;
   const tone = isGain ? "gain" : "drop";
@@ -123,6 +156,11 @@ function DriverRow({
   function openCardDetails() {
     if (!item.cardId) return;
     onOpenCard(item.cardId);
+  }
+
+  function openSealedDetails() {
+    if (!item.productId) return;
+    onOpenSealed(item);
   }
 
   function handleCardClick() {
@@ -276,14 +314,15 @@ function DriverRow({
   }
 
   return (
-    <Link
-      href={item.href}
-      prefetch={false}
+    <button
+      type="button"
+      aria-label={`Open sealed details for ${item.name}`}
       aria-busy={loading}
-      className={`${cardClassName} focus-visible:ring-2 focus-visible:ring-emerald-400/55`}
+      onClick={openSealedDetails}
+      className={`${cardClassName} cursor-pointer focus-visible:ring-2 focus-visible:ring-emerald-400/55`}
     >
       {content}
-    </Link>
+    </button>
   );
 }
 
@@ -291,11 +330,13 @@ function DriverGrid({
   items,
   loadingCardId,
   onOpenCard,
+  onOpenSealed,
   tileMinWidth,
 }: {
   items: CollectionValueDriverItem[];
   loadingCardId: string | null;
   onOpenCard: (cardId: string) => void;
+  onOpenSealed: (item: CollectionValueDriverItem) => void;
   tileMinWidth: string;
 }) {
   if (items.length === 0) {
@@ -320,6 +361,7 @@ function DriverGrid({
           item={item}
           loading={item.cardId === loadingCardId}
           onOpenCard={onOpenCard}
+          onOpenSealed={onOpenSealed}
         />
       ))}
     </div>
@@ -337,6 +379,7 @@ export default function CollectionValueDrivers({
   const [driverFilter, setDriverFilter] = useState<ValueDriverFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
+  const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
@@ -480,6 +523,9 @@ export default function CollectionValueDrivers({
     },
     [openCard]
   );
+  const handleOpenSealed = useCallback((item: CollectionValueDriverItem) => {
+    setSelectedSealed(buildSealedProductData(item));
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -556,6 +602,7 @@ export default function CollectionValueDrivers({
             items={renderedDrivers}
             loadingCardId={loadingCardId}
             onOpenCard={handleOpenCard}
+            onOpenSealed={handleOpenSealed}
             tileMinWidth={driverTileMinWidth}
           />
 
@@ -577,6 +624,14 @@ export default function CollectionValueDrivers({
           key={`${selectedCard.id}:${selectedCard.price_fetched_at ?? "none"}`}
           card={selectedCard}
           onClose={() => setSelectedCard(null)}
+        />
+      ) : null}
+
+      {selectedSealed ? (
+        <SealedProductModal
+          key={selectedSealed.id}
+          product={selectedSealed}
+          onClose={() => setSelectedSealed(null)}
         />
       ) : null}
     </div>

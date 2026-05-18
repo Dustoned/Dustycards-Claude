@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.13",
+    releasedAt: "May 18, 2026",
+    title: "Sealed value driver details",
+    summary: "Sealed items in Movers value changes now open their sealed detail popup instead of jumping to the expansion page.",
+    tone: "fixed",
+    highlights: [
+      "Changed sealed value-driver tiles from expansion links into sealed product detail popups.",
+      "Kept raw card value-driver behavior unchanged so cards still open card details.",
+      "Reused the existing sealed product modal for consistent sealed pricing and collection details.",
+    ],
+  },
+  {
     version: "2.1.12",
     releasedAt: "May 18, 2026",
     title: "TCGGO catalog refresh guard",
