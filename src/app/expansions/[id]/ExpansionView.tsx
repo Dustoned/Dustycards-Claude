@@ -567,10 +567,10 @@ export default function ExpansionView({
   ];
 
   const SIZE_OPTIONS: Array<{ value: CardSize; label: string }> = [
-    { value: "large", label: isMobileViewport ? "1-up" : "Large" },
-    { value: "medium", label: isMobileViewport ? "2-up" : "Medium" },
-    { value: "small", label: isMobileViewport ? "3-up" : "Small" },
-    ...(isMobileViewport ? [{ value: "xsmall" as const, label: "4-up" }] : []),
+    { value: "large", label: isMobileViewport ? "1" : "Large" },
+    { value: "medium", label: isMobileViewport ? "2" : "Medium" },
+    { value: "small", label: isMobileViewport ? "3" : "Small" },
+    ...(isMobileViewport ? [{ value: "xsmall" as const, label: "4" }] : []),
   ];
   const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
   const filterBadgeCount =
@@ -598,21 +598,21 @@ export default function ExpansionView({
   const toolbarSizeOptions: CardBrowserToolbarOption[] = [
     {
       value: "large",
-      label: isMobileViewport ? "1-up" : "Large",
+      label: isMobileViewport ? "1" : "Large",
       title: isMobileViewport ? "Show one card per row" : "Large card tiles",
     },
     {
       value: "medium",
-      label: isMobileViewport ? "2-up" : "Medium",
+      label: isMobileViewport ? "2" : "Medium",
       title: isMobileViewport ? "Show two cards per row" : "Medium card tiles",
     },
     {
       value: "small",
-      label: isMobileViewport ? "3-up" : "Small",
+      label: isMobileViewport ? "3" : "Small",
       title: isMobileViewport ? "Show three cards per row" : "Small card tiles",
     },
     ...(isMobileViewport
-      ? [{ value: "xsmall", label: "4-up", title: "Show four cards per row" }]
+      ? [{ value: "xsmall", label: "4", title: "Show four cards per row" }]
       : []),
   ];
   const toolbarActiveFilters: CardBrowserToolbarActiveFilter[] = [

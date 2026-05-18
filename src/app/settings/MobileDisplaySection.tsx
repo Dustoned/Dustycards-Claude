@@ -24,14 +24,14 @@ const CARD_SIZE_OPTIONS: Array<{
   label: string;
   desc: string;
 }> = [
-  { value: "large", label: "1-up", desc: "1 slot" },
-  { value: "medium", label: "2-up", desc: "2 slots" },
-  { value: "small", label: "3-up", desc: "3 slots" },
-  { value: "xsmall", label: "4-up", desc: "4 slots" },
+  { value: "large", label: "1", desc: "1 card" },
+  { value: "medium", label: "2", desc: "2 cards" },
+  { value: "small", label: "3", desc: "3 cards" },
+  { value: "xsmall", label: "4", desc: "4 cards" },
 ];
 
 const VIEW_OPTIONS: Array<{ value: CardView; label: string; desc: string }> = [
-  { value: "grid", label: "Grid", desc: "2-up cards" },
+  { value: "grid", label: "Grid", desc: "2 cards" },
   { value: "table", label: "List", desc: "Thin rows" },
   { value: "binder", label: "Binder", desc: "Grid fallback" },
 ];

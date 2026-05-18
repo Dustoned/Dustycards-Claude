@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.17",
+    releasedAt: "May 18, 2026",
+    title: "Cleaner card layout labels",
+    summary: "Mobile card layout controls now use simple numeric labels: 1, 2, 3, and 4.",
+    tone: "improved",
+    highlights: [
+      "Changed mobile card layout buttons from layout jargon to plain numbers.",
+      "Applied the numeric labels across collection overview, card grids, expansion grids, and settings.",
+      "Kept the underlying one, two, three, and four cards-per-row behavior unchanged.",
+    ],
+  },
+  {
     version: "2.1.16",
     releasedAt: "May 18, 2026",
     title: "Cleaner mobile binder cards",
@@ -92,11 +104,11 @@ export const patchNotes: PatchNoteEntry[] = [
     version: "2.1.10",
     releasedAt: "May 18, 2026",
     title: "Simpler card layout labels",
-    summary: "Mobile collection density now uses the clearer 1-up, 2-up, 3-up, and 4-up order.",
+    summary: "Mobile collection density now uses a clearer one, two, three, and four card order.",
     tone: "fixed",
     highlights: [
-      "Changed the mobile card layout controls to read 1-up, 2-up, 3-up, and 4-up.",
-      "Kept the 4-up option working as four cards per row on phones.",
+      "Changed the mobile card layout controls to follow the one, two, three, and four card order.",
+      "Kept the four-card option working on phones.",
       "Applied the same ordering to collection overview, card grids, expansion grids, and phone settings.",
     ],
   },
@@ -107,7 +119,7 @@ export const patchNotes: PatchNoteEntry[] = [
     summary: "Collection card sizing is now easier to understand and available directly from the overview on phone.",
     tone: "improved",
     highlights: [
-      "Renamed mobile card density buttons from 4, S, M, and L to 4-up, 3-up, 2-up, and 1-up.",
+      "Renamed mobile card density buttons from 4, S, M, and L to clearer card-per-row labels.",
       "Added a compact Card layout control above the collection overview sections.",
       "Kept desktop controls clear with Small, Medium, and Large labels.",
     ],
@@ -115,14 +127,14 @@ export const patchNotes: PatchNoteEntry[] = [
   {
     version: "2.1.8",
     releasedAt: "May 18, 2026",
-    title: "PSA slab and mobile 4-up polish",
+    title: "PSA slab and four-card mobile polish",
     summary: "PSA slabs now have a detailed label back, the mobile 3D card opens higher, and phone grids can switch to four cards per row.",
     tone: "fixed",
     highlights: [
       "Added a PSA-style back label texture in the 3D slab viewer instead of the blank label back.",
       "Raised the mobile 3D card framing so the card no longer sits over the detail panel.",
       "Added a visible 4/S/M/L mobile size control on collection and expansion card grids.",
-      "Added the 4-up phone card option to settings so it can be saved as the mobile default.",
+      "Added the four-card phone layout option to settings so it can be saved as the mobile default.",
     ],
   },
   {
@@ -255,7 +267,7 @@ export const patchNotes: PatchNoteEntry[] = [
       "Matched the PSA slab back in the 3D viewer more closely to the existing PSA card model.",
       "Added an Add button beside CardMarket inside the 3D card model view.",
       "Reduced holo effect readability loss so card text stays sharper while preserving the foil feel.",
-      "Added a mobile 4-up binder/card grid option and a tap info popup for mobile card details.",
+      "Added a mobile four-card binder/card grid option and a tap info popup for mobile card details.",
       "Cleaned up the Illustrators header so its stats no longer duplicate the same count.",
     ],
   },
