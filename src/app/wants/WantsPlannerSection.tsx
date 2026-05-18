@@ -2,6 +2,7 @@
 
 import {
   type CSSProperties,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -304,6 +305,7 @@ function BinderQuickViewBody({
   onAddToBinder,
   onOpenCard,
   onResetHidden,
+  mobileCloseAction,
   scrollClassName = "max-h-[32rem]",
   listClassName = "",
   scrollable = true,
@@ -313,6 +315,7 @@ function BinderQuickViewBody({
   onAddToBinder: (cardId: string) => void;
   onOpenCard: (item: CollectionCardViewItem) => void;
   onResetHidden: () => void;
+  mobileCloseAction?: ReactNode;
   scrollClassName?: string;
   listClassName?: string;
   scrollable?: boolean;
@@ -346,17 +349,20 @@ function BinderQuickViewBody({
               {visibleItems.length.toLocaleString("en-US")} visible
             </p>
           </div>
-          {group.hiddenCards > 0 ? (
-            <button
-              type="button"
-              onClick={onResetHidden}
-              disabled={disabled}
-              className="inline-flex h-8 items-center gap-2 rounded-lg border border-black/8 bg-white px-2.5 text-[12px] font-bold text-gray-600 transition-colors hover:border-emerald-400/25 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/7 dark:text-white/60 dark:hover:text-emerald-200"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reset hidden
-            </button>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-2">
+            {group.hiddenCards > 0 ? (
+              <button
+                type="button"
+                onClick={onResetHidden}
+                disabled={disabled}
+                className="inline-flex h-8 items-center gap-2 rounded-lg border border-black/8 bg-white px-2.5 text-[12px] font-bold text-gray-600 transition-colors hover:border-emerald-400/25 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/7 dark:text-white/60 dark:hover:text-emerald-200"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset hidden
+              </button>
+            ) : null}
+            {mobileCloseAction ? <div className="sm:hidden">{mobileCloseAction}</div> : null}
+          </div>
         </div>
 
         <div className="grid gap-1.5 rounded-2xl border border-white/10 bg-black/14 p-2 sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
@@ -376,7 +382,7 @@ function BinderQuickViewBody({
       {visibleItems.length > 0 ? (
         <div
           className={`mt-3 grid gap-2 ${
-            scrollable ? "overflow-y-auto pr-1" : "overflow-visible pr-0"
+            scrollable ? "overflow-y-auto pr-0 sm:pr-1" : "overflow-visible pr-0"
           } ${scrollClassName} ${listClassName}`}
         >
           {visibleItems.map((item) => (
@@ -540,21 +546,8 @@ function WantsQuickViewModal({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation();
-            onClose();
-          }}
-          className={`${modalCloseButtonClass} absolute right-2 top-2 z-10 h-10 w-10 sm:hidden`}
-          aria-label="Close quick view"
-        >
-          <X className="h-4 w-4" />
-        </button>
-
         <div
-          className={`grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-3 py-3 max-[640px]:pr-12 sm:px-4 sm:py-4 ${
+          className={`grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4 ${
             widescreen
               ? "xl:grid-cols-[minmax(13rem,0.34fr)_minmax(0,1.66fr)]"
               : "lg:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.2fr)]"
@@ -627,6 +620,20 @@ function WantsQuickViewModal({
               onAddToBinder={(cardId) => onAddToBinder(cardId, group.binderId)}
               onOpenCard={onOpenCard}
               onResetHidden={onResetHidden}
+              mobileCloseAction={
+                <button
+                  type="button"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onClose();
+                  }}
+                  className={`${modalCloseButtonClass} h-10 w-10`}
+                  aria-label="Close quick view"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              }
               scrollable={!widescreen}
               scrollClassName={
                 widescreen ? "max-h-none" : "max-h-none sm:max-h-[calc(100dvh-16rem)]"

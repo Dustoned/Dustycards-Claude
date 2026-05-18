@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.7",
+    releasedAt: "May 18, 2026",
+    title: "Wants Quick View edge alignment",
+    summary: "Mobile Wants Quick View content now lines up evenly with the popup sides.",
+    tone: "fixed",
+    highlights: [
+      "Removed the mobile right-side spacing that made the Quick View header and tiles look offset.",
+      "Moved the mobile close action into the compact content row so it no longer narrows the list.",
+      "Kept the desktop Quick View header and side panel unchanged.",
+    ],
+  },
+  {
     version: "2.1.6",
     releasedAt: "May 18, 2026",
     title: "Wants Quick View filter polish",
