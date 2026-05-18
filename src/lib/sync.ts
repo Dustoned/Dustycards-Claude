@@ -3988,6 +3988,15 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
               return null;
             }
 
+            if (shouldSkipAutoCatalogStatusError(error)) {
+              completedCatalogEpisodes += 1;
+              await updateAutoProgress(
+                `Catalog sync ${catalogBatch.selectedEpisodes.length} sets pending | Skipped ${episode.name} after TCGGO returned 403 | Completed ${completedCatalogEpisodes}/${catalogBatch.selectedEpisodes.length} sets`
+              );
+
+              return null;
+            }
+
             throw error;
           }
         }

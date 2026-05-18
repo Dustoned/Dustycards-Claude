@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.14",
+    releasedAt: "May 18, 2026",
+    title: "Catalog set 403 guard",
+    summary: "Background price refresh now skips blocked catalog set cardlists instead of failing the whole run.",
+    tone: "fixed",
+    highlights: [
+      "Extended the TCGGO 403 recovery to optional catalog set cardlist requests.",
+      "Keeps the price refresh batch moving when a single remote catalog set is blocked.",
+      "Still leaves quota and non-catalog failures visible so real scraper issues are not hidden.",
+    ],
+  },
+  {
     version: "2.1.13",
     releasedAt: "May 18, 2026",
     title: "Sealed value driver details",
