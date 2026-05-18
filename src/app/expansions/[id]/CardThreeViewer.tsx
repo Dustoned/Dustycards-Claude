@@ -150,23 +150,23 @@ function getCard3dSizeConfig(size: Card3dSize, isMobileViewport: boolean): Card3
 
   if (size === "large") {
     return {
-      resetDistanceScale: 0.64,
-      minimumFitScale: 0.66,
+      resetDistanceScale: 0.7,
+      minimumFitScale: 0.72,
       offsetScale: 0.94,
     };
   }
 
   if (size === "medium") {
     return {
-      resetDistanceScale: 0.78,
-      minimumFitScale: 0.78,
+      resetDistanceScale: 0.83,
+      minimumFitScale: 0.83,
       offsetScale: 0.98,
     };
   }
 
   return {
-    resetDistanceScale: 0.94,
-    minimumFitScale: 0.9,
+    resetDistanceScale: 0.98,
+    minimumFitScale: 0.94,
     offsetScale: 1.02,
   };
 }

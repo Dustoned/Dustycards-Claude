@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.4",
+    releasedAt: "May 18, 2026",
+    title: "3D card mobile sizing hotfix",
+    summary: "The mobile 3D card viewer now opens a little smaller so it leaves cleaner room for the detail panel.",
+    tone: "fixed",
+    highlights: [
+      "Adjusted only the mobile 3D camera sizing presets for small, medium, and large modes.",
+      "Kept the desktop 3D sizing unchanged.",
+      "Preserved the larger premium viewer feel while reducing overlap with the mobile details panel.",
+    ],
+  },
+  {
     version: "2.1.3",
     releasedAt: "May 18, 2026",
     title: "Wants Quick View modal hotfix",
