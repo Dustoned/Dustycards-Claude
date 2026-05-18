@@ -151,11 +151,11 @@ function QuickViewSortControl({
   const DirectionIcon = sortDirection === "asc" ? ArrowUp : ArrowDown;
 
   return (
-    <div className="min-w-0">
-      <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-white/32">
+    <div className="grid min-w-0 items-center gap-1 max-[640px]:grid-cols-[2.65rem_minmax(0,1fr)] sm:block">
+      <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-white/32 max-[640px]:mb-0 max-[640px]:text-[8px] max-[640px]:tracking-[0.1em]">
         Sort
       </p>
-      <div className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-black/20 p-1">
+      <div className="grid max-w-full grid-cols-3 items-center gap-1 rounded-2xl border border-white/10 bg-black/20 p-1">
         {QUICK_VIEW_SORTS.map((option) => {
           const active = sortField === option.key;
           return (
@@ -163,7 +163,7 @@ function QuickViewSortControl({
               key={option.key}
               type="button"
               onClick={() => onSort(option.key)}
-              className={`inline-flex h-7 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-bold transition-colors ${
+              className={`inline-flex h-8 min-w-0 items-center justify-center gap-1 rounded-xl px-1.5 text-[10px] font-bold transition-colors sm:h-7 sm:px-2.5 sm:text-[11px] ${
                 active
                   ? "bg-white text-gray-950 shadow-sm shadow-black/20"
                   : "text-white/54 hover:bg-white/8 hover:text-white"
@@ -174,7 +174,7 @@ function QuickViewSortControl({
                   : `Sort by ${option.label}`
               }
             >
-              <span>{option.label}</span>
+              <span className="truncate">{option.label}</span>
               {active ? <DirectionIcon className="h-3 w-3" /> : null}
             </button>
           );
@@ -196,11 +196,14 @@ function QuickViewSegmentedControl<TValue extends string>({
   onChange: (value: TValue) => void;
 }) {
   return (
-    <div className="min-w-0">
-      <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-white/32">
+    <div className="grid min-w-0 items-center gap-1 max-[640px]:grid-cols-[2.65rem_minmax(0,1fr)] sm:block">
+      <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-white/32 max-[640px]:mb-0 max-[640px]:text-[8px] max-[640px]:tracking-[0.1em]">
         {label}
       </p>
-      <div className="inline-flex max-w-full flex-wrap items-center gap-1 rounded-2xl border border-white/10 bg-black/20 p-1">
+      <div
+        className="grid max-w-full items-center gap-1 rounded-2xl border border-white/10 bg-black/20 p-1"
+        style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
+      >
         {options.map((option) => {
           const active = value === option.key;
           return (
@@ -208,13 +211,13 @@ function QuickViewSegmentedControl<TValue extends string>({
               key={option.key}
               type="button"
               onClick={() => onChange(option.key)}
-              className={`inline-flex h-7 items-center rounded-xl px-2.5 text-[11px] font-bold transition-colors ${
+              className={`inline-flex h-8 min-w-0 items-center justify-center rounded-xl px-1.5 text-[10px] font-bold transition-colors sm:h-7 sm:px-2.5 sm:text-[11px] ${
                 active
                   ? "bg-white text-gray-950 shadow-sm shadow-black/20"
                   : "text-white/54 hover:bg-white/8 hover:text-white"
               }`}
             >
-              {option.label}
+              <span className="truncate">{option.label}</span>
             </button>
           );
         })}
@@ -356,14 +359,14 @@ function BinderQuickViewBody({
           ) : null}
         </div>
 
-        <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="grid gap-1.5 rounded-2xl border border-white/10 bg-black/14 p-2 sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <QuickViewSortControl
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={handleSort}
           />
           <QuickViewSegmentedControl
-            label="Filter"
+            label="Show"
             value={filterKey}
             options={QUICK_VIEW_FILTERS}
             onChange={setFilterKey}

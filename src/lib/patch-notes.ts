@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "2.1.6",
+    releasedAt: "May 18, 2026",
+    title: "Wants Quick View filter polish",
+    summary: "The mobile Wants Quick View sort and filter controls are cleaner, more compact, and easier to tap.",
+    tone: "fixed",
+    highlights: [
+      "Changed mobile Quick View sorting into an even Number, Price, and Name segmented row.",
+      "Changed mobile filtering into a matching Show row for All, Priced, and No price.",
+      "Kept the controls compact so the missing-card list still starts quickly on phones.",
+    ],
+  },
+  {
     version: "2.1.5",
     releasedAt: "May 18, 2026",
     title: "Mobile Wants Quick View cleanup",
