@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.0.0",
+    releasedAt: "May 19, 2026",
+    title: "Premium collection UI overhaul",
+    summary: "DustyCards now uses the compact premium binder-style interface across collection, detail, wants, market, search, and settings.",
+    tone: "new",
+    highlights: [
+      "Reworked the app shell, navigation, headers, tabs, filters, cards, tiles, modals, and empty states into one darker collector-focused visual system.",
+      "Made collection, binder, sealed, wants, movers, search, expansion, category, illustrator, account, and settings screens denser and more image-led on mobile and desktop.",
+      "Refined card detail pages with a widescreen market layout, compact actions, better pricing panels, improved 3D handling, and consistent raw, graded, sealed, and related sections.",
+      "Added the new market structure with risers, drops, raw, graded, targets, sealed, and deals views while preserving existing collection actions and links.",
+    ],
+  },
+  {
     version: "2.1.17",
     releasedAt: "May 18, 2026",
     title: "Cleaner card layout labels",

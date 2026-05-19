@@ -33,6 +33,8 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import { getCompactRarityLabel, normalizeRarityLabel } from "@/lib/rarity";
+import { rarityBadge } from "@/lib/rarity-styles";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
@@ -302,11 +304,11 @@ function SearchPageContent({
   );
   const singlesGridGapClass = isMobileViewport
     ? displaySettings.cardSize === "large"
-      ? "gap-x-0 gap-y-5"
+      ? "gap-x-0 gap-y-3"
       : displaySettings.cardSize === "medium"
-        ? "gap-x-3 gap-y-4"
-        : "gap-x-2 gap-y-3"
-    : "gap-2";
+        ? "gap-x-2 gap-y-2.5"
+        : "gap-x-1.5 gap-y-2"
+    : "gap-2.5";
   const sealedImageSizes = getSealedProductImageSizes(
     displaySettings.cardSize,
     displaySettings.widescreen,
@@ -324,13 +326,13 @@ function SearchPageContent({
   const logoHeight = getSearchLogoHeightClass(displaySettings.uiScale);
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+    <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
       <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-white/35">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/35">
             Search
           </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-3xl">
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
             {trimmedQuery ? `Results for "${trimmedQuery}"` : "Search"}
           </h1>
           {settings.onePieceLibraryEnabled ? (
@@ -341,7 +343,7 @@ function SearchPageContent({
         </div>
         {resultSummary ? (
           <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
-            <p className="text-sm font-medium text-gray-500 dark:text-white/45">
+            <p className="text-sm font-medium text-white/45">
               {resultSummary}
             </p>
           </div>
@@ -350,24 +352,24 @@ function SearchPageContent({
 
       {/* Loading */}
       {loading && (
-        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-black/8 bg-white/60 px-4 py-3 text-sm text-gray-500 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/45">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3 text-sm text-white/45">
           <span className="inline-block w-4 h-4 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
           Searching...
         </div>
       )}
 
       {!loading && trimmedQuery.length < MIN_SEARCH_LENGTH && (
-        <div className="rounded-3xl border border-dashed border-black/12 bg-white/60 p-5 text-sm text-gray-500 dark:border-white/12 dark:bg-white/[0.035] dark:text-white/45">
+        <div className="rounded-3xl border border-dashed border-white/12 bg-white/[0.035] p-5 text-sm text-white/45">
           Use the header search to find cards, sealed products, or expansions.
         </div>
       )}
 
       {/* No results */}
       {showEmpty && (
-        <div className="rounded-3xl border border-dashed border-black/12 bg-white/60 p-5 text-sm text-gray-500 dark:border-white/12 dark:bg-white/[0.035] dark:text-white/45">
+        <div className="rounded-3xl border border-dashed border-white/12 bg-white/[0.035] p-5 text-sm text-white/45">
           <p>
             No results for{" "}
-            <span className="font-semibold text-gray-700 dark:text-white/75">
+            <span className="font-semibold text-white/75">
               &ldquo;{trimmedQuery}&rdquo;
             </span>
             .
@@ -378,7 +380,7 @@ function SearchPageContent({
 
       {/* Results */}
       {results && (results.total > 0 || allExpansions.length > 0) && (
-        <div className="space-y-8">
+        <div className="space-y-5">
           {/* Expansions grid */}
           {allExpansions.length > 0 && (
             <section>
@@ -396,7 +398,7 @@ function SearchPageContent({
                     key={ep.id}
                     href={getExpansionHref(ep.id)}
                     prefetch={false}
-                    className={`group glass flex flex-col items-center transition-all duration-200 hover:scale-[1.03] hover:bg-white/8 active:scale-[0.98] dark:hover:bg-white/6 ${expansionScale.tileClass}`}
+                    className={`group binder-panel flex flex-col items-center transition-all duration-200 hover:scale-[1.03] hover:bg-white/[0.07] active:scale-[0.98] ${expansionScale.tileClass}`}
                   >
                     {ep.logo_url ? (
                       <div className={`relative w-full ${logoHeight}`}>
@@ -411,19 +413,19 @@ function SearchPageContent({
                       </div>
                     ) : (
                       <div
-                        className={`w-full rounded-xl bg-black/5 dark:bg-white/4 ${logoHeight} flex items-center justify-center`}
+                        className={`w-full rounded-xl bg-white/[0.04] ${logoHeight} flex items-center justify-center`}
                       >
-                        <span className="text-xs font-medium text-gray-400 dark:text-white/40">
+                        <span className="text-xs font-medium text-white/40">
                           {ep.name.slice(0, 2)}
                         </span>
                       </div>
                     )}
                     <div className="text-center">
-                      <p className={`font-semibold leading-snug line-clamp-2 text-gray-800 dark:text-white group-hover:text-black dark:group-hover:text-white transition-colors ${expansionScale.titleClass}`}>
+                      <p className={`font-semibold leading-snug line-clamp-2 text-white transition-colors ${expansionScale.titleClass}`}>
                         {ep.name}
                       </p>
                       {ep.code && (
-                        <p className={`mt-0.5 text-gray-400 dark:text-white/40 ${expansionScale.metaClass}`}>{ep.code}</p>
+                        <p className={`mt-0.5 text-white/40 ${expansionScale.metaClass}`}>{ep.code}</p>
                       )}
                     </div>
                   </Link>
@@ -441,100 +443,111 @@ function SearchPageContent({
                 className={`grid ${singlesGridGapClass}`}
                 style={{
                   gridTemplateColumns: singlesGridTemplateColumns,
-                  justifyContent: "stretch",
+                  justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
-                {results.singles.map((card, index) => (
-                  <div
-                    key={card.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openCard(card)}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget) return;
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openCard(card);
-                      }
-                    }}
-                    className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
-                    aria-busy={openingCardId === card.id}
-                  >
-                    <div className="relative aspect-[63/88] w-full bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] transition-all duration-200 group-hover:scale-[1.03] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]">
-                      {card.image_url ? (
-                        <Image
-                          src={getCachedImageUrl(card.image_url) ?? card.image_url}
-                          alt={card.name}
-                          fill
-                          className="object-contain"
-                          sizes={minWidth}
-                          loading={index < 18 ? "eager" : undefined}
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-black/6 dark:bg-white/6 flex items-center justify-center text-gray-300 text-xs rounded-xl">
-                          {card.name.slice(0, 2)}
-                        </div>
-                      )}
-                      {openingCardId === card.id && <CardLoadingOverlay />}
-                    </div>
+                {results.singles.map((card, index) => {
+                  const normalizedRarity = card.rarity ? normalizeRarityLabel(card.rarity) : null;
 
-                    <div className="mt-1.5 px-0.5 sm:mt-2">
-                      <div className="grid gap-1 sm:flex sm:items-end sm:justify-between sm:gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[11px] font-semibold leading-snug text-gray-900 dark:text-white sm:text-[13px]">
-                            {card.name}
-                          </p>
-                          <div className="mt-0.5 flex items-center gap-1 text-[10px] font-medium sm:gap-1.5 sm:text-xs">
-                            <span className="shrink-0 text-gray-500 dark:text-gray-400">
-                              {card.card_number ? `#${card.card_number}` : "--"}
-                            </span>
-                            {!isMobileViewport && (
-                              <>
-                                <span className="text-gray-300 dark:text-white/20">/</span>
-                                <Link
-                                  href={getExpansionHref(card.episode_id)}
-                                  prefetch={false}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
-                                >
-                                  {card.episode_name}
-                                  {card.episode_code && (
-                                    <span className="ml-1 opacity-60">({card.episode_code})</span>
-                                  )}
-                                </Link>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
-                          {card.cm_en_lowest_nm != null ? (
-                            <span className="min-w-0 truncate text-[12px] font-semibold tabular-nums text-gray-900 dark:text-white sm:text-[15px]">
-                              {formatEur(card.cm_en_lowest_nm)}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-gray-400 dark:text-gray-500 sm:text-xs">No price</span>
-                          )}
-
-                          <CollectionAddCardButton
-                            card={{
-                              id: card.id,
-                              name: card.name,
-                              image_url: card.image_url,
-                              episode: {
-                                id: card.episode_id,
-                                name: card.episode_name,
-                                code: card.episode_code,
-                              },
-                            }}
-                            className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
+                  return (
+                    <div
+                      key={card.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openCard(card)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openCard(card);
+                        }
+                      }}
+                      className="relative flex cursor-pointer flex-col rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 text-left shadow-[0_12px_28px_rgba(0,0,0,0.24)] outline-none transition-colors hover:border-white/14 max-[640px]:rounded-[13px] max-[640px]:p-1"
+                      aria-busy={openingCardId === card.id}
+                    >
+                      <div className="relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-[#d8d5cc] drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-white/12">
+                        {card.image_url ? (
+                          <Image
+                            src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                            alt={card.name}
+                            fill
+                            className="object-contain"
+                            sizes={minWidth}
+                            loading={index < 18 ? "eager" : undefined}
+                            unoptimized
                           />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center rounded-xl bg-white/6 text-xs text-white/35">
+                            {card.name.slice(0, 2)}
+                          </div>
+                        )}
+                        {openingCardId === card.id && <CardLoadingOverlay />}
+                      </div>
+
+                      <div className="mt-1.5 px-0.5">
+                        <div className="grid gap-1">
+                          <div className="min-w-0">
+                            <p className="line-clamp-2 text-[11px] font-bold leading-tight text-white sm:text-[13px]">
+                              {card.name}
+                            </p>
+                            <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[9px] font-semibold sm:gap-1.5 sm:text-[11px]">
+                              <span className="shrink-0 text-white/42">
+                                {card.card_number ? `#${card.card_number}` : "--"}
+                              </span>
+                              {normalizedRarity ? (
+                                <span
+                                  className={`inline-flex min-h-[16px] max-w-full items-center rounded-md border px-1 text-[8px] font-black leading-none sm:min-h-[18px] sm:px-1.5 sm:text-[9px] ${rarityBadge(normalizedRarity)}`}
+                                  title={card.rarity ?? normalizedRarity}
+                                >
+                                  <span className="truncate">
+                                    {getCompactRarityLabel(normalizedRarity) ?? normalizedRarity}
+                                  </span>
+                                </span>
+                              ) : null}
+                            </div>
+                            {!isMobileViewport ? (
+                              <Link
+                                href={getExpansionHref(card.episode_id)}
+                                prefetch={false}
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-0.5 block truncate text-[10px] font-medium text-white/32 transition-colors hover:text-white/60 hover:underline underline-offset-2"
+                              >
+                                {card.episode_name}
+                                {card.episode_code ? (
+                                  <span className="ml-1 opacity-60">({card.episode_code})</span>
+                                ) : null}
+                              </Link>
+                            ) : null}
+                          </div>
+
+                          <div className="flex min-w-0 items-center justify-between gap-1.5">
+                            {card.cm_en_lowest_nm != null ? (
+                              <span className="min-w-0 truncate text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]">
+                                {formatEur(card.cm_en_lowest_nm)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-white/35 sm:text-xs">No price</span>
+                            )}
+
+                            <CollectionAddCardButton
+                              card={{
+                                id: card.id,
+                                name: card.name,
+                                image_url: card.image_url,
+                                episode: {
+                                  id: card.episode_id,
+                                  name: card.episode_name,
+                                  code: card.episode_code,
+                                },
+                              }}
+                              className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
@@ -548,7 +561,7 @@ function SearchPageContent({
                 className="grid gap-2"
                 style={{
                   gridTemplateColumns: sealedGridTemplateColumns,
-                  justifyContent: "stretch",
+                  justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
                 {results.sealed.map((product, index) => (
@@ -564,29 +577,29 @@ function SearchPageContent({
                         openSealed(product);
                       }
                     }}
-                    className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none max-[640px]:gap-1"
+                    className="relative flex cursor-pointer flex-col rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 text-left shadow-[0_12px_28px_rgba(0,0,0,0.24)] outline-none transition-colors hover:border-white/14 max-[640px]:rounded-[13px] max-[640px]:p-1"
                   >
-                    <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-transparent bg-black/4 shadow-md shadow-black/20 transition-all duration-200 group-hover:scale-[1.03] group-hover:shadow-xl group-hover:shadow-black/30 dark:bg-white/4">
+                    <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-white/8 bg-black/24 shadow-md shadow-black/20">
                       {product.image_url ? (
                         <Image
                           src={getCachedImageUrl(product.image_url) ?? product.image_url}
                           alt={product.name}
                           fill
-                          className="object-contain p-3"
+                          className="scale-[1.25] object-contain p-2"
                           sizes={sealedImageSizes}
                           loading={index < 18 ? "eager" : undefined}
                           unoptimized
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Package className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                          <Package className="w-8 h-8 text-white/30" />
                         </div>
                       )}
                     </div>
-                    <div className="mt-2 px-0.5 max-[640px]:mt-1.5 max-[640px]:px-0">
-                      <div className="grid gap-1.5 sm:flex sm:items-end sm:justify-between sm:gap-3">
+                    <div className="mt-1.5 px-0.5 max-[640px]:px-0">
+                      <div className="grid gap-1">
                         <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 max-[640px]:text-[12px] dark:text-white">
+                          <p className="line-clamp-2 text-[12px] font-bold leading-tight text-white sm:text-[13px]">
                             {product.name}
                           </p>
                           <div className="mt-0.5 flex items-center gap-1.5 text-xs font-medium max-[640px]:hidden">
@@ -594,7 +607,7 @@ function SearchPageContent({
                               href={`${getExpansionHref(product.episode.id)}?tab=sealed`}
                               prefetch={false}
                               onClick={(e) => e.stopPropagation()}
-                              className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                              className="min-w-0 truncate text-white/40 transition-colors hover:text-white/70 hover:underline underline-offset-2"
                             >
                               {product.episode.name}
                               {product.episode.code && (
@@ -604,13 +617,13 @@ function SearchPageContent({
                           </div>
                         </div>
 
-                        <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
+                        <div className="flex min-w-0 items-center justify-between gap-1.5">
                           {product.cm_lowest != null ? (
-                            <span className="min-w-0 truncate text-[15px] font-semibold tabular-nums text-gray-900 max-[640px]:text-[12px] dark:text-white">
+                            <span className="min-w-0 truncate text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]">
                               {formatEur(product.cm_lowest)}
                             </span>
                           ) : (
-                            <span className="text-xs text-gray-400 dark:text-gray-500">No price</span>
+                            <span className="text-xs text-white/35">No price</span>
                           )}
 
                           <CollectionAddSealedButton
@@ -620,7 +633,7 @@ function SearchPageContent({
                               image_url: product.image_url,
                               episode: product.episode,
                             }}
-                            className="h-[22px] w-[22px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 max-[640px]:h-6 max-[640px]:w-6 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                            className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
                           />
                         </div>
                       </div>

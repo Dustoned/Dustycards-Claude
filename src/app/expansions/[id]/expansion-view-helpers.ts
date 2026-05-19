@@ -93,8 +93,8 @@ export function rarityFilterChip(rarity: string | null, active: boolean): string
 
 export function neutralFilterChip(active: boolean): string {
   if (active) {
-    return "border-gray-900 bg-gray-900 text-white opacity-100 ring-2 ring-gray-900/70 ring-offset-1 ring-offset-white shadow-md shadow-black/10 dark:border-white dark:bg-white dark:text-gray-900 dark:ring-white/80 dark:ring-offset-black dark:shadow-black/25";
+    return "border-white/70 bg-white text-gray-950 opacity-100 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
   }
 
-  return "border-black/8 text-gray-500 opacity-80 hover:border-black/20 hover:opacity-100 hover:text-gray-900 hover:shadow-sm dark:border-white/8 dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white";
+  return "border-white/8 text-white/55 opacity-80 hover:border-white/20 hover:opacity-100 hover:text-white hover:shadow-sm";
 }

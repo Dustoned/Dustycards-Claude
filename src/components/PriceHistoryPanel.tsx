@@ -64,6 +64,8 @@ const DEFAULT_RANGE_KEY: RangeKey = "3M";
 const RANGE_STORAGE_PREFIX = "dustycards:price-history-range";
 const RANGE_STORAGE_EVENT = "dustycards:price-history-range-change";
 const MOBILE_VIEWPORT_QUERY = "(max-width: 640px)";
+const ACTIVE_RANGE_CLASS =
+  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
 const rangeMemoryFallback = new Map<string, RangeKey>();
 const RANGE_PRESETS: Array<{
   key: RangeKey;
@@ -530,10 +532,10 @@ export default function PriceHistoryPanel({
           ? "rounded-[28px] border border-white/10 bg-white/[0.06] px-5 py-5 sm:px-6 sm:py-6"
           : "rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-4 max-[640px]:px-3 max-[640px]:py-3"
       : compact
-        ? "rounded-2xl border border-black/8 bg-black/[0.03] px-3 py-3 max-[640px]:px-2.5 max-[640px]:py-2.5 dark:border-white/8 dark:bg-white/[0.04]"
+        ? "rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3 max-[640px]:px-2.5 max-[640px]:py-2.5"
         : isHeroLayout
-          ? "rounded-[28px] border border-black/8 bg-black/[0.03] px-5 py-5 dark:border-white/8 dark:bg-white/[0.04] sm:px-6 sm:py-6"
-          : "rounded-2xl border border-black/8 bg-black/[0.03] px-4 py-4 max-[640px]:px-3 max-[640px]:py-3 dark:border-white/8 dark:bg-white/[0.04]";
+          ? "rounded-[28px] border border-white/8 bg-white/[0.04] px-5 py-5 sm:px-6 sm:py-6"
+          : "rounded-2xl border border-white/8 bg-white/[0.04] px-4 py-4 max-[640px]:px-3 max-[640px]:py-3";
 
   if (!rangeResolved) {
     return (
@@ -552,7 +554,7 @@ export default function PriceHistoryPanel({
   const titleClass =
     tone === "dark"
       ? "text-xs font-semibold uppercase tracking-[0.08em] text-white/50"
-      : "text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-white/50";
+      : "text-xs font-semibold uppercase tracking-[0.08em] text-white/50";
   const valueClass =
     tone === "dark"
       ? compact
@@ -561,14 +563,14 @@ export default function PriceHistoryPanel({
           ? "text-4xl font-bold text-white tabular-nums sm:text-[2.85rem]"
           : "text-2xl font-bold text-white tabular-nums"
       : compact
-        ? "text-xl font-bold text-gray-900 tabular-nums dark:text-white"
+        ? "text-xl font-bold text-white tabular-nums"
         : isHeroLayout
-          ? "text-4xl font-bold text-gray-900 tabular-nums dark:text-white sm:text-[2.85rem]"
-          : "text-2xl font-bold text-gray-900 tabular-nums dark:text-white";
+          ? "text-4xl font-bold text-white tabular-nums sm:text-[2.85rem]"
+          : "text-2xl font-bold text-white tabular-nums";
   const metaClass =
-    tone === "dark" ? "text-xs text-white/52" : "text-xs text-gray-500 dark:text-white/48";
+    tone === "dark" ? "text-xs text-white/52" : "text-xs text-white/48";
   const subtitleClass =
-    tone === "dark" ? "text-xs text-white/38" : "text-xs text-gray-500 dark:text-white/40";
+    tone === "dark" ? "text-xs text-white/38" : "text-xs text-white/40";
   const emptyClass =
     tone === "dark"
       ? compact
@@ -577,18 +579,18 @@ export default function PriceHistoryPanel({
           ? "flex h-[232px] items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-white/40"
           : "flex h-[184px] items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-white/40"
       : compact
-        ? "flex h-28 items-center justify-center rounded-xl border border-dashed border-black/10 text-sm text-gray-500 dark:border-white/10 dark:text-white/40"
+        ? "flex h-28 items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-white/40"
         : isHeroLayout
-          ? "flex h-[232px] items-center justify-center rounded-2xl border border-dashed border-black/10 text-sm text-gray-500 dark:border-white/10 dark:text-white/40"
-          : "flex h-[184px] items-center justify-center rounded-xl border border-dashed border-black/10 text-sm text-gray-500 dark:border-white/10 dark:text-white/40";
+          ? "flex h-[232px] items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-white/40"
+          : "flex h-[184px] items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-white/40";
   const axisLabelClass =
-    tone === "dark" ? "fill-white/40" : "fill-gray-500 dark:fill-white/40";
+    tone === "dark" ? "fill-white/40" : "fill-white/40";
   const gridLineClass =
-    tone === "dark" ? "stroke-white/10" : "stroke-black/8 dark:stroke-white/10";
+    tone === "dark" ? "stroke-white/10" : "stroke-white/10";
   const tooltipClass =
     tone === "dark"
       ? "border-white/12 bg-[#0c0c0f]/92 text-white shadow-2xl shadow-black/35"
-      : "border-black/8 bg-white/95 text-gray-900 shadow-xl shadow-black/10 dark:border-white/10 dark:bg-[#0c0c0f]/90 dark:text-white";
+      : "border-white/10 bg-[#0c0c0f]/90 text-white shadow-xl shadow-black/35";
   const accentStroke = currency === "USD" ? "#f59e0b" : "#10b981";
   const accentFillStart =
     currency === "USD" ? "rgba(245, 158, 11, 0.32)" : "rgba(16, 185, 129, 0.28)";
@@ -695,12 +697,10 @@ export default function PriceHistoryPanel({
                 aria-pressed={selectedRange === range.key}
                 className={`inline-flex items-center rounded-full border font-semibold leading-none transition-colors ${rangeButtonClass} ${
                   selectedRange === range.key
-                    ? tone === "dark"
-                      ? "border-white/24 bg-white/14 text-white"
-                      : "border-gray-900/18 bg-gray-900 text-white dark:border-white/20 dark:bg-white dark:text-gray-900"
+                    ? ACTIVE_RANGE_CLASS
                     : tone === "dark"
                       ? "border-white/10 text-white/58 hover:border-white/18 hover:text-white/82"
-                      : "border-black/10 text-gray-500 hover:border-black/18 hover:text-gray-900 dark:border-white/10 dark:text-white/55 dark:hover:border-white/18 dark:hover:text-white"
+                      : "border-white/10 text-white/55 hover:border-white/18 hover:text-white"
                 }`}
               >
                 {range.label}

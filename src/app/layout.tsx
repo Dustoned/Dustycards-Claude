@@ -1,16 +1,18 @@
 import type { Metadata, Viewport } from "next";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { Geist } from "next/font/google";
 import Link from "next/link";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
-import { HeaderMobileMenu, HeaderNav } from "@/components/HeaderNav";
+import { HeaderMobileMenu } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
+import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/DesktopSidebar";
+import MobileBottomNav from "@/components/MobileBottomNav";
 import MobileHoverTooltip from "@/components/MobileHoverTooltip";
 import SettingsProvider from "@/components/SettingsProvider";
 import { getCurrentUser } from "@/lib/auth";
+import { db } from "@/lib/db";
 import {
-  parseResolvedThemeCookie,
   SETTINGS_COOKIE_MAX_AGE,
   SETTINGS_COOKIE_NAME,
   SETTINGS_RESOLVED_THEME_COOKIE_NAME,
@@ -50,8 +52,32 @@ function isBrowserAutoPriceRefreshEnabled(): boolean {
   return value ? ENABLED_ENV_VALUES.has(value) : false;
 }
 
+async function getDesktopSidebarSummary(
+  userId: string,
+  email: string,
+  role: DesktopSidebarSummary["role"]
+): Promise<DesktopSidebarSummary> {
+  const [cards, binders, wants, sealed] = await Promise.all([
+    db.collectionCard.count({ where: { user_id: userId } }),
+    db.collectionBinder.count({ where: { user_id: userId } }),
+    db.collectionWant.count({ where: { user_id: userId, dismissed_at: null } }),
+    db.collectionSealed.aggregate({
+      where: { user_id: userId },
+      _sum: { quantity: true },
+    }),
+  ]);
+
+  return {
+    cards,
+    binders,
+    sealedUnits: sealed._sum.quantity ?? 0,
+    wants,
+    email,
+    role,
+  };
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const cookieStore = await cookies();
   const headerStore = await headers();
   const currentUser = await getCurrentUser();
   const browserAutoPriceRefreshEnabled = isBrowserAutoPriceRefreshEnabled();
@@ -61,12 +87,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     ? initialSettings?.mobileUiScale ?? "small"
     : initialSettings?.uiScale ?? "medium";
   const initialWidescreen = !initialMobileViewport && (initialSettings?.widescreen ?? false);
-  const resolvedTheme = parseResolvedThemeCookie(
-    cookieStore.get(SETTINGS_RESOLVED_THEME_COOKIE_NAME)?.value
-  );
   const initialTheme = initialSettings?.theme ?? "system";
-  const serverDark =
-    initialTheme === "dark" || (initialTheme === "system" && resolvedTheme === "dark");
+  const serverDark = true;
+  const sidebarSummary = currentUser
+    ? await getDesktopSidebarSummary(currentUser.id, currentUser.email, currentUser.role)
+    : null;
   const initialBrowserSettingsScript = `
     (function () {
       try {
@@ -84,7 +109,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           ? settings.theme
           : "system";
         var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-        var dark = theme === "dark" || (theme === "system" && prefersDark);
+        var dark = true;
         var phone = window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
         var rawUi = phone ? settings.mobileUiScale : settings.uiScale;
         var ui = ["small", "medium", "large"].indexOf(rawUi) >= 0 ? rawUi : (phone ? "small" : "medium");
@@ -102,8 +127,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   `;
   const prepaintThemeStyles = `
     html {
-      background-color: #f2f2f7;
-      color-scheme: light;
+      background-color: #050505;
+      color-scheme: dark;
     }
 
     body {
@@ -112,30 +137,30 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     }
 
     [data-app-header] {
-      background-color: rgba(255, 255, 255, 0.8);
-      border-color: rgba(0, 0, 0, 0.08);
+      background-color: #050505;
+      border-color: rgba(255, 255, 255, 0.08);
     }
 
     html.dark,
     html[data-theme="dark"] {
-      background-color: #000;
+      background-color: #050505;
       color-scheme: dark;
     }
 
     html.dark [data-app-header],
     html[data-theme="dark"] [data-app-header] {
-      background-color: rgba(0, 0, 0, 0.9);
+      background-color: #050505;
       border-color: rgba(255, 255, 255, 0.08);
     }
 
     @media (prefers-color-scheme: dark) {
       html[data-theme="system"] {
-        background-color: #000;
+        background-color: #050505;
         color-scheme: dark;
       }
 
       html[data-theme="system"] [data-app-header] {
-        background-color: rgba(0, 0, 0, 0.9);
+        background-color: #050505;
         border-color: rgba(255, 255, 255, 0.08);
       }
     }
@@ -163,7 +188,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: initialBrowserSettingsScript }} />
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
       </head>
-      <body className="min-h-full flex flex-col bg-transparent text-gray-900 dark:text-white">
+      <body className="min-h-full flex flex-col bg-transparent text-white">
         <SettingsProvider
           initialSettings={initialSettings}
           initialMobileViewport={initialMobileViewport}
@@ -173,20 +198,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <AppVersionWatcher />
           <MobileHoverTooltip />
           {currentUser && <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} />}
+          {currentUser && sidebarSummary ? <DesktopSidebar summary={sidebarSummary} /> : null}
           <header
             data-app-header
-            className="fixed inset-x-0 top-0 z-50 bg-white/80 dark:bg-black/90 backdrop-blur-xl border-b border-black/8 dark:border-white/8"
+            className={`fixed right-0 top-0 z-50 border-b border-white/8 bg-[#050505] ${
+              currentUser ? "left-0 xl:left-[15rem]" : "left-0"
+            }`}
           >
             <nav className="page-container relative mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-3 sm:px-6 lg:px-8">
               {currentUser && (
-                <HeaderMobileMenu />
+                <div className="xl:hidden">
+                  <HeaderMobileMenu />
+                </div>
               )}
-              <Link href="/" prefetch={false} className="shrink-0 font-semibold text-gray-900 dark:text-white tracking-tight hover:opacity-70 transition-opacity [font-size:var(--ui-brand-size)]">
+              <Link href="/" prefetch={false} className={`shrink-0 font-bold tracking-tight text-white transition-opacity hover:opacity-75 [font-size:var(--ui-brand-size)] ${currentUser ? "xl:hidden" : ""}`}>
                 DustyCards
               </Link>
               {currentUser ? (
                 <>
-                  <HeaderNav />
                   <div className="flex-1 lg:hidden" />
                   <HeaderSearch />
                 </>
@@ -195,7 +224,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               )}
             </nav>
           </header>
-          <main className="flex-1 pt-[var(--ui-header-height)]">{children}</main>
+          <main
+            className={`flex-1 pt-[var(--ui-header-height)] ${
+              currentUser ? "xl:pl-[15rem]" : ""
+            }`}
+          >
+            {children}
+          </main>
+          {currentUser && <MobileBottomNav />}
         </SettingsProvider>
       </body>
     </html>

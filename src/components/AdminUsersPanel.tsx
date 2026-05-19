@@ -106,16 +106,16 @@ export default function AdminUsersPanel({
   }
 
   return (
-    <section className="glass grid gap-4 rounded-2xl p-5 shadow-md shadow-black/5 sm:p-6">
+    <section className="binder-panel grid gap-4 rounded-2xl p-4 sm:p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <UsersRound className="h-4 w-4 text-gray-400 dark:text-white/40" />
-            <h2 className="text-base font-semibold text-gray-950 dark:text-white">
+            <UsersRound className="h-4 w-4 text-white/40" />
+            <h2 className="text-base font-semibold text-white">
               User Management
             </h2>
           </div>
-          <p className="mt-1 text-sm text-gray-500 dark:text-white/45">
+          <p className="mt-1 text-sm text-white/45">
             Manage accounts, roles, access, and password resets.
           </p>
         </div>
@@ -134,7 +134,7 @@ export default function AdminUsersPanel({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search users..."
-            className="w-full rounded-xl border border-black/8 bg-white/75 py-2 pl-9 pr-9 text-sm text-gray-950 outline-none transition focus:border-black/20 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-white/18"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.06] py-2 pl-9 pr-9 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-white/18"
           />
           {query ? (
             <button
@@ -150,22 +150,22 @@ export default function AdminUsersPanel({
       </div>
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-black/6 px-3 py-2 dark:border-white/8">
+        <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Users</p>
-          <p className="mt-1 text-sm font-bold text-gray-950 dark:text-white">{formatCount(users.length)}</p>
+          <p className="mt-1 text-sm font-bold text-white">{formatCount(users.length)}</p>
           <p className="mt-0.5 text-[11px] text-gray-400">{formatCount(verifiedUsers)} verified</p>
         </div>
-        <div className="rounded-xl border border-black/6 px-3 py-2 dark:border-white/8">
+        <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Active</p>
           <p className="mt-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatCount(activeUsers)}</p>
         </div>
-        <div className="rounded-xl border border-black/6 px-3 py-2 dark:border-white/8">
+        <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Admins</p>
-          <p className="mt-1 text-sm font-bold text-gray-950 dark:text-white">{formatCount(adminUsers)}</p>
+          <p className="mt-1 text-sm font-bold text-white">{formatCount(adminUsers)}</p>
         </div>
-        <div className="rounded-xl border border-black/6 px-3 py-2 dark:border-white/8">
+        <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Sessions</p>
-          <p className="mt-1 text-sm font-bold text-gray-950 dark:text-white">{formatCount(activeSessions)}</p>
+          <p className="mt-1 text-sm font-bold text-white">{formatCount(activeSessions)}</p>
         </div>
       </div>
 
@@ -189,7 +189,7 @@ export default function AdminUsersPanel({
           return (
             <div
               key={user.id}
-              className="grid min-w-0 gap-4 rounded-2xl border border-black/8 bg-white/60 p-4 dark:border-white/10 dark:bg-white/[0.04] lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]"
+              className="grid min-w-0 gap-4 rounded-2xl border border-white/8 bg-white/[0.04] p-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]"
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">

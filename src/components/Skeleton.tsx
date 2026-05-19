@@ -19,7 +19,7 @@ export function Skeleton({ className = "", style, rounded = "md" }: SkeletonProp
     <div
       aria-hidden="true"
       style={style}
-      className={`animate-pulse bg-black/[0.05] dark:bg-white/[0.06] ${ROUNDED[rounded]} ${className}`}
+      className={`animate-pulse bg-white/[0.065] ${ROUNDED[rounded]} ${className}`}
     />
   );
 }
@@ -46,14 +46,16 @@ export function SkeletonText({
 export function SkeletonCardGrid({ count = 12 }: { count?: number }) {
   return (
     <div
-      className="grid gap-4"
-      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}
+      className="grid gap-3"
+      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}
     >
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="space-y-2">
+        <div key={i} className="rounded-2xl border border-white/8 bg-white/[0.035] p-2">
           <Skeleton className="aspect-[63/88] w-full" rounded="lg" />
-          <Skeleton className="h-3 w-3/4" />
-          <Skeleton className="h-3 w-1/2" />
+          <div className="mt-2 space-y-1.5">
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
         </div>
       ))}
     </div>

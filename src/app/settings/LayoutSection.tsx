@@ -8,6 +8,11 @@ const UI_SCALE_OPTIONS: { value: UiScale; label: string; desc: string }[] = [
   { value: "large", label: "Large", desc: "Bigger bars & panels" },
 ];
 
+const ACTIVE_OPTION_CLASS =
+  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+const INACTIVE_OPTION_CLASS =
+  "border-white/8 text-white/55 hover:border-white/18 hover:bg-white/[0.055] hover:text-white";
+
 export default function LayoutSection() {
   const { settings, set } = useSettings();
 
@@ -52,9 +57,7 @@ export default function LayoutSection() {
                 type="button"
                 onClick={() => set("uiScale", option.value)}
                 className={`flex min-w-0 flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-center transition-all ${
-                  active
-                    ? "border-gray-900 bg-gray-900 text-white shadow-md dark:border-white dark:bg-white dark:text-gray-900"
-                    : "border-black/8 text-gray-500 hover:border-black/20 hover:text-gray-900 dark:border-white/8 dark:text-gray-400 dark:hover:border-white/20 dark:hover:text-white"
+                  active ? ACTIVE_OPTION_CLASS : INACTIVE_OPTION_CLASS
                 }`}
               >
                 <span className="text-sm font-semibold">{option.label}</span>

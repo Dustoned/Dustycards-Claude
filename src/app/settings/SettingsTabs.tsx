@@ -2,6 +2,9 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 
+const ACTIVE_TAB_CLASS =
+  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+
 export interface SettingsTabItem {
   key: string;
   label: string;
@@ -34,7 +37,7 @@ export default function SettingsTabs({
   return (
     <div className="space-y-4">
       <div
-        className={`min-w-0 overflow-hidden rounded-2xl border border-black/6 bg-black/[0.025] dark:border-white/8 dark:bg-white/[0.035] ${
+        className={`min-w-0 overflow-hidden rounded-2xl border border-white/8 bg-white/[0.035] ${
           denseTabs ? "p-0.5 sm:p-1" : "p-1"
         }`}
         role="tablist"
@@ -63,8 +66,8 @@ export default function SettingsTabs({
                     : "px-1 text-[10px] min-[390px]:px-1.5 min-[390px]:text-[11px]"
                 } ${
                   active
-                    ? "bg-white text-gray-950 shadow-sm dark:bg-white/12 dark:text-white"
-                    : "text-gray-500 hover:bg-white/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/8 dark:hover:text-white"
+                    ? ACTIVE_TAB_CLASS
+                    : "text-white/50 hover:bg-white/8 hover:text-white"
                 }`}
               >
                 {tab.label}
@@ -75,7 +78,7 @@ export default function SettingsTabs({
       </div>
 
       {selected.description ? (
-        <p className="text-sm text-gray-500 dark:text-white/45">{selected.description}</p>
+        <p className="text-sm text-white/45">{selected.description}</p>
       ) : null}
 
       <div id={`settings-tab-${selected.key}`} role="tabpanel">

@@ -69,7 +69,7 @@ export default function BinderAccentColorPicker({
         <label
           className={`relative inline-flex h-9 min-w-[6.5rem] cursor-pointer items-center gap-2 overflow-hidden rounded-full border-2 px-2.5 text-xs font-semibold transition-colors max-[640px]:h-8 max-[640px]:min-w-[5.75rem] max-[640px]:gap-1.5 max-[640px]:px-2 max-[640px]:text-[11px] ${
             activeCustom
-              ? "border-white bg-white text-gray-950"
+              ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
               : "border-white/16 bg-white/[0.06] text-white/74 hover:border-white/28 hover:bg-white/[0.1]"
           }`}
           title="Custom color"

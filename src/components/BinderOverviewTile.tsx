@@ -38,16 +38,24 @@ function formatSignedPercent(value: number | null): string | null {
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
-function formatCompletion(value: number | null): string | null {
+function formatPercent(value: number | null): string | null {
   if (value == null || !Number.isFinite(value)) return null;
-  return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}% complete`;
+  return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}%`;
 }
 
 function moveToneClass(value: number | null): string {
-  if (value == null || value === 0) return "text-gray-500 dark:text-white/45";
+  if (value == null || value === 0) return "text-white/45";
+  return value > 0 ? "text-emerald-300" : "text-rose-300";
+}
+
+function moveBadgeClass(value: number | null): string {
+  if (value == null || value === 0) {
+    return "border-white/10 bg-white/[0.045] text-white/55";
+  }
+
   return value > 0
-    ? "text-emerald-600 dark:text-emerald-300"
-    : "text-rose-600 dark:text-rose-300";
+    ? "border-emerald-400/18 bg-emerald-400/10 text-emerald-200"
+    : "border-rose-400/18 bg-rose-400/10 text-rose-200";
 }
 
 export default function BinderOverviewTile({
@@ -62,55 +70,42 @@ export default function BinderOverviewTile({
   const roiPct = binder.investment > 0 ? (binder.pnl / binder.investment) * 100 : null;
   const recentMoveLabel =
     binder.recentChange == null
-      ? "No recent trend"
+      ? null
       : binder.recentChange === 0
-        ? "Flat latest move"
-        : [
-            formatSignedCurrency(binder.recentChange),
-            formatSignedPercent(binder.recentChangePct),
-            binder.recentChangeLabel,
-          ]
+        ? "Flat"
+        : [formatSignedCurrency(binder.recentChange), formatSignedPercent(binder.recentChangePct)]
             .filter(Boolean)
             .join(" ");
-  const progressSubLabel =
-    binder.completionPct != null
-      ? [
-          formatCompletion(binder.completionPct),
-          binder.missingCards != null ? `${binder.missingCards} missing` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")
-      : `${binder.ownedCards.toLocaleString("en-US")} cards tracked`;
-  const metrics = [
-    {
-      label: binder.totalCards == null ? "Cards" : "Progress",
-      mobileLabel: binder.totalCards == null ? "Cards" : "Done",
-      value: binder.progressLabel,
-      subValue: progressSubLabel,
-      subClassName: "text-gray-500 dark:text-white/45",
-      mobileHidden: binder.totalCards != null,
-    },
-    {
-      label: "Value",
-      mobileLabel: "Value",
-      value: formatCollectionCurrency(binder.currentValue),
-      subValue: recentMoveLabel,
-      subClassName: moveToneClass(binder.recentChange),
-    },
-    {
-      label: "P&L",
-      mobileLabel: "P&L",
-      value: `${binder.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(binder.pnl)}`,
-      subValue: roiPct == null ? "No spend base" : `${formatSignedPercent(roiPct)} ROI`,
-      subClassName: moveToneClass(binder.pnl),
-    },
-  ];
+  const cardCountLabel =
+    binder.totalCards == null
+      ? `${binder.ownedCards.toLocaleString("en-US")} cards`
+      : `${binder.ownedCards.toLocaleString("en-US")} / ${binder.totalCards.toLocaleString("en-US")}`;
+  const completionLabel = formatPercent(binder.completionPct);
+  const missingLabel =
+    binder.missingCards != null
+      ? binder.missingCards > 0
+        ? `${binder.missingCards.toLocaleString("en-US")} missing`
+        : "Complete"
+      : null;
+  const pnlLabel =
+    binder.pnl === 0
+      ? "No P&L"
+      : `${binder.pnl > 0 ? "+" : "-"}${formatCollectionCurrency(Math.abs(binder.pnl))} P&L`;
+  const roiLabel = roiPct == null ? null : `${formatSignedPercent(roiPct)} ROI`;
+  const secondaryChip =
+    roiLabel ?? (binder.investment > 0 ? `Paid ${formatCollectionCurrency(binder.investment)}` : pnlLabel);
+  const valueSubtitle =
+    binder.recentChange == null
+      ? "Current value"
+      : binder.recentChange === 0
+        ? "No latest move"
+        : binder.recentChangeLabel ?? "Latest move";
 
   return (
     <Link
       href={`/binders/${binder.id}`}
       prefetch={false}
-      className="glass group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl p-4 shadow-lg shadow-black/5 transition-transform hover:scale-[1.01] hover:bg-white/8 max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-3 dark:hover:bg-white/6"
+      className="binder-panel group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl p-3.5 transition-transform hover:scale-[1.01] hover:border-white/14 hover:bg-white/[0.07] max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-2.5"
       style={
         binder.accent_color
           ? { boxShadow: `inset 0 0 0 1px ${binder.accent_color}2f` }
@@ -125,7 +120,7 @@ export default function BinderOverviewTile({
       )}
 
       <div
-        className="relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-xl border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]"
+        className="relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-xl border border-white/8 bg-white/[0.045]"
         style={
           binder.accent_color
             ? { boxShadow: `inset 0 0 0 1px ${binder.accent_color}24` }
@@ -137,11 +132,11 @@ export default function BinderOverviewTile({
           <img
             src={getCachedImageUrl(binder.episode.logo_url) ?? binder.episode.logo_url}
             alt={binder.name}
-            className="h-full w-full object-contain p-4 max-[640px]:p-2.5 sm:p-5"
+            className="h-full w-full object-contain p-3 max-[640px]:p-2 sm:p-4"
           />
         ) : (
           <div
-            className="flex h-20 w-20 items-center justify-center rounded-3xl border border-black/8 bg-white/80 text-gray-500 dark:border-white/10 dark:bg-white/8 dark:text-white/70"
+            className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/10 bg-white/8 text-white/70"
             style={accentColor ? { color: accentColor } : undefined}
           >
             <CollectionBinderIcon iconName={binder.icon_name} className="h-9 w-9" />
@@ -149,47 +144,73 @@ export default function BinderOverviewTile({
         )}
       </div>
 
-      <div className="min-w-0">
-        <h3 className="truncate text-xl font-bold text-gray-900 max-[640px]:text-[13px] dark:text-white">{binder.name}</h3>
-        <p className="mt-1 truncate text-sm text-gray-500 max-[640px]:mt-0.5 max-[640px]:text-[10px] dark:text-white/50">{binder.subtitle}</p>
-        {progressWidth && (
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/8 dark:bg-white/8">
-            <div
-              className="h-full rounded-full bg-emerald-500"
-              style={{
-                width: progressWidth,
-                background: accentColor
-                  ? `linear-gradient(90deg, ${accentColor}, #34d399)`
-                  : undefined,
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <div className="min-w-0 space-y-2.5">
+        <div className="min-w-0">
+          <h3 className="line-clamp-2 text-base font-bold leading-tight text-white max-[640px]:text-[13px]">
+            {binder.name}
+          </h3>
+          <p className="mt-1 truncate text-xs font-medium text-white/45 max-[640px]:mt-0.5 max-[640px]:text-[10px]">
+            {binder.subtitle}
+          </p>
+        </div>
 
-      <div className="grid grid-cols-3 gap-1.5 text-xs max-[640px]:grid-cols-2">
-        {metrics.map((metric) => (
-          <div
-            key={metric.label}
-            className={`min-w-0 rounded-xl border border-black/8 bg-black/[0.03] px-2.5 py-2 max-[640px]:px-2.5 max-[640px]:py-2 dark:border-white/8 dark:bg-white/[0.04] ${
-              metric.mobileHidden ? "max-[640px]:hidden" : ""
-            }`}
-            title={`${metric.label}: ${metric.value}${metric.subValue ? ` - ${metric.subValue}` : ""}`}
-          >
-            <p className="truncate text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 max-[640px]:text-[8px] max-[640px]:tracking-[0.08em] dark:text-white/35">
-              <span className="max-[640px]:hidden">{metric.label}</span>
-              <span className="hidden max-[640px]:inline">{metric.mobileLabel}</span>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-white/68 max-[640px]:text-[10px]">
+            <span className="truncate">{cardCountLabel}</span>
+            {completionLabel ? <span className="shrink-0 text-white/45">{completionLabel}</span> : null}
+          </div>
+          {progressWidth ? (
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+              <div
+                className="h-full rounded-full bg-emerald-500"
+                style={{
+                  width: progressWidth,
+                  background: accentColor
+                    ? `linear-gradient(90deg, ${accentColor}, #34d399)`
+                    : undefined,
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex items-end justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 max-[640px]:px-2.5 max-[640px]:py-2">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/32 max-[640px]:text-[8px]">
+              Value
             </p>
-            <p className="mt-1.5 truncate text-[13px] font-semibold tracking-tight text-gray-900 max-[640px]:mt-1 max-[640px]:text-[12px] dark:text-white">
-              {metric.value}
-            </p>
-            <p
-              className={`mt-1 truncate text-[10px] font-medium leading-none max-[640px]:hidden ${metric.subClassName}`}
-            >
-              {metric.subValue}
+            <p className="mt-0.5 truncate text-base font-black tracking-tight text-white max-[640px]:text-[13px]">
+              {formatCollectionCurrency(binder.currentValue)}
             </p>
           </div>
-        ))}
+          {recentMoveLabel ? (
+            <div
+              className={`max-w-[48%] shrink-0 rounded-full border px-2.5 py-1 text-right text-[10px] font-black leading-none max-[640px]:px-2 max-[640px]:text-[9px] ${moveBadgeClass(
+                binder.recentChange
+              )}`}
+              title={valueSubtitle}
+            >
+              <span className="block truncate">{recentMoveLabel}</span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 flex-wrap gap-1.5">
+          {missingLabel ? (
+            <span className="rounded-full border border-white/8 bg-white/[0.045] px-2.5 py-1 text-[10px] font-bold text-white/58 max-[640px]:px-2 max-[640px]:text-[9px]">
+              {missingLabel}
+            </span>
+          ) : null}
+          {secondaryChip ? (
+            <span
+              className={`rounded-full border border-white/8 bg-white/[0.045] px-2.5 py-1 text-[10px] font-bold max-[640px]:px-2 max-[640px]:text-[9px] ${moveToneClass(
+                roiPct ?? binder.pnl
+              )}`}
+            >
+              {secondaryChip}
+            </span>
+          ) : null}
+        </div>
       </div>
     </Link>
   );

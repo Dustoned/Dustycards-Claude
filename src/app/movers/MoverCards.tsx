@@ -118,32 +118,32 @@ function getTrendTone(value: number | null | undefined): TrendTone {
 
 function sourcePillClasses(source: CollectionMoverItem["source"], toneValue?: number | null) {
   if (getTrendTone(toneValue) === "negative") {
-    return "border-rose-400/18 bg-rose-400/[0.08] text-rose-700 dark:text-rose-200";
+    return "border-rose-400/18 bg-rose-400/[0.08] text-rose-200";
   }
 
   if (source === "graded") {
-    return "border-amber-400/18 bg-amber-400/[0.08] text-amber-700 dark:text-amber-200";
+    return "border-amber-400/18 bg-amber-400/[0.08] text-amber-200";
   }
 
   return source === "tcgplayer"
-    ? "border-blue-400/18 bg-blue-400/[0.08] text-blue-700 dark:text-blue-200"
-    : "border-emerald-400/18 bg-emerald-400/[0.08] text-emerald-700 dark:text-emerald-200";
+    ? "border-blue-400/18 bg-blue-400/[0.08] text-blue-200"
+    : "border-emerald-400/18 bg-emerald-400/[0.08] text-emerald-200";
 }
 
 function getToneClass(value: number | null | undefined): string {
   if (value == null) {
-    return "text-gray-500 dark:text-white/45";
+    return "text-white/45";
   }
 
   if (value < 0) {
-    return "text-rose-600 dark:text-rose-300";
+    return "text-rose-300";
   }
 
   if (value > 0) {
-    return "text-emerald-600 dark:text-emerald-300";
+    return "text-emerald-300";
   }
 
-  return "text-gray-500 dark:text-white/45";
+  return "text-white/45";
 }
 
 
@@ -169,9 +169,9 @@ function getCurrentPanelClasses(tone: TrendTone): {
   }
 
   return {
-    panel: "border-black/8 bg-white/70 dark:border-white/8 dark:bg-white/[0.04]",
-    label: "text-gray-400 dark:text-white/34",
-    icon: "text-gray-400 dark:text-white/34",
+    panel: "border-white/8 bg-white/[0.04]",
+    label: "text-white/34",
+    icon: "text-white/34",
   };
 }
 
@@ -222,15 +222,15 @@ interface MoverReason {
 function reasonChipClass(tone: MoverReasonTone): string {
   switch (tone) {
     case "emerald":
-      return "border-emerald-400/22 bg-emerald-400/[0.10] text-emerald-700 dark:text-emerald-200";
+      return "border-emerald-400/22 bg-emerald-400/[0.10] text-emerald-200";
     case "rose":
-      return "border-rose-400/22 bg-rose-400/[0.10] text-rose-700 dark:text-rose-200";
+      return "border-rose-400/22 bg-rose-400/[0.10] text-rose-200";
     case "amber":
-      return "border-amber-400/22 bg-amber-400/[0.10] text-amber-700 dark:text-amber-200";
+      return "border-amber-400/22 bg-amber-400/[0.10] text-amber-200";
     case "sky":
-      return "border-sky-400/22 bg-sky-400/[0.10] text-sky-700 dark:text-sky-200";
+      return "border-sky-400/22 bg-sky-400/[0.10] text-sky-200";
     case "violet":
-      return "border-violet-400/22 bg-violet-400/[0.10] text-violet-700 dark:text-violet-200";
+      return "border-violet-400/22 bg-violet-400/[0.10] text-violet-200";
   }
 }
 
@@ -373,8 +373,8 @@ function CompactMetric({
   toneValue?: number | null;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-black/8 bg-white/74 px-3 py-2 dark:border-white/8 dark:bg-white/[0.045]">
-      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
+    <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.045] px-3 py-2">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-white/34">
         {label}
       </p>
       <p className={`mt-1 truncate text-sm font-bold tabular-nums ${getToneClass(toneValue)}`}>
@@ -503,10 +503,10 @@ const MoverTile = memo(function MoverTile({
       onClick={open}
       onKeyDown={(event) => handleOpenKey(event, open)}
       aria-label={`Open details for ${item.name}`}
-      className="group relative flex h-full cursor-pointer flex-col rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+      className="group relative flex h-full cursor-pointer flex-col rounded-2xl border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025))] p-3 shadow-sm shadow-black/25 outline-none transition hover:-translate-y-0.5 hover:border-white/16 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-emerald-400/60"
     >
       {isLoading ? (
-        <div className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/8 bg-white/90 text-gray-700 shadow-sm dark:border-white/10 dark:bg-black/80 dark:text-white">
+        <div className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/80 text-white shadow-sm">
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
       ) : null}
@@ -523,7 +523,7 @@ const MoverTile = memo(function MoverTile({
               unoptimized
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
+            <div className="flex h-full w-full items-center justify-center text-xs text-white/35">
               {item.name.slice(0, 2)}
             </div>
           )}
@@ -532,17 +532,17 @@ const MoverTile = memo(function MoverTile({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="block max-w-full truncate pr-1 text-base font-semibold leading-tight text-gray-900 transition-colors group-hover:text-emerald-700 dark:text-white dark:group-hover:text-emerald-200">
+              <p className="block max-w-full truncate pr-1 text-base font-semibold leading-tight text-white transition-colors group-hover:text-emerald-200">
                 {item.name}
               </p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-white/46">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/46">
                 <span>{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
                 <span>/</span>
                 <Link
                   href={getExpansionHref(item.episodeId)}
                   prefetch={false}
                   onClick={stopCardOpen}
-                  className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
+                  className="truncate transition-colors hover:text-white hover:underline underline-offset-2"
                 >
                   {item.episodeName}
                   {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
@@ -574,24 +574,24 @@ const MoverTile = memo(function MoverTile({
             <span
               className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${
                 item.ownedCount > 0
-                  ? "border-black/8 bg-white/80 text-gray-600 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/60"
-                  : "border-black/8 bg-black/[0.035] text-gray-400 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/40"
+                  ? "border-white/10 bg-white/[0.05] text-white/60"
+                  : "border-white/8 bg-white/[0.035] text-white/40"
               }`}
             >
               {item.ownedCount > 0 ? `x${item.ownedCount} owned` : "Not owned"}
             </span>
             {item.gradedLabel ? (
-              <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-amber-700 dark:text-amber-200">
+              <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-amber-200">
                 {item.gradedLabel}
               </span>
             ) : null}
             {mode === "raw" && item.gradedPrices.length > 0 ? (
-              <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:text-amber-200">
+              <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-amber-200">
                 {item.gradedPrices.length} graded
               </span>
             ) : null}
             {item.tcggoScore?.score != null ? (
-              <span className="inline-flex rounded-full border border-sky-400/16 bg-sky-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-sky-700 dark:text-sky-200">
+              <span className="inline-flex rounded-full border border-sky-400/16 bg-sky-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-sky-200">
                 TCGGO {formatScoreValue(item.tcggoScore.score)}
                 {item.tcggoScore.tier ? ` ${item.tcggoScore.tier}` : ""}
               </span>
@@ -607,16 +607,16 @@ const MoverTile = memo(function MoverTile({
                   >
                     {primaryLabel}
                   </p>
-                  <p className="mt-2 break-words text-xl font-bold leading-tight tabular-nums text-gray-900 dark:text-white sm:text-2xl">
+                  <p className="mt-2 break-words text-xl font-bold leading-tight tabular-nums text-white sm:text-2xl">
                     {primaryValue}
                   </p>
                 </div>
                 <BarChart3 className={`mt-0.5 h-4 w-4 shrink-0 ${currentPanelClasses.icon}`} />
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-white/46">
+              <p className="mt-1 text-xs text-white/46">
                 Updated {formatShortDate(item.latestFetchedAt)}
               </p>
-              <p className="mt-2 line-clamp-2 text-[11px] text-gray-500 dark:text-white/42">
+              <p className="mt-2 line-clamp-2 text-[11px] text-white/42">
                 {primaryHint}
               </p>
             </div>

@@ -27,6 +27,9 @@ import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
 
+const ACTIVE_SEGMENT_CLASS =
+  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+
 interface ViewerCard {
   id: string;
   name: string;
@@ -2198,7 +2201,7 @@ export default function CardThreeViewer({
   return (
     <div
       ref={rootRef}
-      className="fixed inset-0 z-[80] touch-none bg-black/85 backdrop-blur-md"
+      className="fixed inset-0 z-[320] touch-none bg-black/85 backdrop-blur-md"
       style={{ overscrollBehavior: "contain", touchAction: "none" }}
       onPointerDownCapture={(event) => {
         const viewerApi = viewerApiRef.current;
@@ -2369,7 +2372,7 @@ export default function CardThreeViewer({
                                 onClick={() => setPriceSource(source.key)}
                                 className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
                                   activePriceSource === source.key
-                                    ? "bg-white text-gray-950"
+                                    ? ACTIVE_SEGMENT_CLASS
                                     : "text-white/52 hover:text-white/82"
                                 }`}
                               >
@@ -2460,7 +2463,7 @@ export default function CardThreeViewer({
                                 onClick={() => setGradedSource(source.key)}
                                 className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
                                   effectiveGradedSource === source.key
-                                    ? "bg-white text-gray-950"
+                                    ? ACTIVE_SEGMENT_CLASS
                                     : "text-white/52 hover:text-white/82"
                                 }`}
                               >

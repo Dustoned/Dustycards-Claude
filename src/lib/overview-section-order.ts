@@ -1,15 +1,15 @@
 export type OverviewSectionKey = "graded" | "raw" | "binderWatch" | "sealed" | "binders";
 
-export const OVERVIEW_SECTION_ORDER_STORAGE_KEY = "dustycards-overview-section-order";
-export const OVERVIEW_SECTION_ORDER_COOKIE_NAME = "dustycards-overview-section-order";
+export const OVERVIEW_SECTION_ORDER_STORAGE_KEY = "dustycards-complete-section-order-v2";
+export const OVERVIEW_SECTION_ORDER_COOKIE_NAME = "dustycards-complete-section-order-v2";
 export const OVERVIEW_SECTION_ORDER_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 export const DEFAULT_OVERVIEW_SECTION_ORDER: OverviewSectionKey[] = [
-  "graded",
-  "raw",
-  "binderWatch",
-  "sealed",
   "binders",
+  "raw",
+  "graded",
+  "sealed",
+  "binderWatch",
 ];
 
 export function normalizeOverviewSectionOrder(raw: unknown): OverviewSectionKey[] {

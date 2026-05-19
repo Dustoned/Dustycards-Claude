@@ -22,8 +22,8 @@ export type HeaderMetricTone = "emerald" | "amber" | "rose" | "sky" | "violet" |
 
 const toneClasses: Record<HeaderTone, { icon: string; surface: string }> = {
   slate: {
-    icon: "text-gray-500 dark:text-white/55",
-    surface: "border-black/6 bg-white/75 dark:border-white/10 dark:bg-white/[0.055]",
+    icon: "text-white/62",
+    surface: "border-white/10 bg-white/[0.055]",
   },
   emerald: {
     icon: "text-emerald-600 dark:text-emerald-300",
@@ -279,13 +279,13 @@ export function HeaderStatCard({
   const toneClass = toneClasses[tone];
 
   return (
-    <div className="min-w-0 rounded-[var(--ui-header-stat-radius)] border border-black/8 bg-white/70 p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-none sm:min-h-[var(--ui-header-stat-min-height)]">
+    <div className="min-w-0 rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/20 sm:min-h-[var(--ui-header-stat-min-height)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-gray-400 dark:text-white/42">
+          <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
             {label}
           </p>
-          <p className="mt-2 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-semibold leading-tight tracking-tight text-gray-950 dark:text-white">
+          <p className="mt-1.5 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight text-white">
             {value}
           </p>
         </div>
@@ -302,7 +302,7 @@ export function HeaderStatCard({
         ) : null}
       </div>
       {hint ? (
-        <p className="mt-3 line-clamp-2 text-[length:var(--ui-header-stat-hint-size)] leading-snug text-gray-500 dark:text-white/50">
+        <p className="mt-2 line-clamp-2 text-[length:var(--ui-header-stat-hint-size)] leading-snug text-white/48">
           {hint}
         </p>
       ) : null}
@@ -349,16 +349,16 @@ export function PageHeroHeader({
   return (
     <section
       className={cx(
-        "relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-[var(--ui-page-header-padding)] shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20",
+        "binder-panel relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-[var(--ui-page-header-padding)]",
         className
       )}
       style={style}
     >
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent"
         style={accentColor ? { background: accentColor } : undefined}
       />
-      <div className="pointer-events-none absolute inset-y-6 left-0 w-px bg-gradient-to-b from-transparent via-white/45 to-transparent dark:via-white/14" />
+      <div className="pointer-events-none absolute inset-y-5 left-0 w-px bg-gradient-to-b from-transparent via-white/14 to-transparent" />
 
       {backLinks ? (
         <div className="mb-4 [&_a]:text-[length:var(--ui-header-action-font-size)] [&_svg]:h-[var(--ui-header-stat-icon-size)] [&_svg]:w-[var(--ui-header-stat-icon-size)]">
@@ -382,7 +382,7 @@ export function PageHeroHeader({
             {(eyebrow || titleActions) ? (
               <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
                 {eyebrow ? (
-                  <p className="min-w-0 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                  <p className="min-w-0 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
                     {eyebrow}
                   </p>
                 ) : (
@@ -393,11 +393,11 @@ export function PageHeroHeader({
                 ) : null}
               </div>
             ) : null}
-            <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+            <h1 className="mt-1.5 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
               {title}
             </h1>
             {description ? (
-              <div className="mt-3 max-w-4xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+              <div className="mt-2 max-w-4xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
                 {description}
               </div>
             ) : null}
@@ -445,31 +445,31 @@ export function SectionHeader({
   className?: string;
 }) {
   return (
-    <div className={cx("mb-5 flex flex-wrap items-end justify-between gap-[var(--ui-section-header-gap)] border-b border-black/8 pb-[var(--ui-section-header-padding-bottom)] dark:border-white/8", className)}>
+    <div className={cx("mb-3 flex flex-wrap items-end justify-between gap-[var(--ui-section-header-gap)] border-b border-white/8 pb-[var(--ui-section-header-padding-bottom)]", className)}>
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-[var(--ui-section-header-gap)]">
           {eyebrow ? (
-            <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/40">
+            <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/40">
               {eyebrow}
             </p>
           ) : null}
           <h2
             className={
               compact
-                ? "truncate text-[length:var(--ui-section-header-compact-size)] font-semibold uppercase tracking-[0.13em] text-gray-500 dark:text-white/52"
-                : "truncate text-[length:var(--ui-section-header-title-size)] font-bold tracking-tight text-gray-950 dark:text-white"
+                ? "truncate text-[length:var(--ui-section-header-compact-size)] font-semibold uppercase tracking-[0.13em] text-white/52"
+                : "truncate text-[length:var(--ui-section-header-title-size)] font-bold tracking-tight text-white"
             }
           >
             {title}
           </h2>
           {count != null ? (
-            <span className="inline-flex min-h-[var(--ui-chip-count-min-height)] items-center rounded-full border border-black/8 bg-black/[0.035] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-section-header-count-size)] font-semibold leading-none text-gray-400 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/40">
+            <span className="inline-flex min-h-[var(--ui-chip-count-min-height)] items-center rounded-full border border-white/8 bg-white/[0.04] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-section-header-count-size)] font-semibold leading-none text-white/42">
               {count}
             </span>
           ) : null}
         </div>
         {description ? (
-          <p className="mt-1.5 text-[length:var(--ui-section-header-description-size)] text-gray-500 dark:text-white/45">{description}</p>
+          <p className="mt-1.5 text-[length:var(--ui-section-header-description-size)] text-white/45">{description}</p>
         ) : null}
       </div>
       {actions ? <div className="shrink-0">{actions}</div> : null}

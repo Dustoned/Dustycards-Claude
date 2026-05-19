@@ -41,6 +41,11 @@ const PRICE_SOURCES: { value: PriceSource; label: string; desc: string }[] = [
   { value: "tcp", label: "TCGPlayer", desc: "Use USD prices as main prices" },
 ];
 
+const ACTIVE_OPTION_CLASS =
+  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+const INACTIVE_OPTION_CLASS =
+  "border-white/8 text-white/55 hover:border-white/18 hover:bg-white/[0.055] hover:text-white";
+
 export default function CardDefaultsSection() {
   const { settings, set } = useSettings();
 
@@ -61,9 +66,7 @@ export default function CardDefaultsSection() {
                 key={v.value}
                 onClick={() => set("defaultView", v.value)}
                 className={`flex flex-col items-center gap-2 py-4 px-3 rounded-xl border transition-all ${
-                  active
-                    ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md"
-                    : "border-black/8 dark:border-white/8 text-gray-500 dark:text-gray-400 hover:border-black/20 dark:hover:border-white/20 hover:text-gray-900 dark:hover:text-white"
+                  active ? ACTIVE_OPTION_CLASS : INACTIVE_OPTION_CLASS
                 }`}
               >
                 {v.icon}
@@ -84,9 +87,7 @@ export default function CardDefaultsSection() {
                 key={s.value}
                 onClick={() => set("cardSize", s.value)}
                 className={`flex flex-col items-center gap-1.5 py-3 px-3 rounded-xl border transition-all ${
-                  active
-                    ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md"
-                    : "border-black/8 dark:border-white/8 text-gray-500 dark:text-gray-400 hover:border-black/20 dark:hover:border-white/20 hover:text-gray-900 dark:hover:text-white"
+                  active ? ACTIVE_OPTION_CLASS : INACTIVE_OPTION_CLASS
                 }`}
               >
                 <span className="text-sm font-semibold">{s.label}</span>
@@ -107,9 +108,7 @@ export default function CardDefaultsSection() {
                 key={v}
                 onClick={() => set("modalSize", v)}
                 className={`flex flex-col items-center gap-1.5 py-3 px-3 rounded-xl border transition-all capitalize ${
-                  active
-                    ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md"
-                    : "border-black/8 dark:border-white/8 text-gray-500 dark:text-gray-400 hover:border-black/20 dark:hover:border-white/20 hover:text-gray-900 dark:hover:text-white"
+                  active ? ACTIVE_OPTION_CLASS : INACTIVE_OPTION_CLASS
                 }`}
               >
                 <span className="text-sm font-semibold capitalize">{v}</span>
@@ -129,9 +128,7 @@ export default function CardDefaultsSection() {
                 key={v}
                 onClick={() => set("card3dSize", v)}
                 className={`flex flex-col items-center gap-1.5 py-3 px-3 rounded-xl border transition-all capitalize ${
-                  active
-                    ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md"
-                    : "border-black/8 dark:border-white/8 text-gray-500 dark:text-gray-400 hover:border-black/20 dark:hover:border-white/20 hover:text-gray-900 dark:hover:text-white"
+                  active ? ACTIVE_OPTION_CLASS : INACTIVE_OPTION_CLASS
                 }`}
               >
                 <span className="text-sm font-semibold capitalize">{v}</span>
@@ -151,9 +148,7 @@ export default function CardDefaultsSection() {
                 key={source.value}
                 onClick={() => set("primaryPriceSource", source.value)}
                 className={`flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 transition-all ${
-                  active
-                    ? "border-gray-900 dark:border-white bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md"
-                    : "border-black/8 dark:border-white/8 text-gray-500 dark:text-gray-400 hover:border-black/20 dark:hover:border-white/20 hover:text-gray-900 dark:hover:text-white"
+                  active ? ACTIVE_OPTION_CLASS : INACTIVE_OPTION_CLASS
                 }`}
               >
                 <span className="text-sm font-semibold">{source.label}</span>

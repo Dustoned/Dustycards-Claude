@@ -2,6 +2,9 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 
+const ACTIVE_TAB_CLASS =
+  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+
 export interface AccountTabItem {
   key: string;
   label: string;
@@ -28,7 +31,7 @@ export default function AccountTabs({
   return (
     <div className="space-y-4">
       <div
-        className="min-w-0 overflow-hidden rounded-2xl border border-black/6 bg-black/[0.025] p-1 dark:border-white/8 dark:bg-white/[0.035]"
+        className="min-w-0 overflow-hidden rounded-2xl border border-white/8 bg-white/[0.035] p-1"
         role="tablist"
         aria-label="Account sections"
       >
@@ -49,8 +52,8 @@ export default function AccountTabs({
                 onClick={() => setSelectedKey(tab.key)}
                 className={`min-h-9 min-w-0 rounded-xl px-1.5 text-[11px] font-semibold leading-none transition sm:min-h-10 sm:px-4 sm:text-sm ${
                   active
-                    ? "bg-white text-gray-950 shadow-sm dark:bg-white/12 dark:text-white"
-                    : "text-gray-500 hover:bg-white/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/8 dark:hover:text-white"
+                    ? ACTIVE_TAB_CLASS
+                    : "text-white/50 hover:bg-white/8 hover:text-white"
                 }`}
               >
                 {tab.label}
@@ -61,7 +64,7 @@ export default function AccountTabs({
       </div>
 
       {selected.description ? (
-        <p className="text-sm text-gray-500 dark:text-white/45">{selected.description}</p>
+        <p className="text-sm text-white/45">{selected.description}</p>
       ) : null}
 
       <div id={`account-tab-${selected.key}`} role="tabpanel">

@@ -124,19 +124,19 @@ export default function AuthForm({
       action={`/api/auth/${mode}`}
       method="post"
       onSubmit={handleSubmit}
-      className="glass mx-auto grid w-full max-w-sm gap-4 rounded-2xl p-6 shadow-md shadow-black/5"
+      className="binder-panel mx-auto grid w-full max-w-sm gap-4 rounded-[24px] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.34)] sm:p-6"
     >
       <input type="hidden" name="next" value={nextPath} />
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">
+        <h1 className="text-2xl font-semibold tracking-tight text-white">
           {isRegister ? "Create account" : "Log in"}
         </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-white/45">
+        <p className="mt-1 text-sm text-white/45">
           {isRegister ? "Start with an empty collection." : "Welcome back to DustyCards."}
         </p>
       </div>
 
-      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-white/75">
+      <label className="grid gap-1.5 text-sm font-medium text-white/75">
         Email
         <input
           name="email"
@@ -145,11 +145,11 @@ export default function AuthForm({
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="rounded-xl border border-black/10 bg-white px-3 py-2 text-gray-950 outline-none transition focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+          className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-white outline-none transition placeholder:text-white/30 focus:border-white/22"
         />
       </label>
 
-      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-white/75">
+      <label className="grid gap-1.5 text-sm font-medium text-white/75">
         Password
         <input
           name="password"
@@ -159,12 +159,12 @@ export default function AuthForm({
           minLength={8}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="rounded-xl border border-black/10 bg-white px-3 py-2 text-gray-950 outline-none transition focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+          className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-white outline-none transition placeholder:text-white/30 focus:border-white/22"
         />
       </label>
 
       {isRegister && (
-        <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-white/75">
+        <label className="grid gap-1.5 text-sm font-medium text-white/75">
           Confirm password
           <input
             name="confirmPassword"
@@ -174,7 +174,7 @@ export default function AuthForm({
             minLength={8}
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
-            className="rounded-xl border border-black/10 bg-white px-3 py-2 text-gray-950 outline-none transition focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+            className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-white outline-none transition placeholder:text-white/30 focus:border-white/22"
           />
         </label>
       )}
@@ -196,7 +196,7 @@ export default function AuthForm({
           type="button"
           disabled={resending}
           onClick={resendVerificationEmail}
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-gray-900 transition hover:border-black/20 hover:bg-black/5 disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.1] disabled:cursor-wait disabled:opacity-60"
         >
           {resending && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
           <span>{resending ? "Sending..." : "Resend verification email"}</span>
@@ -207,17 +207,17 @@ export default function AuthForm({
         type="submit"
         disabled={loading}
         aria-busy={loading}
-        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-wait disabled:opacity-75 dark:bg-white dark:text-gray-950 dark:hover:bg-white/90"
+        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_36px_rgba(124,58,237,0.26)] transition hover:bg-violet-500 disabled:cursor-wait disabled:opacity-75"
       >
         {loading && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
         <span>{loading ? (isRegister ? "Creating..." : "Logging in...") : isRegister ? "Create account" : "Log in"}</span>
       </button>
 
-      <p className="text-center text-sm text-gray-500 dark:text-white/45">
+      <p className="text-center text-sm text-white/45">
         {isRegister ? "Already have an account?" : "No account yet?"}{" "}
         <Link
           href={isRegister ? `/login?next=${encodeURIComponent(nextPath)}` : "/register"}
-          className="font-semibold text-gray-900 hover:underline dark:text-white"
+          className="font-semibold text-white hover:underline"
         >
           {isRegister ? "Log in" : "Register"}
         </Link>
@@ -226,7 +226,7 @@ export default function AuthForm({
       {!isRegister && (
         <Link
           href="/forgot-password"
-          className="text-center text-sm font-semibold text-gray-700 hover:underline dark:text-white/70"
+          className="text-center text-sm font-semibold text-white/70 hover:text-white hover:underline"
         >
           Forgot password?
         </Link>

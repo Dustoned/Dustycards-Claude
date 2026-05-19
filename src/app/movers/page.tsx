@@ -6,6 +6,7 @@ import PriceHistoryPanel, { type PriceHistoryValuePoint } from "@/components/Pri
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import SealedMoversBrowser from "@/app/movers/SealedMoversBrowser";
 import { loadMoversPageData } from "@/app/movers/page-data";
+import type { DirectionFilter } from "@/app/movers/MoversBrowser.utils";
 import { requirePageUser } from "@/lib/page-auth";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
@@ -26,6 +27,7 @@ import { getServerUserSettings } from "@/lib/user-settings-server";
 export const dynamic = "force-dynamic";
 
 type SummaryMetric = HeaderStat;
+type MarketTrend = Extract<DirectionFilter, "all" | "risers" | "fallers">;
 
 interface PulseChartData {
   title: string;
@@ -57,7 +59,7 @@ function getModeCopy(
     return {
       eyebrow:
         activeItemScope === "all" ? "Value Changes / All Cards" : "Value Changes / Collection",
-      title: "Movers",
+      title: "Market",
       description:
         activeItemScope === "all"
           ? "Scan all raw cards for the latest CardMarket value changes, with gains and drops loaded as you scroll."
@@ -69,8 +71,8 @@ function getModeCopy(
 
   if (activeScope === "sealed") {
     return {
-      eyebrow: activeItemScope === "collection" ? "Sealed Movers / Collection" : "Sealed Movers / All Products",
-      title: "Movers",
+      eyebrow: activeItemScope === "collection" ? "Sealed Market / Collection" : "Sealed Market / All Products",
+      title: "Market",
       description:
         "Track sealed Pokemon products by recent CardMarket movement, lifetime highs and lows, across owned and all-product views.",
       ranking: "Sealed products",
@@ -80,7 +82,7 @@ function getModeCopy(
   if (activeScope === "graded") {
     return {
       eyebrow: activeItemScope === "collection" ? "Graded Market / Collection" : "Graded Market / All Cards",
-      title: "Movers",
+      title: "Market",
       description:
         "Track every current slab label as its own market item, with recent movement and lifetime context tucked into details.",
       ranking: "Graded prices",
@@ -90,7 +92,7 @@ function getModeCopy(
   if (activeScope === "grading") {
     return {
       eyebrow: activeItemScope === "collection" ? "Grade Targets / Collection" : "Grade Targets / All Cards",
-      title: "Movers",
+      title: "Market",
       description:
         "Find cards where the raw CardMarket price is low compared with the current graded value.",
       ranking: "Raw vs graded upside",
@@ -98,12 +100,12 @@ function getModeCopy(
   }
 
   return {
-    eyebrow: activeScope === "all" ? "Raw Movers / All Cards" : "Raw Movers / Collection",
-    title: "Movers",
+    eyebrow: activeScope === "all" ? "Raw Market / All Cards" : "Raw Market / Collection",
+    title: "Market",
     description:
       activeScope === "all"
-        ? "Scan all tracked raw cards for the clearest recent price movement."
-        : "Scan your collection for raw cards with the clearest recent price movement.",
+        ? "Scan all tracked raw cards by recent risers, drops, and compact market pockets."
+        : "Scan your collection by recent risers, drops, and compact market pockets.",
     ranking: activeScope === "all" ? "All raw cards" : "Collection raw cards",
   };
 }
@@ -112,6 +114,10 @@ function formatSignedCurrency(value: number | null | undefined): string {
   if (value == null) return "--";
 
   return `${value > 0 ? "+" : ""}${formatCollectionCurrency(value)}`;
+}
+
+function normalizeMarketTrend(value: string | null | undefined): MarketTrend {
+  return value === "risers" || value === "fallers" ? value : "all";
 }
 
 function buildValuePulseChart(data: CollectionValueDriversData): PulseChartData {
@@ -185,23 +191,45 @@ function buildMoverPulseChart(
     currentValue: points.at(-1)?.value ?? fallbackValue,
     subtitle:
       selected.length > 0
-        ? `${selected.length.toLocaleString("en-US")} top movers / ${fallbackTitle}`
+        ? `${selected.length.toLocaleString("en-US")} top cards / ${fallbackTitle}`
         : fallbackTitle,
   };
+}
+
+function pickStrongestMover(
+  items: CollectionMoversData["movers"],
+  metric: "change7dPct" | "change30dPct",
+  direction: "up" | "down"
+) {
+  return (
+    [...items]
+      .filter((item) =>
+        direction === "up" ? (item[metric] ?? 0) > 0 : (item[metric] ?? 0) < 0
+      )
+      .sort((a, b) =>
+        direction === "up"
+          ? (b[metric] ?? Number.NEGATIVE_INFINITY) -
+            (a[metric] ?? Number.NEGATIVE_INFINITY)
+          : (a[metric] ?? Number.POSITIVE_INFINITY) -
+            (b[metric] ?? Number.POSITIVE_INFINITY)
+      )[0] ?? null
+  );
 }
 
 export default async function MoversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; scope?: string; view?: string; game?: string }>;
+  searchParams: Promise<{ source?: string; scope?: string; view?: string; game?: string; trend?: string }>;
 }) {
-  const { source, scope, view, game: gameParam } = await searchParams;
+  const { source, scope, view, game: gameParam, trend } = await searchParams;
   const requestedParams = new URLSearchParams();
   if (source) requestedParams.set("source", source);
   if (scope) requestedParams.set("scope", scope);
   if (view) requestedParams.set("view", view);
   if (gameParam) requestedParams.set(GAME_SEARCH_PARAM, gameParam);
+  if (trend) requestedParams.set("trend", trend);
   const requestedQuery = requestedParams.toString();
+  const activeTrend = normalizeMarketTrend(trend);
   const user = await requirePageUser(`/movers${requestedQuery ? `?${requestedQuery}` : ""}`);
   const settings = await getServerUserSettings(user.id);
   const activeGame = parseVisibleGameFilter(gameParam, {
@@ -227,11 +255,13 @@ export default async function MoversPage({
     itemScope = activeItemScope,
     priceSource,
     game = activeGame,
+    trend: nextTrend = activeTrend,
   }: {
     mode?: MoversMode;
     itemScope?: "collection" | "all";
     priceSource?: PriceSource;
     game?: TradingCardGameFilter;
+    trend?: MarketTrend;
   }) {
     const params = new URLSearchParams();
     const nextSource = priceSource ?? activePriceSource;
@@ -240,6 +270,10 @@ export default async function MoversPage({
 
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+
+    if (nextTrend !== "all" && mode !== "sealed" && mode !== "targets") {
+      params.set("trend", nextTrend);
     }
 
     if (shouldCarrySource) {
@@ -268,11 +302,16 @@ export default async function MoversPage({
   }
 
   const marketSwitchItems = [
-    { href: buildMoversHref({ mode: "value" }), active: activeMode === "value", label: "Value" },
     { href: buildMoversHref({ mode: "raw" }), active: activeMode === "raw", label: "Raw" },
     { href: buildMoversHref({ mode: "graded" }), active: activeMode === "graded", label: "Graded" },
     { href: buildMoversHref({ mode: "targets" }), active: activeMode === "targets", label: "Targets" },
     { href: buildMoversHref({ mode: "sealed" }), active: activeMode === "sealed", label: "Sealed" },
+    { href: "/deals", active: false, label: "Deals" },
+  ];
+  const movementSwitchItems = [
+    { href: buildMoversHref({ trend: "all" }), active: activeTrend === "all", label: "All" },
+    { href: buildMoversHref({ trend: "risers" }), active: activeTrend === "risers", label: "Risers" },
+    { href: buildMoversHref({ trend: "fallers" }), active: activeTrend === "fallers", label: "Drops" },
   ];
   const scopeSwitchItems = [
     {
@@ -303,7 +342,34 @@ export default async function MoversPage({
     active: activeGame === game,
     label: getGameFilterLabel(game),
   }));
+  function buildMarketPocketHref(pathname: "/movers/cheap-high-rarity" | "/movers/discount-watch") {
+    const params = new URLSearchParams();
+    const gameValue = getGameFilterSearchParamValue(activeGame);
+
+    if (gameValue) params.set(GAME_SEARCH_PARAM, gameValue);
+    if (hasExplicitSource) params.set("source", activePriceSource);
+    if (activeScope !== "value") params.set("scope", activeScope);
+    if (activeItemScope === "collection") params.set("view", "collection");
+
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }
   const modeCopy = getModeCopy(activeScope, activeItemScope);
+  const trendCopy =
+    activeTrend === "risers"
+      ? {
+          title: "Recent risers",
+          description: "Cards with the clearest positive movement first.",
+        }
+      : activeTrend === "fallers"
+        ? {
+            title: "Recent drops",
+            description: "Cards that recently moved down or sit weaker versus their history.",
+          }
+        : {
+            title: modeCopy.ranking,
+            description: "Risers, drops, and opportunity pockets in one market view.",
+          };
   const valueData = isValueScope ? (data as CollectionValueDriversData) : null;
   const sealedData = isSealedScope ? (data as SealedMoversData) : null;
   const cardData = !isValueScope && !isSealedScope ? (data as CollectionMoversData) : null;
@@ -363,7 +429,7 @@ export default async function MoversPage({
           tone: "amber",
         },
         {
-          label: "Movers",
+          label: "Moving",
           value: sealedData.eligibleProducts.toLocaleString("en-US"),
           hint: "Priced sealed products in the current market list.",
           Icon: TrendingUp,
@@ -397,7 +463,7 @@ export default async function MoversPage({
           tone: "amber",
         },
         {
-          label: isGradingScope ? "Targets" : isGradedScope ? "Labels Shown" : "Movers",
+          label: isGradingScope ? "Targets" : isGradedScope ? "Labels Shown" : "Moving",
           value: cardData?.eligibleCards.toLocaleString("en-US") ?? "0",
           hint: isGradingScope
             ? "Positive raw-to-graded upside."
@@ -422,35 +488,58 @@ export default async function MoversPage({
           tone: "sky",
         },
       ] satisfies SummaryMetric[]);
+  const cardSpotlights =
+    cardData && !isGradingScope
+      ? [
+          { title: "Top 7D riser", item: pickStrongestMover(cardData.movers, "change7dPct", "up"), windowKey: "7d" as const },
+          { title: "Top 7D drop", item: pickStrongestMover(cardData.movers, "change7dPct", "down"), windowKey: "7d" as const },
+        ]
+      : [];
+  const marketPreviewCards =
+    cardData && isRawScope
+      ? [
+          {
+            title: "Cheap rarity",
+            eyebrow: "Market pocket",
+            description: "Affordable high-rarity cards with movement, kept as a focused pocket inside Market.",
+            href: buildMarketPocketHref("/movers/cheap-high-rarity"),
+            hrefLabel: "Open pocket",
+            items: cardData.cheapestHighRarityMovers,
+            reasonMode: "raw" as const,
+          },
+          {
+            title: "Discount watch",
+            eyebrow: "Market pocket",
+            description: "High-rarity cards that pulled back hard from previous peaks.",
+            href: buildMarketPocketHref("/movers/discount-watch"),
+            hrefLabel: "Open pocket",
+            items: cardData.discountedHighRarity,
+            reasonMode: "raw" as const,
+          },
+        ]
+      : [];
   return (
     <div
       className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8"
     >
       <div className="flex w-full flex-col gap-5 sm:gap-6">
-        <section className="relative overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:p-4 lg:p-5">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+        <section className="binder-panel relative overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
           <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(17rem,0.66fr)_minmax(0,1.05fr)] xl:grid-cols-[minmax(18rem,0.62fr)_minmax(0,1fr)_minmax(21rem,0.7fr)] xl:items-stretch">
-            <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10">
+            <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/10 p-[var(--ui-page-header-padding)]">
               <div className="min-w-0">
-                <p className="min-w-0 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                <p className="min-w-0 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
                   {modeCopy.eyebrow}
                 </p>
-                <h1 className="mt-2 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                <h1 className="mt-2 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
                   {modeCopy.title}
                 </h1>
-                <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
-                  {modeCopy.description}
+                <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
+                  {activeMode === "raw" || activeMode === "graded"
+                    ? trendCopy.description
+                    : modeCopy.description}
                 </p>
               </div>
-              {settings.onePieceLibraryEnabled ? (
-                <div className="mt-[var(--ui-page-header-action-margin)]">
-                  <GameFilterSwitch
-                    items={gameSwitchItems}
-                    ariaLabel="Movers library"
-                    className="max-w-[21rem]"
-                  />
-                </div>
-              ) : null}
             </div>
 
             <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
@@ -461,14 +550,14 @@ export default async function MoversPage({
                   currency={pulseChart.currency}
                   points={pulseChart.points}
                   currentValue={pulseChart.currentValue}
-                  emptyText="Not enough mover history yet"
+                  emptyText="Not enough market history yet"
                   fixedRange="ALL"
                   hideRangeControls
                   rangeStorageKey={`movers-${activeMode}-${activeItemScope}`}
                 />
               ) : (
-                <section className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] items-center justify-center rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.03] text-sm font-semibold text-gray-400 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/35">
-                  Not enough mover history yet
+                <section className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/8 bg-white/[0.04] text-sm font-semibold text-white/35">
+                  Not enough market history yet
                 </section>
               )}
             </div>
@@ -481,23 +570,37 @@ export default async function MoversPage({
           </div>
         </section>
 
-        <section className="w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.02] p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.03]">
-          <div className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+        <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3">
+          <div className="flex min-w-0 flex-col gap-2.5">
+            {settings.onePieceLibraryEnabled ? (
+              <GameFilterSwitch
+                items={gameSwitchItems}
+                ariaLabel="Market library"
+                className="w-full max-w-full sm:w-fit"
+              />
+            ) : null}
             <SegmentedNavLinks
               items={marketSwitchItems}
-              ariaLabel="Movers market"
+              ariaLabel="Market category"
               className="w-full max-w-full sm:w-fit"
             />
-            <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
+            <div className="flex min-w-0 flex-wrap gap-2">
+              {(isRawScope || isGradedScope) && !isValueScope ? (
+                <SegmentedNavLinks
+                  items={movementSwitchItems}
+                  ariaLabel="Market movement"
+                  className="w-full max-w-full sm:w-fit"
+                />
+              ) : null}
               <SegmentedNavLinks
                 items={scopeSwitchItems}
-                ariaLabel="Movers scope"
+                ariaLabel="Market scope"
                 className="w-full max-w-full sm:w-fit"
               />
               {isRawScope ? (
                 <SegmentedNavLinks
                   items={sourceSwitchItems}
-                  ariaLabel="Movers price source"
+                  ariaLabel="Market price source"
                   className="w-full max-w-full sm:w-fit"
                 />
               ) : null}
@@ -514,16 +617,19 @@ export default async function MoversPage({
           />
         ) : cardData ? (
           <MoversBrowser
-            key={`${activeScope}:${activeItemScope}`}
+            key={`${activeScope}:${activeItemScope}:${activeTrend}`}
             movers={cardData.movers}
             activeScope={activeScope as MoversScope}
             activeItemScope={activeItemScope}
+            initialDirection={isGradingScope ? "all" : activeTrend}
+            spotlights={cardSpotlights}
+            previewCards={marketPreviewCards}
             emptyTitle={
               isGradingScope
                 ? "No grade targets found"
                 : isGradedScope
                   ? "No graded market items found"
-                  : "No movers found"
+                  : "No market moves found"
             }
             emptyDescription={
               isGradingScope
@@ -533,17 +639,17 @@ export default async function MoversPage({
                   : "There is not enough recent movement for this filter combination yet."
             }
             eyebrow={
-              isGradingScope ? "Grade Targets" : isGradedScope ? "Graded Market" : "Raw Movers"
+              isGradingScope ? "Grade Targets" : isGradedScope ? "Graded Market" : "Raw Market"
             }
             title={
-              isGradingScope ? "Best cards to grade" : isGradedScope ? "Slab market" : "Market list"
+              isGradingScope ? "Best cards to grade" : isGradedScope ? "Slab market" : trendCopy.title
             }
             description={
               isGradingScope
                 ? "Sorted by raw-to-graded upside with the extra details available per card."
                 : isGradedScope
-                  ? "Every graded label is listed separately, with its own movement and price history."
-                  : "Raw cards ranked by recent and lifetime movement, with owned/all and source controls nearby."
+                  ? "Every graded label is listed separately, with movement filters nearby."
+                  : "Raw cards grouped around risers, drops, and market pockets with the relevant switches nearby."
             }
           />
         ) : null}

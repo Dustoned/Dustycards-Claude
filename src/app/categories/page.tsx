@@ -150,7 +150,7 @@ function CategoryTile({
     <Link
       href={href}
       prefetch={false}
-      className="group grid min-h-[9.25rem] grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-2xl border border-black/8 bg-white/70 p-4 text-left shadow-sm shadow-black/5 transition-all hover:-translate-y-0.5 hover:border-black/12 hover:bg-white hover:shadow-lg hover:shadow-black/8 active:scale-[0.99] dark:border-white/8 dark:bg-white/[0.045] dark:shadow-black/20 dark:hover:border-white/14 dark:hover:bg-white/[0.065] sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-4"
+      className="binder-panel group grid min-h-[7.5rem] grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-2xl p-3 text-left transition-colors hover:border-white/14 hover:bg-white/[0.065] active:scale-[0.99] sm:grid-cols-[auto_minmax(0,1fr)_auto]"
     >
       <span
         className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${tone.surface} ${tone.icon}`}
@@ -160,7 +160,7 @@ function CategoryTile({
 
       <span className="min-w-0">
         <span className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="truncate text-lg font-bold leading-tight text-gray-950 dark:text-white">
+          <span className="truncate text-base font-bold leading-tight text-white">
             {category.title}
           </span>
           <span
@@ -169,10 +169,10 @@ function CategoryTile({
             {category.shortTitle}
           </span>
         </span>
-        <span className="mt-2 line-clamp-3 text-sm leading-5 text-gray-500 dark:text-white/50">
+        <span className="mt-1.5 line-clamp-2 text-sm leading-5 text-white/50">
           {category.description}
         </span>
-        <span className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500 dark:text-white/45">
+        <span className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-white/45">
           <span>{category.count.toLocaleString("en-US")} cards</span>
           <span className="h-1 w-1 rounded-full bg-current opacity-35" />
           <span>{category.group}</span>
@@ -193,7 +193,7 @@ function CategoryTile({
         </span>
       </span>
 
-      <span className="hidden self-center text-gray-300 transition-colors group-hover:text-gray-600 dark:text-white/20 dark:group-hover:text-white/58 sm:block">
+      <span className="hidden self-center text-white/22 transition-colors group-hover:text-white/58 sm:block">
         <ArrowUpRight className="h-5 w-5" />
       </span>
     </Link>
@@ -256,20 +256,20 @@ export default async function CategoriesPage({
   ] satisfies HeaderStat[];
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-      <div className="flex w-full flex-col gap-6 sm:gap-8">
-        <section className="relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:p-4 lg:p-5">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+    <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
+      <div className="flex w-full flex-col gap-4 sm:gap-5">
+        <section className="binder-panel relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
           <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
-            <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10 xl:col-span-2">
+            <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/10 p-[var(--ui-page-header-padding)] xl:col-span-2">
               <div className="min-w-0">
-                <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+                <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
                   {activeGame === ONE_PIECE_GAME ? "One Piece Library" : "DustyCards"}
                 </p>
-                <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+                <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
                   {activeGame === ONE_PIECE_GAME ? "One Piece Categories" : "Categories"}
                 </h1>
-                <p className="mt-3 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+                <p className="mt-3 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
                   {activeGame === ONE_PIECE_GAME
                     ? "Browse One Piece rarity and chase-card groups without mixing them into Pokemon lists."
                     : "Jump straight into curated card lists like Trainer Full Art, Tag Team GX, Special Illustration Rare, shiny cards, promos and older mechanics."}
@@ -291,7 +291,7 @@ export default async function CategoriesPage({
           </div>
         </section>
 
-        <div className="space-y-8">
+        <div className="space-y-5 sm:space-y-6">
           {getCategoryGroups().map((group) => {
             const groupCategories = categories.filter((category) => category.group === group);
             if (groupCategories.length === 0) return null;

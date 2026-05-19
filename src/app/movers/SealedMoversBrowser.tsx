@@ -366,7 +366,7 @@ export default function SealedMoversBrowser({ data }: Props) {
   }
 
   const sortOptions: Array<{ key: SealedSortKey; label: string }> = [
-    { key: "move", label: "Best movers" },
+    { key: "move", label: "Best moves" },
     { key: "7d", label: "7 days" },
     { key: "30d", label: "30 days" },
     { key: "price_low", label: "Entry price" },
@@ -377,7 +377,7 @@ export default function SealedMoversBrowser({ data }: Props) {
     <div className="space-y-10">
       <section>
         <SectionHeader
-          eyebrow="Sealed Movers"
+          eyebrow="Sealed Market"
           title="Sealed market list"
           description="Sealed products ranked by current price movement, with quick links into exact eBay sealed searches."
           actions={
@@ -496,7 +496,7 @@ export default function SealedMoversBrowser({ data }: Props) {
         {visibleMovers.length === 0 ? (
           <div className="rounded-[24px] border border-black/8 bg-black/[0.03] p-8 text-center dark:border-white/8 dark:bg-white/[0.04]">
             <p className="text-lg font-semibold text-gray-900 dark:text-white">
-              No sealed movers found
+              No sealed market moves found
             </p>
             <p className="mt-2 text-sm text-gray-500 dark:text-white/48">
               Adjust search, product type, or scope to bring sealed products back.

@@ -481,7 +481,7 @@ export default async function ExpansionDetailPage({
         title={episode.name}
         gridClassName="xl:grid-cols-[minmax(0,1.2fr)_minmax(28rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.24fr)_minmax(28rem,0.76fr)]"
         leadingVisual={
-          <div className="hidden h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-black/8 bg-white/80 p-[var(--ui-binder-header-logo-padding)] text-center text-[length:var(--ui-section-header-title-size)] font-bold text-gray-500 shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/8 dark:text-white/70 sm:flex">
+          <div className="hidden h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-[var(--ui-binder-header-logo-padding)] text-center text-[length:var(--ui-section-header-title-size)] font-bold text-white/70 shadow-sm shadow-black/20 sm:flex">
             {episode.logo_url ? (
               <div className="relative h-full w-full">
                 <Image
@@ -590,14 +590,14 @@ export default async function ExpansionDetailPage({
         sideClassName="max-sm:hidden [&>section]:h-full"
       />
 
-      <div className="mb-6 inline-flex rounded-[calc(var(--ui-segment-radius)+0.25rem)] border border-black/8 bg-black/3 p-[var(--ui-segment-shell-padding)] dark:border-white/8 dark:bg-white/5">
+      <div className="mb-4 inline-flex rounded-[calc(var(--ui-segment-radius)+0.25rem)] border border-white/8 bg-white/[0.045] p-[var(--ui-segment-shell-padding)]">
         <Link
           href={`/expansions/${id}`}
           prefetch={false}
-          className={`rounded-[var(--ui-segment-radius)] px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
+          className={`rounded-[var(--ui-segment-radius)] border border-transparent px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
             activeTab === "cards"
-              ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-              : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+              ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+              : "text-white/55 hover:bg-white/[0.07] hover:text-white"
           }`}
         >
           Cards
@@ -606,10 +606,10 @@ export default async function ExpansionDetailPage({
           <Link
             href={`/expansions/${id}?tab=sealed`}
             prefetch={false}
-            className={`rounded-[var(--ui-segment-radius)] px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
+            className={`rounded-[var(--ui-segment-radius)] border border-transparent px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
               activeTab === "sealed"
-                ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+                ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                : "text-white/55 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
             Sealed

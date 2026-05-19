@@ -9,6 +9,9 @@ import {
   visualStatus,
 } from "./sync-status-utils";
 
+const ACTIVE_SEGMENT_CLASS =
+  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+
 type AutoRefreshStatusKey = AutoRefreshStatus["key"];
 
 function formatCount(value: number | null | undefined): string {
@@ -155,8 +158,8 @@ export default function SyncStatusTabs({
               aria-selected={isSelected}
               className={`min-h-9 min-w-0 rounded-md px-1.5 text-[11px] font-semibold leading-none transition sm:px-3 sm:text-sm ${
                 isSelected
-                  ? "bg-white text-gray-950 shadow-sm dark:bg-white/12 dark:text-white"
-                  : "text-gray-500 hover:bg-white/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/8 dark:hover:text-white"
+                  ? ACTIVE_SEGMENT_CLASS
+                  : "text-white/55 hover:bg-white/8 hover:text-white"
               }`}
               onClick={() => setSelectedKey(status.key)}
             >

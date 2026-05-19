@@ -64,11 +64,12 @@ interface Props {
   emptyDescription?: string;
   previewCards?: PreviewCardConfig[];
   spotlights?: SpotlightConfig[];
+  initialDirection?: DirectionFilter;
 }
 
 type FocusFilter = "all" | "cheap" | "older_value" | "high_rarity" | "owned" | "grading_upside";
 
-const SELECT_OPTION_CLASS = "bg-white text-gray-950 dark:bg-gray-950 dark:text-white";
+const SELECT_OPTION_CLASS = "bg-gray-950 text-white";
 
 function isGradeTenLabel(label: string | null | undefined): boolean {
   if (!label) return false;
@@ -94,13 +95,14 @@ export default function MoversBrowser({
   movers,
   activeScope,
   activeItemScope,
-  eyebrow = "Main Movers",
-  title = "Full collection movers",
+  eyebrow = "Market",
+  title = "Recent market cards",
   description,
   emptyTitle = "No movers for this filter combination",
   emptyDescription = "Adjust your search or filters to bring cards back.",
   previewCards = [],
   spotlights = [],
+  initialDirection = "all",
 }: Props) {
   const { displaySettings } = useSettings();
   const pathname = usePathname();
@@ -109,7 +111,7 @@ export default function MoversBrowser({
   const [sortKey, setSortKey] = useState<SortKey>(
     activeScope === "grading" ? "grade_score" : "move"
   );
-  const [direction, setDirection] = useState<DirectionFilter>("all");
+  const [direction, setDirection] = useState<DirectionFilter>(initialDirection);
   const [focusFilter, setFocusFilter] = useState<FocusFilter>("all");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
@@ -165,7 +167,7 @@ export default function MoversBrowser({
     }
 
     return [
-      { key: "move" as const, label: "Best movers" },
+    { key: "move" as const, label: "Best moves" },
       { key: "older_value" as const, label: "Older value" },
       { key: "7d" as const, label: "7 days" },
       { key: "30d" as const, label: "30 days" },
@@ -350,7 +352,7 @@ export default function MoversBrowser({
   );
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-5">
       {visibleSpotlights.length > 0 || visiblePreviewCards.length > 0 ? (
         <MoverSpotlightSections
           spotlights={visibleSpotlights}
@@ -366,7 +368,7 @@ export default function MoversBrowser({
           title={title}
           description={description}
           actions={
-            <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
+            <p className="shrink-0 text-sm text-white/46">
               {visibleMovers.length.toLocaleString("en-US")} /{" "}
               {movers.length.toLocaleString("en-US")} visible
             </p>
@@ -379,26 +381,26 @@ export default function MoversBrowser({
           </div>
         ) : null}
 
-        <div className="glass mb-4 rounded-2xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8">
+        <div className="binder-panel mb-4 rounded-2xl px-3 py-3 sm:px-4 sm:py-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,12rem))_auto] lg:items-end">
             <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
                 Search
               </span>
               <span className="relative block">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                 <input
                   type="text"
                   placeholder="Card, set, number"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-black/8 bg-white/78 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
+                  className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] pl-10 pr-10 text-sm text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/16"
                 />
                 {search ? (
                   <button
                     type="button"
                     onClick={() => setSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-900 dark:text-white/35 dark:hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white"
                     aria-label="Clear search"
                   >
                     <X className="h-4 w-4" />
@@ -409,13 +411,13 @@ export default function MoversBrowser({
 
             {!isGradingScope ? (
               <label className="block">
-                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
                   Trend
                 </span>
                 <select
                   value={direction}
                   onChange={(event) => setDirection(event.target.value as DirectionFilter)}
-                  className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+                  className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
                 >
                   <option className={SELECT_OPTION_CLASS} value="all">All moves</option>
                   <option className={SELECT_OPTION_CLASS} value="risers">Risers</option>
@@ -427,13 +429,13 @@ export default function MoversBrowser({
             )}
 
             <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
                 Sort
               </span>
               <select
                 value={sortKey}
                 onChange={(event) => setSortKey(event.target.value as SortKey)}
-                className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
               >
                 {sortOptions.map((option) => (
                   <option className={SELECT_OPTION_CLASS} key={option.key} value={option.key}>
@@ -444,13 +446,13 @@ export default function MoversBrowser({
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
                 Focus
               </span>
               <select
                 value={focusFilter}
                 onChange={(event) => setFocusFilter(event.target.value as FocusFilter)}
-                className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
               >
                 <option className={SELECT_OPTION_CLASS} value="all">Everything</option>
                 <option className={SELECT_OPTION_CLASS} value="cheap">
@@ -473,7 +475,7 @@ export default function MoversBrowser({
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="h-11 rounded-xl border border-black/8 bg-white/78 px-4 text-sm font-semibold text-gray-600 transition-colors hover:border-black/14 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/62 dark:hover:border-white/16 dark:hover:text-white"
+                className="h-11 rounded-xl border border-white/8 bg-white/[0.05] px-4 text-sm font-semibold text-white/62 transition-colors hover:border-white/16 hover:text-white"
               >
                 Reset
               </button>
@@ -482,18 +484,18 @@ export default function MoversBrowser({
         </div>
 
         {visibleMovers.length === 0 ? (
-          <div className="rounded-2xl border border-black/8 bg-black/[0.03] px-5 py-7 text-center dark:border-white/8 dark:bg-white/[0.04] sm:rounded-[24px] sm:px-8 sm:py-8">
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+          <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-5 py-7 text-center sm:rounded-[24px] sm:px-8 sm:py-8">
+            <p className="text-lg font-semibold text-white">
               {emptyTitle}
             </p>
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-white/48">
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-white/48">
               {emptyDescription}
             </p>
             {activeItemScope === "collection" ? (
               <Link
                 href={scopeHref("all")}
                 prefetch={false}
-                className="mt-4 inline-flex items-center rounded-full border border-black/8 bg-white/80 px-3.5 py-2 text-sm font-semibold text-gray-800 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/8 dark:text-white/78 dark:hover:border-white/18 dark:hover:bg-white/12"
+                className="mt-4 inline-flex items-center rounded-full border border-white/10 bg-white/8 px-3.5 py-2 text-sm font-semibold text-white/78 transition-colors hover:border-white/18 hover:bg-white/12"
               >
                 View all cards
               </Link>
@@ -514,7 +516,7 @@ export default function MoversBrowser({
                 className="mt-5 flex h-10 items-center justify-center text-xs font-semibold text-gray-400 dark:text-white/35"
                 aria-live="polite"
               >
-                Loading more movers ({renderedMovers.length.toLocaleString("en-US")} /{" "}
+                Loading more cards ({renderedMovers.length.toLocaleString("en-US")} /{" "}
                 {visibleMovers.length.toLocaleString("en-US")})
               </div>
             ) : null}

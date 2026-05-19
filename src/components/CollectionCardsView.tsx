@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Minus, X } from "lucide-react";
+import { Minus, TrendingDown, TrendingUp, X } from "lucide-react";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -35,7 +35,7 @@ import {
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
 import { rarityBadge } from "@/lib/rarity-styles";
-import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
+import { getCompactRarityLabel, KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { ModalCardData } from "@/components/card-modal/types";
 import {
   modalActionRowClass,
@@ -49,10 +49,6 @@ import {
 import {
   KNOWN_SUPERTYPE_ORDER,
   buildFilterOptions,
-  collectionMetaBadge,
-  collectionMetaLabelClass,
-  collectionMetaWrapClass,
-  collectionMissingMetaClass,
   collectionOverlayBadgeClass,
   collectionTileActionButtonClass,
   collectionTileActionIconClass,
@@ -68,7 +64,6 @@ import {
   getCollectionItemCostBasisLabel,
   getCollectionItemPrice,
   getCollectionItemPriceCurrency,
-  getConditionBadge,
   getDefaultSortDir,
   hasAnyVisiblePrice,
   isGradedCollectionCard,
@@ -137,6 +132,11 @@ type CollectionView = Exclude<CardView, "binder">;
 const INITIAL_COLLECTION_RENDER_COUNT = 72;
 const COLLECTION_RENDER_BATCH_SIZE = 96;
 const INITIAL_COLLECTION_EAGER_IMAGE_COUNT = 12;
+
+function getTileTrendPercent(currentValue: number | null | undefined, costBasis: number | null): number | null {
+  if (currentValue == null || costBasis == null || costBasis <= 0) return null;
+  return Number((((currentValue - costBasis) / costBasis) * 100).toFixed(1));
+}
 
 
 export default function CollectionCardsView({
@@ -839,13 +839,13 @@ export default function CollectionCardsView({
   );
   const gridGapClass = isMobileViewport
     ? displaySettings.cardSize === "xsmall"
-      ? "gap-x-1.5 gap-y-3"
+      ? "gap-x-1.5 gap-y-2"
       : displaySettings.cardSize === "large"
-      ? "gap-x-0 gap-y-5"
+      ? "gap-x-0 gap-y-3"
       : displaySettings.cardSize === "medium"
-        ? "gap-x-3 gap-y-4"
-        : "gap-x-2 gap-y-3"
-    : "gap-2";
+        ? "gap-x-2 gap-y-2.5"
+        : "gap-x-1.5 gap-y-2"
+    : "gap-2.5";
   const showInlineSelectionButton =
     Boolean(sectionTitle) && !showFilters && selectionEnabled && !activeSelectionMode;
   const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
@@ -875,22 +875,20 @@ export default function CollectionCardsView({
   const toolbarSizeOptions: CardBrowserToolbarOption[] = [
     {
       value: "large",
-      label: isMobileViewport ? "1" : "Large",
-      title: isMobileViewport ? "Show one card per row" : "Large card tiles",
+      label: "1",
+      title: isMobileViewport ? "Show one card per row" : "Largest card tiles",
     },
     {
       value: "medium",
-      label: isMobileViewport ? "2" : "Medium",
+      label: "2",
       title: isMobileViewport ? "Show two cards per row" : "Medium card tiles",
     },
     {
       value: "small",
-      label: isMobileViewport ? "3" : "Small",
+      label: "3",
       title: isMobileViewport ? "Show three cards per row" : "Small card tiles",
     },
-    ...(isMobileViewport
-      ? [{ value: "xsmall", label: "4", title: "Show four cards per row" }]
-      : []),
+    { value: "xsmall", label: "4", title: isMobileViewport ? "Show four cards per row" : "Densest card tiles" },
   ];
   const toolbarActiveFilters: CardBrowserToolbarActiveFilter[] = [
     ...(search.trim()
@@ -1120,8 +1118,8 @@ export default function CollectionCardsView({
                     onClick={toggleSelectionMode}
                     className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors ${
                       activeSelectionMode
-                        ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
-                        : "border-black/8 bg-white/70 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                        ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                        : "border-white/8 bg-white/[0.045] text-white/60 hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
                     }`}
                   >
                     {activeSelectionMode ? "Done" : "Select"}
@@ -1457,7 +1455,7 @@ export default function CollectionCardsView({
               )}
 
               <div className="grid gap-2 md:hidden">
-                {group.entries.map(({ item, selectionKey }, index) => {
+                {group.entries.map(({ item, selectionKey, normalizedRarity }, index) => {
                   const missing = !item.owned;
                   const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
                   const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
@@ -1488,10 +1486,10 @@ export default function CollectionCardsView({
                           handleTileActivate(item, selectionKey, selectableInMode);
                         }
                       }}
-                      className={`min-w-0 rounded-2xl border bg-white/72 p-3 shadow-sm shadow-black/5 transition-colors dark:bg-white/[0.045] ${
+                      className={`min-w-0 rounded-2xl border bg-white/[0.045] p-3 shadow-sm shadow-black/20 transition-colors ${
                         isSelected
                           ? "border-blue-400/70 ring-2 ring-blue-400/50"
-                          : "border-black/8 dark:border-white/8"
+                          : "border-white/8"
                       } ${activeSelectionMode && !selectableInMode ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
                     >
                       <div className="flex gap-3">
@@ -1518,19 +1516,28 @@ export default function CollectionCardsView({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
+                              <p className="truncate text-sm font-semibold text-white">
                                 {item.name}
                               </p>
-                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-gray-500 dark:text-white/50">
+                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-white/50">
                                 <span className="shrink-0">
                                   {item.card_number ? `#${item.card_number}` : "--"}
                                 </span>
-                                <span className="text-gray-300 dark:text-white/20">/</span>
+                                {normalizedRarity && (
+                        <span
+                          className={`inline-flex min-h-[18px] max-w-full items-center rounded-md border px-1.5 text-[9px] font-black leading-none max-[640px]:min-h-[16px] max-[640px]:px-1 max-[640px]:text-[8px] ${rarityBadge(normalizedRarity)}`}
+                          title={item.rarity ?? normalizedRarity}
+                        >
+                          <span className="truncate">
+                            {getCompactRarityLabel(normalizedRarity) ?? normalizedRarity}
+                          </span>
+                        </span>
+                      )}
                                 <Link
                                   href={getExpansionHref(item.episode_id)}
                                   prefetch={false}
                                   onClick={(event) => event.stopPropagation()}
-                                  className="min-w-0 truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
+                                  className="min-w-0 truncate transition-colors hover:text-white hover:underline underline-offset-2"
                                 >
                                   {item.episode_name}
                                   {item.episode_code ? (
@@ -1907,17 +1914,13 @@ export default function CollectionCardsView({
                 className={`grid ${gridGapClass}`}
                 style={{
                   gridTemplateColumns,
-                  justifyContent: "stretch",
+                  justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
-                {group.entries.map(({ item, selectionKey }, index) => {
+                {group.entries.map(({ item, selectionKey, normalizedRarity }, index) => {
                   const missing = !item.owned;
                   const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
                   const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
-                  const conditionBadge = getConditionBadge(
-                    item.condition,
-                    displaySettings.cardSize
-                  );
                   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
                   const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
                   const isGradedCard = Boolean(
@@ -1939,29 +1942,9 @@ export default function CollectionCardsView({
                     primaryPriceSource
                   );
                   const costBasis = getCollectionItemCostBasis(item);
-                  const costBasisLabel = getCollectionItemCostBasisLabel(item);
-                  const pnl =
-                    item.current_value != null && costBasis != null
-                      ? Number((item.current_value - costBasis).toFixed(2))
-                      : null;
-                  const tileAction = !activeSelectionMode ? (
-                    item.owned ? (
-                      canRemoveFromCollection &&
-                      (item.collection_item_id || (item.collection_item_ids?.length ?? 0) > 0) ? (
-                        <button
-                          type="button"
-                          onClick={(event) => handleSingleRemove(event, item)}
-                          disabled={removingItems}
-                          className={collectionTileActionButtonClass(displaySettings.cardSize)}
-                          aria-label={`Remove ${item.name} from collection`}
-                          title="Remove from collection"
-                        >
-                          <Minus
-                            className={collectionTileActionIconClass(displaySettings.cardSize)}
-                          />
-                        </button>
-                      ) : null
-                    ) : (
+                  const trendPercent = getTileTrendPercent(item.current_value, costBasis);
+                  const tileAction =
+                    !activeSelectionMode && !item.owned ? (
                       <div className="flex shrink-0 items-center gap-1">
                         <CollectionAddCardButton
                           card={{
@@ -1977,6 +1960,7 @@ export default function CollectionCardsView({
                           initialBinderId={bulkAddBinder?.id ?? null}
                           lockedBinderName={bulkAddBinder?.name ?? null}
                           className={collectionTileActionButtonClass(displaySettings.cardSize)}
+                          theme="dark"
                         />
                         {canRemoveFromWants && item.want_item_id ? (
                           <button
@@ -1993,8 +1977,7 @@ export default function CollectionCardsView({
                           </button>
                         ) : null}
                       </div>
-                    )
-                  ) : null;
+                    ) : null;
 
                   return (
                     <div
@@ -2011,7 +1994,9 @@ export default function CollectionCardsView({
                           handleTileActivate(item, selectionKey, selectableInMode);
                         }
                       }}
-                      className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
+                      className={`relative flex cursor-pointer flex-col rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 text-left shadow-[0_12px_28px_rgba(0,0,0,0.24)] outline-none transition-colors hover:border-white/14 max-[640px]:rounded-[13px] max-[640px]:p-1 ${
+                        isSelected ? "border-blue-400/70 ring-2 ring-blue-400/60" : ""
+                      }`}
                     >
                       <div
                         className={`relative ${previewAspectClass} w-full transition-all duration-200 ${
@@ -2019,11 +2004,11 @@ export default function CollectionCardsView({
                             ? `overflow-hidden rounded-xl border ${
                                 isSelected
                                   ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
-                                  : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30"
+                                  : "border-transparent shadow-md shadow-black/20"
                               }`
                             : isSelected
                               ? "overflow-hidden rounded-[4.75%] bg-[#dedbd1] drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80 after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-black/8 dark:bg-[#d8d5cc] dark:after:ring-white/12"
-                              : "overflow-hidden rounded-[4.75%] bg-[#dedbd1] drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-black/8 group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)] dark:bg-[#d8d5cc] dark:after:ring-white/12"
+                              : "overflow-hidden rounded-[4.75%] bg-[#dedbd1] drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-black/8 dark:bg-[#d8d5cc] dark:after:ring-white/12"
                         }`}
                       >
                         {isGradedCard && gradingCompanyLabel && gradingGradeLabel ? (
@@ -2079,37 +2064,46 @@ export default function CollectionCardsView({
                           </div>
                         )}
 
-                {(item.owned_count ?? 0) > 1 && (
-                  <span className={`absolute bottom-2 right-2 ${collectionOverlayBadgeClass(displaySettings.cardSize)}`}>
-                    x{item.owned_count}
-                  </span>
-                )}
+                        {(item.owned_count ?? 0) > 1 && (
+                          <span className={`absolute left-2 top-2 ${collectionOverlayBadgeClass(displaySettings.cardSize)}`}>
+                            x{item.owned_count}
+                          </span>
+                        )}
+                        {tileAction && (
+                          <div
+                            className="absolute bottom-1.5 right-1.5 z-10"
+                            onClick={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => event.stopPropagation()}
+                          >
+                            {tileAction}
+                          </div>
+                        )}
               </div>
 
               <div className={collectionTileInfoClass(displaySettings.cardSize)}>
-                <div className="grid gap-1 sm:flex sm:items-end sm:justify-between sm:gap-3">
+                <div className="grid gap-1">
                   <div className="min-w-0 flex-1">
                     <p className={collectionTileTitleClass(displaySettings.cardSize)}>
                       {item.name}
                     </p>
                     <div className={collectionTileMetaLineClass(displaySettings.cardSize)}>
-                      <span className="shrink-0 text-gray-500 dark:text-gray-400">
+                      <span className="shrink-0 text-white/42">
                         {item.card_number ? `#${item.card_number}` : "--"}
                       </span>
-                      <span className="text-gray-300 dark:text-white/20">•</span>
-                      <Link
-                        href={getExpansionHref(item.episode_id)}
-                        prefetch={false}
-                        onClick={(event) => event.stopPropagation()}
-                        className="hidden min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300 sm:inline"
-                      >
-                        {item.episode_name}
-                        {item.episode_code ? <span className="ml-1 opacity-60">({item.episode_code})</span> : null}
-                      </Link>
+                      {normalizedRarity && (
+                        <span
+                          className={`inline-flex min-h-[18px] max-w-full items-center rounded-md border px-1.5 text-[9px] font-black leading-none max-[640px]:min-h-[16px] max-[640px]:px-1 max-[640px]:text-[8px] ${rarityBadge(normalizedRarity)}`}
+                          title={item.rarity ?? normalizedRarity}
+                        >
+                          <span className="truncate">
+                            {getCompactRarityLabel(normalizedRarity) ?? normalizedRarity}
+                          </span>
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
+                  <div className="flex min-w-0 flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-1.5">
                     {displayPrice != null ? (
                       <span
                         title={
@@ -2124,46 +2118,27 @@ export default function CollectionCardsView({
                     ) : (
                       <span className={collectionTileNoPriceClass(displaySettings.cardSize)}>No price</span>
                     )}
-                    {tileAction}
+                    {trendPercent != null && (
+                      <span
+                        className={`inline-flex min-w-0 items-center gap-0.5 text-[11px] font-bold tabular-nums max-[640px]:text-[9px] ${
+                          trendPercent >= 0 ? "text-emerald-300" : "text-rose-300"
+                        }`}
+                        title={`P&L ${trendPercent >= 0 ? "+" : ""}${trendPercent}%`}
+                      >
+                        {trendPercent >= 0 ? (
+                          <TrendingUp className="h-3 w-3 shrink-0 max-[640px]:h-2.5 max-[640px]:w-2.5" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 shrink-0 max-[640px]:h-2.5 max-[640px]:w-2.5" />
+                        )}
+                        <span className="truncate">
+                          {trendPercent >= 0 ? "+" : ""}
+                          {trendPercent}%
+                        </span>
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {item.owned ? (
-                  <div className={collectionMetaWrapClass(displaySettings.cardSize)}>
-                    {costBasis != null && (
-                      <span className={collectionMetaBadge(displaySettings.cardSize)}>
-                        <span className={`${collectionMetaLabelClass(displaySettings.cardSize)} text-gray-400 dark:text-white/35`}>
-                          {costBasisLabel}
-                        </span>
-                        <span className="tabular-nums text-gray-700 dark:text-white/80">
-                          {formatCollectionCurrency(costBasis)}
-                        </span>
-                      </span>
-                    )}
-                    {pnl != null && (
-                      <span className={collectionMetaBadge(displaySettings.cardSize, pnl >= 0 ? "positive" : "negative")}>
-                        <span className={`${collectionMetaLabelClass(displaySettings.cardSize)} opacity-70`}>
-                          P&amp;L
-                        </span>
-                        <span className="tabular-nums">
-                          {pnl >= 0 ? "+" : ""}
-                          {formatCollectionCurrency(pnl)}
-                        </span>
-                      </span>
-                    )}
-                    {conditionBadge && (
-                      <span title={conditionBadge.title} className={conditionBadge.className}>
-                        {conditionBadge.label}
-                      </span>
-                    )}
-                  </div>
-                ) : !item.owned ? (
-                  <div className={collectionMetaWrapClass(displaySettings.cardSize)}>
-                    <p className={collectionMissingMetaClass(displaySettings.cardSize)}>
-                      {item.want_item_id ? "Wanted, not in collection yet" : "Not in your collection yet"}
-                    </p>
-                  </div>
-                ) : null}
                       </div>
                     </div>
                   );

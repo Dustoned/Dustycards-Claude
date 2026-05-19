@@ -55,6 +55,15 @@ export default function SealedProductModal({ product, onClose }: Props) {
     displaySettings.modalSize,
     displaySettings.widescreen
   );
+  const desktopWorkspaceStyle = {
+    maxWidth: `min(100%, ${layout.maxW})`,
+  };
+  const desktopGridClass = displaySettings.widescreen
+    ? `grid gap-5 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)] 2xl:gap-6`
+    : `grid ${layout.gridGap} lg:grid-cols-[minmax(17rem,0.62fr)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(18rem,0.58fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)]`;
+  const desktopHistoryClass = displaySettings.widescreen
+    ? "min-w-0 lg:col-start-2 2xl:col-start-auto"
+    : "min-w-0 lg:col-start-2 2xl:col-start-auto";
   const primaryPrice = getSealedProductPrice(modalProduct);
   const priceHistory = modalProduct.price_history;
   const availableSealedHistorySeries = SEALED_MARKET_HISTORY_SERIES.filter(
@@ -187,19 +196,18 @@ export default function SealedProductModal({ product, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.72)", backdropFilter: "blur(14px)" }}
+      className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/72 p-2 backdrop-blur-[14px] sm:p-4 md:block md:bg-[#050505] md:p-0 md:backdrop-blur-none xl:left-[15rem]"
+      style={{ overscrollBehavior: "contain" }}
       onClick={onClose}
     >
       <div
         className="relative w-full"
-        style={{ maxWidth: layout.maxW }}
         onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-2.5 top-2.5 z-40 inline-flex h-8 w-8 items-center justify-center rounded-xl text-white/42 transition-colors hover:bg-white/[0.055] hover:text-white/86 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:right-3 sm:top-3"
+          className="absolute right-2.5 top-2.5 z-40 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/35 text-white/72 backdrop-blur-xl transition-colors hover:bg-white/[0.08] hover:text-white/86 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:right-3 sm:top-3 md:hidden"
           aria-label="Close sealed product details"
           title="Close"
         >
@@ -210,25 +218,49 @@ export default function SealedProductModal({ product, onClose }: Props) {
           role="dialog"
           aria-modal="true"
           aria-label={modalProduct.name}
-          className="card-modal-frame glass relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] [overflow-anchor:none] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)]"
+          className="card-modal-frame glass relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] border border-white/12 bg-[rgba(10,10,12,0.92)] [overflow-anchor:none] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)] md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
           data-modal-size={displaySettings.modalSize}
-          style={{
-            background: "rgba(10,10,12,0.92)",
-            border: "1px solid rgba(255,255,255,0.12)",
-          }}
         >
-          <div className={layout.pad}>
+          <div
+            className="mx-auto hidden w-full items-center justify-between gap-4 px-6 py-6 md:flex lg:px-8 lg:py-7"
+            style={desktopWorkspaceStyle}
+          >
+            <button
+              type="button"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onClose();
+              }}
+              className="group inline-flex min-h-10 items-center gap-2 rounded-full border border-transparent px-1.5 pr-3 text-sm font-semibold text-white/58 transition-colors hover:border-white/10 hover:bg-white/[0.045] hover:text-white"
+            >
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] transition-colors group-hover:border-white/18 group-hover:bg-white/[0.08]">
+                <span aria-hidden="true" className="text-lg leading-none">
+                  &lt;
+                </span>
+              </span>
+              Back to Collection
+            </button>
+          </div>
+
+          <div
+            className={`${layout.pad} mx-auto w-full md:px-6 md:pb-6 md:pt-0 lg:px-8`}
+            style={desktopWorkspaceStyle}
+          >
             <div
-              className={`grid ${layout.gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start`}
+              className={desktopGridClass}
             >
               <SealedModalPreview
                 product={modalProduct}
-                mediaWidth={layout.mediaWidth}
+                mediaWidth={
+                  displaySettings.widescreen ? "clamp(20rem, 22vw, 27.5rem)" : layout.mediaWidth
+                }
                 imageSize={layout.imageSize}
                 imagePadding={layout.imagePadding}
               />
 
-              <div className="min-w-0 space-y-3">
+              <div className="min-w-0">
                 <SealedModalHeroSection
                   product={modalProduct}
                   titleClass={layout.titleClass}
@@ -244,7 +276,9 @@ export default function SealedProductModal({ product, onClose }: Props) {
                   onAddedToCollection={refreshModalProductFromServer}
                   onClose={onClose}
                 />
+              </div>
 
+              <div className={desktopHistoryClass}>
                 <SealedModalHistorySection
                   productId={modalProduct.id}
                   product={modalProduct}

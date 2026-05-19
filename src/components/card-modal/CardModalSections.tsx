@@ -4,9 +4,24 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight, ExternalLink, LineChart, RefreshCw, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  BadgeEuro,
+  ChevronRight,
+  ExternalLink,
+  Globe2,
+  LineChart,
+  MoreHorizontal,
+  RefreshCw,
+  ShoppingCart,
+  Sparkles,
+  Star,
+  Trash2,
+  UserRound,
+} from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
+import CollectionWantButton from "@/components/CollectionWantButton";
 import type { CardSize } from "@/components/SettingsProvider";
 import { type SupportedGradedSlabCompany } from "@/lib/graded-slabs";
 import {
@@ -35,27 +50,8 @@ const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel")
   loading: () => null,
 });
 
-interface SectionShellProps {
-  eyebrow?: string;
-  title?: string;
-  description?: string | null;
-  children: ReactNode;
-  className?: string;
-}
-
-interface MetricTileProps {
-  label: string;
-  value: ReactNode;
-  hint?: string | null;
-  accent?: "emerald" | "blue" | "violet" | "slate";
-  className?: string;
-}
-
-interface MarketRowProps {
-  label: string;
-  value: ReactNode;
-  hint?: string | null;
-}
+const ACTIVE_SEGMENT_CLASS =
+  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
 
 interface PriceMetric {
   label: string;
@@ -63,7 +59,7 @@ interface PriceMetric {
   hint?: string | null;
 }
 
-type PricingAccent = NonNullable<MetricTileProps["accent"]>;
+type PricingAccent = "emerald" | "blue" | "violet" | "slate";
 type PriceStatusTone = "good" | "warning" | "danger" | "neutral";
 
 interface HistoryPointView {
@@ -381,68 +377,6 @@ function getRecentHistoryAverage(points: HistoryPointView[], days: number): numb
   return Number((total / recentValues.length).toFixed(2));
 }
 
-function SectionShell({
-  eyebrow,
-  title,
-  description,
-  children,
-  className = "",
-}: SectionShellProps) {
-  return (
-    <section className={`card-modal-section rounded-[24px] border border-white/10 bg-white/[0.055] p-4 sm:p-6 max-[640px]:rounded-2xl max-[640px]:p-3 ${className}`}>
-      {(eyebrow || title || description) && (
-        <div className="mb-4 space-y-1.5 max-[640px]:mb-3">
-          {eyebrow && (
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40 max-[640px]:text-[10px] max-[640px]:tracking-[0.14em]">
-              {eyebrow}
-            </p>
-          )}
-          {title && <h3 className="text-xl font-semibold text-white max-[640px]:text-base">{title}</h3>}
-          {description && <p className="text-base text-white/48 max-[640px]:text-sm">{description}</p>}
-        </div>
-      )}
-      {children}
-    </section>
-  );
-}
-
-function MetricTile({
-  label,
-  value,
-  hint,
-  accent = "slate",
-  className = "",
-}: MetricTileProps) {
-  const accentClass =
-    accent === "emerald"
-      ? "border-emerald-400/16 bg-emerald-400/[0.08]"
-      : accent === "blue"
-        ? "border-blue-400/16 bg-blue-400/[0.08]"
-        : accent === "violet"
-          ? "border-violet-400/16 bg-violet-400/[0.08]"
-          : "border-white/10 bg-black/22";
-
-  return (
-    <div className={`card-modal-metric min-w-0 rounded-2xl border px-4 py-4 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-3 ${accentClass} ${className}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/38 max-[640px]:text-[10px]">{label}</p>
-      <p className="mt-2.5 break-words text-xl font-semibold tabular-nums text-white max-[640px]:mt-1.5 max-[640px]:text-lg">{value}</p>
-      {hint && <p className="mt-1.5 text-sm text-white/42 max-[640px]:text-xs">{hint}</p>}
-    </div>
-  );
-}
-
-function MarketRow({ label, value, hint }: MarketRowProps) {
-  return (
-    <div className="card-modal-market-row flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/8 bg-black/20 px-4 py-4 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-3">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36 max-[640px]:text-[10px]">{label}</p>
-        {hint && <p className="mt-1 text-sm text-white/40 max-[640px]:text-xs">{hint}</p>}
-      </div>
-      <p className="min-w-0 break-words text-right text-lg font-semibold tabular-nums text-white max-[640px]:text-base">{value}</p>
-    </div>
-  );
-}
-
 function MetaPill({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <span
@@ -467,9 +401,9 @@ function CompactDetailLink({
       href={href}
       prefetch={false}
       onClick={onClick}
-      className="group inline-flex max-w-full items-center gap-0.5 rounded-full border border-sky-300/16 bg-sky-300/[0.06] px-1.5 py-0.5 text-[11px] text-sky-100 transition-colors hover:border-sky-200/32 hover:bg-sky-300/[0.1] hover:text-white"
+      className="group inline-flex max-w-full items-center gap-1 rounded-full border border-sky-300/16 bg-sky-300/[0.06] px-2.5 py-1 text-xs font-semibold text-sky-100 transition-colors hover:border-sky-200/32 hover:bg-sky-300/[0.1] hover:text-white"
     >
-      <span className="min-w-0 break-words sm:truncate">{children}</span>
+      <span className="min-w-0 break-words">{children}</span>
       <ChevronRight className="h-3 w-3 shrink-0 text-sky-100/64 transition-transform group-hover:translate-x-0.5 group-hover:text-white" />
     </Link>
   );
@@ -486,6 +420,121 @@ function buildCollectionCard(card: ModalCardData) {
       code: card.episode_code,
     },
   };
+}
+
+export function CardModalDesktopActionGroup({
+  card,
+  collectionItem,
+  isBusy,
+  refreshing,
+  syncingHistory,
+  canManageCardPrices,
+  removingCollectionItem,
+  onRefresh,
+  onSyncHistory,
+  onRemoveCollectionItem,
+  onAddedToCollection,
+  onClose,
+}: {
+  card: ModalCardData;
+  collectionItem: ModalCardData["collection_item"] | null;
+  isBusy: boolean;
+  refreshing: boolean;
+  syncingHistory: boolean;
+  canManageCardPrices: boolean;
+  removingCollectionItem: boolean;
+  onRefresh: () => void;
+  onSyncHistory: () => void;
+  onRemoveCollectionItem: () => void;
+  onAddedToCollection?: () => void | Promise<void>;
+  onClose: () => void;
+}) {
+  const collectionCard = buildCollectionCard(card);
+  const locationLabel = collectionItem
+    ? collectionItem.binder_name
+      ? `In ${collectionItem.binder_name}`
+      : "Loose single"
+    : null;
+  const iconButtonClass =
+    "!inline-flex !h-10 !w-10 !items-center !justify-center !rounded-xl !border-white/10 !bg-white/[0.045] !p-0 !text-white/76 !transition-colors hover:!border-white/18 hover:!bg-white/[0.085] hover:!text-white";
+  const utilityButtonClass =
+    "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] p-0 text-white/70 transition-colors hover:border-white/18 hover:bg-white/[0.085] hover:text-white disabled:cursor-not-allowed disabled:opacity-50";
+
+  return (
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Card actions">
+      <CollectionAddCardButton
+        card={collectionCard}
+        mode="button"
+        theme="dark"
+        label={collectionItem ? "Add copy" : "Add to Collection"}
+        className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-500/22 !px-4 !text-sm !font-bold !text-white hover:!border-violet-200/38 hover:!bg-violet-500/30"
+        onAdded={onAddedToCollection}
+      />
+
+      <CollectionWantButton
+        card={collectionCard}
+        mode="button"
+        theme="dark"
+        label="Want"
+        initialWanted={Boolean(card.want_item)}
+        wantItemId={card.want_item?.id ?? null}
+        className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.045] !px-3 !text-sm !font-bold !text-white/78 hover:!border-white/18 hover:!bg-white/[0.08]"
+      />
+
+      {collectionItem && (
+        <>
+          <CollectionEditCardButton
+            card={collectionCard}
+            item={collectionItem}
+            mode="icon"
+            theme="dark"
+            label="Edit"
+            className={iconButtonClass}
+            onSaved={onClose}
+          />
+          <button
+            type="button"
+            onClick={onRemoveCollectionItem}
+            disabled={isBusy || removingCollectionItem}
+            className={`${utilityButtonClass} border-rose-300/18 bg-rose-500/[0.09] text-rose-100 hover:border-rose-200/32 hover:bg-rose-500/18 active:bg-rose-500/22`}
+            aria-label={
+              removingCollectionItem
+                ? "Removing this saved copy"
+                : "Remove this saved copy from collection"
+            }
+            title={locationLabel ? `Remove this copy: ${locationLabel}` : "Remove this saved copy"}
+          >
+            <Trash2 className={`h-4 w-4 ${removingCollectionItem ? "animate-pulse" : ""}`} />
+          </button>
+        </>
+      )}
+
+      {canManageCardPrices && (
+        <>
+          <button
+            type="button"
+            onClick={onSyncHistory}
+            disabled={isBusy}
+            className={utilityButtonClass}
+            aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
+            title={syncingHistory ? "Syncing..." : "Sync history"}
+          >
+            <LineChart className={`h-4 w-4 ${syncingHistory ? "animate-pulse" : ""}`} />
+          </button>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isBusy}
+            className={utilityButtonClass}
+            aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
+            title={refreshing ? "Refreshing..." : "Refresh"}
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          </button>
+        </>
+      )}
+    </div>
+  );
 }
 
 export function CardModalPreview({
@@ -512,11 +561,11 @@ export function CardModalPreview({
   const previewButtonClass =
     showGradedPreview && gradingCompanyLabel && gradingGradeLabel
       ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-xl border border-transparent shadow-md shadow-black/20 transition-all duration-200 hover:scale-[1.01] hover:shadow-xl hover:shadow-black/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35`
-      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] bg-[#d8d5cc] p-0 drop-shadow-[0_18px_38px_rgba(0,0,0,0.38)] transition-transform after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-white/14 hover:scale-[1.01]`;
+      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] bg-[#d8d5cc] p-0 drop-shadow-[0_22px_52px_rgba(0,0,0,0.42)] transition-transform after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-white/14 before:pointer-events-none before:absolute before:-inset-8 before:-z-10 before:bg-[radial-gradient(circle,rgba(139,92,246,0.35),rgba(16,185,129,0.12)_42%,transparent_68%)] before:blur-2xl hover:scale-[1.01]`;
 
   return (
     <aside
-      className="mx-auto flex h-full max-w-[min(13rem,62vw)] flex-col gap-3 sm:max-w-full sm:gap-4 max-[640px]:max-w-[min(10.5rem,52vw)] max-[640px]:gap-1.5 lg:mx-0"
+      className="mx-auto flex h-full max-w-[min(20rem,78vw)] flex-col gap-3 sm:max-w-full sm:gap-4 max-[640px]:max-w-[min(20rem,78vw)] max-[640px]:gap-1.5 lg:mx-0"
       style={{ width: mediaWidth }}
     >
       {card.image_url ? (
@@ -580,6 +629,550 @@ export function CardModalPreview({
   );
 }
 
+function getFirstHistoryValue(points: HistoryPointView[]): number | null {
+  for (const point of points) {
+    if (point.value != null && Number.isFinite(point.value)) return point.value;
+  }
+
+  return null;
+}
+
+function formatSignedPercent(value: number | null): string | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const prefix = value > 0 ? "+" : "";
+  return `${prefix}${value.toFixed(1)}%`;
+}
+
+function MobileDetailIconButton({
+  label,
+  children,
+  onClick,
+  disabled = false,
+  destructive = false,
+}: {
+  label: string;
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick();
+      }}
+      disabled={disabled}
+      className={`inline-flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-xl transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+        destructive
+          ? "border-rose-300/22 bg-rose-500/[0.12] text-rose-100 hover:border-rose-200/34 hover:bg-rose-500/20"
+          : "border-white/12 bg-black/38 text-white/86 hover:border-white/24 hover:bg-white/[0.1]"
+      }`}
+      aria-label={label}
+      title={label}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MobileInfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 border-b border-white/[0.07] py-3 last:border-b-0">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-white/68">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium leading-none text-white/42">{label}</p>
+        <div className="mt-1 min-w-0 text-[13px] font-semibold leading-snug text-white/88">
+          {value}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CardModalMobileShowcase({
+  card,
+  collectionItem,
+  previewAspectClass,
+  showGradedPreview,
+  gradingCompanyLabel,
+  gradingGradeLabel,
+  gradedTileSize,
+  cardMarketHistory,
+  activeCardMarketCurrentValue,
+  activeCardMarketSeriesLabel,
+  canManageCardPrices,
+  isBusy,
+  refreshing,
+  syncingHistory,
+  removingCollectionItem,
+  onClose,
+  onOpenThreeD,
+  onRefresh,
+  onSyncHistory,
+  onRemoveCollectionItem,
+  onAddedToCollection,
+}: {
+  card: ModalCardData;
+  collectionItem: ModalCardData["collection_item"] | null;
+  previewAspectClass: string;
+  showGradedPreview: boolean;
+  gradingCompanyLabel: SupportedGradedSlabCompany | null;
+  gradingGradeLabel: string | null;
+  gradedTileSize: CardSize;
+  cardMarketHistory: HistoryPointView[];
+  activeCardMarketCurrentValue: number | null;
+  activeCardMarketSeriesLabel: string;
+  canManageCardPrices: boolean;
+  isBusy: boolean;
+  refreshing: boolean;
+  syncingHistory: boolean;
+  removingCollectionItem: boolean;
+  onClose: () => void;
+  onOpenThreeD: () => void;
+  onRefresh: () => void;
+  onSyncHistory: () => void;
+  onRemoveCollectionItem: () => void;
+  onAddedToCollection?: () => void | Promise<void>;
+}) {
+  const [activeTab, setActiveTab] = useState("overview");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const collectionCard = buildCollectionCard(card);
+  const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
+  const metaPrefix = [card.episode_code, card.card_number ? `#${card.card_number}` : null]
+    .filter(Boolean)
+    .join(" ");
+  const language = collectionItem?.language?.trim() || "English";
+  const savedLabel = collectionItem ? "Saved" : "Not saved";
+  const conditionLabel =
+    collectionItem?.condition ||
+    (gradingCompanyLabel && gradingGradeLabel
+      ? `${gradingCompanyLabel} ${gradingGradeLabel}`
+      : "Near Mint");
+  const pullOdds =
+    card.pull_rate_info?.specific_pull_odds ?? card.pull_rate_info?.pull_rate_odds ?? "--";
+  const overallSpend =
+    collectionItem?.cost_basis_value ?? collectionItem?.purchase_price ?? null;
+  const average7d =
+    getRecentHistoryAverage(cardMarketHistory, 7) ?? card.price?.cm_en_avg_7d ?? null;
+  const average30d =
+    getRecentHistoryAverage(cardMarketHistory, 30) ?? card.price?.cm_en_avg_30d ?? null;
+  const firstHistoryValue = getFirstHistoryValue(cardMarketHistory);
+  const priceDeltaPercent =
+    activeCardMarketCurrentValue != null &&
+    firstHistoryValue != null &&
+    firstHistoryValue !== 0
+      ? ((activeCardMarketCurrentValue - firstHistoryValue) / Math.abs(firstHistoryValue)) * 100
+      : null;
+  const priceDeltaLabel = formatSignedPercent(priceDeltaPercent);
+  const priceDeltaPositive = priceDeltaPercent == null || priceDeltaPercent >= 0;
+  const tabs = ["overview", "market", "history", "owned", "listings"];
+  const showOverview = activeTab === "overview" || activeTab === "owned";
+  const showChart = activeTab !== "owned" && activeTab !== "listings";
+  const floatingButtonClass =
+    "!h-11 !w-11 !rounded-full !border-white/12 !bg-black/38 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-white/24 hover:!bg-white/[0.1]";
+
+  return (
+    <div className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(6.8rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_24%,rgba(139,92,246,0.38),transparent_34%),radial-gradient(circle_at_30%_22%,rgba(16,185,129,0.16),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent_52%)]" />
+
+      <div className="relative z-20 flex items-center justify-between">
+        <MobileDetailIconButton label="Back to collection" onClick={onClose}>
+          <ArrowLeft className="h-5 w-5" />
+        </MobileDetailIconButton>
+
+        <div className="relative flex items-center gap-2">
+          <CollectionAddCardButton
+            card={collectionCard}
+            mode="icon"
+            theme="dark"
+            label={collectionItem ? "Add copy" : "Add"}
+            className={floatingButtonClass}
+            onAdded={onAddedToCollection}
+          />
+          {collectionItem && (
+            <CollectionEditCardButton
+              card={collectionCard}
+              item={collectionItem}
+              mode="icon"
+              theme="dark"
+              label="Edit"
+              className={floatingButtonClass}
+              onSaved={onClose}
+            />
+          )}
+          {(collectionItem || canManageCardPrices) && (
+            <MobileDetailIconButton
+              label={moreOpen ? "Close more actions" : "More actions"}
+              onClick={() => setMoreOpen((value) => !value)}
+            >
+              <MoreHorizontal className="h-5 w-5" />
+            </MobileDetailIconButton>
+          )}
+
+          {moreOpen && (
+            <div className="absolute right-0 top-[3.25rem] z-40 min-w-52 overflow-hidden rounded-2xl border border-white/12 bg-[#0b0b0d]/94 p-1.5 text-sm font-semibold text-white shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
+              {collectionItem && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setMoreOpen(false);
+                    onRemoveCollectionItem();
+                  }}
+                  disabled={isBusy || removingCollectionItem}
+                  className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-rose-100 transition-colors hover:bg-rose-500/12 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className={`h-4 w-4 ${removingCollectionItem ? "animate-pulse" : ""}`} />
+                  Remove
+                </button>
+              )}
+              {canManageCardPrices && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setMoreOpen(false);
+                      onSyncHistory();
+                    }}
+                    disabled={isBusy}
+                    className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-white/82 transition-colors hover:bg-white/[0.075] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <LineChart className={`h-4 w-4 ${syncingHistory ? "animate-pulse" : ""}`} />
+                    History
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setMoreOpen(false);
+                      onRefresh();
+                    }}
+                    disabled={isBusy}
+                    className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-white/82 transition-colors hover:bg-white/[0.075] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-1 flex flex-col items-center">
+        <div className="relative w-[min(58vw,18rem)] max-w-full min-[430px]:w-[min(55vw,18rem)]">
+          <div className="pointer-events-none absolute -inset-10 rounded-[3rem] bg-[radial-gradient(circle,rgba(168,85,247,0.34),rgba(16,185,129,0.12)_42%,transparent_70%)] blur-2xl" />
+          {card.image_url ? (
+            <button
+              type="button"
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onOpenThreeD();
+              }}
+              className={`relative ${previewAspectClass} w-full overflow-hidden ${
+                showGradedPreview && gradingCompanyLabel && gradingGradeLabel
+                  ? "rounded-[1.15rem]"
+                  : "rounded-[4.75%]"
+              } bg-[#111] shadow-[0_28px_80px_rgba(0,0,0,0.62)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60`}
+              aria-label={`Open ${card.name} in 3D`}
+            >
+              {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (
+                <GradedSlabPreview
+                  company={gradingCompanyLabel}
+                  grade={gradingGradeLabel}
+                  name={card.name}
+                  episodeName={card.episode_name}
+                  episodeCode={card.episode_code}
+                  episodeSeries={card.episode_series}
+                  episodeReleaseDate={card.episode_release_date}
+                  cardNumber={card.card_number}
+                  bgsSubgrades={card.collection_item?.grading_subgrades ?? null}
+                  imageUrl={card.image_url}
+                  alt={card.name}
+                  className="absolute inset-0"
+                  sizes="58vw"
+                  loading="eager"
+                  priority
+                  tileSize={gradedTileSize}
+                />
+              ) : (
+                <Image
+                  src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                  alt={card.name}
+                  fill
+                  className="rounded-[4.75%] object-fill"
+                  sizes="58vw"
+                  loading="eager"
+                  priority
+                  unoptimized
+                />
+              )}
+            </button>
+          ) : (
+            <div className={`${previewAspectClass} flex w-full items-center justify-center rounded-[4.75%] border border-white/10 bg-white/[0.04] text-white/36`}>
+              ?
+            </div>
+          )}
+        </div>
+
+        <div className="mt-2.5 flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-violet-400 shadow-[0_0_18px_rgba(168,85,247,0.8)]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-white/18" />
+          <span className="h-2.5 w-2.5 rounded-full bg-white/18" />
+        </div>
+      </div>
+
+      <div className="relative z-10 mt-4">
+        <div className="relative min-w-0">
+          <span className="absolute right-0 top-0 shrink-0 rounded-full border border-violet-300/20 bg-violet-500/18 px-3 py-2 text-sm font-semibold text-violet-100 shadow-[0_14px_34px_rgba(109,40,217,0.18)]">
+            {conditionLabel}
+          </span>
+
+          <div className="min-w-0">
+            <h2 className="break-words pr-[7rem] text-[1.72rem] font-bold leading-[1.04] tracking-[-0.01em] text-white min-[390px]:text-[1.9rem]">
+              {card.name}
+            </h2>
+            <p className="mt-1.5 text-[13px] font-medium leading-snug text-white/52 min-[390px]:text-[14px]">
+              {metaPrefix || card.episode_name}
+              {normalizedRarity && (
+                <>
+                  <span className="mx-1.5 text-white/28">·</span>
+                  <span className="font-semibold text-fuchsia-200">{normalizedRarity}</span>
+                </>
+              )}
+            </p>
+            <p className="mt-1.5 flex items-center gap-3 text-[14px] font-semibold">
+              <span className={collectionItem ? "text-emerald-300" : "text-white/42"}>
+                {savedLabel}
+              </span>
+              <span className="text-white/46">{language}</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] gap-3">
+          <div className="rounded-[18px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <p className="text-[1.55rem] font-bold leading-none tabular-nums text-white min-[390px]:text-[1.7rem]">
+                {formatCurrency(activeCardMarketCurrentValue, "EUR")}
+              </p>
+              {priceDeltaLabel && (
+                <p
+                  className={`text-base font-semibold tabular-nums ${
+                    priceDeltaPositive ? "text-emerald-300" : "text-rose-300"
+                  }`}
+                >
+                  {priceDeltaLabel}
+                </p>
+              )}
+            </div>
+            <p className="mt-2 truncate text-[13px] font-medium text-white/48">
+              CardMarket · 7d avg {formatCurrency(average7d, "EUR")}
+            </p>
+          </div>
+
+          <div className="rounded-[18px] border border-white/10 bg-white/[0.045] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+            <div className="flex items-center justify-between gap-1.5 border-b border-white/[0.07] pb-2">
+              <p className="shrink-0 whitespace-nowrap text-[13px] font-medium text-white/46">
+                7d avg
+              </p>
+              <p className="text-[15px] font-semibold tabular-nums text-white">
+                {formatCurrency(average7d, "EUR")}
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-1.5 pt-2">
+              <p className="shrink-0 whitespace-nowrap text-[13px] font-medium text-white/46">
+                30d avg
+              </p>
+              <p className="text-[15px] font-semibold tabular-nums text-white">
+                {formatCurrency(average30d, "EUR")}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <nav className="mt-5 flex min-w-0 items-center justify-between border-b border-white/[0.08] text-[14px] font-semibold text-white/48">
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setActiveTab(tab)}
+              className={`relative min-h-11 min-w-0 px-1 capitalize transition-colors ${
+                activeTab === tab ? "text-violet-200" : "hover:text-white/78"
+              }`}
+            >
+              <span className="truncate">
+                {tab === "owned" ? "Owned (1)" : tab}
+              </span>
+              {activeTab === tab && (
+                <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-violet-400 shadow-[0_0_16px_rgba(168,85,247,0.75)]" />
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {showOverview && (
+          <div className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="grid grid-cols-2 gap-x-5">
+              <div className="min-w-0">
+                <MobileInfoRow
+                  icon={<Sparkles className="h-4 w-4" />}
+                  label="Set"
+                  value={
+                    <Link
+                      href={getExpansionHref(card.episode_id)}
+                      prefetch={false}
+                      onClick={onClose}
+                      className="inline-flex max-w-full items-center gap-1 text-white transition-colors hover:text-violet-100"
+                    >
+                      <span className="line-clamp-2 min-w-0">{card.episode_name}</span>
+                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/34" />
+                    </Link>
+                  }
+                />
+                <MobileInfoRow
+                  icon={<BadgeEuro className="h-4 w-4" />}
+                  label="Pull odds"
+                  value={<span className="tabular-nums">{pullOdds}</span>}
+                />
+                <MobileInfoRow
+                  icon={<ShoppingCart className="h-4 w-4" />}
+                  label="Overall spend"
+                  value={formatCurrency(overallSpend, "EUR")}
+                />
+              </div>
+
+              <div className="min-w-0 border-l border-white/[0.07] pl-5">
+                <MobileInfoRow
+                  icon={<UserRound className="h-4 w-4" />}
+                  label="Artist"
+                  value={
+                    card.artist ? (
+                      <Link
+                        href={`/illustrators/${encodeURIComponent(card.artist)}`}
+                        prefetch={false}
+                        onClick={onClose}
+                        className="inline-flex max-w-full items-center gap-1 text-white transition-colors hover:text-violet-100"
+                      >
+                        <span className="line-clamp-2 min-w-0">{card.artist}</span>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/34" />
+                      </Link>
+                    ) : (
+                      "--"
+                    )
+                  }
+                />
+                <MobileInfoRow
+                  icon={<Star className="h-4 w-4" />}
+                  label="Rarity"
+                  value={normalizedRarity ?? "--"}
+                />
+                <MobileInfoRow
+                  icon={<Globe2 className="h-4 w-4" />}
+                  label="Language"
+                  value={language}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "listings" && (
+          <div className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4">
+            <p className="text-sm font-semibold text-white">Listings</p>
+            <p className="mt-1 text-sm text-white/48">
+              Open market listings and deals for this card.
+            </p>
+            <Link
+              href={`/deals?cardId=${encodeURIComponent(card.id)}`}
+              prefetch={false}
+              className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] text-sm font-semibold text-white"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              View Listings
+            </Link>
+          </div>
+        )}
+
+        {showChart && (
+          <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.035] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <PriceHistoryPanel
+              title="Price History"
+              currency="EUR"
+              points={cardMarketHistory}
+              currentValue={activeCardMarketCurrentValue}
+              tone="dark"
+              layout="hero"
+              rangeStorageKey={`card-mobile-${card.id}`}
+              headerAccessory={
+                <span className="inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76">
+                  EUR · {activeCardMarketSeriesLabel}
+                </span>
+              }
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-[230] border-t border-white/10 bg-[#050505]/88 px-4 py-3 pb-[calc(0.8rem+env(safe-area-inset-bottom))] backdrop-blur-2xl">
+        <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
+          <CollectionAddCardButton
+            card={collectionCard}
+            mode="button"
+            theme="dark"
+            label={collectionItem ? "Add Copy" : "Add to Collection"}
+            className="!min-h-12 !rounded-2xl !border-violet-300/35 !bg-violet-600/72 !px-2 !text-[13px] !font-bold !shadow-[0_16px_34px_rgba(109,40,217,0.28)]"
+            onAdded={onAddedToCollection}
+          />
+          <CollectionWantButton
+            card={collectionCard}
+            mode="button"
+            theme="dark"
+            label="Want"
+            initialWanted={Boolean(card.want_item)}
+            wantItemId={card.want_item?.id ?? null}
+            className="!min-h-12 !rounded-2xl !border-white/10 !bg-white/[0.065] !px-2 !text-[13px] !font-bold"
+          />
+          <Link
+            href={`/deals?cardId=${encodeURIComponent(card.id)}`}
+            prefetch={false}
+            className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.065] px-2 text-center text-[13px] font-bold text-white transition-colors hover:border-white/18 hover:bg-white/[0.1]"
+          >
+            <ShoppingCart className="h-4 w-4 shrink-0" />
+            <span>Listings</span>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CardModalHeroSection({
   card,
   collectionItem,
@@ -588,16 +1181,7 @@ export function CardModalHeroSection({
   detailStatClass,
   gradingCompanyLabel,
   gradingGradeLabel,
-  isBusy,
-  refreshing,
-  syncingHistory,
   refreshError,
-  canManageCardPrices,
-  removingCollectionItem,
-  onRefresh,
-  onSyncHistory,
-  onRemoveCollectionItem,
-  onAddedToCollection,
   onClose,
 }: {
   card: ModalCardData;
@@ -607,19 +1191,9 @@ export function CardModalHeroSection({
   detailStatClass: string;
   gradingCompanyLabel: string | null;
   gradingGradeLabel: string | null;
-  isBusy: boolean;
-  refreshing: boolean;
-  syncingHistory: boolean;
   refreshError: string | null;
-  canManageCardPrices: boolean;
-  removingCollectionItem: boolean;
-  onRefresh: () => void;
-  onSyncHistory: () => void;
-  onRemoveCollectionItem: () => void;
-  onAddedToCollection?: () => void | Promise<void>;
   onClose: () => void;
 }) {
-  const collectionCard = buildCollectionCard(card);
   const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
   const typeLabel = [card.supertype, card.subtypes].filter(Boolean).join(" / ");
   const collectionTags = collectionItem?.tags ?? [];
@@ -728,229 +1302,94 @@ export function CardModalHeroSection({
         ...visibleCollectionStats.filter((stat) => stat.label === "Condition"),
       ]
     : heroDetailStats;
-  const quickActionButtonClass =
-    "!inline-flex !h-10 !w-10 !items-center !justify-center !rounded-xl !border-white/10 !bg-white/[0.08] !p-0 !leading-none hover:!border-white/18 hover:!bg-white/[0.13] sm:!h-9 sm:!w-9";
-  const utilityButtonClass =
-    "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] p-0 text-white/76 transition-colors hover:border-white/18 hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9";
-
-  return (
-    <SectionShell className="relative overflow-hidden border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.04))] !p-2.5 sm:!p-4">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),transparent_48%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.13),transparent_42%)] sm:h-32" />
-
-      <div className="relative">
-        <div className="flex min-w-0 items-start justify-between gap-2.5 sm:gap-3">
-          <div className="min-w-0 flex-1">
-            <h2 className={`${titleClass} break-words !text-[1.22rem] font-bold leading-tight text-white min-[390px]:!text-[1.32rem] sm:!text-[1.9rem]`}>
-              {card.name}
-            </h2>
-
-            <div
-              className={`mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] font-medium text-white/44 max-[640px]:mt-1 max-[640px]:gap-x-1.5 max-[640px]:text-[10px] ${metaClassName}`}
-            >
-              {headerMetaLabel && (
-                <span className="whitespace-nowrap">
-                  {headerMetaLabel}
-                </span>
-              )}
-              {normalizedRarity && (
-                <span
-                  className="whitespace-nowrap font-semibold text-fuchsia-200"
-                  title={card.rarity ?? normalizedRarity}
-                >
-                  {normalizedRarity}
-                </span>
-              )}
-              <span
-                className={`whitespace-nowrap ${
-                  collectionItem ? "text-emerald-200/80" : "text-white/48"
-                }`}
-              >
-                {collectionItem ? (
-                  <>
-                    <span className="max-[640px]:hidden">
-                      {collectionLocationLabel ?? "In DustyCards"}
-                    </span>
-                    <span className="hidden max-[640px]:inline">
-                      Saved
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="max-[640px]:hidden">Not in collection</span>
-                    <span className="hidden max-[640px]:inline">Not saved</span>
-                  </>
-                )}
-              </span>
-              {collectionLanguage && (
-                <span className="whitespace-nowrap text-white/44">{collectionLanguage}</span>
-              )}
-              {gradingCompanyLabel && gradingGradeLabel && (
-                <span className="whitespace-nowrap text-violet-200/80">
-                  {gradingCompanyLabel} {gradingGradeLabel}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="shrink-0">
-            <div
-              className="flex max-w-[8rem] flex-wrap items-center justify-end gap-1.5 min-[390px]:max-w-[10rem] sm:max-w-none"
-              aria-label="Quick actions"
-            >
-              <CollectionAddCardButton
-                card={collectionCard}
-                mode="icon"
-                theme="dark"
-                label={collectionItem ? "Add copy" : "Add"}
-                className={quickActionButtonClass}
-                onAdded={onAddedToCollection}
-              />
-
-              {collectionItem && (
-                <>
-                  <CollectionEditCardButton
-                    card={collectionCard}
-                    item={collectionItem}
-                    mode="icon"
-                    theme="dark"
-                    label="Edit"
-                    className={quickActionButtonClass}
-                    onSaved={onClose}
-                  />
-                  <button
-                    type="button"
-                    onClick={onRemoveCollectionItem}
-                    disabled={isBusy || removingCollectionItem}
-                    className={`${quickActionButtonClass} !border-rose-300/18 !bg-rose-500/[0.09] !text-rose-100 hover:!border-rose-200/32 hover:!bg-rose-500/18 active:!bg-rose-500/22`}
-                    aria-label={
-                      removingCollectionItem
-                        ? "Removing this saved copy"
-                        : "Remove this saved copy from collection"
-                    }
-                    title={
-                      collectionLocationLabel
-                        ? `Remove this copy: ${collectionLocationLabel}`
-                        : "Remove this saved copy"
-                    }
-                  >
-                    <Trash2
-                      className={`h-3.5 w-3.5 shrink-0 ${
-                        removingCollectionItem ? "animate-pulse" : ""
-                      }`}
-                    />
-                  </button>
-                </>
-              )}
-
-              {canManageCardPrices && (
-                <>
-                  <button
-                    type="button"
-                    onClick={onSyncHistory}
-                    disabled={isBusy}
-                    className={utilityButtonClass}
-                    aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
-                    title={syncingHistory ? "Syncing..." : "Sync history"}
-                  >
-                    <LineChart
-                      className={`h-3.5 w-3.5 ${syncingHistory ? "animate-pulse" : ""}`}
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onRefresh}
-                    disabled={isBusy}
-                    className={utilityButtonClass}
-                    aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
-                    title={refreshing ? "Refreshing..." : "Refresh"}
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-3 grid gap-1.5 max-[640px]:mt-2 max-[640px]:grid-cols-2 sm:grid-cols-3 xl:grid-cols-6">
-          {headerDetailStats.map((stat) => (
-            <div
-              key={stat.label}
-              className="min-w-0 rounded-xl border border-white/8 bg-black/14 px-3 py-2 backdrop-blur-sm max-[640px]:px-2.5 max-[640px]:py-1.5"
-            >
-              <p className="break-words text-[9px] font-semibold uppercase tracking-[0.14em] text-white/32 max-[640px]:tracking-[0.1em] sm:truncate">
-                {stat.label}
-              </p>
-              <div className="mt-1 min-w-0 break-words text-[13px] font-semibold leading-snug text-white/82 max-[640px]:text-[12px] sm:truncate sm:[&_*]:truncate">
-                {stat.value}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {collectionItem && (
-          <>
-            {collectionTags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {collectionTags.map((tag) => (
-                  <MetaPill key={tag}>{tag}</MetaPill>
-                ))}
-              </div>
-            )}
-
-            {collectionItem.notes && (
-              <div className={`mt-3 ${detailStatClass}`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
-                  Notes
-                </p>
-                <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-base text-white/72">
-                  {collectionItem.notes}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        {refreshError && <p className="mt-4 text-base text-rose-300">{refreshError}</p>}
-      </div>
-    </SectionShell>
+  const desktopDetailStats = headerDetailStats.filter(
+    (stat) => stat.label !== "Set" && stat.label !== "Artist"
   );
-}
-
-function CardModalCurrentPricingPanel({
-  metrics,
-  accent,
-}: {
-  metrics: PriceMetric[];
-  accent: PricingAccent;
-}) {
-  if (metrics.length === 0) return null;
-
-  const [activePrimaryMetric, ...activeSecondaryMetrics] = metrics;
 
   return (
-    <div className="card-modal-current-pricing-panel mt-4 border-t border-white/8 pt-4 max-[640px]:mt-2.5 max-[640px]:pt-2.5">
-      <div className="card-modal-pricing-metrics grid gap-4 max-[640px]:gap-2 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
-        <MetricTile
-          label={activePrimaryMetric.label}
-          value={activePrimaryMetric.value}
-          hint={activePrimaryMetric.hint ?? null}
-          accent={accent}
-          className="min-h-[128px] max-[640px]:min-h-0"
-        />
+    <section className="min-w-0 py-1 text-white">
+      <div className="min-w-0">
+        <div className="min-w-0">
+          <h2 className={`${titleClass} !text-[2rem] font-bold leading-tight tracking-[-0.01em] text-white`}>
+            {card.name}
+          </h2>
 
-        <div className="card-modal-market-rows grid gap-4">
-          {activeSecondaryMetrics.map((metric) => (
-            <MarketRow
-              key={metric.label}
-              label={metric.label}
-              value={metric.value}
-              hint={metric.hint ?? null}
-            />
-          ))}
+          <div
+            className={`mt-2 flex flex-wrap items-center gap-2 text-sm font-medium text-white/48 ${metaClassName}`}
+          >
+            {headerMetaLabel && <span>{headerMetaLabel}</span>}
+            {normalizedRarity && (
+              <span className="rounded-full border border-violet-300/18 bg-violet-500/14 px-2.5 py-1 text-xs font-semibold text-violet-100">
+                {normalizedRarity}
+              </span>
+            )}
+            <span className={collectionItem ? "text-emerald-300" : "text-white/42"}>
+              {collectionItem ? "Saved" : "Not saved"}
+            </span>
+            {collectionLanguage && <span>{collectionLanguage}</span>}
+            {gradingCompanyLabel && gradingGradeLabel && (
+              <span className="text-violet-200/80">
+                {gradingCompanyLabel} {gradingGradeLabel}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <CompactDetailLink href={getExpansionHref(card.episode_id)} onClick={onClose}>
+              {card.episode_name}
+            </CompactDetailLink>
+            {card.artist && (
+              <CompactDetailLink
+                href={`/illustrators/${encodeURIComponent(card.artist)}`}
+                onClick={onClose}
+              >
+                {card.artist}
+              </CompactDetailLink>
+            )}
+          </div>
         </div>
+
       </div>
-    </div>
+
+      <div className="mt-5 grid border-y border-white/[0.08]">
+        {desktopDetailStats.map((stat) => (
+          <div
+            key={stat.label}
+            className="grid min-w-0 grid-cols-[7.2rem_minmax(0,1fr)] items-center gap-4 border-b border-white/[0.07] py-3 last:border-b-0"
+          >
+            <p className="text-sm font-medium text-white/42">{stat.label}</p>
+            <div className="min-w-0 text-sm font-semibold leading-snug text-white/88 [&_*]:max-w-full">
+              {stat.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {collectionItem && (
+        <>
+          {collectionTags.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {collectionTags.map((tag) => (
+                <MetaPill key={tag}>{tag}</MetaPill>
+              ))}
+            </div>
+          )}
+
+          {collectionItem.notes && (
+            <div className={`mt-4 ${detailStatClass}`}>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
+                Notes
+              </p>
+              <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-white/72">
+                {collectionItem.notes}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+
+      {refreshError && <p className="mt-4 text-sm text-rose-300">{refreshError}</p>}
+    </section>
   );
 }
 
@@ -1391,101 +1830,109 @@ export function CardModalHistorySection({
   const historySegmentButtonClass =
     "min-w-0 flex-none rounded-full px-3 text-[11px] font-semibold transition-colors max-[640px]:px-2";
   return (
-    <SectionShell className="overflow-hidden max-[640px]:!p-2.5">
-      <div className="mb-2.5 flex flex-col gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5">
-          <p className="mr-0.5 shrink-0 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/40 sm:mr-1 sm:text-[10px] sm:tracking-[0.16em]">
-            Price history
-          </p>
+    <section
+      className="overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.026))] p-4 text-white shadow-[0_24px_80px_rgba(0,0,0,0.22)]"
+      data-accent={activePricingAccent}
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[13px] font-semibold text-white/86">Market Price</p>
+            <p className="mt-0.5 text-xs text-white/42">
+              {effectiveHistoryChartMode === "graded" ? "Graded market view" : "Raw market view"}
+            </p>
+          </div>
 
-          {hasGradedData && (
-            <div className="flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5">
-              {[
-                { key: "market" as const, label: "Raw" },
-                { key: "graded" as const, label: "Graded" },
-              ].map((mode) => (
-                <button
-                  key={mode.key}
-                  type="button"
-                  onClick={() => onSelectHistoryChartMode(mode.key)}
-                  className={`${historyPillClass} ${
-                    effectiveHistoryChartMode === mode.key
-                      ? "border-white/24 bg-white/14 text-white"
-                      : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                  }`}
-                >
-                  {mode.label}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+            {hasGradedData && (
+              <div className="flex min-w-0 flex-wrap items-center gap-1">
+                {[
+                  { key: "market" as const, label: "Raw" },
+                  { key: "graded" as const, label: "Graded" },
+                ].map((mode) => (
+                  <button
+                    key={mode.key}
+                    type="button"
+                    onClick={() => onSelectHistoryChartMode(mode.key)}
+                    className={`${historyPillClass} ${
+                      effectiveHistoryChartMode === mode.key
+                        ? ACTIVE_SEGMENT_CLASS
+                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                    }`}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-          {effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker && (
-            <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap items-center gap-1 sm:gap-1.5">
-              {availableCardMarketHistorySeries.map((series) => (
-                <button
-                  key={series.key}
-                  type="button"
-                  onClick={() => onSelectCardMarketHistorySeries(series.key)}
-                  className={`${historyPillClass} ${
-                    activeCardMarketHistorySeries === series.key
-                      ? "border-white/24 bg-white/14 text-white"
-                      : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                  }`}
-                >
-                  {series.label}
-                </button>
-              ))}
-            </div>
-          )}
+            {effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker && (
+              <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap items-center gap-1">
+                {availableCardMarketHistorySeries.map((series) => (
+                  <button
+                    key={series.key}
+                    type="button"
+                    onClick={() => onSelectCardMarketHistorySeries(series.key)}
+                    className={`${historyPillClass} ${
+                      activeCardMarketHistorySeries === series.key
+                        ? ACTIVE_SEGMENT_CLASS
+                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+                    }`}
+                  >
+                    {series.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-          {effectiveHistoryChartMode === "market" && showRawSourceToggle && (
-            <div className={`card-modal-source-toggle ${historySegmentClass}`}>
-              {[
-                { key: "cardmarket" as const, label: "CardMarket" },
-                { key: "tcgplayer" as const, label: "TCGPlayer" },
-              ].map((source) => (
-                <button
-                  key={source.key}
-                  type="button"
-                  onClick={() => onSelectMarketSource(source.key)}
-                  className={`${historySegmentButtonClass} ${
-                    activeMarketSource === source.key
-                      ? "bg-white text-gray-950"
-                      : "text-white/48 hover:text-white/78"
-                  }`}
-                >
-                  {source.label}
-                </button>
-              ))}
-            </div>
-          )}
+            {effectiveHistoryChartMode === "market" && showRawSourceToggle && (
+              <div className={`card-modal-source-toggle ${historySegmentClass}`}>
+                {[
+                  { key: "cardmarket" as const, label: "CardMarket" },
+                  { key: "tcgplayer" as const, label: "TCGPlayer" },
+                ].map((source) => (
+                  <button
+                    key={source.key}
+                    type="button"
+                    onClick={() => onSelectMarketSource(source.key)}
+                    className={`${historySegmentButtonClass} ${
+                      activeMarketSource === source.key
+                        ? ACTIVE_SEGMENT_CLASS
+                        : "text-white/48 hover:text-white/78"
+                    }`}
+                  >
+                    {source.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-          {effectiveHistoryChartMode === "graded" && showGradedSourceToggle && (
-            <div className={`card-modal-source-toggle ${historySegmentClass}`}>
-              {[
-                { key: "cardmarket" as const, label: "CardMarket" },
-                { key: "ebay" as const, label: "eBay sold" },
-              ].map((source) => (
-                <button
-                  key={source.key}
-                  type="button"
-                  onClick={() => onSelectGradedSource(source.key)}
-                  className={`${historySegmentButtonClass} ${
-                    effectiveGradedSource === source.key
-                      ? "bg-white text-gray-950"
-                      : "text-white/48 hover:text-white/78"
-                  }`}
-                >
-                  {source.label}
-                </button>
-              ))}
-            </div>
-          )}
+            {effectiveHistoryChartMode === "graded" && showGradedSourceToggle && (
+              <div className={`card-modal-source-toggle ${historySegmentClass}`}>
+                {[
+                  { key: "cardmarket" as const, label: "CardMarket" },
+                  { key: "ebay" as const, label: "eBay sold" },
+                ].map((source) => (
+                  <button
+                    key={source.key}
+                    type="button"
+                    onClick={() => onSelectGradedSource(source.key)}
+                    className={`${historySegmentButtonClass} ${
+                      effectiveGradedSource === source.key
+                        ? ACTIVE_SEGMENT_CLASS
+                        : "text-white/48 hover:text-white/78"
+                    }`}
+                  >
+                    {source.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {effectiveHistoryChartMode === "graded" ? (
-          <div className="space-y-3 pb-1">
+          <div className="space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               {!showGradedSourceToggle && (
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
@@ -1526,6 +1973,7 @@ export function CardModalHistorySection({
               points={activeGradedHistory.points}
               currentValue={activeGradedHistory.currentValue}
               tone="dark"
+              layout="hero"
             />
           </div>
         ) : (
@@ -1536,9 +1984,24 @@ export function CardModalHistorySection({
               points={activeMarketHistory.points}
               currentValue={activeMarketHistory.currentValue}
               tone="dark"
+              layout="hero"
             />
           </div>
         )}
+
+        <div className="grid overflow-hidden rounded-2xl border border-white/8 bg-black/18 sm:grid-cols-3">
+          {activePricingMetrics.slice(0, 3).map((metric) => (
+            <div
+              key={metric.label}
+              className="border-b border-white/8 px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
+            >
+              <p className="text-[11px] font-medium text-white/40">{metric.label}</p>
+              <p className="mt-1 text-base font-semibold tabular-nums text-white">
+                {metric.value}
+              </p>
+            </div>
+          ))}
+        </div>
 
         {effectiveHistoryChartMode === "graded" && effectiveGradedSource === "ebay" ? (
           <EbaySoldStatusLine
@@ -1548,22 +2011,16 @@ export function CardModalHistorySection({
             rawFloorValue={activeCardMarketCurrentValue}
           />
         ) : (
-          <CardPriceStatusLine card={card} />
+          <CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />
         )}
       </div>
-
-      <CardModalCurrentPricingPanel
-        metrics={activePricingMetrics}
-        accent={activePricingAccent}
-      />
-    </SectionShell>
+    </section>
   );
 }
 
 export function CardModalFooter({
   card,
   collectionItem,
-  footerGridClass,
   storedCardMarketUrl,
   onOpenCardMarket,
   onAddedToCollection,
@@ -1571,80 +2028,194 @@ export function CardModalFooter({
 }: {
   card: ModalCardData;
   collectionItem: ModalCardCollectionItem | null;
-  footerGridClass: string;
   storedCardMarketUrl: string | null;
   onOpenCardMarket: () => void;
   onAddedToCollection?: () => void | Promise<void>;
   onClose: () => void;
 }) {
   const collectionCard = buildCollectionCard(card);
-  const footerGroupClass = "min-w-0 rounded-2xl border border-white/8 bg-white/[0.035] p-2.5";
-  const footerGroupLabelClass =
-    "px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/34";
+  const panelClass =
+    "min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.022))] p-4";
+  const panelTitleClass = "text-sm font-semibold text-white";
   const marketButtonBase =
-    "inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors";
+    "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-center text-sm font-semibold text-white/82 transition-colors hover:border-white/18 hover:bg-white/[0.08] hover:text-white";
+  const ownedPrice =
+    collectionItem?.cost_basis_value ??
+    collectionItem?.purchase_price ??
+    card.price?.cm_en_lowest_nm ??
+    card.price?.cm_de_lowest_nm ??
+    card.price?.cm_fr_lowest_nm ??
+    card.price?.cm_es_lowest_nm ??
+    card.price?.cm_it_lowest_nm ??
+    null;
+  const recentPricePoints = card.price_history
+    .map((point) => ({
+      label: point.label,
+      value:
+        point.cm_market_en ??
+        point.cm_market ??
+        point.cm_market_de ??
+        point.cm_market_fr ??
+        point.cm_market_es ??
+        point.cm_market_it ??
+        point.tcp_market ??
+        null,
+    }))
+    .filter((point): point is { label: string; value: number } => point.value != null)
+    .slice(-5)
+    .reverse();
 
   return (
-    <div className={footerGridClass}>
-      <div className={`${footerGroupClass} lg:hidden`}>
-        <p className={footerGroupLabelClass}>Collection</p>
-        <div className={`mt-2 grid gap-2 ${collectionItem ? "sm:grid-cols-2" : ""}`}>
-          <CollectionAddCardButton
-            card={collectionCard}
-            mode="button"
-            theme="dark"
-            label="Add to DustyCards"
-            className="min-h-11 w-full"
-            onAdded={onAddedToCollection}
-          />
-
-          {collectionItem && (
-            <CollectionEditCardButton
-              card={collectionCard}
-              item={collectionItem}
-              mode="button"
-              theme="dark"
-              label="Edit card"
-              className="min-h-11 w-full"
-              onSaved={onClose}
-            />
-          )}
-        </div>
+    <div className="mt-1">
+      <div className="flex min-w-0 items-center gap-8 border-b border-white/10">
+        {["Overview", "Price History", "Owned (1)", "Listings", "Comparables"].map((tab, index) => (
+          <button
+            key={tab}
+            type="button"
+            className={`relative min-h-10 text-sm font-semibold transition-colors ${
+              index === 0 ? "text-violet-200" : "text-white/48 hover:text-white/78"
+            }`}
+          >
+            {tab}
+            {index === 0 && (
+              <span className="absolute inset-x-0 -bottom-px h-px rounded-full bg-violet-400 shadow-[0_0_14px_rgba(139,92,246,0.7)]" />
+            )}
+          </button>
+        ))}
       </div>
 
-      <div className={`${footerGroupClass} lg:col-span-2`}>
-        <p className={footerGroupLabelClass}>Market</p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {storedCardMarketUrl ? (
-            <a
-              href={storedCardMarketUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${marketButtonBase} bg-blue-600 hover:bg-blue-500`}
-            >
-              CardMarket
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenCardMarket}
-              className={`${marketButtonBase} bg-blue-600 hover:bg-blue-500`}
-            >
-              CardMarket
-              <ExternalLink className="h-4 w-4" />
-            </button>
-          )}
+      <div className="mt-4 grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+        <section className={panelClass}>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className={panelTitleClass}>Owned Copy</h3>
+            {collectionItem && (
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-white">
+                <Sparkles className="h-3.5 w-3.5" />
+              </span>
+            )}
+          </div>
 
-          <Link
-            href={`/deals?cardId=${encodeURIComponent(card.id)}`}
-            prefetch={false}
-            className={`${marketButtonBase} bg-emerald-600 hover:bg-emerald-500`}
-          >
-            eBay Deals
-            <ExternalLink className="h-4 w-4" />
-          </Link>
-        </div>
+          <div className="mt-4 flex gap-3">
+            {card.image_url && (
+              <div className="relative aspect-[63/88] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]">
+                <Image
+                  src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                  alt={card.name}
+                  fill
+                  sizes="64px"
+                  className="object-fill"
+                  unoptimized
+                />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white/88">
+                {collectionItem?.condition ?? "Not saved yet"}
+              </p>
+              <p className="mt-1 text-xs text-white/46">
+                {collectionItem?.language ?? "English"}
+              </p>
+              <p className="mt-3 text-lg font-semibold tabular-nums text-white">
+                {formatCurrency(ownedPrice, "EUR")}
+              </p>
+              {collectionItem?.binder_name && (
+                <p className="mt-1 truncate text-xs text-white/42">{collectionItem.binder_name}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2">
+            <CollectionAddCardButton
+              card={collectionCard}
+              mode="button"
+              theme="dark"
+              label={collectionItem ? "Add Another Copy" : "Add to Collection"}
+              className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.035] !text-sm !font-semibold"
+              onAdded={onAddedToCollection}
+            />
+          </div>
+        </section>
+
+        <section className={panelClass}>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className={panelTitleClass}>Recent Prices</h3>
+            <span className="text-xs font-semibold text-violet-200/80">View All</span>
+          </div>
+          <div className="mt-3 grid gap-0">
+            {recentPricePoints.length > 0 ? (
+              recentPricePoints.map((point) => (
+                <div
+                  key={`${point.label}-${point.value}`}
+                  className="flex items-center justify-between gap-3 border-b border-white/[0.07] py-2.5 last:border-b-0"
+                >
+                  <span className="truncate text-xs text-white/52">{point.label}</span>
+                  <span className="text-sm font-semibold tabular-nums text-white/84">
+                    {formatCurrency(point.value, "EUR")}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="rounded-xl border border-dashed border-white/10 px-3 py-6 text-center text-sm text-white/42">
+                No recent market points yet.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section className={panelClass}>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className={panelTitleClass}>Active Listings</h3>
+            <span className="text-xs font-semibold text-violet-200/80">Market</span>
+          </div>
+          <div className="mt-4 grid gap-2">
+            {storedCardMarketUrl ? (
+              <a
+                href={storedCardMarketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={marketButtonBase}
+              >
+                CardMarket
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            ) : (
+              <button type="button" onClick={onOpenCardMarket} className={marketButtonBase}>
+                CardMarket
+                <ExternalLink className="h-4 w-4" />
+              </button>
+            )}
+
+            <Link
+              href={`/deals?cardId=${encodeURIComponent(card.id)}`}
+              prefetch={false}
+              className={marketButtonBase}
+            >
+              eBay Deals
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
+
+        <section className={panelClass}>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className={panelTitleClass}>Related</h3>
+            <span className="text-xs font-semibold text-violet-200/80">Explore</span>
+          </div>
+          <div className="mt-3 grid gap-2">
+            <CompactDetailLink href={getExpansionHref(card.episode_id)} onClick={onClose}>
+              {card.episode_name}
+            </CompactDetailLink>
+            {card.artist && (
+              <CompactDetailLink
+                href={`/illustrators/${encodeURIComponent(card.artist)}`}
+                onClick={onClose}
+              >
+                {card.artist}
+              </CompactDetailLink>
+            )}
+            {card.rarity && <MetaPill>{normalizeRarityLabel(card.rarity) ?? card.rarity}</MetaPill>}
+          </div>
+        </section>
       </div>
     </div>
   );

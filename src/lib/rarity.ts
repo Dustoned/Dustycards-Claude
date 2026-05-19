@@ -105,6 +105,55 @@ export const KNOWN_RARITY_ORDER = [
   "LEGEND",
 ] as const;
 
+const COMPACT_RARITY_LABEL_MAP: Record<string, string> = {
+  Common: "C",
+  Uncommon: "UC",
+  Rare: "R",
+  "Super Rare": "SR",
+  "Secret Rare": "SEC",
+  Leader: "L",
+  "Rare Holo": "RH",
+  "Double Rare": "DR",
+  "Rare Holo EX": "EX",
+  "Rare Holo GX": "GX",
+  "Rare Holo V": "V",
+  "Rare Holo VSTAR": "VSTAR",
+  "Rare Holo LV.X": "LV.X",
+  "Rare Holo Star": "STAR",
+  "Rare Ultra": "UR",
+  "Ultra Rare": "UR",
+  "Radiant Rare": "RR",
+  "Amazing Rare": "AR",
+  "ACE SPEC Rare": "ACE",
+  "Rare BREAK": "BREAK",
+  "Rare Prism Star": "PRISM",
+  "Rare Prime": "PRIME",
+  "Rare Rainbow": "RAIN",
+  "Rare Shiny": "SH",
+  "Rare Shiny GX": "SHGX",
+  "Illustration Rare": "IR",
+  "Art Rare": "AR",
+  "Alternate Art": "ALT",
+  "Manga Rare": "MANGA",
+  "Special Rare": "SP",
+  "Special Illustration Rare": "SIR",
+  "Special Art Rare": "SAR",
+  "Shiny Rare": "SH",
+  "Shiny Ultra Rare": "SUR",
+  "Hyper Rare": "HR",
+  "Rare Shining": "SHIN",
+  "Rare ACE": "ACE",
+  "Trainer Gallery Rare Holo": "TG",
+  "Classic Collection": "CC",
+  "Black White Rare": "BWR",
+  "Mega Attack Rare": "MAR",
+  "Mega Hyper Rare": "MHR",
+  Promo: "PR",
+  "Treasure Rare": "TR",
+  "DON!!": "DON",
+  LEGEND: "LEG",
+};
+
 export function normalizeRarityLabel(rarity: string | null | undefined): string | null {
   const value = rarity?.trim();
   if (!value) return null;
@@ -116,4 +165,23 @@ export function normalizeRarityLabel(rarity: string | null | undefined): string 
     .toLowerCase();
 
   return RARITY_LABEL_MAP[normalizedKey] ?? value;
+}
+
+export function getCompactRarityLabel(rarity: string | null | undefined): string | null {
+  const normalized = normalizeRarityLabel(rarity);
+  if (!normalized) return null;
+
+  const compact = COMPACT_RARITY_LABEL_MAP[normalized];
+  if (compact) return compact;
+  if (normalized.length <= 6) return normalized;
+
+  const initials = normalized
+    .replace(/[^\p{L}\p{N}\s!]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+
+  return initials.slice(0, 4) || normalized.slice(0, 4).toUpperCase();
 }

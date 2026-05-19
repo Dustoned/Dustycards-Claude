@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
@@ -19,10 +19,16 @@ interface NavGroup {
   items: ReadonlyArray<NavItem>;
 }
 
-const COLLECTION_ITEM: NavItem = {
+const HOME_ITEM: NavItem = {
   href: "/",
+  label: "Home",
+  matches: ["home"],
+};
+
+const COLLECTION_ITEM: NavItem = {
+  href: "/?tab=complete",
   label: "Collection",
-  matches: ["/", "/binders"],
+  matches: ["collection"],
 };
 
 const WANTS_ITEM: NavItem = {
@@ -31,14 +37,56 @@ const WANTS_ITEM: NavItem = {
   matches: ["/wants"],
 };
 
+const COLLECTION_CARDS_ITEM: NavItem = {
+  href: "/?tab=complete",
+  label: "Complete Collection",
+  matches: ["tab:complete", "tab:cards"],
+};
+
+const COLLECTION_SINGLES_ITEM: NavItem = {
+  href: "/?tab=singles",
+  label: "Loose Singles",
+  matches: ["tab:singles"],
+};
+
+const COLLECTION_BINDERS_ITEM: NavItem = {
+  href: "/?tab=binders",
+  label: "Binders",
+  matches: ["tab:binders", "/binders"],
+};
+
+const COLLECTION_SEALED_ITEM: NavItem = {
+  href: "/?tab=sealed",
+  label: "Sealed",
+  matches: ["tab:sealed"],
+};
+
+const COLLECTION_GRADED_ITEM: NavItem = {
+  href: "/?tab=graded",
+  label: "Graded",
+  matches: ["tab:graded"],
+};
+
+const SEARCH_ITEM: NavItem = {
+  href: "/search",
+  label: "Search",
+  matches: ["/search"],
+};
+
 const BASE_BROWSE_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/expansions", label: "Expansions", matches: ["/expansions"] },
   { href: "/categories", label: "Categories", matches: ["/categories"] },
   { href: "/illustrators", label: "Illustrators", matches: ["/illustrators"] },
 ];
 
+const ONE_PIECE_BROWSE_ITEM: NavItem = {
+  href: "/one-piece/expansions",
+  label: "One Piece Sets",
+  matches: ["/one-piece"],
+};
+
 const MARKET_ITEMS: ReadonlyArray<NavItem> = [
-  { href: "/movers", label: "Movers", matches: ["/movers"] },
+  { href: "/movers", label: "Market", matches: ["/movers"] },
   { href: "/deals", label: "Deals", matches: ["/deals"] },
 ];
 
@@ -49,7 +97,9 @@ function getNavGroups(onePieceEnabled: boolean): ReadonlyArray<NavGroup> {
       matches: onePieceEnabled
         ? ["/expansions", "/categories", "/illustrators", "/one-piece"]
         : ["/expansions", "/categories", "/illustrators"],
-      items: BASE_BROWSE_ITEMS,
+      items: onePieceEnabled
+        ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM]
+        : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS],
     },
     {
       label: "Market",
@@ -77,11 +127,44 @@ function isActive(pathname: string, matches: ReadonlyArray<string>): boolean {
   );
 }
 
+function isTopLevelActive(pathname: string, tab: string | null, item: NavItem): boolean {
+  const tabMatches = item.matches
+    .filter((match) => match.startsWith("tab:"))
+    .map((match) => match.slice(4));
+
+  if (tabMatches.length > 0) {
+    const matchesTab = tabMatches.some((targetTab) =>
+      targetTab === "overview" ? !tab || tab === "overview" : tab === targetTab
+    );
+    const matchesPath = item.matches
+      .filter((match) => !match.startsWith("tab:"))
+      .some((match) => isActive(pathname, [match]));
+
+    return (pathname === "/" && matchesTab) || matchesPath;
+  }
+
+  if (item.matches[0] === "home") {
+    return pathname === "/" && (!tab || tab === "overview");
+  }
+
+  if (item.matches[0] === "collection") {
+    return (
+      pathname === "/binders" ||
+      pathname.startsWith("/binders/") ||
+      (pathname === "/" && Boolean(tab && tab !== "overview"))
+    );
+  }
+
+  if (item.href === "/movers") return pathname.startsWith("/movers");
+
+  return isActive(pathname, item.matches);
+}
+
 function desktopLinkClasses(active: boolean): string {
-  return `inline-flex h-[calc(var(--ui-header-search-height)-0.55rem)] items-center rounded-full px-3 font-medium transition-colors [font-size:var(--ui-nav-link-size)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-400 dark:focus-visible:outline-white/45 ${
+  return `inline-flex h-[calc(var(--ui-header-search-height)-0.55rem)] items-center rounded-full border border-transparent px-3 font-semibold transition-colors [font-size:var(--ui-nav-link-size)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/45 ${
     active
-      ? "bg-gray-900 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-900 dark:shadow-none"
-      : "text-gray-500 hover:bg-black/[0.045] hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.07] dark:hover:text-white"
+      ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+      : "text-white/55 hover:bg-white/[0.07] hover:text-white"
   }`;
 }
 
@@ -92,18 +175,34 @@ function desktopTriggerClasses(active: boolean): string {
 function menuLinkClasses(active: boolean): string {
   return `block rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
     active
-      ? "bg-black/[0.055] text-gray-950 dark:bg-white/[0.09] dark:text-white"
-      : "text-gray-600 hover:bg-black/[0.04] hover:text-gray-950 dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
+      ? "bg-white/[0.09] text-white"
+      : "text-white/68 hover:bg-white/[0.06] hover:text-white"
   }`;
 }
 
-function getMobileSections(): ReadonlyArray<{
+function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
   label: string;
   items: ReadonlyArray<NavItem>;
 }> {
   return [
-    { label: "Collection", items: [COLLECTION_ITEM, WANTS_ITEM] },
-    { label: "Browse", items: BASE_BROWSE_ITEMS },
+    {
+      label: "Collection",
+      items: [
+        HOME_ITEM,
+        COLLECTION_CARDS_ITEM,
+        COLLECTION_SINGLES_ITEM,
+        COLLECTION_BINDERS_ITEM,
+        COLLECTION_SEALED_ITEM,
+        COLLECTION_GRADED_ITEM,
+      ],
+    },
+    { label: "Wants", items: [WANTS_ITEM] },
+    {
+      label: "Browse",
+      items: onePieceEnabled
+        ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM]
+        : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS],
+    },
     { label: "Market", items: MARKET_ITEMS },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
   ];
@@ -111,6 +210,8 @@ function getMobileSections(): ReadonlyArray<{
 
 export function HeaderNav() {
   const pathname = usePathname() ?? "/";
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab");
   const { settings } = useSettings();
   const onePieceEnabled = settings.onePieceLibraryEnabled;
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -142,10 +243,10 @@ export function HeaderNav() {
   return (
     <div
       ref={navRef}
-      className="hidden shrink-0 items-center gap-1 rounded-full border border-black/8 bg-black/[0.025] p-1 dark:border-white/8 dark:bg-white/[0.04] 2xl:flex"
+      className="hidden shrink-0 items-center gap-1 rounded-full border border-white/9 bg-white/[0.045] p-1 shadow-sm shadow-black/20 2xl:flex"
     >
-      {[COLLECTION_ITEM, WANTS_ITEM].map((item) => {
-        const active = isActive(pathname, item.matches);
+      {[HOME_ITEM, COLLECTION_ITEM, WANTS_ITEM].map((item) => {
+        const active = isTopLevelActive(pathname, tab, item);
         return (
           <Link
             key={item.href}
@@ -204,7 +305,7 @@ export function HeaderNav() {
                 <div
                   role="menu"
                   aria-label={`${group.label} navigation`}
-                  className="rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/12 dark:border-white/10 dark:bg-zinc-950 dark:shadow-black/45"
+                  className="rounded-2xl border border-white/10 bg-zinc-950/96 p-2 shadow-xl shadow-black/45 backdrop-blur-xl"
                 >
                   {group.items.map((item) => {
                     const itemActive = isActive(pathname, item.matches);
@@ -249,10 +350,14 @@ export function HeaderNav() {
 
 export function HeaderMobileMenu() {
   const pathname = usePathname() ?? "/";
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab");
+  const { settings } = useSettings();
+  const onePieceEnabled = settings.onePieceLibraryEnabled;
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const mobileSections = getMobileSections();
+  const mobileSections = getMobileSections(onePieceEnabled);
 
   // Close on outside interaction/Escape, lock body scroll while open.
   useEffect(() => {
@@ -291,7 +396,7 @@ export function HeaderMobileMenu() {
         aria-expanded={open}
         aria-controls="header-mobile-menu"
         aria-label={open ? "Close menu" : "Open menu"}
-        className="flex h-[calc(var(--ui-header-search-height)-0.1rem)] w-[calc(var(--ui-header-search-height)-0.1rem)] items-center justify-center gap-2 rounded-full border border-black/10 px-0 text-gray-700 transition-colors hover:border-black/20 hover:bg-black/5 dark:border-white/10 dark:text-gray-200 dark:hover:border-white/20 dark:hover:bg-white/8 sm:w-auto sm:px-3"
+        className="flex h-[calc(var(--ui-header-search-height)-0.1rem)] w-[calc(var(--ui-header-search-height)-0.1rem)] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.055] px-0 text-white/78 shadow-sm shadow-black/20 transition-colors hover:border-white/18 hover:bg-white/[0.09] sm:w-auto sm:px-3"
       >
         {open ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         <span className="hidden text-sm font-semibold sm:inline">Menu</span>
@@ -314,20 +419,20 @@ export function HeaderMobileMenu() {
             aria-label="Main navigation"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            className="absolute left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] max-h-[calc(100dvh-var(--ui-header-height)-1rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-2xl border border-black/8 bg-white p-2 shadow-xl shadow-black/10 [scrollbar-width:thin] dark:border-white/10 dark:bg-zinc-900 dark:shadow-black/40 sm:left-6 sm:right-auto sm:w-80"
+            className="absolute left-3 right-3 top-[calc(var(--ui-header-height)+0.5rem)] max-h-[calc(100dvh-var(--ui-header-height)-1rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-[22px] border border-white/10 bg-zinc-950/96 p-2 shadow-xl shadow-black/45 [scrollbar-width:thin] backdrop-blur-xl sm:left-6 sm:right-auto sm:w-80"
           >
             {mobileSections.map((section, index) => (
               <div
                 key={section.label}
                 className={
-                  index === 0 ? "pb-1" : "border-t border-black/6 py-1 dark:border-white/8"
+                  index === 0 ? "pb-1" : "border-t border-white/8 py-1"
                 }
               >
-                <p className="px-3 pb-1 pt-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/42">
+                <p className="px-3 pb-1 pt-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-white/38">
                   {section.label}
                 </p>
                 {section.items.map((item) => {
-                  const active = isActive(pathname, item.matches);
+                    const active = isTopLevelActive(pathname, tab, item);
                   return (
                     <Link
                       key={item.href}
@@ -338,8 +443,8 @@ export function HeaderMobileMenu() {
                       onClick={() => setOpen(false)}
                       className={`block rounded-xl px-4 py-2.5 text-[15px] font-medium transition-colors ${
                         active
-                          ? "bg-black/[0.05] text-gray-900 dark:bg-white/[0.08] dark:text-white"
-                          : "text-gray-700 hover:bg-black/[0.035] dark:text-gray-200 dark:hover:bg-white/[0.05]"
+                          ? "bg-white/[0.09] text-white"
+                          : "text-white/68 hover:bg-white/[0.055] hover:text-white"
                       }`}
                     >
                       {item.label}

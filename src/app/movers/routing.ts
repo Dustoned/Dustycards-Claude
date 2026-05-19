@@ -16,9 +16,10 @@ export function normalizeMoversScope(value: string | null | undefined): MoversPa
     value === "all" ||
     value === "graded" ||
     value === "grading" ||
-    value === "sealed"
+    value === "sealed" ||
+    value === "value"
     ? value
-    : "value";
+    : "collection";
 }
 
 export function normalizeMoversItemScope(
@@ -61,7 +62,7 @@ export function buildMoversModeHref(
   }
 
   if (mode === "value") {
-    params.delete("source");
+    params.set("scope", "value");
   } else if (mode === "graded") {
     params.set("scope", "graded");
   } else if (mode === "targets") {

@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import {
   buildCardMarketProductUrl,
@@ -26,9 +25,11 @@ import {
 } from "@/lib/price-history";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import {
+  CardModalDesktopActionGroup,
   CardModalFooter,
   CardModalHeroSection,
   CardModalHistorySection,
+  CardModalMobileShowcase,
   CardModalPreview,
 } from "./card-modal/CardModalSections";
 import type { ModalCardData } from "./card-modal/types";
@@ -187,6 +188,18 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     displaySettings.modalSize,
     displaySettings.widescreen
   );
+  const desktopWorkspaceStyle = {
+    maxWidth: `min(100%, ${layout.maxW})`,
+  };
+  const desktopGridClass = displaySettings.widescreen
+    ? "grid gap-5 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)] 2xl:gap-6"
+    : "grid gap-6 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)]";
+  const desktopPreviewClass = displaySettings.widescreen
+    ? "lg:row-span-2 2xl:row-span-1 2xl:justify-self-center"
+    : "lg:row-span-2 2xl:row-span-1";
+  const desktopHistoryClass = displaySettings.widescreen
+    ? "min-w-0 lg:col-start-2 2xl:col-start-auto"
+    : "min-w-0 lg:col-start-2 2xl:col-start-auto";
   const gradedPrices = modalCard.graded_prices ?? [];
   const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];
   const gradedPriceHistory = modalCard.graded_price_history ?? [];
@@ -451,78 +464,79 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   return (
     <>
       <div
-        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-3 py-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))] sm:items-center sm:p-4"
-        style={{
-          backgroundColor: "rgba(0,0,0,0.72)",
-          backdropFilter: "blur(14px)",
-          overscrollBehavior: "contain",
-        }}
+        className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/72 px-0 py-0 backdrop-blur-[14px] sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:block md:bg-[#050505] md:p-0 md:backdrop-blur-none xl:left-[15rem]"
+        style={{ overscrollBehavior: "contain" }}
         onClick={onClose}
       >
         <div
-          className="relative w-[min(100%,calc(100vw-1.5rem))] max-w-full sm:w-full"
-          style={{ maxWidth: layout.maxW }}
+          className="relative w-full max-w-full sm:w-[min(100%,calc(100vw-1.5rem))] md:w-full"
           onClick={(event) => event.stopPropagation()}
         >
-          <button
-            type="button"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onClose();
-            }}
-            className="absolute right-2 top-2 z-50 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-black/35 text-white/72 backdrop-blur-xl transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35 sm:right-3 sm:top-3 sm:h-10 sm:w-10 sm:border-transparent sm:bg-transparent sm:text-white/50"
-            aria-label="Close card details"
-            title="Close"
-          >
-            <X className="h-[18px] w-[18px] stroke-[1.8]" />
-          </button>
-
           <div
             ref={modalFrameRef}
             role="dialog"
             aria-modal="true"
             aria-label={modalCard.name}
-            className="card-modal-frame glass relative max-h-[calc(100dvh-1.5rem)] w-full max-w-full overflow-y-auto overscroll-contain rounded-[32px] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)]"
+            className="card-modal-frame glass relative h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain rounded-none border border-white/12 bg-[rgba(10,10,12,0.92)] [scrollbar-gutter:stable] shadow-none md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
             data-modal-size={displaySettings.modalSize}
-            style={{
-              background: "rgba(10,10,12,0.92)",
-              border: "1px solid rgba(255,255,255,0.12)",
-            }}
+            data-mobile-showcase="true"
           >
-            <div className={`card-modal-content-pad ${layout.pad}`}>
-              <div
-                className={`grid ${layout.gridGap} lg:grid-cols-[auto_minmax(0,1fr)] lg:items-stretch`}
-              >
-                <CardModalPreview
-                  card={modalCard}
-                  mediaWidth={layout.mediaWidth}
-                  imageSize={layout.imageSize}
-                  previewAspectClass={previewAspectClass}
-                  showGradedPreview={showGradedPreview}
-                  gradingCompanyLabel={gradingCompanyLabel}
-                  gradingGradeLabel={gradingGradeLabel}
-                  gradedTileSize={displaySettings.cardSize}
-                  onOpenThreeD={openThreeDView}
-                />
+            <div className="md:hidden">
+              <CardModalMobileShowcase
+                card={modalCard}
+                collectionItem={collectionItem}
+                previewAspectClass={previewAspectClass}
+                showGradedPreview={showGradedPreview}
+                gradingCompanyLabel={gradingCompanyLabel}
+                gradingGradeLabel={gradingGradeLabel}
+                gradedTileSize={displaySettings.cardSize}
+                cardMarketHistory={cardMarketHistory}
+                activeCardMarketCurrentValue={activeCardMarketCurrentValue}
+                activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
+                canManageCardPrices={canManageCardPrices}
+                isBusy={isBusy}
+                refreshing={refreshing}
+                syncingHistory={syncingHistory}
+                removingCollectionItem={removingCollectionItem}
+                onClose={onClose}
+                onOpenThreeD={openThreeDView}
+                onRefresh={() => void runCardAction("refresh")}
+                onSyncHistory={() => void runCardAction("sync-history")}
+                onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
+                onAddedToCollection={refreshModalCardFromServer}
+              />
+            </div>
 
-                <div className="min-w-0 space-y-3">
-                  <CardModalHeroSection
+            <div className="card-modal-desktop-workspace hidden md:block">
+              <div
+                className="mx-auto flex min-h-dvh w-full flex-col gap-5 px-6 py-6 lg:px-8 lg:py-7"
+                style={desktopWorkspaceStyle}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onClose();
+                    }}
+                    className="group inline-flex min-h-10 items-center gap-2 rounded-full border border-transparent px-1.5 pr-3 text-sm font-semibold text-white/58 transition-colors hover:border-white/10 hover:bg-white/[0.045] hover:text-white"
+                  >
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] transition-colors group-hover:border-white/18 group-hover:bg-white/[0.08]">
+                      <span aria-hidden="true" className="text-lg leading-none">
+                        &lt;
+                      </span>
+                    </span>
+                    Back to Collection
+                  </button>
+
+                  <CardModalDesktopActionGroup
                     card={modalCard}
                     collectionItem={collectionItem}
-                    titleClass={layout.titleClass}
-                    metaClassName={layout.metaClassName}
-                    detailStatClass={layout.detailStatClass}
-                    gradingCompanyLabel={gradingCompanyLabel}
-                    gradingGradeLabel={gradingGradeLabel}
                     isBusy={isBusy}
                     refreshing={refreshing}
                     syncingHistory={syncingHistory}
-                    refreshError={refreshError}
                     canManageCardPrices={canManageCardPrices}
                     removingCollectionItem={removingCollectionItem}
                     onRefresh={() => void runCardAction("refresh")}
@@ -531,7 +545,44 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                     onAddedToCollection={refreshModalCardFromServer}
                     onClose={onClose}
                   />
+                </div>
 
+              <div
+                className={desktopGridClass}
+              >
+                <div className={desktopPreviewClass}>
+                  <CardModalPreview
+                    card={modalCard}
+                    mediaWidth={
+                      displaySettings.widescreen
+                        ? "clamp(20rem, 22vw, 27.5rem)"
+                        : layout.mediaWidth
+                    }
+                    imageSize={layout.imageSize}
+                    previewAspectClass={previewAspectClass}
+                    showGradedPreview={showGradedPreview}
+                    gradingCompanyLabel={gradingCompanyLabel}
+                    gradingGradeLabel={gradingGradeLabel}
+                    gradedTileSize={displaySettings.cardSize}
+                    onOpenThreeD={openThreeDView}
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <CardModalHeroSection
+                    card={modalCard}
+                    collectionItem={collectionItem}
+                    titleClass={layout.titleClass}
+                    metaClassName={layout.metaClassName}
+                    detailStatClass={layout.detailStatClass}
+                    gradingCompanyLabel={gradingCompanyLabel}
+                    gradingGradeLabel={gradingGradeLabel}
+                    refreshError={refreshError}
+                    onClose={onClose}
+                  />
+                </div>
+
+                <div className={desktopHistoryClass}>
                   <CardModalHistorySection
                     historyChartMode={effectiveHistoryChartMode}
                     activeMarketSource={effectiveMarketDataSource}
@@ -564,17 +615,17 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                   />
                 </div>
               </div>
-            </div>
 
-            <CardModalFooter
-              card={modalCard}
-              collectionItem={collectionItem}
-              footerGridClass={layout.footerGridClass}
-              storedCardMarketUrl={storedCardMarketUrl}
-              onOpenCardMarket={openCardMarket}
-              onAddedToCollection={refreshModalCardFromServer}
-              onClose={onClose}
-            />
+              <CardModalFooter
+                card={modalCard}
+                collectionItem={collectionItem}
+                storedCardMarketUrl={storedCardMarketUrl}
+                onOpenCardMarket={openCardMarket}
+                onAddedToCollection={refreshModalCardFromServer}
+                onClose={onClose}
+              />
+              </div>
+            </div>
           </div>
         </div>
       </div>

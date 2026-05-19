@@ -58,6 +58,11 @@ const RARITIES = [
 
 const SUPERTYPES = ["Pokémon", "Trainer", "Energy"];
 
+const ACTIVE_OPTION_CLASS =
+  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+const INACTIVE_OPTION_CLASS =
+  "border-white/8 text-white/55 hover:border-white/18 hover:bg-white/[0.055] hover:text-white";
+
 function SegmentGroup<T extends string>({
   label,
   options,
@@ -86,9 +91,7 @@ function SegmentGroup<T extends string>({
               type="button"
               onClick={() => onChange(option.value)}
               className={`min-h-9 rounded-lg border px-2.5 text-sm font-semibold transition ${
-                active
-                  ? "border-gray-950 bg-gray-950 text-white shadow-sm dark:border-white dark:bg-white dark:text-gray-950"
-                  : "border-black/8 text-gray-500 hover:border-black/20 hover:text-gray-950 dark:border-white/8 dark:text-gray-400 dark:hover:border-white/18 dark:hover:text-white"
+                active ? ACTIVE_OPTION_CLASS : INACTIVE_OPTION_CLASS
               }`}
               title={option.description}
             >
@@ -159,8 +162,8 @@ function ChipList({
             onClick={() => onToggle(item)}
             className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
               active
-                ? "border-gray-950 bg-gray-950 text-white dark:border-white dark:bg-white dark:text-gray-950"
-                : "border-black/8 text-gray-500 hover:border-black/20 hover:text-gray-950 dark:border-white/8 dark:text-gray-400 dark:hover:border-white/18 dark:hover:text-white"
+                ? ACTIVE_OPTION_CLASS
+                : INACTIVE_OPTION_CLASS
             }`}
           >
             {item}

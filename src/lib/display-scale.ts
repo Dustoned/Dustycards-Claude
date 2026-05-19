@@ -6,10 +6,10 @@ type TrackScale = Record<UiScale, Record<DisplayMode, number>>;
 type CardTrackScale = Record<CardSize, Record<DisplayMode, number>>;
 
 const CARD_GRID_TRACK: CardTrackScale = {
-  xsmall: { normal: 132, wide: 152 },
-  small: { normal: 160, wide: 192 },
-  medium: { normal: 220, wide: 280 },
-  large: { normal: 340, wide: 430 },
+  xsmall: { normal: 110, wide: 122 },
+  small: { normal: 128, wide: 144 },
+  medium: { normal: 154, wide: 176 },
+  large: { normal: 188, wide: 212 },
 };
 
 const MOBILE_CARD_GRID_COLUMNS: Record<CardSize, number> = {
@@ -26,9 +26,9 @@ const SUPPORT_TILE_TRACK: TrackScale = {
 };
 
 const SEALED_PRODUCT_TRACK: TrackScale = {
-  small: { normal: 220, wide: 250 },
-  medium: { normal: 320, wide: 380 },
-  large: { normal: 470, wide: 560 },
+  small: { normal: 210, wide: 230 },
+  medium: { normal: 260, wide: 300 },
+  large: { normal: 330, wide: 380 },
 };
 
 const MOBILE_SEALED_PRODUCT_COLUMNS = 2;
@@ -40,9 +40,9 @@ const RICH_MOVER_TRACK: TrackScale = {
 };
 
 const DETAIL_MODAL_MEDIA: Record<ModalSize, { imagePx: number; mediaWidth: string }> = {
-  small: { imagePx: 224, mediaWidth: "14rem" },
-  medium: { imagePx: 320, mediaWidth: "20rem" },
-  large: { imagePx: 448, mediaWidth: "28rem" },
+  small: { imagePx: 280, mediaWidth: "17.5rem" },
+  medium: { imagePx: 360, mediaWidth: "22.5rem" },
+  large: { imagePx: 460, mediaWidth: "28.75rem" },
 };
 
 function displayMode(widescreen: boolean): DisplayMode {
@@ -78,7 +78,8 @@ export function getCardGridTemplateColumns(
     return `repeat(${MOBILE_CARD_GRID_COLUMNS[cardSize]}, minmax(0, 1fr))`;
   }
 
-  return getFixedTrackGridTemplate(getCardGridTrackWidth(cardSize, widescreen));
+  const trackWidth = getCardGridTrackWidth(cardSize, widescreen);
+  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), ${trackWidth}))`;
 }
 
 export function getCardGridImageSizes(
@@ -116,7 +117,8 @@ export function getSealedProductGridTemplateColumns(
     return `repeat(${MOBILE_SEALED_PRODUCT_COLUMNS}, minmax(0, 1fr))`;
   }
 
-  return getFixedTrackGridTemplate(getSealedProductTrackWidth(cardSize, widescreen));
+  const trackWidth = getSealedProductTrackWidth(cardSize, widescreen);
+  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), ${trackWidth}))`;
 }
 
 export function getSealedProductImageSizes(
@@ -224,11 +226,11 @@ export function getDetailModalScale(size: ModalSize, widescreen: boolean) {
       footerPad: "px-3 pb-3 sm:px-4 sm:pb-4",
       gridGap: "gap-3 sm:gap-4",
       imageSize,
-      maxW: widescreen ? "66rem" : "62rem",
+      maxW: widescreen ? "100rem" : "86rem",
       mediaWidth: media.mediaWidth,
       metaClassName: "text-[13px]",
       pad: "p-3 sm:p-4",
-      titleClass: "text-[1.45rem] sm:text-[1.75rem]",
+      titleClass: "text-[1.45rem] sm:text-[2rem]",
     };
   }
 
@@ -237,7 +239,7 @@ export function getDetailModalScale(size: ModalSize, widescreen: boolean) {
       footerPad: "px-6 pb-6 sm:px-7 sm:pb-7 xl:px-8 xl:pb-8",
       gridGap: "gap-7 sm:gap-8",
       imageSize,
-      maxW: widescreen ? "112rem" : "104rem",
+      maxW: widescreen ? "124rem" : "104rem",
       mediaWidth: media.mediaWidth,
       metaClassName: "text-[17px] sm:text-lg",
       pad: "p-4 sm:p-8",
@@ -247,9 +249,9 @@ export function getDetailModalScale(size: ModalSize, widescreen: boolean) {
 
   return {
     footerPad: "px-5 pb-5 sm:px-6 sm:pb-6",
-    gridGap: "gap-5 sm:gap-6",
-    imageSize,
-    maxW: widescreen ? "88rem" : "82rem",
+      gridGap: "gap-5 sm:gap-6",
+      imageSize,
+    maxW: widescreen ? "112rem" : "94rem",
     mediaWidth: media.mediaWidth,
     metaClassName: "text-[15px] sm:text-base",
     pad: "p-4 sm:p-6",

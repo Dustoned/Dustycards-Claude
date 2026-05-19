@@ -17,7 +17,7 @@ import type { CollectionCardViewItem } from "@/types/collection-view";
 
 const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
   loading: () => (
-    <section className="min-h-[var(--ui-dashboard-header-panel-min-height)] rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]" />
+    <section className="min-h-[var(--ui-dashboard-header-panel-min-height)] rounded-[var(--ui-page-header-radius)] border border-white/8 bg-white/[0.04]" />
   ),
 });
 
@@ -121,7 +121,7 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
         }
         leadingVisual={
             <div
-              className="flex h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-black/8 bg-white/80 p-[var(--ui-binder-header-logo-padding)] text-gray-500 shadow-sm shadow-black/10 dark:border-white/10 dark:bg-white/8 dark:text-white/70"
+              className="flex h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-[var(--ui-binder-header-logo-padding)] text-white/70 shadow-sm shadow-black/20"
               style={accentColor ? { color: accentColor } : undefined}
             >
               {data.binder.episode?.logo_url ? (
@@ -141,7 +141,7 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
         }
         description={
           <div className="space-y-5">
-            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-gray-600 dark:text-white/62">
+            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-white/62">
               {data.binder.episode
                 ? `${data.binder.episode.series ?? "Set"} / ${data.binder.episode.name}`
                 : "Custom binder"}

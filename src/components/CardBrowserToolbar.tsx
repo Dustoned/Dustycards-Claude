@@ -3,6 +3,9 @@
 import { type ReactNode } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
+const ACTIVE_SEGMENT_CLASS =
+  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+
 export interface CardBrowserToolbarOption {
   value: string;
   label: string;
@@ -64,69 +67,63 @@ interface Props {
 
 function metaChipClass(accent = false): string {
   return accent
-    ? "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-blue-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-blue-700 max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs dark:text-blue-300"
-    : "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55";
+    ? "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-violet-400/30 bg-violet-400/12 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-violet-200 max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs"
+    : "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-white/55 max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs";
 }
 
 function actionButtonClass(active = false): string {
   return `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs ${
     active
-      ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
-      : "border-black/8 bg-white/70 text-gray-600 hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+      ? ACTIVE_SEGMENT_CLASS
+      : "border-white/8 bg-white/[0.045] text-white/62 hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
   }`;
 }
 
 function sectionCardClass(): string {
-  return "overflow-hidden rounded-2xl border border-black/8 bg-white/72 px-3 py-3 shadow-sm shadow-black/5 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2.5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20";
+  return "overflow-hidden rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3 shadow-sm shadow-black/20 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2.5";
 }
 
 function controlsStripClass(): string {
-  return "rounded-2xl border border-black/8 bg-black/[0.018] p-2 dark:border-white/8 dark:bg-white/[0.025]";
+  return "rounded-2xl border border-white/8 bg-white/[0.035] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
 }
 
 function sectionLabelClass(): string {
-  return "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 max-[640px]:w-auto max-[640px]:text-[9px] dark:text-white/35";
+  return "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35 max-[640px]:w-auto max-[640px]:text-[9px]";
 }
 
 function compactSegmentedShellClass(): string {
-  return "inline-flex min-w-0 overflow-hidden rounded-xl border border-black/8 bg-white/58 dark:border-white/8 dark:bg-white/[0.04]";
+  return "inline-flex min-w-0 gap-1 rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20";
 }
 
 function segmentedButtonClass(active: boolean): string {
-  return `min-h-8 px-3 py-1.5 text-xs font-semibold leading-none transition-colors sm:px-3.5 ${
+  return `inline-flex min-h-8 min-w-0 items-center justify-center rounded-full border border-transparent px-3 py-1.5 text-xs font-bold leading-none transition-colors sm:px-3.5 ${
     active
-      ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-      : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+      ? ACTIVE_SEGMENT_CLASS
+      : "text-white/56 hover:bg-white/[0.07] hover:text-white"
   }`;
 }
 
 function countBadgeClass(active: boolean): string {
   return `inline-flex min-h-[var(--ui-chip-count-min-height)] items-center rounded-full px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)] font-semibold leading-none ${
     active
-      ? "bg-black/12 text-current dark:bg-white/12"
-      : "bg-black/6 text-gray-400 dark:bg-white/8 dark:text-white/35"
+      ? "bg-white/14 text-current"
+      : "bg-white/8 text-white/35"
   }`;
 }
 
 function activeFilterChipClass(): string {
-  return "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-black/[0.035] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white";
+  return "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-white/62 transition-colors hover:border-white/16 hover:text-white";
 }
-
-function mobileSelectClass(): string {
-  return "h-9 w-full rounded-xl border border-black/8 bg-white/78 px-2.5 text-xs font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14";
-}
-
-const mobileOptionClass = "bg-white text-gray-950 dark:bg-gray-950 dark:text-white";
 
 function mobileSegmentedShellClass(): string {
-  return "grid min-w-0 gap-1 rounded-xl border border-black/8 bg-white/72 p-1 dark:border-white/8 dark:bg-white/[0.05]";
+  return "grid min-w-0 gap-1 rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20";
 }
 
 function mobileSegmentedButtonClass(active: boolean): string {
-  return `min-h-8 min-w-0 rounded-lg px-1.5 text-[11px] font-black leading-none transition-colors ${
+  return `min-h-8 min-w-0 rounded-full border border-transparent px-1.5 text-[11px] font-black leading-none transition-colors ${
     active
-      ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
-      : "text-gray-500 hover:bg-black/[0.035] hover:text-gray-950 dark:text-white/55 dark:hover:bg-white/8 dark:hover:text-white"
+      ? ACTIVE_SEGMENT_CLASS
+      : "text-white/56 hover:bg-white/[0.07] hover:text-white"
   }`;
 }
 
@@ -143,7 +140,7 @@ function MobileSegmentedControl({
 }) {
   return (
     <div className="min-w-0">
-      <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+      <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-white/35">
         {label}
       </span>
       <div
@@ -316,30 +313,30 @@ export default function CardBrowserToolbar({
       className={
         hideSearch
           ? "card-browser-toolbar mb-3 space-y-2 sm:mb-4"
-          : "card-browser-toolbar glass mb-3 space-y-2.5 rounded-2xl border border-black/8 px-3 py-3 shadow-sm shadow-black/5 dark:border-white/8 sm:mb-4 sm:space-y-3 sm:rounded-3xl sm:px-4 sm:py-4"
+          : "card-browser-toolbar binder-panel mb-3 space-y-2.5 rounded-[22px] px-3 py-3 sm:mb-4 sm:space-y-3 sm:rounded-[26px] sm:px-4 sm:py-4"
       }
     >
       {hideSearch ? (
-        <div className="flex flex-col gap-2 rounded-2xl border border-black/8 bg-white/70 p-2 shadow-sm shadow-black/5 backdrop-blur-xl dark:border-white/8 dark:bg-white/[0.04] dark:shadow-black/20 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 rounded-2xl border border-white/8 bg-white/[0.04] p-2 shadow-sm shadow-black/20 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
           <section className="hidden min-w-0 sm:block">{desktopControls}</section>
           {metaControls}
         </div>
       ) : (
         <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
           <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/38" />
             <input
               type="text"
               placeholder={searchPlaceholder}
               value={searchValue}
               onChange={(event) => onSearchChange(event.target.value)}
-              className="w-full rounded-2xl border border-black/8 bg-white/78 py-2.5 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 max-[640px]:h-10 max-[640px]:rounded-xl max-[640px]:py-2 max-[640px]:text-sm dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
+              className="w-full rounded-2xl border border-white/10 bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white outline-none transition-colors placeholder:text-white/34 focus:border-white/20 focus:bg-black/20 max-[640px]:h-10 max-[640px]:rounded-xl max-[640px]:py-2 max-[640px]:text-sm"
             />
             {searchValue && (
               <button
                 type="button"
                 onClick={() => onSearchChange("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-900 dark:text-white/35 dark:hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/38 transition-colors hover:text-white"
                 aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
@@ -353,27 +350,17 @@ export default function CardBrowserToolbar({
       <section
         className={`grid gap-2 sm:hidden ${
           hideSearch
-            ? "rounded-2xl border border-black/8 bg-white/70 p-2 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]"
+            ? "rounded-2xl border border-white/8 bg-white/[0.04] p-2 shadow-sm shadow-black/20"
             : ""
         }`}
       >
-        <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2">
-          <label className="block">
-            <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-              View
-            </span>
-            <select
-              value={activeView}
-              onChange={(event) => onViewChange(event.target.value)}
-              className={mobileSelectClass()}
-            >
-              {viewOptions.map((option) => (
-                <option key={option.value} value={option.value} className={mobileOptionClass}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+        <div className={`grid gap-2 ${sizeOptions.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+          <MobileSegmentedControl
+            label="View"
+            options={viewOptions}
+            value={activeView}
+            onChange={onViewChange}
+          />
 
           {sizeOptions.length > 0 && (
             <MobileSegmentedControl

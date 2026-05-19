@@ -12,7 +12,9 @@ import {
   getDisplayedCheapHighRarityMovers,
   loadMoversPageData,
 } from "@/app/movers/page-data";
+import { GAME_SEARCH_PARAM, getGameFilterSearchParamValue, parseVisibleGameFilter } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 import type { CollectionMoversData } from "@/lib/movers";
 
 export const dynamic = "force-dynamic";
@@ -20,21 +22,27 @@ export const dynamic = "force-dynamic";
 export default async function CheapHighRarityMoversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; scope?: string; view?: string }>;
+  searchParams: Promise<{ source?: string; scope?: string; view?: string; game?: string }>;
 }) {
-  const { source, scope, view } = await searchParams;
+  const { source, scope, view, game } = await searchParams;
   const nextParams = new URLSearchParams();
   if (source) nextParams.set("source", source);
   if (scope) nextParams.set("scope", scope);
   if (view) nextParams.set("view", view);
+  if (game) nextParams.set(GAME_SEARCH_PARAM, game);
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/movers/cheap-high-rarity${nextQuery ? `?${nextQuery}` : ""}`);
+  const settings = await getServerUserSettings(user.id);
+  const activeGame = parseVisibleGameFilter(game, {
+    onePieceEnabled: settings.onePieceLibraryEnabled,
+  });
   const { data, activePriceSource, activeScope, activeItemScope } =
     await loadMoversPageData(
       source,
       scope === "sealed" ? "collection" : scope ?? "collection",
       view,
-      user.id
+      user.id,
+      activeGame
     );
   const cardScope = activeScope === "value" ? "collection" : activeScope;
   const cardData = data as CollectionMoversData;
@@ -48,13 +56,16 @@ export default async function CheapHighRarityMoversPage({
     { label: "Under 10", value: underTenCount.toLocaleString("en-US"), Icon: Gem, tone: "sky" },
     { label: "Owned x2+", value: ownedMultipleCount.toLocaleString("en-US"), Icon: TrendingUp, tone: "emerald" },
   ] satisfies HeaderStat[];
+  const gameValue = getGameFilterSearchParamValue(activeGame);
+  const withGame = (href: string) =>
+    gameValue ? `${href}${href.includes("?") ? "&" : "?"}${GAME_SEARCH_PARAM}=${gameValue}` : href;
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="flex w-full flex-col gap-8">
         <PageHeroHeader
           eyebrow="Secondary Pocket"
-          title="Cheap movers with strong rarity"
+          title="Cheap rarity market"
           description={
             isAllScope
               ? "A focused view for affordable high-rarity cards across all tracked cards that already show price movement."
@@ -64,25 +75,25 @@ export default async function CheapHighRarityMoversPage({
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-white/50">
                 <Link
-                  href={buildMoversSourceHref(
+                  href={withGame(buildMoversSourceHref(
                     "/movers",
                     activePriceSource,
                     cardScope,
                     activeItemScope
-                  )}
+                  ))}
                   prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Back to movers
+                  Back to market
                 </Link>
                 <Link
-                  href={buildMoversSourceHref(
+                  href={withGame(buildMoversSourceHref(
                     "/movers/discount-watch",
                     activePriceSource,
                     cardScope,
                     activeItemScope
-                  )}
+                  ))}
                   prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
                 >
@@ -108,7 +119,7 @@ export default async function CheapHighRarityMoversPage({
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-3 py-1.5 text-emerald-700 dark:text-emerald-200">
             <TrendingUp className="h-4 w-4" />
-            Positive movers first
+            Positive moves first
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/[0.08] px-3 py-1.5 text-sky-700 dark:text-sky-200">
             <Gem className="h-4 w-4" />
@@ -121,9 +132,9 @@ export default async function CheapHighRarityMoversPage({
           activeScope={cardScope}
           activeItemScope={activeItemScope}
           eyebrow="Secondary Pocket"
-          title="Cheap movers with strong rarity"
-          description="Search, filter, and sort only the affordable high-rarity movers in this pocket."
-          emptyTitle="No cheap high-rarity movers yet"
+          title="Cheap rarity market"
+          description="Search, filter, and sort only the affordable high-rarity cards in this pocket."
+          emptyTitle="No cheap high-rarity cards yet"
           emptyDescription="No cards currently meet the conditions for this pocket."
         />
       </div>

@@ -39,10 +39,10 @@ export const modalSelectClass =
 
 export const modalLabelClass = "space-y-1.5 text-sm max-[640px]:text-[12px]";
 
-export const modalOptionClass = "bg-white text-gray-900";
+export const modalOptionClass = "bg-[#080808] text-white";
 
 export const modalPrimaryButtonClass =
-  "flex-1 rounded-2xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:py-2.5 max-[640px]:text-[13px]";
+  "flex-1 rounded-2xl border border-violet-300/35 bg-violet-600/85 px-4 py-3 font-semibold text-white shadow-[0_14px_34px_rgba(109,40,217,0.26)] transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:py-2.5 max-[640px]:text-[13px]";
 
 export const modalSecondaryButtonClass =
   "rounded-2xl bg-white/8 px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-white/12 hover:text-white disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-2.5 max-[640px]:text-[13px]";

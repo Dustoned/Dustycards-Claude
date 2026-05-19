@@ -216,10 +216,16 @@ export default function HeaderSearch() {
           event.preventDefault();
           submitSearch(new FormData(event.currentTarget));
         }}
-        className="hidden min-w-0 flex-1 items-center justify-center lg:flex"
+        className="dc-search-shell hidden min-w-0 flex-1 items-center justify-center lg:flex"
       >
-        <div className="flex h-[var(--ui-header-search-height)] w-full max-w-[var(--ui-header-search-max)] items-center rounded-full border border-black/8 bg-black/[0.03] px-2 pl-4 shadow-sm shadow-black/5 transition-colors focus-within:border-black/15 focus-within:bg-black/[0.04] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-black/20 dark:focus-within:border-white/20 dark:focus-within:bg-white/[0.07]">
-          <Search className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/40" />
+        <div className="flex h-[var(--ui-header-search-height)] w-full max-w-[var(--ui-header-search-max)] items-center rounded-full border border-white/10 bg-[#050505] px-3 shadow-none transition-colors focus-within:border-white/22">
+          <button
+            type="submit"
+            aria-label="Search"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/42 transition-colors hover:bg-white/[0.06] hover:text-white"
+          >
+            <Search className="h-4 w-4" />
+          </button>
           <input
             ref={inputRef}
             name="q"
@@ -227,16 +233,10 @@ export default function HeaderSearch() {
             defaultValue={activeQuery}
             onChange={(event) => handleChange(event.target.value)}
             placeholder="Search cards, sealed, expansions..."
-            className="h-full min-w-0 flex-1 bg-transparent px-3 text-gray-900 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35 [font-size:var(--ui-nav-link-size)]"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-white outline-none placeholder:text-white/40 [font-size:var(--ui-nav-link-size)]"
             autoComplete="off"
             spellCheck={false}
           />
-          <button
-            type="submit"
-            className="inline-flex h-[calc(var(--ui-header-search-height)-0.5rem)] shrink-0 items-center rounded-full border border-black/8 bg-white/80 px-3 font-semibold text-gray-900 transition-colors hover:border-black/15 hover:bg-white dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/14 [font-size:var(--ui-header-button-size)]"
-          >
-            Search
-          </button>
         </div>
       </form>
 
@@ -244,7 +244,7 @@ export default function HeaderSearch() {
         type="button"
         aria-label="Open search"
         onClick={openMobileSearch}
-        className="inline-flex h-[calc(var(--ui-header-search-height)-0.35rem)] w-[calc(var(--ui-header-search-height)-0.35rem)] items-center justify-center rounded-full border border-black/8 bg-black/[0.03] text-gray-500 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/55 dark:hover:border-white/20 dark:hover:text-white lg:hidden"
+        className="inline-flex h-[calc(var(--ui-header-search-height)-0.35rem)] w-[calc(var(--ui-header-search-height)-0.35rem)] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/72 shadow-sm shadow-black/20 transition-colors hover:border-white/18 hover:bg-white/[0.085] hover:text-white lg:hidden"
       >
         <Search className="h-4 w-4" />
       </button>
@@ -255,17 +255,17 @@ export default function HeaderSearch() {
             event.preventDefault();
             submitSearch(new FormData(event.currentTarget));
           }}
-          className="absolute inset-x-3 top-1/2 z-[90] flex h-[calc(var(--ui-header-height)-0.65rem)] -translate-y-1/2 items-center gap-2 rounded-full border border-black/10 bg-white/95 px-2 shadow-xl shadow-black/15 backdrop-blur-xl dark:border-white/12 dark:bg-zinc-950/95 dark:shadow-black/50 lg:hidden"
+          className="dc-search-shell absolute inset-x-3 top-1/2 z-[90] flex h-[calc(var(--ui-header-height)-0.65rem)] -translate-y-1/2 items-center gap-2 rounded-full border border-white/10 bg-[#050505] px-2 shadow-xl shadow-black/50 lg:hidden"
         >
           <button
             type="button"
             aria-label="Close search"
             onClick={closeMobileSearch}
-            className="inline-flex h-[calc(var(--ui-header-search-height)-0.25rem)] w-[calc(var(--ui-header-search-height)-0.25rem)] shrink-0 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-black/[0.05] hover:text-gray-950 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+            className="inline-flex h-[calc(var(--ui-header-search-height)-0.25rem)] w-[calc(var(--ui-header-search-height)-0.25rem)] shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
-          <Search className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/40" />
+          <Search className="h-4 w-4 shrink-0 text-white/40" />
           <input
             ref={mobileInputRef}
             name="q"
@@ -277,7 +277,7 @@ export default function HeaderSearch() {
               handleChange(nextQuery);
             }}
             placeholder="Search cards..."
-            className="h-full min-w-0 flex-1 bg-transparent text-base font-medium text-gray-950 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent text-base font-medium text-white outline-none placeholder:text-white/35"
             autoComplete="off"
             spellCheck={false}
             enterKeyHint="search"
@@ -286,7 +286,7 @@ export default function HeaderSearch() {
             type="button"
             aria-label={mobileQuery.trim() ? "Clear search" : "Close search"}
             onClick={clearMobileSearch}
-            className="inline-flex h-[calc(var(--ui-header-search-height)-0.25rem)] w-[calc(var(--ui-header-search-height)-0.25rem)] shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/[0.05] hover:text-gray-950 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white"
+            className="inline-flex h-[calc(var(--ui-header-search-height)-0.25rem)] w-[calc(var(--ui-header-search-height)-0.25rem)] shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
           >
             <X className="h-4 w-4" />
           </button>

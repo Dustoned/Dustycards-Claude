@@ -307,18 +307,18 @@ export default async function IllustratorsPage({
 
   return (
     <div className={`page-container mx-auto ${pageMaxWidth} px-4 py-5 sm:px-6 sm:py-8 lg:px-8`}>
-      <section className="relative mb-6 w-full overflow-hidden rounded-[var(--ui-page-header-radius)] border border-black/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.76),rgba(255,255,255,0.52))] p-3 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.032))] dark:shadow-black/20 sm:mb-8 sm:p-4 lg:p-5">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent dark:via-white/18" />
+      <section className="binder-panel relative mb-4 w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:mb-5 sm:p-4 lg:p-5">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
-          <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-black/8 bg-black/[0.018] p-[var(--ui-page-header-padding)] dark:border-white/8 dark:bg-black/10 xl:col-span-2">
+          <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/10 p-[var(--ui-page-header-padding)] xl:col-span-2">
             <div className="min-w-0">
-              <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/42">
+              <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
                 {activeGame === ONE_PIECE_GAME ? "One Piece Library" : "Dusty Cards Collection"}
               </p>
-              <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-gray-950 dark:text-white">
+              <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
                 {activeGame === ONE_PIECE_GAME ? "One Piece Illustrators" : "Illustrators"}
               </h1>
-              <p className="mt-3 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-gray-500 dark:text-white/56">
+              <p className="mt-3 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
                 {`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked ${libraryLabel} cards.`}
               </p>
             </div>
@@ -338,9 +338,9 @@ export default async function IllustratorsPage({
         </div>
       </section>
 
-      <div className="glass mb-8 flex flex-col gap-4 rounded-3xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8 lg:flex-row lg:items-center">
+      <div className="binder-subpanel mb-5 flex flex-col gap-3 rounded-2xl px-3 py-3 lg:flex-row lg:items-center">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex h-9 items-center rounded-2xl border border-black/8 bg-white/70 px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/42">
+          <span className="inline-flex h-8 items-center rounded-full border border-white/8 bg-white/[0.04] px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/42">
             Sort
           </span>
           <IllustratorSortToggle activeSort={sort} />

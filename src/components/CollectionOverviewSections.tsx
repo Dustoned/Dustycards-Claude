@@ -87,9 +87,10 @@ const DESKTOP_CARD_LAYOUT_OPTIONS: Array<{
   label: string;
   title: string;
 }> = [
-  { value: "small", label: "Small", title: "Small card tiles" },
-  { value: "medium", label: "Medium", title: "Medium card tiles" },
-  { value: "large", label: "Large", title: "Large card tiles" },
+  { value: "large", label: "1", title: "Largest card tiles" },
+  { value: "medium", label: "2", title: "Medium card tiles" },
+  { value: "small", label: "3", title: "Small card tiles" },
+  { value: "xsmall", label: "4", title: "Densest card tiles" },
 ];
 
 function moveVisibleSection(
@@ -151,11 +152,11 @@ function SectionReorderControls({
   onMoveDown: () => void;
 }) {
   const buttonClass =
-    "inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/6 hover:text-gray-950 disabled:pointer-events-none disabled:opacity-30 dark:text-white/50 dark:hover:bg-white/8 dark:hover:text-white";
+    "inline-flex h-7 w-7 items-center justify-center rounded-full text-white/50 transition-colors hover:bg-white/8 hover:text-white disabled:pointer-events-none disabled:opacity-30";
 
   return (
     <div
-      className="inline-flex select-none items-center rounded-full border border-black/8 bg-black/[0.03] p-0.5 touch-manipulation dark:border-white/8 dark:bg-white/[0.04]"
+      className="hidden select-none items-center rounded-full border border-white/8 bg-white/[0.045] p-0.5 touch-manipulation sm:inline-flex"
       aria-label={`Reorder ${label}`}
     >
       <button
@@ -325,9 +326,9 @@ export default function CollectionOverviewSections({
             />
 
             {binders.length === 0 ? (
-              <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
-                <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">No binders yet</p>
-                <p className="text-sm text-gray-400">
+              <div className="binder-panel rounded-2xl px-5 py-7 text-center sm:rounded-3xl sm:px-8 sm:py-9">
+                <p className="mb-1 font-medium text-white/76">No binders yet</p>
+                <p className="text-sm text-white/42">
                   Type a set name for an automatic set binder, or create a custom binder.
                 </p>
               </div>
@@ -383,17 +384,17 @@ export default function CollectionOverviewSections({
 
   return (
     <div className={hasResolvedSectionOrder ? "space-y-5 sm:space-y-6" : "invisible space-y-5 sm:space-y-6"}>
-      <div className="glass flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-black/8 px-3 py-2.5 shadow-sm shadow-black/5 dark:border-white/8 sm:px-4">
+      <div className="binder-subpanel flex min-w-0 items-center justify-between gap-3 rounded-[var(--ui-page-header-radius)] p-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400 dark:text-white/35">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
             Card layout
           </p>
-          <p className="mt-0.5 hidden text-xs font-medium text-gray-500 dark:text-white/45 sm:block">
-            Adjust card density on this collection view.
+          <p className="mt-0.5 hidden text-xs font-medium text-white/45 sm:block">
+            Density for this categorized collection view.
           </p>
         </div>
         <div
-          className="grid min-w-0 shrink-0 gap-1 rounded-xl border border-black/8 bg-white/70 p-1 dark:border-white/8 dark:bg-white/[0.045]"
+          className="grid min-w-0 shrink-0 gap-1 rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20"
           style={{ gridTemplateColumns: `repeat(${layoutOptions.length}, minmax(0, 1fr))` }}
         >
           {layoutOptions.map((option) => {
@@ -406,10 +407,10 @@ export default function CollectionOverviewSections({
                 title={option.title}
                 aria-pressed={active}
                 onClick={() => setDisplay("cardSize", option.value)}
-                className={`min-h-8 min-w-[2.8rem] rounded-lg px-2 text-[11px] font-black leading-none transition-colors sm:min-w-[4rem] sm:text-xs ${
+                className={`min-h-8 min-w-[2.8rem] rounded-full px-2 text-[11px] font-black leading-none transition-colors sm:min-w-[4rem] sm:text-xs ${
                   active
-                    ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
-                    : "text-gray-500 hover:bg-black/[0.035] hover:text-gray-950 dark:text-white/55 dark:hover:bg-white/8 dark:hover:text-white"
+                    ? "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                    : "text-white/56 hover:bg-white/[0.07] hover:text-white"
                 }`}
               >
                 {option.label}

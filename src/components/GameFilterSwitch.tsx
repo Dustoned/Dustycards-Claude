@@ -20,6 +20,9 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
+const ACTIVE_SEGMENT_CLASS =
+  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+
 export function SegmentedNavLinks({
   items,
   ariaLabel,
@@ -59,7 +62,7 @@ export function SegmentedNavLinks({
     <nav
       aria-label={ariaLabel}
       className={cx(
-        "relative min-w-0 max-w-full overflow-hidden rounded-[1.35rem] border border-black/10 bg-black/[0.035] p-1 shadow-sm shadow-black/5 dark:border-white/12 dark:bg-white/[0.055] dark:shadow-black/20",
+        "relative min-w-0 max-w-full overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20",
         className
       )}
     >
@@ -79,8 +82,8 @@ export function SegmentedNavLinks({
               ? "h-8 px-1 text-[10px] min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-9 sm:px-4 sm:text-[13px]"
               : "h-8 px-1 text-[10px] min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-9 sm:min-w-max sm:px-4 sm:text-[13px]",
             item.active
-              ? "bg-gray-950 text-white shadow-sm shadow-black/12 dark:bg-white dark:text-gray-950 dark:shadow-none"
-              : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
+              ? ACTIVE_SEGMENT_CLASS
+              : "text-white/58 hover:bg-white/[0.07] hover:text-white"
           );
           const label = (
             <span className={even ? "whitespace-nowrap" : "whitespace-nowrap"}>{item.label}</span>
@@ -134,10 +137,10 @@ function HeaderSegmentedGroup({
   return (
     <nav
       aria-label={group.ariaLabel ?? group.label}
-      className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-black/6 bg-black/[0.025] p-0.5 dark:border-white/8 dark:bg-black/20"
+      className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border border-white/8 bg-black/20 p-0.5"
     >
       {group.label ? (
-        <span className="shrink-0 pl-2 pr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/36">
+        <span className="shrink-0 pl-2 pr-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/36">
           {group.label}
         </span>
       ) : null}
@@ -154,8 +157,8 @@ function HeaderSegmentedGroup({
             className={cx(
               "inline-flex h-7 min-w-0 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold leading-none transition-colors min-[390px]:px-2 min-[390px]:text-[11px] sm:min-w-max sm:px-3.5 sm:text-[12px]",
               item.active
-                ? "bg-gray-950 text-white shadow-sm shadow-black/12 dark:bg-white dark:text-gray-950 dark:shadow-none"
-                : "text-gray-500 hover:bg-black/[0.04] hover:text-gray-900 dark:text-white/52 dark:hover:bg-white/[0.07] dark:hover:text-white"
+                ? ACTIVE_SEGMENT_CLASS
+                : "text-white/52 hover:bg-white/[0.07] hover:text-white"
             )}
           >
             {item.label}
@@ -179,7 +182,7 @@ export function HeaderControlCluster({
   return (
     <div
       className={cx(
-        "inline-flex max-w-full flex-wrap items-center justify-end gap-1.5 rounded-[1.35rem] border border-black/8 bg-white/70 p-1.5 shadow-sm shadow-black/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.06] dark:shadow-black/20",
+        "inline-flex max-w-full flex-wrap items-center justify-end gap-1.5 rounded-[1.35rem] border border-white/10 bg-white/[0.06] p-1.5 shadow-sm shadow-black/20 backdrop-blur-xl",
         className
       )}
     >

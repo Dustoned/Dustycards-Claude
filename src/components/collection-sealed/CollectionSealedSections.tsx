@@ -119,9 +119,9 @@ export function CollectionSealedEmptyState({
           trailing={sectionTrailing}
         />
       )}
-      <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
-        <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">{emptyTitle}</p>
-        <p className="mx-auto max-w-xl text-sm leading-6 text-gray-400">{emptyText}</p>
+      <div className="binder-panel rounded-2xl px-5 py-7 text-center sm:rounded-3xl sm:px-8 sm:py-9">
+        <p className="mb-1 font-medium text-white/82">{emptyTitle}</p>
+        <p className="mx-auto max-w-xl text-sm leading-6 text-white/42">{emptyText}</p>
       </div>
     </>
   );
@@ -155,17 +155,17 @@ export function CollectionSealedSelectionToolbar({
   }
 
   return (
-    <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+    <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
       {selectionMode && (
         <>
-          <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-black/[0.03] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
+          <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-white/8 bg-white/[0.05] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-white/45">
             {activeSelectedCount} selected
           </span>
           <button
             type="button"
             onClick={onSelectAll}
             disabled={selectableCount === 0 || allSelectableSelected}
-            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-white/10 bg-white/[0.055] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/75 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Select all
           </button>
@@ -173,7 +173,7 @@ export function CollectionSealedSelectionToolbar({
             type="button"
             onClick={onClear}
             disabled={activeSelectedCount === 0}
-            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-white/10 bg-white/[0.055] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/75 transition-colors hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Clear
           </button>
@@ -181,7 +181,7 @@ export function CollectionSealedSelectionToolbar({
             type="button"
             onClick={onRemove}
             disabled={removingItems || activeSelectedCount === 0}
-            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+            className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-rose-300/18 bg-rose-500/[0.08] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-rose-100 transition-colors hover:bg-rose-500/14 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Remove
           </button>
@@ -254,7 +254,7 @@ function CollectionSealedTile({
           />
         ) : (
           <div className="flex h-full items-center justify-center">
-            <Package className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+                            <Package className="h-10 w-10 text-white/24" />
           </div>
         )}
 
@@ -270,7 +270,7 @@ function CollectionSealedTile({
                 href={`${getExpansionHref(item.episode_id)}?tab=sealed`}
                 prefetch={false}
                 onClick={(event) => event.stopPropagation()}
-                className="min-w-0 truncate text-gray-400 transition-colors hover:text-gray-600 hover:underline underline-offset-2 dark:text-gray-500 dark:hover:text-gray-300"
+                className="min-w-0 truncate text-white/38 transition-colors hover:text-white/70 hover:underline underline-offset-2"
               >
                 {item.episode_name}
                 {item.episode_code ? (
@@ -373,7 +373,7 @@ export function CollectionSealedGrid({
       className={`grid ${sealedTileGridGapClass(cardSize)}`}
       style={{
         gridTemplateColumns,
-        justifyContent: "stretch",
+        justifyContent: "start",
       }}
     >
       {items.map((item, index) => (

@@ -134,16 +134,16 @@ export default function IllustratorGridClient({
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      <div className="glass rounded-3xl border border-black/8 bg-white/70 p-2.5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:p-4">
+      <div className="glass rounded-3xl border border-white/8 bg-black/20 p-2.5 shadow-sm shadow-black/20 sm:p-4">
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="relative min-w-0">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-400" />
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-white/38" />
           <input
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search illustrator, card, or set..."
-            className="h-11 w-full rounded-2xl border border-black/8 bg-white/85 pl-11 pr-10 text-sm font-semibold text-gray-900 shadow-sm transition-colors placeholder:font-medium placeholder:text-gray-400 focus:border-black/18 focus:outline-none dark:border-white/8 dark:bg-white/[0.055] dark:text-white dark:focus:border-white/18"
+            className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-10 text-sm font-semibold text-white shadow-sm transition-colors placeholder:font-medium placeholder:text-white/34 focus:border-white/20 focus:bg-black/20 focus:outline-none"
             autoComplete="off"
             spellCheck={false}
           />
@@ -151,7 +151,7 @@ export default function IllustratorGridClient({
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-gray-400 transition-colors hover:text-gray-700 dark:hover:text-white/75"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-white/38 transition-colors hover:bg-white/8 hover:text-white/78"
               aria-label="Clear illustrator search"
             >
               <X className="h-4 w-4" />
@@ -159,21 +159,21 @@ export default function IllustratorGridClient({
           )}
         </div>
 
-          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-black/8 bg-black/[0.025] px-3 text-xs font-bold tabular-nums text-gray-500 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/48">
+          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] px-3 text-xs font-bold tabular-nums text-white/48">
             {formatCount(filteredEntries.length)} visible
           </span>
         </div>
 
         <div className="-mx-1 mt-2 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mt-3">
-        <div className="flex w-max min-w-full items-center gap-1.5 rounded-2xl border border-black/8 bg-black/[0.025] p-1.5 dark:border-white/8 dark:bg-black/15">
+        <div className="flex w-max min-w-full items-center gap-1.5 rounded-2xl border border-white/8 bg-black/25 p-1.5">
           <button
             type="button"
             onClick={() => setActiveGroup("All")}
             aria-pressed={activeGroup === "All"}
             className={`inline-flex h-8 min-w-12 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-bold transition-colors ${
               effectiveActiveGroup === "All"
-                ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
-                : "border-transparent bg-transparent text-gray-500 hover:bg-black/[0.045] hover:text-gray-900 dark:text-white/45 dark:hover:bg-white/[0.07] dark:hover:text-white"
+                ? "border-white/70 bg-white text-gray-950"
+                : "border-transparent bg-transparent text-white/45 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
             All
@@ -186,8 +186,8 @@ export default function IllustratorGridClient({
               aria-pressed={effectiveActiveGroup === group}
               className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full border px-2.5 text-xs font-bold transition-colors ${
                 effectiveActiveGroup === group
-                  ? "border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900"
-                  : "border-transparent bg-transparent text-gray-500 hover:bg-black/[0.045] hover:text-gray-900 dark:text-white/45 dark:hover:bg-white/[0.07] dark:hover:text-white"
+                  ? "border-white/70 bg-white text-gray-950"
+                  : "border-transparent bg-transparent text-white/45 hover:bg-white/[0.07] hover:text-white"
               }`}
             >
               {group}

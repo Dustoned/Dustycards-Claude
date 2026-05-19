@@ -81,7 +81,7 @@ function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", classNa
   const palette =
     theme === "dark"
       ? "border-white/12 bg-white/8 text-white hover:border-white/20 hover:bg-white/12"
-      : "border-black/8 bg-white/80 text-gray-900 hover:border-black/15 hover:bg-white";
+      : "border-white/12 bg-white/8 text-white hover:border-white/20 hover:bg-white/12";
 
   return [base, palette, className].filter(Boolean).join(" ");
 }
@@ -388,7 +388,7 @@ export default function CollectionEditCardButton({
                           }}
                           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors max-[640px]:px-2.5 ${
                             cardKind === option.key
-                              ? "bg-white text-gray-950"
+                              ? "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
                               : "text-white/54 hover:text-white"
                           }`}
                         >

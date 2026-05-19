@@ -505,12 +505,12 @@ function ListingCard({
   }, [cardQuery, pickerOpen]);
 
   return (
-    <article className="grid min-w-0 gap-3 rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:grid-cols-[96px_minmax(0,1fr)]">
+    <article className="binder-panel grid min-w-0 gap-3 rounded-2xl p-3 sm:grid-cols-[96px_minmax(0,1fr)]">
       <a
         href={listing.itemWebUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative aspect-square overflow-hidden rounded-xl border border-black/8 bg-black/[0.035] dark:border-white/8 dark:bg-black/24"
+        className="relative aspect-square overflow-hidden rounded-xl border border-white/8 bg-black/24"
       >
         {listing.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -521,7 +521,7 @@ function ListingCard({
             loading="lazy"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-gray-400 dark:text-white/35">
+          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-white/35">
             eBay
           </div>
         )}
@@ -534,11 +534,11 @@ function ListingCard({
               href={listing.itemWebUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="line-clamp-2 text-sm font-semibold leading-snug text-gray-950 transition-colors hover:text-blue-700 dark:text-white dark:hover:text-blue-300"
+              className="line-clamp-2 text-sm font-semibold leading-snug text-white transition-colors hover:text-emerald-200"
             >
               {listing.title}
             </a>
-            <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-medium text-gray-500 dark:text-white/45">
+            <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-medium text-white/45">
               <span
                 className={`inline-flex items-center rounded-full border px-2 py-0.5 font-bold ${languageBadgeClass(
                   language
@@ -557,7 +557,7 @@ function ListingCard({
               </span>
               {listing.isGradedListing && (
                 <span
-                  className="inline-flex items-center rounded-full border border-violet-400/20 bg-violet-400/[0.1] px-2 py-0.5 font-bold text-violet-700 dark:text-violet-100"
+                  className="inline-flex items-center rounded-full border border-violet-400/20 bg-violet-400/[0.1] px-2 py-0.5 font-bold text-violet-100"
                   title={listing.gradingReason ?? "Graded-looking listing"}
                 >
                   Graded
@@ -593,25 +593,25 @@ function ListingCard({
             )}
             <span className="truncate">{matchLabel(match)}</span>
           </span>
-          <span className="text-[11px] font-semibold text-gray-400 dark:text-white/35">
+          <span className="text-[11px] font-semibold text-white/35">
             {match.confidence > 0 ? `${match.confidence}%` : "--"}
           </span>
         </div>
 
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <div className="rounded-xl border border-black/8 bg-black/[0.025] px-3 py-2 dark:border-white/8 dark:bg-black/20">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
               Total
             </p>
-            <p className="mt-1 text-base font-bold tabular-nums text-gray-950 dark:text-white">
+            <p className="mt-1 text-base font-bold tabular-nums text-white">
               {totalLabel}
             </p>
           </div>
-          <div className="rounded-xl border border-black/8 bg-black/[0.025] px-3 py-2 dark:border-white/8 dark:bg-black/20">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
               Versus
             </p>
-            <p className="mt-1 text-base font-bold tabular-nums text-gray-950 dark:text-white">
+            <p className="mt-1 text-base font-bold tabular-nums text-white">
               {listing.differenceEur == null
                 ? "--"
                 : `${listing.differenceEur >= 0 ? "+" : "-"}${formatCurrency(
@@ -620,18 +620,18 @@ function ListingCard({
                   )}`}
             </p>
           </div>
-          <div className="rounded-xl border border-black/8 bg-black/[0.025] px-3 py-2 dark:border-white/8 dark:bg-black/20">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
               Base
             </p>
-            <p className="mt-1 truncate text-base font-bold tabular-nums text-gray-950 dark:text-white">
+            <p className="mt-1 truncate text-base font-bold tabular-nums text-white">
               {formatCurrency(reference.valueEur, "EUR")}
             </p>
           </div>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="min-w-0 text-xs font-medium text-gray-500 dark:text-white/42">
+          <p className="min-w-0 text-xs font-medium text-white/42">
             {shippingLabel}
             {listing.seller.username ? ` / ${listing.seller.username}` : ""}
             {listing.seller.feedbackPercentage ? ` / ${listing.seller.feedbackPercentage}%` : ""}
@@ -641,7 +641,7 @@ function ListingCard({
               <button
                 type="button"
                 onClick={() => onOpenCard(match.card!.id)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-black/8 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/68 dark:hover:bg-white/[0.05]"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05]"
               >
                 DustyCards
               </button>
@@ -649,7 +649,7 @@ function ListingCard({
             <button
               type="button"
               onClick={() => setPickerOpen((current) => !current)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-black/8 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/68 dark:hover:bg-white/[0.05]"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05]"
             >
               Change
             </button>
@@ -657,7 +657,7 @@ function ListingCard({
               type="button"
               disabled={busy}
               onClick={() => void onIgnoreMatch(listing)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-black/8 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-black/[0.035] disabled:cursor-wait disabled:opacity-50 dark:border-white/8 dark:text-white/68 dark:hover:bg-white/[0.05]"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-50"
             >
               Ignore
             </button>
@@ -666,7 +666,7 @@ function ListingCard({
                 type="button"
                 disabled={busy}
                 onClick={() => void onResetMatch(listing)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-black/8 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-black/[0.035] disabled:cursor-wait disabled:opacity-50 dark:border-white/8 dark:text-white/68 dark:hover:bg-white/[0.05]"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-50"
                 title="Reset manual match"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -676,7 +676,7 @@ function ListingCard({
               href={listing.itemWebUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gray-950 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-white/86"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-gray-950 transition-colors hover:bg-white/86"
             >
               Open
               <ExternalLink className="h-3.5 w-3.5" />
@@ -685,9 +685,9 @@ function ListingCard({
         </div>
 
         {pickerOpen && (
-          <div className="mt-3 rounded-xl border border-black/8 bg-black/[0.025] p-3 dark:border-white/8 dark:bg-black/20">
-            <label className="flex min-h-10 items-center gap-2 rounded-lg border border-black/8 bg-white/70 px-2.5 dark:border-white/8 dark:bg-white/[0.04]">
-              <Search className="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-white/35" />
+          <div className="mt-3 rounded-xl border border-white/8 bg-black/20 p-3">
+            <label className="flex min-h-10 items-center gap-2 rounded-lg border border-white/8 bg-white/[0.04] px-2.5">
+              <Search className="h-3.5 w-3.5 shrink-0 text-white/35" />
               <input
                 value={cardQuery}
                 onChange={(event) => {
@@ -697,7 +697,7 @@ function ListingCard({
                     setCardResults([]);
                   }
                 }}
-                className="h-full min-w-0 flex-1 bg-transparent text-xs font-semibold text-gray-950 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+                className="h-full min-w-0 flex-1 bg-transparent text-xs font-semibold text-white outline-none placeholder:text-white/35"
                 placeholder="Search DustyCards card"
                 autoComplete="off"
                 spellCheck={false}
@@ -705,7 +705,7 @@ function ListingCard({
             </label>
             <div className="mt-2 grid gap-1.5">
               {cardSearchLoading && (
-                <p className="px-2 py-1 text-xs font-semibold text-gray-400 dark:text-white/35">
+                <p className="px-2 py-1 text-xs font-semibold text-white/35">
                   Searching...
                 </p>
               )}
@@ -723,19 +723,19 @@ function ListingCard({
                     onClick={() => {
                       void onConfirmMatch(listing, card.id).then(() => setPickerOpen(false));
                     }}
-                    className="flex min-w-0 items-center justify-between gap-3 rounded-lg px-2 py-2 text-left text-xs font-semibold transition-colors hover:bg-black/[0.04] disabled:cursor-wait disabled:opacity-50 dark:hover:bg-white/[0.055]"
+                  className="flex min-w-0 items-center justify-between gap-3 rounded-lg px-2 py-2 text-left text-xs font-semibold transition-colors hover:bg-white/[0.055] disabled:cursor-wait disabled:opacity-50"
                   >
                     <span className="min-w-0">
-                      <span className="block truncate text-gray-900 dark:text-white">
+                      <span className="block truncate text-white">
                         {card.name}
                         {card.card_number ? ` #${card.card_number}` : ""}
                       </span>
-                      <span className="block truncate text-gray-500 dark:text-white/42">
+                      <span className="block truncate text-white/42">
                         {card.episode_name}
                         {card.episode_code ? ` / ${card.episode_code}` : ""}
                       </span>
                     </span>
-                    <span className="shrink-0 text-gray-400 dark:text-white/35">Use</span>
+                    <span className="shrink-0 text-white/35">Use</span>
                   </button>
                 ))}
             </div>
@@ -1087,19 +1087,19 @@ export default function DealsBrowser() {
       : visibleData.reference.label;
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-      <div className="flex w-full flex-col gap-5 sm:gap-6">
-        <section className="rounded-2xl border border-black/8 bg-white/78 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.045] sm:px-5 sm:py-5">
+    <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
+      <div className="flex w-full flex-col gap-3 sm:gap-5">
+        <section className="binder-panel rounded-2xl px-4 py-4 sm:px-5 sm:py-5">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] xl:items-end">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/36">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/36">
                 Market scan
               </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950 dark:text-white sm:text-4xl">
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
                 eBay Deals
               </h1>
               {referenceLabel !== "No DustyCards price" && (
-                <p className="mt-2 text-sm font-semibold text-gray-500 dark:text-white/45">
+                <p className="mt-2 text-sm font-semibold text-white/45">
                   Reference: {referenceLabel}
                 </p>
               )}
@@ -1107,41 +1107,41 @@ export default function DealsBrowser() {
 
             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-emerald-400/14 bg-emerald-400/[0.06] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-700/70 dark:text-emerald-200/65">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200/65">
                   Best
                 </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-gray-950 dark:text-white">
+                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
                   {bestListing?.total.valueEur != null
                     ? formatCurrency(bestListing.total.valueEur, "EUR")
                     : "--"}
                 </p>
               </div>
               <div className="rounded-2xl border border-sky-400/14 bg-sky-400/[0.06] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700/70 dark:text-sky-200/65">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-200/65">
                   Delta
                 </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-gray-950 dark:text-white">
+                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
                   {bestListing?.discountPercent != null
                     ? formatPercent(bestListing.discountPercent)
                     : "--"}
                 </p>
               </div>
               <div className="rounded-2xl border border-violet-400/14 bg-violet-400/[0.06] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-700/70 dark:text-violet-200/65">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-200/65">
                   Listings
                 </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-gray-950 dark:text-white">
+                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
                   {visibleData.listings.length.toLocaleString("en-US")}
                 </p>
               </div>
               <div className={`rounded-2xl border px-4 py-3 ${rateLimitToneClass(rateLimit)}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600/70 dark:text-white/55">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">
                   eBay API left
                 </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-gray-950 dark:text-white">
+                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
                   {rateLimitLoading ? "--" : formatInteger(rateLimit?.summary?.remaining)}
                 </p>
-                <p className="mt-1 truncate text-[11px] font-semibold text-gray-500 dark:text-white/45">
+                <p className="mt-1 truncate text-[11px] font-semibold text-white/45">
                   {rateLimitError
                     ? "Limit unavailable"
                     : rateLimit?.configured === false
@@ -1159,16 +1159,16 @@ export default function DealsBrowser() {
 
         <form
           onSubmit={submitSearch}
-          className="rounded-2xl border border-black/8 bg-white/72 p-2.5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]"
+          className="binder-panel rounded-2xl p-2.5"
         >
           <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
-            <label className="flex min-h-[46px] min-w-0 items-center gap-2 rounded-xl border border-black/8 bg-black/[0.025] px-3 dark:border-white/8 dark:bg-black/20">
-              <Search className="h-4 w-4 shrink-0 text-gray-400 dark:text-white/35" />
+            <label className="flex min-h-[46px] min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
+              <Search className="h-4 w-4 shrink-0 text-white/35" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={visibleData.query || (mode === "sealed" ? "Pokemon sealed product" : "Pokemon card")}
-                className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-gray-950 outline-none placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+                className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-white outline-none placeholder:text-white/35"
                 autoComplete="off"
                 spellCheck={false}
               />
@@ -1176,7 +1176,7 @@ export default function DealsBrowser() {
 
             <button
               type="submit"
-              className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-gray-950 px-5 text-sm font-semibold text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-white/86"
+              className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-white px-5 text-sm font-semibold text-gray-950 transition-colors hover:bg-white/86"
             >
               Search
             </button>
@@ -1184,7 +1184,7 @@ export default function DealsBrowser() {
 
           <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <label className="min-w-0">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
                 Type
               </span>
               <select
@@ -1196,7 +1196,7 @@ export default function DealsBrowser() {
                     setBuying(getDefaultBuyingMode(nextMode));
                   }
                 }}
-                className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
+                className="min-h-[40px] w-full rounded-xl border border-white/8 bg-black/20 px-3 text-sm font-semibold text-white outline-none"
               >
                 <option value="raw">Raw</option>
                 <option value="graded">Graded</option>
@@ -1205,13 +1205,13 @@ export default function DealsBrowser() {
             </label>
 
             <label className="min-w-0">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
                 Buying
               </span>
               <select
                 value={buying}
                 onChange={(event) => setBuying(event.target.value as BuyingMode)}
-                className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
+                className="min-h-[40px] w-full rounded-xl border border-white/8 bg-black/20 px-3 text-sm font-semibold text-white outline-none"
               >
                 <option value="fixed">Buy It Now</option>
                 <option value="auction">Auctions</option>
@@ -1220,13 +1220,13 @@ export default function DealsBrowser() {
             </label>
 
             <label className="min-w-0">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
                 Condition
               </span>
               <select
                 value={conditionFilter}
                 onChange={(event) => setConditionFilter(event.target.value as ConditionFilter)}
-                className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
+                className="min-h-[40px] w-full rounded-xl border border-white/8 bg-black/20 px-3 text-sm font-semibold text-white outline-none"
                 title="Filter offers by detected card condition"
               >
                 {CONDITION_OPTIONS.map((option) => (
@@ -1238,13 +1238,13 @@ export default function DealsBrowser() {
             </label>
 
             <label className="min-w-0">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
                 Sort
               </span>
               <select
                 value={sort}
                 onChange={(event) => setSort(event.target.value as DealSort)}
-                className="min-h-[40px] w-full rounded-xl border border-black/8 bg-black/[0.025] px-3 text-sm font-semibold text-gray-800 outline-none dark:border-white/8 dark:bg-black/20 dark:text-white"
+                className="min-h-[40px] w-full rounded-xl border border-white/8 bg-black/20 px-3 text-sm font-semibold text-white outline-none"
                 title="Sort offers"
               >
                 {SORT_OPTIONS.map((option) => (
@@ -1258,13 +1258,13 @@ export default function DealsBrowser() {
         </form>
 
         {mode !== "sealed" && (query.trim().length >= 2 || suggestionsLoading) && (
-          <section className="rounded-2xl border border-black/8 bg-white/64 p-3 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.035]">
+          <section className="binder-panel rounded-2xl p-3">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <h2 className="text-sm font-bold text-gray-950 dark:text-white">
+              <h2 className="text-sm font-bold text-white">
                 DustyCards kaarten
               </h2>
               {suggestionsLoading && (
-                <span className="text-xs font-semibold text-gray-400 dark:text-white/35">
+                <span className="text-xs font-semibold text-white/35">
                   Searching...
                 </span>
               )}
@@ -1280,10 +1280,10 @@ export default function DealsBrowser() {
                     key={card.id}
                     type="button"
                     onClick={() => searchSuggestedCard(card)}
-                    className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-black/8 bg-black/[0.02] p-2 text-left transition-colors hover:bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.025] dark:hover:bg-white/[0.055]"
+                    className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/8 bg-white/[0.025] p-2 text-left transition-colors hover:bg-white/[0.055]"
                   >
                     {card.image_url ? (
-                      <span className="relative aspect-[63/88] w-11 overflow-hidden rounded-md bg-black/[0.035] dark:bg-black/24">
+                        <span className="relative aspect-[63/88] w-11 overflow-hidden rounded-md bg-black/24">
                         <Image
                           src={card.image_url}
                           alt={card.name}
@@ -1294,21 +1294,21 @@ export default function DealsBrowser() {
                         />
                       </span>
                     ) : (
-                      <span className="flex aspect-[63/88] w-11 items-center justify-center rounded-md bg-black/[0.035] text-[10px] font-semibold text-gray-400 dark:bg-black/24">
+                      <span className="flex aspect-[63/88] w-11 items-center justify-center rounded-md bg-black/24 text-[10px] font-semibold text-white/35">
                         Card
                       </span>
                     )}
                     <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold text-gray-950 dark:text-white">
+                      <span className="block truncate text-sm font-bold text-white">
                         {card.name}
                         {card.card_number ? ` #${card.card_number}` : ""}
                       </span>
-                      <span className="mt-0.5 block truncate text-xs font-medium text-gray-500 dark:text-white/42">
+                      <span className="mt-0.5 block truncate text-xs font-medium text-white/42">
                         {card.episode_name}
                         {card.episode_code ? ` / ${card.episode_code}` : ""}
                       </span>
                     </span>
-                    <span className="shrink-0 rounded-lg bg-gray-950 px-2.5 py-1.5 text-xs font-bold text-white dark:bg-white dark:text-gray-950">
+                    <span className="shrink-0 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-gray-950">
                       {mode === "graded" ? "Search" : "Exact"}
                     </span>
                   </button>
@@ -1316,7 +1316,7 @@ export default function DealsBrowser() {
               </div>
             ) : (
               !suggestionsLoading && (
-                <p className="text-xs font-semibold text-gray-500 dark:text-white/42">
+                <p className="text-xs font-semibold text-white/42">
                   Geen databasekaarten gevonden.
                 </p>
               )
@@ -1325,9 +1325,9 @@ export default function DealsBrowser() {
         )}
 
         {visibleData.card && (
-          <section className="grid gap-3 rounded-2xl border border-black/8 bg-white/64 p-3 dark:border-white/8 dark:bg-white/[0.035] sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center">
+          <section className="binder-panel grid gap-3 rounded-2xl p-3 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center">
             {visibleData.card.image_url ? (
-              <div className="relative aspect-[63/88] w-16 overflow-hidden rounded-lg bg-black/[0.035] dark:bg-black/24">
+              <div className="relative aspect-[63/88] w-16 overflow-hidden rounded-lg bg-black/24">
                 <Image
                   src={visibleData.card.image_url}
                   alt={visibleData.card.name}
@@ -1338,15 +1338,15 @@ export default function DealsBrowser() {
                 />
               </div>
             ) : (
-              <div className="flex aspect-[63/88] w-16 items-center justify-center rounded-lg bg-black/[0.035] text-xs text-gray-400 dark:bg-black/24">
+              <div className="flex aspect-[63/88] w-16 items-center justify-center rounded-lg bg-black/24 text-xs text-white/35">
                 Card
               </div>
             )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-gray-950 dark:text-white">
+              <p className="truncate text-sm font-bold text-white">
                 {visibleData.card.name}
               </p>
-              <p className="mt-1 truncate text-xs font-medium text-gray-500 dark:text-white/45">
+              <p className="mt-1 truncate text-xs font-medium text-white/45">
                 {visibleData.card.episode.name}
                 {visibleData.card.card_number ? ` / #${visibleData.card.card_number}` : ""}
               </p>
@@ -1354,7 +1354,7 @@ export default function DealsBrowser() {
             <Link
               href={`/search?q=${encodeURIComponent(visibleData.card.name)}`}
               prefetch={false}
-              className="inline-flex justify-center rounded-xl border border-black/8 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/68 dark:hover:bg-white/[0.05]"
+              className="inline-flex justify-center rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05]"
             >
               DustyCards
             </Link>
@@ -1362,9 +1362,9 @@ export default function DealsBrowser() {
         )}
 
         {visibleData.sealedProduct && (
-          <section className="grid gap-3 rounded-2xl border border-black/8 bg-white/64 p-3 dark:border-white/8 dark:bg-white/[0.035] sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center">
+          <section className="binder-panel grid gap-3 rounded-2xl p-3 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center">
             {visibleData.sealedProduct.image_url ? (
-              <div className="relative aspect-square w-16 overflow-hidden rounded-lg bg-black/[0.035] dark:bg-black/24">
+              <div className="relative aspect-square w-16 overflow-hidden rounded-lg bg-black/24">
                 <Image
                   src={visibleData.sealedProduct.image_url}
                   alt={visibleData.sealedProduct.name}
@@ -1375,15 +1375,15 @@ export default function DealsBrowser() {
                 />
               </div>
             ) : (
-              <div className="flex aspect-square w-16 items-center justify-center rounded-lg bg-black/[0.035] text-xs text-gray-400 dark:bg-black/24">
+              <div className="flex aspect-square w-16 items-center justify-center rounded-lg bg-black/24 text-xs text-white/35">
                 Sealed
               </div>
             )}
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-gray-950 dark:text-white">
+              <p className="truncate text-sm font-bold text-white">
                 {visibleData.sealedProduct.name}
               </p>
-              <p className="mt-1 truncate text-xs font-medium text-gray-500 dark:text-white/45">
+              <p className="mt-1 truncate text-xs font-medium text-white/45">
                 {visibleData.sealedProduct.episode.name}
                 {visibleData.sealedProduct.episode.code
                   ? ` / ${visibleData.sealedProduct.episode.code}`
@@ -1393,7 +1393,7 @@ export default function DealsBrowser() {
             <Link
               href={`${getExpansionHref(visibleData.sealedProduct.episode.id)}?tab=sealed`}
               prefetch={false}
-              className="inline-flex justify-center rounded-xl border border-black/8 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/68 dark:hover:bg-white/[0.05]"
+              className="inline-flex justify-center rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05]"
             >
               DustyCards
             </Link>
@@ -1427,12 +1427,12 @@ export default function DealsBrowser() {
         ) : visibleData.listings.length > 0 ? (
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-gray-950 dark:text-white">Listings</h2>
+              <h2 className="text-lg font-bold text-white">Listings</h2>
               <a
                 href={visibleData.directSearchUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-black/8 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/68 dark:hover:bg-white/[0.05]"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05]"
               >
                 eBay
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -1465,7 +1465,7 @@ export default function DealsBrowser() {
             </div>
           </section>
         ) : (
-          <section className="rounded-2xl border border-dashed border-black/12 bg-white/50 p-6 text-sm font-medium text-gray-500 dark:border-white/12 dark:bg-white/[0.03] dark:text-white/45">
+          <section className="rounded-2xl border border-dashed border-white/12 bg-white/[0.03] p-6 text-sm font-medium text-white/45">
             {data.listings.length > 0
               ? "No offers match these filters."
               : paramQuery.trim() || cardId || productId
@@ -1474,8 +1474,8 @@ export default function DealsBrowser() {
           </section>
         )}
 
-        <section className="rounded-2xl border border-black/8 bg-white/56 p-4 dark:border-white/8 dark:bg-white/[0.03]">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-500 dark:text-white/45">
+        <section className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-white/45">
             <TrendingDown className="h-4 w-4" />
             <span>Reference: {visibleData.reference.label}</span>
             <span>/</span>

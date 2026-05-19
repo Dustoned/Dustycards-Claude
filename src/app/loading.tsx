@@ -2,9 +2,9 @@ import { Skeleton } from "@/components/Skeleton";
 
 export default function Loading() {
   return (
-    <div className="space-y-8 p-6">
-      <div className="rounded-2xl border border-black/8 p-6 dark:border-white/8">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
+    <div className="space-y-4 p-4">
+      <div className="binder-panel rounded-2xl p-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
           <div className="space-y-3">
             <Skeleton className="h-3 w-24" />
             <Skeleton className="h-10 w-72" />

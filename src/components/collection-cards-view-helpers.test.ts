@@ -349,7 +349,7 @@ describe("filter chips and selection toggle", () => {
 
   it("neutralFilterChip swaps active styling", () => {
     expect(neutralFilterChip(true)).toContain("bg-gray-900");
-    expect(neutralFilterChip(false)).toContain("text-gray-500");
+    expect(neutralFilterChip(false)).toContain("text-white/55");
   });
 
   it("selectionToggleTextClass swaps active styling", () => {

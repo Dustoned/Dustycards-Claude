@@ -8,7 +8,9 @@ import {
 } from "@/components/PageHeader";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import { buildMoversSourceHref, loadMoversPageData } from "@/app/movers/page-data";
+import { GAME_SEARCH_PARAM, getGameFilterSearchParamValue, parseVisibleGameFilter } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 import type { CollectionMoversData } from "@/lib/movers";
 
 export const dynamic = "force-dynamic";
@@ -16,21 +18,27 @@ export const dynamic = "force-dynamic";
 export default async function DiscountWatchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ source?: string; scope?: string; view?: string }>;
+  searchParams: Promise<{ source?: string; scope?: string; view?: string; game?: string }>;
 }) {
-  const { source, scope, view } = await searchParams;
+  const { source, scope, view, game } = await searchParams;
   const nextParams = new URLSearchParams();
   if (source) nextParams.set("source", source);
   if (scope) nextParams.set("scope", scope);
   if (view) nextParams.set("view", view);
+  if (game) nextParams.set(GAME_SEARCH_PARAM, game);
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/movers/discount-watch${nextQuery ? `?${nextQuery}` : ""}`);
+  const settings = await getServerUserSettings(user.id);
+  const activeGame = parseVisibleGameFilter(game, {
+    onePieceEnabled: settings.onePieceLibraryEnabled,
+  });
   const { data, activePriceSource, activeScope, activeItemScope } =
     await loadMoversPageData(
       source,
       scope === "sealed" ? "collection" : scope ?? "collection",
       view,
-      user.id
+      user.id,
+      activeGame
     );
   const cardScope = activeScope === "value" ? "collection" : activeScope;
   const cardData = data as CollectionMoversData;
@@ -44,6 +52,9 @@ export default async function DiscountWatchPage({
     { label: "Peak -50%", value: deepDiscountCount.toLocaleString("en-US"), Icon: TrendingDown, tone: "rose" },
     { label: "Negative Move", value: negativeMomentumCount.toLocaleString("en-US"), Icon: TriangleAlert, tone: "sky" },
   ] satisfies HeaderStat[];
+  const gameValue = getGameFilterSearchParamValue(activeGame);
+  const withGame = (href: string) =>
+    gameValue ? `${href}${href.includes("?") ? "&" : "?"}${GAME_SEARCH_PARAM}=${gameValue}` : href;
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -60,29 +71,29 @@ export default async function DiscountWatchPage({
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-white/50">
                 <Link
-                  href={buildMoversSourceHref(
+                  href={withGame(buildMoversSourceHref(
                     "/movers",
                     activePriceSource,
                     cardScope,
                     activeItemScope
-                  )}
+                  ))}
                   prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Back to movers
+                  Back to market
                 </Link>
                 <Link
-                  href={buildMoversSourceHref(
+                  href={withGame(buildMoversSourceHref(
                     "/movers/cheap-high-rarity",
                     activePriceSource,
                     cardScope,
                     activeItemScope
-                  )}
+                  ))}
                   prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
                 >
-                  Cheap movers
+                  Cheap rarity
                   <ArrowUpRight className="h-4 w-4" />
                 </Link>
             </div>

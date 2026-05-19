@@ -15,25 +15,25 @@ export default async function ForgotPasswordPage({
       <form
         action="/api/auth/forgot-password"
         method="post"
-        className="glass mx-auto grid w-full max-w-sm gap-4 rounded-2xl p-6 shadow-md shadow-black/5"
+        className="binder-panel mx-auto grid w-full max-w-sm gap-4 rounded-2xl p-5"
       >
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white">
+          <h1 className="text-2xl font-semibold tracking-tight text-white">
             Forgot password
           </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-white/45">
+          <p className="mt-1 text-sm text-white/45">
             Enter your email and we will send a reset link if the account exists.
           </p>
         </div>
 
-        <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-white/75">
+        <label className="grid gap-1.5 text-sm font-medium text-white/75">
           Email
           <input
             name="email"
             type="email"
             autoComplete="email"
             required
-            className="rounded-xl border border-black/10 bg-white px-3 py-2 text-gray-950 outline-none transition focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+            className="rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-white outline-none transition focus:border-white/24"
           />
         </label>
 
@@ -45,14 +45,14 @@ export default async function ForgotPasswordPage({
 
         <button
           type="submit"
-          className="inline-flex min-h-10 items-center justify-center rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-white/90"
+          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-violet-300/35 bg-violet-500/20 px-4 py-2.5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/28"
         >
           Send reset link
         </button>
 
         <Link
           href="/login"
-          className="text-center text-sm font-semibold text-gray-700 hover:underline dark:text-white/70"
+          className="text-center text-sm font-semibold text-white/70 hover:underline"
         >
           Back to login
         </Link>

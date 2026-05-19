@@ -99,11 +99,9 @@ async function saveToAccount(s: UserSettings) {
 }
 
 function applyTheme(theme: Theme) {
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const resolvedTheme = resolveTheme(theme, prefersDark);
   document.documentElement.dataset.theme = theme;
-  document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
-  document.cookie = buildResolvedThemeCookie(resolvedTheme);
+  document.documentElement.classList.add("dark");
+  document.cookie = buildResolvedThemeCookie("dark");
 }
 
 function applyWidescreen(on: boolean) {

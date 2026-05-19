@@ -119,7 +119,14 @@ export interface CollectionOverviewData {
   }>;
 }
 
-export type CollectionPageTab = "overview" | "cards" | "binders" | "sealed" | "graded";
+export type CollectionPageTab =
+  | "overview"
+  | "complete"
+  | "singles"
+  | "cards"
+  | "binders"
+  | "sealed"
+  | "graded";
 
 export interface BinderPageData {
   binder: {
@@ -1472,15 +1479,21 @@ function buildMetric(investment: number, currentValue: number): CollectionSummar
 }
 
 function shouldLoadDetailedCards(activeTab: CollectionPageTab): boolean {
-  return activeTab === "overview" || activeTab === "cards" || activeTab === "graded";
+  return (
+    activeTab === "overview" ||
+    activeTab === "complete" ||
+    activeTab === "singles" ||
+    activeTab === "cards" ||
+    activeTab === "graded"
+  );
 }
 
 function shouldLoadDetailedSealed(activeTab: CollectionPageTab): boolean {
-  return activeTab === "overview" || activeTab === "sealed";
+  return activeTab === "overview" || activeTab === "complete" || activeTab === "cards" || activeTab === "sealed";
 }
 
 function shouldLoadDetailedBinders(activeTab: CollectionPageTab): boolean {
-  return activeTab === "overview" || activeTab === "binders";
+  return activeTab === "overview" || activeTab === "complete" || activeTab === "cards" || activeTab === "binders";
 }
 
 export async function getCollectionOverviewData(
@@ -1583,7 +1596,12 @@ export async function getCollectionOverviewData(
   const looseSingleViewItems: CollectionCardViewItem[] = [];
   const binderCardViewItems: CollectionCardViewItem[] = [];
 
-  if (activeTab === "overview") {
+  if (
+    activeTab === "overview" ||
+    activeTab === "complete" ||
+    activeTab === "singles" ||
+    activeTab === "cards"
+  ) {
     for (const item of collectionCardViewItems) {
       if (item.binder_id) {
         binderCardViewItems.push(item);

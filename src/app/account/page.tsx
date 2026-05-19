@@ -45,10 +45,10 @@ function StatusBadge({
 }) {
   const className =
     tone === "emerald"
-      ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-700 dark:text-emerald-200"
+      ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200"
       : tone === "amber"
-        ? "border-amber-400/20 bg-amber-400/[0.08] text-amber-700 dark:text-amber-200"
-        : "border-black/8 bg-black/[0.035] text-gray-700 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70";
+        ? "border-amber-400/20 bg-amber-400/[0.08] text-amber-200"
+        : "border-white/10 bg-white/[0.055] text-white/70";
 
   return (
     <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${className}`}>
@@ -67,15 +67,15 @@ function InfoTile({
   hint?: ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-black/6 bg-black/[0.02] px-3 py-2.5 dark:border-white/8 dark:bg-white/[0.03]">
-      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+    <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-white/36">
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-bold text-gray-950 dark:text-white" title={String(value)}>
+      <p className="mt-1 truncate text-sm font-bold text-white" title={String(value)}>
         {value}
       </p>
       {hint ? (
-        <p className="mt-0.5 truncate text-[11px] text-gray-500 dark:text-white/45" title={String(hint)}>
+        <p className="mt-0.5 truncate text-[11px] text-white/45" title={String(hint)}>
           {hint}
         </p>
       ) : null}
@@ -112,16 +112,16 @@ function AccountOverview({
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-      <section className="glass rounded-2xl p-5 shadow-md shadow-black/5 sm:p-6">
+      <section className="binder-panel rounded-2xl p-4 sm:p-5">
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <UserRound className="h-4 w-4 text-gray-400 dark:text-white/40" />
-              <h2 className="text-base font-semibold text-gray-950 dark:text-white">
+              <UserRound className="h-4 w-4 text-white/40" />
+              <h2 className="text-base font-semibold text-white">
                 Account Identity
               </h2>
             </div>
-            <p className="mt-1 text-sm text-gray-500 dark:text-white/45">
+            <p className="mt-1 text-sm text-white/45">
               Login, role, verification, and session state.
             </p>
           </div>
@@ -149,16 +149,16 @@ function AccountOverview({
         </div>
       </section>
 
-      <section className="glass rounded-2xl p-5 shadow-md shadow-black/5 sm:p-6">
+      <section className="binder-panel rounded-2xl p-4 sm:p-5">
         <div className="mb-5 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <Boxes className="h-4 w-4 text-gray-400 dark:text-white/40" />
-              <h2 className="text-base font-semibold text-gray-950 dark:text-white">
+              <Boxes className="h-4 w-4 text-white/40" />
+              <h2 className="text-base font-semibold text-white">
                 Account Footprint
               </h2>
             </div>
-            <p className="mt-1 text-sm text-gray-500 dark:text-white/45">
+            <p className="mt-1 text-sm text-white/45">
               Your saved library, sessions, and synced preferences.
             </p>
           </div>
@@ -292,7 +292,7 @@ export default async function AccountPage() {
   ] satisfies HeaderStat[];
 
   return (
-    <div className="page-container mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+    <div className="page-container binder-bottom-safe mx-auto max-w-6xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
       <PageHeroHeader
         eyebrow="DustyCards Account"
         title="Account"

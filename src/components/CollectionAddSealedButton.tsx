@@ -45,7 +45,7 @@ function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", classNa
   const palette =
     theme === "dark"
       ? "border-white/12 bg-white/8 text-white hover:border-white/20 hover:bg-white/12"
-      : "border-black/8 bg-white/80 text-gray-900 hover:border-black/15 hover:bg-white";
+      : "border-white/12 bg-white/8 text-white hover:border-white/20 hover:bg-white/12";
 
   return [base, palette, className].filter(Boolean).join(" ");
 }

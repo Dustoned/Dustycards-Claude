@@ -113,29 +113,29 @@ export default function WantsPageContent({
 
   return (
     <>
-      <section className="rounded-2xl border border-black/8 bg-white/72 p-2.5 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] dark:shadow-none sm:p-3">
+      <section className="binder-panel rounded-2xl p-2.5 sm:p-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
             <input
               type="text"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search wants, binder cards, number, set..."
-              className="h-11 w-full rounded-xl border border-black/8 bg-white/80 pl-10 pr-10 text-sm font-semibold text-gray-900 outline-none transition-colors placeholder:font-medium placeholder:text-gray-400 focus:border-black/15 dark:border-white/8 dark:bg-white/[0.055] dark:text-white dark:placeholder:text-white/30 dark:focus:border-white/16"
+              className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.055] pl-10 pr-10 text-sm font-semibold text-white outline-none transition-colors placeholder:font-medium placeholder:text-white/30 focus:border-white/16"
             />
             {search ? (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-900 dark:text-white/35 dark:hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white"
                 aria-label="Clear wants search"
               >
                 <X className="h-4 w-4" />
               </button>
             ) : null}
           </div>
-          <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-black/8 bg-black/[0.025] px-3 text-xs font-bold tabular-nums text-gray-500 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/48">
+          <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-3 text-xs font-bold tabular-nums text-white/48">
             {hasSearch
               ? `${totalMatches.toLocaleString("en-US")} / ${totalWants.toLocaleString("en-US")}`
               : `${totalWants.toLocaleString("en-US")} wants`}
@@ -184,13 +184,13 @@ export default function WantsPageContent({
       ) : null}
 
       {showNoPersonalMessage ? (
-        <section className="rounded-3xl border border-black/8 bg-white/70 px-4 py-3 text-sm text-gray-500 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/48 dark:shadow-none">
+        <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/48 shadow-sm shadow-black/20">
           No personal wants outside binder goals.
         </section>
       ) : null}
 
       {showNoSearchMatches ? (
-        <section className="rounded-3xl border border-black/8 bg-white/70 px-4 py-3 text-sm text-gray-500 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/48 dark:shadow-none">
+        <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/48 shadow-sm shadow-black/20">
           No wants match this search.
         </section>
       ) : null}

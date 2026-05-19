@@ -70,18 +70,18 @@ export function rarityFilterChip(rarity: string | null, active: boolean): string
 
 export function neutralFilterChip(active: boolean): string {
   if (active) {
-    return "border-gray-900/90 bg-gray-900 text-white opacity-100 dark:border-white/90 dark:bg-white dark:text-gray-900";
+    return "border-white/70 bg-white text-gray-950 opacity-100 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
   }
 
-  return "border-black/8 text-gray-500 opacity-85 hover:border-black/15 hover:opacity-100 hover:text-gray-900 dark:border-white/8 dark:text-white/55 dark:hover:border-white/16 dark:hover:text-white";
+  return "border-white/8 text-white/55 opacity-85 hover:border-white/16 hover:opacity-100 hover:text-white";
 }
 
 export function selectionToggleTextClass(active: boolean): string {
   if (active) {
-    return "shrink-0 text-xs font-semibold text-blue-600 transition-colors hover:text-blue-500 dark:text-blue-300 dark:hover:text-blue-200";
+    return "shrink-0 text-xs font-semibold text-violet-200 transition-colors hover:text-violet-100";
   }
 
-  return "shrink-0 text-xs font-medium text-gray-400 transition-colors hover:text-gray-900 dark:text-white/45 dark:hover:text-white/75";
+  return "shrink-0 text-xs font-medium text-white/45 transition-colors hover:text-white/75";
 }
 
 export function isGradedCollectionCard(item: CollectionCardViewItem): boolean {
@@ -279,73 +279,73 @@ export function collectionOverlayBadgeClass(cardSize: CardSize): string {
 
 export function collectionTileInfoClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "mt-3 px-1";
+    return "mt-2 px-1";
   }
 
   if (cardSize === "medium") {
-    return "mt-2.5 px-0.5";
+    return "mt-1.5 px-1";
   }
 
-  return "mt-2 px-0.5";
+  return "mt-1.5 px-0.5";
 }
 
 export function collectionTileTitleClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "truncate text-[18px] font-semibold leading-snug text-gray-900 dark:text-white max-[640px]:text-[17px]";
+    return "line-clamp-2 text-[15px] font-bold leading-tight text-white max-[640px]:text-[14px]";
   }
 
   if (cardSize === "medium") {
-    return "truncate text-[15px] font-semibold leading-snug text-gray-900 dark:text-white max-[640px]:text-[13px]";
+    return "line-clamp-2 text-[13px] font-bold leading-tight text-white max-[640px]:text-[12px]";
   }
 
-  return "truncate text-[13px] font-semibold leading-snug text-gray-900 dark:text-white max-[640px]:text-[11px]";
+  return "line-clamp-2 text-[12px] font-bold leading-tight text-white max-[640px]:text-[11px]";
 }
 
 export function collectionTileMetaLineClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "mt-1 flex items-center gap-2 text-[14px] font-medium max-[640px]:text-[12px]";
+    return "mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] font-semibold max-[640px]:text-[10px]";
   }
 
   if (cardSize === "medium") {
-    return "mt-0.5 flex items-center gap-1.5 text-[12px] font-medium max-[640px]:text-[11px]";
+    return "mt-0.5 flex min-w-0 items-center gap-1 text-[11px] font-semibold max-[640px]:text-[9px]";
   }
 
-  return "mt-0.5 flex items-center gap-1.5 text-[11px] font-medium max-[640px]:text-[10px]";
+  return "mt-0.5 flex min-w-0 items-center gap-1 text-[11px] font-semibold max-[640px]:text-[9px]";
 }
 
 export function collectionTilePriceClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "min-w-0 truncate text-[20px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white max-[640px]:text-[20px]";
+    return "min-w-0 truncate text-[16px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[14px]";
   }
 
   if (cardSize === "medium") {
-    return "min-w-0 truncate text-[16px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white max-[640px]:text-[15px]";
+    return "min-w-0 truncate text-[14px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
   }
 
-  return "min-w-0 truncate text-[14px] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white max-[640px]:text-[12px]";
+  return "min-w-0 truncate text-[13px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[11px]";
 }
 
 export function collectionTileNoPriceClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "text-[13px] text-gray-400 dark:text-gray-500";
+    return "text-[13px] text-white/35";
   }
 
   if (cardSize === "medium") {
-    return "text-xs text-gray-400 dark:text-gray-500";
+    return "text-xs text-white/35";
   }
 
-  return "text-[11px] text-gray-400 dark:text-gray-500";
+  return "text-[11px] text-white/35";
 }
 
 export function collectionTileActionButtonClass(cardSize: CardSize): string {
   const size =
     cardSize === "large"
-      ? "h-[26px] w-[26px] rounded-lg max-[640px]:h-[24px] max-[640px]:w-[24px]"
+      ? "h-[30px] w-[30px] rounded-xl max-[640px]:h-[28px] max-[640px]:w-[28px]"
       : cardSize === "medium"
-        ? "h-[24px] w-[24px] rounded-md max-[640px]:h-[22px] max-[640px]:w-[22px]"
-        : "h-[22px] w-[22px] rounded-md max-[640px]:h-[20px] max-[640px]:w-[20px]";
+        ? "h-[28px] w-[28px] rounded-xl max-[640px]:h-[26px] max-[640px]:w-[26px]"
+        : "h-[26px] w-[26px] rounded-lg max-[640px]:h-[24px] max-[640px]:w-[24px]";
 
-  return `inline-flex ${size} shrink-0 items-center justify-center border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12`;
+  return `inline-flex ${size} shrink-0 items-center justify-center border border-white/12 bg-black/40 text-white shadow-sm shadow-black/30 backdrop-blur transition-colors hover:border-emerald-300/35 hover:bg-emerald-400/14 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50`;
 }
 
 export function collectionTileActionIconClass(cardSize: CardSize): string {

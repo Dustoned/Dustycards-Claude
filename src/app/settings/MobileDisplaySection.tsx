@@ -36,11 +36,14 @@ const VIEW_OPTIONS: Array<{ value: CardView; label: string; desc: string }> = [
   { value: "binder", label: "Binder", desc: "Grid fallback" },
 ];
 
+const ACTIVE_OPTION_CLASS =
+  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+const INACTIVE_OPTION_CLASS =
+  "border-white/8 text-white/55 hover:border-white/18 hover:bg-white/[0.055] hover:text-white";
+
 function optionClass(active: boolean) {
   return `flex min-w-0 flex-col items-center gap-1.5 rounded-xl border px-2.5 py-3 text-center transition-all ${
-    active
-      ? "border-gray-900 bg-gray-900 text-white shadow-md dark:border-white dark:bg-white dark:text-gray-900"
-      : "border-black/8 text-gray-500 hover:border-black/20 hover:text-gray-900 dark:border-white/8 dark:text-gray-400 dark:hover:border-white/20 dark:hover:text-white"
+    active ? ACTIVE_OPTION_CLASS : INACTIVE_OPTION_CLASS
   }`;
 }
 
