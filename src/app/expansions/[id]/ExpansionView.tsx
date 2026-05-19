@@ -540,10 +540,11 @@ export default function ExpansionView({
         : "gap-x-2 gap-y-3"
     : "gap-2";
   const renderedCards = useIncrementalItems(filtered, {
-    initialCount: INITIAL_RENDERED_CARDS,
-    batchSize: RENDERED_CARD_BATCH_SIZE,
+    initialCount: isMobileViewport ? 28 : INITIAL_RENDERED_CARDS,
+    batchSize: isMobileViewport ? 24 : RENDERED_CARD_BATCH_SIZE,
     delayMs: 80,
   });
+  const eagerImageCount = isMobileViewport ? 4 : EAGER_IMAGE_COUNT;
   const hasPendingRenderedCards = renderedCards.length < filtered.length;
 
   useEffect(() => {
@@ -1026,6 +1027,11 @@ export default function ExpansionView({
                       ? "border-blue-400/70 ring-2 ring-blue-400/50"
                       : "border-black/8 dark:border-white/8"
                   }`}
+                  style={{
+                    contain: "layout paint style",
+                    contentVisibility: "auto",
+                    containIntrinsicSize: "112px",
+                  }}
                 >
                   <div className="flex gap-3">
                     <div className="relative h-24 w-[4.25rem] shrink-0 overflow-hidden rounded-[4.75%] border border-black/8 bg-[#dedbd1] dark:border-white/8 dark:bg-[#d8d5cc]">
@@ -1036,7 +1042,7 @@ export default function ExpansionView({
                           fill
                           className="rounded-[4.75%] object-fill"
                           sizes="68px"
-                          loading={index < EAGER_IMAGE_COUNT ? "eager" : undefined}
+                          loading={index < eagerImageCount ? "eager" : undefined}
                           unoptimized
                         />
                       ) : (
@@ -1166,7 +1172,7 @@ export default function ExpansionView({
                                 fill
                                 className="rounded-[4.75%] object-fill"
                                 sizes="48px"
-                                loading={index < EAGER_IMAGE_COUNT ? "eager" : undefined}
+                                loading={index < eagerImageCount ? "eager" : undefined}
                                 unoptimized
                               />
                             ) : (
@@ -1280,6 +1286,11 @@ export default function ExpansionView({
                 role="button"
                 tabIndex={0}
                 className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
+                style={{
+                  contain: "layout paint style",
+                  contentVisibility: "auto",
+                  containIntrinsicSize: isMobileViewport ? "240px" : "300px",
+                }}
                 onClick={() => handleCardClick(card)}
                 onKeyDown={(event) => {
                   if (event.target !== event.currentTarget) return;
@@ -1303,7 +1314,7 @@ export default function ExpansionView({
                       fill
                       className="rounded-[4.75%] object-fill"
                       sizes={cardTrackWidth}
-                      loading={index < EAGER_IMAGE_COUNT ? "eager" : undefined}
+                      loading={index < eagerImageCount ? "eager" : undefined}
                       unoptimized
                     />
                   ) : (

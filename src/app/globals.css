@@ -652,6 +652,11 @@ body :where(option) {
     overflow-x: hidden;
   }
 
+  body {
+    background: #050505;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .page-container {
     width: 100%;
     max-width: 100%;
@@ -669,21 +674,34 @@ body :where(option) {
 
   .binder-panel {
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.024));
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.26);
-    backdrop-filter: blur(8px) saturate(130%);
-    -webkit-backdrop-filter: blur(8px) saturate(130%);
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.22);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .binder-subpanel {
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
-    backdrop-filter: blur(7px) saturate(128%);
-    -webkit-backdrop-filter: blur(7px) saturate(128%);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .glass,
   .dark .glass {
-    backdrop-filter: blur(8px) saturate(135%);
-    -webkit-backdrop-filter: blur(8px) saturate(135%);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  body :where([class*="backdrop-blur"]) {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  body :where([class*="drop-shadow"]) {
+    filter: none !important;
+  }
+
+  body :where(.card-modal-frame, [class*="overflow-y-auto"]) {
+    -webkit-overflow-scrolling: touch;
   }
 
   html,

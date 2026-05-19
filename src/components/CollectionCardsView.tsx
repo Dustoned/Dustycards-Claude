@@ -406,11 +406,13 @@ export default function CollectionCardsView({
     key: "",
     limit: INITIAL_COLLECTION_RENDER_COUNT,
   });
+  const initialRenderCount = isMobileViewport ? 36 : INITIAL_COLLECTION_RENDER_COUNT;
+  const renderBatchSize = isMobileViewport ? 36 : COLLECTION_RENDER_BATCH_SIZE;
   const renderKey = `${visibleEntries.length}:${visibleEntries[0]?.selectionKey ?? ""}:${
     visibleEntries[visibleEntries.length - 1]?.selectionKey ?? ""
   }:${sortBy}:${sortDir}:${splitByGrading ? "split" : "all"}`;
   const renderLimit =
-    renderState.key === renderKey ? renderState.limit : INITIAL_COLLECTION_RENDER_COUNT;
+    renderState.key === renderKey ? renderState.limit : initialRenderCount;
   const renderedVisibleEntries = useMemo(
     () => visibleEntries.slice(0, renderLimit),
     [renderLimit, visibleEntries]
@@ -435,9 +437,9 @@ export default function CollectionCardsView({
 
         setRenderState((current) => {
           const currentLimit =
-            current.key === renderKey ? current.limit : INITIAL_COLLECTION_RENDER_COUNT;
+            current.key === renderKey ? current.limit : initialRenderCount;
           const nextLimit = Math.min(
-            currentLimit + COLLECTION_RENDER_BATCH_SIZE,
+            currentLimit + renderBatchSize,
             visibleEntries.length
           );
 
@@ -451,7 +453,7 @@ export default function CollectionCardsView({
           };
         });
       },
-      { rootMargin: "700px 0px" }
+      { rootMargin: isMobileViewport ? "320px 0px" : "700px 0px" }
     );
 
     observer.observe(loadMoreElement);
@@ -459,7 +461,7 @@ export default function CollectionCardsView({
     return () => {
       observer.disconnect();
     };
-  }, [hasMoreVisibleEntries, renderKey, renderLimit, visibleEntries.length]);
+  }, [hasMoreVisibleEntries, initialRenderCount, isMobileViewport, renderBatchSize, renderKey, renderLimit, visibleEntries.length]);
 
   const renderedSelectionKeys = useMemo(
     () => new Set(renderedVisibleEntries.map((entry) => entry.selectionKey)),
@@ -2007,6 +2009,7 @@ export default function CollectionCardsView({
                         isSelected ? "border-blue-400/70 ring-2 ring-blue-400/60" : ""
                       }`}
                       style={{
+                        contain: "layout paint style",
                         contentVisibility: "auto",
                         containIntrinsicSize: isMobileViewport ? "250px" : "320px",
                       }}
