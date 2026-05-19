@@ -516,7 +516,7 @@ function WantsQuickViewModal({
 
   return createPortal(
     <div
-      className={`${modalCenteredMobileOverlayClass} z-[90]`}
+      className={`${modalCenteredMobileOverlayClass} z-[360]`}
       onClick={(event) => {
         event.stopPropagation();
         onClose();

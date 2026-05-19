@@ -413,7 +413,7 @@ export function CollectionSealedRemoveDialog({
 
   return (
     <div
-      className={`${modalCenteredMobileOverlayClass} z-[73]`}
+      className={`${modalCenteredMobileOverlayClass} z-[360]`}
       onClick={() => {
         if (!removingItems) {
           onClose();

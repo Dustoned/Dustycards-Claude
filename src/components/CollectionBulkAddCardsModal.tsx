@@ -183,7 +183,7 @@ export default function CollectionBulkAddCardsModal({
 
   return (
     <div
-      className={`${modalCenteredMobileOverlayClass} z-[72]`}
+      className={`${modalCenteredMobileOverlayClass} z-[360]`}
       onClick={onClose}
     >
       <div

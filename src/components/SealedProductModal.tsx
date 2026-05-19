@@ -56,13 +56,15 @@ export default function SealedProductModal({ product, onClose }: Props) {
     displaySettings.widescreen
   );
   const desktopWorkspaceStyle = {
-    maxWidth: `min(100%, ${layout.maxW})`,
+    maxWidth: displaySettings.widescreen
+      ? "min(100%, 176rem)"
+      : `min(100%, ${layout.maxW})`,
   };
   const desktopGridClass = displaySettings.widescreen
-    ? `grid gap-5 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)] 2xl:gap-6`
+    ? `grid gap-6 xl:grid-cols-[minmax(22rem,0.82fr)_minmax(28rem,1fr)] xl:items-start 2xl:grid-cols-[minmax(23rem,0.76fr)_minmax(24rem,0.86fr)_minmax(30rem,1.08fr)] 2xl:gap-7`
     : `grid ${layout.gridGap} lg:grid-cols-[minmax(17rem,0.62fr)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(18rem,0.58fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)]`;
   const desktopHistoryClass = displaySettings.widescreen
-    ? "min-w-0 lg:col-start-2 2xl:col-start-auto"
+    ? "min-w-0 xl:col-start-2 2xl:col-start-auto"
     : "min-w-0 lg:col-start-2 2xl:col-start-auto";
   const primaryPrice = getSealedProductPrice(modalProduct);
   const priceHistory = modalProduct.price_history;
@@ -254,7 +256,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
               <SealedModalPreview
                 product={modalProduct}
                 mediaWidth={
-                  displaySettings.widescreen ? "clamp(20rem, 22vw, 27.5rem)" : layout.mediaWidth
+                  displaySettings.widescreen ? "clamp(22rem, 20vw, 32rem)" : layout.mediaWidth
                 }
                 imageSize={layout.imageSize}
                 imagePadding={layout.imagePadding}

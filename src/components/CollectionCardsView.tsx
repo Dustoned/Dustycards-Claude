@@ -2192,7 +2192,7 @@ export default function CollectionCardsView({
 
       {removeDialog && (
         <div
-          className={`${modalCenteredMobileOverlayClass} z-[73]`}
+          className={`${modalCenteredMobileOverlayClass} z-[360]`}
           onClick={() => {
             if (!removingItems) {
               setRemoveDialog(null);

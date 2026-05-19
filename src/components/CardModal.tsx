@@ -189,16 +189,18 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     displaySettings.widescreen
   );
   const desktopWorkspaceStyle = {
-    maxWidth: `min(100%, ${layout.maxW})`,
+    maxWidth: displaySettings.widescreen
+      ? "min(100%, 176rem)"
+      : `min(100%, ${layout.maxW})`,
   };
   const desktopGridClass = displaySettings.widescreen
-    ? "grid gap-5 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)] 2xl:gap-6"
+    ? "grid gap-6 xl:grid-cols-[minmax(22rem,0.82fr)_minmax(28rem,1fr)] xl:items-start 2xl:grid-cols-[minmax(23rem,0.76fr)_minmax(24rem,0.86fr)_minmax(30rem,1.08fr)] 2xl:gap-7"
     : "grid gap-6 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)]";
   const desktopPreviewClass = displaySettings.widescreen
-    ? "lg:row-span-2 2xl:row-span-1 2xl:justify-self-center"
+    ? "xl:row-span-2 2xl:row-span-1 2xl:justify-self-center"
     : "lg:row-span-2 2xl:row-span-1";
   const desktopHistoryClass = displaySettings.widescreen
-    ? "min-w-0 lg:col-start-2 2xl:col-start-auto"
+    ? "min-w-0 xl:col-start-2 2xl:col-start-auto"
     : "min-w-0 lg:col-start-2 2xl:col-start-auto";
   const gradedPrices = modalCard.graded_prices ?? [];
   const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];
@@ -555,7 +557,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                     card={modalCard}
                     mediaWidth={
                       displaySettings.widescreen
-                        ? "clamp(20rem, 22vw, 27.5rem)"
+                        ? "clamp(22rem, 20vw, 32rem)"
                         : layout.mediaWidth
                     }
                     imageSize={layout.imageSize}

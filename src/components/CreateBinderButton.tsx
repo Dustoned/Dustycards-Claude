@@ -149,7 +149,7 @@ export default function CreateBinderButton({
     open && typeof document !== "undefined"
       ? createPortal(
           <div
-            className={`${modalCenteredMobileOverlayClass} z-[90]`}
+            className={`${modalCenteredMobileOverlayClass} z-[360]`}
             onClick={() => setOpen(false)}
           >
             <div

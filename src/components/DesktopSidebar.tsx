@@ -14,7 +14,6 @@ import {
   LogOut,
   Mail,
   PackageOpen,
-  Search,
   Settings,
   ShieldCheck,
   ShoppingBag,
@@ -66,7 +65,6 @@ const NAV_SECTIONS = [
   {
     label: "Browse",
     items: [
-      { href: "/search", label: "Search", icon: Search, badge: null, key: "search" },
       { href: "/expansions", label: "Pokemon Sets", icon: FolderOpen, badge: null, key: "expansions" },
       {
         href: "/one-piece/expansions",
@@ -107,7 +105,6 @@ function isActive(pathname: string, tab: string | null, key: string): boolean {
   if (key === "sealed") return pathname === "/" && tab === "sealed";
   if (key === "graded") return pathname === "/" && tab === "graded";
   if (key === "market") return pathname.startsWith("/movers");
-  if (key === "search") return pathname === "/search";
   if (key === "expansions") return pathname.startsWith("/expansions");
   if (key === "one-piece") return pathname.startsWith("/one-piece");
   if (key === "categories") return pathname.startsWith("/categories");

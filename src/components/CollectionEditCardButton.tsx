@@ -253,7 +253,7 @@ export default function CollectionEditCardButton({
     open && typeof document !== "undefined"
       ? createPortal(
           <div
-            className={`${modalCenteredMobileOverlayClass} z-[90]`}
+            className={`${modalCenteredMobileOverlayClass} z-[360]`}
             onClick={(event) => {
               event.stopPropagation();
               setOpen(false);

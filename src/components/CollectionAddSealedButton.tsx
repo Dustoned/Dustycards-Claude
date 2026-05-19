@@ -136,7 +136,7 @@ export default function CollectionAddSealedButton({
 
       {open && (
         <div
-          className={`${modalCenteredMobileOverlayClass} z-[70]`}
+          className={`${modalCenteredMobileOverlayClass} z-[360]`}
           onClick={(event) => {
             event.stopPropagation();
             setOpen(false);

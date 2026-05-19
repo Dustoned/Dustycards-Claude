@@ -142,7 +142,7 @@ export default function EditBinderButton({ binder }: { binder: BinderRef }) {
 
       {open && (
         <div
-          className={`${modalBottomSheetOverlayClass} z-[90]`}
+          className={`${modalBottomSheetOverlayClass} z-[360]`}
           onClick={() => setOpen(false)}
         >
           <div

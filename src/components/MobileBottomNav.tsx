@@ -48,7 +48,12 @@ type MobileNavItem = {
   shortLabel?: string;
 };
 
-function getMoreGridItems(onePieceEnabled: boolean): readonly MobileNavItem[] {
+type MobileNavSection = {
+  label: string;
+  items: readonly MobileNavItem[];
+};
+
+function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSection[] {
   const expansionItems: MobileNavItem[] = onePieceEnabled
     ? [
         { href: "/expansions", label: "Pokemon Sets", shortLabel: "Pokemon", icon: FolderOpen, matches: ["/expansions"] },
@@ -57,27 +62,47 @@ function getMoreGridItems(onePieceEnabled: boolean): readonly MobileNavItem[] {
     : [{ href: "/expansions", label: "Expansions", shortLabel: "Sets", icon: FolderOpen, matches: ["/expansions"] }];
 
   return [
-    { href: "/search", label: "Search", icon: Search, matches: ["/search"] },
-    ...expansionItems,
-    { href: "/categories", label: "Categories", icon: Sparkles, matches: ["/categories"] },
-    { href: "/illustrators", label: "Illustrators", shortLabel: "Artists", icon: Brush, matches: ["/illustrators"] },
-    { href: "/", label: "Home", icon: Home, matches: ["home"] },
     {
-      href: "/?tab=complete",
-      label: "Complete Collection",
-      shortLabel: "Complete",
-      icon: LibraryBig,
-      matches: ["tab:complete", "tab:cards"],
+      label: "Browse",
+      items: [
+        { href: "/search", label: "Search", icon: Search, matches: ["/search"] },
+        ...expansionItems,
+        { href: "/categories", label: "Categories", icon: Sparkles, matches: ["/categories"] },
+        { href: "/illustrators", label: "Illustrators", shortLabel: "Artists", icon: Brush, matches: ["/illustrators"] },
+      ],
     },
-    { href: "/?tab=singles", label: "Loose Singles", shortLabel: "Singles", icon: Sparkles, matches: ["tab:singles"] },
-    { href: "/?tab=binders", label: "Binders", icon: Boxes, matches: ["tab:binders", "/binders"] },
-    { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, matches: ["tab:sealed"] },
-    { href: "/?tab=graded", label: "Graded", icon: LibraryBig, matches: ["tab:graded"] },
-    { href: "/wants", label: "Wants", icon: Heart, matches: ["/wants"] },
-    { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers"] },
-    { href: "/deals", label: "Deals", icon: ShoppingBag, matches: ["/deals"] },
-    { href: "/account", label: "Account", icon: UserRound, matches: ["/account"] },
-    { href: "/settings", label: "Settings", icon: SettingsIcon, matches: ["/settings"] },
+    {
+      label: "Collection",
+      items: [
+        { href: "/", label: "Home", icon: Home, matches: ["home"] },
+        {
+          href: "/?tab=complete",
+          label: "Complete Collection",
+          shortLabel: "Complete",
+          icon: LibraryBig,
+          matches: ["tab:complete", "tab:cards"],
+        },
+        { href: "/?tab=singles", label: "Loose Singles", shortLabel: "Singles", icon: Sparkles, matches: ["tab:singles"] },
+        { href: "/?tab=binders", label: "Binders", icon: Boxes, matches: ["tab:binders", "/binders"] },
+        { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, matches: ["tab:sealed"] },
+        { href: "/?tab=graded", label: "Graded", icon: LibraryBig, matches: ["tab:graded"] },
+      ],
+    },
+    {
+      label: "Market",
+      items: [
+        { href: "/wants", label: "Wants", icon: Heart, matches: ["/wants"] },
+        { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers"] },
+        { href: "/deals", label: "Deals", icon: ShoppingBag, matches: ["/deals"] },
+      ],
+    },
+    {
+      label: "Account",
+      items: [
+        { href: "/account", label: "Account", icon: UserRound, matches: ["/account"] },
+        { href: "/settings", label: "Settings", icon: SettingsIcon, matches: ["/settings"] },
+      ],
+    },
   ];
 }
 
@@ -135,7 +160,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const { settings } = useSettings();
   const [moreOpen, setMoreOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const moreGridItems = getMoreGridItems(settings.onePieceLibraryEnabled);
+  const moreSections = getMoreMenuSections(settings.onePieceLibraryEnabled);
   const primaryActive = PRIMARY_NAV_ITEMS.some((item) =>
     isNavItemActive(pathname, collectionTab, item.matches)
   );
@@ -164,12 +189,13 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
           }}
         >
           <div
-            className="absolute inset-x-2 bottom-[calc(4.15rem+env(safe-area-inset-bottom))] max-h-[min(72dvh,38rem)] overflow-y-auto rounded-[22px] border border-violet-300/18 bg-[#070708]/98 p-2 shadow-[0_28px_90px_rgba(88,28,135,0.28),0_28px_90px_rgba(0,0,0,0.68)] [scrollbar-width:none] backdrop-blur-xl [&::-webkit-scrollbar]:hidden"
+            className="absolute inset-x-2 bottom-[calc(4.15rem+env(safe-area-inset-bottom))] max-h-[min(70dvh,36rem)] overflow-y-auto rounded-[22px] border border-violet-300/18 bg-[#070708]/98 p-2 shadow-[0_28px_90px_rgba(88,28,135,0.28),0_28px_90px_rgba(0,0,0,0.68)] [scrollbar-width:none] backdrop-blur-xl [&::-webkit-scrollbar]:hidden"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-1.5 flex items-center justify-between gap-3 px-1">
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200/58">More</p>
+                <p className="text-[10px] font-semibold text-white/38">Quick navigation</p>
               </div>
               <button
                 type="button"
@@ -243,35 +269,44 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               </div>
             ) : null}
 
-            <div className="grid grid-cols-4 gap-1.5">
-              {moreGridItems.map((item) => {
-                const active = isNavItemActive(pathname, collectionTab, item.matches);
-                const Icon = item.icon;
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              {moreSections.map((section) => (
+                <div key={section.label} className="min-w-0">
+                  <p className="mb-0.5 px-1.5 text-[8px] font-black uppercase tracking-[0.15em] text-white/30">
+                    {section.label}
+                  </p>
+                  <div className="grid gap-0.5">
+                    {section.items.map((item) => {
+                      const active = isNavItemActive(pathname, collectionTab, item.matches);
+                      const Icon = item.icon;
 
-                return (
-                  <Link
-                    key={`${item.href}:${item.label}`}
-                    href={item.href}
-                    prefetch={false}
-                    onClick={() => setMoreOpen(false)}
-                    aria-current={active ? "page" : undefined}
-                    title={item.label}
-                    className={`flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 text-center text-[8px] font-black leading-tight transition-colors min-[390px]:text-[9px] ${
-                      active
-                        ? "border-violet-300/35 bg-violet-500/[0.18] text-violet-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_20px_rgba(139,92,246,0.18)]"
-                        : "border-white/7 bg-white/[0.035] text-white/58 hover:border-violet-300/18 hover:bg-violet-500/[0.09] hover:text-white"
-                    }`}
-                  >
-                    <Icon
-                      className={`h-4 w-4 shrink-0 ${
-                        active ? "text-violet-100 drop-shadow-[0_0_12px_rgba(168,85,247,0.42)]" : "text-white/46"
-                      }`}
-                      aria-hidden="true"
-                    />
-                    <span className="w-full truncate">{item.shortLabel ?? item.label}</span>
-                  </Link>
-                );
-              })}
+                      return (
+                        <Link
+                          key={`${section.label}:${item.href}:${item.label}`}
+                          href={item.href}
+                          prefetch={false}
+                          onClick={() => setMoreOpen(false)}
+                          aria-current={active ? "page" : undefined}
+                          title={item.label}
+                          className={`flex min-h-7 min-w-0 items-center gap-1.5 rounded-lg px-1.5 text-[10px] font-bold leading-tight transition-colors min-[390px]:text-[10.5px] ${
+                            active
+                              ? "bg-violet-500/[0.18] text-violet-50 shadow-[inset_2px_0_0_rgba(168,85,247,0.58)]"
+                              : "text-white/54 hover:bg-violet-500/[0.08] hover:text-white"
+                          }`}
+                        >
+                          <Icon
+                            className={`h-3.5 w-3.5 shrink-0 ${
+                              active ? "text-violet-100 drop-shadow-[0_0_12px_rgba(168,85,247,0.42)]" : "text-white/42"
+                            }`}
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0 flex-1 truncate text-left">{item.shortLabel ?? item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
