@@ -781,14 +781,18 @@ export function CardModalMobileShowcase({
       : null;
   const priceDeltaLabel = formatSignedPercent(priceDeltaPercent);
   const priceDeltaPositive = priceDeltaPercent == null || priceDeltaPercent >= 0;
-  const tabs = ["overview", "market", "history", "owned", "listings"];
-  const showOverview = activeTab === "overview" || activeTab === "owned";
-  const showChart = activeTab !== "owned" && activeTab !== "listings";
+  const tabs = [
+    { key: "overview", label: "Info" },
+    { key: "history", label: "Price" },
+    { key: "listings", label: "Listings" },
+  ];
+  const showOverview = activeTab === "overview";
+  const showChart = activeTab === "history";
   const floatingButtonClass =
     "!h-11 !w-11 !rounded-full !border-white/12 !bg-black/38 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-white/24 hover:!bg-white/[0.1]";
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(6.8rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">
+    <div className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_24%,rgba(139,92,246,0.38),transparent_34%),radial-gradient(circle_at_30%_22%,rgba(16,185,129,0.16),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent_52%)]" />
 
       <div className="relative z-20 flex items-center justify-between">
@@ -1017,22 +1021,19 @@ export function CardModalMobileShowcase({
           </div>
         </div>
 
-        <nav className="mt-5 flex min-w-0 items-center justify-between border-b border-white/[0.08] text-[14px] font-semibold text-white/48">
+        <nav className="mt-5 grid min-w-0 grid-cols-3 gap-1 rounded-2xl border border-white/8 bg-black/22 p-1 text-[13px] font-bold text-white/48">
           {tabs.map((tab) => (
             <button
-              key={tab}
+              key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`relative min-h-11 min-w-0 px-1 capitalize transition-colors ${
-                activeTab === tab ? "text-violet-200" : "hover:text-white/78"
+              onClick={() => setActiveTab(tab.key)}
+              className={`relative min-h-10 min-w-0 rounded-xl px-2 transition-colors ${
+                activeTab === tab.key
+                  ? "bg-white text-gray-950 shadow-[0_12px_26px_rgba(255,255,255,0.08)]"
+                  : "hover:bg-white/[0.06] hover:text-white/78"
               }`}
             >
-              <span className="truncate">
-                {tab === "owned" ? "Owned (1)" : tab}
-              </span>
-              {activeTab === tab && (
-                <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-violet-400 shadow-[0_0_16px_rgba(168,85,247,0.75)]" />
-              )}
+              <span className="truncate">{tab.label}</span>
             </button>
           ))}
         </nav>
@@ -1140,7 +1141,7 @@ export function CardModalMobileShowcase({
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-[230] border-t border-white/10 bg-[#050505]/88 px-4 py-3 pb-[calc(0.8rem+env(safe-area-inset-bottom))] backdrop-blur-2xl">
+      <div className="relative z-10 mt-4 rounded-[22px] border border-white/10 bg-white/[0.035] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
         <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
           <CollectionAddCardButton
             card={collectionCard}
@@ -2067,24 +2068,7 @@ export function CardModalFooter({
 
   return (
     <div className="mt-1">
-      <div className="flex min-w-0 items-center gap-8 border-b border-white/10">
-        {["Overview", "Price History", "Owned (1)", "Listings", "Comparables"].map((tab, index) => (
-          <button
-            key={tab}
-            type="button"
-            className={`relative min-h-10 text-sm font-semibold transition-colors ${
-              index === 0 ? "text-violet-200" : "text-white/48 hover:text-white/78"
-            }`}
-          >
-            {tab}
-            {index === 0 && (
-              <span className="absolute inset-x-0 -bottom-px h-px rounded-full bg-violet-400 shadow-[0_0_14px_rgba(139,92,246,0.7)]" />
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
         <section className={panelClass}>
           <div className="flex items-center justify-between gap-3">
             <h3 className={panelTitleClass}>Owned Copy</h3>

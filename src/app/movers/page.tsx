@@ -306,7 +306,6 @@ export default async function MoversPage({
     { href: buildMoversHref({ mode: "graded" }), active: activeMode === "graded", label: "Graded" },
     { href: buildMoversHref({ mode: "targets" }), active: activeMode === "targets", label: "Targets" },
     { href: buildMoversHref({ mode: "sealed" }), active: activeMode === "sealed", label: "Sealed" },
-    { href: "/deals", active: false, label: "Deals" },
   ];
   const movementSwitchItems = [
     { href: buildMoversHref({ trend: "all" }), active: activeTrend === "all", label: "All" },
@@ -571,7 +570,48 @@ export default async function MoversPage({
         </section>
 
         <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3">
-          <div className="flex min-w-0 flex-col gap-2.5">
+          <div className="flex min-w-0 flex-col gap-2.5 md:hidden">
+            {settings.onePieceLibraryEnabled ? (
+              <GameFilterSwitch
+                items={gameSwitchItems}
+                ariaLabel="Market library"
+                className="w-full max-w-full sm:w-fit"
+              />
+            ) : null}
+            <SegmentedNavLinks
+              items={marketSwitchItems}
+              ariaLabel="Market category"
+              className="w-full max-w-full sm:w-fit"
+            />
+            {(isRawScope || isGradedScope) && !isValueScope ? (
+              <SegmentedNavLinks
+                items={movementSwitchItems}
+                ariaLabel="Market movement"
+                className="w-full max-w-full sm:w-fit"
+              />
+            ) : null}
+            <details className="group rounded-2xl border border-white/8 bg-black/18 p-1">
+              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-center rounded-xl px-3 text-[11px] font-black uppercase tracking-[0.12em] text-white/56 transition-colors group-open:bg-white/[0.055] group-open:text-white">
+                More filters
+              </summary>
+              <div className="grid gap-2 pt-2">
+                <SegmentedNavLinks
+                  items={scopeSwitchItems}
+                  ariaLabel="Market scope"
+                  className="w-full max-w-full sm:w-fit"
+                />
+                {isRawScope ? (
+                  <SegmentedNavLinks
+                    items={sourceSwitchItems}
+                    ariaLabel="Market price source"
+                    className="w-full max-w-full sm:w-fit"
+                  />
+                ) : null}
+              </div>
+            </details>
+          </div>
+
+          <div className="hidden min-w-0 flex-col gap-2.5 md:flex">
             {settings.onePieceLibraryEnabled ? (
               <GameFilterSwitch
                 items={gameSwitchItems}

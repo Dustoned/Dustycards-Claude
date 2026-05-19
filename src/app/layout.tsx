@@ -4,7 +4,6 @@ import { Geist } from "next/font/google";
 import Link from "next/link";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
-import { HeaderMobileMenu } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
 import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import MobileBottomNav from "@/components/MobileBottomNav";
@@ -206,11 +205,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             }`}
           >
             <nav className="page-container relative mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-3 sm:px-6 lg:px-8">
-              {currentUser && (
-                <div className="xl:hidden">
-                  <HeaderMobileMenu />
-                </div>
-              )}
               <Link href="/" prefetch={false} className={`shrink-0 font-bold tracking-tight text-white transition-opacity hover:opacity-75 [font-size:var(--ui-brand-size)] ${currentUser ? "xl:hidden" : ""}`}>
                 DustyCards
               </Link>

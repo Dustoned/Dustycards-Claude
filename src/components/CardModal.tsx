@@ -464,7 +464,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   return (
     <>
       <div
-        className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/72 px-0 py-0 backdrop-blur-[14px] sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:block md:bg-[#050505] md:p-0 md:backdrop-blur-none xl:left-[15rem]"
+        className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#050505] px-0 py-0 sm:bg-black/72 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:backdrop-blur-[14px] md:block md:bg-[#050505] md:p-0 md:backdrop-blur-none xl:left-[15rem]"
         style={{ overscrollBehavior: "contain" }}
         onClick={onClose}
       >
@@ -477,7 +477,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
             role="dialog"
             aria-modal="true"
             aria-label={modalCard.name}
-            className="card-modal-frame glass relative h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain rounded-none border border-white/12 bg-[rgba(10,10,12,0.92)] [scrollbar-gutter:stable] shadow-none md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
+            className="card-modal-frame glass relative h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain rounded-none border border-white/12 bg-[#050505] [scrollbar-gutter:stable] shadow-none sm:bg-[rgba(10,10,12,0.92)] md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
             data-modal-size={displaySettings.modalSize}
             data-mobile-showcase="true"
           >
