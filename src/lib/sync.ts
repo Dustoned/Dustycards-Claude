@@ -2284,7 +2284,7 @@ async function syncEpisodeCards(
           },
         });
         refreshedPrices += 1;
-      } else if (!latestPrice) {
+      } else if (options.refreshAllPrices || !latestPrice) {
         await tx.card.update({
           where: { id: card.id },
           data: {
@@ -2975,7 +2975,18 @@ async function refreshEpisodeDueCards(
       const existingCard = existingCardMap.get(cardId);
       const remoteCard = remoteCardMap.get(cardId);
 
-      if (!existingCard || !remoteCard) {
+      if (!existingCard) {
+        continue;
+      }
+
+      if (!remoteCard) {
+        await tx.card.update({
+          where: { id: cardId },
+          data: {
+            price_source_status: "unavailable",
+            price_source_checked_at: fetchedAt,
+          },
+        });
         continue;
       }
 
