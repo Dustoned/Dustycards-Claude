@@ -1,4 +1,5 @@
-import { ArrowDownRight, Clock3, Gem, Sparkles, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { ArrowDownRight, ChevronDown, Clock3, Gem, SlidersHorizontal, Sparkles, TrendingUp } from "lucide-react";
 import CollectionValueDrivers from "@/components/CollectionValueDrivers";
 import GameFilterSwitch, { SegmentedNavLinks } from "@/components/GameFilterSwitch";
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
@@ -35,6 +36,47 @@ interface PulseChartData {
   points: PriceHistoryValuePoint[];
   currentValue: number | null;
   subtitle: string;
+}
+
+function CompactFilterGroup({
+  label,
+  items,
+  ariaLabel,
+}: {
+  label: string;
+  items: readonly { href: string; active: boolean; label: string }[];
+  ariaLabel: string;
+}) {
+  if (items.length <= 0) return null;
+
+  return (
+    <div className="min-w-0">
+      <p className="mb-1 px-1 text-[8px] font-black uppercase tracking-[0.14em] text-white/32">
+        {label}
+      </p>
+      <nav
+        aria-label={ariaLabel}
+        className="grid min-w-0 gap-1 rounded-xl border border-white/7 bg-white/[0.035] p-1"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
+        {items.map((item) => (
+          <Link
+            key={`${item.href}:${item.label}`}
+            href={item.href}
+            prefetch={false}
+            aria-current={item.active ? "page" : undefined}
+            className={`inline-flex h-7 min-w-0 items-center justify-center rounded-full px-1 text-[9.5px] font-bold leading-none transition-colors min-[390px]:text-[10px] ${
+              item.active
+                ? "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                : "text-white/58 hover:bg-white/[0.07] hover:text-white"
+            }`}
+          >
+            <span className="truncate">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
 }
 
 function formatShortDate(value: string): string {
@@ -341,6 +383,14 @@ export default async function MoversPage({
     active: activeGame === game,
     label: getGameFilterLabel(game),
   }));
+  const activeMovementLabel = movementSwitchItems.find((item) => item.active)?.label ?? "All";
+  const activeScopeLabel = scopeSwitchItems.find((item) => item.active)?.label ?? "Collection";
+  const activeSourceLabel = sourceSwitchItems.find((item) => item.active)?.label ?? "CardMarket";
+  const activeSecondaryFilters = [
+    (isRawScope || isGradedScope) && !isValueScope ? activeMovementLabel : null,
+    activeScopeLabel,
+    isRawScope ? activeSourceLabel : null,
+  ].filter(Boolean);
   function buildMarketPocketHref(pathname: "/movers/cheap-high-rarity" | "/movers/discount-watch") {
     const params = new URLSearchParams();
     const gameValue = getGameFilterSearchParamValue(activeGame);
@@ -569,82 +619,105 @@ export default async function MoversPage({
           </div>
         </section>
 
-        <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3">
-          <div className="flex min-w-0 flex-col gap-2.5 md:hidden">
+        <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
+          <div className="flex min-w-0 flex-col gap-1.5 md:hidden">
             {settings.onePieceLibraryEnabled ? (
               <GameFilterSwitch
                 items={gameSwitchItems}
                 ariaLabel="Market library"
-                className="w-full max-w-full sm:w-fit"
+                className="w-full max-w-full !rounded-[1.15rem] !p-0.5 sm:w-fit [&_a]:!h-7 [&_a]:!text-[10px]"
               />
             ) : null}
             <SegmentedNavLinks
               items={marketSwitchItems}
               ariaLabel="Market category"
-              className="w-full max-w-full sm:w-fit"
+              className="w-full max-w-full !rounded-[1.15rem] !p-0.5 sm:w-fit [&_a]:!h-7 [&_a]:!text-[10px]"
             />
-            {(isRawScope || isGradedScope) && !isValueScope ? (
-              <SegmentedNavLinks
-                items={movementSwitchItems}
-                ariaLabel="Market movement"
-                className="w-full max-w-full sm:w-fit"
-              />
-            ) : null}
-            <details className="group rounded-2xl border border-white/8 bg-black/18 p-1">
-              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-center rounded-xl px-3 text-[11px] font-black uppercase tracking-[0.12em] text-white/56 transition-colors group-open:bg-white/[0.055] group-open:text-white">
-                More filters
+            <details className="group rounded-[1.15rem] border border-white/8 bg-black/18 p-1">
+              <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-2 rounded-xl px-2.5 text-[11px] font-bold text-white/66 transition-colors group-open:bg-white/[0.055] group-open:text-white [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-violet-200/70" />
+                  <span className="shrink-0 uppercase tracking-[0.1em]">Filters</span>
+                  <span className="min-w-0 truncate text-[10px] font-semibold normal-case tracking-normal text-white/42">
+                    {activeSecondaryFilters.join(" · ")}
+                  </span>
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-white/42 transition-transform group-open:rotate-180" />
               </summary>
-              <div className="grid gap-2 pt-2">
-                <SegmentedNavLinks
-                  items={scopeSwitchItems}
-                  ariaLabel="Market scope"
-                  className="w-full max-w-full sm:w-fit"
-                />
-                {isRawScope ? (
-                  <SegmentedNavLinks
-                    items={sourceSwitchItems}
-                    ariaLabel="Market price source"
-                    className="w-full max-w-full sm:w-fit"
+              <div className="grid gap-1.5 pt-1.5">
+                {(isRawScope || isGradedScope) && !isValueScope ? (
+                  <CompactFilterGroup
+                    label="Movement"
+                    items={movementSwitchItems}
+                    ariaLabel="Market movement"
                   />
                 ) : null}
+                <div className={isRawScope ? "grid min-w-0 grid-cols-2 gap-1.5" : ""}>
+                  <CompactFilterGroup
+                    label="View"
+                    items={scopeSwitchItems}
+                    ariaLabel="Market scope"
+                  />
+                  {isRawScope ? (
+                    <CompactFilterGroup
+                      label="Source"
+                      items={sourceSwitchItems}
+                      ariaLabel="Market price source"
+                    />
+                ) : null}
+                </div>
               </div>
             </details>
           </div>
 
-          <div className="hidden min-w-0 flex-col gap-2.5 md:flex">
-            {settings.onePieceLibraryEnabled ? (
-              <GameFilterSwitch
-                items={gameSwitchItems}
-                ariaLabel="Market library"
-                className="w-full max-w-full sm:w-fit"
-              />
-            ) : null}
-            <SegmentedNavLinks
-              items={marketSwitchItems}
-              ariaLabel="Market category"
-              className="w-full max-w-full sm:w-fit"
-            />
-            <div className="flex min-w-0 flex-wrap gap-2">
-              {(isRawScope || isGradedScope) && !isValueScope ? (
-                <SegmentedNavLinks
-                  items={movementSwitchItems}
-                  ariaLabel="Market movement"
-                  className="w-full max-w-full sm:w-fit"
+          <div className="hidden min-w-0 flex-col gap-2 md:flex">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {settings.onePieceLibraryEnabled ? (
+                <GameFilterSwitch
+                  items={gameSwitchItems}
+                  ariaLabel="Market library"
+                  className="w-full max-w-[21.5rem] sm:w-fit"
                 />
               ) : null}
               <SegmentedNavLinks
-                items={scopeSwitchItems}
-                ariaLabel="Market scope"
-                className="w-full max-w-full sm:w-fit"
+                items={marketSwitchItems}
+                ariaLabel="Market category"
+                className="w-full max-w-[26rem] sm:w-fit"
               />
-              {isRawScope ? (
-                <SegmentedNavLinks
-                  items={sourceSwitchItems}
-                  ariaLabel="Market price source"
-                  className="w-full max-w-full sm:w-fit"
-                />
-              ) : null}
             </div>
+            <details className="group rounded-[1.35rem] border border-white/8 bg-black/18 p-1">
+              <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 rounded-[1.1rem] px-3 text-[12px] font-bold text-white/66 transition-colors group-open:bg-white/[0.055] group-open:text-white [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 shrink-0 text-violet-200/70" />
+                  <span className="shrink-0 uppercase tracking-[0.12em]">Filters</span>
+                  <span className="min-w-0 truncate text-[12px] font-semibold normal-case tracking-normal text-white/42">
+                    {activeSecondaryFilters.join(" · ")}
+                  </span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-white/42 transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="grid gap-2 pt-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)]">
+                {(isRawScope || isGradedScope) && !isValueScope ? (
+                  <CompactFilterGroup
+                    label="Movement"
+                    items={movementSwitchItems}
+                    ariaLabel="Market movement"
+                  />
+                ) : null}
+                <CompactFilterGroup
+                  label="View"
+                  items={scopeSwitchItems}
+                  ariaLabel="Market scope"
+                />
+                {isRawScope ? (
+                  <CompactFilterGroup
+                    label="Source"
+                    items={sourceSwitchItems}
+                    ariaLabel="Market price source"
+                  />
+                ) : null}
+              </div>
+            </details>
           </div>
         </section>
 
