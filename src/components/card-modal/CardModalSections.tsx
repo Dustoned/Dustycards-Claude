@@ -68,6 +68,11 @@ interface HistoryPointView {
   value: number | null;
 }
 
+interface RecentPricePoint {
+  label: string;
+  value: number;
+}
+
 interface PriceHistoryStatusPoint {
   date: string;
   label: string;
@@ -139,6 +144,53 @@ function getPriceHistoryPoints(card: ModalCardData): PriceHistoryStatusPoint[] {
       date: point.date,
       label: point.label,
     }));
+}
+
+function getRecentPricePoints(card: ModalCardData, limit = 6): RecentPricePoint[] {
+  return card.price_history
+    .map((point) => ({
+      label: point.label,
+      value:
+        point.cm_market_en ??
+        point.cm_market ??
+        point.cm_market_de ??
+        point.cm_market_fr ??
+        point.cm_market_es ??
+        point.cm_market_it ??
+        point.tcp_market ??
+        null,
+    }))
+    .filter((point): point is RecentPricePoint => point.value != null)
+    .slice(-limit)
+    .reverse();
+}
+
+function PreviousPriceRows({
+  points,
+  emptyClassName = "rounded-xl border border-dashed border-white/10 px-3 py-6 text-center text-sm text-white/42",
+}: {
+  points: readonly RecentPricePoint[];
+  emptyClassName?: string;
+}) {
+  if (points.length === 0) {
+    return <p className={emptyClassName}>No previous prices yet.</p>;
+  }
+
+  return (
+    <div className="grid gap-0">
+      {points.map((point) => (
+        <div
+          key={`${point.label}-${point.value}`}
+          className="flex items-center justify-between gap-3 border-b border-white/[0.07] py-2.5 last:border-b-0"
+        >
+          <span className="truncate text-xs text-white/52">{point.label}</span>
+          <span className="text-sm font-semibold tabular-nums text-white/84">
+            {formatCurrency(point.value, "EUR")}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function getCurrentPriceCoverage(card: ModalCardData) {
@@ -781,13 +833,15 @@ export function CardModalMobileShowcase({
       : null;
   const priceDeltaLabel = formatSignedPercent(priceDeltaPercent);
   const priceDeltaPositive = priceDeltaPercent == null || priceDeltaPercent >= 0;
+  const recentPricePoints = getRecentPricePoints(card, 8);
   const tabs = [
     { key: "overview", label: "Info" },
     { key: "history", label: "Price" },
-    { key: "listings", label: "Listings" },
+    { key: "previous-prices", label: "History" },
   ];
   const showOverview = activeTab === "overview";
   const showChart = activeTab === "history";
+  const showPreviousPrices = activeTab === "previous-prices";
   const floatingButtonClass =
     "!h-11 !w-11 !rounded-full !border-white/12 !bg-black/38 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-white/24 hover:!bg-white/[0.1]";
 
@@ -1104,20 +1158,23 @@ export function CardModalMobileShowcase({
           </div>
         )}
 
-        {activeTab === "listings" && (
+        {showPreviousPrices && (
           <div className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4">
-            <p className="text-sm font-semibold text-white">Listings</p>
-            <p className="mt-1 text-sm text-white/48">
-              Open market listings and deals for this card.
-            </p>
-            <Link
-              href={`/deals?cardId=${encodeURIComponent(card.id)}`}
-              prefetch={false}
-              className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.065] text-sm font-semibold text-white"
-            >
-              <ShoppingCart className="h-4 w-4" />
-              View Listings
-            </Link>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Previous Prices</p>
+                <p className="mt-1 text-xs font-medium text-white/42">Latest saved market points</p>
+              </div>
+              <span className="rounded-full border border-violet-300/18 bg-violet-500/[0.12] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-violet-100">
+                History
+              </span>
+            </div>
+            <div className="mt-3">
+              <PreviousPriceRows
+                points={recentPricePoints}
+                emptyClassName="rounded-xl border border-dashed border-white/10 px-3 py-5 text-center text-sm text-white/42"
+              />
+            </div>
           </div>
         )}
 
