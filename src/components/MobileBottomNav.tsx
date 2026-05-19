@@ -27,6 +27,7 @@ import {
 import { useSettings } from "@/components/SettingsProvider";
 import type { DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
+import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
 const PRIMARY_NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home, matches: ["home"] },
@@ -159,12 +160,20 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const collectionTab = useLiveCollectionTab();
   const { settings } = useSettings();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [activeMoreSection, setActiveMoreSection] = useState("Browse");
   const [loggingOut, setLoggingOut] = useState(false);
   const moreSections = getMoreMenuSections(settings.onePieceLibraryEnabled);
   const primaryActive = PRIMARY_NAV_ITEMS.some((item) =>
     isNavItemActive(pathname, collectionTab, item.matches)
   );
   const moreActive = moreOpen || !primaryActive;
+  useBodyScrollLock(moreOpen);
+  const defaultMoreSection =
+    moreSections.find((section) =>
+      section.items.some((item) => isNavItemActive(pathname, collectionTab, item.matches))
+    )?.label ?? "Browse";
+  const visibleMoreSection =
+    moreSections.find((section) => section.label === activeMoreSection) ?? moreSections[0];
 
   async function logout() {
     if (loggingOut) return;
@@ -183,19 +192,19 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
     <>
       {moreOpen && (
         <div
-          className="fixed inset-0 z-[70] bg-black/58 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-[70] touch-none bg-black/64 backdrop-blur-sm md:hidden"
           onClick={() => {
             setMoreOpen(false);
           }}
         >
           <div
-            className="absolute inset-x-2 bottom-[calc(4.15rem+env(safe-area-inset-bottom))] max-h-[min(70dvh,36rem)] overflow-y-auto rounded-[22px] border border-violet-300/18 bg-[#070708]/98 p-2 shadow-[0_28px_90px_rgba(88,28,135,0.28),0_28px_90px_rgba(0,0,0,0.68)] [scrollbar-width:none] backdrop-blur-xl [&::-webkit-scrollbar]:hidden"
+            className="absolute inset-x-2 bottom-[calc(4.15rem+env(safe-area-inset-bottom))] max-h-[min(58dvh,30rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-[22px] border border-violet-300/18 bg-[#070708]/98 p-2 shadow-[0_28px_90px_rgba(88,28,135,0.28),0_28px_90px_rgba(0,0,0,0.68)] [scrollbar-width:none] backdrop-blur-xl [&::-webkit-scrollbar]:hidden"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-1.5 flex items-center justify-between gap-3 px-1">
               <div className="min-w-0">
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-200/58">More</p>
-                <p className="text-[10px] font-semibold text-white/38">Quick navigation</p>
+                <p className="text-[10px] font-semibold text-white/38">Navigate</p>
               </div>
               <button
                 type="button"
@@ -210,103 +219,103 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
             </div>
 
             {summary ? (
-              <div className="mb-2 rounded-[18px] border border-white/10 bg-gradient-to-b from-white/[0.055] to-white/[0.024] p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.2)]">
-                <div className="flex items-center gap-2">
+              <div className="mb-2 rounded-[16px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.18)]">
+                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
                   <Link
                     href="/account"
                     prefetch={false}
                     onClick={() => setMoreOpen(false)}
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-violet-300/18 bg-violet-500/18 text-[11px] font-black text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.18)]"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-violet-300/18 bg-violet-500/18 text-[11px] font-black text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.18)]"
                     aria-label="Open account"
                   >
                     {summary.email.slice(0, 1).toUpperCase()}
                   </Link>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-1.5">
                       <Link
                         href="/account"
                         prefetch={false}
                         onClick={() => setMoreOpen(false)}
-                        className="truncate text-[13px] font-black leading-tight text-white"
+                        className="truncate text-[12px] font-black leading-tight text-white"
                       >
                         {getDisplayName(summary.email)}
                       </Link>
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-300/18 bg-emerald-400/[0.075] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-emerald-200">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-300/18 bg-emerald-400/[0.075] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200">
                         <ShieldCheck className="h-2.5 w-2.5" />
                         {summary.role === "admin" ? "Admin" : "Collector"}
                       </span>
                     </div>
-                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[9px] font-semibold text-white/38">
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[8.5px] font-semibold text-white/38">
                       <Mail className="h-3 w-3 shrink-0" />
                       <span className="truncate">{summary.email}</span>
                     </div>
-                    <p className="mt-0.5 truncate text-[9px] font-bold text-white/40">
+                    <p className="mt-0.5 truncate text-[8.5px] font-bold text-white/38">
                       {formatCount(summary.cards)} cards / {formatCount(summary.wants)} wants / {formatCount(summary.binders)} binders / {formatCount(summary.sealedUnits)} sealed
                     </p>
                   </div>
-                </div>
-
-                <div className="mt-1.5 grid grid-cols-[1fr_auto] gap-1">
-                  <Link
-                    href="/account"
-                    prefetch={false}
-                    onClick={() => setMoreOpen(false)}
-                    className="inline-flex min-h-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[10px] font-black text-white/78"
-                  >
-                    Profile
-                  </Link>
                   <button
                     type="button"
                     onClick={logout}
                     disabled={loggingOut}
-                    className="inline-flex min-h-7 items-center justify-center gap-1.5 rounded-xl border border-rose-300/18 bg-rose-500/[0.075] px-3 text-[10px] font-black text-rose-100 disabled:cursor-wait disabled:opacity-60"
+                    className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-rose-300/18 bg-rose-500/[0.075] px-2 text-[9px] font-black text-rose-100 disabled:cursor-wait disabled:opacity-60"
                     aria-label="Log out"
                   >
-                    <LogOut className="h-3.5 w-3.5" />
+                    <LogOut className="h-3 w-3" />
                     {loggingOut ? "..." : "Log out"}
                   </button>
                 </div>
               </div>
             ) : null}
 
-            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-              {moreSections.map((section) => (
-                <div key={section.label} className="min-w-0">
-                  <p className="mb-0.5 px-1.5 text-[8px] font-black uppercase tracking-[0.15em] text-white/30">
+            <div className="mb-1.5 grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-white/[0.035] p-1">
+              {moreSections.map((section) => {
+                const active = section.label === visibleMoreSection?.label;
+                return (
+                  <button
+                    key={section.label}
+                    type="button"
+                    onClick={() => setActiveMoreSection(section.label)}
+                    className={`min-h-7 rounded-xl px-1 text-[9px] font-black uppercase tracking-[0.08em] transition-colors ${
+                      active
+                        ? "bg-violet-500/[0.22] text-violet-50 shadow-[0_0_18px_rgba(139,92,246,0.16)]"
+                        : "text-white/38 hover:bg-white/[0.055] hover:text-white/72"
+                    }`}
+                  >
                     {section.label}
-                  </p>
-                  <div className="grid gap-0.5">
-                    {section.items.map((item) => {
-                      const active = isNavItemActive(pathname, collectionTab, item.matches);
-                      const Icon = item.icon;
+                  </button>
+                );
+              })}
+            </div>
 
-                      return (
-                        <Link
-                          key={`${section.label}:${item.href}:${item.label}`}
-                          href={item.href}
-                          prefetch={false}
-                          onClick={() => setMoreOpen(false)}
-                          aria-current={active ? "page" : undefined}
-                          title={item.label}
-                          className={`flex min-h-7 min-w-0 items-center gap-1.5 rounded-lg px-1.5 text-[10px] font-bold leading-tight transition-colors min-[390px]:text-[10.5px] ${
-                            active
-                              ? "bg-violet-500/[0.18] text-violet-50 shadow-[inset_2px_0_0_rgba(168,85,247,0.58)]"
-                              : "text-white/54 hover:bg-violet-500/[0.08] hover:text-white"
-                          }`}
-                        >
-                          <Icon
-                            className={`h-3.5 w-3.5 shrink-0 ${
-                              active ? "text-violet-100 drop-shadow-[0_0_12px_rgba(168,85,247,0.42)]" : "text-white/42"
-                            }`}
-                            aria-hidden="true"
-                          />
-                          <span className="min-w-0 flex-1 truncate text-left">{item.shortLabel ?? item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+            <div className="grid grid-cols-2 gap-1.5 rounded-[18px] border border-white/8 bg-white/[0.025] p-1.5">
+              {visibleMoreSection?.items.map((item) => {
+                const active = isNavItemActive(pathname, collectionTab, item.matches);
+                const Icon = item.icon;
+
+                return (
+                  <Link
+                    key={`${visibleMoreSection.label}:${item.href}:${item.label}`}
+                    href={item.href}
+                    prefetch={false}
+                    onClick={() => setMoreOpen(false)}
+                    aria-current={active ? "page" : undefined}
+                    title={item.label}
+                    className={`flex min-h-9 min-w-0 items-center gap-2 rounded-xl border px-2 text-[10.5px] font-black leading-tight transition-colors ${
+                      active
+                        ? "border-violet-300/28 bg-violet-500/[0.18] text-violet-50 shadow-[inset_2px_0_0_rgba(168,85,247,0.58)]"
+                        : "border-white/7 bg-black/12 text-white/58 hover:border-violet-300/16 hover:bg-violet-500/[0.08] hover:text-white"
+                    }`}
+                  >
+                    <Icon
+                      className={`h-4 w-4 shrink-0 ${
+                        active ? "text-violet-100 drop-shadow-[0_0_12px_rgba(168,85,247,0.42)]" : "text-white/42"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-left">{item.shortLabel ?? item.label}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -344,7 +353,10 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
 
           <button
             type="button"
-            onClick={() => setMoreOpen(true)}
+            onClick={() => {
+              setActiveMoreSection(defaultMoreSection);
+              setMoreOpen(true);
+            }}
             aria-expanded={moreOpen}
             className={`flex min-h-[3.05rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 text-[9px] font-semibold transition-colors hover:bg-violet-500/[0.08] hover:text-white/80 min-[390px]:text-[10px] ${
               moreActive
