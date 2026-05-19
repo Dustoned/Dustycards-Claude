@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import {
   BarChart3,
@@ -21,6 +21,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
+import { GAME_SEARCH_PARAM } from "@/lib/games";
 
 export interface DesktopSidebarSummary {
   cards: number;
@@ -58,7 +59,10 @@ const NAV_SECTIONS = [
   {
     label: "Market",
     items: [
-      { href: "/movers", label: "Market", icon: BarChart3, badge: null, key: "market" },
+      { href: "/movers", label: "Raw", icon: BarChart3, badge: null, key: "market-raw", marketMode: "raw" },
+      { href: "/movers?scope=graded", label: "Graded", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
+      { href: "/movers?scope=grading", label: "Targets", icon: Sparkles, badge: null, key: "market-targets", marketMode: "targets" },
+      { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
       { href: "/deals", label: "Deals", icon: ShoppingBag, badge: null, key: "deals" },
     ],
   },
@@ -97,14 +101,26 @@ function getDisplayName(email: string): string {
     .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-function isActive(pathname: string, tab: string | null, key: string): boolean {
+type SidebarMarketMode = "raw" | "graded" | "targets" | "sealed";
+
+function isActive(
+  pathname: string,
+  tab: string | null,
+  key: string,
+  moverScope?: string | null
+): boolean {
   if (key === "home") return pathname === "/" && (!tab || tab === "overview");
   if (key === "complete") return pathname === "/" && (tab === "complete" || tab === "cards");
   if (key === "singles") return pathname === "/" && tab === "singles";
   if (key === "binders") return (pathname === "/" && tab === "binders") || pathname.startsWith("/binders");
   if (key === "sealed") return pathname === "/" && tab === "sealed";
   if (key === "graded") return pathname === "/" && tab === "graded";
-  if (key === "market") return pathname.startsWith("/movers");
+  if (key === "market-raw") {
+    return pathname.startsWith("/movers") && !["graded", "grading", "sealed", "value"].includes(moverScope ?? "");
+  }
+  if (key === "market-graded") return pathname.startsWith("/movers") && moverScope === "graded";
+  if (key === "market-targets") return pathname.startsWith("/movers") && moverScope === "grading";
+  if (key === "market-sealed") return pathname.startsWith("/movers") && moverScope === "sealed";
   if (key === "expansions") return pathname.startsWith("/expansions");
   if (key === "one-piece") return pathname.startsWith("/one-piece");
   if (key === "categories") return pathname.startsWith("/categories");
@@ -120,11 +136,46 @@ function navBadge(summary: DesktopSidebarSummary, badge: "cards" | "wants" | nul
 
 export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSummary }) {
   const pathname = usePathname() ?? "/";
+  const searchParams = useSearchParams();
   const router = useRouter();
   const tab = useLiveCollectionTab();
   const [loggingOut, setLoggingOut] = useState(false);
   const displayName = getDisplayName(summary.email);
   const roleLabel = summary.role === "admin" ? "Admin" : "Collector";
+  const moverScope = searchParams.get("scope");
+  const moverView = searchParams.get("view");
+  const currentMarketItemScope =
+    moverScope === "all" || moverView === "all"
+      ? "all"
+      : moverScope === "collection" || moverView === "collection" || (pathname.startsWith("/movers") && !moverScope)
+        ? "collection"
+        : "all";
+
+  function buildMarketModeHref(mode: SidebarMarketMode): string {
+    const params = new URLSearchParams();
+    const game = searchParams.get(GAME_SEARCH_PARAM);
+    const source = searchParams.get("source");
+    const trend = searchParams.get("trend");
+
+    if (game) params.set(GAME_SEARCH_PARAM, game);
+    if (source) params.set("source", source);
+    if (trend && (mode === "raw" || mode === "graded")) params.set("trend", trend);
+
+    if (mode === "raw") {
+      params.set("scope", currentMarketItemScope === "all" ? "all" : "collection");
+    } else if (mode === "graded") {
+      params.set("scope", "graded");
+      if (currentMarketItemScope === "collection") params.set("view", "collection");
+    } else if (mode === "targets") {
+      params.set("scope", "grading");
+      if (currentMarketItemScope === "collection") params.set("view", "collection");
+    } else {
+      params.set("scope", "sealed");
+      if (currentMarketItemScope === "collection") params.set("view", "collection");
+    }
+
+    return `/movers?${params.toString()}`;
+  }
 
   async function logout() {
     if (loggingOut) return;
@@ -156,14 +207,16 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                 {section.label}
               </p>
               {section.items.map((item) => {
-                const active = isActive(pathname, tab, item.key);
+                const active = isActive(pathname, tab, item.key, moverScope);
                 const Icon = item.icon;
                 const badge = navBadge(summary, item.badge);
+                const href =
+                  "marketMode" in item ? buildMarketModeHref(item.marketMode) : item.href;
 
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={href}
                     prefetch={false}
                     aria-current={active ? "page" : undefined}
                     className={`group flex min-h-8 items-center gap-2.5 rounded-xl border px-3 text-[12px] font-semibold transition-colors ${
@@ -190,7 +243,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
 
         <nav className="grid gap-1" aria-label="Account navigation">
         {ACCOUNT_ITEMS.map((item) => {
-          const active = isActive(pathname, tab, item.key);
+          const active = isActive(pathname, tab, item.key, moverScope);
           const Icon = item.icon;
           return (
             <Link

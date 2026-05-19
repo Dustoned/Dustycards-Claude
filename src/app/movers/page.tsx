@@ -363,7 +363,7 @@ export default async function MoversPage({
     {
       href: buildMoversHref({ itemScope: "all" }),
       active: activeItemScope === "all",
-      label: activeMode === "sealed" ? "All Products" : "All Cards",
+      label: "All Cards",
     },
   ];
   const sourceSwitchItems = [
@@ -391,6 +391,11 @@ export default async function MoversPage({
     activeScopeLabel,
     isRawScope ? activeSourceLabel : null,
   ].filter(Boolean);
+  const desktopActiveSecondaryFilters = [
+    (isRawScope || isGradedScope) && !isValueScope ? activeMovementLabel : null,
+    isRawScope ? activeSourceLabel : null,
+  ].filter(Boolean);
+  const showDesktopFilterDetails = desktopActiveSecondaryFilters.length > 0;
   function buildMarketPocketHref(pathname: "/movers/cheap-high-rarity" | "/movers/discount-watch") {
     const params = new URLSearchParams();
     const gameValue = getGameFilterSearchParamValue(activeGame);
@@ -680,23 +685,24 @@ export default async function MoversPage({
                 />
               ) : null}
               <SegmentedNavLinks
-                items={marketSwitchItems}
-                ariaLabel="Market category"
-                className="w-full max-w-[26rem] sm:w-fit"
+                items={scopeSwitchItems}
+                ariaLabel="Market scope"
+                className="w-full max-w-[16rem] sm:w-fit"
               />
             </div>
+            {showDesktopFilterDetails ? (
             <details className="group rounded-[1.35rem] border border-white/8 bg-black/18 p-1">
               <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-3 rounded-[1.1rem] px-3 text-[12px] font-bold text-white/66 transition-colors group-open:bg-white/[0.055] group-open:text-white [&::-webkit-details-marker]:hidden">
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 shrink-0 text-violet-200/70" />
                   <span className="shrink-0 uppercase tracking-[0.12em]">Filters</span>
                   <span className="min-w-0 truncate text-[12px] font-semibold normal-case tracking-normal text-white/42">
-                    {activeSecondaryFilters.join(" · ")}
+                    {desktopActiveSecondaryFilters.join(" / ")}
                   </span>
                 </span>
                 <ChevronDown className="h-4 w-4 shrink-0 text-white/42 transition-transform group-open:rotate-180" />
               </summary>
-              <div className="grid gap-2 pt-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)]">
+              <div className={`grid gap-2 pt-2 ${isRawScope ? "lg:grid-cols-2" : ""}`}>
                 {(isRawScope || isGradedScope) && !isValueScope ? (
                   <CompactFilterGroup
                     label="Movement"
@@ -704,11 +710,6 @@ export default async function MoversPage({
                     ariaLabel="Market movement"
                   />
                 ) : null}
-                <CompactFilterGroup
-                  label="View"
-                  items={scopeSwitchItems}
-                  ariaLabel="Market scope"
-                />
                 {isRawScope ? (
                   <CompactFilterGroup
                     label="Source"
@@ -718,6 +719,7 @@ export default async function MoversPage({
                 ) : null}
               </div>
             </details>
+            ) : null}
           </div>
         </section>
 
