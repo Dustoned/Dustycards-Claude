@@ -11,7 +11,8 @@ import {
   WalletCards,
 } from "lucide-react";
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
-import GameFilterSwitch, { SegmentedNavLinks } from "@/components/GameFilterSwitch";
+import CollectionInstantTabs from "@/components/CollectionInstantTabs";
+import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
   getCollectionOverviewData,
@@ -820,7 +821,7 @@ export default async function HomePage({
         : "overview";
   const data = await getCollectionOverviewData({
     userId: user.id,
-    activeTab: activeTab as CollectionPageTab,
+    activeTab: "overview",
     game: activeGame,
   });
   const pricedCardCount = data.cards.filter((item) => item.current_value != null).length;
@@ -873,21 +874,9 @@ export default async function HomePage({
     data.overview.totalCards > 0 ||
     data.overview.totalSealedUnits > 0 ||
     data.overview.totalBinders > 0;
-  const gradedCards =
-    activeTab === "complete" ||
-    activeTab === "singles" ||
-    activeTab === "graded" ||
-    activeTab === "overview"
-      ? data.cards.filter(isGradedCollectionCard)
-      : [];
-  const gradedLooseSingles =
-    activeTab === "overview" || activeTab === "complete" || activeTab === "singles"
-      ? data.looseSingles.filter(isGradedCollectionCard)
-      : [];
-  const rawLooseSingles =
-    activeTab === "overview" || activeTab === "complete" || activeTab === "singles"
-      ? data.looseSingles.filter((item) => !isGradedCollectionCard(item))
-      : [];
+  const gradedCards = data.cards.filter(isGradedCollectionCard);
+  const gradedLooseSingles = data.looseSingles.filter(isGradedCollectionCard);
+  const rawLooseSingles = data.looseSingles.filter((item) => !isGradedCollectionCard(item));
 
   function buildCollectionHref(tabValue: CollectionPageTab) {
     const params = new URLSearchParams();
@@ -919,17 +908,6 @@ export default async function HomePage({
     active: activeGame === game,
     label: getGameFilterLabel(game),
   }));
-  const collectionSwitchItems = [
-    {
-      href: buildCollectionHref("complete"),
-      active: activeTab === "complete",
-      label: "Complete",
-    },
-    { href: buildCollectionHref("singles"), active: activeTab === "singles", label: "Loose" },
-    { href: buildCollectionHref("binders"), active: activeTab === "binders", label: "Binders" },
-    { href: buildCollectionHref("sealed"), active: activeTab === "sealed", label: "Sealed" },
-    { href: buildCollectionHref("graded"), active: activeTab === "graded", label: "Graded" },
-  ];
   const valueRangePoints = data.overview.chart.filter((point) => point.value != null);
   const collectionValueRange =
     valueRangePoints.length > 1
@@ -938,268 +916,244 @@ export default async function HomePage({
   const showCollectionChart = valueRangePoints.length > 1;
   const collectionTitle =
     activeGame === ONE_PIECE_GAME ? "One Piece Collection" : "My Collection";
-  const collectionTabTitle =
-    activeTab === "complete"
-      ? "Complete Collection"
-      : activeTab === "singles"
-        ? "Loose Singles"
-        : activeTab === "binders"
-          ? "Binders"
-          : activeTab === "sealed"
-            ? "Sealed Collection"
-            : activeTab === "graded"
-              ? "Graded Collection"
-              : "Collection";
-  const collectionTabSummary =
-    activeTab === "complete"
-      ? `${data.overview.totalCards.toLocaleString("en-US")} cards / ${data.overview.totalBinders.toLocaleString(
-          "en-US"
-        )} binders / ${data.overview.totalSealedUnits.toLocaleString("en-US")} sealed`
-      : activeTab === "singles"
-        ? `${rawLooseSingles.length.toLocaleString("en-US")} loose singles`
-        : activeTab === "binders"
-          ? `${data.overview.totalBinders.toLocaleString("en-US")} binders`
-          : activeTab === "sealed"
-            ? `${data.overview.totalSealedUnits.toLocaleString("en-US")} sealed units`
-            : activeTab === "graded"
-              ? `${gradedCards.length.toLocaleString("en-US")} graded cards`
-              : `${data.overview.totalCards.toLocaleString("en-US")} cards`;
+  const collectionTabs = [
+    {
+      key: "complete" as const,
+      href: buildCollectionHref("complete"),
+      active: activeTab === "complete",
+      label: "All",
+      title: "Complete Collection",
+      summary: `${data.overview.totalCards.toLocaleString("en-US")} cards / ${data.overview.totalBinders.toLocaleString(
+        "en-US"
+      )} binders / ${data.overview.totalSealedUnits.toLocaleString("en-US")} sealed`,
+    },
+    {
+      key: "singles" as const,
+      href: buildCollectionHref("singles"),
+      active: activeTab === "singles",
+      label: "Loose",
+      title: "Loose Singles",
+      summary: `${rawLooseSingles.length.toLocaleString("en-US")} loose singles`,
+    },
+    {
+      key: "binders" as const,
+      href: buildCollectionHref("binders"),
+      active: activeTab === "binders",
+      label: "Binders",
+      title: "Binders",
+      summary: `${data.overview.totalBinders.toLocaleString("en-US")} binders`,
+    },
+    {
+      key: "sealed" as const,
+      href: buildCollectionHref("sealed"),
+      active: activeTab === "sealed",
+      label: "Sealed",
+      title: "Sealed Collection",
+      summary: `${data.overview.totalSealedUnits.toLocaleString("en-US")} sealed units`,
+    },
+    {
+      key: "graded" as const,
+      href: buildCollectionHref("graded"),
+      active: activeTab === "graded",
+      label: "Graded",
+      title: "Graded Collection",
+      summary: `${gradedCards.length.toLocaleString("en-US")} graded cards`,
+    },
+  ];
   return (
-    <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
-      <div className="flex w-full flex-col gap-3 sm:gap-5">
-        {activeTab === "overview" ? (
-          <div className="space-y-3">
-            <section className="binder-panel relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-              <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(17rem,0.72fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(18rem,0.68fr)_minmax(0,1.08fr)_minmax(18rem,0.72fr)] xl:items-stretch">
-                <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/18 p-[var(--ui-page-header-padding)]">
-                  <div className="min-w-0">
-                    <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
-                      Home
-                    </p>
-                    <h1 className="mt-1.5 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
-                      {collectionTitle}
-                    </h1>
-                    <p className="mt-1 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
-                      {data.overview.totalCards.toLocaleString("en-US")} cards
-                      {data.overview.totalSealedUnits > 0
-                        ? ` / ${data.overview.totalSealedUnits.toLocaleString("en-US")} sealed`
-                        : ""}
-                    </p>
-                  </div>
-
-                  {settings.onePieceLibraryEnabled ? (
-                    <div className="mt-[var(--ui-page-header-action-margin)]">
-                      <GameFilterSwitch
-                        items={gameSwitchItems}
-                        ariaLabel="Collection library"
-                        className="max-w-[21rem]"
-                      />
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
-                  {showCollectionChart ? (
-                    <PriceHistoryPanel
-                      compact
-                      title="Collection Value"
-                      currency="EUR"
-                      points={data.overview.chart}
-                      currentValue={data.overview.currentValue}
-                      tone="dark"
-                      subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
-                        data.overview.pnl
-                      )}`}
-                      emptyText="Add cards or sealed to start tracking your value"
-                      rangeStorageKey="collection-dashboard"
-                    />
-                  ) : (
-                    <CollectionValueSummaryCard
-                      currentValue={data.overview.currentValue}
-                      pnl={data.overview.pnl}
-                      rangeLabel={collectionValueRange}
-                      className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] flex-col justify-center px-5 py-4"
-                    />
-                  )}
-                </div>
-
-                <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
-                  {summaryCards.map((stat) => (
-                    <HeaderStatCard key={stat.label} {...stat} />
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            {hasCollection && (
-              <PortfolioBreakdownPanel
-                overview={data.overview}
-                rawLooseSingles={rawLooseSingles}
-                gradedLooseSingles={gradedLooseSingles}
-                binderCards={data.binderCards}
-                sealed={data.sealed}
-                binders={data.binders}
-              />
-            )}
-
-            {hasCollection && <SetValueGraphPanel binders={data.binders} />}
-
-            {hasCollection && (
-              <PortfolioHighlightsPanel
-                rawLooseSingles={rawLooseSingles}
-                gradedLooseSingles={gradedLooseSingles}
-                binderCards={data.binderCards}
-                sealed={data.sealed}
-                binders={data.binders}
-              />
-            )}
-
-            <HomeCollectionLinks
-              cardsHref={buildCollectionHref("complete")}
-              bindersHref={buildCollectionHref("binders")}
-              sealedHref={buildCollectionHref("sealed")}
-              gradedHref={buildCollectionHref("graded")}
-            />
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            <section className="binder-panel rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 xl:!border-0 xl:!bg-transparent xl:!p-0 xl:!shadow-none xl:[backdrop-filter:none]">
-              <div className="min-w-0">
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-white/38">
-                  Collection
-                </p>
-                <h1 className="mt-1 truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                  {collectionTabTitle}
-                </h1>
-                <p className="mt-0.5 text-sm font-semibold text-white/48">
-                  {collectionTabSummary}
-                </p>
-              </div>
-            </section>
-
-            <section
-              className={`binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 ${
-                settings.onePieceLibraryEnabled ? "" : "xl:hidden"
-              }`}
-            >
-              <div className="flex min-w-0 flex-col gap-2.5">
-                {settings.onePieceLibraryEnabled ? (
-                  <GameFilterSwitch
-                    items={gameSwitchItems}
-                    ariaLabel="Collection library"
-                    className="w-full max-w-full sm:w-fit"
-                  />
-                ) : null}
-                <div className="xl:hidden">
-                  <SegmentedNavLinks
-                    items={collectionSwitchItems}
-                    ariaLabel="Collection sections"
-                    buttonNavigation
-                    preserveScroll
-                    className="w-full max-w-full sm:w-fit"
-                  />
-                </div>
-              </div>
-            </section>
-          </div>
-        )}
-
+    <CollectionInstantTabs
+      initialTab={activeTab}
+      tabs={collectionTabs}
+      gameControls={
+        settings.onePieceLibraryEnabled ? (
+          <GameFilterSwitch
+            items={gameSwitchItems}
+            ariaLabel="Collection library"
+            className="w-full max-w-full sm:w-fit"
+          />
+        ) : null
+      }
+      overviewSlot={
         <div className="space-y-3">
-          {!hasCollection && activeTab === "overview" && (
-            <div className="binder-panel rounded-2xl px-4 py-6 text-center sm:px-6 sm:py-7">
-              <p className="mb-1 font-medium text-white/76">
-                Your collection is still empty
-              </p>
-              <p className="mx-auto max-w-xl text-sm leading-6 text-white/42">
-                Start with a card, create a binder, or add sealed from search and expansion pages.
-              </p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <Link
-                  href={browseHref}
-                  prefetch={false}
-                  className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/78 transition-colors hover:border-white/18 hover:bg-white/[0.1]"
-                >
-                  Browse cards
-                </Link>
+          <section className="binder-panel relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
+            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(17rem,0.72fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(18rem,0.68fr)_minmax(0,1.08fr)_minmax(18rem,0.72fr)] xl:items-stretch">
+              <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/18 p-[var(--ui-page-header-padding)]">
+                <div className="min-w-0">
+                  <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
+                    Home
+                  </p>
+                  <h1 className="mt-1.5 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
+                    {collectionTitle}
+                  </h1>
+                  <p className="mt-1 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
+                    {data.overview.totalCards.toLocaleString("en-US")} cards
+                    {data.overview.totalSealedUnits > 0
+                      ? ` / ${data.overview.totalSealedUnits.toLocaleString("en-US")} sealed`
+                      : ""}
+                  </p>
+                </div>
+
+                {settings.onePieceLibraryEnabled ? (
+                  <div className="mt-[var(--ui-page-header-action-margin)]">
+                    <GameFilterSwitch
+                      items={gameSwitchItems}
+                      ariaLabel="Collection library"
+                      className="max-w-[21rem]"
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+                {showCollectionChart ? (
+                  <PriceHistoryPanel
+                    compact
+                    title="Collection Value"
+                    currency="EUR"
+                    points={data.overview.chart}
+                    currentValue={data.overview.currentValue}
+                    tone="dark"
+                    subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
+                      data.overview.pnl
+                    )}`}
+                    emptyText="Add cards or sealed to start tracking your value"
+                    rangeStorageKey="collection-dashboard"
+                  />
+                ) : (
+                  <CollectionValueSummaryCard
+                    currentValue={data.overview.currentValue}
+                    pnl={data.overview.pnl}
+                    rangeLabel={collectionValueRange}
+                    className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] flex-col justify-center px-5 py-4"
+                  />
+                )}
+              </div>
+
+              <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
+                {summaryCards.map((stat) => (
+                  <HeaderStatCard key={stat.label} {...stat} />
+                ))}
               </div>
             </div>
-          )}
+          </section>
 
-          {activeTab === "complete" && (
-            <CollectionOverviewSections
-              gradedLooseSingles={gradedLooseSingles}
+          {hasCollection && (
+            <PortfolioBreakdownPanel
+              overview={data.overview}
               rawLooseSingles={rawLooseSingles}
-              showRawLooseSinglesSection={rawLooseSingles.length > 0}
+              gradedLooseSingles={gradedLooseSingles}
               binderCards={data.binderCards}
               sealed={data.sealed}
               binders={data.binders}
             />
           )}
 
-          {activeTab === "singles" && (
-            <CollectionCardsView
-              items={rawLooseSingles}
-              allowCollectionRemoval
-              showGradedSlabPreview
-              emptyTitle="No loose singles in your collection"
-              emptyText="Cards saved without a binder appear here."
-              showFilters
-              forcedSortBy="cm_en"
-              forcedSortDir="desc"
-              hideSortControls
+          {hasCollection && <SetValueGraphPanel binders={data.binders} />}
+
+          {hasCollection && (
+            <PortfolioHighlightsPanel
+              rawLooseSingles={rawLooseSingles}
+              gradedLooseSingles={gradedLooseSingles}
+              binderCards={data.binderCards}
+              sealed={data.sealed}
+              binders={data.binders}
             />
           )}
 
-          {activeTab === "graded" && (
-            <CollectionCardsView
-              items={gradedCards}
-              allowCollectionRemoval
-              showGradedSlabPreview
-              emptyTitle="No graded cards in your collection"
-              emptyText="Cards with a grading company and grade will appear here."
-              showFilters
-              forcedSortBy="cm_en"
-              forcedSortDir="desc"
-              hideSortControls
-            />
-          )}
-
-          {activeTab === "binders" && (
-            <div className="space-y-4">
-              {data.binders.length === 0 ? (
-                <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
-                  <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">
-                    No binders yet
-                  </p>
-                  <p className="mx-auto max-w-xl text-sm leading-6 text-gray-400">
-                    Type a set name for an automatic set binder, or create a custom binder.
-                  </p>
-                </div>
-              ) : (
-                <div
-                  className="grid gap-4"
-                  style={{
-                    gridTemplateColumns: getFixedTrackGridTemplate(binderTileTrackWidth),
-                  }}
-                >
-                  {data.binders.map((binder) => (
-                    <BinderOverviewTile key={binder.id} binder={binder} />
-                  ))}
-                </div>
-              )}
+          <HomeCollectionLinks
+            cardsHref={buildCollectionHref("complete")}
+            bindersHref={buildCollectionHref("binders")}
+            sealedHref={buildCollectionHref("sealed")}
+            gradedHref={buildCollectionHref("graded")}
+          />
+        </div>
+      }
+      emptySlot={
+        !hasCollection ? (
+          <div className="binder-panel rounded-2xl px-4 py-6 text-center sm:px-6 sm:py-7">
+            <p className="mb-1 font-medium text-white/76">Your collection is still empty</p>
+            <p className="mx-auto max-w-xl text-sm leading-6 text-white/42">
+              Start with a card, create a binder, or add sealed from search and expansion pages.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Link
+                href={browseHref}
+                prefetch={false}
+                className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/78 transition-colors hover:border-white/18 hover:bg-white/[0.1]"
+              >
+                Browse cards
+              </Link>
+            </div>
+          </div>
+        ) : null
+      }
+      completeSlot={
+        <CollectionOverviewSections
+          gradedLooseSingles={gradedLooseSingles}
+          rawLooseSingles={rawLooseSingles}
+          showRawLooseSinglesSection={rawLooseSingles.length > 0}
+          binderCards={data.binderCards}
+          sealed={data.sealed}
+          binders={data.binders}
+        />
+      }
+      singlesSlot={
+        <CollectionCardsView
+          items={rawLooseSingles}
+          allowCollectionRemoval
+          showGradedSlabPreview
+          emptyTitle="No loose singles in your collection"
+          emptyText="Cards saved without a binder appear here."
+          showFilters
+          forcedSortBy="cm_en"
+          forcedSortDir="desc"
+          hideSortControls
+        />
+      }
+      gradedSlot={
+        <CollectionCardsView
+          items={gradedCards}
+          allowCollectionRemoval
+          showGradedSlabPreview
+          emptyTitle="No graded cards in your collection"
+          emptyText="Cards with a grading company and grade will appear here."
+          showFilters
+          forcedSortBy="cm_en"
+          forcedSortDir="desc"
+          hideSortControls
+        />
+      }
+      bindersSlot={
+        <div className="space-y-4">
+          {data.binders.length === 0 ? (
+            <div className="binder-panel rounded-2xl px-5 py-7 text-center sm:rounded-3xl sm:px-8 sm:py-9">
+              <p className="mb-1 font-medium text-white/76">No binders yet</p>
+              <p className="mx-auto max-w-xl text-sm leading-6 text-white/42">
+                Type a set name for an automatic set binder, or create a custom binder.
+              </p>
+            </div>
+          ) : (
+            <div
+              className="grid gap-4"
+              style={{
+                gridTemplateColumns: getFixedTrackGridTemplate(binderTileTrackWidth),
+              }}
+            >
+              {data.binders.map((binder) => (
+                <BinderOverviewTile key={binder.id} binder={binder} />
+              ))}
             </div>
           )}
-
-          {activeTab === "sealed" && (
-            <CollectionSealedView
-              items={data.sealed}
-              emptyTitle="No sealed in your collection"
-              emptyText="Use the + button on any sealed product to add it here."
-            />
-          )}
         </div>
-      </div>
-    </div>
+      }
+      sealedSlot={
+        <CollectionSealedView
+          items={data.sealed}
+          emptyTitle="No sealed in your collection"
+          emptyText="Use the + button on any sealed product to add it here."
+        />
+      }
+    />
   );
 }

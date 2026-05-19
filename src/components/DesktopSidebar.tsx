@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   BarChart3,
@@ -21,6 +21,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
+import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 
 export interface DesktopSidebarSummary {
   cards: number;
@@ -123,8 +124,7 @@ function navBadge(summary: DesktopSidebarSummary, badge: "cards" | "wants" | nul
 export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSummary }) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const tab = searchParams.get("tab");
+  const tab = useLiveCollectionTab();
   const [loggingOut, setLoggingOut] = useState(false);
   const displayName = getDisplayName(summary.email);
   const roleLabel = summary.role === "admin" ? "Admin" : "Collector";

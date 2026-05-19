@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Boxes,
@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import type { DesktopSidebarSummary } from "@/components/DesktopSidebar";
+import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 
 const PRIMARY_NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home, matches: ["home"] },
@@ -174,8 +175,7 @@ function isNavItemActive(pathname: string, collectionTab: string | null, matches
 export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSummary | null }) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const collectionTab = searchParams.get("tab");
+  const collectionTab = useLiveCollectionTab();
   const { settings } = useSettings();
   const [moreOpen, setMoreOpen] = useState(false);
   const [expansionsOpen, setExpansionsOpen] = useState(true);

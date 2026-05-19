@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
+import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 
 interface NavItem {
   href: string;
@@ -210,8 +211,7 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
 
 export function HeaderNav() {
   const pathname = usePathname() ?? "/";
-  const searchParams = useSearchParams();
-  const tab = searchParams.get("tab");
+  const tab = useLiveCollectionTab();
   const { settings } = useSettings();
   const onePieceEnabled = settings.onePieceLibraryEnabled;
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -350,8 +350,7 @@ export function HeaderNav() {
 
 export function HeaderMobileMenu() {
   const pathname = usePathname() ?? "/";
-  const searchParams = useSearchParams();
-  const tab = searchParams.get("tab");
+  const tab = useLiveCollectionTab();
   const { settings } = useSettings();
   const onePieceEnabled = settings.onePieceLibraryEnabled;
   const [open, setOpen] = useState(false);
