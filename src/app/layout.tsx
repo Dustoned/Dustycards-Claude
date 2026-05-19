@@ -231,7 +231,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           >
             {children}
           </main>
-          {currentUser && <MobileBottomNav />}
+          {currentUser && <MobileBottomNav summary={sidebarSummary} />}
         </SettingsProvider>
       </body>
     </html>

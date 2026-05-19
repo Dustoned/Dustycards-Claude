@@ -46,7 +46,7 @@ function writeLastTriggerAt(value: number) {
 }
 
 export default function AutoPriceRefreshBoot({ enabled = false }: { enabled?: boolean }) {
-  const { currentUserRole, isLoaded, settings } = useSettings();
+  const { currentUserRole, isLoaded, isMobileViewport, settings } = useSettings();
   const router = useRouter();
   const inFlightRef = useRef(false);
   const lastRouterRefreshAtRef = useRef(0);
@@ -59,6 +59,7 @@ export default function AutoPriceRefreshBoot({ enabled = false }: { enabled?: bo
       !settings.autoPriceRefresh ||
       !isLoaded ||
       currentUserRole !== "admin" ||
+      isMobileViewport ||
       isLocalBrowserHost()
     ) {
       return;
@@ -181,7 +182,7 @@ export default function AutoPriceRefreshBoot({ enabled = false }: { enabled?: bo
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [currentUserRole, enabled, isLoaded, router, settings.autoPriceRefresh]);
+  }, [currentUserRole, enabled, isLoaded, isMobileViewport, router, settings.autoPriceRefresh]);
 
   return null;
 }

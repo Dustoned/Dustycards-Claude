@@ -13,6 +13,7 @@ import { GAME_SEARCH_PARAM, ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import { useSettings } from "@/components/SettingsProvider";
 
 const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
+const SEARCH_ROUTE_DEBOUNCE_MS = 260;
 
 export default function HeaderSearch() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function HeaderSearch() {
   const mobileInputRef = useRef<HTMLInputElement>(null);
   const startedSearchRef = useRef(false);
   const shouldRestoreFocusRef = useRef(false);
+  const searchDebounceRef = useRef<number | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileQuery, setMobileQuery] = useState(activeQuery);
   const currentHref = buildPathWithQuery(pathname, searchParams);
@@ -67,6 +69,14 @@ export default function HeaderSearch() {
   }, [activeQuery, pathname]);
 
   useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current != null) {
+        window.clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!mobileOpen) return;
 
     window.requestAnimationFrame(() => {
@@ -80,6 +90,7 @@ export default function HeaderSearch() {
   }, [mobileOpen]);
 
   function resetSearchInputs() {
+    clearPendingSearchRoute();
     if (inputRef.current) {
       inputRef.current.value = "";
     }
@@ -94,13 +105,20 @@ export default function HeaderSearch() {
     resetSearchInputs();
 
     if (returnHref) {
-      router.replace(returnHref);
+      router.replace(returnHref, { scroll: false });
       return;
     }
 
     if (pathname === "/search") {
-      router.replace("/");
+      router.replace("/", { scroll: false });
     }
+  }
+
+  function clearPendingSearchRoute() {
+    if (searchDebounceRef.current == null) return;
+
+    window.clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = null;
   }
 
   function buildEmptySearchHref() {
@@ -157,14 +175,14 @@ export default function HeaderSearch() {
       rememberSearchReturnPath(currentHref);
       startedSearchRef.current = true;
       shouldRestoreFocusRef.current = true;
-      router.push(href);
+      router.push(href, { scroll: false });
       return;
     }
 
-    router.replace(href);
+    router.replace(href, { scroll: false });
   }
 
-  function handleChange(nextQuery: string) {
+  function handleChangeNow(nextQuery: string) {
     if (nextQuery.trim()) {
       routeToSearch(nextQuery, true);
       return;
@@ -180,6 +198,20 @@ export default function HeaderSearch() {
     }
   }
 
+  function handleChange(nextQuery: string, immediate = false) {
+    clearPendingSearchRoute();
+
+    if (immediate || !nextQuery.trim()) {
+      handleChangeNow(nextQuery);
+      return;
+    }
+
+    searchDebounceRef.current = window.setTimeout(() => {
+      searchDebounceRef.current = null;
+      handleChangeNow(nextQuery);
+    }, SEARCH_ROUTE_DEBOUNCE_MS);
+  }
+
   function openMobileSearch() {
     if (pathname !== "/search") {
       rememberSearchReturnPath(currentHref);
@@ -190,6 +222,7 @@ export default function HeaderSearch() {
   }
 
   function closeMobileSearch() {
+    clearPendingSearchRoute();
     startedSearchRef.current = false;
     shouldRestoreFocusRef.current = false;
     setMobileOpen(false);
@@ -206,6 +239,7 @@ export default function HeaderSearch() {
   }
 
   function submitSearch(formData: FormData) {
+    clearPendingSearchRoute();
     routeToSearch(String(formData.get("q") ?? ""), pathname !== "/search");
   }
 

@@ -667,6 +667,19 @@ body :where(option) {
     padding: 0.625rem !important;
   }
 
+  .binder-panel {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.024));
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.26);
+    backdrop-filter: blur(8px) saturate(130%);
+    -webkit-backdrop-filter: blur(8px) saturate(130%);
+  }
+
+  .binder-subpanel {
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(7px) saturate(128%);
+    -webkit-backdrop-filter: blur(7px) saturate(128%);
+  }
+
   .glass,
   .dark .glass {
     backdrop-filter: blur(8px) saturate(135%);

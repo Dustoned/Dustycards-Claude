@@ -846,6 +846,15 @@ export default function CollectionCardsView({
         ? "gap-x-2 gap-y-2.5"
         : "gap-x-1.5 gap-y-2"
     : "gap-2.5";
+  const eagerImageCount = isMobileViewport
+    ? displaySettings.cardSize === "large"
+      ? 2
+      : displaySettings.cardSize === "medium"
+        ? 4
+        : displaySettings.cardSize === "small"
+          ? 6
+          : 8
+    : INITIAL_COLLECTION_EAGER_IMAGE_COUNT;
   const showInlineSelectionButton =
     Boolean(sectionTitle) && !showFilters && selectionEnabled && !activeSelectionMode;
   const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
@@ -1503,7 +1512,7 @@ export default function CollectionCardsView({
                                 blurMissing && missing ? "blur-[2px] saturate-[0.72] opacity-55" : ""
                               }`}
                               sizes="68px"
-                              loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
+                              loading={index < eagerImageCount ? "eager" : undefined}
                               unoptimized
                             />
                           ) : (
@@ -1728,7 +1737,7 @@ export default function CollectionCardsView({
                                         : ""
                                     }`}
                                     sizes="48px"
-                                    loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
+                                    loading={index < eagerImageCount ? "eager" : undefined}
                                     unoptimized
                                   />
                                 ) : (
@@ -1997,6 +2006,10 @@ export default function CollectionCardsView({
                       className={`relative flex cursor-pointer flex-col rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 text-left shadow-[0_12px_28px_rgba(0,0,0,0.24)] outline-none transition-colors hover:border-white/14 max-[640px]:rounded-[13px] max-[640px]:p-1 ${
                         isSelected ? "border-blue-400/70 ring-2 ring-blue-400/60" : ""
                       }`}
+                      style={{
+                        contentVisibility: "auto",
+                        containIntrinsicSize: isMobileViewport ? "250px" : "320px",
+                      }}
                     >
                       <div
                         className={`relative ${previewAspectClass} w-full transition-all duration-200 ${
@@ -2028,7 +2041,7 @@ export default function CollectionCardsView({
                             imageClassName={imageClass}
                             tileSize={displaySettings.cardSize}
                             sizes={cardTrackWidth}
-                            loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
+                            loading={index < eagerImageCount ? "eager" : undefined}
                           />
                         ) : item.image_url ? (
                           <Image
@@ -2037,7 +2050,7 @@ export default function CollectionCardsView({
                             fill
                             className={imageClass}
                             sizes={cardTrackWidth}
-                            loading={index < INITIAL_COLLECTION_EAGER_IMAGE_COUNT ? "eager" : undefined}
+                            loading={index < eagerImageCount ? "eager" : undefined}
                             unoptimized
                           />
                         ) : (
