@@ -1,4 +1,4 @@
-import { appVersion } from "@/lib/app-version";
+import { appBuildLabel, appVersion, buildVersion } from "@/lib/app-version";
 import { patchNotes, roadmapItems, type PatchNoteTone } from "@/lib/patch-notes";
 
 function toneClasses(tone: PatchNoteTone): string {
@@ -43,8 +43,14 @@ export default function SettingsUpdatesPanel() {
             <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400">
               Current
             </p>
-            <p className="mt-1 text-sm font-bold tabular-nums text-gray-950 dark:text-white">
+            <p
+              className="mt-1 text-sm font-bold tabular-nums text-gray-950 dark:text-white"
+              title={`${appVersion} / ${buildVersion}`}
+            >
               {appVersion}
+            </p>
+            <p className="mt-0.5 truncate text-[10px] font-semibold text-gray-500 dark:text-white/40" title={buildVersion}>
+              {appBuildLabel}
             </p>
           </div>
           <div className="rounded-xl border border-black/6 bg-black/[0.025] px-3 py-2 dark:border-white/8 dark:bg-white/[0.035]">
