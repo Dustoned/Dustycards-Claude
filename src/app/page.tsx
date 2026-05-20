@@ -206,16 +206,19 @@ function CollectionAllocationPanel({
         Collection Allocation
       </h2>
 
-      <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-white/8">
+      <div className="mt-2.5 flex h-3 gap-1 rounded-full border border-white/8 bg-black/18 p-0.5">
         {segments.map((segment) => {
           const share = safeShare(segment.value, totalValue);
+          const flexGrow = totalValue > 0
+            ? Math.max(segment.value, totalValue * 0.012)
+            : 1;
           return (
             <div
               key={segment.label}
-              className={segment.fillClassName}
+              className={`${segment.fillClassName} h-full min-w-2 rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_0_10px_rgba(255,255,255,0.04)]`}
               style={{
-                width: `${share}%`,
-                minWidth: share > 0 ? "0.5rem" : undefined,
+                flexBasis: 0,
+                flexGrow,
               }}
               title={`${segment.label}: ${share.toFixed(1)}%`}
             />

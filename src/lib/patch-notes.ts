@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.16",
+    releasedAt: "May 20, 2026",
+    title: "Cleaner allocation bar",
+    summary: "DustyCards 3.1.16 polishes the Collection Allocation bar on the Home dashboard.",
+    tone: "fixed",
+    highlights: [
+      "Added spacing between allocation segments so the colors no longer touch directly.",
+      "Rounded each segment inside a subtle dark rail for a cleaner dashboard look.",
+      "Kept small allocation slices visible without making the bar feel cramped.",
+    ],
+  },
+  {
     version: "3.1.15",
     releasedAt: "May 20, 2026",
     title: "More focused 3D card view",
