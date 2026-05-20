@@ -114,7 +114,7 @@ const PSA_LABEL_WELL_Z = -0.014;
 const PSA_LABEL_Z = -0.01;
 const PSA_CARD_COVER_Z = PSA_FRONT_RECESS_Z + 0.0015;
 const PSA_LABEL_COVER_Z = PSA_FRONT_RECESS_Z + 0.0015;
-const DEFAULT_CAMERA_DISTANCE = 8.55;
+const DEFAULT_CAMERA_DISTANCE = 8.05;
 const MOBILE_DEFAULT_CAMERA_DISTANCE = 7.85;
 const MIN_CAMERA_DISTANCE = 4.4;
 const MAX_CAMERA_DISTANCE = 22;
@@ -129,19 +129,19 @@ interface Card3dSizeConfig {
 
 const CARD_3D_SIZE_CONFIG: Record<Card3dSize, Card3dSizeConfig> = {
   small: {
-    resetDistanceScale: 1.28,
-    minimumFitScale: 1.16,
-    offsetScale: 1.22,
+    resetDistanceScale: 1.18,
+    minimumFitScale: 1.08,
+    offsetScale: 1.08,
   },
   medium: {
-    resetDistanceScale: 1.04,
-    minimumFitScale: 0.98,
-    offsetScale: 1.14,
+    resetDistanceScale: 0.96,
+    minimumFitScale: 0.92,
+    offsetScale: 0.98,
   },
   large: {
-    resetDistanceScale: 0.86,
-    minimumFitScale: 0.86,
-    offsetScale: 1.08,
+    resetDistanceScale: 0.82,
+    minimumFitScale: 0.82,
+    offsetScale: 0.92,
   },
 };
 
@@ -1358,7 +1358,7 @@ export default function CardThreeViewer({
     const sizeConfig = getCard3dSizeConfig(card3dSize, isMobileViewport);
     initialRotationRef.current = isMobileViewport
       ? { x: -0.14, y: -0.34, z: 0 }
-      : { x: -0.21, y: -0.72, z: 0 };
+      : { x: -0.16, y: -0.48, z: 0 };
 
     setIsReady(false);
     setHasError(false);

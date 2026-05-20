@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.15",
+    releasedAt: "May 20, 2026",
+    title: "More focused 3D card view",
+    summary: "DustyCards 3.1.15 makes the desktop 3D card viewer match the card detail focus more closely.",
+    tone: "improved",
+    highlights: [
+      "Opened desktop 3D cards closer to the viewer so they no longer feel smaller than the detail preview.",
+      "Reduced the initial side angle so the card front stays readable and visually central.",
+      "Kept the existing mobile 3D card-focused layout intact.",
+    ],
+  },
+  {
     version: "3.1.14",
     releasedAt: "May 20, 2026",
     title: "Aligned expansion metric tiles",
