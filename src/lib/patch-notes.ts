@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.5",
+    releasedAt: "May 20, 2026",
+    title: "Fullscreen mobile 3D cards",
+    summary: "DustyCards 3.1.5 gives the mobile 3D viewer more room by collapsing card details into a bottom sheet.",
+    tone: "improved",
+    highlights: [
+      "Changed the mobile 3D viewer details panel to start collapsed at the bottom of the screen.",
+      "Kept the 3D canvas full-screen on phones so the card stays the visual focus.",
+      "Added a tap-to-expand bottom sheet for pricing, graded pricing, CardMarket, and Add actions.",
+    ],
+  },
+  {
     version: "3.1.4",
     releasedAt: "May 20, 2026",
     title: "Home featured card detail fix",

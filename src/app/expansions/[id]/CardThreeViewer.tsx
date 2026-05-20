@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RotateCcw, X } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw, X } from "lucide-react";
 import { useSettings, type Card3dSize } from "@/components/SettingsProvider";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import IllustratorLink from "@/components/IllustratorLink";
@@ -1291,6 +1291,7 @@ export default function CardThreeViewer({
         }))
       )
   );
+  const [mobileDetailsExpanded, setMobileDetailsExpanded] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const detailsRef = useRef<HTMLDivElement | null>(null);
@@ -2142,6 +2143,7 @@ export default function CardThreeViewer({
   const gradedPriceRows = card.graded_prices ?? [];
   const ebaySoldGradedPriceRows = card.ebay_sold_graded_prices ?? [];
   const compactMobileDetails = isMobileViewport;
+  const mobileDetailsCollapsed = compactMobileDetails && !mobileDetailsExpanded;
   const showTcgSource = tcgPriceRows.length > 0;
   const activePriceSource = showTcgSource ? priceSource : "cardmarket";
   const activePriceRows = activePriceSource === "tcgplayer" ? tcgPriceRows : cardMarketPriceRows;
@@ -2306,7 +2308,9 @@ export default function CardThreeViewer({
                   data-three-details="true"
                   className={`pointer-events-auto mx-auto max-w-lg overscroll-contain rounded-2xl border border-white/14 bg-[#070708] md:mx-0 md:max-h-[calc(100vh-3rem)] md:w-full md:max-w-none md:overflow-y-auto md:rounded-3xl ${
                     compactMobileDetails
-                      ? "max-h-none w-full max-w-[min(23rem,calc(100vw-1.5rem))] overflow-visible px-3 py-2.5"
+                      ? mobileDetailsExpanded
+                        ? "max-h-[min(68dvh,36rem)] w-full max-w-[min(24rem,calc(100vw-1rem))] overflow-y-auto px-3 py-2.5"
+                        : "max-h-[5.4rem] w-full max-w-[min(24rem,calc(100vw-1rem))] overflow-hidden px-3 py-2.5"
                       : "max-h-[31dvh] overflow-y-auto px-4 py-3 sm:max-h-[36dvh] sm:px-5 sm:py-4"
                   }`}
                   style={{
@@ -2318,27 +2322,53 @@ export default function CardThreeViewer({
                   }}
                 >
                   <div className="flex min-w-0 items-start justify-between gap-2.5">
-                    <div className="min-w-0">
-                      <p
-                        className={`break-words font-semibold leading-tight text-white ${
-                          compactMobileDetails ? "text-[17px]" : "text-xl sm:text-2xl"
-                        }`}
+                    {compactMobileDetails ? (
+                      <button
+                        type="button"
+                        onClick={() => setMobileDetailsExpanded((value) => !value)}
+                        className="flex min-w-0 flex-1 items-center gap-2 rounded-xl text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-violet-400/45"
+                        aria-expanded={mobileDetailsExpanded}
                       >
-                        {card.name}
-                      </p>
+                        <span className="min-w-0 flex-1">
+                          <span className="mx-auto mb-2 block h-1 w-9 rounded-full bg-white/18" />
+                          <span className="block truncate text-[16px] font-semibold leading-tight text-white">
+                            {card.name}
+                          </span>
+                          <span className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[10px] font-medium text-white/48">
+                            {card.card_number && <span>#{card.card_number}</span>}
+                            {card.supertype && <span>{card.supertype}</span>}
+                          </span>
+                        </span>
 
-                      <div
-                        className={`flex flex-wrap gap-x-2.5 gap-y-0.5 text-white/55 ${
-                          compactMobileDetails ? "mt-1 text-[11px]" : "mt-2 text-sm"
-                        }`}
-                      >
-                        {card.card_number && <span>#{card.card_number}</span>}
-                        {card.supertype && <span>{card.supertype}</span>}
-                        {!compactMobileDetails && card.subtypes && <span>{card.subtypes}</span>}
+                        {primaryPriceRow ? (
+                          <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[11px] font-bold tabular-nums text-white">
+                            {formatCurrency(primaryPriceRow.value, primaryPriceRow.currency)}
+                          </span>
+                        ) : null}
+
+                        <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white/62">
+                          {mobileDetailsExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronUp className="h-4 w-4" />
+                          )}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="min-w-0">
+                        <p className="break-words text-xl font-semibold leading-tight text-white sm:text-2xl">
+                          {card.name}
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap gap-x-2.5 gap-y-0.5 text-sm text-white/55">
+                          {card.card_number && <span>#{card.card_number}</span>}
+                          {card.supertype && <span>{card.supertype}</span>}
+                          {card.subtypes && <span>{card.subtypes}</span>}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    {card.rarity && (
+                    {card.rarity && !mobileDetailsCollapsed && (
                       <span
                         className={`${compactMobileDetails ? "shrink-0 px-2 py-0.5 text-[10px]" : "mt-1 px-2.5 py-1 text-xs"} inline-flex rounded-full font-semibold ${rarityBadgeDark(
                           card.rarity
@@ -2349,7 +2379,7 @@ export default function CardThreeViewer({
                     )}
                   </div>
 
-                  {activePriceRows.length > 0 && primaryPriceRow && (
+                  {!mobileDetailsCollapsed && activePriceRows.length > 0 && primaryPriceRow && (
                     <div
                       className={`rounded-2xl border border-white/10 bg-white/[0.045] ${
                         compactMobileDetails ? "mt-2.5 p-2" : "mt-4 p-3"
@@ -2440,7 +2470,7 @@ export default function CardThreeViewer({
                     </div>
                   )}
 
-                  {(hasCardMarketGradedPricing || hasEbayGradedPricing) && (
+                  {!mobileDetailsCollapsed && (hasCardMarketGradedPricing || hasEbayGradedPricing) && (
                     <div
                       className={`rounded-2xl border border-white/10 bg-white/[0.04] ${
                         compactMobileDetails ? "mt-2 p-2" : "mt-4 p-3"
@@ -2599,7 +2629,7 @@ export default function CardThreeViewer({
                     </div>
                   )}
 
-                  {!compactMobileDetails && (
+                  {!mobileDetailsCollapsed && !compactMobileDetails && (
                     <PriceRefreshCountdown
                       rarity={card.rarity}
                       priceFetchedAt={card.price_fetched_at}
@@ -2609,7 +2639,7 @@ export default function CardThreeViewer({
                     />
                   )}
 
-                  {!compactMobileDetails && card.artist && (
+                  {!mobileDetailsCollapsed && !compactMobileDetails && card.artist && (
                     <p className="mt-2 text-sm text-white/44">
                       Illus.{" "}
                       <IllustratorLink
@@ -2619,6 +2649,7 @@ export default function CardThreeViewer({
                     </p>
                   )}
 
+                  {!mobileDetailsCollapsed && (
                   <div
                     className={`grid gap-2 ${
                       compactMobileDetails
@@ -2661,8 +2692,9 @@ export default function CardThreeViewer({
                       }`}
                     />
                   </div>
+                  )}
 
-                  {!compactMobileDetails && (
+                  {!mobileDetailsCollapsed && !compactMobileDetails && (
                     <p className="mt-4 text-sm text-white/55">
                       Drag to rotate. Pinch or scroll to zoom.
                     </p>
