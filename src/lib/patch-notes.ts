@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.6",
+    releasedAt: "May 20, 2026",
+    title: "Larger centered mobile 3D cards",
+    summary: "DustyCards 3.1.6 makes mobile 3D cards larger, better centered, and more responsive to phone screen sizes.",
+    tone: "fixed",
+    highlights: [
+      "Added a mobile-specific 3D camera distance so phone cards no longer inherit the roomier desktop framing.",
+      "Centered the card above the collapsed details sheet with a smaller vertical offset on narrow screens.",
+      "Changed mobile 3D fitting to use the card bounds so the preview scales cleanly on both regular and smaller phones.",
+    ],
+  },
+  {
     version: "3.1.5",
     releasedAt: "May 20, 2026",
     title: "Fullscreen mobile 3D cards",

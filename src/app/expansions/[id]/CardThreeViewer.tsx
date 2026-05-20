@@ -115,10 +115,11 @@ const PSA_LABEL_Z = -0.01;
 const PSA_CARD_COVER_Z = PSA_FRONT_RECESS_Z + 0.0015;
 const PSA_LABEL_COVER_Z = PSA_FRONT_RECESS_Z + 0.0015;
 const DEFAULT_CAMERA_DISTANCE = 8.55;
+const MOBILE_DEFAULT_CAMERA_DISTANCE = 7.85;
 const MIN_CAMERA_DISTANCE = 4.4;
 const MAX_CAMERA_DISTANCE = 22;
 const CAMERA_TARGET_FOLLOW = 0.16;
-const MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET = 0.28;
+const MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET = 0;
 
 interface Card3dSizeConfig {
   resetDistanceScale: number;
@@ -153,24 +154,24 @@ function getCard3dSizeConfig(size: Card3dSize, isMobileViewport: boolean): Card3
 
   if (size === "large") {
     return {
-      resetDistanceScale: 0.7,
-      minimumFitScale: 0.72,
-      offsetScale: 0.94,
+      resetDistanceScale: 0.94,
+      minimumFitScale: 0.94,
+      offsetScale: 0.5,
     };
   }
 
   if (size === "medium") {
     return {
-      resetDistanceScale: 0.83,
-      minimumFitScale: 0.83,
-      offsetScale: 0.98,
+      resetDistanceScale: 1,
+      minimumFitScale: 1,
+      offsetScale: 0.54,
     };
   }
 
   return {
-    resetDistanceScale: 0.98,
-    minimumFitScale: 0.94,
-    offsetScale: 1.02,
+    resetDistanceScale: 1.08,
+    minimumFitScale: 1.04,
+    offsetScale: 0.6,
   };
 }
 
@@ -1168,10 +1169,19 @@ function clamp(value: number, min: number, max: number) {
 
 function getSafeCameraDistance(
   camera: import("three").PerspectiveCamera,
-  boundingRadius: number
+  boundingRadius: number,
+  objectSize?: import("three").Vector3,
+  useBoxFit = false
 ) {
   const verticalHalfFov = (camera.fov * Math.PI) / 360;
   const horizontalHalfFov = Math.atan(Math.tan(verticalHalfFov) * Math.max(camera.aspect, 0.01));
+  if (useBoxFit && objectSize) {
+    const verticalDistance = objectSize.y / 2 / Math.tan(Math.max(verticalHalfFov, 0.01));
+    const horizontalDistance = objectSize.x / 2 / Math.tan(Math.max(horizontalHalfFov, 0.01));
+    const depthAllowance = objectSize.z * 0.5;
+    return (Math.max(verticalDistance, horizontalDistance) + depthAllowance) * 1.08;
+  }
+
   const limitingHalfFov = Math.max(Math.min(verticalHalfFov, horizontalHalfFov), 0.01);
   return (boundingRadius / Math.sin(limitingHalfFov)) * 1.08;
 }
@@ -1207,9 +1217,9 @@ function getFramingOffset(
 
 function getBaseVerticalFramingOffset(viewportWidth: number, viewportHeight: number) {
   if (viewportWidth >= 768) return 0;
-  if (viewportHeight <= 700) return 1.36 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
-  if (viewportHeight <= 780) return 1.22 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
-  return 1.08 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
+  if (viewportHeight <= 700) return 0.44 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
+  if (viewportHeight <= 780) return 0.36 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
+  return 0.3 + MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET;
 }
 
 function getVerticalFramingOffset(
@@ -1346,6 +1356,9 @@ export default function CardThreeViewer({
     const renderHost: HTMLDivElement = renderHostElement;
     const host: HTMLDivElement = renderHostElement;
     const sizeConfig = getCard3dSizeConfig(card3dSize, isMobileViewport);
+    initialRotationRef.current = isMobileViewport
+      ? { x: -0.14, y: -0.34, z: 0 }
+      : { x: -0.21, y: -0.72, z: 0 };
 
     setIsReady(false);
     setHasError(false);
@@ -1372,7 +1385,11 @@ export default function CardThreeViewer({
           0.1,
           100
         );
-        camera.position.set(0, 0.1, DEFAULT_CAMERA_DISTANCE);
+        camera.position.set(
+          0,
+          0.1,
+          isMobileViewport ? MOBILE_DEFAULT_CAMERA_DISTANCE : DEFAULT_CAMERA_DISTANCE
+        );
 
         renderer = new THREE.WebGLRenderer({
           antialias: true,
@@ -1823,7 +1840,10 @@ export default function CardThreeViewer({
 
         const targetRotation = { ...initialRotationRef.current };
         const getFitCameraDistance = () =>
-          Math.max(DEFAULT_CAMERA_DISTANCE, getSafeCameraDistance(camera, objectBoundingRadius));
+          Math.max(
+            isMobileViewport ? MOBILE_DEFAULT_CAMERA_DISTANCE : DEFAULT_CAMERA_DISTANCE,
+            getSafeCameraDistance(camera, objectBoundingRadius, objectSize, isMobileViewport)
+          );
         const getResetCameraDistance = () => {
           const fitDistance = getFitCameraDistance();
           return clamp(
