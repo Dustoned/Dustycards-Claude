@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.3",
+    releasedAt: "May 20, 2026",
+    title: "Cleaner mobile More menu",
+    summary: "DustyCards 3.1.3 removes the redundant Search shortcut from the phone More menu.",
+    tone: "improved",
+    highlights: [
+      "Removed Search from the mobile More menu because phone search already has its own header button.",
+      "Kept Browse focused on sets, categories, and illustrators.",
+    ],
+  },
+  {
     version: "3.1.2",
     releasedAt: "May 20, 2026",
     title: "Mobile switch sizing hotfix",

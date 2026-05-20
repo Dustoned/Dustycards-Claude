@@ -14,7 +14,6 @@ import {
   Mail,
   MoreHorizontal,
   PackageOpen,
-  Search,
   Settings as SettingsIcon,
   ShieldCheck,
   ShoppingBag,
@@ -66,7 +65,6 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
     {
       label: "Browse",
       items: [
-        { href: "/search", label: "Search", icon: Search, matches: ["/search"] },
         ...expansionItems,
         { href: "/categories", label: "Categories", icon: Sparkles, matches: ["/categories"] },
         { href: "/illustrators", label: "Illustrators", shortLabel: "Artists", icon: Brush, matches: ["/illustrators"] },
