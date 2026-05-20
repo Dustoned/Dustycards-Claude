@@ -198,7 +198,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/72 p-2 backdrop-blur-[14px] sm:p-4 md:block md:bg-[#08080c] md:p-0 md:backdrop-blur-none xl:left-[16rem]"
+      className="dc-modal-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#050507] p-2 sm:p-4 md:block md:bg-[#08080c] md:p-0 xl:left-[16rem]"
       style={{ overscrollBehavior: "contain" }}
       onClick={onClose}
     >
@@ -220,7 +220,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
           role="dialog"
           aria-modal="true"
           aria-label={modalProduct.name}
-          className="card-modal-frame glass relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] border border-white/12 bg-[rgba(10,10,12,0.92)] [overflow-anchor:none] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.52)] md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
+          className="card-modal-frame dc-modal-panel relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] border border-white/12 bg-[#050506] [overflow-anchor:none] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.62)] md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
           data-modal-size={displaySettings.modalSize}
         >
           <div

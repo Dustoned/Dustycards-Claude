@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.9",
+    releasedAt: "May 20, 2026",
+    title: "Solid dark popup theme",
+    summary: "DustyCards 3.1.9 removes the see-through feel from Quick View and aligns app popups with the current dark theme.",
+    tone: "fixed",
+    highlights: [
+      "Made the Wants Quick View popup and its sort/filter controls use opaque dark app surfaces.",
+      "Updated the shared modal theme used by add, edit, remove, binder, and collection popups.",
+      "Brought card and sealed detail popups onto the same solid dark overlay and panel treatment.",
+    ],
+  },
+  {
     version: "3.1.8",
     releasedAt: "May 20, 2026",
     title: "Cleaner four-card mobile grids",

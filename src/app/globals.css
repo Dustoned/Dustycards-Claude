@@ -470,6 +470,36 @@ html.widescreen .page-container {
   -webkit-backdrop-filter: blur(14px) saturate(150%);
 }
 
+.dc-modal-overlay {
+  background: #050507;
+}
+
+.dc-modal-panel {
+  background: linear-gradient(180deg, #0b0b0f 0%, #07070a 58%, #050506 100%);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dc-modal-surface {
+  background: #101014;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.dc-modal-control {
+  background: #07070a;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.dc-modal-field {
+  background: #111116;
+  border-color: rgba(255, 255, 255, 0.11);
+}
+
 .binder-panel {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.028));
   border: 1px solid rgba(255, 255, 255, 0.09);
