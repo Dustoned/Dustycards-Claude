@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.8",
+    releasedAt: "May 20, 2026",
+    title: "Cleaner four-card mobile grids",
+    summary: "DustyCards 3.1.8 makes the 4-cards-per-row phone layout keep names, prices, and actions readable.",
+    tone: "fixed",
+    highlights: [
+      "Changed the 4-column mobile card layout so names can wrap instead of being cut off after one short line.",
+      "Stacked price and trend/action controls on ultra-compact cards so prices no longer lose space to side buttons.",
+      "Extended mobile bottom safe spacing across logged-in pages so card prices can scroll above the bottom nav.",
+    ],
+  },
+  {
     version: "3.1.7",
     releasedAt: "May 20, 2026",
     title: "Mobile home scroll safe area",

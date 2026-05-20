@@ -539,6 +539,7 @@ export default function ExpansionView({
         ? "gap-x-3 gap-y-4"
         : "gap-x-2 gap-y-3"
     : "gap-2";
+  const compactFourColumnGrid = isMobileViewport && displaySettings.cardSize === "xsmall";
   const renderedCards = useIncrementalItems(filtered, {
     initialCount: isMobileViewport ? 28 : INITIAL_RENDERED_CARDS,
     batchSize: isMobileViewport ? 24 : RENDERED_CARD_BATCH_SIZE,
@@ -1328,7 +1329,13 @@ export default function ExpansionView({
                 <div className="mt-1.5 px-0.5 sm:mt-2">
                   <div className="grid gap-1 sm:flex sm:items-end sm:justify-between sm:gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[11px] font-semibold leading-snug text-gray-900 dark:text-white sm:text-[13px]">
+                      <p
+                        className={
+                          compactFourColumnGrid
+                            ? "line-clamp-3 text-[10px] font-semibold leading-tight text-gray-900 dark:text-white"
+                            : "truncate text-[11px] font-semibold leading-snug text-gray-900 dark:text-white sm:text-[13px]"
+                        }
+                      >
                         {card.name}
                       </p>
                       <div className="mt-0.5 flex items-center gap-1 text-[10px] font-medium sm:gap-1.5 sm:text-xs">
@@ -1354,9 +1361,21 @@ export default function ExpansionView({
                       </div>
                     </div>
 
-                    <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
+                    <div
+                      className={
+                        compactFourColumnGrid
+                          ? "grid min-w-0 gap-1"
+                          : "flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end"
+                      }
+                    >
                       {gridPrice != null ? (
-                        <span className="min-w-0 truncate text-[12px] font-semibold tabular-nums text-gray-900 dark:text-white sm:text-[15px]">
+                        <span
+                          className={
+                            compactFourColumnGrid
+                              ? "block min-w-0 max-w-full whitespace-nowrap text-[clamp(9px,2.85vw,11px)] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white"
+                              : "min-w-0 truncate text-[12px] font-semibold tabular-nums text-gray-900 dark:text-white sm:text-[15px]"
+                          }
+                        >
                           {primaryPriceSource === "tcp"
                             ? `TCP ${formatCurrency(gridPrice, gridCurrency)}`
                             : formatCurrency(gridPrice, gridCurrency)}
@@ -1366,15 +1385,17 @@ export default function ExpansionView({
                       )}
 
                       {!selectionMode && (
-                        <CollectionAddCardButton
-                          card={{
-                            id: card.id,
-                            name: card.name,
-                            image_url: card.image_url,
-                            episode: getCollectionEpisodeForCard(card),
-                          }}
-                          className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
-                        />
+                        <div className={compactFourColumnGrid ? "flex justify-start" : ""}>
+                          <CollectionAddCardButton
+                            card={{
+                              id: card.id,
+                              name: card.name,
+                              image_url: card.image_url,
+                              episode: getCollectionEpisodeForCard(card),
+                            }}
+                            className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
+                          />
+                        </div>
                       )}
                     </div>
                   </div>

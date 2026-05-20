@@ -307,6 +307,7 @@ function SearchPageContent({
         ? "gap-x-2 gap-y-2.5"
         : "gap-x-1.5 gap-y-2"
     : "gap-2.5";
+  const compactFourColumnSingles = isMobileViewport && displaySettings.cardSize === "xsmall";
   const sealedImageSizes = getSealedProductImageSizes(
     displaySettings.cardSize,
     displaySettings.widescreen,
@@ -482,7 +483,13 @@ function SearchPageContent({
                       <div className="mt-1.5 px-0.5">
                         <div className="grid gap-1">
                           <div className="min-w-0">
-                            <p className="line-clamp-2 text-[11px] font-bold leading-tight text-white sm:text-[13px]">
+                            <p
+                              className={
+                                compactFourColumnSingles
+                                  ? "line-clamp-3 text-[10px] font-bold leading-tight text-white"
+                                  : "line-clamp-2 text-[11px] font-bold leading-tight text-white sm:text-[13px]"
+                              }
+                            >
                               {card.name}
                             </p>
                             <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[9px] font-semibold sm:gap-1.5 sm:text-[11px]">
@@ -505,28 +512,42 @@ function SearchPageContent({
                             ) : null}
                           </div>
 
-                          <div className="flex min-w-0 items-center justify-between gap-1.5">
+                          <div
+                            className={
+                              compactFourColumnSingles
+                                ? "grid min-w-0 gap-1"
+                                : "flex min-w-0 items-center justify-between gap-1.5"
+                            }
+                          >
                             {card.cm_en_lowest_nm != null ? (
-                              <span className="min-w-0 truncate text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]">
+                              <span
+                                className={
+                                  compactFourColumnSingles
+                                    ? "block min-w-0 max-w-full whitespace-nowrap text-[clamp(9px,2.85vw,11px)] font-bold tabular-nums leading-tight text-white"
+                                    : "min-w-0 truncate text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]"
+                                }
+                              >
                                 {formatEur(card.cm_en_lowest_nm)}
                               </span>
                             ) : (
                               <span className="text-[10px] text-white/35 sm:text-xs">No price</span>
                             )}
 
-                            <CollectionAddCardButton
-                              card={{
-                                id: card.id,
-                                name: card.name,
-                                image_url: card.image_url,
-                                episode: {
-                                  id: card.episode_id,
-                                  name: card.episode_name,
-                                  code: card.episode_code,
-                                },
-                              }}
-                              className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
-                            />
+                            <div className={compactFourColumnSingles ? "flex justify-start" : ""}>
+                              <CollectionAddCardButton
+                                card={{
+                                  id: card.id,
+                                  name: card.name,
+                                  image_url: card.image_url,
+                                  episode: {
+                                    id: card.episode_id,
+                                    name: card.episode_name,
+                                    code: card.episode_code,
+                                  },
+                                }}
+                                className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>

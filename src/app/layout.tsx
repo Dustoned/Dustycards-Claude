@@ -187,7 +187,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: initialBrowserSettingsScript }} />
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
       </head>
-      <body className="min-h-full flex flex-col bg-transparent text-white">
+      <body
+        className={`min-h-full flex flex-col bg-transparent text-white ${
+          currentUser ? "has-mobile-bottom-nav" : ""
+        }`}
+      >
         <SettingsProvider
           initialSettings={initialSettings}
           initialMobileViewport={initialMobileViewport}

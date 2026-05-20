@@ -298,6 +298,10 @@ export function collectionTileTitleClass(cardSize: CardSize): string {
     return "line-clamp-2 text-[13px] font-bold leading-tight text-white max-[640px]:text-[12px]";
   }
 
+  if (cardSize === "xsmall") {
+    return "line-clamp-3 text-[11px] font-bold leading-tight text-white max-[640px]:text-[10px]";
+  }
+
   return "line-clamp-2 text-[12px] font-bold leading-tight text-white max-[640px]:text-[11px]";
 }
 
@@ -322,6 +326,10 @@ export function collectionTilePriceClass(cardSize: CardSize): string {
     return "min-w-0 truncate text-[14px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
   }
 
+  if (cardSize === "xsmall") {
+    return "min-w-0 max-w-full whitespace-nowrap text-[11px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[clamp(9px,2.85vw,11px)]";
+  }
+
   return "min-w-0 truncate text-[13px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[11px]";
 }
 
@@ -334,7 +342,47 @@ export function collectionTileNoPriceClass(cardSize: CardSize): string {
     return "text-xs text-white/35";
   }
 
+  if (cardSize === "xsmall") {
+    return "text-[10px] leading-tight text-white/35 max-[640px]:text-[9px]";
+  }
+
   return "text-[11px] text-white/35";
+}
+
+export function collectionTilePriceRowClass(
+  cardSize: CardSize,
+  isMobileViewport: boolean
+): string {
+  if (isMobileViewport && cardSize === "xsmall") {
+    return "mt-auto flex min-w-0 flex-col items-start gap-0.5 pt-1";
+  }
+
+  return "mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 pt-1";
+}
+
+export function collectionTileTrendClass(
+  cardSize: CardSize,
+  isMobileViewport: boolean,
+  positive: boolean
+): string {
+  const toneClass = positive ? "text-emerald-300" : "text-rose-300";
+
+  if (isMobileViewport && cardSize === "xsmall") {
+    return `inline-flex max-w-full items-center justify-start gap-0.5 text-left text-[8.5px] font-bold tabular-nums leading-tight ${toneClass}`;
+  }
+
+  return `inline-flex min-w-0 shrink-0 items-center justify-end gap-0.5 text-right text-[11px] font-bold tabular-nums max-[640px]:text-[9px] ${toneClass}`;
+}
+
+export function collectionTileTrendIconClass(
+  cardSize: CardSize,
+  isMobileViewport: boolean
+): string {
+  if (isMobileViewport && cardSize === "xsmall") {
+    return "h-2.5 w-2.5 shrink-0";
+  }
+
+  return "h-3 w-3 shrink-0 max-[640px]:h-2.5 max-[640px]:w-2.5";
 }
 
 export function collectionTileActionButtonClass(cardSize: CardSize): string {

@@ -518,6 +518,10 @@ main > .page-container.binder-bottom-safe {
 }
 
 @media (max-width: 640px) {
+  body.has-mobile-bottom-nav main > .page-container {
+    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)) !important;
+  }
+
   main > .page-container {
     padding-left: 0.75rem !important;
     padding-right: 0.75rem !important;

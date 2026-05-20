@@ -13,7 +13,10 @@ import {
   collectionTileMetaLineClass,
   collectionTileNoPriceClass,
   collectionTilePriceClass,
+  collectionTilePriceRowClass,
   collectionTileTitleClass,
+  collectionTileTrendClass,
+  collectionTileTrendIconClass,
   formatMarketCurrency,
   getCollectionItemCostBasis,
   getCollectionItemPrice,
@@ -88,7 +91,7 @@ function FeaturedCardTile({
   opening: boolean;
   onOpen: (item: CollectionCardViewItem) => void;
 }) {
-  const { settings, displaySettings } = useSettings();
+  const { settings, displaySettings, isMobileViewport } = useSettings();
   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
   const isGradedCard = Boolean(item.owned && gradingCompanyLabel && gradingGradeLabel);
@@ -164,7 +167,7 @@ function FeaturedCardTile({
             </div>
           </div>
 
-          <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 pt-1">
+          <div className={collectionTilePriceRowClass(cardSize, isMobileViewport)}>
             {displayPrice != null ? (
               <span className={collectionTilePriceClass(cardSize)}>
                 {formatMarketCurrency(displayPrice, displayPriceCurrency)}
@@ -174,15 +177,17 @@ function FeaturedCardTile({
             )}
             {trendPercent != null ? (
               <span
-                className={`inline-flex min-w-0 shrink-0 items-center justify-end gap-0.5 text-right text-[11px] font-bold tabular-nums max-[640px]:text-[9px] ${
-                  trendPercent >= 0 ? "text-emerald-300" : "text-rose-300"
-                }`}
+                className={collectionTileTrendClass(
+                  cardSize,
+                  isMobileViewport,
+                  trendPercent >= 0
+                )}
                 title={`P&L ${trendPercent >= 0 ? "+" : ""}${trendPercent}%`}
               >
                 {trendPercent >= 0 ? (
-                  <TrendingUp className="h-3 w-3 shrink-0 max-[640px]:h-2.5 max-[640px]:w-2.5" />
+                  <TrendingUp className={collectionTileTrendIconClass(cardSize, isMobileViewport)} />
                 ) : (
-                  <TrendingDown className="h-3 w-3 shrink-0 max-[640px]:h-2.5 max-[640px]:w-2.5" />
+                  <TrendingDown className={collectionTileTrendIconClass(cardSize, isMobileViewport)} />
                 )}
                 <span className="truncate">
                   {trendPercent >= 0 ? "+" : ""}
