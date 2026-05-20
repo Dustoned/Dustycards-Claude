@@ -752,12 +752,6 @@ body :where(option) {
     will-change: auto;
   }
 
-  /* Long lists / grids — let browser skip offscreen rendering */
-  main [class*="grid"] > * {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 220px;
-  }
-
   body :where(.card-modal-frame, [class*="overflow-y-auto"]) {
     -webkit-overflow-scrolling: touch;
   }

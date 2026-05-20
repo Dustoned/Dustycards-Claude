@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.2",
+    releasedAt: "May 20, 2026",
+    title: "Mobile switch sizing hotfix",
+    summary: "DustyCards 3.1.2 fixes oversized segmented switches on phone screens.",
+    tone: "fixed",
+    highlights: [
+      "Removed the broad mobile grid rendering optimization that made segmented controls reserve card-sized rows on iPhone.",
+      "Restored compact sizing for the Collection card layout switch and other mobile tab or filter switches.",
+    ],
+  },
+  {
     version: "3.1.1",
     releasedAt: "May 20, 2026",
     title: "Mobile market polish",
