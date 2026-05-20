@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import Link from "next/link";
+import { ArrowLeft, CheckCircle2, Coins, Layers, TrendingDown, TrendingUp, WalletCards } from "lucide-react";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import CollectionCardsView from "@/components/CollectionCardsView";
 import EditBinderButton from "@/components/EditBinderButton";
-import { HeaderMetricChip, HeaderProgressMeter, PageHeroHeader } from "@/components/PageHeader";
+import { HeaderStatCard, PageHeroHeader } from "@/components/PageHeader";
 import {
   buildOwnedCardValueHistory,
   formatCollectionCurrency,
@@ -105,76 +107,93 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
       ? `${visibleTotals.priced}/${visibleOwnedItems.length} visible owned cards priced`
       : "No owned cards in the current filter"
     : `Current value ${formatCollectionCurrency(data.metrics.currentValue)}`;
+  const headerDescription = data.binder.episode
+    ? `${data.binder.episode.series ?? "Set"} / ${data.binder.episode.name}`
+    : "Custom binder";
+  const headerValue = showingFilteredSubset ? currentValue : data.metrics.currentValue;
+  const headerValueHint = showingFilteredSubset
+    ? visibleOwnedItems.length > 0
+      ? `${visibleTotals.priced}/${visibleOwnedItems.length} visible priced`
+      : "No owned cards in filter"
+    : "Binder market value";
+  const pnlLabel = `${data.metrics.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
+    data.metrics.pnl
+  )}`;
 
   return (
     <>
       <PageHeroHeader
-        className="mb-8"
-        eyebrow={data.binder.episode ? "Linked Binder" : "Collection Binder"}
+        className="mb-5 sm:mb-6"
         title={data.binder.name}
-        accentColor={accentColor}
-        gridClassName="xl:grid-cols-[minmax(0,1.2fr)_minmax(28rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.24fr)_minmax(28rem,0.76fr)]"
-        style={
-          data.binder.accent_color
-            ? { boxShadow: `inset 0 0 0 1px ${data.binder.accent_color}2f` }
-            : undefined
+        description={headerDescription}
+        gridClassName="xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch"
+        backLinks={
+          <Link
+            href="/?tab=binders"
+            prefetch={false}
+            className="hidden items-center gap-2 font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to collection
+          </Link>
         }
         leadingVisual={
-            <div
-              className="flex h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-[var(--ui-binder-header-logo-padding)] text-white/70 shadow-sm shadow-black/20"
-              style={accentColor ? { color: accentColor } : undefined}
-            >
-              {data.binder.episode?.logo_url ? (
-                <div className="relative h-full w-full">
-                  <Image
-                    src={getCachedImageUrl(data.binder.episode.logo_url) ?? data.binder.episode.logo_url}
-                    alt={data.binder.name}
-                    fill
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-              ) : (
-                <CollectionBinderIcon iconName={data.binder.icon_name} className="h-[45%] w-[45%]" />
-              )}
-            </div>
-        }
-        description={
-          <div className="space-y-5">
-            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-white/62">
-              {data.binder.episode
-                ? `${data.binder.episode.series ?? "Set"} / ${data.binder.episode.name}`
-                : "Custom binder"}
-            </p>
-            <div className="flex flex-wrap items-stretch gap-3">
-              {data.metrics.totalCards != null ? (
-                <HeaderProgressMeter
-                  label="Set Progress"
-                  value={`${data.metrics.ownedCount} / ${data.metrics.totalCards}`}
-                  percent={progressPercent ?? 0}
-                  accentColor={accentColor}
+          <div
+            className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-2 text-white/70 shadow-sm shadow-black/20 sm:flex lg:h-16 lg:w-16"
+            style={accentColor ? { color: accentColor } : undefined}
+          >
+            {data.binder.episode?.logo_url ? (
+              <div className="relative h-full w-full">
+                <Image
+                  src={getCachedImageUrl(data.binder.episode.logo_url) ?? data.binder.episode.logo_url}
+                  alt={data.binder.name}
+                  fill
+                  className="object-contain drop-shadow"
+                  unoptimized
                 />
-              ) : (
-                <HeaderMetricChip label="Cards" value={totalCardsLabel} tone="sky" />
-              )}
-              <HeaderMetricChip
-                label="Overall Spend"
-                value={formatCollectionCurrency(data.metrics.investment)}
-                tone="amber"
-              />
-              <HeaderMetricChip
-                label="P&L"
-                value={`${data.metrics.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
-                  data.metrics.pnl
-                )}`}
-                tone={pnlTone}
-              />
-              {progressPercent != null && (
-                <HeaderMetricChip label="Complete" value={`${progressPercent}%`} tone="emerald" />
-              )}
-            </div>
+              </div>
+            ) : (
+              <CollectionBinderIcon iconName={data.binder.icon_name} className="h-[45%] w-[45%]" />
+            )}
           </div>
         }
+        sideContent={
+          <>
+            <HeaderStatCard
+              label={data.metrics.totalCards != null ? "Set Progress" : "Cards"}
+              value={totalCardsLabel}
+              hint={
+                progressPercent != null
+                  ? `${progressPercent}% complete`
+                  : "Cards in binder"
+              }
+              Icon={progressPercent != null ? CheckCircle2 : Layers}
+              tone={progressPercent != null ? "emerald" : "sky"}
+            />
+            <HeaderStatCard
+              label={showingFilteredSubset ? "Visible Value" : "Binder Value"}
+              value={headerValue != null ? formatCollectionCurrency(headerValue) : "--"}
+              hint={headerValueHint}
+              Icon={Coins}
+              tone="emerald"
+            />
+            <HeaderStatCard
+              label="Overall Spend"
+              value={formatCollectionCurrency(data.metrics.investment)}
+              hint="Paid into binder"
+              Icon={WalletCards}
+              tone="amber"
+            />
+            <HeaderStatCard
+              label="P&L"
+              value={pnlLabel}
+              hint={data.metrics.pnl >= 0 ? "Above spend" : "Below spend"}
+              Icon={data.metrics.pnl >= 0 ? TrendingUp : TrendingDown}
+              tone={pnlTone}
+            />
+          </>
+        }
+        sideClassName="grid min-w-0 auto-rows-fr grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
         titleActions={
           <EditBinderButton
             binder={{
@@ -205,7 +224,6 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
             emptyText="Add cards to start tracking this binder"
           />
         }
-        sideClassName="[&>section]:h-full"
       />
 
       <CollectionCardsView

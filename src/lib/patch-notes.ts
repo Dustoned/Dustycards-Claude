@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.18",
+    releasedAt: "May 21, 2026",
+    title: "Binder headers aligned",
+    summary: "DustyCards 3.1.18 brings binder detail headers in line with expansion detail pages.",
+    tone: "improved",
+    highlights: [
+      "Moved binder value charts into the same dashboard header structure used by expansion pages.",
+      "Aligned owned and wants binder stat tiles into a clean two-by-two grid on the right.",
+      "Reduced oversized binder logo spacing and tucked back links into the header area.",
+    ],
+  },
+  {
     version: "3.1.17",
     releasedAt: "May 20, 2026",
     title: "Dark selection buttons",
