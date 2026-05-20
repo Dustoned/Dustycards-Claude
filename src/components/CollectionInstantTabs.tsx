@@ -141,6 +141,8 @@ export default function CollectionInstantTabs({
   }
 
   const isOverview = activeTab === "overview";
+  const showCollectionSectionNav = activeTab !== "complete";
+  const showControlStrip = Boolean(gameControls) || showCollectionSectionNav;
 
   return (
     <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
@@ -163,41 +165,45 @@ export default function CollectionInstantTabs({
               </div>
             </section>
 
-            <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
-              <div className="flex min-w-0 flex-col gap-2.5">
-                {gameControls}
-                <nav
-                  aria-label="Collection sections"
-                  className="relative min-w-0 max-w-full overflow-hidden rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20 sm:rounded-[1.35rem]"
-                >
-                  <div
-                    className="grid min-w-0 gap-1"
-                    style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
-                  >
-                    {tabs.map((tab) => {
-                      const active = activeTab === tab.key;
+            {showControlStrip ? (
+              <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
+                <div className="flex min-w-0 flex-col gap-2.5">
+                  {gameControls}
+                  {showCollectionSectionNav ? (
+                    <nav
+                      aria-label="Collection sections"
+                      className="relative min-w-0 max-w-full overflow-hidden rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20 sm:rounded-[1.35rem]"
+                    >
+                      <div
+                        className="grid min-w-0 gap-1"
+                        style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+                      >
+                        {tabs.map((tab) => {
+                          const active = activeTab === tab.key;
 
-                      return (
-                        <button
-                          key={tab.key}
-                          type="button"
-                          aria-current={active ? "page" : undefined}
-                          onClick={() => selectTab(tab)}
-                          className={cx(
-                            "inline-flex h-7 min-w-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-8 sm:px-4 sm:text-[12px]",
-                            active
-                              ? "border border-violet-400/40 bg-violet-600 text-white"
-                              : "text-white/58 hover:bg-white/[0.07] hover:text-white"
-                          )}
-                        >
-                          <span className="truncate">{tab.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </nav>
-              </div>
-            </section>
+                          return (
+                            <button
+                              key={tab.key}
+                              type="button"
+                              aria-current={active ? "page" : undefined}
+                              onClick={() => selectTab(tab)}
+                              className={cx(
+                                "inline-flex h-7 min-w-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-8 sm:px-4 sm:text-[12px]",
+                                active
+                                  ? "border border-violet-400/40 bg-violet-600 text-white"
+                                  : "text-white/58 hover:bg-white/[0.07] hover:text-white"
+                              )}
+                            >
+                              <span className="truncate">{tab.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </nav>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
           </div>
         )}
 

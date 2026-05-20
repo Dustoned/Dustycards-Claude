@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.11",
+    releasedAt: "May 20, 2026",
+    title: "Cleaner complete collection header",
+    summary: "DustyCards 3.1.11 removes the duplicate collection section switch from the Complete Collection view.",
+    tone: "improved",
+    highlights: [
+      "Hid the All, Loose, Binders, Sealed, and Graded switch bar on Complete Collection.",
+      "Kept the Pokemon and One Piece library switch available when that library filter is enabled.",
+      "Left the separate collection tabs reachable through the existing navigation so the page feels cleaner.",
+    ],
+  },
+  {
     version: "3.1.10",
     releasedAt: "May 20, 2026",
     title: "More consistent home scaling",
