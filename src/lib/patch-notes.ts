@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.14",
+    releasedAt: "May 20, 2026",
+    title: "Aligned expansion metric tiles",
+    summary: "DustyCards 3.1.14 tightens the right-side metric tiles in expansion headers.",
+    tone: "fixed",
+    highlights: [
+      "Made expansion header stat tiles fill the same grid row height on desktop.",
+      "Aligned Pokemon sealed and pull-rate tiles with the pricing and card-count tiles.",
+      "Kept One Piece expansion metric tiles on the same matching grid treatment.",
+    ],
+  },
+  {
     version: "3.1.13",
     releasedAt: "May 20, 2026",
     title: "Expansion headers aligned",

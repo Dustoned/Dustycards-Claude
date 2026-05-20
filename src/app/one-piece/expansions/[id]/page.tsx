@@ -262,7 +262,7 @@ export default async function OnePieceExpansionDetailPage({
             ) : null}
           </>
         }
-        sideClassName="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
+        sideClassName="grid min-w-0 auto-rows-fr grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
       />
 
       {cards.length === 0 ? (

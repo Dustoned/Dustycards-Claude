@@ -282,7 +282,7 @@ export function HeaderStatCard({
   const toneClass = toneClasses[tone];
 
   return (
-    <div className="min-w-0 rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/20 sm:min-h-[var(--ui-header-stat-min-height)]">
+    <div className="flex h-full min-w-0 flex-col rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/20 sm:min-h-[var(--ui-header-stat-min-height)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
@@ -403,7 +403,9 @@ export function PageHeroHeader({
             </div>
           ) : null}
           {sideContent ? (
-            <div className={cx("min-w-0", sideClassName)}>{sideContent}</div>
+            <div className={cx("min-w-0", hasAccessory ? "h-full" : "", sideClassName)}>
+              {sideContent}
+            </div>
           ) : hasStats ? (
             <div
               className={cx(

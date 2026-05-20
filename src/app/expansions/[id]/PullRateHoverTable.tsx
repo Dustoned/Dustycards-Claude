@@ -56,13 +56,13 @@ export default function PullRateHoverTable({
 
   return (
     <div
-      className={`group relative min-w-0 ${className}`}
+      className={`group relative h-full min-w-0 ${className}`}
       tabIndex={0}
       aria-label={`Pull-rate data: ${profile.rarities.length} rarity tiers`}
       data-mobile-tooltip="Tap to show pull-rate details"
       onClick={(event) => event.currentTarget.focus()}
     >
-      <div className="min-w-0 cursor-default rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/20 transition-colors group-hover:bg-white/[0.07] group-focus-visible:ring-2 group-focus-visible:ring-amber-300/45 sm:min-h-[var(--ui-header-stat-min-height)]">
+      <div className="flex h-full min-w-0 cursor-default flex-col rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/20 transition-colors group-hover:bg-white/[0.07] group-focus-visible:ring-2 group-focus-visible:ring-amber-300/45 sm:min-h-[var(--ui-header-stat-min-height)]">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">

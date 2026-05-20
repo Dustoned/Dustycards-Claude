@@ -532,7 +532,7 @@ export default async function ExpansionDetailPage({
               <Link
                 href={`/expansions/${id}?tab=sealed`}
                 prefetch={false}
-                className="group min-w-0 rounded-[var(--ui-header-stat-radius)] no-underline outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300/45"
+                className="group h-full min-w-0 rounded-[var(--ui-header-stat-radius)] no-underline outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300/45"
                 aria-label={`Open sealed products for ${episode.name}`}
               >
                 <HeaderStatCard
@@ -563,7 +563,7 @@ export default async function ExpansionDetailPage({
             ) : null}
           </>
         }
-        sideClassName="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
+        sideClassName="grid min-w-0 auto-rows-fr grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
       />
 
       <div className="mb-4 inline-flex rounded-[calc(var(--ui-segment-radius)+0.25rem)] border border-white/8 bg-white/[0.045] p-[var(--ui-segment-shell-padding)]">
