@@ -149,26 +149,26 @@ export default function CollectionInstantTabs({
           overviewSlot
         ) : (
           <div className="space-y-2.5">
-            <section className="binder-panel rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 xl:!border-0 xl:!bg-transparent xl:!p-0 xl:!shadow-none xl:[backdrop-filter:none]">
+            <section className="binder-panel rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 xl:!border-0 xl:!bg-transparent xl:!p-0 xl:!shadow-none xl:[backdrop-filter:none]">
               <div className="min-w-0">
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-white/38">
+                <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-bold uppercase tracking-[0.14em] text-white/38">
                   Collection
                 </p>
-                <h1 className="mt-1 truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                <h1 className="mt-1 truncate text-[1.35rem] font-bold leading-tight tracking-tight text-white sm:text-[1.65rem]">
                   {activeMeta?.title ?? "Collection"}
                 </h1>
-                <p className="mt-0.5 text-sm font-semibold text-white/48">
+                <p className="mt-0.5 text-[length:var(--ui-page-header-description-size)] font-semibold leading-[var(--ui-page-header-description-leading)] text-white/48">
                   {activeMeta?.summary ?? ""}
                 </p>
               </div>
             </section>
 
-            <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3">
+            <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
               <div className="flex min-w-0 flex-col gap-2.5">
                 {gameControls}
                 <nav
                   aria-label="Collection sections"
-                  className="relative min-w-0 max-w-full overflow-hidden rounded-[1.35rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20"
+                  className="relative min-w-0 max-w-full overflow-hidden rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20 sm:rounded-[1.35rem]"
                 >
                   <div
                     className="grid min-w-0 gap-1"
@@ -184,7 +184,7 @@ export default function CollectionInstantTabs({
                           aria-current={active ? "page" : undefined}
                           onClick={() => selectTab(tab)}
                           className={cx(
-                            "inline-flex h-8 min-w-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-9 sm:px-4 sm:text-[13px]",
+                            "inline-flex h-7 min-w-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-8 sm:px-4 sm:text-[12px]",
                             active
                               ? "border border-violet-400/40 bg-violet-600 text-white"
                               : "text-white/58 hover:bg-white/[0.07] hover:text-white"

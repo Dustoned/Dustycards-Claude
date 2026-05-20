@@ -28,6 +28,7 @@ import {
   normalizeGradingCompanyLabel,
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
+import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -86,10 +87,12 @@ function FeaturedCardTile({
   item,
   opening,
   onOpen,
+  imageSizes,
 }: {
   item: CollectionCardViewItem;
   opening: boolean;
   onOpen: (item: CollectionCardViewItem) => void;
+  imageSizes: string;
 }) {
   const { settings, displaySettings, isMobileViewport } = useSettings();
   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
@@ -136,7 +139,7 @@ function FeaturedCardTile({
             className="absolute inset-0"
             imageClassName={imageClass}
             tileSize={cardSize}
-            sizes="(max-width: 480px) 45vw, (max-width: 1024px) 25vw, 10rem"
+            sizes={imageSizes}
           />
         ) : item.image_url ? (
           <Image
@@ -144,7 +147,7 @@ function FeaturedCardTile({
             alt={item.name}
             fill
             className={imageClass}
-            sizes="(max-width: 480px) 45vw, (max-width: 1024px) 25vw, 10rem"
+            sizes={imageSizes}
             unoptimized
           />
         ) : (
@@ -211,6 +214,26 @@ export default function HomeFeaturedCardsPanel({
 }) {
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
+  const { displaySettings, isMobileViewport } = useSettings();
+  const imageSizes = getCardGridImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const gridTemplateColumns = getCardGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const gridGapClass = isMobileViewport
+    ? displaySettings.cardSize === "xsmall"
+      ? "gap-x-1.5 gap-y-2"
+      : displaySettings.cardSize === "large"
+        ? "gap-x-0 gap-y-3"
+        : displaySettings.cardSize === "medium"
+          ? "gap-x-2 gap-y-2.5"
+          : "gap-x-1.5 gap-y-2"
+    : "gap-2.5";
 
   async function openCard(item: CollectionCardViewItem) {
     const openingKey = getOpeningItemKey(item);
@@ -232,9 +255,11 @@ export default function HomeFeaturedCardsPanel({
   if (cards.length === 0) return null;
 
   return (
-    <section className="binder-panel rounded-[var(--ui-page-header-radius)] p-3 sm:p-4">
+    <section className="binder-panel rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xl font-black text-white">Featured Cards</h2>
+        <h2 className="text-[length:var(--ui-section-header-title-size)] font-bold tracking-tight text-white">
+          Featured Cards
+        </h2>
         <Link
           href={viewAllHref}
           prefetch={false}
@@ -243,7 +268,13 @@ export default function HomeFeaturedCardsPanel({
           View all
         </Link>
       </div>
-      <div className="grid grid-cols-2 gap-2 min-[480px]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+      <div
+        className={`grid ${gridGapClass}`}
+        style={{
+          gridTemplateColumns,
+          justifyContent: isMobileViewport ? "stretch" : "start",
+        }}
+      >
         {cards.map((item) => {
           const key = getOpeningItemKey(item);
           return (
@@ -252,6 +283,7 @@ export default function HomeFeaturedCardsPanel({
               item={item}
               opening={openingItemKey === key}
               onOpen={(target) => void openCard(target)}
+              imageSizes={imageSizes}
             />
           );
         })}

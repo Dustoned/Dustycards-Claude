@@ -63,30 +63,34 @@ function CollectionValueSummaryCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-white/8 bg-white/[0.045] px-3 py-2.5 ${className}`}
+      className={`rounded-[var(--ui-header-stat-radius)] border border-white/8 bg-white/[0.045] px-2.5 py-2 sm:px-3 sm:py-2.5 ${className}`}
     >
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/42">
+          <p className="text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase tracking-[0.12em] text-white/42">
             Collection Value
           </p>
-          <p className="mt-1 truncate text-2xl font-bold leading-tight tabular-nums text-white sm:text-3xl">
+          <p className="mt-1 truncate text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tabular-nums text-white">
             {formatCollectionCurrency(currentValue)}
           </p>
         </div>
         <div className="shrink-0 text-right">
           <p
-            className={`text-sm font-semibold tabular-nums sm:text-base ${
+            className={`text-xs font-semibold tabular-nums sm:text-sm ${
               pnl >= 0 ? "text-emerald-300" : "text-rose-300"
             }`}
           >
             {pnl >= 0 ? "+" : ""}
             {formatCollectionCurrency(pnl)}
           </p>
-          <p className="mt-0.5 text-[11px] text-white/42">P&amp;L</p>
+          <p className="mt-0.5 text-[length:var(--ui-header-stat-hint-size)] text-white/42">
+            P&amp;L
+          </p>
         </div>
       </div>
-      <p className="mt-2 truncate text-[11px] text-white/42">{rangeLabel}</p>
+      <p className="mt-1.5 truncate text-[length:var(--ui-header-stat-hint-size)] text-white/42">
+        {rangeLabel}
+      </p>
     </div>
   );
 }
@@ -194,13 +198,13 @@ function CollectionAllocationPanel({
   const totalValue = segments.reduce((total, segment) => total + segment.value, 0);
 
   return (
-    <section className="binder-panel relative overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4">
+    <section className="binder-panel relative overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
       <h2 className="text-base font-black tracking-tight text-white">
         Collection Allocation
       </h2>
 
-      <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-white/8">
+      <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-white/8">
         {segments.map((segment) => {
           const share = safeShare(segment.value, totalValue);
           return (
@@ -217,36 +221,36 @@ function CollectionAllocationPanel({
         })}
       </div>
 
-      <div className="mt-3 grid gap-1.5">
+      <div className="mt-2.5 grid gap-1.5">
         {segments.map((segment) => {
           const share = safeShare(segment.value, totalValue);
           return (
             <div
               key={segment.label}
-              className="flex items-center gap-3 text-[13px]"
+              className="flex items-center gap-2.5 text-[12px]"
             >
               <span className={`h-2 w-2 shrink-0 rounded-full ${segment.dotClassName}`} />
               <span className="min-w-0 flex-1 truncate font-semibold text-white/78">
                 {segment.label}
               </span>
-              <span className="shrink-0 text-[12px] font-bold tabular-nums text-white/48">
+              <span className="shrink-0 text-[11px] font-bold tabular-nums text-white/48">
                 {share.toFixed(0)}%
               </span>
-              <span className="w-20 shrink-0 text-right font-black tabular-nums text-white">
+              <span className="w-[4.75rem] shrink-0 text-right font-black tabular-nums text-white">
                 {formatCollectionCurrency(segment.value)}
               </span>
             </div>
           );
         })}
-        <div className="mt-1 flex items-center gap-3 border-t border-white/8 pt-2 text-[13px]">
+        <div className="mt-1 flex items-center gap-2.5 border-t border-white/8 pt-2 text-[12px]">
           <span className="h-2 w-2 shrink-0 rounded-full bg-white/0" />
           <span className="min-w-0 flex-1 truncate font-black uppercase tracking-[0.12em] text-white/56">
             Total
           </span>
-          <span className="shrink-0 text-[12px] font-bold tabular-nums text-white/56">
+          <span className="shrink-0 text-[11px] font-bold tabular-nums text-white/56">
             100%
           </span>
-          <span className="w-20 shrink-0 text-right font-black tabular-nums text-white">
+          <span className="w-[4.75rem] shrink-0 text-right font-black tabular-nums text-white">
             {formatCollectionCurrency(totalValue)}
           </span>
         </div>
@@ -273,8 +277,8 @@ function TopSetsProgressPanel({
   if (rankedBinders.length === 0) return null;
 
   return (
-    <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
         <h2 className="text-base font-black tracking-tight text-white">
           Top Sets Progress
         </h2>
@@ -287,7 +291,7 @@ function TopSetsProgressPanel({
         </Link>
       </div>
 
-      <div className="grid gap-2.5">
+      <div className="grid gap-2">
         {rankedBinders.map((binder) => {
           const completion = binder.completionPct == null
             ? 0
@@ -300,10 +304,10 @@ function TopSetsProgressPanel({
               key={binder.id}
               href={`/binders/${binder.id}`}
               prefetch={false}
-              className="group flex min-w-0 items-center gap-3"
+              className="group flex min-w-0 items-center gap-2.5"
             >
               <span
-                className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.05]"
+                className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.05]"
                 style={{ borderColor: `${accent}55` }}
               >
                 {logoUrl ? (
@@ -315,7 +319,7 @@ function TopSetsProgressPanel({
                   </span>
                 )}
               </span>
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/82 group-hover:text-white">
+              <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-white/82 group-hover:text-white">
                 {binder.name}
               </span>
               <div className="hidden h-1.5 w-32 overflow-hidden rounded-full bg-white/8 sm:block">
@@ -327,7 +331,7 @@ function TopSetsProgressPanel({
                   }}
                 />
               </div>
-              <span className="shrink-0 text-[12px] font-black tabular-nums text-white">
+              <span className="shrink-0 text-[11px] font-black tabular-nums text-white">
                 {completion.toFixed(0)}%
               </span>
               <span className="hidden shrink-0 text-[11px] font-semibold tabular-nums text-white/42 min-[480px]:inline">
@@ -388,14 +392,16 @@ function HomeCollectionLinks({
           key={item.label}
           href={item.href}
           prefetch={false}
-          className="group rounded-2xl border border-white/8 bg-white/[0.035] p-3 transition-colors hover:border-white/16 hover:bg-white/[0.065]"
+          className="group rounded-[var(--ui-header-stat-radius)] border border-white/8 bg-white/[0.035] p-2.5 transition-colors hover:border-white/16 hover:bg-white/[0.065]"
         >
           <div className="flex items-start gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/68">
-              <item.Icon className="h-4 w-4" />
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/68">
+              <item.Icon className="h-3.5 w-3.5" />
             </span>
             <span className="min-w-0">
-              <span className="block text-sm font-black text-white">{item.label}</span>
+              <span className="block text-[13px] font-black leading-tight text-white">
+                {item.label}
+              </span>
               <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-white/42">
                 {item.hint}
               </span>
@@ -618,8 +624,8 @@ export default async function HomePage({
         ) : null
       }
       overviewSlot={
-        <div className="space-y-3">
-          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2.5 sm:space-y-3">
+          <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
                 {collectionTitle}
@@ -646,8 +652,8 @@ export default async function HomePage({
             ) : null}
           </div>
 
-          <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
-            <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
+          <section className="grid min-w-0 gap-2.5 sm:gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
+            <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 lg:p-4">
               <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
                 {showCollectionChart ? (
                   <PriceHistoryPanel
@@ -668,13 +674,13 @@ export default async function HomePage({
                     currentValue={data.overview.currentValue}
                     pnl={data.overview.pnl}
                     rangeLabel={collectionValueRange}
-                    className="flex w-full flex-col justify-center px-5 py-4"
+                    className="flex w-full flex-col justify-center px-3 py-3 sm:px-4"
                   />
                 )}
               </div>
             </div>
 
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-3 xl:gap-3">
+            <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:gap-2 xl:grid-rows-3">
               {summaryCards.map((stat) => (
                 <HeaderStatCard key={stat.label} {...stat} />
               ))}
@@ -689,7 +695,7 @@ export default async function HomePage({
           )}
 
           {hasCollection && (
-            <div className="grid gap-3 lg:grid-cols-2 [&>section]:h-full">
+            <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-2 [&>section]:h-full">
               <CollectionAllocationPanel
                 rawLooseSingles={rawLooseSingles}
                 gradedLooseSingles={gradedLooseSingles}

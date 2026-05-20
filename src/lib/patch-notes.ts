@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.10",
+    releasedAt: "May 20, 2026",
+    title: "More consistent home scaling",
+    summary: "DustyCards 3.1.10 brings the Home collection views closer to the same scale as the rest of the app.",
+    tone: "fixed",
+    highlights: [
+      "Reduced the oversized Home collection tab header, tab controls, and dashboard spacing.",
+      "Made Featured Cards on Home follow the same card size and mobile column settings as the normal collection grid.",
+      "Tightened Home dashboard panels, quick links, values, and progress rows so mobile and desktop feel more consistent.",
+    ],
+  },
+  {
     version: "3.1.9",
     releasedAt: "May 20, 2026",
     title: "Solid dark popup theme",
