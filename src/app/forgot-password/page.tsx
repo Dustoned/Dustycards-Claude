@@ -45,7 +45,7 @@ export default async function ForgotPasswordPage({
 
         <button
           type="submit"
-          className="inline-flex min-h-10 items-center justify-center rounded-xl border border-violet-300/35 bg-violet-500/20 px-4 py-2.5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/28"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_36px_rgba(124,58,237,0.26)] transition hover:bg-violet-500"
         >
           Send reset link
         </button>

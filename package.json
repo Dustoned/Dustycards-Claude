@@ -1,6 +1,6 @@
 {
   "name": "dustycards",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "smoke": "playwright test",
+    "ui:mobile-review": "node scripts/mobile-ui-review.mjs",
     "auth:bootstrap": "node scripts/bootstrap-admin.mjs",
     "backfill:tcgdex-artists": "node scripts/backfill-tcgdex-artists.mjs",
     "sync:one-piece": "node scripts/sync-one-piece-local.mjs",

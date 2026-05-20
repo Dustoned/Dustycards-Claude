@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.1",
+    releasedAt: "May 20, 2026",
+    title: "Mobile market polish",
+    summary: "DustyCards 3.1.1 cleans up the eBay Deals header, mobile search contrast, illustrator sorting, and reset-password action styling.",
+    tone: "improved",
+    highlights: [
+      "Changed eBay Deals stats to the shared header stat cards with clearer icons, rate-limit color states, and fallback intro text when no reference price is selected.",
+      "Made the eBay Deals and forgot-password submit buttons read as stronger primary actions in the dark app shell.",
+      "Polished the Illustrators sort toggle so it wraps cleanly on narrow screens and matches the violet active state used elsewhere.",
+      "Darkened the mobile search overlay background so search suggestions stay readable over page content.",
+      "Added a mobile UI review script for quickly capturing key logged-in, logged-out, menu, search, and card-detail screens.",
+    ],
+  },
+  {
     version: "3.1.0",
     releasedAt: "May 20, 2026",
     title: "Sharper dashboard and mobile polish",

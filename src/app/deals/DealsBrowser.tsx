@@ -9,11 +9,16 @@ import {
   AlertTriangle,
   CheckCircle2,
   ExternalLink,
+  Gauge,
+  Layers,
+  Percent,
   RotateCcw,
   Search,
+  Trophy,
   TrendingDown,
 } from "lucide-react";
 import type { ModalCardData } from "@/components/CardModal";
+import { HeaderStatCard } from "@/components/PageHeader";
 import { formatCurrency, type CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 
@@ -272,19 +277,6 @@ function formatResetTime(value: string | null | undefined): string {
     minute: "2-digit",
     month: "2-digit",
   })}`;
-}
-
-function rateLimitToneClass(status: EbayRateLimitStatus | null): string {
-  const remaining = status?.summary?.remaining;
-  const limit = status?.summary?.limit;
-  if (remaining == null || limit == null || limit <= 0) {
-    return "border-gray-400/14 bg-gray-400/[0.06]";
-  }
-
-  const ratio = remaining / limit;
-  if (ratio <= 0.1) return "border-rose-400/14 bg-rose-400/[0.08]";
-  if (ratio <= 0.25) return "border-amber-400/14 bg-amber-400/[0.08]";
-  return "border-emerald-400/14 bg-emerald-400/[0.06]";
 }
 
 function dealToneClass(tone: DealListing["dealTone"]): string {
@@ -1093,51 +1085,57 @@ export default function DealsBrowser() {
           <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
             eBay Deals
           </h1>
-          {referenceLabel !== "No DustyCards price" && (
-            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-white/52">
-              Reference: {referenceLabel}
-            </p>
-          )}
+          <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-white/52">
+            {referenceLabel !== "No DustyCards price"
+              ? `Reference: ${referenceLabel}`
+              : "Search eBay for raw, graded, or sealed offers and compare them with DustyCards prices."}
+          </p>
         </div>
 
         <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-4">
-          <div className="rounded-2xl border border-emerald-400/14 bg-emerald-400/[0.06] px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200/65">
-              Best
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-              {bestListing?.total.valueEur != null
+          <HeaderStatCard
+            label="Best"
+            tone="emerald"
+            Icon={Trophy}
+            value={
+              bestListing?.total.valueEur != null
                 ? formatCurrency(bestListing.total.valueEur, "EUR")
-                : "--"}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-sky-400/14 bg-sky-400/[0.06] px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-200/65">
-              Delta
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-              {bestListing?.discountPercent != null
+                : "--"
+            }
+          />
+          <HeaderStatCard
+            label="Delta"
+            tone="sky"
+            Icon={Percent}
+            value={
+              bestListing?.discountPercent != null
                 ? formatPercent(bestListing.discountPercent)
-                : "--"}
-            </p>
-          </div>
-          <div className="rounded-2xl border border-violet-400/14 bg-violet-400/[0.06] px-4 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-200/65">
-              Listings
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-              {visibleData.listings.length.toLocaleString("en-US")}
-            </p>
-          </div>
-          <div className={`rounded-2xl border px-4 py-3 ${rateLimitToneClass(rateLimit)}`}>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">
-              eBay API left
-            </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-              {rateLimitLoading ? "--" : formatInteger(rateLimit?.summary?.remaining)}
-            </p>
-            <p className="mt-1 truncate text-[11px] font-semibold text-white/45">
-              {rateLimitError
+                : "--"
+            }
+          />
+          <HeaderStatCard
+            label="Listings"
+            tone="violet"
+            Icon={Layers}
+            value={visibleData.listings.length.toLocaleString("en-US")}
+          />
+          <HeaderStatCard
+            label="eBay API left"
+            tone={
+              rateLimit?.configured === false
+                ? "rose"
+                : rateLimit?.summary?.limit != null && rateLimit?.summary?.remaining != null
+                  ? (rateLimit.summary.remaining / rateLimit.summary.limit) <= 0.1
+                    ? "rose"
+                    : (rateLimit.summary.remaining / rateLimit.summary.limit) <= 0.25
+                      ? "amber"
+                      : "emerald"
+                  : "slate"
+            }
+            Icon={Gauge}
+            value={rateLimitLoading ? "--" : formatInteger(rateLimit?.summary?.remaining)}
+            hint={
+              rateLimitError
                 ? "Limit unavailable"
                 : rateLimit?.configured === false
                   ? "Keys missing"
@@ -1145,9 +1143,9 @@ export default function DealsBrowser() {
                     ? `of ${formatInteger(rateLimit.summary.limit)} / ${formatResetTime(
                         rateLimit.summary.reset
                       )}`
-                    : "Limit unknown"}
-            </p>
-          </div>
+                    : "Limit unknown"
+            }
+          />
         </div>
 
         <form
@@ -1169,7 +1167,7 @@ export default function DealsBrowser() {
 
             <button
               type="submit"
-              className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-white px-5 text-sm font-semibold text-gray-950 transition-colors hover:bg-white/86"
+              className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-violet-600 px-5 text-sm font-semibold text-white shadow-[0_14px_36px_rgba(124,58,237,0.26)] transition-colors hover:bg-violet-500"
             >
               Search
             </button>
