@@ -1083,7 +1083,7 @@ export default function CollectionCardsView({
                         type="button"
                         onClick={() => setSelectedKeys(selectableKeys)}
                         disabled={selectableKeys.length === 0 || allSelectableSelected}
-                        className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                        className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
                       >
                         Select all
                       </button>
@@ -1091,7 +1091,7 @@ export default function CollectionCardsView({
                         type="button"
                         onClick={() => setSelectedKeys([])}
                         disabled={activeSelectedKeys.length === 0}
-                        className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                        className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
                       >
                         Clear
                       </button>
@@ -1110,7 +1110,7 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={handleBulkRemove}
                           disabled={removingItems || selectedCollectionItemIds.length === 0}
-                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
                         >
                           Remove
                         </button>
@@ -1120,7 +1120,7 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={handleBulkRemove}
                           disabled={removingItems || selectedWantItemIds.length === 0}
-                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-600 transition-colors hover:border-black/15 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/60 dark:hover:border-white/16 dark:hover:text-white"
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
                         >
                           Remove
                         </button>
@@ -1393,7 +1393,7 @@ export default function CollectionCardsView({
                 type="button"
                 onClick={() => setSelectedKeys(selectableKeys)}
                 disabled={selectableKeys.length === 0 || allSelectableSelected}
-                className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+                className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
               >
                 Select all
               </button>
@@ -1401,7 +1401,7 @@ export default function CollectionCardsView({
                 type="button"
                 onClick={() => setSelectedKeys([])}
                 disabled={activeSelectedKeys.length === 0}
-                className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+                className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
               >
                 Clear
               </button>
@@ -1420,7 +1420,7 @@ export default function CollectionCardsView({
                   type="button"
                   onClick={handleBulkRemove}
                   disabled={removingItems || selectedCollectionItemIds.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
                 >
                   Remove
                 </button>
@@ -1430,7 +1430,7 @@ export default function CollectionCardsView({
                   type="button"
                   onClick={handleBulkRemove}
                   disabled={removingItems || selectedWantItemIds.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-black/8 bg-white/70 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-gray-700 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white/75 dark:hover:bg-white/12"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
                 >
                   Remove
                 </button>

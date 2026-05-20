@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.17",
+    releasedAt: "May 20, 2026",
+    title: "Dark selection buttons",
+    summary: "DustyCards 3.1.17 removes leftover white selection controls from collection and expansion card grids.",
+    tone: "fixed",
+    highlights: [
+      "Updated Select buttons in expansion card grids to use the current dark chip theme.",
+      "Aligned collection selection actions such as Select all, Clear, and Remove with the app theme.",
+      "Kept disabled selection actions muted instead of bright white.",
+    ],
+  },
+  {
     version: "3.1.16",
     releasedAt: "May 20, 2026",
     title: "Cleaner allocation bar",
