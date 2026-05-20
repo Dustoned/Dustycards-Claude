@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.4",
+    releasedAt: "May 20, 2026",
+    title: "Home featured card detail fix",
+    summary: "DustyCards 3.1.4 brings Featured Cards on Home in line with the rest of the card grid experience.",
+    tone: "fixed",
+    highlights: [
+      "Restyled Home Featured Cards to use the same premium collection tile treatment as the rest of the app.",
+      "Changed Featured Cards from expansion links into direct card detail modal triggers.",
+      "Kept collection item details such as binder, cost basis, condition, language, notes, tags, and grading data attached when opening the card.",
+    ],
+  },
+  {
     version: "3.1.3",
     releasedAt: "May 20, 2026",
     title: "Cleaner mobile More menu",

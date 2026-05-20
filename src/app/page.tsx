@@ -26,7 +26,6 @@ import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
   GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
-  getExpansionHref,
   getGameFilterLabel,
   getGameFilterSearchParamValue,
   ONE_PIECE_GAME,
@@ -35,12 +34,12 @@ import {
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
-import { getCachedImageUrl } from "@/lib/image-cache";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionOverviewSections = nextDynamic(() => import("@/components/CollectionOverviewSections"));
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
 const BinderOverviewTile = nextDynamic(() => import("@/components/BinderOverviewTile"));
+const HomeFeaturedCardsPanel = nextDynamic(() => import("@/components/HomeFeaturedCardsPanel"));
 
 export const dynamic = "force-dynamic";
 
@@ -144,10 +143,6 @@ function ratioPercent(numerator: number, denominator: number): number | null {
 
 function safeShare(value: number, total: number): number {
   return total > 0 ? (value / total) * 100 : 0;
-}
-
-function cardDetailHref(item: CollectionOverviewData["cards"][number]) {
-  return `${getExpansionHref(item.episode_id)}?card=${encodeURIComponent(item.card_id)}`;
 }
 
 function CollectionAllocationPanel({
@@ -346,63 +341,6 @@ function TopSetsProgressPanel({
   );
 }
 
-function FeaturedCardTile({
-  href,
-  imageUrl,
-  name,
-  value,
-  changePct,
-}: {
-  href: string;
-  imageUrl: string | null;
-  name: string;
-  value: string;
-  changePct: number | null;
-}) {
-  const cachedImageUrl = getCachedImageUrl(imageUrl) ?? imageUrl;
-  const changeClass =
-    changePct == null || changePct === 0
-      ? "text-white/45"
-      : changePct > 0
-        ? "text-emerald-300"
-        : "text-rose-300";
-
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      className="group flex min-w-0 flex-col gap-2 rounded-2xl border border-white/8 bg-white/[0.035] p-2 transition-colors hover:border-white/16 hover:bg-white/[0.06]"
-    >
-      <div className="relative flex aspect-[5/7] items-center justify-center overflow-hidden rounded-xl border border-white/8 bg-black/24">
-        {cachedImageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={cachedImageUrl}
-            alt={name}
-            className="h-full w-full object-contain"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <span className="text-[10px] font-black text-white/32">No image</span>
-        )}
-      </div>
-      <div className="min-w-0 px-0.5">
-        <p className="truncate text-[12px] font-black leading-tight text-white">{name}</p>
-        <div className="mt-1 flex items-baseline justify-between gap-1.5">
-          <p className="truncate text-[13px] font-black tabular-nums text-white">{value}</p>
-          {changePct != null ? (
-            <p className={`shrink-0 text-[10px] font-bold tabular-nums ${changeClass}`}>
-              {changePct > 0 ? "+" : ""}
-              {changePct.toFixed(1)}%
-            </p>
-          ) : null}
-        </div>
-      </div>
-    </Link>
-  );
-}
-
 function FeaturedCardsPanel({
   cards,
   viewAllHref,
@@ -417,38 +355,7 @@ function FeaturedCardsPanel({
 
   if (featured.length === 0) return null;
 
-  return (
-    <section className="binder-panel rounded-[var(--ui-page-header-radius)] p-3 sm:p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-xl font-black text-white">Featured Cards</h2>
-        <Link
-          href={viewAllHref}
-          prefetch={false}
-          className="shrink-0 text-[12px] font-semibold text-violet-300 transition-colors hover:text-violet-200"
-        >
-          View all
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 gap-2 min-[480px]:grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-        {featured.map((item) => {
-          const cost = item.cost_basis_value ?? item.purchase_price ?? null;
-          const value = item.current_value ?? 0;
-          const changePct =
-            cost != null && cost > 0 ? ((value - cost) / cost) * 100 : null;
-          return (
-            <FeaturedCardTile
-              key={`${item.collection_item_id ?? item.card_id}-${item.card_id}`}
-              href={cardDetailHref(item)}
-              imageUrl={item.image_url}
-              name={item.name}
-              value={formatCollectionCurrency(value)}
-              changePct={changePct}
-            />
-          );
-        })}
-      </div>
-    </section>
-  );
+  return <HomeFeaturedCardsPanel cards={featured} viewAllHref={viewAllHref} />;
 }
 
 function HomeCollectionLinks({
