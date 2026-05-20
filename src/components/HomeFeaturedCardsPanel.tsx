@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import { useSettings } from "@/components/SettingsProvider";
@@ -28,9 +28,18 @@ import {
   normalizeGradingCompanyLabel,
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
-import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
+import {
+  getCardGridColumnCount,
+  getCardGridImageSizes,
+  getCardGridTemplateColumns,
+  getCardGridTrackWidth,
+} from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionCardViewItem } from "@/types/collection-view";
+
+const DEFAULT_DESKTOP_FEATURED_COLUMNS = 8;
+const MAX_FEATURED_CARDS = 24;
+const MOBILE_FEATURED_ROWS = 2;
 
 const CardModal = dynamic(() => import("@/components/CardModal"), {
   ssr: false,
@@ -214,6 +223,8 @@ export default function HomeFeaturedCardsPanel({
 }) {
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
+  const [desktopColumnCount, setDesktopColumnCount] = useState(DEFAULT_DESKTOP_FEATURED_COLUMNS);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const { displaySettings, isMobileViewport } = useSettings();
   const imageSizes = getCardGridImageSizes(
     displaySettings.cardSize,
@@ -234,6 +245,41 @@ export default function HomeFeaturedCardsPanel({
           ? "gap-x-2 gap-y-2.5"
           : "gap-x-1.5 gap-y-2"
     : "gap-2.5";
+  const visibleCards = useMemo(() => {
+    const visibleCount = isMobileViewport
+      ? getCardGridColumnCount(displaySettings.cardSize, true) * MOBILE_FEATURED_ROWS
+      : desktopColumnCount;
+
+    return cards.slice(0, Math.min(cards.length, visibleCount, MAX_FEATURED_CARDS));
+  }, [cards, desktopColumnCount, displaySettings.cardSize, isMobileViewport]);
+
+  useEffect(() => {
+    if (isMobileViewport) return;
+
+    const element = gridRef.current;
+    if (!element) return;
+    const gridElement = element;
+
+    function updateDesktopColumnCount() {
+      const styles = window.getComputedStyle(gridElement);
+      const gap = Number.parseFloat(styles.columnGap) || 0;
+      const trackWidth =
+        Number.parseFloat(getCardGridTrackWidth(displaySettings.cardSize, displaySettings.widescreen)) || 1;
+      const nextCount = Math.max(
+        1,
+        Math.floor((gridElement.clientWidth + gap) / (trackWidth + gap))
+      );
+
+      setDesktopColumnCount(Math.min(MAX_FEATURED_CARDS, nextCount));
+    }
+
+    updateDesktopColumnCount();
+
+    const observer = new ResizeObserver(updateDesktopColumnCount);
+    observer.observe(gridElement);
+
+    return () => observer.disconnect();
+  }, [displaySettings.cardSize, displaySettings.widescreen, isMobileViewport]);
 
   async function openCard(item: CollectionCardViewItem) {
     const openingKey = getOpeningItemKey(item);
@@ -269,13 +315,14 @@ export default function HomeFeaturedCardsPanel({
         </Link>
       </div>
       <div
+        ref={gridRef}
         className={`grid ${gridGapClass}`}
         style={{
           gridTemplateColumns,
           justifyContent: isMobileViewport ? "stretch" : "start",
         }}
       >
-        {cards.map((item) => {
+        {visibleCards.map((item) => {
           const key = getOpeningItemKey(item);
           return (
             <FeaturedCardTile

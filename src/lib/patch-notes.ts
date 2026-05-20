@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.12",
+    releasedAt: "May 20, 2026",
+    title: "Smarter home featured cards",
+    summary: "DustyCards 3.1.12 fills the Home Featured Cards row with more cards when there is room.",
+    tone: "improved",
+    highlights: [
+      "Expanded the Home Featured Cards pool so wide screens can use the empty space in the row.",
+      "Added an adaptive desktop limit that only shows as many featured cards as fit cleanly.",
+      "Kept mobile Featured Cards capped to complete rows so small screens do not become overloaded.",
+    ],
+  },
+  {
     version: "3.1.11",
     releasedAt: "May 20, 2026",
     title: "Cleaner complete collection header",

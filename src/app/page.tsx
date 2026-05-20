@@ -43,6 +43,8 @@ const HomeFeaturedCardsPanel = nextDynamic(() => import("@/components/HomeFeatur
 
 export const dynamic = "force-dynamic";
 
+const HOME_FEATURED_CARD_LIMIT = 24;
+
 function isGradedCollectionCard(item: {
   grading_company: string | null;
   grading_grade: string | null;
@@ -355,7 +357,7 @@ function FeaturedCardsPanel({
   const featured = [...cards]
     .filter((item) => item.current_value != null && (item.current_value ?? 0) > 0)
     .sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0))
-    .slice(0, 8);
+    .slice(0, HOME_FEATURED_CARD_LIMIT);
 
   if (featured.length === 0) return null;
 
