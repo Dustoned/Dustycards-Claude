@@ -1,5 +1,7 @@
 "use client";
 
+import { Dices } from "lucide-react";
+
 interface PullRateHoverTableProps {
   className?: string;
   profile: {
@@ -60,19 +62,26 @@ export default function PullRateHoverTable({
       data-mobile-tooltip="Tap to show pull-rate details"
       onClick={(event) => event.currentTarget.focus()}
     >
-      <div className="flex min-h-full min-w-0 cursor-default flex-wrap items-center justify-between gap-[var(--ui-header-action-gap)] rounded-[var(--ui-binder-metric-radius)] border border-amber-400/14 bg-amber-400/[0.055] px-[var(--ui-binder-metric-x)] py-[var(--ui-binder-metric-y)] text-gray-800 transition-colors group-hover:bg-amber-400/[0.075] group-focus-visible:ring-2 group-focus-visible:ring-amber-300/45 dark:text-amber-50">
-        <div className="min-w-0">
-          <p className="text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] text-amber-700/70 dark:text-amber-100/50">
-            Pull Rate Data
-          </p>
-          <p className="mt-1.5 truncate text-[length:var(--ui-binder-metric-value-size)] font-bold leading-none tracking-tight text-gray-950 dark:text-white">
-            {profile.rarities.length.toLocaleString("en-US")} rarity tiers
-          </p>
+      <div className="min-w-0 cursor-default rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/20 transition-colors group-hover:bg-white/[0.07] group-focus-visible:ring-2 group-focus-visible:ring-amber-300/45 sm:min-h-[var(--ui-header-stat-min-height)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
+              Pull Rate Data
+            </p>
+            <p className="mt-1.5 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight text-white">
+              {profile.rarities.length.toLocaleString("en-US")} tiers
+            </p>
+          </div>
+          <span
+            className="inline-flex h-[var(--ui-header-stat-icon-box)] w-[var(--ui-header-stat-icon-box)] shrink-0 items-center justify-center rounded-2xl border border-amber-400/14 bg-amber-400/[0.07] text-amber-300"
+          >
+            <Dices className="h-[var(--ui-header-stat-icon-size)] w-[var(--ui-header-stat-icon-size)]" />
+          </span>
         </div>
-        <span className="inline-flex shrink-0 items-center rounded-full border border-black/8 bg-white/60 px-[var(--ui-header-pill-x)] py-[var(--ui-header-pill-y)] text-[length:var(--ui-header-pill-font-size)] font-bold text-gray-600 transition-colors group-hover:bg-white/75 dark:border-white/8 dark:bg-white/[0.06] dark:text-white/68 dark:group-hover:bg-white/[0.09]">
-          <span className="hidden sm:inline">Hover</span>
-          <span className="sm:hidden">Tap</span>
-        </span>
+        <p className="mt-2 line-clamp-2 text-[length:var(--ui-header-stat-hint-size)] leading-snug text-white/48">
+          <span className="hidden sm:inline">Hover for breakdown</span>
+          <span className="sm:hidden">Tap for breakdown</span>
+        </p>
       </div>
 
       <div className="pointer-events-none invisible absolute bottom-full right-0 z-[120] w-[min(36rem,calc(100vw-2rem))] translate-y-1 opacity-0 transition-[opacity,transform,visibility] duration-150 ease-out group-hover:pointer-events-auto group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">

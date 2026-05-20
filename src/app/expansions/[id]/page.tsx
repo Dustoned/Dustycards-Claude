@@ -1,15 +1,12 @@
 ﻿import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Calendar, CalendarClock, Coins, Layers, Package } from "lucide-react";
 import {
   HeaderAction,
-  HeaderMetricChip,
-  HeaderProgressMeter,
-  HeaderStackedProgressMeter,
+  HeaderStatCard,
   PageHeroHeader,
 } from "@/components/PageHeader";
-import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
 import { POKEMON_GAME } from "@/lib/games";
@@ -206,8 +203,6 @@ export default async function ExpansionDetailPage({
   let headerProgressValue = `0 / ${cardCountDenominator}`;
   let headerProgressPercent = 0;
   let headerHistoryProgressValue: string | null = null;
-  let headerHistoryProgressPercent = 0;
-  let headerValueLabel = "Set Value";
   let headerCountLabel = "Cards";
   let headerCountValue = cardCountDenominator;
   if (activeTab === "cards") {
@@ -290,9 +285,6 @@ export default async function ExpansionDetailPage({
       0
     );
     headerHistoryProgressValue = `${historySyncedCards}/${cardCountDenominator}`;
-    headerHistoryProgressPercent =
-      cardCountDenominator > 0 ? (historySyncedCards / cardCountDenominator) * 100 : 0;
-    headerValueLabel = "Set Value";
     headerCountLabel = "Cards";
     headerCountValue = cardCountDenominator;
     const pullRateByRarity = new Map(
@@ -404,10 +396,6 @@ export default async function ExpansionDetailPage({
       filteredSealedProducts.length > 0
         ? (currentSealedTotals.priced / filteredSealedProducts.length) * 100
         : 0;
-    headerValueLabel =
-      activeSealedFilter === "all"
-        ? "Sealed Value"
-        : `${activeSealedGroup?.label ?? "Sealed"} Value`;
     headerCountLabel = "Products";
     headerCountValue = filteredSealedProducts.length;
   }
@@ -423,7 +411,6 @@ export default async function ExpansionDetailPage({
     headerProgressValue = releaseDetailLabel ? `Releases ${releaseDetailLabel}` : "Upcoming set";
     headerProgressPercent = 0;
     headerHistoryProgressValue = null;
-    headerHistoryProgressPercent = 0;
     headerCountLabel = hasKnownUpcomingCardCount ? "Expected Cards" : "Cards";
     headerCountValue = hasKnownUpcomingCardCount ? knownCardCount : 0;
   } else if (activeTab === "cards" && isReleasedEmptySetWithKnownCount) {
@@ -433,7 +420,6 @@ export default async function ExpansionDetailPage({
     headerProgressValue = `0 / ${knownCardCount.toLocaleString("en-US")}`;
     headerProgressPercent = 0;
     headerHistoryProgressValue = null;
-    headerHistoryProgressPercent = 0;
     headerCountLabel = "Known Cards";
     headerCountValue = knownCardCount;
   }
@@ -442,6 +428,18 @@ export default async function ExpansionDetailPage({
   const headerCountFormatted = headerCountValue.toLocaleString("en-US");
   const sealedCountFormatted = episode._count.sealedProducts.toLocaleString("en-US");
   const releaseMetricLabel = isUpcomingRelease ? "Releases" : "Released";
+  const expansionHeaderDescription = [
+    expansionContext || "Expansion",
+    releaseDetailLabel ? `${releaseMetricLabel} ${releaseDetailLabel}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const headerPricingHint = [
+    `${Math.round(headerProgressPercent)}% priced`,
+    headerHistoryProgressValue ? `History ${headerHistoryProgressValue}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
   const emptyCardsTitle = isUpcomingEmptySet
     ? hasKnownUpcomingCardCount
       ? "Card list not available yet"
@@ -464,24 +462,25 @@ export default async function ExpansionDetailPage({
       : "Use refresh to fetch this set.";
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <Link
-        href="/expansions"
-        prefetch={false}
-        className="mb-4 hidden items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to expansions
-      </Link>
-
+    <div className="page-container mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
       <PageHeroHeader
-        className="mb-5 sm:mb-8"
+        className="mb-5 sm:mb-6"
         style={{ overflow: "visible" }}
-        eyebrow="Expansion"
         title={episode.name}
-        gridClassName="xl:grid-cols-[minmax(0,1.2fr)_minmax(28rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.24fr)_minmax(28rem,0.76fr)]"
+        description={expansionHeaderDescription}
+        gridClassName="xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch"
+        backLinks={
+          <Link
+            href="/expansions"
+            prefetch={false}
+            className="hidden items-center gap-2 font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to expansions
+          </Link>
+        }
         leadingVisual={
-          <div className="hidden h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-[var(--ui-binder-header-logo-padding)] text-center text-[length:var(--ui-section-header-title-size)] font-bold text-white/70 shadow-sm shadow-black/20 sm:flex">
+          <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-2 text-center text-sm font-bold text-white/70 shadow-sm shadow-black/20 sm:flex lg:h-16 lg:w-16">
             {episode.logo_url ? (
               <div className="relative h-full w-full">
                 <Image
@@ -496,79 +495,6 @@ export default async function ExpansionDetailPage({
             ) : (
               <span className="leading-none tracking-tight">{episode.code ?? "SET"}</span>
             )}
-          </div>
-        }
-        description={
-          <div className="space-y-3 sm:space-y-5">
-            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-gray-600 dark:text-white/62">
-              {expansionContext || "Expansion"}
-            </p>
-            <div className="grid items-start gap-2.5 sm:gap-3 lg:grid-cols-[minmax(13.5rem,0.82fr)_minmax(20rem,1.18fr)]">
-              <div className="hidden sm:block">
-                {headerHistoryProgressValue ? (
-                  <HeaderStackedProgressMeter
-                    label={headerProgressLabel}
-                    value={headerProgressValue}
-                    percent={headerProgressPercent}
-                    secondaryLabel="History Prices"
-                    secondaryValue={headerHistoryProgressValue}
-                    secondaryPercent={headerHistoryProgressPercent}
-                    secondaryAccentColor="#38bdf8"
-                    className="sm:!min-w-0 sm:!w-full"
-                  />
-                ) : (
-                  <HeaderProgressMeter
-                    label={headerProgressLabel}
-                    value={headerProgressValue}
-                    percent={headerProgressPercent}
-                    className="sm:!min-w-0 sm:!w-full"
-                  />
-                )}
-              </div>
-              <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3">
-                <HeaderMetricChip
-                  label={headerValueLabel}
-                  value={formatCollectionCurrency(pricePanelCurrentValue)}
-                  tone="emerald"
-                  className="!min-w-0"
-                />
-                <HeaderMetricChip
-                  label={headerCountLabel}
-                  value={headerCountFormatted}
-                  tone="sky"
-                  className="!min-w-0"
-                />
-                {hasSealed && activeTab !== "sealed" ? (
-                  <Link
-                    href={`/expansions/${id}?tab=sealed`}
-                    prefetch={false}
-                    className="group min-w-0 rounded-[var(--ui-binder-metric-radius)] no-underline outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300/45"
-                    aria-label={`Open sealed products for ${episode.name}`}
-                  >
-                    <HeaderMetricChip
-                      label="Sealed"
-                      value={sealedCountFormatted}
-                      tone="violet"
-                      className="h-full w-full !min-w-0 transition-colors group-hover:border-violet-300/35 group-hover:bg-violet-400/[0.12]"
-                    />
-                  </Link>
-                ) : null}
-                {releaseLabel ? (
-                  <HeaderMetricChip
-                    label={releaseMetricLabel}
-                    value={releaseLabel}
-                    tone="slate"
-                    className="!min-w-0"
-                  />
-                ) : null}
-                {pullRateProfile ? (
-                  <PullRateHoverTable
-                    profile={pullRateProfile}
-                    className="col-span-2 xl:col-span-2"
-                  />
-                ) : null}
-              </div>
-            </div>
           </div>
         }
         titleActions={
@@ -587,7 +513,57 @@ export default async function ExpansionDetailPage({
             emptyText={pricePanelEmptyText}
           />
         }
-        sideClassName="max-sm:hidden [&>section]:h-full"
+        sideContent={
+          <>
+            <HeaderStatCard
+              label={headerProgressLabel}
+              value={headerProgressValue}
+              hint={headerPricingHint}
+              Icon={Coins}
+              tone="emerald"
+            />
+            <HeaderStatCard
+              label={headerCountLabel}
+              value={headerCountFormatted}
+              Icon={Layers}
+              tone="sky"
+            />
+            {hasSealed && activeTab !== "sealed" ? (
+              <Link
+                href={`/expansions/${id}?tab=sealed`}
+                prefetch={false}
+                className="group min-w-0 rounded-[var(--ui-header-stat-radius)] no-underline outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300/45"
+                aria-label={`Open sealed products for ${episode.name}`}
+              >
+                <HeaderStatCard
+                  label="Sealed"
+                  value={sealedCountFormatted}
+                  Icon={Package}
+                  tone="violet"
+                />
+              </Link>
+            ) : null}
+            {pullRateProfile ? (
+              <PullRateHoverTable profile={pullRateProfile} />
+            ) : releaseLabel ? (
+              <HeaderStatCard
+                label={releaseMetricLabel}
+                value={releaseLabel}
+                Icon={isUpcomingRelease ? CalendarClock : Calendar}
+                tone="slate"
+              />
+            ) : null}
+            {(!pullRateProfile || !hasSealed || activeTab === "sealed") && releaseLabel ? (
+              <HeaderStatCard
+                label={releaseMetricLabel}
+                value={releaseLabel}
+                Icon={isUpcomingRelease ? CalendarClock : Calendar}
+                tone="slate"
+              />
+            ) : null}
+          </>
+        }
+        sideClassName="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
       />
 
       <div className="mb-4 inline-flex rounded-[calc(var(--ui-segment-radius)+0.25rem)] border border-white/8 bg-white/[0.045] p-[var(--ui-segment-shell-padding)]">

@@ -55,17 +55,14 @@ function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function metricToneClass(tone: HeaderMetricTone) {
+function metricValueToneClass(tone: HeaderMetricTone): string {
   const tones: Record<HeaderMetricTone, string> = {
-    emerald:
-      "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-700 dark:text-emerald-200",
-    amber: "border-amber-400/20 bg-amber-400/[0.08] text-amber-700 dark:text-amber-200",
-    rose: "border-rose-400/20 bg-rose-400/[0.08] text-rose-700 dark:text-rose-200",
-    sky: "border-sky-400/20 bg-sky-400/[0.08] text-sky-700 dark:text-sky-200",
-    violet:
-      "border-violet-400/20 bg-violet-400/[0.08] text-violet-700 dark:text-violet-200",
-    slate:
-      "border-black/8 bg-black/[0.035] text-gray-700 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/76",
+    emerald: "text-emerald-200",
+    amber: "text-amber-200",
+    rose: "text-rose-200",
+    sky: "text-sky-200",
+    violet: "text-violet-200",
+    slate: "text-white",
   };
 
   return tones[tone];
@@ -85,15 +82,19 @@ export function HeaderMetricChip({
   return (
     <div
       className={cx(
-        "min-w-[var(--ui-binder-metric-min-width)] flex-1 rounded-[var(--ui-binder-metric-radius)] border px-[var(--ui-binder-metric-x)] py-[var(--ui-binder-metric-y)] sm:flex-none",
-        metricToneClass(tone),
+        "min-w-[var(--ui-binder-metric-min-width)] flex-1 rounded-[var(--ui-binder-metric-radius)] border border-white/9 bg-white/[0.045] px-[var(--ui-binder-metric-x)] py-[var(--ui-binder-metric-y)] shadow-sm shadow-black/20 sm:flex-none",
         className
       )}
     >
-      <p className="text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] opacity-68">
+      <p className="text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] text-white/40">
         {label}
       </p>
-      <p className="mt-1.5 min-w-0 break-words text-[length:var(--ui-binder-metric-value-size)] font-bold leading-tight tracking-tight tabular-nums">
+      <p
+        className={cx(
+          "mt-1.5 min-w-0 break-words text-[length:var(--ui-binder-metric-value-size)] font-bold leading-tight tracking-tight tabular-nums",
+          metricValueToneClass(tone)
+        )}
+      >
         {value}
       </p>
     </div>
@@ -119,24 +120,24 @@ export function HeaderProgressMeter({
   return (
     <div
       className={cx(
-        "w-full min-w-0 rounded-[var(--ui-binder-metric-radius)] border border-emerald-400/18 bg-emerald-400/[0.075] px-[var(--ui-binder-metric-x)] py-[var(--ui-binder-metric-y)] text-emerald-800 dark:text-emerald-100 sm:min-w-[var(--ui-binder-progress-min-width)] sm:w-auto",
+        "w-full min-w-0 rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] text-white shadow-sm shadow-black/20 sm:min-h-[var(--ui-header-stat-min-height)] sm:min-w-[var(--ui-binder-progress-min-width)] sm:w-auto",
         className
       )}
     >
-      <div className="flex min-w-0 items-end justify-between gap-2 sm:gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] opacity-68">
+          <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
             {label}
           </p>
-          <p className="mt-1.5 min-w-0 break-words text-[length:var(--ui-binder-progress-value-size)] font-bold leading-tight tabular-nums">
+          <p className="mt-1.5 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight tabular-nums text-white">
             {value}
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/[0.10] px-2.5 py-1 text-[length:var(--ui-header-pill-font-size)] font-bold tabular-nums">
+        <span className="inline-flex h-[var(--ui-header-stat-icon-box)] shrink-0 items-center justify-center rounded-full border border-emerald-400/14 bg-emerald-400/[0.07] px-2.5 text-[length:var(--ui-header-pill-font-size)] font-bold tabular-nums text-emerald-200">
           {Math.round(safePercent)}%
         </span>
       </div>
-      <div className="mt-3 h-[var(--ui-binder-progress-height)] overflow-hidden rounded-full bg-black/8 dark:bg-black/28">
+      <div className="mt-2 h-[var(--ui-binder-progress-height)] overflow-hidden rounded-full bg-black/28">
         <div
           className="h-full rounded-full shadow-[0_0_18px_rgba(16,185,129,0.38)]"
           style={{
@@ -178,24 +179,24 @@ export function HeaderStackedProgressMeter({
   return (
     <div
       className={cx(
-        "w-full min-w-0 rounded-[var(--ui-binder-metric-radius)] border border-emerald-400/18 bg-emerald-400/[0.075] px-[var(--ui-binder-metric-x)] py-[var(--ui-binder-metric-y)] text-emerald-800 dark:text-emerald-100 sm:min-w-[var(--ui-binder-progress-min-width)] sm:w-auto",
+        "w-full min-w-0 rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] text-white shadow-sm shadow-black/20 sm:min-h-[var(--ui-header-stat-min-height)] sm:min-w-[var(--ui-binder-progress-min-width)] sm:w-auto",
         className
       )}
     >
-      <div className="flex min-w-0 items-end justify-between gap-2 sm:gap-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] opacity-68">
+          <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
             {label}
           </p>
-          <p className="mt-1.5 min-w-0 break-words text-[length:var(--ui-binder-progress-value-size)] font-bold leading-tight tabular-nums">
+          <p className="mt-1.5 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight tabular-nums text-white">
             {value}
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/[0.10] px-2.5 py-1 text-[length:var(--ui-header-pill-font-size)] font-bold tabular-nums">
+        <span className="inline-flex h-[var(--ui-header-stat-icon-box)] shrink-0 items-center justify-center rounded-full border border-emerald-400/14 bg-emerald-400/[0.07] px-2.5 text-[length:var(--ui-header-pill-font-size)] font-bold tabular-nums text-emerald-200">
           {Math.round(safePercent)}%
         </span>
       </div>
-      <div className="mt-3 h-[var(--ui-binder-progress-height)] overflow-hidden rounded-full bg-black/8 dark:bg-black/28">
+      <div className="mt-2 h-[var(--ui-binder-progress-height)] overflow-hidden rounded-full bg-black/28">
         <div
           className="h-full rounded-full shadow-[0_0_18px_rgba(16,185,129,0.38)]"
           style={{
@@ -204,17 +205,19 @@ export function HeaderStackedProgressMeter({
           }}
         />
       </div>
-      <div className="mt-3 border-t border-emerald-400/12 pt-2.5">
-        <div className="flex items-center justify-between gap-3 text-[length:var(--ui-binder-metric-label-size)] font-semibold uppercase tracking-[0.14em] opacity-72">
-          <span className="sm:whitespace-nowrap">{secondaryLabel}</span>
-          <span className="inline-flex items-center font-bold normal-case tracking-normal tabular-nums opacity-90 sm:whitespace-nowrap">
+      <div className="mt-3 border-t border-white/8 pt-2">
+        <div className="flex items-center justify-between gap-3 text-[length:var(--ui-header-stat-hint-size)] leading-snug text-white/48">
+          <span className="font-semibold uppercase tracking-[0.12em] text-white/40 sm:whitespace-nowrap">
+            {secondaryLabel}
+          </span>
+          <span className="inline-flex items-center gap-2 font-bold tabular-nums text-sky-200 sm:whitespace-nowrap">
             {secondaryValue}
-            <span className="ml-2 hidden rounded-full border border-sky-300/20 bg-sky-300/[0.10] px-2 py-0.5 text-[length:var(--ui-header-pill-font-size)] text-sky-700 dark:text-sky-200 sm:inline-flex">
+            <span className="hidden rounded-full border border-sky-400/14 bg-sky-400/[0.07] px-2 py-0.5 text-[length:var(--ui-header-pill-font-size)] text-sky-200 sm:inline-flex">
               {Math.round(safeSecondaryPercent)}%
             </span>
           </span>
         </div>
-        <div className="mt-2 h-[calc(var(--ui-binder-progress-height)*0.72)] overflow-hidden rounded-full bg-black/8 dark:bg-black/28">
+        <div className="mt-2 h-[calc(var(--ui-binder-progress-height)*0.72)] overflow-hidden rounded-full bg-black/28">
           <div
             className="h-full rounded-full shadow-[0_0_14px_rgba(56,189,248,0.28)]"
             style={{
@@ -320,6 +323,7 @@ export function PageHeroHeader({
   backLinks,
   leadingVisual,
   accessory,
+  sideContent,
   className = "",
   gridClassName = "",
   sideClassName = "",
@@ -335,6 +339,7 @@ export function PageHeroHeader({
   backLinks?: ReactNode;
   leadingVisual?: ReactNode;
   accessory?: ReactNode;
+  sideContent?: ReactNode;
   accentColor?: string | null;
   className?: string;
   gridClassName?: string;
@@ -344,6 +349,7 @@ export function PageHeroHeader({
 }) {
   const hasStats = Boolean(stats?.length);
   const hasAccessory = Boolean(accessory);
+  const hasSideContent = Boolean(sideContent) || hasStats;
 
   return (
     <div className={cx("flex w-full flex-col gap-3", className)} style={style}>
@@ -379,11 +385,11 @@ export function PageHeroHeader({
 
       {actions ? <div>{actions}</div> : null}
 
-      {(hasAccessory || hasStats) ? (
+      {(hasAccessory || hasSideContent) ? (
         <section
           className={cx(
             "grid min-w-0 gap-3",
-            hasAccessory && hasStats
+            hasAccessory && hasSideContent
               ? "xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch"
               : "",
             gridClassName
@@ -396,7 +402,9 @@ export function PageHeroHeader({
               </div>
             </div>
           ) : null}
-          {hasStats ? (
+          {sideContent ? (
+            <div className={cx("min-w-0", sideClassName)}>{sideContent}</div>
+          ) : hasStats ? (
             <div
               className={cx(
                 "grid min-w-0 grid-cols-2 gap-2 sm:gap-3",

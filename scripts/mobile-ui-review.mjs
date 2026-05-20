@@ -97,12 +97,30 @@ function findEpisodeWithImageCards() {
     SELECT episode_id
     FROM "Card"
     WHERE image_url IS NOT NULL AND image_url <> ''
+      AND episode_id NOT LIKE 'one-piece:%'
     GROUP BY episode_id
     ORDER BY COUNT(*) DESC
     LIMIT 1
   `).get();
   db.close();
   return row?.episode_id ?? null;
+}
+
+function findUpcomingEpisode() {
+  const db = openDb();
+  let row = null;
+  try {
+    row = db.prepare(`
+      SELECT id FROM "Episode"
+      WHERE release_date > datetime('now')
+      ORDER BY release_date ASC
+      LIMIT 1
+    `).get();
+  } catch {
+    row = null;
+  }
+  db.close();
+  return row?.id ?? null;
 }
 
 function findCategorySlug() {
@@ -233,6 +251,10 @@ async function main() {
 
     if (episodeId) {
       routes.push({ route: `/expansions/${episodeId}`, slug: "16-expansion-detail" });
+    }
+    const upcomingEpisode = findUpcomingEpisode();
+    if (upcomingEpisode) {
+      routes.push({ route: `/expansions/${upcomingEpisode}`, slug: "16b-expansion-upcoming" });
     }
     if (categorySlug) {
       routes.push({ route: `/categories/${categorySlug}`, slug: "17-category-detail" });

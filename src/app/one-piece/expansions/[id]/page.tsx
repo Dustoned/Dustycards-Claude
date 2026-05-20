@@ -1,10 +1,9 @@
 ﻿import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Calendar, CalendarClock, Coins, Layers } from "lucide-react";
 import {
-  HeaderMetricChip,
-  HeaderProgressMeter,
+  HeaderStatCard,
   PageHeroHeader,
 } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
@@ -177,26 +176,34 @@ export default async function OnePieceExpansionDetailPage({
   });
   const setContext = [episode.series, episode.code].filter(Boolean).join(" / ");
   const releaseMetricLabel = isUpcomingRelease ? "Releases" : "Released";
+  const expansionHeaderDescription = [
+    setContext || "One Piece set",
+    releaseDetailLabel ? `${releaseMetricLabel} ${releaseDetailLabel}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const headerPricingHint = `${Math.round(headerProgressPercent)}% priced`;
 
   return (
-    <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <Link
-        href="/one-piece/expansions"
-        prefetch={false}
-        className="mb-4 hidden items-center gap-2 text-sm font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to One Piece expansions
-      </Link>
-
+    <div className="page-container mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
       <PageHeroHeader
-        className="mb-5 sm:mb-8"
+        className="mb-5 sm:mb-6"
         style={{ overflow: "visible" }}
-        eyebrow="One Piece Expansion"
         title={episode.name}
-        gridClassName="xl:grid-cols-[minmax(0,1.2fr)_minmax(28rem,0.8fr)] xl:items-stretch 2xl:grid-cols-[minmax(0,1.24fr)_minmax(28rem,0.76fr)]"
+        description={expansionHeaderDescription}
+        gridClassName="xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch"
+        backLinks={
+          <Link
+            href="/one-piece/expansions"
+            prefetch={false}
+            className="hidden items-center gap-2 font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to One Piece expansions
+          </Link>
+        }
         leadingVisual={
-          <div className="hidden h-[var(--ui-binder-header-logo-size)] w-[var(--ui-binder-header-logo-size)] shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-[var(--ui-binder-header-logo-padding)] text-center text-[length:var(--ui-section-header-title-size)] font-bold text-white/70 shadow-sm shadow-black/20 sm:flex">
+          <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-2 text-center text-sm font-bold text-white/70 shadow-sm shadow-black/20 sm:flex lg:h-16 lg:w-16">
             {episode.logo_url ? (
               <div className="relative h-full w-full">
                 <Image
@@ -213,45 +220,6 @@ export default async function OnePieceExpansionDetailPage({
             )}
           </div>
         }
-        description={
-          <div className="space-y-3 sm:space-y-5">
-            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-gray-600 dark:text-white/62">
-              {setContext || "One Piece set"}
-            </p>
-            <div className="grid items-start gap-2.5 sm:gap-3 lg:grid-cols-[minmax(13.5rem,0.82fr)_minmax(20rem,1.18fr)]">
-              <div className="hidden sm:block">
-                <HeaderProgressMeter
-                  label="Card Pricing"
-                  value={headerProgressValue}
-                  percent={headerProgressPercent}
-                  className="sm:!min-w-0 sm:!w-full"
-                />
-              </div>
-              <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3">
-                <HeaderMetricChip
-                  label="Set Value"
-                  value={formatCollectionCurrency(pricePanelCurrentValue)}
-                  tone="emerald"
-                  className="!min-w-0"
-                />
-                <HeaderMetricChip
-                  label="Cards"
-                  value={cardCountDenominator.toLocaleString("en-US")}
-                  tone="sky"
-                  className="!min-w-0"
-                />
-                {releaseLabel ? (
-                  <HeaderMetricChip
-                    label={releaseMetricLabel}
-                    value={releaseDetailLabel ?? releaseLabel}
-                    tone="slate"
-                    className="!min-w-0"
-                  />
-                ) : null}
-              </div>
-            </div>
-          </div>
-        }
         accessory={
           <PriceHistoryPanel
             layout="dashboard"
@@ -263,7 +231,38 @@ export default async function OnePieceExpansionDetailPage({
             emptyText="No set prices available yet"
           />
         }
-        sideClassName="max-sm:hidden [&>section]:h-full"
+        sideContent={
+          <>
+            <HeaderStatCard
+              label="Card Pricing"
+              value={headerProgressValue}
+              hint={headerPricingHint}
+              Icon={Coins}
+              tone="emerald"
+            />
+            <HeaderStatCard
+              label="Set Value"
+              value={formatCollectionCurrency(pricePanelCurrentValue)}
+              Icon={Coins}
+              tone="violet"
+            />
+            <HeaderStatCard
+              label="Cards"
+              value={cardCountDenominator.toLocaleString("en-US")}
+              Icon={Layers}
+              tone="sky"
+            />
+            {releaseLabel ? (
+              <HeaderStatCard
+                label={releaseMetricLabel}
+                value={releaseLabel}
+                Icon={isUpcomingRelease ? CalendarClock : Calendar}
+                tone="slate"
+              />
+            ) : null}
+          </>
+        }
+        sideClassName="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
       />
 
       {cards.length === 0 ? (

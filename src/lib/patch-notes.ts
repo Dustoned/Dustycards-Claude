@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.13",
+    releasedAt: "May 20, 2026",
+    title: "Expansion headers aligned",
+    summary: "DustyCards 3.1.13 brings Pokemon and One Piece expansion detail headers in line with the rest of the app.",
+    tone: "improved",
+    highlights: [
+      "Moved expansion charts and metrics into the same dashboard header structure used by Market.",
+      "Reduced oversized expansion logos and header spacing so set pages feel consistent with other sections.",
+      "Updated Pokemon pull-rate, sync, sealed, release, and value cards to use the current dark stat-card theme.",
+    ],
+  },
+  {
     version: "3.1.12",
     releasedAt: "May 20, 2026",
     title: "Smarter home featured cards",
