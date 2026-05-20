@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.7",
+    releasedAt: "May 20, 2026",
+    title: "Mobile home scroll safe area",
+    summary: "DustyCards 3.1.7 fixes the phone homepage bottom spacing so the mobile nav no longer covers the last content.",
+    tone: "fixed",
+    highlights: [
+      "Restored the mobile bottom safe area for the homepage collection shell.",
+      "Made the safe-area padding specific enough to override the shared page container padding.",
+      "Kept desktop page spacing unchanged while giving phone screens enough room below the final card.",
+    ],
+  },
+  {
     version: "3.1.6",
     releasedAt: "May 20, 2026",
     title: "Larger centered mobile 3D cards",

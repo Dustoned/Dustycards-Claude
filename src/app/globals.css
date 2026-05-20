@@ -513,6 +513,10 @@ main > .page-container {
   padding-bottom: calc(var(--ui-page-y) + env(safe-area-inset-bottom)) !important;
 }
 
+main > .page-container.binder-bottom-safe {
+  padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)) !important;
+}
+
 @media (max-width: 640px) {
   main > .page-container {
     padding-left: 0.75rem !important;
@@ -677,6 +681,10 @@ body :where(option) {
 }
 
 @media (min-width: 768px) {
+  main > .page-container.binder-bottom-safe {
+    padding-bottom: var(--ui-page-y) !important;
+  }
+
   .binder-bottom-safe {
     padding-bottom: var(--ui-page-y);
   }
