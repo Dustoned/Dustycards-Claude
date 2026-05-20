@@ -12,10 +12,8 @@ import {
   Home,
   LibraryBig,
   LogOut,
-  Mail,
   PackageOpen,
   Settings,
-  ShieldCheck,
   ShoppingBag,
   Sparkles,
   UserRound,
@@ -96,9 +94,8 @@ function getDisplayName(email: string): string {
   const localPart = email.split("@")[0]?.trim();
   if (!localPart) return "Dusty";
 
-  return localPart
-    .replace(/[._-]+/g, " ")
-    .replace(/\b\w/g, (match) => match.toUpperCase());
+  const firstSegment = localPart.split(/[._-]/)[0] ?? localPart;
+  return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
 }
 
 type SidebarMarketMode = "raw" | "graded" | "targets" | "sealed";
@@ -191,19 +188,19 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 hidden w-[15rem] border-r border-white/10 bg-[#070708]/88 px-3 py-3 shadow-[24px_0_60px_rgba(0,0,0,0.28)] backdrop-blur-xl xl:flex xl:flex-col">
-      <Link href="/" prefetch={false} className="mb-3 flex items-center gap-2 px-1">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500 text-sm font-black text-white shadow-[0_0_18px_rgba(139,92,246,0.35)]">
+    <aside className="fixed inset-y-0 left-0 z-50 hidden w-[16rem] border-r border-white/8 bg-[#08080c] px-3 py-4 xl:flex xl:flex-col">
+      <Link href="/" prefetch={false} className="mb-5 flex items-center gap-2.5 px-1">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500 text-base font-black text-white shadow-[0_0_22px_rgba(139,92,246,0.4)]">
           D
         </span>
-        <span className="text-lg font-black tracking-tight text-white">DustyCards</span>
+        <span className="text-[19px] font-black tracking-tight text-white">DustyCards</span>
       </Link>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <nav className="grid gap-2.5" aria-label="Desktop navigation">
+        <nav className="grid gap-4" aria-label="Desktop navigation">
           {NAV_SECTIONS.map((section) => (
-            <div key={section.label} className="grid gap-0.5">
-              <p className="px-3 text-[9px] font-black uppercase tracking-[0.14em] text-white/30">
+            <div key={section.label} className="grid gap-px">
+              <p className="mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">
                 {section.label}
               </p>
               {section.items.map((item) => {
@@ -219,16 +216,26 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                     href={href}
                     prefetch={false}
                     aria-current={active ? "page" : undefined}
-                    className={`group flex min-h-8 items-center gap-2.5 rounded-xl border px-3 text-[12px] font-semibold transition-colors ${
+                    data-sidebar-item
+                    data-active={active ? "true" : "false"}
+                    className={`group flex min-h-[34px] items-center gap-3 rounded-lg px-2.5 text-[13px] font-medium transition-colors ${
                       active
-                        ? "border-white/14 bg-white/[0.075] text-white shadow-[inset_2px_0_0_rgba(255,255,255,0.42)]"
-                        : "border-transparent text-white/58 hover:border-white/8 hover:bg-white/[0.055] hover:text-white"
+                        ? "text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.32),0_0_22px_rgba(139,92,246,0.18)]"
+                        : "text-white/62 hover:text-white"
                     }`}
                   >
-                    <Icon className="h-4 w-4 shrink-0" />
+                    <Icon
+                      className={`h-4 w-4 shrink-0 ${active ? "text-violet-200" : "text-white/55"}`}
+                    />
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
                     {badge ? (
-                      <span className="rounded-full border border-white/8 bg-white/[0.07] px-2 py-0.5 text-[10px] font-black text-white/62">
+                      <span
+                        data-sidebar-badge
+                        data-active={active ? "true" : "false"}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold tabular-nums ${
+                          active ? "text-violet-100" : "text-white/55"
+                        }`}
+                      >
                         {badge}
                       </span>
                     ) : null}
@@ -239,37 +246,18 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
           ))}
         </nav>
 
-        <div className="my-2.5 h-px bg-white/8" />
-
-        <nav className="grid gap-1" aria-label="Account navigation">
-        {ACCOUNT_ITEMS.map((item) => {
-          const active = isActive(pathname, tab, item.key, moverScope);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={false}
-              className={`flex min-h-8 items-center gap-2.5 rounded-xl border px-3 text-[12px] font-semibold transition-colors ${
-                active
-                  ? "border-white/14 bg-white/[0.08] text-white"
-                  : "border-transparent text-white/52 hover:border-white/8 hover:bg-white/[0.055] hover:text-white"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-        </nav>
       </div>
 
-      <div className="mt-2 rounded-[22px] border border-white/10 bg-gradient-to-b from-white/[0.065] to-white/[0.025] p-2.5 shadow-[0_16px_36px_rgba(0,0,0,0.24)]">
-        <div className="flex items-start gap-2.5">
+      <div
+        data-sidebar-card
+        className="mt-3 rounded-2xl border border-white/8 p-3"
+      >
+        <div className="flex items-center gap-2.5">
           <Link
             href="/account"
             prefetch={false}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-violet-300/18 bg-violet-500/18 text-sm font-black text-violet-100 shadow-[0_0_22px_rgba(139,92,246,0.22)] transition hover:bg-violet-500/24"
+            data-sidebar-avatar
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black text-violet-100 shadow-[0_0_22px_rgba(139,92,246,0.22)] transition"
             aria-label="Open account"
             title="Open account"
           >
@@ -280,34 +268,31 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
               <Link
                 href="/account"
                 prefetch={false}
-                className="truncate text-[13px] font-black leading-tight text-white transition hover:text-white/82"
+                className="truncate text-[13px] font-bold leading-tight text-white transition hover:text-white/82"
               >
                 {displayName}
               </Link>
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-300/18 bg-emerald-400/[0.075] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-emerald-200">
-                <ShieldCheck className="h-2.5 w-2.5" />
-                {roleLabel}
+              <span
+                data-sidebar-badge-admin
+                className="inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-200"
+              >
+                {roleLabel === "Admin" ? "ADMIN" : "USER"}
               </span>
             </div>
-            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-white/42">
-              <Mail className="h-3 w-3 shrink-0" />
-              <span className="truncate">{summary.email}</span>
-            </div>
+            <p className="mt-0.5 truncate text-[10px] font-medium text-white/42">
+              {summary.email}
+            </p>
           </div>
         </div>
 
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <div className="mt-2.5 grid grid-cols-3 gap-2">
           {[
             ["Cards", summary.cards],
-            ["Wants", summary.wants],
             ["Binders", summary.binders],
             ["Sealed", summary.sealedUnits],
           ].map(([label, value]) => (
-            <div
-              key={label}
-              className="rounded-xl border border-white/8 bg-black/22 px-2 py-1.5"
-            >
-              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-white/30">
+            <div key={label as string}>
+              <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">
                 {label}
               </p>
               <p className="mt-0.5 text-[13px] font-black tabular-nums text-white">
@@ -317,25 +302,42 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
           ))}
         </div>
 
-        <div className="mt-2 grid grid-cols-[1fr_auto] gap-1.5">
-          <Link
-            href="/account"
-            prefetch={false}
-            className="inline-flex min-h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-white/78 transition hover:border-white/18 hover:bg-white/[0.085] hover:text-white"
-          >
-            Profile
-          </Link>
-          <button
-            type="button"
-            onClick={logout}
-            disabled={loggingOut}
-            className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-rose-300/18 bg-rose-500/[0.075] px-3 text-[11px] font-black text-rose-100 transition hover:border-rose-300/28 hover:bg-rose-500/[0.13] disabled:cursor-wait disabled:opacity-60"
-            aria-label="Log out"
-            title="Log out"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            {loggingOut ? "..." : "Log out"}
-          </button>
+        <div className="mt-2.5 border-t border-white/8 pt-2">
+          <nav className="grid gap-px" aria-label="Account navigation">
+            {ACCOUNT_ITEMS.map((item) => {
+              const active = isActive(pathname, tab, item.key, moverScope);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={false}
+                  data-sidebar-item
+                  data-active={active ? "true" : "false"}
+                  className={`flex min-h-[30px] items-center gap-3 rounded-lg px-1.5 text-[12px] font-medium transition-colors ${
+                    active
+                      ? "text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.32),0_0_22px_rgba(139,92,246,0.18)]"
+                      : "text-white/62 hover:text-white"
+                  }`}
+                >
+                  <Icon className={`h-3.5 w-3.5 ${active ? "text-violet-200" : "text-white/55"}`} />
+                  {item.label}
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              onClick={logout}
+              disabled={loggingOut}
+              data-sidebar-item
+              data-active="false"
+              className="flex min-h-[30px] items-center gap-3 rounded-lg px-1.5 text-left text-[12px] font-medium text-white/62 transition-colors hover:text-white disabled:cursor-wait disabled:opacity-60"
+              aria-label="Log out"
+            >
+              <LogOut className="h-3.5 w-3.5 text-white/55" />
+              {loggingOut ? "Logging out..." : "Log out"}
+            </button>
+          </nav>
         </div>
       </div>
     </aside>

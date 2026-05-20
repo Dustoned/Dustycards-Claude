@@ -307,36 +307,28 @@ export default async function IllustratorsPage({
 
   return (
     <div className={`page-container mx-auto ${pageMaxWidth} px-4 py-5 sm:px-6 sm:py-8 lg:px-8`}>
-      <section className="binder-panel relative mb-4 w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:mb-5 sm:p-4 lg:p-5">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
-          <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/10 p-[var(--ui-page-header-padding)] xl:col-span-2">
-            <div className="min-w-0">
-              <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
-                {activeGame === ONE_PIECE_GAME ? "One Piece Library" : "Dusty Cards Collection"}
-              </p>
-              <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
-                {activeGame === ONE_PIECE_GAME ? "One Piece Illustrators" : "Illustrators"}
-              </h1>
-              <p className="mt-3 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
-                {`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked ${libraryLabel} cards.`}
-              </p>
-            </div>
-
-            {settings.onePieceLibraryEnabled ? (
-              <div className="mt-[var(--ui-page-header-action-margin)]">
-                <GameFilterSwitch items={gameSwitchItems} ariaLabel="Illustrator library" />
-              </div>
-            ) : null}
-          </div>
-
-          <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
-            {headerStats.map((stat) => (
-              <HeaderStatCard key={stat.label} {...stat} />
-            ))}
-          </div>
+      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
+            {activeGame === ONE_PIECE_GAME ? "One Piece Illustrators" : "Illustrators"}
+          </h1>
+          <p className="mt-1 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
+            {`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked ${libraryLabel} cards.`}
+          </p>
         </div>
-      </section>
+
+        {settings.onePieceLibraryEnabled ? (
+          <div className="shrink-0 sm:ml-auto">
+            <GameFilterSwitch items={gameSwitchItems} ariaLabel="Illustrator library" />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mb-4 grid min-w-0 grid-cols-2 gap-2 sm:mb-5 sm:gap-3 sm:grid-cols-4">
+        {headerStats.map((stat) => (
+          <HeaderStatCard key={stat.label} {...stat} />
+        ))}
+      </div>
 
       <div className="binder-subpanel mb-5 flex flex-col gap-3 rounded-2xl px-3 py-3 lg:flex-row lg:items-center">
         <div className="flex flex-wrap items-center gap-3">

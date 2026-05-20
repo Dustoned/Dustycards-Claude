@@ -320,7 +320,6 @@ export function PageHeroHeader({
   backLinks,
   leadingVisual,
   accessory,
-  accentColor,
   className = "",
   gridClassName = "",
   sideClassName = "",
@@ -344,86 +343,79 @@ export function PageHeroHeader({
   style?: CSSProperties;
 }) {
   const hasStats = Boolean(stats?.length);
-  const hasSideContent = hasStats || accessory;
+  const hasAccessory = Boolean(accessory);
 
   return (
-    <section
-      className={cx(
-        "binder-panel relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-[var(--ui-page-header-padding)]",
-        className
-      )}
-      style={style}
-    >
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent"
-        style={accentColor ? { background: accentColor } : undefined}
-      />
-      <div className="pointer-events-none absolute inset-y-5 left-0 w-px bg-gradient-to-b from-transparent via-white/14 to-transparent" />
-
+    <div className={cx("flex w-full flex-col gap-3", className)} style={style}>
       {backLinks ? (
-        <div className="mb-4 [&_a]:text-[length:var(--ui-header-action-font-size)] [&_svg]:h-[var(--ui-header-stat-icon-size)] [&_svg]:w-[var(--ui-header-stat-icon-size)]">
+        <div className="[&_a]:text-[length:var(--ui-header-action-font-size)] [&_svg]:h-[var(--ui-header-stat-icon-size)] [&_svg]:w-[var(--ui-header-stat-icon-size)]">
           {backLinks}
         </div>
       ) : null}
 
-      <div
-        className={cx(
-          "relative grid gap-[var(--ui-page-header-grid-gap)]",
-          hasSideContent && !gridClassName
-            ? "xl:grid-cols-[minmax(22rem,0.95fr)_minmax(0,1.05fr)] xl:items-stretch 2xl:grid-cols-[minmax(24rem,0.95fr)_minmax(0,1.15fr)]"
-            : "",
-          gridClassName
-        )}
-      >
-        <div className="flex min-w-0 flex-col gap-[var(--ui-page-header-leading-gap)] sm:flex-row">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex min-w-0 gap-[var(--ui-page-header-leading-gap)]">
           {leadingVisual ? <div className="shrink-0">{leadingVisual}</div> : null}
-
           <div className="min-w-0 flex-1">
-            {(eyebrow || titleActions) ? (
-              <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                {eyebrow ? (
-                  <p className="min-w-0 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
-                    {eyebrow}
-                  </p>
-                ) : (
-                  <span />
-                )}
-                {titleActions ? (
-                  <div className="min-w-0 max-w-full sm:shrink-0">{titleActions}</div>
-                ) : null}
-              </div>
-            ) : null}
-            <h1 className="mt-1.5 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
+            <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
               {title}
             </h1>
             {description ? (
-              <div className="mt-2 max-w-4xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
+              <div className="mt-1 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
                 {description}
               </div>
             ) : null}
-            {actions ? <div className="mt-[var(--ui-page-header-action-margin)]">{actions}</div> : null}
-          </div>
-        </div>
-
-        {hasSideContent ? (
-          <div className={cx("min-w-0 self-stretch space-y-3", sideClassName)}>
-            {accessory}
-            {hasStats ? (
-            <div
-                className={cx(
-                  "grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(min(11rem,100%),1fr))] sm:gap-3",
-                  statsClassName
-                )}
-              >
-                {stats!.map((stat) => (
-                  <HeaderStatCard key={stat.label} {...stat} />
-                ))}
-              </div>
+            {eyebrow ? (
+              <p className="mt-1 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
+                {eyebrow}
+              </p>
             ) : null}
           </div>
+        </div>
+        {titleActions ? (
+          <div className="shrink-0 sm:ml-auto">{titleActions}</div>
         ) : null}
       </div>
-    </section>
+
+      {actions ? <div>{actions}</div> : null}
+
+      {(hasAccessory || hasStats) ? (
+        <section
+          className={cx(
+            "grid min-w-0 gap-3",
+            hasAccessory && hasStats
+              ? "xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch"
+              : "",
+            gridClassName
+          )}
+        >
+          {hasAccessory ? (
+            <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
+              <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
+                {accessory}
+              </div>
+            </div>
+          ) : null}
+          {hasStats ? (
+            <div
+              className={cx(
+                "grid min-w-0 grid-cols-2 gap-2 sm:gap-3",
+                hasAccessory && stats!.length === 4 ? "xl:grid-rows-2" : "",
+                hasAccessory && stats!.length === 6 ? "xl:grid-rows-3" : "",
+                hasAccessory && stats!.length > 0 ? "xl:gap-3" : "",
+                !hasAccessory ? "sm:grid-cols-4" : "",
+                statsClassName,
+                sideClassName
+              )}
+            >
+              {stats!.map((stat) => (
+                <HeaderStatCard key={stat.label} {...stat} />
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+    </div>
   );
 }
 

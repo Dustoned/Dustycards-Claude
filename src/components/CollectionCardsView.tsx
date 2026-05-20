@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -35,7 +35,7 @@ import {
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
 import { rarityBadge } from "@/lib/rarity-styles";
-import { getCompactRarityLabel, KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
+import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { ModalCardData } from "@/components/card-modal/types";
 import {
   modalActionRowClass,
@@ -850,11 +850,11 @@ export default function CollectionCardsView({
     : "gap-2.5";
   const eagerImageCount = isMobileViewport
     ? displaySettings.cardSize === "large"
-      ? 2
+      ? 1
       : displaySettings.cardSize === "medium"
-        ? 4
+        ? 2
         : displaySettings.cardSize === "small"
-          ? 6
+          ? 3
           : 8
     : INITIAL_COLLECTION_EAGER_IMAGE_COUNT;
   const showInlineSelectionButton =
@@ -1073,7 +1073,7 @@ export default function CollectionCardsView({
                 <div className="flex flex-wrap items-center gap-2">
                   {activeSelectionMode && (
                     <>
-                      <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-blue-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-blue-700 dark:text-blue-300">
+                      <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-violet-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-violet-700 dark:text-violet-200">
                         {activeSelectedKeys.length} selected
                       </span>
                       <button
@@ -1097,7 +1097,7 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={handleBulkAdd}
                           disabled={selectedCards.length === 0}
-                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-blue-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-45"
                         >
                           Bulk add
                         </button>
@@ -1129,7 +1129,7 @@ export default function CollectionCardsView({
                     onClick={toggleSelectionMode}
                     className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors ${
                       activeSelectionMode
-                        ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                        ? "border-violet-400/40 bg-violet-600 text-white"
                         : "border-white/8 bg-white/[0.045] text-white/60 hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
                     }`}
                   >
@@ -1232,7 +1232,7 @@ export default function CollectionCardsView({
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 {activeSelectionMode && (
                   <>
-                    <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+                    <span className="rounded-full border border-blue-500/30 bg-violet-500/10 px-2.5 py-1 text-[11px] font-semibold text-violet-700 dark:text-violet-200">
                       {activeSelectedKeys.length} selected
                     </span>
                     <button
@@ -1256,7 +1256,7 @@ export default function CollectionCardsView({
                         type="button"
                         onClick={handleBulkAdd}
                         disabled={selectedCards.length === 0}
-                        className="rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
+                        className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         Bulk add
                       </button>
@@ -1407,7 +1407,7 @@ export default function CollectionCardsView({
                   type="button"
                   onClick={handleBulkAdd}
                   disabled={selectedCards.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full bg-blue-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Bulk add
                 </button>
@@ -1466,7 +1466,7 @@ export default function CollectionCardsView({
               )}
 
               <div className="grid gap-2 md:hidden">
-                {group.entries.map(({ item, selectionKey, normalizedRarity }, index) => {
+                {group.entries.map(({ item, selectionKey }, index) => {
                   const missing = !item.owned;
                   const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
                   const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
@@ -1534,16 +1534,6 @@ export default function CollectionCardsView({
                                 <span className="shrink-0">
                                   {item.card_number ? `#${item.card_number}` : "--"}
                                 </span>
-                                {normalizedRarity && (
-                        <span
-                          className={`inline-flex min-h-[18px] max-w-full items-center rounded-md border px-1.5 text-[9px] font-black leading-none max-[640px]:min-h-[16px] max-[640px]:px-1 max-[640px]:text-[8px] ${rarityBadge(normalizedRarity)}`}
-                          title={item.rarity ?? normalizedRarity}
-                        >
-                          <span className="truncate">
-                            {getCompactRarityLabel(normalizedRarity) ?? normalizedRarity}
-                          </span>
-                        </span>
-                      )}
                                 <Link
                                   href={getExpansionHref(item.episode_id)}
                                   prefetch={false}
@@ -1719,7 +1709,7 @@ export default function CollectionCardsView({
                           }}
                           className={`border-b border-black/6 transition-colors last:border-b-0 dark:border-white/6 ${
                             isSelected
-                              ? "bg-blue-500/10"
+                              ? "bg-violet-500/10"
                               : missing && blurMissing
                                 ? "opacity-70"
                                 : "hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
@@ -1928,7 +1918,7 @@ export default function CollectionCardsView({
                   justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
-                {group.entries.map(({ item, selectionKey, normalizedRarity }, index) => {
+                {group.entries.map(({ item, selectionKey }, index) => {
                   const missing = !item.owned;
                   const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
                   const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
@@ -2005,7 +1995,7 @@ export default function CollectionCardsView({
                           handleTileActivate(item, selectionKey, selectableInMode);
                         }
                       }}
-                      className={`relative flex cursor-pointer flex-col rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 text-left shadow-[0_12px_28px_rgba(0,0,0,0.24)] outline-none transition-colors hover:border-white/14 max-[640px]:rounded-[13px] max-[640px]:p-1 ${
+                      className={`relative flex h-full cursor-pointer flex-col rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 text-left shadow-[0_12px_28px_rgba(0,0,0,0.24)] outline-none transition-colors hover:border-white/14 max-[640px]:rounded-[13px] max-[640px]:p-1 ${
                         isSelected ? "border-blue-400/70 ring-2 ring-blue-400/60" : ""
                       }`}
                       style={{
@@ -2066,7 +2056,7 @@ export default function CollectionCardsView({
                           <div className="pointer-events-none absolute inset-0 bg-black/[0.08] dark:bg-black/[0.18]" />
                         )}
 
-                        {isSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
+                        {isSelected && <div className="pointer-events-none absolute inset-0 bg-violet-500/10" />}
 
                         {openingItemKey === getOpeningItemKey(item, selectionKey) && (
                           <CardLoadingOverlay />
@@ -2097,8 +2087,8 @@ export default function CollectionCardsView({
               </div>
 
               <div className={collectionTileInfoClass(displaySettings.cardSize)}>
-                <div className="grid gap-1">
-                  <div className="min-w-0 flex-1">
+                <div className="flex min-h-0 flex-1 flex-col gap-1">
+                  <div className="min-w-0">
                     <p className={collectionTileTitleClass(displaySettings.cardSize)}>
                       {item.name}
                     </p>
@@ -2106,20 +2096,10 @@ export default function CollectionCardsView({
                       <span className="shrink-0 text-white/42">
                         {item.card_number ? `#${item.card_number}` : "--"}
                       </span>
-                      {normalizedRarity && (
-                        <span
-                          className={`inline-flex min-h-[18px] max-w-full items-center rounded-md border px-1.5 text-[9px] font-black leading-none max-[640px]:min-h-[16px] max-[640px]:px-1 max-[640px]:text-[8px] ${rarityBadge(normalizedRarity)}`}
-                          title={item.rarity ?? normalizedRarity}
-                        >
-                          <span className="truncate">
-                            {getCompactRarityLabel(normalizedRarity) ?? normalizedRarity}
-                          </span>
-                        </span>
-                      )}
                     </div>
                   </div>
 
-                  <div className="flex min-w-0 flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-1.5">
+                  <div className="mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 pt-1">
                     {displayPrice != null ? (
                       <span
                         title={
@@ -2136,7 +2116,7 @@ export default function CollectionCardsView({
                     )}
                     {trendPercent != null && (
                       <span
-                        className={`inline-flex min-w-0 items-center gap-0.5 text-[11px] font-bold tabular-nums max-[640px]:text-[9px] ${
+                        className={`inline-flex min-w-0 shrink-0 items-center justify-end gap-0.5 text-right text-[11px] font-bold tabular-nums max-[640px]:text-[9px] ${
                           trendPercent >= 0 ? "text-emerald-300" : "text-rose-300"
                         }`}
                         title={`P&L ${trendPercent >= 0 ? "+" : ""}${trendPercent}%`}

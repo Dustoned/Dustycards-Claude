@@ -196,7 +196,7 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
         }
         accessory={
           <PriceHistoryPanel
-            compact
+            layout="dashboard"
             title={showingFilteredSubset ? "Filtered Collection Value" : "Binder Value"}
             currency="EUR"
             points={chartPoints}

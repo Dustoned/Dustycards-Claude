@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { MetricCell, StatusPill } from "./SyncStatusCards";
@@ -10,7 +10,7 @@ import {
 } from "./sync-status-utils";
 
 const ACTIVE_SEGMENT_CLASS =
-  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+  "border border-violet-400/40 bg-violet-600 text-white";
 
 type AutoRefreshStatusKey = AutoRefreshStatus["key"];
 

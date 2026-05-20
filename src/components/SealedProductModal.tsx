@@ -198,7 +198,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/72 p-2 backdrop-blur-[14px] sm:p-4 md:block md:bg-[#050505] md:p-0 md:backdrop-blur-none xl:left-[15rem]"
+      className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/72 p-2 backdrop-blur-[14px] sm:p-4 md:block md:bg-[#08080c] md:p-0 md:backdrop-blur-none xl:left-[16rem]"
       style={{ overscrollBehavior: "contain" }}
       onClick={onClose}
     >

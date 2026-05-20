@@ -33,8 +33,6 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
-import { getCompactRarityLabel, normalizeRarityLabel } from "@/lib/rarity";
-import { rarityBadge } from "@/lib/rarity-styles";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
@@ -446,10 +444,7 @@ function SearchPageContent({
                   justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
-                {results.singles.map((card, index) => {
-                  const normalizedRarity = card.rarity ? normalizeRarityLabel(card.rarity) : null;
-
-                  return (
+                {results.singles.map((card, index) => (
                     <div
                       key={card.id}
                       role="button"
@@ -494,16 +489,6 @@ function SearchPageContent({
                               <span className="shrink-0 text-white/42">
                                 {card.card_number ? `#${card.card_number}` : "--"}
                               </span>
-                              {normalizedRarity ? (
-                                <span
-                                  className={`inline-flex min-h-[16px] max-w-full items-center rounded-md border px-1 text-[8px] font-black leading-none sm:min-h-[18px] sm:px-1.5 sm:text-[9px] ${rarityBadge(normalizedRarity)}`}
-                                  title={card.rarity ?? normalizedRarity}
-                                >
-                                  <span className="truncate">
-                                    {getCompactRarityLabel(normalizedRarity) ?? normalizedRarity}
-                                  </span>
-                                </span>
-                              ) : null}
                             </div>
                             {!isMobileViewport ? (
                               <Link
@@ -546,8 +531,7 @@ function SearchPageContent({
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                ))}
               </div>
             </section>
           )}

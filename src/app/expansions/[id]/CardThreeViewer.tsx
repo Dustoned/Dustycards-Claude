@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { RotateCcw, X } from "lucide-react";
@@ -28,7 +28,7 @@ import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
 
 const ACTIVE_SEGMENT_CLASS =
-  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+  "border border-violet-400/40 bg-violet-600 text-white";
 
 interface ViewerCard {
   id: string;
@@ -118,7 +118,7 @@ const DEFAULT_CAMERA_DISTANCE = 8.55;
 const MIN_CAMERA_DISTANCE = 4.4;
 const MAX_CAMERA_DISTANCE = 22;
 const CAMERA_TARGET_FOLLOW = 0.16;
-const MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET = 0.78;
+const MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET = 0.28;
 
 interface Card3dSizeConfig {
   resetDistanceScale: number;
@@ -2304,13 +2304,13 @@ export default function CardThreeViewer({
                 <div
                   ref={detailsRef}
                   data-three-details="true"
-                  className={`pointer-events-auto mx-auto max-w-lg overscroll-contain rounded-2xl border border-white/14 bg-transparent backdrop-blur-xl md:mx-0 md:max-h-[calc(100vh-3rem)] md:w-full md:max-w-none md:overflow-y-auto md:rounded-3xl ${
+                  className={`pointer-events-auto mx-auto max-w-lg overscroll-contain rounded-2xl border border-white/14 bg-[#070708] md:mx-0 md:max-h-[calc(100vh-3rem)] md:w-full md:max-w-none md:overflow-y-auto md:rounded-3xl ${
                     compactMobileDetails
                       ? "max-h-none w-full max-w-[min(23rem,calc(100vw-1.5rem))] overflow-visible px-3 py-2.5"
                       : "max-h-[31dvh] overflow-y-auto px-4 py-3 sm:max-h-[36dvh] sm:px-5 sm:py-4"
                   }`}
                   style={{
-                    background: "rgba(12,12,14,0.68)",
+                    background: "rgba(7,7,8,0.97)",
                     border: "1px solid rgba(255,255,255,0.16)",
                     boxShadow: "0 28px 80px rgba(0,0,0,0.34)",
                     touchAction: "pan-y",

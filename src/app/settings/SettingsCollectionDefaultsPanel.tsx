@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { CreditCard, Filter, GalleryHorizontalEnd, SlidersHorizontal } from "lucide-react";
 import { formatCollectionCurrency } from "@/lib/collection";
@@ -59,7 +59,7 @@ const RARITIES = [
 const SUPERTYPES = ["Pokémon", "Trainer", "Energy"];
 
 const ACTIVE_OPTION_CLASS =
-  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+  "border-violet-400/40 bg-violet-600 text-white";
 const INACTIVE_OPTION_CLASS =
   "border-white/8 text-white/55 hover:border-white/18 hover:bg-white/[0.055] hover:text-white";
 

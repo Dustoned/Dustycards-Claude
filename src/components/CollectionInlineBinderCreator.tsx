@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { Plus } from "lucide-react";
@@ -251,7 +251,7 @@ export default function CollectionInlineBinderCreator({
               type="button"
               onClick={() => void handleCreate()}
               disabled={saving}
-              className="rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-2 max-[640px]:text-[12px]"
+              className="rounded-2xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-2 max-[640px]:text-[12px]"
             >
               {saving ? "Saving..." : "Create binder"}
             </button>

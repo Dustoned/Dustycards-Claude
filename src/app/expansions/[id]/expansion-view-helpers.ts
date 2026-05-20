@@ -1,4 +1,4 @@
-import type { PriceSource, SortBy, SortDir } from "@/components/SettingsProvider";
+﻿import type { PriceSource, SortBy, SortDir } from "@/components/SettingsProvider";
 import { CARD_NUMBER_FALLBACK, cardNumberCollator } from "@/lib/card-number-sort";
 import type { CurrencyCode } from "@/lib/format";
 import { rarityBadge } from "@/lib/rarity-styles";
@@ -93,7 +93,7 @@ export function rarityFilterChip(rarity: string | null, active: boolean): string
 
 export function neutralFilterChip(active: boolean): string {
   if (active) {
-    return "border-white/70 bg-white text-gray-950 opacity-100 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+    return "border-violet-400/40 bg-violet-600 text-white opacity-100";
   }
 
   return "border-white/8 text-white/55 opacity-80 hover:border-white/20 hover:opacity-100 hover:text-white hover:shadow-sm";

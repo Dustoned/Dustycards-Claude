@@ -102,34 +102,30 @@ export default async function WantsPage({
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <div className="flex w-full flex-col gap-5 sm:gap-6">
-        <section className="binder-panel relative w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
-            <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/10 p-[var(--ui-page-header-padding)]">
-              <div className="min-w-0">
-                <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
-                  DustyCards
-                </p>
-                <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
-                  {activeGame === ONE_PIECE_GAME ? "One Piece Wants" : "Wants"}
-                </h1>
-                <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
-                  {activeGame === ONE_PIECE_GAME
-                    ? "One Piece cards you want to pick up later, kept separate from Pokemon wants."
-                    : "Cards you want to pick up later. Prices are tracked here, but they do not count toward collection value, spent or card totals."}
-                </p>
-              </div>
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
+              {activeGame === ONE_PIECE_GAME ? "One Piece Wants" : "Wants"}
+            </h1>
+            <p className="mt-1 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
+              {activeGame === ONE_PIECE_GAME
+                ? "One Piece cards you want to pick up later, kept separate from Pokemon wants."
+                : "Cards you want to pick up later. Prices are tracked here but do not count toward collection totals."}
+            </p>
+          </div>
 
-              {settings.onePieceLibraryEnabled ? (
-                <div className="mt-[var(--ui-page-header-action-margin)]">
-                  <GameFilterSwitch items={gameSwitchItems} ariaLabel="Wants library" className="max-w-[21rem]" />
-                </div>
-              ) : null}
+          {settings.onePieceLibraryEnabled ? (
+            <div className="shrink-0 sm:ml-auto">
+              <GameFilterSwitch items={gameSwitchItems} ariaLabel="Wants library" className="max-w-[21rem]" />
             </div>
+          ) : null}
+        </div>
 
-            <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+        <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
+          <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
+            <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
               <PriceHistoryPanel
-                compact
+                layout="dashboard"
                 title="Wants Value"
                 currency="EUR"
                 points={data.chart}
@@ -138,12 +134,12 @@ export default async function WantsPage({
                 emptyText="Add wanted cards with price history to start tracking target value"
               />
             </div>
+          </div>
 
-            <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
-              {stats.map((stat) => (
-                <HeaderStatCard key={stat.label} {...stat} />
-              ))}
-            </div>
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3">
+            {stats.map((stat) => (
+              <HeaderStatCard key={stat.label} {...stat} />
+            ))}
           </div>
         </section>
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -669,12 +669,12 @@ function MoverSpotlightCard({
       onKeyDown={item ? (event) => handleOpenKey(event, open) : undefined}
       className={`relative rounded-[24px] border border-black/8 bg-black/[0.03] p-4 shadow-lg shadow-black/5 outline-none transition dark:border-white/8 dark:bg-white/[0.04] ${
         item
-          ? "cursor-pointer hover:-translate-y-0.5 hover:border-black/14 hover:bg-black/[0.045] focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+          ? "cursor-pointer hover:-translate-y-0.5 hover:border-white/16 hover:bg-black/[0.045] focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
           : ""
       }`}
     >
       {isLoading ? (
-        <div className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/8 bg-white/90 text-gray-700 shadow-sm dark:border-white/10 dark:bg-black/80 dark:text-white">
+        <div className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/75 shadow-sm dark:border-white/10 dark:bg-black/80 dark:text-white">
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
       ) : null}
@@ -703,7 +703,7 @@ function MoverSpotlightCard({
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-semibold text-gray-900 dark:text-white">
+            <p className="truncate text-base font-semibold text-white dark:text-white">
               {item.name}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-white/46">
@@ -713,7 +713,7 @@ function MoverSpotlightCard({
                 href={getExpansionHref(item.episodeId)}
                 prefetch={false}
                 onClick={stopCardOpen}
-                className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
+                className="truncate transition-colors hover:text-white hover:underline underline-offset-2 dark:hover:text-white"
               >
                 {item.episodeName}
                 {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
@@ -789,14 +789,14 @@ function PocketPreviewCard({
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/36">
             {eyebrow}
           </p>
-          <h2 className="mt-1 text-xl font-bold tracking-tight text-gray-900 dark:text-white">
+          <h2 className="mt-1 text-xl font-bold tracking-tight text-white dark:text-white">
             {title}
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-gray-500 dark:text-white/48">{description}</p>
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+          <p className="text-2xl font-bold tracking-tight text-white dark:text-white">
             {items.length.toLocaleString("en-US")}
           </p>
           <p className="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
@@ -815,10 +815,10 @@ function PocketPreviewCard({
               key={`${href}-${item.cardId}`}
               type="button"
               onClick={() => onOpenCard(item.cardId)}
-              className="min-w-0 rounded-2xl border border-black/8 bg-white/75 px-3 py-3 text-left outline-none transition hover:border-black/14 hover:bg-white focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.07]"
+              className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-3 text-left outline-none transition hover:border-white/16 hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.07]"
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                <p className="truncate text-sm font-semibold text-white dark:text-white">
                   {item.name}
                 </p>
                 <span className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${getToneClass(displayScore)}`}>
@@ -861,7 +861,7 @@ function PocketPreviewCard({
         <Link
           href={href}
           prefetch={false}
-          className="inline-flex items-center rounded-full border border-black/8 bg-white/80 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:border-black/16 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/75 dark:hover:border-white/16 dark:hover:text-white"
+          className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-white/75 transition-colors hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
         >
           {hrefLabel}
         </Link>

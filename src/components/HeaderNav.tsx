@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -164,7 +164,7 @@ function isTopLevelActive(pathname: string, tab: string | null, item: NavItem): 
 function desktopLinkClasses(active: boolean): string {
   return `inline-flex h-[calc(var(--ui-header-search-height)-0.55rem)] items-center rounded-full border border-transparent px-3 font-semibold transition-colors [font-size:var(--ui-nav-link-size)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/45 ${
     active
-      ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+      ? "border-violet-400/40 bg-violet-600 text-white"
       : "text-white/55 hover:bg-white/[0.07] hover:text-white"
   }`;
 }

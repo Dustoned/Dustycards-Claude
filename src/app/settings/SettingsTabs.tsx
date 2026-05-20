@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, type ReactNode } from "react";
 
 const ACTIVE_TAB_CLASS =
-  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+  "border border-violet-400/40 bg-violet-600 text-white";
 
 export interface SettingsTabItem {
   key: string;

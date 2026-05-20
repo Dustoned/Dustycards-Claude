@@ -1,4 +1,4 @@
-import { type CardSize, type PriceSource, type SortBy, type SortDir } from "@/components/SettingsProvider";
+﻿import { type CardSize, type PriceSource, type SortBy, type SortDir } from "@/components/SettingsProvider";
 import {
   normalizeGradingCompanyLabel,
   normalizeGradingGradeLabel,
@@ -70,7 +70,7 @@ export function rarityFilterChip(rarity: string | null, active: boolean): string
 
 export function neutralFilterChip(active: boolean): string {
   if (active) {
-    return "border-white/70 bg-white text-gray-950 opacity-100 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+    return "border-violet-400/40 bg-violet-600 text-white opacity-100";
   }
 
   return "border-white/8 text-white/55 opacity-85 hover:border-white/16 hover:opacity-100 hover:text-white";
@@ -279,14 +279,14 @@ export function collectionOverlayBadgeClass(cardSize: CardSize): string {
 
 export function collectionTileInfoClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "mt-2 px-1";
+    return "mt-2 flex flex-1 flex-col px-1";
   }
 
   if (cardSize === "medium") {
-    return "mt-1.5 px-1";
+    return "mt-1.5 flex flex-1 flex-col px-1";
   }
 
-  return "mt-1.5 px-0.5";
+  return "mt-1.5 flex flex-1 flex-col px-0.5";
 }
 
 export function collectionTileTitleClass(cardSize: CardSize): string {

@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { type ReactNode } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
 const ACTIVE_SEGMENT_CLASS =
-  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+  "border-violet-400/40 bg-violet-600 text-white";
 
 export interface CardBrowserToolbarOption {
   value: string;

@@ -126,7 +126,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   `;
   const prepaintThemeStyles = `
     html {
-      background-color: #050505;
+      background-color: #08080c;
       color-scheme: dark;
     }
 
@@ -136,30 +136,30 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     }
 
     [data-app-header] {
-      background-color: #050505;
+      background-color: #08080c;
       border-color: rgba(255, 255, 255, 0.08);
     }
 
     html.dark,
     html[data-theme="dark"] {
-      background-color: #050505;
+      background-color: #08080c;
       color-scheme: dark;
     }
 
     html.dark [data-app-header],
     html[data-theme="dark"] [data-app-header] {
-      background-color: #050505;
+      background-color: #08080c;
       border-color: rgba(255, 255, 255, 0.08);
     }
 
     @media (prefers-color-scheme: dark) {
       html[data-theme="system"] {
-        background-color: #050505;
+        background-color: #08080c;
         color-scheme: dark;
       }
 
       html[data-theme="system"] [data-app-header] {
-        background-color: #050505;
+        background-color: #08080c;
         border-color: rgba(255, 255, 255, 0.08);
       }
     }
@@ -200,8 +200,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {currentUser && sidebarSummary ? <DesktopSidebar summary={sidebarSummary} /> : null}
           <header
             data-app-header
-            className={`fixed right-0 top-0 z-50 border-b border-white/8 bg-[#050505] ${
-              currentUser ? "left-0 xl:left-[15rem]" : "left-0"
+            className={`fixed right-0 top-0 z-50 border-b border-white/8 bg-[#08080c]/85 backdrop-blur-xl ${
+              currentUser ? "left-0 xl:left-[16rem]" : "left-0"
             }`}
           >
             <nav className="page-container relative mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-3 sm:px-6 lg:px-8">
@@ -220,7 +220,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </header>
           <main
             className={`flex-1 pt-[var(--ui-header-height)] ${
-              currentUser ? "xl:pl-[15rem]" : ""
+              currentUser ? "xl:pl-[16rem]" : ""
             }`}
           >
             {children}

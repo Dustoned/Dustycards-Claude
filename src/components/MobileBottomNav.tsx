@@ -323,7 +323,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
 
       <nav
         aria-label="Mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-violet-300/12 bg-[linear-gradient(180deg,rgba(12,10,16,0.88),rgba(7,7,7,0.94))] px-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_45px_rgba(0,0,0,0.46),0_-10px_42px_rgba(88,28,135,0.16)] backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-violet-300/12 bg-[linear-gradient(180deg,rgba(8,8,10,0.98),rgba(5,5,6,1))] px-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_45px_rgba(0,0,0,0.58),0_-10px_42px_rgba(88,28,135,0.14)] md:hidden"
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {PRIMARY_NAV_ITEMS.map((item) => {

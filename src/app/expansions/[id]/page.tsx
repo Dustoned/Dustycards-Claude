@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -578,7 +578,7 @@ export default async function ExpansionDetailPage({
         }
         accessory={
           <PriceHistoryPanel
-            compact
+            layout="dashboard"
             title={pricePanelTitle}
             currency="EUR"
             points={pricePanelPoints}
@@ -596,7 +596,7 @@ export default async function ExpansionDetailPage({
           prefetch={false}
           className={`rounded-[var(--ui-segment-radius)] border border-transparent px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
             activeTab === "cards"
-              ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+              ? "border-violet-400/40 bg-violet-600 text-white"
               : "text-white/55 hover:bg-white/[0.07] hover:text-white"
           }`}
         >
@@ -608,7 +608,7 @@ export default async function ExpansionDetailPage({
             prefetch={false}
             className={`rounded-[var(--ui-segment-radius)] border border-transparent px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
               activeTab === "sealed"
-                ? "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                ? "border-violet-400/40 bg-violet-600 text-white"
                 : "text-white/55 hover:bg-white/[0.07] hover:text-white"
             }`}
           >

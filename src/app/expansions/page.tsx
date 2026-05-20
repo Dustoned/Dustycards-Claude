@@ -237,37 +237,33 @@ export default async function ExpansionsPage() {
 
   return (
     <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
-      <section className="binder-panel relative mb-4 w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:mb-5 sm:p-4 lg:p-5">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
-          <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/10 p-[var(--ui-page-header-padding)]">
-            <div className="min-w-0">
-              <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
-                Dusty Cards Collection
-              </p>
-              <h1 className="mt-2 min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
-                Expansions
-              </h1>
-              <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
-                Browse released sets and upcoming sets. Upcoming sets stay empty until release; cards and prices appear after the next sync.
-              </p>
-            </div>
+      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
+            Expansions
+          </h1>
+          <p className="mt-1 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
+            Browse released and upcoming sets. Upcoming sets stay empty until release.
+          </p>
+        </div>
 
-            {settings.onePieceLibraryEnabled ? (
-              <div className="mt-[var(--ui-page-header-action-margin)]">
-                <GameFilterSwitch
-                  items={[
-                    { href: "/expansions", active: true, label: "Pokemon" },
-                    { href: "/one-piece/expansions", active: false, label: "One Piece" },
-                  ]}
-                  ariaLabel="Expansion library"
-                  className="max-w-[21rem]"
-                />
-              </div>
-            ) : null}
+        {settings.onePieceLibraryEnabled ? (
+          <div className="shrink-0 sm:ml-auto">
+            <GameFilterSwitch
+              items={[
+                { href: "/expansions", active: true, label: "Pokemon" },
+                { href: "/one-piece/expansions", active: false, label: "One Piece" },
+              ]}
+              ariaLabel="Expansion library"
+              className="max-w-[21rem]"
+            />
           </div>
+        ) : null}
+      </div>
 
-          <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+      <section className="mb-4 grid min-w-0 gap-3 sm:mb-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
+        <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
+          <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
             <ExpansionsOverviewChart
               episodeIds={visibleEpisodeIds}
               initialCurrentValue={overviewCurrentValue}
@@ -275,12 +271,12 @@ export default async function ExpansionsPage() {
               trackedCardCount={trackedCardCount}
             />
           </div>
+        </div>
 
-          <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
-            {headerStats.map((stat) => (
-              <HeaderStatCard key={stat.label} {...stat} />
-            ))}
-          </div>
+        <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3">
+          {headerStats.map((stat) => (
+            <HeaderStatCard key={stat.label} {...stat} />
+          ))}
         </div>
       </section>
 

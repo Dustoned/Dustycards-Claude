@@ -22,7 +22,7 @@ export interface PriceHistoryValuePoint {
 
 type Tone = "default" | "dark";
 type RangeKey = "1D" | "1W" | "1M" | "3M" | "6M" | "1Y" | "ALL";
-type Layout = "default" | "hero";
+type Layout = "default" | "hero" | "dashboard";
 
 interface Props {
   title: string;
@@ -64,8 +64,6 @@ const DEFAULT_RANGE_KEY: RangeKey = "3M";
 const RANGE_STORAGE_PREFIX = "dustycards:price-history-range";
 const RANGE_STORAGE_EVENT = "dustycards:price-history-range-change";
 const MOBILE_VIEWPORT_QUERY = "(max-width: 640px)";
-const ACTIVE_RANGE_CLASS =
-  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
 const rangeMemoryFallback = new Map<string, RangeKey>();
 const RANGE_PRESETS: Array<{
   key: RangeKey;
@@ -185,6 +183,16 @@ function getMobileViewportServerSnapshot() {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function formatCompactCurrencyLabel(value: number, currency: CurrencyCode): string {
+  const symbol = currency === "USD" ? "$" : "€";
+  const absolute = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (absolute >= 1_000_000) return `${sign}${symbol}${(absolute / 1_000_000).toFixed(1)}M`;
+  if (absolute >= 10_000) return `${sign}${symbol}${Math.round(absolute / 1_000)}K`;
+  if (absolute >= 1_000) return `${sign}${symbol}${(absolute / 1_000).toFixed(1)}K`;
+  return `${sign}${symbol}${Math.round(absolute)}`;
 }
 
 function formatDelta(value: number, currency: CurrencyCode): string {
@@ -328,6 +336,8 @@ function buildChart(
     plotTop,
     plotBottom,
     guideLines: [plotTop, plotTop + usableHeight / 2, plotBottom],
+    minValue: min,
+    maxValue: max,
   };
 }
 
@@ -372,23 +382,33 @@ export default function PriceHistoryPanel({
 }: Props) {
   const pathname = usePathname();
   const isHeroLayout = !compact && layout === "hero";
+  const isDashboardLayout = layout === "dashboard";
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
   const isMobileViewport = useSyncExternalStore(
     subscribeMobileViewport,
     getMobileViewportSnapshot,
     getMobileViewportServerSnapshot
   );
+  const isMobileHeroLayout = isMobileViewport && isHeroLayout;
   const axisHeight = isMobileViewport ? (compact ? 16 : 18) : compact ? 18 : 22;
-  const height = isMobileViewport
+  const baseHeight = isMobileViewport
     ? compact
-      ? 108
+      ? 140
       : isHeroLayout
-        ? 156
-        : 142
+        ? 118
+        : isDashboardLayout
+          ? 150
+          : 142
     : compact
-      ? 126
+      ? 220
       : isHeroLayout
         ? 188
-        : 168;
+        : isDashboardLayout
+          ? 160
+          : 168;
+  const height = isDashboardLayout && measuredHeight && measuredHeight > 100
+    ? measuredHeight
+    : baseHeight;
   const chartId = useId().replace(/:/g, "");
   const chartFrameRef = useRef<HTMLDivElement | null>(null);
   const [chartWidth, setChartWidth] = useState<number | null>(null);
@@ -482,15 +502,27 @@ export default function PriceHistoryPanel({
       );
     };
 
-    updateWidth(element.getBoundingClientRect().width);
+    const updateHeight = (nextHeight: number) => {
+      const normalizedHeight = Math.max(1, Math.round(nextHeight));
+      setMeasuredHeight((current) =>
+        current === normalizedHeight ? current : normalizedHeight
+      );
+    };
+
+    const rect = element.getBoundingClientRect();
+    updateWidth(rect.width);
+    updateHeight(rect.height);
     frameId = window.requestAnimationFrame(() => {
-      updateWidth(element.getBoundingClientRect().width);
+      const r = element.getBoundingClientRect();
+      updateWidth(r.width);
+      updateHeight(r.height);
     });
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
       updateWidth(entry.contentRect.width);
+      updateHeight(entry.contentRect.height);
     });
 
     observer.observe(element);
@@ -524,8 +556,9 @@ export default function PriceHistoryPanel({
   const showRangeControls = !hideRangeControls && fixedRange == null && parsedPoints.length > 1;
   const reserveDateSlot = visibleCoordinates.length > 0;
 
-  const shellClass =
-    tone === "dark"
+  const shellClass = isMobileHeroLayout
+    ? "rounded-[20px] border border-white/10 bg-[#101011] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
+    : tone === "dark"
       ? compact
         ? "rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3 max-[640px]:px-2.5 max-[640px]:py-2.5"
         : isHeroLayout
@@ -555,15 +588,16 @@ export default function PriceHistoryPanel({
     tone === "dark"
       ? "text-xs font-semibold uppercase tracking-[0.08em] text-white/50"
       : "text-xs font-semibold uppercase tracking-[0.08em] text-white/50";
-  const valueClass =
-    tone === "dark"
+  const valueClass = isMobileHeroLayout
+    ? "text-[2.1rem] font-bold leading-none text-white tabular-nums"
+    : tone === "dark"
       ? compact
-        ? "text-xl font-bold text-white tabular-nums"
+        ? "text-3xl font-bold text-white tabular-nums sm:text-[2.5rem]"
         : isHeroLayout
           ? "text-4xl font-bold text-white tabular-nums sm:text-[2.85rem]"
           : "text-2xl font-bold text-white tabular-nums"
       : compact
-        ? "text-xl font-bold text-white tabular-nums"
+        ? "text-3xl font-bold text-white tabular-nums sm:text-[2.5rem]"
         : isHeroLayout
           ? "text-4xl font-bold text-white tabular-nums sm:text-[2.85rem]"
           : "text-2xl font-bold text-white tabular-nums";
@@ -591,12 +625,12 @@ export default function PriceHistoryPanel({
     tone === "dark"
       ? "border-white/12 bg-[#0c0c0f]/92 text-white shadow-2xl shadow-black/35"
       : "border-white/10 bg-[#0c0c0f]/90 text-white shadow-xl shadow-black/35";
-  const accentStroke = currency === "USD" ? "#f59e0b" : "#10b981";
+  const accentStroke = currency === "USD" ? "#f59e0b" : "#8b5cf6";
   const accentFillStart =
-    currency === "USD" ? "rgba(245, 158, 11, 0.32)" : "rgba(16, 185, 129, 0.28)";
+    currency === "USD" ? "rgba(245, 158, 11, 0.32)" : "rgba(139, 92, 246, 0.28)";
   const accentFillEnd =
-    currency === "USD" ? "rgba(245, 158, 11, 0.02)" : "rgba(16, 185, 129, 0.02)";
-  const dotFill = currency === "USD" ? "#fbbf24" : "#34d399";
+    currency === "USD" ? "rgba(245, 158, 11, 0.02)" : "rgba(139, 92, 246, 0.02)";
+  const dotFill = currency === "USD" ? "#fbbf24" : "#a78bfa";
   const tooltipRawLeft = activeHover?.pointerX ?? activePoint?.x ?? measuredChartWidth / 2;
   const tooltipLeft = clamp(tooltipRawLeft, 12, Math.max(measuredChartWidth - 12, 12));
   const tooltipLeftRatio = measuredChartWidth > 0 ? tooltipLeft / measuredChartWidth : 0.5;
@@ -609,11 +643,15 @@ export default function PriceHistoryPanel({
       : tooltipLeftRatio >= 0.8
         ? "-translate-x-full"
         : "-translate-x-1/2";
-  const rangeButtonClass = compact
-    ? "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]"
-    : isHeroLayout
-      ? "min-h-[var(--ui-chip-min-height)] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]"
-      : "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]";
+  const rangeButtonClass = isDashboardLayout
+    ? "min-h-7 px-2.5 py-1 text-[12px]"
+    : compact
+      ? "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]"
+      : isMobileHeroLayout
+        ? "min-h-8 px-2.5 py-1 text-[11px]"
+      : isHeroLayout
+        ? "min-h-[var(--ui-chip-min-height)] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]"
+        : "min-h-[var(--ui-chip-count-min-height)] px-[var(--ui-chip-count-x)] py-[var(--ui-chip-count-y)] text-[length:var(--ui-chip-count-font-size)] max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:text-[11px]";
 
   function updateHoverState(event: ReactPointerEvent<SVGSVGElement>) {
     const pointerX = getPointerChartX(event, measuredChartWidth);
@@ -628,11 +666,218 @@ export default function PriceHistoryPanel({
     writeStoredRange(effectiveRangeStorageKeys, range);
   }
 
+  const rangeButtonsJsx = showRangeControls ? (
+    <div className={`flex flex-wrap items-center ${isMobileHeroLayout ? "gap-1" : isHeroLayout ? "gap-[var(--ui-chip-gap)]" : "gap-1"}`}>
+      {RANGE_PRESETS.map((range) => (
+        <button
+          key={range.key}
+          type="button"
+          onClick={() => selectRange(range.key)}
+          aria-pressed={selectedRange === range.key}
+          data-chart-range
+          data-active={selectedRange === range.key ? "true" : "false"}
+          className={`inline-flex items-center rounded-full font-semibold leading-none transition-colors ${rangeButtonClass} ${
+            selectedRange === range.key
+              ? "text-white"
+              : tone === "dark"
+                ? "text-white/55 hover:text-white/85"
+                : "text-white/55 hover:text-white"
+          }`}
+        >
+          {range.label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  const deltaJsx =
+    delta != null ? (
+      <div>
+        <p
+          className={`${
+            isDashboardLayout ? "text-base" : isMobileHeroLayout ? "text-sm" : isHeroLayout ? "text-lg" : "text-sm"
+          } font-semibold tabular-nums ${
+            delta >= 0
+              ? tone === "dark"
+                ? "text-emerald-300"
+                : "text-emerald-700 dark:text-emerald-300"
+              : tone === "dark"
+                ? "text-rose-300"
+                : "text-rose-700 dark:text-rose-300"
+          }`}
+        >
+          {formatDelta(delta, currency)}
+          {delta != null && delta !== 0 && currentValue ? (
+            <span className="ml-1.5">
+              ({delta >= 0 ? "+" : ""}
+              {((delta / Math.max(0.01, currentValue - delta)) * 100).toFixed(1)}%)
+            </span>
+          ) : null}
+        </p>
+        <p className={`${subtitleClass} mt-0.5`}>vs {selectedPreset.deltaText}</p>
+      </div>
+    ) : null;
+
+  if (isDashboardLayout) {
+    return (
+      <section className={shellClass}>
+        <div className="grid h-full min-w-0 gap-4 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6">
+          <div className="min-w-0 flex flex-col justify-center">
+            <p className="text-sm font-medium text-white/55">{title}</p>
+            <p className={`${valueClass} mt-1`}>{formatCurrency(displayedValue, currency)}</p>
+            {deltaJsx ? <div className="mt-2">{deltaJsx}</div> : null}
+          </div>
+          <div className="flex min-w-0 flex-col">
+            {showRangeControls && (
+              <div className="mb-3 flex justify-center">{rangeButtonsJsx}</div>
+            )}
+            {loading ? (
+              <div className={emptyClass}>Loading chart...</div>
+            ) : !hasDrawablePoints ? (
+              <div className={emptyClass}>{emptyText}</div>
+            ) : (
+              <div className="relative flex w-full min-w-0 flex-1 items-stretch gap-1.5">
+                <div ref={chartFrameRef} className="relative w-full min-w-0">
+                  {chart && (
+                  <>
+                    {activePoint && (
+                      <div
+                        className={`pointer-events-none absolute z-10 w-max max-w-[calc(100%-8px)] rounded-xl border px-2.5 py-2 text-left ${tooltipClass} ${tooltipAlignmentClass}`}
+                        style={{ left: tooltipLeft, top: tooltipTop }}
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-60">
+                          {formatPointDate(activePoint)}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold tabular-nums">
+                          {formatCurrency(activePoint.value, currency)}
+                        </p>
+                      </div>
+                    )}
+                    <svg
+                      viewBox={`0 0 ${measuredChartWidth} ${height}`}
+                      className="block w-full cursor-crosshair overflow-visible touch-pan-y select-none"
+                      style={{ height }}
+                      onPointerMove={updateHoverState}
+                      onPointerDown={updateHoverState}
+                      onPointerLeave={() => setActiveHover(null)}
+                    >
+                      <defs>
+                        <linearGradient id={`${chartId}-fill`} x1="0" x2="0" y1="0" y2="1">
+                          <stop offset="0%" stopColor={accentFillStart} />
+                          <stop offset="100%" stopColor={accentFillEnd} />
+                        </linearGradient>
+                        <filter id={`${chartId}-glow`} x="-20%" y="-20%" width="140%" height="140%">
+                          <feGaussianBlur stdDeviation="3" result="blur" />
+                          <feMerge>
+                            <feMergeNode in="blur" />
+                            <feMergeNode in="SourceGraphic" />
+                          </feMerge>
+                        </filter>
+                      </defs>
+                      {chart.guideLines.map((y) => (
+                        <line
+                          key={y}
+                          x1={CHART_PADDING_X}
+                          x2={measuredChartWidth - CHART_PADDING_X}
+                          y1={y}
+                          y2={y}
+                          strokeDasharray="4 5"
+                          className={gridLineClass}
+                        />
+                      ))}
+                      <path d={chart.areaPath} fill={`url(#${chartId}-fill)`} />
+                      <path
+                        d={chart.linePath}
+                        fill="none"
+                        stroke={accentStroke}
+                        strokeWidth="2.75"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        filter={isMobileViewport ? undefined : `url(#${chartId}-glow)`}
+                      />
+                      {activePoint && (
+                        <line
+                          x1={activePoint.x}
+                          x2={activePoint.x}
+                          y1={chart.plotTop}
+                          y2={chart.plotBottom}
+                          stroke={accentStroke}
+                          strokeOpacity="0.45"
+                          strokeDasharray="4 4"
+                        />
+                      )}
+                      {chart.coordinates.length > 1 && (
+                        <circle
+                          cx={chart.coordinates[chart.coordinates.length - 1].x}
+                          cy={chart.coordinates[chart.coordinates.length - 1].y}
+                          r="4"
+                          fill={dotFill}
+                        />
+                      )}
+                      {activePoint && (
+                        <circle
+                          cx={activePoint.x}
+                          cy={activePoint.y}
+                          r="5"
+                          fill={dotFill}
+                          stroke={tone === "dark" ? "#0c0c0f" : "#ffffff"}
+                          strokeWidth="2"
+                        />
+                      )}
+                      {axisTicks.map((tick, index) => {
+                        const anchor =
+                          index === 0
+                            ? "start"
+                            : index === axisTicks.length - 1
+                              ? "end"
+                              : "middle";
+                        return (
+                          <g key={`${tick.index}-${tick.label}`}>
+                            <line
+                              x1={tick.x}
+                              x2={tick.x}
+                              y1={chart.plotBottom}
+                              y2={chart.plotBottom + 5}
+                              className={gridLineClass}
+                            />
+                            <text
+                              x={tick.x}
+                              y={height - 4}
+                              className={axisLabelClass}
+                              fontSize="10.5"
+                              textAnchor={anchor}
+                            >
+                              {tick.label}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </>
+                  )}
+                </div>
+                {chart && (
+                  <div className="flex w-9 shrink-0 flex-col justify-between py-[2px] pb-7 text-right text-[10.5px] font-medium text-white/40" style={{ height }}>
+                    <span>{formatCompactCurrencyLabel(chart.maxValue, currency)}</span>
+                    <span>{formatCompactCurrencyLabel((chart.maxValue + chart.minValue) / 2, currency)}</span>
+                    <span>{formatCompactCurrencyLabel(chart.minValue, currency)}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className={shellClass}>
       <div
         className={
-          isHeroLayout
+          isMobileHeroLayout
+            ? "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2"
+            : isHeroLayout
             ? "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
             : "flex items-start justify-between gap-3"
         }
@@ -649,10 +894,14 @@ export default function PriceHistoryPanel({
         {(headerAccessory || delta != null || reserveDateSlot) && (
           <div
             className={`shrink-0 ${
-              isHeroLayout ? "sm:pt-1 text-left sm:text-right" : "text-right"
+              isMobileHeroLayout
+                ? "text-right"
+                : isHeroLayout
+                  ? "sm:pt-1 text-left sm:text-right"
+                  : "text-right"
             }`}
           >
-            <div className="flex min-w-[4.5rem] flex-col items-end gap-2">
+            <div className={`${isMobileHeroLayout ? "min-w-[4rem] gap-1.5" : "min-w-[4.5rem] gap-2"} flex flex-col items-end`}>
               {headerAccessory}
               {reserveDateSlot && (
                 <p
@@ -663,50 +912,15 @@ export default function PriceHistoryPanel({
                   {hoverDateText ?? "\u00A0"}
                 </p>
               )}
-              {delta != null && (
-                <div>
-                  <p
-                    className={`${isHeroLayout ? "text-lg" : "text-sm"} font-semibold tabular-nums ${
-                      delta >= 0
-                        ? tone === "dark"
-                          ? "text-emerald-300"
-                          : "text-emerald-700 dark:text-emerald-300"
-                        : tone === "dark"
-                          ? "text-rose-300"
-                          : "text-rose-700 dark:text-rose-300"
-                    }`}
-                  >
-                    {formatDelta(delta, currency)}
-                  </p>
-                  <p className={subtitleClass}>{selectedPreset.deltaText}</p>
-                </div>
-              )}
+              {deltaJsx}
             </div>
           </div>
         )}
       </div>
 
       {showRangeControls && (
-        <div className={compact ? "mt-3" : "mt-4"}>
-          <div className={`flex flex-wrap items-center ${isHeroLayout ? "gap-[var(--ui-chip-gap)]" : "gap-1"}`}>
-            {RANGE_PRESETS.map((range) => (
-              <button
-                key={range.key}
-                type="button"
-                onClick={() => selectRange(range.key)}
-                aria-pressed={selectedRange === range.key}
-                className={`inline-flex items-center rounded-full border font-semibold leading-none transition-colors ${rangeButtonClass} ${
-                  selectedRange === range.key
-                    ? ACTIVE_RANGE_CLASS
-                    : tone === "dark"
-                      ? "border-white/10 text-white/58 hover:border-white/18 hover:text-white/82"
-                      : "border-white/10 text-white/55 hover:border-white/18 hover:text-white"
-                }`}
-              >
-                {range.label}
-              </button>
-            ))}
-          </div>
+        <div className={isMobileHeroLayout ? "mt-3" : compact ? "mt-3" : "mt-4"}>
+          {rangeButtonsJsx}
         </div>
       )}
 
@@ -719,7 +933,7 @@ export default function PriceHistoryPanel({
           <div className={emptyClass}>{emptyText}</div>
         </div>
       ) : (
-        <div className={compact ? "mt-3" : "mt-5"}>
+        <div className={isMobileHeroLayout ? "mt-3" : compact ? "mt-3" : "mt-5"}>
           <div ref={chartFrameRef} className="relative w-full min-w-0">
             {!chart ? (
               <div className={emptyClass}>Loading chart...</div>

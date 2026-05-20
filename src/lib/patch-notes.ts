@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.1.0",
+    releasedAt: "May 20, 2026",
+    title: "Sharper dashboard and mobile polish",
+    summary: "DustyCards 3.1 tightens the portfolio dashboard, chart experience, page headers, sidebar, mobile card views, and card detail flow.",
+    tone: "improved",
+    highlights: [
+      "Rebuilt the home dashboard around a larger collection value chart, clearer ROI, spend, priced coverage, completion, item totals, featured cards, allocation, and top set progress.",
+      "Added a dedicated dashboard chart layout for collection, wants, movers, and expansion pages with cleaner range controls, compact value axis labels, percentage deltas, and better responsive sizing.",
+      "Simplified page headers across categories, deals, expansions, movers, wants, settings, and detail screens so stats and controls scan faster on desktop and mobile.",
+      "Polished the desktop sidebar, active states, dark background, and mobile scroll performance for a steadier app shell.",
+      "Cleaned up card grids and card detail views with lighter mobile image loading, steadier tile heights, violet selection states, denser mobile info cards, and a direct CardMarket action.",
+    ],
+  },
+  {
     version: "3.0.0",
     releasedAt: "May 19, 2026",
     title: "Premium collection UI overhaul",

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -172,7 +172,7 @@ export default function IllustratorGridClient({
             aria-pressed={activeGroup === "All"}
             className={`inline-flex h-8 min-w-12 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-bold transition-colors ${
               effectiveActiveGroup === "All"
-                ? "border-white/70 bg-white text-gray-950"
+                ? "border-violet-400/40 bg-violet-600 text-white"
                 : "border-transparent bg-transparent text-white/45 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
@@ -186,7 +186,7 @@ export default function IllustratorGridClient({
               aria-pressed={effectiveActiveGroup === group}
               className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full border px-2.5 text-xs font-bold transition-colors ${
                 effectiveActiveGroup === group
-                  ? "border-white/70 bg-white text-gray-950"
+                  ? "border-violet-400/40 bg-violet-600 text-white"
                   : "border-transparent bg-transparent text-white/45 hover:bg-white/[0.07] hover:text-white"
               }`}
             >

@@ -544,7 +544,7 @@ export default function ExpansionView({
     batchSize: isMobileViewport ? 24 : RENDERED_CARD_BATCH_SIZE,
     delayMs: 80,
   });
-  const eagerImageCount = isMobileViewport ? 4 : EAGER_IMAGE_COUNT;
+  const eagerImageCount = isMobileViewport ? 2 : EAGER_IMAGE_COUNT;
   const hasPendingRenderedCards = renderedCards.length < filtered.length;
 
   useEffect(() => {

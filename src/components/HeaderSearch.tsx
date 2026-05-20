@@ -252,7 +252,7 @@ export default function HeaderSearch() {
         }}
         className="dc-search-shell hidden min-w-0 flex-1 items-center justify-center lg:flex"
       >
-        <div className="flex h-[var(--ui-header-search-height)] w-full max-w-[var(--ui-header-search-max)] items-center rounded-full border border-white/10 bg-[#050505] px-3 shadow-none transition-colors focus-within:border-white/22">
+        <div className="flex h-[var(--ui-header-search-height)] w-full max-w-[var(--ui-header-search-max)] items-center rounded-full border border-white/10 bg-white/[0.04] px-3 shadow-none transition-colors focus-within:border-white/22">
           <button
             type="submit"
             aria-label="Search"
@@ -289,7 +289,7 @@ export default function HeaderSearch() {
             event.preventDefault();
             submitSearch(new FormData(event.currentTarget));
           }}
-          className="dc-search-shell absolute inset-x-3 top-1/2 z-[90] flex h-[calc(var(--ui-header-height)-0.65rem)] -translate-y-1/2 items-center gap-2 rounded-full border border-white/10 bg-[#050505] px-2 shadow-xl shadow-black/50 lg:hidden"
+          className="dc-search-shell absolute inset-x-3 top-1/2 z-[90] flex h-[calc(var(--ui-header-height)-0.65rem)] -translate-y-1/2 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2 shadow-xl shadow-black/50 lg:hidden"
         >
           <button
             type="button"

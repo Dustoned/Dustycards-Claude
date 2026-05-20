@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -200,7 +200,7 @@ function SealedMoverTile({
       aria-label={`Open sealed details for ${item.name}`}
       onClick={openDetails}
       onKeyDown={handleKeyDown}
-      className="group flex h-full cursor-pointer flex-col rounded-2xl border border-black/8 bg-white/72 p-3 shadow-sm shadow-black/5 transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+      className="group flex h-full cursor-pointer flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-sm shadow-black/5 transition hover:-translate-y-0.5 hover:border-white/16 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
     >
       <div className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-3 text-left">
         <span className="relative aspect-square w-full overflow-hidden rounded-xl bg-black/[0.035] dark:bg-black/24">
@@ -287,7 +287,7 @@ function SealedMoverTile({
         <Link
           href={`/deals?mode=sealed&productId=${encodeURIComponent(item.productId)}`}
           prefetch={false}
-          className="inline-flex items-center gap-1 rounded-lg border border-black/8 px-2.5 py-1.5 text-gray-700 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/70 dark:hover:bg-white/[0.05]"
+          className="inline-flex items-center gap-1 rounded-lg border border-black/8 px-2.5 py-1.5 text-white/75 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/70 dark:hover:bg-white/[0.05]"
           onClick={(event) => event.stopPropagation()}
         >
           Deals
@@ -401,13 +401,13 @@ export default function SealedMoversBrowser({ data }: Props) {
                   placeholder="Product, set, type"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  className="h-11 w-full rounded-xl border border-black/8 bg-white/78 pl-10 pr-10 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
+                  className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] pl-10 pr-10 text-sm text-white outline-none transition-colors placeholder:text-gray-400 focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:placeholder:text-white/28 dark:focus:border-white/14"
                 />
                 {search ? (
                   <button
                     type="button"
                     onClick={() => setSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-900 dark:text-white/35 dark:hover:text-white"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-white dark:text-white/35 dark:hover:text-white"
                     aria-label="Clear search"
                   >
                     <X className="h-4 w-4" />
@@ -423,7 +423,7 @@ export default function SealedMoversBrowser({ data }: Props) {
               <select
                 value={direction}
                 onChange={(event) => setDirection(event.target.value as DirectionFilter)}
-                className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
               >
                 <option className={SELECT_OPTION_CLASS} value="all">All moves</option>
                 <option className={SELECT_OPTION_CLASS} value="risers">Risers</option>
@@ -438,7 +438,7 @@ export default function SealedMoversBrowser({ data }: Props) {
               <select
                 value={sortKey}
                 onChange={(event) => setSortKey(event.target.value as SealedSortKey)}
-                className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
               >
                 {sortOptions.map((option) => (
                   <option className={SELECT_OPTION_CLASS} key={option.key} value={option.key}>
@@ -455,7 +455,7 @@ export default function SealedMoversBrowser({ data }: Props) {
               <select
                 value={focusFilter}
                 onChange={(event) => setFocusFilter(event.target.value as SealedFocusFilter)}
-                className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
               >
                 <option className={SELECT_OPTION_CLASS} value="all">Everything</option>
                 <option className={SELECT_OPTION_CLASS} value="entry">Entry &lt;= 75</option>
@@ -470,7 +470,7 @@ export default function SealedMoversBrowser({ data }: Props) {
               <select
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-11 w-full rounded-xl border border-black/8 bg-white/78 px-3 text-sm font-semibold text-gray-900 outline-none transition-colors focus:border-black/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
               >
                 <option className={SELECT_OPTION_CLASS} value="all">All types</option>
                 {categoryOptions.map((option) => (
@@ -485,7 +485,7 @@ export default function SealedMoversBrowser({ data }: Props) {
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="h-11 rounded-xl border border-black/8 bg-white/78 px-4 text-sm font-semibold text-gray-600 transition-colors hover:border-black/14 hover:text-gray-900 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/62 dark:hover:border-white/16 dark:hover:text-white"
+                className="h-11 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/62 transition-colors hover:border-white/16 hover:text-white dark:border-white/8 dark:bg-white/[0.05] dark:text-white/62 dark:hover:border-white/16 dark:hover:text-white"
               >
                 Reset
               </button>
@@ -495,7 +495,7 @@ export default function SealedMoversBrowser({ data }: Props) {
 
         {visibleMovers.length === 0 ? (
           <div className="rounded-[24px] border border-black/8 bg-black/[0.03] p-8 text-center dark:border-white/8 dark:bg-white/[0.04]">
-            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+            <p className="text-lg font-semibold text-white dark:text-white">
               No sealed market moves found
             </p>
             <p className="mt-2 text-sm text-gray-500 dark:text-white/48">

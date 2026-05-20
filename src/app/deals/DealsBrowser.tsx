@@ -1089,73 +1089,66 @@ export default function DealsBrowser() {
   return (
     <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
       <div className="flex w-full flex-col gap-3 sm:gap-5">
-        <section className="binder-panel rounded-2xl px-4 py-4 sm:px-5 sm:py-5">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(520px,1.1fr)] xl:items-end">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/36">
-                Market scan
-              </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                eBay Deals
-              </h1>
-              {referenceLabel !== "No DustyCards price" && (
-                <p className="mt-2 text-sm font-semibold text-white/45">
-                  Reference: {referenceLabel}
-                </p>
-              )}
-            </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
+            eBay Deals
+          </h1>
+          {referenceLabel !== "No DustyCards price" && (
+            <p className="text-[length:var(--ui-page-header-description-size)] font-medium text-white/52">
+              Reference: {referenceLabel}
+            </p>
+          )}
+        </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-2xl border border-emerald-400/14 bg-emerald-400/[0.06] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200/65">
-                  Best
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-                  {bestListing?.total.valueEur != null
-                    ? formatCurrency(bestListing.total.valueEur, "EUR")
-                    : "--"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-sky-400/14 bg-sky-400/[0.06] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-200/65">
-                  Delta
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-                  {bestListing?.discountPercent != null
-                    ? formatPercent(bestListing.discountPercent)
-                    : "--"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-violet-400/14 bg-violet-400/[0.06] px-4 py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-200/65">
-                  Listings
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-                  {visibleData.listings.length.toLocaleString("en-US")}
-                </p>
-              </div>
-              <div className={`rounded-2xl border px-4 py-3 ${rateLimitToneClass(rateLimit)}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">
-                  eBay API left
-                </p>
-                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
-                  {rateLimitLoading ? "--" : formatInteger(rateLimit?.summary?.remaining)}
-                </p>
-                <p className="mt-1 truncate text-[11px] font-semibold text-white/45">
-                  {rateLimitError
-                    ? "Limit unavailable"
-                    : rateLimit?.configured === false
-                      ? "Keys missing"
-                      : rateLimit?.summary?.limit != null
-                        ? `of ${formatInteger(rateLimit.summary.limit)} / ${formatResetTime(
-                            rateLimit.summary.reset
-                          )}`
-                        : "Limit unknown"}
-                </p>
-              </div>
-            </div>
+        <div className="grid gap-2 sm:gap-3 grid-cols-2 sm:grid-cols-4">
+          <div className="rounded-2xl border border-emerald-400/14 bg-emerald-400/[0.06] px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200/65">
+              Best
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
+              {bestListing?.total.valueEur != null
+                ? formatCurrency(bestListing.total.valueEur, "EUR")
+                : "--"}
+            </p>
           </div>
-        </section>
+          <div className="rounded-2xl border border-sky-400/14 bg-sky-400/[0.06] px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-200/65">
+              Delta
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
+              {bestListing?.discountPercent != null
+                ? formatPercent(bestListing.discountPercent)
+                : "--"}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-violet-400/14 bg-violet-400/[0.06] px-4 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-violet-200/65">
+              Listings
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
+              {visibleData.listings.length.toLocaleString("en-US")}
+            </p>
+          </div>
+          <div className={`rounded-2xl border px-4 py-3 ${rateLimitToneClass(rateLimit)}`}>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55">
+              eBay API left
+            </p>
+            <p className="mt-1 text-2xl font-bold tabular-nums text-white">
+              {rateLimitLoading ? "--" : formatInteger(rateLimit?.summary?.remaining)}
+            </p>
+            <p className="mt-1 truncate text-[11px] font-semibold text-white/45">
+              {rateLimitError
+                ? "Limit unavailable"
+                : rateLimit?.configured === false
+                  ? "Keys missing"
+                  : rateLimit?.summary?.limit != null
+                    ? `of ${formatInteger(rateLimit.summary.limit)} / ${formatResetTime(
+                        rateLimit.summary.reset
+                      )}`
+                    : "Limit unknown"}
+            </p>
+          </div>
+        </div>
 
         <form
           onSubmit={submitSearch}

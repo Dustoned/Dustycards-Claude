@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { ArrowDownRight, ChevronDown, Clock3, Gem, SlidersHorizontal, Sparkles, TrendingUp } from "lucide-react";
 import CollectionValueDrivers from "@/components/CollectionValueDrivers";
 import GameFilterSwitch, { SegmentedNavLinks } from "@/components/GameFilterSwitch";
@@ -67,7 +67,7 @@ function CompactFilterGroup({
             aria-current={item.active ? "page" : undefined}
             className={`inline-flex h-7 min-w-0 items-center justify-center rounded-full px-1 text-[9.5px] font-bold leading-none transition-colors min-[390px]:text-[10px] ${
               item.active
-                ? "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                ? "border border-violet-400/40 bg-violet-600 text-white"
                 : "text-white/58 hover:bg-white/[0.07] hover:text-white"
             }`}
           >
@@ -577,29 +577,23 @@ export default async function MoversPage({
       className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8"
     >
       <div className="flex w-full flex-col gap-5 sm:gap-6">
-        <section className="binder-panel relative overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-          <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(17rem,0.66fr)_minmax(0,1.05fr)] xl:grid-cols-[minmax(18rem,0.62fr)_minmax(0,1fr)_minmax(21rem,0.7fr)] xl:items-stretch">
-            <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/10 p-[var(--ui-page-header-padding)]">
-              <div className="min-w-0">
-                <p className="min-w-0 text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
-                  {modeCopy.eyebrow}
-                </p>
-                <h1 className="mt-2 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
-                  {modeCopy.title}
-                </h1>
-                <p className="mt-3 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/56">
-                  {activeMode === "raw" || activeMode === "graded"
-                    ? trendCopy.description
-                    : modeCopy.description}
-                </p>
-              </div>
-            </div>
+        <div className="min-w-0">
+          <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
+            {modeCopy.title}
+          </h1>
+          <p className="mt-1 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
+            {activeMode === "raw" || activeMode === "graded"
+              ? trendCopy.description
+              : modeCopy.description}
+          </p>
+        </div>
 
-            <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
+        <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
+          <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
+            <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
               {pulseChart ? (
                 <PriceHistoryPanel
-                  compact
+                  layout="dashboard"
                   title={pulseChart.title}
                   currency={pulseChart.currency}
                   points={pulseChart.points}
@@ -610,17 +604,17 @@ export default async function MoversPage({
                   rangeStorageKey={`movers-${activeMode}-${activeItemScope}`}
                 />
               ) : (
-                <section className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/8 bg-white/[0.04] text-sm font-semibold text-white/35">
+                <div className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] items-center justify-center text-sm font-semibold text-white/35">
                   Not enough market history yet
-                </section>
+                </div>
               )}
             </div>
+          </div>
 
-            <div className="grid min-w-0 grid-cols-2 gap-2 lg:col-span-2 xl:col-span-1 xl:auto-rows-fr">
-              {metrics.map((metric) => (
-                <HeaderStatCard key={metric.label} {...metric} />
-              ))}
-            </div>
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3">
+            {metrics.map((metric) => (
+              <HeaderStatCard key={metric.label} {...metric} />
+            ))}
           </div>
         </section>
 

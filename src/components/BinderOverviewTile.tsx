@@ -162,11 +162,11 @@ export default function BinderOverviewTile({
           {progressWidth ? (
             <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
               <div
-                className="h-full rounded-full bg-emerald-500"
+                className="h-full rounded-full bg-violet-500"
                 style={{
                   width: progressWidth,
                   background: accentColor
-                    ? `linear-gradient(90deg, ${accentColor}, #34d399)`
+                    ? `linear-gradient(90deg, ${accentColor}, #a78bfa)`
                     : undefined,
                 }}
               />

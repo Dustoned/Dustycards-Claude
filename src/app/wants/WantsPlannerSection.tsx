@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   type CSSProperties,
@@ -97,7 +97,7 @@ const QUICK_VIEW_FILTERS: Array<{ key: QuickViewFilterKey; label: string }> = [
 ];
 
 const ACTIVE_SEGMENT_CLASS =
-  "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+  "border border-violet-400/40 bg-violet-600 text-white";
 
 function compareWantCardNumbers(a: CollectionCardViewItem, b: CollectionCardViewItem): number {
   const numberDiff = cardNumberCollator.compare(
@@ -163,7 +163,7 @@ function QuickViewSortControl({
       <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-white/32 max-[640px]:mb-0 max-[640px]:text-[8px] max-[640px]:tracking-[0.1em]">
         Sort
       </p>
-      <div className="grid max-w-full grid-cols-3 items-center gap-1 rounded-2xl border border-white/10 bg-black/20 p-1">
+      <div className="grid max-w-full grid-cols-3 items-center gap-1 rounded-2xl border border-white/12 bg-[#050506]/85 p-1">
         {QUICK_VIEW_SORTS.map((option) => {
           const active = sortField === option.key;
           return (
@@ -209,7 +209,7 @@ function QuickViewSegmentedControl<TValue extends string>({
         {label}
       </p>
       <div
-        className="grid max-w-full items-center gap-1 rounded-2xl border border-white/10 bg-black/20 p-1"
+        className="grid max-w-full items-center gap-1 rounded-2xl border border-white/12 bg-[#050506]/85 p-1"
         style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
       >
         {options.map((option) => {
@@ -250,7 +250,7 @@ function PlannerCardRow({
     item.current_value == null ? "No price" : formatCollectionCurrency(item.current_value);
 
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.25rem] items-center gap-2.5 rounded-xl border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] px-2 py-2 shadow-[0_10px_24px_rgba(0,0,0,0.22)] sm:px-2.5">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.25rem] items-center gap-2.5 rounded-xl border border-white/12 bg-[#111114]/96 px-2 py-2 shadow-[0_14px_30px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors hover:border-white/18 hover:bg-[#151518]/98 sm:px-2.5">
       <button
         type="button"
         onClick={() => onOpenCard(item)}
@@ -258,7 +258,7 @@ function PlannerCardRow({
         className="grid min-w-0 grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-2.5 rounded-lg text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-emerald-400/45 disabled:cursor-wait disabled:opacity-60 sm:grid-cols-[5rem_minmax(0,1fr)]"
         title={`Open ${item.name}`}
       >
-        <span className="flex h-[5.8rem] w-[4.15rem] items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-black/28 shadow-sm shadow-black/25 sm:h-[6.75rem] sm:w-[4.85rem]">
+        <span className="flex h-[5.8rem] w-[4.15rem] items-center justify-center overflow-hidden rounded-lg border border-white/12 bg-[#050506]/85 shadow-sm shadow-black/35 sm:h-[6.75rem] sm:w-[4.85rem]">
           {item.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -277,15 +277,15 @@ function PlannerCardRow({
               {item.name}
             </span>
             {cardNumber ? (
-              <span className="shrink-0 rounded-full border border-emerald-400/18 bg-emerald-400/[0.10] px-2 py-1 text-[11px] font-black leading-none tracking-tight text-emerald-700 dark:text-emerald-200">
+              <span className="shrink-0 rounded-full border border-emerald-400/22 bg-emerald-400/[0.12] px-2 py-1 text-[11px] font-black leading-none tracking-tight text-emerald-100">
                 {cardNumber}
               </span>
             ) : null}
           </span>
-        <span className="mt-1 block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-white/38 sm:text-[10.5px]">
+        <span className="mt-1 block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-white/56 sm:text-[10.5px]">
           {item.rarity || item.supertype || "Missing card"}
         </span>
-        <span className="mt-1 block truncate text-[11px] font-semibold text-white/50">
+        <span className="mt-1 block truncate text-[11px] font-semibold text-white/74">
           {priceLabel}
         </span>
         </span>
@@ -295,7 +295,7 @@ function PlannerCardRow({
           type="button"
           onClick={() => onAddToBinder(item.card_id)}
           disabled={disabled}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-400/18 bg-emerald-400/[0.10] text-emerald-200 transition-colors hover:border-emerald-400/35 hover:bg-emerald-400/[0.16] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-400/24 bg-emerald-400/[0.14] text-emerald-100 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/[0.20] disabled:cursor-not-allowed disabled:opacity-50"
           title="Add to binder"
           aria-label={`Add ${item.name} to binder`}
         >
@@ -372,7 +372,7 @@ function BinderQuickViewBody({
           </div>
         </div>
 
-        <div className="grid gap-1.5 rounded-2xl border border-white/10 bg-black/14 p-2 sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="grid gap-1.5 rounded-2xl border border-white/12 bg-[#0d0d10]/95 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:gap-2 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <QuickViewSortControl
             sortField={sortField}
             sortDirection={sortDirection}
@@ -403,7 +403,7 @@ function BinderQuickViewBody({
           ))}
         </div>
       ) : (
-        <p className="mt-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-sm text-white/48">
+        <p className="mt-2 rounded-xl border border-white/10 bg-[#101012]/95 px-3 py-2 text-sm text-white/64">
           No cards match these quick view filters.
         </p>
       )}
@@ -428,17 +428,17 @@ function BinderSearchMatches({
   const hiddenCount = Math.max(group.items.length - visibleItems.length, 0);
 
   return (
-    <div className="rounded-2xl border border-emerald-400/22 bg-emerald-400/[0.075] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+    <div className="rounded-2xl border border-emerald-400/24 bg-[#081411]/96 p-2.5 shadow-[0_14px_32px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.06)]">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-200">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">
             Match in binder
           </p>
-          <p className="truncate text-[11px] font-semibold text-gray-500 dark:text-white/48">
+          <p className="truncate text-[11px] font-semibold text-white/60">
             {group.name}
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/[0.12] px-2 py-1 text-[10px] font-black leading-none text-emerald-700 dark:text-emerald-200">
+        <span className="shrink-0 rounded-full border border-emerald-400/24 bg-emerald-400/[0.14] px-2 py-1 text-[10px] font-black leading-none text-emerald-100">
           {group.items.length.toLocaleString("en-US")}
         </span>
       </div>
@@ -460,7 +460,7 @@ function BinderSearchMatches({
           type="button"
           onClick={onShowAll}
           disabled={disabled}
-          className="mt-2 inline-flex h-8 w-full items-center justify-center rounded-xl border border-emerald-400/18 bg-emerald-400/[0.08] text-[12px] font-bold text-emerald-700 transition-colors hover:border-emerald-400/32 hover:bg-emerald-400/[0.13] disabled:cursor-not-allowed disabled:opacity-50 dark:text-emerald-200"
+          className="mt-2 inline-flex h-8 w-full items-center justify-center rounded-xl border border-emerald-400/24 bg-emerald-400/[0.12] text-[12px] font-bold text-emerald-100 transition-colors hover:border-emerald-400/38 hover:bg-emerald-400/[0.18] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Show {hiddenCount.toLocaleString("en-US")} more in quick view
         </button>
@@ -784,7 +784,7 @@ function WantBinderTile({
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
               <div
-                className="h-full rounded-full bg-emerald-500"
+                className="h-full rounded-full bg-violet-500"
                 style={{
                   width: progressWidth(group),
                   background: accentColor

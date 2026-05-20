@@ -190,14 +190,14 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   );
   const desktopWorkspaceStyle = {
     maxWidth: displaySettings.widescreen
-      ? "min(100%, 176rem)"
+      ? "min(100%, 142rem)"
       : `min(100%, ${layout.maxW})`,
   };
   const desktopGridClass = displaySettings.widescreen
-    ? "grid gap-6 xl:grid-cols-[minmax(22rem,0.82fr)_minmax(28rem,1fr)] xl:items-start 2xl:grid-cols-[minmax(23rem,0.76fr)_minmax(24rem,0.86fr)_minmax(30rem,1.08fr)] 2xl:gap-7"
+    ? "grid justify-center gap-7 xl:grid-cols-[minmax(24rem,31rem)_minmax(30rem,36rem)] xl:items-start 2xl:grid-cols-[minmax(26rem,38rem)_minmax(28rem,36rem)_minmax(36rem,48rem)] 2xl:gap-8"
     : "grid gap-6 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)]";
   const desktopPreviewClass = displaySettings.widescreen
-    ? "xl:row-span-2 2xl:row-span-1 2xl:justify-self-center"
+    ? "xl:row-span-2 xl:justify-self-end 2xl:row-span-1"
     : "lg:row-span-2 2xl:row-span-1";
   const desktopHistoryClass = displaySettings.widescreen
     ? "min-w-0 xl:col-start-2 2xl:col-start-auto"
@@ -466,7 +466,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   return (
     <>
       <div
-        className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#050505] px-0 py-0 sm:bg-black/72 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:backdrop-blur-[14px] md:block md:bg-[#050505] md:p-0 md:backdrop-blur-none xl:left-[15rem]"
+        className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#08080c] px-0 py-0 sm:bg-black/72 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-[calc(1rem+env(safe-area-inset-bottom))] sm:backdrop-blur-[14px] md:block md:bg-[#08080c] md:p-0 md:backdrop-blur-none xl:left-[16rem]"
         style={{ overscrollBehavior: "contain" }}
         onClick={onClose}
       >
@@ -495,6 +495,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                 cardMarketHistory={cardMarketHistory}
                 activeCardMarketCurrentValue={activeCardMarketCurrentValue}
                 activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
+                storedCardMarketUrl={storedCardMarketUrl}
                 canManageCardPrices={canManageCardPrices}
                 isBusy={isBusy}
                 refreshing={refreshing}
@@ -502,6 +503,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                 removingCollectionItem={removingCollectionItem}
                 onClose={onClose}
                 onOpenThreeD={openThreeDView}
+                onOpenCardMarket={openCardMarket}
                 onRefresh={() => void runCardAction("refresh")}
                 onSyncHistory={() => void runCardAction("sync-history")}
                 onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
@@ -557,7 +559,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                     card={modalCard}
                     mediaWidth={
                       displaySettings.widescreen
-                        ? "clamp(22rem, 20vw, 32rem)"
+                        ? "clamp(26rem, 21vw, 38rem)"
                         : layout.mediaWidth
                     }
                     imageSize={layout.imageSize}

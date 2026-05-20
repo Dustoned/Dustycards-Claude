@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -51,7 +51,7 @@ const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel")
 });
 
 const ACTIVE_SEGMENT_CLASS =
-  "border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]";
+  "border-violet-400/40 bg-violet-600 text-white";
 
 interface PriceMetric {
   label: string;
@@ -743,8 +743,8 @@ function MobileInfoRow({
   value: ReactNode;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3 border-b border-white/[0.07] py-3 last:border-b-0">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-white/68">
+    <div className="flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-white/10 bg-[#0b0b0d] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white/68">
         {icon}
       </span>
       <div className="min-w-0">
@@ -768,6 +768,7 @@ export function CardModalMobileShowcase({
   cardMarketHistory,
   activeCardMarketCurrentValue,
   activeCardMarketSeriesLabel,
+  storedCardMarketUrl,
   canManageCardPrices,
   isBusy,
   refreshing,
@@ -775,6 +776,7 @@ export function CardModalMobileShowcase({
   removingCollectionItem,
   onClose,
   onOpenThreeD,
+  onOpenCardMarket,
   onRefresh,
   onSyncHistory,
   onRemoveCollectionItem,
@@ -790,6 +792,7 @@ export function CardModalMobileShowcase({
   cardMarketHistory: HistoryPointView[];
   activeCardMarketCurrentValue: number | null;
   activeCardMarketSeriesLabel: string;
+  storedCardMarketUrl: string | null;
   canManageCardPrices: boolean;
   isBusy: boolean;
   refreshing: boolean;
@@ -797,6 +800,7 @@ export function CardModalMobileShowcase({
   removingCollectionItem: boolean;
   onClose: () => void;
   onOpenThreeD: () => void;
+  onOpenCardMarket: () => void;
   onRefresh: () => void;
   onSyncHistory: () => void;
   onRemoveCollectionItem: () => void;
@@ -999,11 +1003,6 @@ export function CardModalMobileShowcase({
           )}
         </div>
 
-        <div className="mt-2.5 flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-violet-400 shadow-[0_0_18px_rgba(168,85,247,0.8)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-white/18" />
-          <span className="h-2.5 w-2.5 rounded-full bg-white/18" />
-        </div>
       </div>
 
       <div className="relative z-10 mt-4">
@@ -1034,15 +1033,15 @@ export function CardModalMobileShowcase({
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] gap-3">
-          <div className="rounded-[18px] border border-white/10 bg-white/[0.045] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <div className="mt-4 grid grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] gap-2.5">
+          <div className="rounded-[18px] border border-white/10 bg-[#0b0b0d] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+            <div className="flex items-start justify-between gap-2">
               <p className="text-[1.55rem] font-bold leading-none tabular-nums text-white min-[390px]:text-[1.7rem]">
                 {formatCurrency(activeCardMarketCurrentValue, "EUR")}
               </p>
               {priceDeltaLabel && (
                 <p
-                  className={`text-base font-semibold tabular-nums ${
+                  className={`shrink-0 pt-1 text-sm font-semibold tabular-nums ${
                     priceDeltaPositive ? "text-emerald-300" : "text-rose-300"
                   }`}
                 >
@@ -1050,12 +1049,10 @@ export function CardModalMobileShowcase({
                 </p>
               )}
             </div>
-            <p className="mt-2 truncate text-[13px] font-medium text-white/48">
-              CardMarket · 7d avg {formatCurrency(average7d, "EUR")}
-            </p>
+            <p className="mt-2 truncate text-[12px] font-medium text-white/48">CardMarket</p>
           </div>
 
-          <div className="rounded-[18px] border border-white/10 bg-white/[0.045] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+          <div className="rounded-[18px] border border-white/10 bg-[#0b0b0d] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
             <div className="flex items-center justify-between gap-1.5 border-b border-white/[0.07] pb-2">
               <p className="shrink-0 whitespace-nowrap text-[13px] font-medium text-white/46">
                 7d avg
@@ -1083,7 +1080,7 @@ export function CardModalMobileShowcase({
               onClick={() => setActiveTab(tab.key)}
               className={`relative min-h-10 min-w-0 rounded-xl px-2 transition-colors ${
                 activeTab === tab.key
-                  ? "bg-white text-gray-950 shadow-[0_12px_26px_rgba(255,255,255,0.08)]"
+                  ? "bg-violet-600 text-white"
                   : "hover:bg-white/[0.06] hover:text-white/78"
               }`}
             >
@@ -1093,67 +1090,62 @@ export function CardModalMobileShowcase({
         </nav>
 
         {showOverview && (
-          <div className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div className="grid grid-cols-2 gap-x-5">
-              <div className="min-w-0">
-                <MobileInfoRow
-                  icon={<Sparkles className="h-4 w-4" />}
-                  label="Set"
-                  value={
+          <div className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="grid grid-cols-2 gap-2">
+              <MobileInfoRow
+                icon={<Sparkles className="h-4 w-4" />}
+                label="Set"
+                value={
+                  <Link
+                    href={getExpansionHref(card.episode_id)}
+                    prefetch={false}
+                    onClick={onClose}
+                    className="inline-flex max-w-full items-center gap-1 text-white transition-colors hover:text-violet-100"
+                  >
+                    <span className="line-clamp-2 min-w-0">{card.episode_name}</span>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/34" />
+                  </Link>
+                }
+              />
+              <MobileInfoRow
+                icon={<UserRound className="h-4 w-4" />}
+                label="Artist"
+                value={
+                  card.artist ? (
                     <Link
-                      href={getExpansionHref(card.episode_id)}
+                      href={`/illustrators/${encodeURIComponent(card.artist)}`}
                       prefetch={false}
                       onClick={onClose}
                       className="inline-flex max-w-full items-center gap-1 text-white transition-colors hover:text-violet-100"
                     >
-                      <span className="line-clamp-2 min-w-0">{card.episode_name}</span>
+                      <span className="line-clamp-2 min-w-0">{card.artist}</span>
                       <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/34" />
                     </Link>
-                  }
-                />
-                <MobileInfoRow
-                  icon={<BadgeEuro className="h-4 w-4" />}
-                  label="Pull odds"
-                  value={<span className="tabular-nums">{pullOdds}</span>}
-                />
-                <MobileInfoRow
-                  icon={<ShoppingCart className="h-4 w-4" />}
-                  label="Overall spend"
-                  value={formatCurrency(overallSpend, "EUR")}
-                />
-              </div>
-
-              <div className="min-w-0 border-l border-white/[0.07] pl-5">
-                <MobileInfoRow
-                  icon={<UserRound className="h-4 w-4" />}
-                  label="Artist"
-                  value={
-                    card.artist ? (
-                      <Link
-                        href={`/illustrators/${encodeURIComponent(card.artist)}`}
-                        prefetch={false}
-                        onClick={onClose}
-                        className="inline-flex max-w-full items-center gap-1 text-white transition-colors hover:text-violet-100"
-                      >
-                        <span className="line-clamp-2 min-w-0">{card.artist}</span>
-                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-white/34" />
-                      </Link>
-                    ) : (
-                      "--"
-                    )
-                  }
-                />
-                <MobileInfoRow
-                  icon={<Star className="h-4 w-4" />}
-                  label="Rarity"
-                  value={normalizedRarity ?? "--"}
-                />
-                <MobileInfoRow
-                  icon={<Globe2 className="h-4 w-4" />}
-                  label="Language"
-                  value={language}
-                />
-              </div>
+                  ) : (
+                    "--"
+                  )
+                }
+              />
+              <MobileInfoRow
+                icon={<BadgeEuro className="h-4 w-4" />}
+                label="Pull odds"
+                value={<span className="tabular-nums">{pullOdds}</span>}
+              />
+              <MobileInfoRow
+                icon={<Star className="h-4 w-4" />}
+                label="Rarity"
+                value={normalizedRarity ?? "--"}
+              />
+              <MobileInfoRow
+                icon={<ShoppingCart className="h-4 w-4" />}
+                label="Overall spend"
+                value={formatCurrency(overallSpend, "EUR")}
+              />
+              <MobileInfoRow
+                icon={<Globe2 className="h-4 w-4" />}
+                label="Language"
+                value={language}
+              />
             </div>
           </div>
         )}
@@ -1179,7 +1171,7 @@ export function CardModalMobileShowcase({
         )}
 
         {showChart && (
-          <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.035] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
             <PriceHistoryPanel
               title="Price History"
               currency="EUR"
@@ -1198,7 +1190,7 @@ export function CardModalMobileShowcase({
         )}
       </div>
 
-      <div className="relative z-10 mt-4 rounded-[22px] border border-white/10 bg-white/[0.035] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]">
         <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
           <CollectionAddCardButton
             card={collectionCard}
@@ -1217,14 +1209,26 @@ export function CardModalMobileShowcase({
             wantItemId={card.want_item?.id ?? null}
             className="!min-h-12 !rounded-2xl !border-white/10 !bg-white/[0.065] !px-2 !text-[13px] !font-bold"
           />
-          <Link
-            href={`/deals?cardId=${encodeURIComponent(card.id)}`}
-            prefetch={false}
-            className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.065] px-2 text-center text-[13px] font-bold text-white transition-colors hover:border-white/18 hover:bg-white/[0.1]"
-          >
-            <ShoppingCart className="h-4 w-4 shrink-0" />
-            <span>Listings</span>
-          </Link>
+          {storedCardMarketUrl ? (
+            <a
+              href={storedCardMarketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.065] px-2 text-center text-[13px] font-bold text-white transition-colors hover:border-white/18 hover:bg-white/[0.1]"
+            >
+              <ExternalLink className="h-4 w-4 shrink-0" />
+              <span>CardMarket</span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={onOpenCardMarket}
+              className="inline-flex min-h-12 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.065] px-2 text-center text-[13px] font-bold text-white transition-colors hover:border-white/18 hover:bg-white/[0.1]"
+            >
+              <ExternalLink className="h-4 w-4 shrink-0" />
+              <span>CardMarket</span>
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1368,7 +1372,7 @@ export function CardModalHeroSection({
     <section className="min-w-0 py-1 text-white">
       <div className="min-w-0">
         <div className="min-w-0">
-          <h2 className={`${titleClass} !text-[2rem] font-bold leading-tight tracking-[-0.01em] text-white`}>
+          <h2 className={`${titleClass} !text-[2rem] font-bold leading-tight tracking-[-0.01em] text-white 2xl:!text-[2.35rem]`}>
             {card.name}
           </h2>
 
@@ -1409,14 +1413,14 @@ export function CardModalHeroSection({
 
       </div>
 
-      <div className="mt-5 grid border-y border-white/[0.08]">
+      <div className="mt-5 grid border-y border-white/[0.08] 2xl:mt-6">
         {desktopDetailStats.map((stat) => (
           <div
             key={stat.label}
-            className="grid min-w-0 grid-cols-[7.2rem_minmax(0,1fr)] items-center gap-4 border-b border-white/[0.07] py-3 last:border-b-0"
+            className="grid min-w-0 grid-cols-[7.2rem_minmax(0,1fr)] items-center gap-4 border-b border-white/[0.07] py-3 last:border-b-0 2xl:grid-cols-[8.2rem_minmax(0,1fr)] 2xl:py-3.5"
           >
-            <p className="text-sm font-medium text-white/42">{stat.label}</p>
-            <div className="min-w-0 text-sm font-semibold leading-snug text-white/88 [&_*]:max-w-full">
+            <p className="text-sm font-medium text-white/42 2xl:text-[0.95rem]">{stat.label}</p>
+            <div className="min-w-0 text-sm font-semibold leading-snug text-white/88 2xl:text-[0.95rem] [&_*]:max-w-full">
               {stat.value}
             </div>
           </div>

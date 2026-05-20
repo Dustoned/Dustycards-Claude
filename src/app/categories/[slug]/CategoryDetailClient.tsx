@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -232,7 +232,7 @@ export default function CategoryDetailClient({
 
           <div className="min-w-0 lg:min-h-[var(--ui-dashboard-header-panel-min-height)] [&>section]:h-full">
             <PriceHistoryPanel
-              compact
+              layout="dashboard"
               title={showingFilteredSubset ? "Filtered Category Value" : "Category Value"}
               currency="EUR"
               points={chartPoints}

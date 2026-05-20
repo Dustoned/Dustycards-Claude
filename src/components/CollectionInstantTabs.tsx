@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { emitCollectionUrlChange } from "@/components/useLiveCollectionTab";
@@ -186,7 +186,7 @@ export default function CollectionInstantTabs({
                           className={cx(
                             "inline-flex h-8 min-w-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-9 sm:px-4 sm:text-[13px]",
                             active
-                              ? "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                              ? "border border-violet-400/40 bg-violet-600 text-white"
                               : "text-white/58 hover:bg-white/[0.07] hover:text-white"
                           )}
                         >

@@ -124,7 +124,7 @@ export default function AuthForm({
       action={`/api/auth/${mode}`}
       method="post"
       onSubmit={handleSubmit}
-      className="binder-panel mx-auto grid w-full max-w-sm gap-4 rounded-[24px] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.34)] sm:p-6"
+      className="mx-auto grid w-full max-w-sm gap-4 rounded-[24px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.34)] sm:p-6"
     >
       <input type="hidden" name="next" value={nextPath} />
       <div>

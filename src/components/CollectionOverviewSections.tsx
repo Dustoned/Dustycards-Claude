@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import dynamic from "next/dynamic";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -409,7 +409,7 @@ export default function CollectionOverviewSections({
                 onClick={() => setDisplay("cardSize", option.value)}
                 className={`min-h-8 min-w-[2.8rem] rounded-full px-2 text-[11px] font-black leading-none transition-colors sm:min-w-[4rem] sm:text-xs ${
                   active
-                    ? "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                    ? "border border-violet-400/40 bg-violet-600 text-white"
                     : "text-white/56 hover:bg-white/[0.07] hover:text-white"
                 }`}
               >

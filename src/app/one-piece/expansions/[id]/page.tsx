@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -254,7 +254,7 @@ export default async function OnePieceExpansionDetailPage({
         }
         accessory={
           <PriceHistoryPanel
-            compact
+            layout="dashboard"
             title="Set Total"
             currency="EUR"
             points={pricePanelPoints}

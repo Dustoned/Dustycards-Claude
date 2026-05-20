@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -101,7 +101,7 @@ export default function WantBinderDetailClient({ data }: { data: WantBinderPageD
         }
         accessory={
           <PriceHistoryPanel
-            compact
+            layout="dashboard"
             title="Missing Wants Value"
             currency="EUR"
             points={chartPoints}

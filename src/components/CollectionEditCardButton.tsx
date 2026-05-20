@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -388,7 +388,7 @@ export default function CollectionEditCardButton({
                           }}
                           className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors max-[640px]:px-2.5 ${
                             cardKind === option.key
-                              ? "border border-white/70 bg-white text-gray-950 shadow-[0_10px_22px_rgba(255,255,255,0.07)]"
+                              ? "border border-violet-400/40 bg-violet-600 text-white"
                               : "text-white/54 hover:text-white"
                           }`}
                         >
