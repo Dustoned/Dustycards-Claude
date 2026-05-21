@@ -91,13 +91,6 @@ const SHORT_STATUS_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
 });
-const FULL_STATUS_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 function parseDateMillis(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -109,12 +102,6 @@ function formatShortStatusDate(value: string | null | undefined): string | null 
   const timestamp = parseDateMillis(value);
   if (timestamp == null) return null;
   return SHORT_STATUS_DATE_FORMATTER.format(timestamp);
-}
-
-function formatFullStatusDate(value: string | null | undefined): string | null {
-  const timestamp = parseDateMillis(value);
-  if (timestamp == null) return null;
-  return FULL_STATUS_DATE_FORMATTER.format(timestamp);
 }
 
 function formatRelativeStatusAge(value: string | null | undefined, now: number): string | null {
@@ -1996,174 +1983,6 @@ function getLatestHistoryValue(points: HistoryPointView[]): number | null {
   return null;
 }
 
-function getUniqueGradeLabels(...labelGroups: string[][]): string[] {
-  const labels: string[] = [];
-  const seen = new Set<string>();
-
-  for (const group of labelGroups) {
-    for (const label of group) {
-      const normalized = label.replace(/\s+/g, " ").trim();
-      if (!normalized || seen.has(normalized)) continue;
-      seen.add(normalized);
-      labels.push(normalized);
-    }
-  }
-
-  return labels;
-}
-
-interface EbaySoldDisplayInfo {
-  currency: CurrencyCode;
-  value: number | null;
-  sampleSize: number | null;
-  originalUsd: string | null;
-  fetchedAt: string | null;
-}
-
-function getEbaySoldDisplayInfo(
-  price: NonNullable<ModalCardData["ebay_sold_graded_prices"]>[number] | null,
-  history: CardEbaySoldGradedPriceHistorySeries | null
-): EbaySoldDisplayInfo {
-  const historyValue = history ? getLatestHistoryValue(history.points) : null;
-  const currency = price?.median_price_eur != null
-    ? "EUR"
-    : price?.currency?.toUpperCase() === "EUR"
-      ? "EUR"
-      : history?.currency ?? "USD";
-  const value =
-    price?.median_price_eur ??
-    price?.median_price ??
-    historyValue ??
-    null;
-  const sampleSize = price?.sample_size ?? history?.latest_sample_size ?? null;
-  const fetchedAt = price?.fetched_at ?? history?.latest_fetched_at ?? null;
-  const originalUsd =
-    price &&
-    price.currency.toUpperCase() === "USD" &&
-    price.median_price_eur != null
-      ? formatCurrency(price.median_price, "USD")
-      : null;
-
-  return {
-    currency: currency as CurrencyCode,
-    value,
-    sampleSize,
-    originalUsd,
-    fetchedAt,
-  };
-}
-
-function getEbaySoldUpdatedAt(display: EbaySoldDisplayInfo, card: ModalCardData): string | null {
-  return (
-    display.fetchedAt ??
-    card.ebay_sold_graded_synced_at ??
-    card.ebay_sold_graded_checked_at ??
-    null
-  );
-}
-
-function getEbaySoldAgeDays(updatedAt: string | null, now: number): number | null {
-  const timestamp = parseDateMillis(updatedAt);
-  if (timestamp == null) return null;
-  return Math.floor(Math.max(0, now - timestamp) / (24 * 60 * 60 * 1000));
-}
-
-function getEbaySoldStatusTone(updatedAt: string | null, now: number): PriceStatusTone {
-  const ageDays = getEbaySoldAgeDays(updatedAt, now);
-  if (ageDays == null) return "warning";
-  if (ageDays >= 30) return "danger";
-  if (ageDays >= 14) return "warning";
-  return "good";
-}
-
-function formatEbaySoldUpdatedHint(updatedAt: string | null, now: number): string | null {
-  const fullDate = formatFullStatusDate(updatedAt);
-  const age = formatRelativeStatusAge(updatedAt, now);
-
-  if (!fullDate) return null;
-  return age ? `Updated ${fullDate} / ${age}` : `Updated ${fullDate}`;
-}
-
-function EbaySoldStatusLine({
-  card,
-  display,
-  now,
-  rawFloorValue,
-}: {
-  card: ModalCardData;
-  display: EbaySoldDisplayInfo;
-  now: number;
-  rawFloorValue: number | null;
-}) {
-  const updatedAt = getEbaySoldUpdatedAt(display, card);
-  const updatedLabel = formatFullStatusDate(updatedAt);
-  const updatedAge = formatRelativeStatusAge(updatedAt, now);
-  const checkedLabel = formatShortStatusDate(card.ebay_sold_graded_checked_at);
-  const syncedLabel = formatShortStatusDate(card.ebay_sold_graded_synced_at);
-  const statusLabel =
-    card.ebay_sold_graded_status === "unavailable"
-      ? "Unavailable"
-      : card.ebay_sold_graded_status === "synced"
-        ? "Synced"
-        : card.ebay_sold_graded_status
-          ? card.ebay_sold_graded_status
-          : "eBay sold";
-  const updateTone = getEbaySoldStatusTone(updatedAt, now);
-  const statusTone: PriceStatusTone =
-    card.ebay_sold_graded_status === "unavailable" ? "warning" : updateTone;
-  const belowRawFloor =
-    display.currency === "EUR" &&
-    display.value != null &&
-    rawFloorValue != null &&
-    rawFloorValue > display.value;
-
-  return (
-    <div className="min-w-0 border-b border-white/8 pb-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] leading-none text-white/28 max-[640px]:gap-1 max-[640px]:text-[10px]">
-        <PriceStatusInlineItem
-          value={statusLabel}
-          title={[
-            `Status: ${statusLabel}`,
-            syncedLabel ? `Synced ${syncedLabel}` : null,
-            checkedLabel ? `Checked ${checkedLabel}` : null,
-          ]
-            .filter(Boolean)
-            .join(". ")}
-          tone={statusTone}
-        />
-        <PriceStatusInlineItem
-          value={updatedAge ? `Updated ${updatedAge}` : updatedLabel ? `Updated ${updatedLabel}` : "eBay not synced"}
-          title={
-            updatedLabel
-              ? `eBay sold price fetched ${updatedLabel}`
-              : "No eBay sold update timestamp stored"
-          }
-          tone={updateTone}
-        />
-        <PriceStatusInlineItem
-          value={display.sampleSize != null ? `${display.sampleSize} sold` : "No sample"}
-          title={
-            display.sampleSize != null
-              ? `${display.sampleSize} sold listings in the current eBay sample`
-              : "No sold-listing sample size stored"
-          }
-          tone={display.sampleSize != null ? "neutral" : "warning"}
-        />
-        {belowRawFloor && (
-          <PriceStatusInlineItem
-            value={`Below raw ${formatCurrency(rawFloorValue, "EUR")}`}
-            title={`This eBay sold graded value is below current raw CardMarket ${formatCurrency(
-              rawFloorValue,
-              "EUR"
-            )}`}
-            tone="danger"
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
 export function CardModalHistorySection({
   historyChartMode,
   activeMarketSource,
@@ -2172,6 +1991,9 @@ export function CardModalHistorySection({
   ignoredCardMarketCurrentValue,
   showTcgPlayerSource,
   card,
+  collectionItem,
+  gradingCompanyLabel,
+  gradingGradeLabel,
   availableCardMarketHistorySeries,
   activeCardMarketHistorySeries,
   activeCardMarketSeriesLabel,
@@ -2182,17 +2004,8 @@ export function CardModalHistorySection({
   tcgPlayerCurrentValue,
   gradedPrices,
   gradedPriceHistory,
-  selectedGradedHistory,
-  selectedGradedPrice,
-  selectedGradedHistoryCurrentValue,
-  onSelectGradedLabel,
-  gradedSource,
-  onSelectGradedSource,
   ebaySoldGradedPrices,
-  selectedEbaySoldGradedPrice,
   ebaySoldGradedPriceHistory,
-  selectedEbaySoldGradedHistory,
-  onSelectEbaySoldGradedLabel,
 }: {
   historyChartMode: "market" | "graded";
   activeMarketSource: "cardmarket" | "tcgplayer";
@@ -2201,6 +2014,9 @@ export function CardModalHistorySection({
   ignoredCardMarketCurrentValue: number | null;
   showTcgPlayerSource: boolean;
   card: ModalCardData;
+  collectionItem: ModalCardCollectionItem | null;
+  gradingCompanyLabel: string | null;
+  gradingGradeLabel: string | null;
   availableCardMarketHistorySeries: Array<{
     key: CardMarketHistorySeriesKey;
     label: string;
@@ -2214,27 +2030,9 @@ export function CardModalHistorySection({
   tcgPlayerCurrentValue: number | null;
   gradedPrices: Array<{ label: string; price: number }>;
   gradedPriceHistory: CardGradedPriceHistorySeries[];
-  selectedGradedHistory: CardGradedPriceHistorySeries | null;
-  selectedGradedPrice: { label: string; price: number } | null;
-  selectedGradedHistoryCurrentValue: number | null;
-  onSelectGradedLabel: (label: string) => void;
-  gradedSource: "cardmarket" | "ebay";
-  onSelectGradedSource: (source: "cardmarket" | "ebay") => void;
   ebaySoldGradedPrices: NonNullable<ModalCardData["ebay_sold_graded_prices"]>;
-  selectedEbaySoldGradedPrice:
-    | NonNullable<ModalCardData["ebay_sold_graded_prices"]>[number]
-    | null;
   ebaySoldGradedPriceHistory: CardEbaySoldGradedPriceHistorySeries[];
-  selectedEbaySoldGradedHistory: CardEbaySoldGradedPriceHistorySeries | null;
-  onSelectEbaySoldGradedLabel: (label: string) => void;
 }) {
-  const [statusNow, setStatusNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => setStatusNow(Date.now()), 60 * 1000);
-    return () => window.clearInterval(intervalId);
-  }, []);
-
   const hasCardMarketGradedHistory = gradedPriceHistory.some((series) =>
     series.points.some((point) => point.value != null)
   );
@@ -2245,12 +2043,6 @@ export function CardModalHistorySection({
   const hasEbaySoldGradedData = hasEbaySoldGradedHistory || ebaySoldGradedPrices.length > 0;
   const hasGradedData = hasCardMarketGradedData || hasEbaySoldGradedData;
   const effectiveHistoryChartMode = hasGradedData ? historyChartMode : "market";
-  const effectiveGradedSource =
-    gradedSource === "ebay" && hasEbaySoldGradedData
-      ? "ebay"
-      : hasCardMarketGradedData
-        ? "cardmarket"
-        : "ebay";
   const activeMarketHistory =
     activeMarketSource === "tcgplayer"
       ? {
@@ -2271,7 +2063,6 @@ export function CardModalHistorySection({
     activeMarketSource === "cardmarket" &&
     hasMultipleCardMarketSeries;
   const showRawSourceToggle = effectiveHistoryChartMode === "market" && showTcgPlayerSource;
-  const showGradedSourceToggle = hasCardMarketGradedData && hasEbaySoldGradedData;
   const derivedCardMarketAverage7d = getRecentHistoryAverage(cardMarketHistory, 7);
   const derivedCardMarketAverage30d = getRecentHistoryAverage(cardMarketHistory, 30);
   const activeCardMarketAverage7d =
@@ -2280,26 +2071,6 @@ export function CardModalHistorySection({
   const activeCardMarketAverage30d =
     derivedCardMarketAverage30d ??
     (activeCardMarketHistorySeries === "cm_market_en" ? card.price?.cm_en_avg_30d ?? null : null);
-  const selectedGradedPoints = selectedGradedHistory?.points ?? [];
-  const selectedGradedCurrentValue =
-    selectedGradedPrice?.price ??
-    selectedGradedHistoryCurrentValue ??
-    getLatestHistoryValue(selectedGradedPoints);
-  const selectedGradedAverage7d = getRecentHistoryAverage(selectedGradedPoints, 7);
-  const selectedGradedAverage30d = getRecentHistoryAverage(selectedGradedPoints, 30);
-  const ebaySoldDisplay = getEbaySoldDisplayInfo(
-    selectedEbaySoldGradedPrice,
-    selectedEbaySoldGradedHistory
-  );
-  const ebaySoldUpdatedAt = getEbaySoldUpdatedAt(ebaySoldDisplay, card);
-  const ebaySoldUpdatedHint = formatEbaySoldUpdatedHint(ebaySoldUpdatedAt, statusNow);
-  const ebaySoldBelowRawHint =
-    ebaySoldDisplay.currency === "EUR" &&
-    ebaySoldDisplay.value != null &&
-    activeCardMarketCurrentValue != null &&
-    activeCardMarketCurrentValue > ebaySoldDisplay.value
-      ? `Below raw CM ${formatCurrency(activeCardMarketCurrentValue, "EUR")}`
-      : null;
   const rawPricingMetrics: PriceMetric[] =
     activeMarketSource === "tcgplayer"
       ? [
@@ -2338,87 +2109,12 @@ export function CardModalHistorySection({
             value: formatCurrency(activeCardMarketAverage30d, "EUR"),
           },
         ];
-  const gradedCardMarketMetrics: PriceMetric[] = [
-    {
-      label: "Current",
-      value: formatCurrency(selectedGradedCurrentValue, "EUR"),
-      hint: selectedGradedPrice?.label ?? selectedGradedHistory?.label ?? null,
-    },
-    {
-      label: "7D Avg",
-      value: formatCurrency(selectedGradedAverage7d, "EUR"),
-    },
-    {
-      label: "30D Avg",
-      value: formatCurrency(selectedGradedAverage30d, "EUR"),
-    },
-  ];
-  const ebaySoldMetrics: PriceMetric[] = [
-    {
-      label: "eBay Sold",
-      value: formatCurrency(ebaySoldDisplay.value, ebaySoldDisplay.currency),
-      hint: [
-        ebaySoldDisplay.sampleSize != null
-          ? `${ebaySoldDisplay.sampleSize} sold listings`
-          : "No sample size",
-        ebaySoldUpdatedHint,
-        ebaySoldBelowRawHint,
-      ]
-        .filter(Boolean)
-        .join(" / "),
-    },
-    ...(ebaySoldDisplay.originalUsd
-      ? [{ label: "Original", value: ebaySoldDisplay.originalUsd }]
-      : []),
-  ];
-  const activePricingMetrics =
-    effectiveHistoryChartMode === "graded"
-      ? effectiveGradedSource === "ebay"
-        ? ebaySoldMetrics
-        : gradedCardMarketMetrics
-      : rawPricingMetrics;
   const activePricingAccent: PricingAccent =
     effectiveHistoryChartMode === "graded"
-      ? effectiveGradedSource === "ebay"
-        ? "blue"
-        : "violet"
+      ? "violet"
       : activeMarketSource === "tcgplayer"
         ? "blue"
         : "emerald";
-  const activeGradedHistory =
-    effectiveGradedSource === "ebay"
-      ? {
-          currency: ebaySoldDisplay.currency,
-          currentValue: ebaySoldDisplay.value,
-          points: selectedEbaySoldGradedHistory?.points ?? [],
-          title: selectedEbaySoldGradedHistory
-            ? `${selectedEbaySoldGradedHistory.label} eBay sold`
-            : "eBay Sold",
-        }
-      : {
-          currency: "EUR" as const,
-          currentValue: selectedGradedCurrentValue,
-          points: selectedGradedPoints,
-          title: selectedGradedHistory
-            ? `${selectedGradedHistory.label} CardMarket`
-            : "CardMarket Graded",
-        };
-  const cardMarketGradeLabels = getUniqueGradeLabels(
-    gradedPriceHistory.map((series) => series.label),
-    gradedPrices.map((price) => price.label)
-  );
-  const ebaySoldGradeLabels = getUniqueGradeLabels(
-    ebaySoldGradedPriceHistory.map((series) => series.label),
-    ebaySoldGradedPrices.map((price) => price.label)
-  );
-  const activeGradeLabels =
-    effectiveGradedSource === "ebay" ? ebaySoldGradeLabels : cardMarketGradeLabels;
-  const activeGradeValue =
-    effectiveGradedSource === "ebay"
-      ? selectedEbaySoldGradedHistory?.label ?? selectedEbaySoldGradedPrice?.label ?? ""
-      : selectedGradedHistory?.label ?? selectedGradedPrice?.label ?? "";
-  const activeHistory =
-    effectiveHistoryChartMode === "graded" ? activeGradedHistory : activeMarketHistory;
   const historyRangeScopePoints = [
     ...activeMarketHistory.points,
     ...gradedPriceHistory.flatMap((series) => series.points),
@@ -2510,111 +2206,51 @@ export function CardModalHistorySection({
                 ))}
               </div>
             )}
-
-            {effectiveHistoryChartMode === "graded" && showGradedSourceToggle && (
-              <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
-                {[
-                  { key: "cardmarket" as const, label: "CardMarket" },
-                  { key: "ebay" as const, label: "eBay" },
-                ].map((source) => (
-                  <button
-                    key={source.key}
-                    type="button"
-                    onClick={() => onSelectGradedSource(source.key)}
-                    aria-pressed={effectiveGradedSource === source.key}
-                    className={`${historySourceToggleButtonClass} ${
-                      effectiveGradedSource === source.key
-                        ? historySourceToggleActiveClass
-                        : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
-                    }`}
-                  >
-                    {source.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
-        <div className="min-h-0 overflow-hidden">
-          <PriceHistoryPanel
-            title={activeHistory.title}
-            currency={activeHistory.currency}
-            points={activeHistory.points}
-            currentValue={activeHistory.currentValue}
-            tone="dark"
-            layout="hero"
+        {effectiveHistoryChartMode === "graded" ? (
+          <GradedPricingPanel
+            card={card}
+            collectionItem={collectionItem}
+            gradingCompanyLabel={gradingCompanyLabel}
+            gradingGradeLabel={gradingGradeLabel}
+            compact
+            graphFirst
             rangeScopePoints={historyRangeScopePoints}
             rangeStorageKey={`card-history-${card.id}`}
           />
-        </div>
-
-        {hasGradedData && (
-          <div
-            className={`flex min-h-9 min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between ${
-              effectiveHistoryChartMode === "graded" ? "" : "invisible pointer-events-none"
-            }`}
-            aria-hidden={effectiveHistoryChartMode !== "graded"}
-          >
-            {!showGradedSourceToggle ? (
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
-                {effectiveGradedSource === "ebay" ? "eBay sold" : "CardMarket"}
-              </p>
-            ) : (
-              <span className="hidden sm:block" aria-hidden="true" />
-            )}
-
-            <div className="min-w-0 sm:ml-auto sm:min-w-[11rem]">
-              {activeGradeLabels.length > 1 ? (
-                <select
-                  value={activeGradeValue}
-                  onChange={(event) => {
-                    if (effectiveGradedSource === "ebay") {
-                      onSelectEbaySoldGradedLabel(event.target.value);
-                    } else {
-                      onSelectGradedLabel(event.target.value);
-                    }
-                  }}
-                  className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-white/18"
-                >
-                  {activeGradeLabels.map((label) => (
-                    <option key={label} value={label} className="bg-[#111214] text-white">
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="h-9 truncate rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white/72">
-                  {activeGradeValue || "Graded"}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="grid overflow-hidden rounded-2xl border border-white/8 bg-black/18 sm:grid-cols-3">
-          {activePricingMetrics.slice(0, 3).map((metric) => (
-            <div
-              key={metric.label}
-              className="border-b border-white/8 px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
-            >
-              <p className="text-[11px] font-medium text-white/40">{metric.label}</p>
-              <p className="mt-1 text-base font-semibold tabular-nums text-white">
-                {metric.value}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {effectiveHistoryChartMode === "graded" && effectiveGradedSource === "ebay" ? (
-          <EbaySoldStatusLine
-            card={card}
-            display={ebaySoldDisplay}
-            now={statusNow}
-            rawFloorValue={activeCardMarketCurrentValue}
-          />
         ) : (
-          <CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />
+          <>
+            <div className="min-h-0 overflow-hidden">
+              <PriceHistoryPanel
+                title={activeMarketHistory.title}
+                currency={activeMarketHistory.currency}
+                points={activeMarketHistory.points}
+                currentValue={activeMarketHistory.currentValue}
+                tone="dark"
+                layout="hero"
+                rangeScopePoints={historyRangeScopePoints}
+                rangeStorageKey={`card-history-${card.id}`}
+              />
+            </div>
+
+            <div className="grid overflow-hidden rounded-2xl border border-white/8 bg-black/18 sm:grid-cols-3">
+              {rawPricingMetrics.slice(0, 3).map((metric) => (
+                <div
+                  key={metric.label}
+                  className="border-b border-white/8 px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
+                >
+                  <p className="text-[11px] font-medium text-white/40">{metric.label}</p>
+                  <p className="mt-1 text-base font-semibold tabular-nums text-white">
+                    {metric.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />
+          </>
         )}
       </div>
     </section>
@@ -2624,16 +2260,12 @@ export function CardModalHistorySection({
 export function CardModalFooter({
   card,
   collectionItem,
-  gradingCompanyLabel,
-  gradingGradeLabel,
   storedCardMarketUrl,
   onOpenCardMarket,
   onAddedToCollection,
 }: {
   card: ModalCardData;
   collectionItem: ModalCardCollectionItem | null;
-  gradingCompanyLabel: string | null;
-  gradingGradeLabel: string | null;
   storedCardMarketUrl: string | null;
   onOpenCardMarket: () => void;
   onAddedToCollection?: () => void | Promise<void>;
@@ -2669,16 +2301,10 @@ export function CardModalFooter({
     .filter((point): point is { label: string; value: number } => point.value != null)
     .slice(-5)
     .reverse();
-  const showGradedDetails = hasGradedDetailContent(
-    card,
-    collectionItem,
-    gradingCompanyLabel,
-    gradingGradeLabel
-  );
 
   return (
     <div className="mt-1">
-      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-4 lg:grid-cols-3">
         <section className={panelClass}>
           <div className="flex items-center justify-between gap-3">
             <h3 className={panelTitleClass}>Owned Copy</h3>
@@ -2789,16 +2415,6 @@ export function CardModalFooter({
             </Link>
           </div>
         </section>
-
-        {showGradedDetails && (
-          <GradedPricingPanel
-            card={card}
-            collectionItem={collectionItem}
-            gradingCompanyLabel={gradingCompanyLabel}
-            gradingGradeLabel={gradingGradeLabel}
-            compact
-          />
-        )}
       </div>
     </div>
   );

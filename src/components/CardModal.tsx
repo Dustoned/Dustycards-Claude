@@ -33,7 +33,7 @@ import {
   CardModalPreview,
 } from "./card-modal/CardModalSections";
 import type { ModalCardData } from "./card-modal/types";
-import { getCardModalLayoutClasses, getPreferredGradedLabel } from "./card-modal/utils";
+import { getCardModalLayoutClasses } from "./card-modal/utils";
 
 export type { ModalCardData } from "./card-modal/types";
 
@@ -162,24 +162,8 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const [marketDataSource, setMarketDataSource] = useState<"cardmarket" | "tcgplayer">(
     "cardmarket"
   );
-  const [gradedDataSource, setGradedDataSource] = useState<"cardmarket" | "ebay">(() =>
-    savedCardMarketGradedLabel ? "cardmarket" : savedEbaySoldGradedLabel ? "ebay" : "cardmarket"
-  );
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
-  const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(() =>
-    savedCardMarketGradedLabel ?? getPreferredGradedLabel(card.graded_prices ?? [])
-  );
-  const [selectedEbaySoldGradedLabel, setSelectedEbaySoldGradedLabel] = useState<string | null>(
-    () =>
-      savedEbaySoldGradedLabel ??
-      getPreferredGradedLabel(
-        (card.ebay_sold_graded_prices ?? []).map((price) => ({
-          label: price.label,
-          price: price.median_price,
-        }))
-      )
-  );
   const modalFrameRef = useRef<HTMLDivElement | null>(null);
   const threeDClosingGuardUntilRef = useRef(0);
 
@@ -263,52 +247,6 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
           ignoredValue: null,
         };
   const activeCardMarketCurrentValue = saneActiveCardMarketCurrent.value;
-  const preferredGradedLabel = getPreferredGradedLabel(
-    gradedPrices
-  );
-  const selectedGradedPrice =
-    gradedPrices.find((price) => price.label === selectedGradedLabel) ??
-    gradedPrices.find((price) => price.label === preferredGradedLabel) ??
-    null;
-  const preferredEbaySoldGradedLabel = getPreferredGradedLabel(
-    ebaySoldGradedPrices.map((price) => ({
-      label: price.label,
-      price: price.median_price,
-    }))
-  );
-  const preferredEbaySoldGradedHistoryLabel = getPreferredGradedLabel(
-    ebaySoldGradedPriceHistory.map((series) => ({
-      label: series.label,
-      price: series.points[series.points.length - 1]?.value ?? 0,
-    }))
-  );
-  const preferredGradedHistoryLabel = getPreferredGradedLabel(
-    gradedPriceHistory.map((series) => ({
-      label: series.label,
-      price: series.points[series.points.length - 1]?.value ?? 0,
-    }))
-  );
-  const selectedEbaySoldGradedPrice =
-    ebaySoldGradedPrices.find((price) => price.label === selectedEbaySoldGradedLabel) ??
-    ebaySoldGradedPrices.find((price) => price.label === preferredEbaySoldGradedLabel) ??
-    ebaySoldGradedPrices.find((price) => price.label === preferredEbaySoldGradedHistoryLabel) ??
-    null;
-  const selectedEbaySoldGradedHistory =
-    ebaySoldGradedPriceHistory.find((series) => series.label === selectedEbaySoldGradedLabel) ??
-    ebaySoldGradedPriceHistory.find((series) => series.label === preferredEbaySoldGradedLabel) ??
-    ebaySoldGradedPriceHistory.find((series) => series.label === preferredEbaySoldGradedHistoryLabel) ??
-    ebaySoldGradedPriceHistory[0] ??
-    null;
-  const selectedGradedHistory =
-    gradedPriceHistory.find((series) => series.label === selectedGradedLabel) ??
-    gradedPriceHistory.find((series) => series.label === preferredGradedLabel) ??
-    gradedPriceHistory.find((series) => series.label === preferredGradedHistoryLabel) ??
-    gradedPriceHistory[0] ??
-    null;
-  const selectedGradedHistoryCurrentValue =
-    selectedGradedPrice?.price ??
-    selectedGradedHistory?.points[selectedGradedHistory.points.length - 1]?.value ??
-    null;
   const hasGradedData =
     gradedPrices.length > 0 ||
     ebaySoldGradedPrices.length > 0 ||
@@ -595,6 +533,9 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                     ignoredCardMarketCurrentValue={saneActiveCardMarketCurrent.ignoredValue}
                     showTcgPlayerSource={hasTcgPlayerData}
                     card={modalCard}
+                    collectionItem={collectionItem}
+                    gradingCompanyLabel={gradingCompanyLabel}
+                    gradingGradeLabel={gradingGradeLabel}
                     availableCardMarketHistorySeries={availableCardMarketHistorySeries}
                     activeCardMarketHistorySeries={activeCardMarketHistorySeries}
                     activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
@@ -605,17 +546,8 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                     tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
                     gradedPrices={gradedPrices}
                     gradedPriceHistory={gradedPriceHistory}
-                    selectedGradedHistory={selectedGradedHistory}
-                    selectedGradedPrice={selectedGradedPrice}
-                    selectedGradedHistoryCurrentValue={selectedGradedHistoryCurrentValue}
-                    onSelectGradedLabel={setSelectedGradedLabel}
-                    gradedSource={gradedDataSource}
-                    onSelectGradedSource={setGradedDataSource}
                     ebaySoldGradedPrices={ebaySoldGradedPrices}
-                    selectedEbaySoldGradedPrice={selectedEbaySoldGradedPrice}
                     ebaySoldGradedPriceHistory={ebaySoldGradedPriceHistory}
-                    selectedEbaySoldGradedHistory={selectedEbaySoldGradedHistory}
-                    onSelectEbaySoldGradedLabel={setSelectedEbaySoldGradedLabel}
                   />
                 </div>
               </div>
@@ -623,8 +555,6 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
               <CardModalFooter
                 card={modalCard}
                 collectionItem={collectionItem}
-                gradingCompanyLabel={gradingCompanyLabel}
-                gradingGradeLabel={gradingGradeLabel}
                 storedCardMarketUrl={storedCardMarketUrl}
                 onOpenCardMarket={openCardMarket}
                 onAddedToCollection={refreshModalCardFromServer}
