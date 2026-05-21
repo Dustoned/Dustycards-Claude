@@ -1992,9 +1992,7 @@ export function CardModalHistorySection({
   onSelectHistoryChartMode,
   tcgPlayerHistory,
   tcgPlayerCurrentValue,
-  gradedPrices,
   gradedPriceHistory,
-  ebaySoldGradedPrices,
   ebaySoldGradedPriceHistory,
 }: {
   historyChartMode: "market" | "graded";
@@ -2015,24 +2013,21 @@ export function CardModalHistorySection({
   onSelectHistoryChartMode: (mode: "market" | "graded") => void;
   tcgPlayerHistory: HistoryPointView[];
   tcgPlayerCurrentValue: number | null;
-  gradedPrices: Array<{ label: string; price: number }>;
   gradedPriceHistory: CardGradedPriceHistorySeries[];
-  ebaySoldGradedPrices: NonNullable<ModalCardData["ebay_sold_graded_prices"]>;
   ebaySoldGradedPriceHistory: CardEbaySoldGradedPriceHistorySeries[];
 }) {
-  const hasCardMarketGradedHistory = gradedPriceHistory.some((series) =>
-    series.points.some((point) => point.value != null)
-  );
-  const hasEbaySoldGradedHistory = ebaySoldGradedPriceHistory.some((series) =>
-    series.points.some((point) => point.value != null)
-  );
-  const hasCardMarketGradedData = hasCardMarketGradedHistory || gradedPrices.length > 0;
-  const hasEbaySoldGradedData = hasEbaySoldGradedHistory || ebaySoldGradedPrices.length > 0;
-  const hasGradedData = hasCardMarketGradedData || hasEbaySoldGradedData;
-  const effectiveHistoryChartMode = hasGradedData ? historyChartMode : "market";
-  const gradedRows = getGradedPriceRows(card, collectionItem);
+  const savedGradeCandidates = buildSavedGradeCandidates(collectionItem);
+  const allGradedRows = getGradedPriceRows(card, collectionItem);
+  const gradedRows =
+    savedGradeCandidates.length > 0
+      ? allGradedRows.filter((row) => row.savedMatch)
+      : allGradedRows;
   const cardMarketGradedRows = gradedRows.filter((row) => row.sourceType === "cardmarket");
   const ebayGradedRows = gradedRows.filter((row) => row.sourceType === "ebay");
+  const hasCardMarketGradedData = cardMarketGradedRows.length > 0;
+  const hasEbaySoldGradedData = ebayGradedRows.length > 0;
+  const hasGradedData = hasCardMarketGradedData || hasEbaySoldGradedData;
+  const effectiveHistoryChartMode = hasGradedData ? historyChartMode : "market";
   const fallbackGradedSource: GradedPriceSource =
     gradedRows.find((row) => row.savedMatch)?.sourceType ??
     (cardMarketGradedRows.length > 0 ? "cardmarket" : "ebay");

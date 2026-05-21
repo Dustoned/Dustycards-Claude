@@ -541,9 +541,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                     onSelectHistoryChartMode={setHistoryChartMode}
                     tcgPlayerHistory={tcgPlayerHistory}
                     tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
-                    gradedPrices={gradedPrices}
                     gradedPriceHistory={gradedPriceHistory}
-                    ebaySoldGradedPrices={ebaySoldGradedPrices}
                     ebaySoldGradedPriceHistory={ebaySoldGradedPriceHistory}
                   />
                 </div>

@@ -995,7 +995,10 @@ export default function PriceHistoryPanel({
       >
         <div className="min-w-0">
           {headerLeadingAccessory ? (
-            <div className="min-w-0">{headerLeadingAccessory}</div>
+            <div className="min-w-0">
+              {headerLeadingAccessory}
+              <p className={`${valueClass} mt-2`}>{formatCurrency(displayedValue, currency)}</p>
+            </div>
           ) : (
             <>
               <p className={titleClass}>{title}</p>
