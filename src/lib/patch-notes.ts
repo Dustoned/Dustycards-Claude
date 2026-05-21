@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.5",
+    releasedAt: "May 22, 2026",
+    title: "Submit name autocomplete",
+    summary: "DustyCards 3.2.5 makes repeated card names faster to enter on Submit Card.",
+    tone: "improved",
+    highlights: [
+      "Added game-aware card name autocomplete to the Submit Card form.",
+      "Suggestions come from the local library, so typing names does not spend Firecrawl credits.",
+    ],
+  },
+  {
     version: "3.2.4",
     releasedAt: "May 22, 2026",
     title: "Firecrawl credit offset",

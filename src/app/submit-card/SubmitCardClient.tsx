@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AlertTriangle, Check, ExternalLink, Loader2, Search, Sparkles } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ExternalLink, Loader2, Search, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { COLLECTION_CONDITIONS } from "@/lib/collection";
 import {
@@ -149,6 +149,9 @@ export default function SubmitCardClient() {
   const [submittedLoading, setSubmittedLoading] = useState(true);
   const [firecrawlUsage, setFirecrawlUsage] = useState<FirecrawlUsage | null>(null);
   const [usageLoading, setUsageLoading] = useState(true);
+  const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<"preview" | "save" | null>(null);
 
@@ -217,6 +220,36 @@ export default function SubmitCardClient() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const query = name.trim();
+    if (query.length < 2) {
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      setSuggestionsLoading(true);
+      try {
+        const params = new URLSearchParams({ q: query, game });
+        const response = await fetch(`/api/card-submissions/name-suggestions?${params.toString()}`, {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as ApiResponse<string[]>;
+        if (cancelled) return;
+        setNameSuggestions(response.ok && data.ok && data.result ? data.result : []);
+      } catch {
+        if (!cancelled) setNameSuggestions([]);
+      } finally {
+        if (!cancelled) setSuggestionsLoading(false);
+      }
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [game, name]);
 
   async function runPreview(event?: React.FormEvent<HTMLFormElement>, options?: { skipDuplicateCheck?: boolean }) {
     event?.preventDefault();
@@ -346,6 +379,9 @@ export default function SubmitCardClient() {
     usageMonthlyBudget > 0
       ? Math.min(100, Math.max(0, (usageMonthlyUsed / usageMonthlyBudget) * 100))
       : 0;
+  const nameSuggestionQuery = name.trim();
+  const visibleNameSuggestions = nameSuggestionQuery.length >= 2 ? nameSuggestions : [];
+  const showSuggestionsLoading = nameSuggestionQuery.length >= 2 && suggestionsLoading;
 
   return (
     <div className="grid gap-4">
@@ -448,7 +484,10 @@ export default function SubmitCardClient() {
                   <button
                     key={option}
                     type="button"
-                    onClick={() => setGame(option)}
+                    onClick={() => {
+                      setGame(option);
+                      setNameSuggestions([]);
+                    }}
                     className={`rounded-lg px-3 py-2 text-sm font-bold transition ${
                       active
                         ? "bg-violet-600 text-white shadow-md shadow-violet-950/25"
@@ -466,13 +505,48 @@ export default function SubmitCardClient() {
             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-white/38">
               Card name
             </span>
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className={fieldClass()}
-              placeholder={game === "one-piece" ? "Monkey.D.Luffy" : "Umbreon ex"}
-              required
-            />
+            <div className="relative">
+              <input
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  setSuggestionsOpen(true);
+                }}
+                onFocus={() => setSuggestionsOpen(true)}
+                onBlur={() => {
+                  window.setTimeout(() => setSuggestionsOpen(false), 120);
+                }}
+                className={`${fieldClass()} pr-10`}
+                placeholder={game === "one-piece" ? "Monkey.D.Luffy" : "Umbreon ex"}
+                autoComplete="off"
+                required
+              />
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-white/35">
+                {showSuggestionsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </div>
+              {suggestionsOpen && visibleNameSuggestions.length > 0 ? (
+                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 overflow-hidden rounded-xl border border-white/10 bg-[#111116] p-1 shadow-2xl shadow-black/45">
+                  {visibleNameSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setName(suggestion);
+                        setSuggestionsOpen(false);
+                      }}
+                      className="block w-full truncate rounded-lg px-3 py-2 text-left text-sm font-semibold text-white/75 transition hover:bg-violet-500/16 hover:text-white"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </label>
 
           <label className="grid gap-1.5">
