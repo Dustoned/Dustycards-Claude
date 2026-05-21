@@ -188,15 +188,15 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 hidden w-[16rem] border-r border-white/8 bg-[#08080c] px-3 py-4 xl:flex xl:flex-col">
-      <Link href="/" prefetch={false} className="mb-5 flex items-center gap-2.5 px-1">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500 text-base font-black text-white shadow-[0_0_22px_rgba(139,92,246,0.4)]">
-          D
-        </span>
-        <span className="text-[19px] font-black tracking-tight text-white">DustyCards</span>
-      </Link>
+    <aside className="fixed inset-y-0 left-0 z-50 hidden h-dvh w-[16rem] border-r border-white/8 bg-[#08080c] xl:block">
+      <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain px-3 py-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent">
+        <Link href="/" prefetch={false} className="mb-5 flex shrink-0 items-center gap-2.5 px-1">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500 text-base font-black text-white shadow-[0_0_22px_rgba(139,92,246,0.4)]">
+            D
+          </span>
+          <span className="text-[19px] font-black tracking-tight text-white">DustyCards</span>
+        </Link>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <nav className="grid gap-4" aria-label="Desktop navigation">
           {NAV_SECTIONS.map((section) => (
             <div key={section.label} className="grid gap-px">
@@ -246,98 +246,97 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
           ))}
         </nav>
 
-      </div>
-
-      <div
-        data-sidebar-card
-        className="mt-3 rounded-2xl border border-white/8 p-3"
-      >
-        <div className="flex items-center gap-2.5">
-          <Link
-            href="/account"
-            prefetch={false}
-            data-sidebar-avatar
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black text-violet-100 shadow-[0_0_22px_rgba(139,92,246,0.22)] transition"
-            aria-label="Open account"
-            title="Open account"
-          >
-            {summary.email.slice(0, 1).toUpperCase()}
-          </Link>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <Link
-                href="/account"
-                prefetch={false}
-                className="truncate text-[13px] font-bold leading-tight text-white transition hover:text-white/82"
-              >
-                {displayName}
-              </Link>
-              <span
-                data-sidebar-badge-admin
-                className="inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-200"
-              >
-                {roleLabel === "Admin" ? "ADMIN" : "USER"}
-              </span>
-            </div>
-            <p className="mt-0.5 truncate text-[10px] font-medium text-white/42">
-              {summary.email}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-2.5 grid grid-cols-3 gap-2">
-          {[
-            ["Cards", summary.cards],
-            ["Binders", summary.binders],
-            ["Sealed", summary.sealedUnits],
-          ].map(([label, value]) => (
-            <div key={label as string}>
-              <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">
-                {label}
-              </p>
-              <p className="mt-0.5 text-[13px] font-black tabular-nums text-white">
-                {formatCount(Number(value))}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-2.5 border-t border-white/8 pt-2">
-          <nav className="grid gap-px" aria-label="Account navigation">
-            {ACCOUNT_ITEMS.map((item) => {
-              const active = isActive(pathname, tab, item.key, moverScope);
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  prefetch={false}
-                  data-sidebar-item
-                  data-active={active ? "true" : "false"}
-                  className={`flex min-h-[30px] items-center gap-3 rounded-lg px-1.5 text-[12px] font-medium transition-colors ${
-                    active
-                      ? "text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.32),0_0_22px_rgba(139,92,246,0.18)]"
-                      : "text-white/62 hover:text-white"
-                  }`}
-                >
-                  <Icon className={`h-3.5 w-3.5 ${active ? "text-violet-200" : "text-white/55"}`} />
-                  {item.label}
-                </Link>
-              );
-            })}
-            <button
-              type="button"
-              onClick={logout}
-              disabled={loggingOut}
-              data-sidebar-item
-              data-active="false"
-              className="flex min-h-[30px] items-center gap-3 rounded-lg px-1.5 text-left text-[12px] font-medium text-white/62 transition-colors hover:text-white disabled:cursor-wait disabled:opacity-60"
-              aria-label="Log out"
+        <div
+          data-sidebar-card
+          className="mt-auto shrink-0 rounded-2xl border border-white/8 p-3"
+        >
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/account"
+              prefetch={false}
+              data-sidebar-avatar
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black text-violet-100 shadow-[0_0_22px_rgba(139,92,246,0.22)] transition"
+              aria-label="Open account"
+              title="Open account"
             >
-              <LogOut className="h-3.5 w-3.5 text-white/55" />
-              {loggingOut ? "Logging out..." : "Log out"}
-            </button>
-          </nav>
+              {summary.email.slice(0, 1).toUpperCase()}
+            </Link>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Link
+                  href="/account"
+                  prefetch={false}
+                  className="truncate text-[13px] font-bold leading-tight text-white transition hover:text-white/82"
+                >
+                  {displayName}
+                </Link>
+                <span
+                  data-sidebar-badge-admin
+                  className="inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-200"
+                >
+                  {roleLabel === "Admin" ? "ADMIN" : "USER"}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-[10px] font-medium text-white/42">
+                {summary.email}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-2.5 grid grid-cols-3 gap-2">
+            {[
+              ["Cards", summary.cards],
+              ["Binders", summary.binders],
+              ["Sealed", summary.sealedUnits],
+            ].map(([label, value]) => (
+              <div key={label as string}>
+                <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">
+                  {label}
+                </p>
+                <p className="mt-0.5 text-[13px] font-black tabular-nums text-white">
+                  {formatCount(Number(value))}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-2.5 border-t border-white/8 pt-2">
+            <nav className="grid gap-px" aria-label="Account navigation">
+              {ACCOUNT_ITEMS.map((item) => {
+                const active = isActive(pathname, tab, item.key, moverScope);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    prefetch={false}
+                    data-sidebar-item
+                    data-active={active ? "true" : "false"}
+                    className={`flex min-h-[30px] items-center gap-3 rounded-lg px-1.5 text-[12px] font-medium transition-colors ${
+                      active
+                        ? "text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.32),0_0_22px_rgba(139,92,246,0.18)]"
+                        : "text-white/62 hover:text-white"
+                    }`}
+                  >
+                    <Icon className={`h-3.5 w-3.5 ${active ? "text-violet-200" : "text-white/55"}`} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+              <button
+                type="button"
+                onClick={logout}
+                disabled={loggingOut}
+                data-sidebar-item
+                data-active="false"
+                className="flex min-h-[30px] items-center gap-3 rounded-lg px-1.5 text-left text-[12px] font-medium text-white/62 transition-colors hover:text-white disabled:cursor-wait disabled:opacity-60"
+                aria-label="Log out"
+              >
+                <LogOut className="h-3.5 w-3.5 text-white/55" />
+                {loggingOut ? "Logging out..." : "Log out"}
+              </button>
+            </nav>
+          </div>
         </div>
       </div>
     </aside>
