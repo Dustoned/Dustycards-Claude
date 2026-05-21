@@ -792,7 +792,7 @@ export default async function HomePage({
             </div>
           ) : (
             <div
-              className="grid grid-cols-2 gap-2 sm:gap-4 sm:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
+              className="grid grid-cols-2 gap-2 lg:gap-4 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
               style={binderGridStyle}
             >
               {data.binders.map((binder) => (

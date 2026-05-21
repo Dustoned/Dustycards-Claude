@@ -2,10 +2,10 @@
 
 import dynamic from "next/dynamic";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
 import { useSettings, type CardSize } from "@/components/SettingsProvider";
-import { getFixedTrackGridTemplate, getSupportTileTrackWidth } from "@/lib/display-scale";
+import { getSupportTileTrackWidth } from "@/lib/display-scale";
 import {
   buildOverviewSectionOrderCookie,
   DEFAULT_OVERVIEW_SECTION_ORDER,
@@ -197,6 +197,13 @@ export default function CollectionOverviewSections({
     displaySettings.uiScale,
     displaySettings.widescreen
   );
+  const binderGridStyle = useMemo(
+    () =>
+      ({
+        "--binder-tile-track": binderTileTrackWidth,
+      }) as CSSProperties,
+    [binderTileTrackWidth]
+  );
   const layoutOptions = isMobileViewport ? MOBILE_CARD_LAYOUT_OPTIONS : DESKTOP_CARD_LAYOUT_OPTIONS;
   const [sectionOrder, setSectionOrder] = useState<OverviewSectionKey[]>(
     initialSectionOrder ?? DEFAULT_OVERVIEW_SECTION_ORDER
@@ -334,12 +341,8 @@ export default function CollectionOverviewSections({
               </div>
             ) : (
               <div
-                className="grid gap-2 sm:gap-4"
-                style={{
-                  gridTemplateColumns: isMobileViewport
-                    ? "repeat(2, minmax(0, 1fr))"
-                    : getFixedTrackGridTemplate(binderTileTrackWidth),
-                }}
+                className="grid grid-cols-2 gap-2 lg:gap-4 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
+                style={binderGridStyle}
               >
                 {binders.map((binder) => (
                   <BinderOverviewTile key={binder.id} binder={binder} />
@@ -354,10 +357,9 @@ export default function CollectionOverviewSections({
     return new Map(sections.map((section) => [section.key, section] as const));
   }, [
     binderCards,
-    binderTileTrackWidth,
+    binderGridStyle,
     binders,
     gradedLooseSingles,
-    isMobileViewport,
     rawLooseSingles,
     sealed,
     showRawLooseSinglesSection,
