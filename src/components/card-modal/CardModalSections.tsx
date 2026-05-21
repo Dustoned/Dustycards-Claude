@@ -2327,26 +2327,17 @@ export function CardModalHistorySection({
   );
 }
 
-export function CardModalFooter({
-  card,
-  collectionItem,
-  storedCardMarketUrl,
-  onOpenCardMarket,
-  onAddedToCollection,
-}: {
-  card: ModalCardData;
-  collectionItem: ModalCardCollectionItem | null;
-  storedCardMarketUrl: string | null;
-  onOpenCardMarket: () => void;
-  onAddedToCollection?: () => void | Promise<void>;
-}) {
-  const collectionCard = buildCollectionCard(card);
-  const panelClass =
-    "min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.022))] p-4";
-  const panelTitleClass = "text-sm font-semibold text-white";
-  const marketButtonBase =
-    "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-center text-sm font-semibold text-white/82 transition-colors hover:border-white/18 hover:bg-white/[0.08] hover:text-white";
-  const ownedPrice =
+const CARD_MODAL_SUPPORT_PANEL_CLASS =
+  "min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.022))] p-4";
+const CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS = "text-sm font-semibold text-white";
+const CARD_MODAL_MARKET_BUTTON_CLASS =
+  "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-center text-sm font-semibold text-white/82 transition-colors hover:border-white/18 hover:bg-white/[0.08] hover:text-white";
+
+function getOwnedCopyPrice(
+  card: ModalCardData,
+  collectionItem: ModalCardCollectionItem | null
+): number | null {
+  return (
     collectionItem?.cost_basis_value ??
     collectionItem?.purchase_price ??
     card.price?.cm_en_lowest_nm ??
@@ -2354,8 +2345,12 @@ export function CardModalFooter({
     card.price?.cm_fr_lowest_nm ??
     card.price?.cm_es_lowest_nm ??
     card.price?.cm_it_lowest_nm ??
-    null;
-  const recentPricePoints = card.price_history
+    null
+  );
+}
+
+function getRecentDesktopPricePoints(card: ModalCardData): Array<{ label: string; value: number }> {
+  return card.price_history
     .map((point) => ({
       label: point.label,
       value:
@@ -2371,120 +2366,189 @@ export function CardModalFooter({
     .filter((point): point is { label: string; value: number } => point.value != null)
     .slice(-5)
     .reverse();
+}
 
+export function CardModalOwnedCopyPanel({
+  card,
+  collectionItem,
+  onAddedToCollection,
+  className = "",
+}: {
+  card: ModalCardData;
+  collectionItem: ModalCardCollectionItem | null;
+  onAddedToCollection?: () => void | Promise<void>;
+  className?: string;
+}) {
+  const collectionCard = buildCollectionCard(card);
+  const ownedPrice = getOwnedCopyPrice(card, collectionItem);
+
+  return (
+    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} ${className}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Owned Copy</h3>
+        {collectionItem && (
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-white">
+            <Sparkles className="h-3.5 w-3.5" />
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 flex gap-3">
+        {card.image_url && (
+          <div className="relative aspect-[63/88] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]">
+            <Image
+              src={getCachedImageUrl(card.image_url) ?? card.image_url}
+              alt={card.name}
+              fill
+              sizes="64px"
+              className="object-fill"
+              unoptimized
+            />
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white/88">
+            {collectionItem?.condition ?? "Not saved yet"}
+          </p>
+          <p className="mt-1 text-xs text-white/46">
+            {collectionItem?.language ?? "English"}
+          </p>
+          <p className="mt-3 text-lg font-semibold tabular-nums text-white">
+            {formatCurrency(ownedPrice, "EUR")}
+          </p>
+          {collectionItem?.binder_name && (
+            <p className="mt-1 truncate text-xs text-white/42">{collectionItem.binder_name}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        <CollectionAddCardButton
+          card={collectionCard}
+          mode="button"
+          theme="dark"
+          label={collectionItem ? "Add Another Copy" : "Add to Collection"}
+          className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.035] !text-sm !font-semibold"
+          onAdded={onAddedToCollection}
+        />
+      </div>
+    </section>
+  );
+}
+
+export function CardModalRecentPricesPanel({
+  card,
+  className = "",
+}: {
+  card: ModalCardData;
+  className?: string;
+}) {
+  const recentPricePoints = getRecentDesktopPricePoints(card);
+
+  return (
+    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} ${className}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Recent Prices</h3>
+        <span className="text-xs font-semibold text-violet-200/80">View All</span>
+      </div>
+      <div className="mt-3 grid gap-0">
+        {recentPricePoints.length > 0 ? (
+          recentPricePoints.map((point) => (
+            <div
+              key={`${point.label}-${point.value}`}
+              className="flex items-center justify-between gap-3 border-b border-white/[0.07] py-2.5 last:border-b-0"
+            >
+              <span className="truncate text-xs text-white/52">{point.label}</span>
+              <span className="text-sm font-semibold tabular-nums text-white/84">
+                {formatCurrency(point.value, "EUR")}
+              </span>
+            </div>
+          ))
+        ) : (
+          <p className="rounded-xl border border-dashed border-white/10 px-3 py-6 text-center text-sm text-white/42">
+            No recent market points yet.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function CardModalActiveListingsPanel({
+  card,
+  storedCardMarketUrl,
+  onOpenCardMarket,
+  className = "",
+}: {
+  card: ModalCardData;
+  storedCardMarketUrl: string | null;
+  onOpenCardMarket: () => void;
+  className?: string;
+}) {
+  return (
+    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} ${className}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Active Listings</h3>
+        <span className="text-xs font-semibold text-violet-200/80">Market</span>
+      </div>
+      <div className="mt-4 grid gap-2">
+        {storedCardMarketUrl ? (
+          <a
+            href={storedCardMarketUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={CARD_MODAL_MARKET_BUTTON_CLASS}
+          >
+            CardMarket
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        ) : (
+          <button type="button" onClick={onOpenCardMarket} className={CARD_MODAL_MARKET_BUTTON_CLASS}>
+            CardMarket
+            <ExternalLink className="h-4 w-4" />
+          </button>
+        )}
+
+        <Link
+          href={`/deals?cardId=${encodeURIComponent(card.id)}`}
+          prefetch={false}
+          className={CARD_MODAL_MARKET_BUTTON_CLASS}
+        >
+          eBay Deals
+          <ExternalLink className="h-4 w-4" />
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+export function CardModalFooter({
+  card,
+  collectionItem,
+  storedCardMarketUrl,
+  onOpenCardMarket,
+  onAddedToCollection,
+}: {
+  card: ModalCardData;
+  collectionItem: ModalCardCollectionItem | null;
+  storedCardMarketUrl: string | null;
+  onOpenCardMarket: () => void;
+  onAddedToCollection?: () => void | Promise<void>;
+}) {
   return (
     <div className="mt-1">
       <div className="grid gap-4 lg:grid-cols-3">
-        <section className={panelClass}>
-          <div className="flex items-center justify-between gap-3">
-            <h3 className={panelTitleClass}>Owned Copy</h3>
-            {collectionItem && (
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-white">
-                <Sparkles className="h-3.5 w-3.5" />
-              </span>
-            )}
-          </div>
-
-          <div className="mt-4 flex gap-3">
-            {card.image_url && (
-              <div className="relative aspect-[63/88] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]">
-                <Image
-                  src={getCachedImageUrl(card.image_url) ?? card.image_url}
-                  alt={card.name}
-                  fill
-                  sizes="64px"
-                  className="object-fill"
-                  unoptimized
-                />
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white/88">
-                {collectionItem?.condition ?? "Not saved yet"}
-              </p>
-              <p className="mt-1 text-xs text-white/46">
-                {collectionItem?.language ?? "English"}
-              </p>
-              <p className="mt-3 text-lg font-semibold tabular-nums text-white">
-                {formatCurrency(ownedPrice, "EUR")}
-              </p>
-              {collectionItem?.binder_name && (
-                <p className="mt-1 truncate text-xs text-white/42">{collectionItem.binder_name}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-2">
-            <CollectionAddCardButton
-              card={collectionCard}
-              mode="button"
-              theme="dark"
-              label={collectionItem ? "Add Another Copy" : "Add to Collection"}
-              className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.035] !text-sm !font-semibold"
-              onAdded={onAddedToCollection}
-            />
-          </div>
-        </section>
-
-        <section className={panelClass}>
-          <div className="flex items-center justify-between gap-3">
-            <h3 className={panelTitleClass}>Recent Prices</h3>
-            <span className="text-xs font-semibold text-violet-200/80">View All</span>
-          </div>
-          <div className="mt-3 grid gap-0">
-            {recentPricePoints.length > 0 ? (
-              recentPricePoints.map((point) => (
-                <div
-                  key={`${point.label}-${point.value}`}
-                  className="flex items-center justify-between gap-3 border-b border-white/[0.07] py-2.5 last:border-b-0"
-                >
-                  <span className="truncate text-xs text-white/52">{point.label}</span>
-                  <span className="text-sm font-semibold tabular-nums text-white/84">
-                    {formatCurrency(point.value, "EUR")}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="rounded-xl border border-dashed border-white/10 px-3 py-6 text-center text-sm text-white/42">
-                No recent market points yet.
-              </p>
-            )}
-          </div>
-        </section>
-
-        <section className={panelClass}>
-          <div className="flex items-center justify-between gap-3">
-            <h3 className={panelTitleClass}>Active Listings</h3>
-            <span className="text-xs font-semibold text-violet-200/80">Market</span>
-          </div>
-          <div className="mt-4 grid gap-2">
-            {storedCardMarketUrl ? (
-              <a
-                href={storedCardMarketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={marketButtonBase}
-              >
-                CardMarket
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            ) : (
-              <button type="button" onClick={onOpenCardMarket} className={marketButtonBase}>
-                CardMarket
-                <ExternalLink className="h-4 w-4" />
-              </button>
-            )}
-
-            <Link
-              href={`/deals?cardId=${encodeURIComponent(card.id)}`}
-              prefetch={false}
-              className={marketButtonBase}
-            >
-              eBay Deals
-              <ExternalLink className="h-4 w-4" />
-            </Link>
-          </div>
-        </section>
+        <CardModalOwnedCopyPanel
+          card={card}
+          collectionItem={collectionItem}
+          onAddedToCollection={onAddedToCollection}
+        />
+        <CardModalRecentPricesPanel card={card} />
+        <CardModalActiveListingsPanel
+          card={card}
+          storedCardMarketUrl={storedCardMarketUrl}
+          onOpenCardMarket={onOpenCardMarket}
+        />
       </div>
     </div>
   );

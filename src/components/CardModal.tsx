@@ -25,12 +25,15 @@ import {
 } from "@/lib/price-history";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import {
+  CardModalActiveListingsPanel,
   CardModalDesktopActionGroup,
   CardModalFooter,
   CardModalHeroSection,
   CardModalHistorySection,
   CardModalMobileShowcase,
+  CardModalOwnedCopyPanel,
   CardModalPreview,
+  CardModalRecentPricesPanel,
 } from "./card-modal/CardModalSections";
 import type { ModalCardData } from "./card-modal/types";
 import { getCardModalLayoutClasses } from "./card-modal/utils";
@@ -178,13 +181,13 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
       : `min(100%, ${layout.maxW})`,
   };
   const desktopGridClass = displaySettings.widescreen
-    ? "grid justify-center gap-7 xl:grid-cols-[minmax(24rem,31rem)_minmax(30rem,36rem)] xl:items-start 2xl:grid-cols-[minmax(26rem,38rem)_minmax(28rem,36rem)_minmax(36rem,48rem)] 2xl:gap-8"
+    ? "grid justify-center gap-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,0.9fr)_minmax(0,1.16fr)] xl:items-start 2xl:grid-cols-[minmax(26rem,38rem)_minmax(28rem,36rem)_minmax(36rem,48rem)] 2xl:gap-7"
     : "grid gap-6 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)]";
   const desktopPreviewClass = displaySettings.widescreen
-    ? "xl:row-span-2 xl:justify-self-end 2xl:row-span-1"
+    ? "min-w-0 xl:justify-self-end"
     : "lg:row-span-2 2xl:row-span-1";
   const desktopHistoryClass = displaySettings.widescreen
-    ? "min-w-0 xl:col-start-2 2xl:col-start-auto"
+    ? "min-w-0"
     : "min-w-0 lg:col-start-2 2xl:col-start-auto";
   const gradedPrices = modalCard.graded_prices ?? [];
   const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];
@@ -195,6 +198,9 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const showGradedPreview = Boolean(
     showGradedSlabPreview && gradingCompanyLabel && gradingGradeLabel
   );
+  const desktopPreviewMediaWidth = displaySettings.widescreen
+    ? "clamp(26rem, 21vw, 38rem)"
+    : layout.mediaWidth;
   const previewAspectClass = showGradedPreview
     ? GRADED_SLAB_ASPECT_CLASS
     : RAW_CARD_ASPECT_CLASS;
@@ -400,6 +406,53 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   }
 
   const storedCardMarketUrl = getCardMarketUrl();
+  const desktopPreviewPanel = (
+    <CardModalPreview
+      card={modalCard}
+      mediaWidth={desktopPreviewMediaWidth}
+      imageSize={layout.imageSize}
+      previewAspectClass={previewAspectClass}
+      showGradedPreview={showGradedPreview}
+      gradingCompanyLabel={gradingCompanyLabel}
+      gradingGradeLabel={gradingGradeLabel}
+      gradedTileSize={displaySettings.cardSize}
+      onOpenThreeD={openThreeDView}
+    />
+  );
+  const desktopHeroPanel = (
+    <CardModalHeroSection
+      card={modalCard}
+      collectionItem={collectionItem}
+      titleClass={layout.titleClass}
+      metaClassName={layout.metaClassName}
+      detailStatClass={layout.detailStatClass}
+      gradingCompanyLabel={gradingCompanyLabel}
+      gradingGradeLabel={gradingGradeLabel}
+      refreshError={refreshError}
+      onClose={onClose}
+    />
+  );
+  const desktopHistoryPanel = (
+    <CardModalHistorySection
+      historyChartMode={effectiveHistoryChartMode}
+      activeMarketSource={effectiveMarketDataSource}
+      cardMarketHistory={cardMarketHistory}
+      activeCardMarketCurrentValue={activeCardMarketCurrentValue}
+      showTcgPlayerSource={hasTcgPlayerData}
+      card={modalCard}
+      collectionItem={collectionItem}
+      availableCardMarketHistorySeries={availableCardMarketHistorySeries}
+      activeCardMarketHistorySeries={activeCardMarketHistorySeries}
+      activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
+      onSelectMarketSource={setMarketDataSource}
+      onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
+      onSelectHistoryChartMode={setHistoryChartMode}
+      tcgPlayerHistory={tcgPlayerHistory}
+      tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
+      gradedPriceHistory={gradedPriceHistory}
+      ebaySoldGradedPriceHistory={ebaySoldGradedPriceHistory}
+    />
+  );
 
   return (
     <>
@@ -489,71 +542,50 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                   />
                 </div>
 
-              <div
-                className={desktopGridClass}
-              >
-                <div className={desktopPreviewClass}>
-                  <CardModalPreview
-                    card={modalCard}
-                    mediaWidth={
-                      displaySettings.widescreen
-                        ? "clamp(26rem, 21vw, 38rem)"
-                        : layout.mediaWidth
-                    }
-                    imageSize={layout.imageSize}
-                    previewAspectClass={previewAspectClass}
-                    showGradedPreview={showGradedPreview}
-                    gradingCompanyLabel={gradingCompanyLabel}
-                    gradingGradeLabel={gradingGradeLabel}
-                    gradedTileSize={displaySettings.cardSize}
-                    onOpenThreeD={openThreeDView}
-                  />
-                </div>
+              {displaySettings.widescreen ? (
+                <div className={desktopGridClass}>
+                  <div className={`${desktopPreviewClass} flex flex-col gap-5`}>
+                    {desktopPreviewPanel}
+                    <CardModalOwnedCopyPanel
+                      card={modalCard}
+                      collectionItem={collectionItem}
+                      onAddedToCollection={refreshModalCardFromServer}
+                    />
+                  </div>
 
-                <div className="min-w-0">
-                  <CardModalHeroSection
-                    card={modalCard}
-                    collectionItem={collectionItem}
-                    titleClass={layout.titleClass}
-                    metaClassName={layout.metaClassName}
-                    detailStatClass={layout.detailStatClass}
-                    gradingCompanyLabel={gradingCompanyLabel}
-                    gradingGradeLabel={gradingGradeLabel}
-                    refreshError={refreshError}
-                    onClose={onClose}
-                  />
-                </div>
+                  <div className="flex min-w-0 flex-col gap-5">
+                    {desktopHeroPanel}
+                    <CardModalRecentPricesPanel card={modalCard} />
+                  </div>
 
-                <div className={desktopHistoryClass}>
-                  <CardModalHistorySection
-                    historyChartMode={effectiveHistoryChartMode}
-                    activeMarketSource={effectiveMarketDataSource}
-                    cardMarketHistory={cardMarketHistory}
-                    activeCardMarketCurrentValue={activeCardMarketCurrentValue}
-                    showTcgPlayerSource={hasTcgPlayerData}
+                  <div className={`${desktopHistoryClass} flex flex-col gap-5`}>
+                    {desktopHistoryPanel}
+                    <CardModalActiveListingsPanel
+                      card={modalCard}
+                      storedCardMarketUrl={storedCardMarketUrl}
+                      onOpenCardMarket={openCardMarket}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className={desktopGridClass}>
+                    <div className={desktopPreviewClass}>{desktopPreviewPanel}</div>
+
+                    <div className="min-w-0">{desktopHeroPanel}</div>
+
+                    <div className={desktopHistoryClass}>{desktopHistoryPanel}</div>
+                  </div>
+
+                  <CardModalFooter
                     card={modalCard}
                     collectionItem={collectionItem}
-                    availableCardMarketHistorySeries={availableCardMarketHistorySeries}
-                    activeCardMarketHistorySeries={activeCardMarketHistorySeries}
-                    activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
-                    onSelectMarketSource={setMarketDataSource}
-                    onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
-                    onSelectHistoryChartMode={setHistoryChartMode}
-                    tcgPlayerHistory={tcgPlayerHistory}
-                    tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
-                    gradedPriceHistory={gradedPriceHistory}
-                    ebaySoldGradedPriceHistory={ebaySoldGradedPriceHistory}
+                    storedCardMarketUrl={storedCardMarketUrl}
+                    onOpenCardMarket={openCardMarket}
+                    onAddedToCollection={refreshModalCardFromServer}
                   />
-                </div>
-              </div>
-
-              <CardModalFooter
-                card={modalCard}
-                collectionItem={collectionItem}
-                storedCardMarketUrl={storedCardMarketUrl}
-                onOpenCardMarket={openCardMarket}
-                onAddedToCollection={refreshModalCardFromServer}
-              />
+                </>
+              )}
               </div>
             </div>
           </div>
