@@ -790,13 +790,15 @@ export default function PriceHistoryPanel({
     </div>
   ) : null;
 
+  const deltaValueClass =
+    isDashboardLayout ? "text-base" : isMobileHeroLayout ? "text-sm" : isHeroLayout ? "text-lg" : "text-sm";
   const deltaJsx =
     delta != null ? (
-      <div>
+      <div className={isMobileHeroLayout ? "max-w-[7.25rem] overflow-hidden text-right" : ""}>
         <p
           className={`${
-            isDashboardLayout ? "text-base" : isMobileHeroLayout ? "text-sm" : isHeroLayout ? "text-lg" : "text-sm"
-          } font-semibold tabular-nums ${
+            deltaValueClass
+          } break-words font-semibold leading-tight tabular-nums ${
             delta >= 0
               ? tone === "dark"
                 ? "text-emerald-300"
@@ -808,7 +810,7 @@ export default function PriceHistoryPanel({
         >
           {formatDelta(delta, currency)}
           {delta != null && delta !== 0 && currentValue ? (
-            <span className="ml-1.5">
+            <span className={isMobileHeroLayout ? "block sm:ml-1.5 sm:inline" : "ml-1.5"}>
               ({delta >= 0 ? "+" : ""}
               {((delta / Math.max(0.01, currentValue - delta)) * 100).toFixed(1)}%)
             </span>
@@ -821,7 +823,7 @@ export default function PriceHistoryPanel({
     !deltaJsx && scopedTimeDomain && isHeroLayout && !isMobileHeroLayout ? (
       <div className="invisible" aria-hidden="true">
         <p className="text-lg font-semibold tabular-nums">+€0.00 (0.0%)</p>
-        <p className={`${subtitleClass} mt-0.5`}>vs {selectedPreset.deltaText}</p>
+        <p className={`${subtitleClass} mt-0.5 leading-tight`}>vs {selectedPreset.deltaText}</p>
       </div>
     ) : null;
 
@@ -1008,7 +1010,7 @@ export default function PriceHistoryPanel({
                   : "text-right"
             }`}
           >
-            <div className={`${isMobileHeroLayout ? "min-w-[4rem] gap-1.5" : "min-w-[4.5rem] gap-2"} flex flex-col items-end`}>
+            <div className={`${isMobileHeroLayout ? "min-w-0 max-w-[7.25rem] gap-1.5" : "min-w-[4.5rem] gap-2"} flex flex-col items-end`}>
               {headerAccessory}
               {reserveDateSlot && (
                 <p
