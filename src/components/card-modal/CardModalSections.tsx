@@ -849,18 +849,20 @@ function GradedPricingPanel({
   const chartCurrency = chartRow?.chartCurrency ?? chartRow?.currency ?? "EUR";
   const graphInfoLabel = chartRow?.label ?? savedGradeLabel ?? "Graded";
   const sourceToggleClass =
-    "inline-flex h-8 min-w-0 w-auto overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-0.5 max-[640px]:h-7";
+    "grid h-8 min-w-[12rem] grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:min-w-[10rem]";
   const sourceToggleButtonClass =
-    "min-w-0 flex-1 rounded-full px-3 text-[11px] font-semibold transition-colors max-[640px]:px-2";
+    "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-semibold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
+  const sourceToggleActiveClass =
+    "bg-white/[0.13] text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
   const sourceSwitchControl = showSourceSwitch ? (
     <div
       className={`card-modal-source-toggle ${
-        graphFirst ? "min-w-[9.5rem] sm:min-w-[12rem]" : "min-w-[12rem]"
+        graphFirst ? "sm:min-w-[12rem]" : "min-w-[12rem]"
       } ${sourceToggleClass}`}
     >
       {[
         { key: "cardmarket" as const, label: "CardMarket", available: cardMarketRows.length > 0 },
-        { key: "ebay" as const, label: "eBay sold", available: ebayRows.length > 0 },
+        { key: "ebay" as const, label: "eBay", available: ebayRows.length > 0 },
       ].map((source) => (
         <button
           key={source.key}
@@ -871,10 +873,11 @@ function GradedPricingPanel({
             setSelectedSource(source.key);
             setSelectedSlabLabel("");
           }}
+          aria-pressed={effectiveSource === source.key && source.available}
           className={`${sourceToggleButtonClass} disabled:cursor-not-allowed disabled:opacity-35 ${
             effectiveSource === source.key && source.available
-              ? ACTIVE_SEGMENT_CLASS
-              : "text-white/48 hover:text-white/78"
+              ? sourceToggleActiveClass
+              : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
           }`}
         >
           {source.label}
@@ -2423,10 +2426,12 @@ export function CardModalHistorySection({
   ];
   const historyPillClass =
     "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-1.5 max-[640px]:text-[10px]";
-  const historySegmentClass =
-    "inline-flex h-8 min-w-0 w-auto overflow-hidden rounded-full border border-white/10 bg-white/[0.04] p-0.5 max-[640px]:h-7";
-  const historySegmentButtonClass =
-    "min-w-0 flex-none rounded-full px-3 text-[11px] font-semibold transition-colors max-[640px]:px-2";
+  const historySourceToggleClass =
+    "grid h-8 w-[13rem] min-w-[10.5rem] max-w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:w-[10.5rem]";
+  const historySourceToggleButtonClass =
+    "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-semibold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
+  const historySourceToggleActiveClass =
+    "bg-white/[0.13] text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
   return (
     <section
       className="overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.026))] p-4 text-white shadow-[0_24px_80px_rgba(0,0,0,0.22)]"
@@ -2484,7 +2489,7 @@ export function CardModalHistorySection({
             )}
 
             {effectiveHistoryChartMode === "market" && showRawSourceToggle && (
-              <div className={`card-modal-source-toggle ${historySegmentClass}`}>
+              <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
                 {[
                   { key: "cardmarket" as const, label: "CardMarket" },
                   { key: "tcgplayer" as const, label: "TCGPlayer" },
@@ -2493,10 +2498,11 @@ export function CardModalHistorySection({
                     key={source.key}
                     type="button"
                     onClick={() => onSelectMarketSource(source.key)}
-                    className={`${historySegmentButtonClass} ${
+                    aria-pressed={activeMarketSource === source.key}
+                    className={`${historySourceToggleButtonClass} ${
                       activeMarketSource === source.key
-                        ? ACTIVE_SEGMENT_CLASS
-                        : "text-white/48 hover:text-white/78"
+                        ? historySourceToggleActiveClass
+                        : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
                     }`}
                   >
                     {source.label}
@@ -2506,19 +2512,20 @@ export function CardModalHistorySection({
             )}
 
             {effectiveHistoryChartMode === "graded" && showGradedSourceToggle && (
-              <div className={`card-modal-source-toggle ${historySegmentClass}`}>
+              <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
                 {[
                   { key: "cardmarket" as const, label: "CardMarket" },
-                  { key: "ebay" as const, label: "eBay sold" },
+                  { key: "ebay" as const, label: "eBay" },
                 ].map((source) => (
                   <button
                     key={source.key}
                     type="button"
                     onClick={() => onSelectGradedSource(source.key)}
-                    className={`${historySegmentButtonClass} ${
+                    aria-pressed={effectiveGradedSource === source.key}
+                    className={`${historySourceToggleButtonClass} ${
                       effectiveGradedSource === source.key
-                        ? ACTIVE_SEGMENT_CLASS
-                        : "text-white/48 hover:text-white/78"
+                        ? historySourceToggleActiveClass
+                        : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
                     }`}
                   >
                     {source.label}
