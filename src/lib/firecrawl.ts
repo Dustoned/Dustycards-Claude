@@ -5,6 +5,7 @@ export interface FirecrawlConfigSnapshot {
   configured: boolean;
   apiUrl: string;
   monthlyCreditBudget: number;
+  monthlyCreditOffset: number;
   creditGuide: Array<{
     feature: string;
     cost: string;
@@ -78,6 +79,12 @@ function getFirecrawlMonthlyCreditBudget(): number {
   return DEFAULT_FIRECRAWL_MONTHLY_CREDITS;
 }
 
+function getFirecrawlMonthlyCreditOffset(): number {
+  const parsed = Number(process.env.FIRECRAWL_MONTHLY_CREDIT_OFFSET);
+  if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
+  return 0;
+}
+
 function getFirecrawlCreditGuide(): FirecrawlConfigSnapshot["creditGuide"] {
   return [
     { feature: "Scrape", cost: "1 credit per page" },
@@ -93,6 +100,7 @@ export function getFirecrawlConfigSnapshot(): FirecrawlConfigSnapshot {
     configured: Boolean(getFirecrawlApiKey()),
     apiUrl: getFirecrawlApiUrl(),
     monthlyCreditBudget: getFirecrawlMonthlyCreditBudget(),
+    monthlyCreditOffset: getFirecrawlMonthlyCreditOffset(),
     creditGuide: getFirecrawlCreditGuide(),
   };
 }

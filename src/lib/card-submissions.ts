@@ -145,6 +145,7 @@ export interface UserSubmittedCardItem {
 export interface CardSubmissionFirecrawlUsage {
   configured: boolean;
   monthlyBudget: number;
+  monthlyOffset: number;
   monthlyUsed: number;
   monthlyRemaining: number;
   dailyAttemptLimit: number;
@@ -972,6 +973,7 @@ function startOfMonth(value: Date): Date {
 }
 
 async function getFirecrawlUsage(userId: string, now = new Date()) {
+  const config = getFirecrawlConfigSnapshot();
   const [monthly, dailyAttempts] = await Promise.all([
     db.cardSubmission.aggregate({
       where: { created_at: { gte: startOfMonth(now) } },
@@ -987,7 +989,7 @@ async function getFirecrawlUsage(userId: string, now = new Date()) {
   ]);
 
   return {
-    monthlyUsed: monthly._sum.credits_used ?? 0,
+    monthlyUsed: config.monthlyCreditOffset + (monthly._sum.credits_used ?? 0),
     dailyAttemptsUsed: dailyAttempts,
   };
 }
@@ -1001,6 +1003,7 @@ export async function getCardSubmissionFirecrawlUsage(
   return {
     configured: config.configured,
     monthlyBudget: config.monthlyCreditBudget,
+    monthlyOffset: config.monthlyCreditOffset,
     monthlyUsed: usage.monthlyUsed,
     monthlyRemaining: Math.max(0, config.monthlyCreditBudget - usage.monthlyUsed),
     dailyAttemptLimit: USER_DAILY_ATTEMPT_LIMIT,

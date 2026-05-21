@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.4",
+    releasedAt: "May 22, 2026",
+    title: "Firecrawl credit offset",
+    summary: "DustyCards 3.2.4 lets the live credit meter include Firecrawl requests made outside the production database.",
+    tone: "fixed",
+    highlights: [
+      "Added a monthly Firecrawl credit offset so local/manual scrapes can be counted in the live Submit Card meter.",
+      "Budget checks now include the offset before allowing another Firecrawl preview.",
+    ],
+  },
+  {
     version: "3.2.3",
     releasedAt: "May 22, 2026",
     title: "Submit credit visibility",

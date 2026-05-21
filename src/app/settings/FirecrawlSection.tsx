@@ -103,6 +103,9 @@ function CreditGuide({ config }: { config: FirecrawlConfigSnapshot }) {
           <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-white/45">
             Free plan budget is set to {config.monthlyCreditBudget.toLocaleString("en-US")} credits
             per month. Use single-page checks first; avoid crawls unless you really need them.
+            {config.monthlyCreditOffset > 0
+              ? ` Includes ${config.monthlyCreditOffset.toLocaleString("en-US")} manually tracked credits already spent outside this database.`
+              : ""}
           </p>
         </div>
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-cyan-500 dark:text-cyan-200" />

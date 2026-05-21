@@ -114,6 +114,7 @@ interface UserSubmittedCardItem {
 interface FirecrawlUsage {
   configured: boolean;
   monthlyBudget: number;
+  monthlyOffset: number;
   monthlyUsed: number;
   monthlyRemaining: number;
   dailyAttemptLimit: number;
@@ -335,6 +336,7 @@ export default function SubmitCardClient() {
         }`
       : null;
   const usageMonthlyBudget = firecrawlUsage?.monthlyBudget ?? preview?.firecrawl.monthlyBudget ?? 1000;
+  const usageMonthlyOffset = firecrawlUsage?.monthlyOffset ?? 0;
   const usageMonthlyUsed = firecrawlUsage?.monthlyUsed ?? preview?.firecrawl.monthlyUsed ?? 0;
   const usageMonthlyRemaining =
     firecrawlUsage?.monthlyRemaining ?? Math.max(0, usageMonthlyBudget - usageMonthlyUsed);
@@ -366,13 +368,21 @@ export default function SubmitCardClient() {
           </button>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <StatPill
             label="This month"
             value={
               usageLoading && !firecrawlUsage
                 ? "Loading..."
                 : `${usageMonthlyUsed.toLocaleString("en-US")} / ${usageMonthlyBudget.toLocaleString("en-US")}`
+            }
+          />
+          <StatPill
+            label="Offset"
+            value={
+              usageLoading && !firecrawlUsage
+                ? "Loading..."
+                : usageMonthlyOffset.toLocaleString("en-US")
             }
           />
           <StatPill
