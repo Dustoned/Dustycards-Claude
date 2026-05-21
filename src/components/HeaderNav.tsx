@@ -86,6 +86,12 @@ const ONE_PIECE_BROWSE_ITEM: NavItem = {
   matches: ["/one-piece"],
 };
 
+const SUBMIT_CARD_ITEM: NavItem = {
+  href: "/submit-card",
+  label: "Submit Card",
+  matches: ["/submit-card"],
+};
+
 const MARKET_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/movers", label: "Market", matches: ["/movers"] },
   { href: "/deals", label: "Deals", matches: ["/deals"] },
@@ -96,11 +102,11 @@ function getNavGroups(onePieceEnabled: boolean): ReadonlyArray<NavGroup> {
     {
       label: "Browse",
       matches: onePieceEnabled
-        ? ["/expansions", "/categories", "/illustrators", "/one-piece"]
-        : ["/expansions", "/categories", "/illustrators"],
+        ? ["/expansions", "/categories", "/illustrators", "/one-piece", "/submit-card"]
+        : ["/expansions", "/categories", "/illustrators", "/submit-card"],
       items: onePieceEnabled
-        ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM]
-        : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS],
+        ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
+        : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
     },
     {
       label: "Market",
@@ -201,8 +207,8 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
     {
       label: "Browse",
       items: onePieceEnabled
-        ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM]
-        : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS],
+        ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
+        : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
     },
     { label: "Market", items: MARKET_ITEMS },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },

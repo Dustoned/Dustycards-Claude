@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.2",
+    releasedAt: "May 22, 2026",
+    title: "Browse menu consistency",
+    summary: "DustyCards 3.2.2 aligns every navigation surface around the same Browse placement.",
+    tone: "fixed",
+    highlights: [
+      "Added Submit Card to the bottom of the header Browse menu as well.",
+      "Kept the desktop sidebar, mobile More menu, and header navigation consistent.",
+    ],
+  },
+  {
     version: "3.2.1",
     releasedAt: "May 22, 2026",
     title: "Submit Card navigation",
