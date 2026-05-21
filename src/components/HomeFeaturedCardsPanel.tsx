@@ -107,7 +107,7 @@ function FeaturedCardTile({
   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
   const isGradedCard = Boolean(item.owned && gradingCompanyLabel && gradingGradeLabel);
-  const previewAspectClass = isGradedCard ? GRADED_SLAB_ASPECT_CLASS : RAW_CARD_ASPECT_CLASS;
+  const previewAspectClass = RAW_CARD_ASPECT_CLASS;
   const imageClass = isGradedCard ? "object-contain" : "rounded-[4.75%] object-fill";
   const displayPrice = getCollectionItemPrice(item, settings.primaryPriceSource);
   const displayPriceCurrency = getCollectionItemPriceCurrency(
@@ -133,23 +133,27 @@ function FeaturedCardTile({
         }`}
       >
         {isGradedCard && gradingCompanyLabel && gradingGradeLabel ? (
-          <GradedSlabPreview
-            company={gradingCompanyLabel}
-            grade={gradingGradeLabel}
-            name={item.name}
-            episodeName={item.episode_name}
-            episodeCode={item.episode_code}
-            episodeSeries={item.episode_series}
-            episodeReleaseDate={item.episode_release_date}
-            cardNumber={item.card_number}
-            bgsSubgrades={item.grading_subgrades ?? null}
-            imageUrl={item.image_url}
-            alt={item.name}
-            className="absolute inset-0"
-            imageClassName={imageClass}
-            tileSize={cardSize}
-            sizes={imageSizes}
-          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className={`relative h-full w-[82.8%] ${GRADED_SLAB_ASPECT_CLASS}`}>
+              <GradedSlabPreview
+                company={gradingCompanyLabel}
+                grade={gradingGradeLabel}
+                name={item.name}
+                episodeName={item.episode_name}
+                episodeCode={item.episode_code}
+                episodeSeries={item.episode_series}
+                episodeReleaseDate={item.episode_release_date}
+                cardNumber={item.card_number}
+                bgsSubgrades={item.grading_subgrades ?? null}
+                imageUrl={item.image_url}
+                alt={item.name}
+                className="absolute inset-0"
+                imageClassName={imageClass}
+                tileSize={cardSize}
+                sizes={imageSizes}
+              />
+            </div>
+          </div>
         ) : item.image_url ? (
           <Image
             src={getCachedImageUrl(item.image_url) ?? item.image_url}
