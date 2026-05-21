@@ -1148,72 +1148,76 @@ export function CardModalPreview({
   gradedTileSize: CardSize;
   onOpenThreeD: () => void;
 }) {
+  const previewFrameClass =
+    "relative rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.018))] p-2 shadow-[0_22px_58px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.055)]";
   const previewButtonClass =
     showGradedPreview && gradingCompanyLabel && gradingGradeLabel
-      ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-xl border border-transparent shadow-md shadow-black/20 transition-all duration-200 hover:scale-[1.01] hover:shadow-xl hover:shadow-black/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35`
-      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] bg-[#d8d5cc] p-0 drop-shadow-[0_22px_52px_rgba(0,0,0,0.42)] transition-transform after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-white/14 before:pointer-events-none before:absolute before:-inset-8 before:-z-10 before:bg-[radial-gradient(circle,rgba(139,92,246,0.35),rgba(16,185,129,0.12)_42%,transparent_68%)] before:blur-2xl hover:scale-[1.01]`;
+      ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-[22px] border border-white/10 shadow-[0_14px_34px_rgba(0,0,0,0.3)] transition-all duration-200 hover:scale-[1.006] hover:border-white/16 hover:shadow-[0_18px_42px_rgba(0,0,0,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35`
+      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] border border-white/12 bg-[#d8d5cc] p-0 shadow-[0_16px_40px_rgba(0,0,0,0.34),0_0_0_1px_rgba(255,255,255,0.045)] transition-transform after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-inset after:ring-white/16 hover:scale-[1.006] hover:border-white/18`;
 
   return (
     <aside
       className="mx-auto flex h-full max-w-[min(20rem,78vw)] flex-col gap-3 sm:max-w-full sm:gap-4 max-[640px]:max-w-[min(20rem,78vw)] max-[640px]:gap-1.5 lg:mx-0"
       style={{ width: mediaWidth }}
     >
-      {card.image_url ? (
-        <button
-          type="button"
-          onPointerDown={(event) => {
-            if (event.button !== 0) return;
-            event.stopPropagation();
-          }}
-          onMouseDown={(event) => {
-            if (event.button !== 0) return;
-            event.stopPropagation();
-          }}
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpenThreeD();
-          }}
-          className={previewButtonClass}
-          aria-label={`Open ${card.name} in 3D`}
-        >
-          {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (
-            <GradedSlabPreview
-              company={gradingCompanyLabel}
-              grade={gradingGradeLabel}
-              name={card.name}
-              episodeName={card.episode_name}
-              episodeCode={card.episode_code}
-              episodeSeries={card.episode_series}
-              episodeReleaseDate={card.episode_release_date}
-              cardNumber={card.card_number}
-              bgsSubgrades={card.collection_item?.grading_subgrades ?? null}
-              imageUrl={card.image_url}
-              alt={card.name}
-              className="absolute inset-0"
-              sizes={imageSize}
-              loading="eager"
-              priority
-              tileSize={gradedTileSize}
-            />
-          ) : (
-            <Image
-              src={getCachedImageUrl(card.image_url) ?? card.image_url}
-              alt={card.name}
-              fill
-              className="rounded-[4.75%] object-fill"
-              sizes={imageSize}
-              loading="eager"
-              unoptimized
-            />
-          )}
-        </button>
-      ) : (
-        <div
-          className={`${previewAspectClass} flex w-full items-center justify-center rounded-[28px] border border-white/10 bg-white/[0.03] text-white/30 max-[640px]:rounded-2xl`}
-        >
-          ?
-        </div>
-      )}
+      <div className={previewFrameClass}>
+        {card.image_url ? (
+          <button
+            type="button"
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              event.stopPropagation();
+            }}
+            onMouseDown={(event) => {
+              if (event.button !== 0) return;
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenThreeD();
+            }}
+            className={previewButtonClass}
+            aria-label={`Open ${card.name} in 3D`}
+          >
+            {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (
+              <GradedSlabPreview
+                company={gradingCompanyLabel}
+                grade={gradingGradeLabel}
+                name={card.name}
+                episodeName={card.episode_name}
+                episodeCode={card.episode_code}
+                episodeSeries={card.episode_series}
+                episodeReleaseDate={card.episode_release_date}
+                cardNumber={card.card_number}
+                bgsSubgrades={card.collection_item?.grading_subgrades ?? null}
+                imageUrl={card.image_url}
+                alt={card.name}
+                className="absolute inset-0"
+                sizes={imageSize}
+                loading="eager"
+                priority
+                tileSize={gradedTileSize}
+              />
+            ) : (
+              <Image
+                src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                alt={card.name}
+                fill
+                className="rounded-[4.75%] object-fill"
+                sizes={imageSize}
+                loading="eager"
+                unoptimized
+              />
+            )}
+          </button>
+        ) : (
+          <div
+            className={`${previewAspectClass} flex w-full items-center justify-center rounded-[24px] border border-white/10 bg-white/[0.03] text-white/30`}
+          >
+            ?
+          </div>
+        )}
+      </div>
 
     </aside>
   );
