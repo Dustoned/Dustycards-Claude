@@ -577,6 +577,15 @@ function sortGradedRows(rows: GradedPriceDisplayRow[]): GradedPriceDisplayRow[] 
   });
 }
 
+function isPsa10GradedRow(row: GradedPriceDisplayRow): boolean {
+  const compactLabel = normalizeGradedLookupValue(row.label).replace(/\s+/g, "");
+  return compactLabel.startsWith("PSA") && getGradedLabelNumericGrade(row.label) === 10;
+}
+
+function getPreferredGradedRow(rows: GradedPriceDisplayRow[]): GradedPriceDisplayRow | null {
+  return rows.find((row) => row.savedMatch) ?? rows.find(isPsa10GradedRow) ?? rows[0] ?? null;
+}
+
 function getGradedPriceRows(
   card: ModalCardData,
   collectionItem: ModalCardData["collection_item"] | null | undefined
@@ -800,23 +809,34 @@ function GradedPricingPanel({
   const cardMarketRows = rows.filter((row) => row.sourceType === "cardmarket");
   const ebayRows = rows.filter((row) => row.sourceType === "ebay");
   const fallbackSource: GradedPriceSource =
-    rows.find((row) => row.savedMatch)?.sourceType ??
+    getPreferredGradedRow(rows)?.sourceType ??
     (cardMarketRows.length > 0 ? "cardmarket" : "ebay");
-  const [selectedSource, setSelectedSource] = useState<GradedPriceSource>(fallbackSource);
+  const [selectedSource, setSelectedSource] = useState<{
+    cardId: string;
+    source: GradedPriceSource;
+  }>(() => ({ cardId: card.id, source: fallbackSource }));
+  const selectedSourceForCard =
+    selectedSource.cardId === card.id ? selectedSource.source : fallbackSource;
   const effectiveSource =
-    selectedSource === "cardmarket" && cardMarketRows.length > 0
+    selectedSourceForCard === "cardmarket" && cardMarketRows.length > 0
       ? "cardmarket"
-      : selectedSource === "ebay" && ebayRows.length > 0
+      : selectedSourceForCard === "ebay" && ebayRows.length > 0
         ? "ebay"
         : fallbackSource;
   const sourceRows = effectiveSource === "cardmarket" ? cardMarketRows : ebayRows;
-  const fallbackSlabLabel = sourceRows.find((row) => row.savedMatch)?.label ?? sourceRows[0]?.label ?? "";
-  const [selectedSlabLabel, setSelectedSlabLabel] = useState<string>(fallbackSlabLabel);
+  const fallbackSlabLabel = getPreferredGradedRow(sourceRows)?.label ?? "";
+  const [selectedSlab, setSelectedSlab] = useState<{
+    cardId: string;
+    source: GradedPriceSource;
+    label: string;
+  }>(() => ({ cardId: card.id, source: fallbackSource, label: fallbackSlabLabel }));
+  const selectedSlabLabel =
+    selectedSlab.cardId === card.id && selectedSlab.source === effectiveSource
+      ? selectedSlab.label
+      : "";
   const selectedSlabRow =
     sourceRows.find((row) => row.label === selectedSlabLabel) ??
-    sourceRows.find((row) => row.savedMatch) ??
-    sourceRows[0] ??
-    null;
+    getPreferredGradedRow(sourceRows);
   const chartRow = selectedSlabRow;
   const subgradeEntries = getBgsSubgradeEntries(collectionItem);
   const savedGradeLabel =
@@ -850,8 +870,8 @@ function GradedPricingPanel({
           disabled={!source.available}
           onClick={() => {
             if (!source.available) return;
-            setSelectedSource(source.key);
-            setSelectedSlabLabel("");
+            setSelectedSource({ cardId: card.id, source: source.key });
+            setSelectedSlab({ cardId: card.id, source: source.key, label: "" });
           }}
           aria-pressed={effectiveSource === source.key && source.available}
           className={`${sourceToggleButtonClass} disabled:cursor-not-allowed disabled:opacity-35 ${
@@ -935,7 +955,13 @@ function GradedPricingPanel({
         <div className="mt-2">
           <select
             value={selectedSlabRow?.label ?? ""}
-            onChange={(event) => setSelectedSlabLabel(event.target.value)}
+            onChange={(event) =>
+              setSelectedSlab({
+                cardId: card.id,
+                source: effectiveSource,
+                label: event.target.value,
+              })
+            }
             className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-white/18"
           >
             {sourceRows.map((row) => (
@@ -2029,7 +2055,7 @@ export function CardModalHistorySection({
   const hasGradedData = hasCardMarketGradedData || hasEbaySoldGradedData;
   const effectiveHistoryChartMode = hasGradedData ? historyChartMode : "market";
   const fallbackGradedSource: GradedPriceSource =
-    gradedRows.find((row) => row.savedMatch)?.sourceType ??
+    getPreferredGradedRow(gradedRows)?.sourceType ??
     (cardMarketGradedRows.length > 0 ? "cardmarket" : "ebay");
   const [gradedSelection, setGradedSelection] = useState<{
     cardId: string;
@@ -2054,9 +2080,7 @@ export function CardModalHistorySection({
     gradedSelection.cardId === card.id ? gradedSelection.label : "";
   const selectedGradedRow =
     gradedSourceRows.find((row) => row.label === selectedGradedSlabLabel) ??
-    gradedSourceRows.find((row) => row.savedMatch) ??
-    gradedSourceRows[0] ??
-    null;
+    getPreferredGradedRow(gradedSourceRows);
   const gradedChartCurrency =
     selectedGradedRow?.chartCurrency ?? selectedGradedRow?.currency ?? "EUR";
   const showGradedSourceToggle = cardMarketGradedRows.length > 0 && ebayGradedRows.length > 0;
