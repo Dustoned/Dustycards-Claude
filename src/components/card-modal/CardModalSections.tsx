@@ -188,6 +188,7 @@ function getCurrentPriceCoverage(card: ModalCardData) {
     card.price?.cm_fr_lowest_nm,
     card.price?.cm_es_lowest_nm,
     card.price?.cm_it_lowest_nm,
+    card.price?.cm_jp_lowest_nm,
   ];
   const tcgPlayerValues = [card.price?.tcp_market, card.price?.tcp_mid, card.price?.tcp_low];
   const cardMarketCount = cardMarketValues.filter((value) => value != null).length;
@@ -2345,6 +2346,7 @@ function getOwnedCopyPrice(
     card.price?.cm_fr_lowest_nm ??
     card.price?.cm_es_lowest_nm ??
     card.price?.cm_it_lowest_nm ??
+    card.price?.cm_jp_lowest_nm ??
     null
   );
 }

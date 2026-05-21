@@ -21,17 +21,20 @@ model Episode {
   source_status String?
   source_checked_at DateTime?
   source_actual_card_count Int?
+  is_user_submitted Boolean @default(false)
   synced_at     DateTime?
   created_at    DateTime @default(now())
 
   cards          Card[]
   binders        CollectionBinder[]
   sealedProducts SealedProduct[]
+  cardSubmissions CardSubmission[]
 
   @@index([source_status, source_checked_at])
   @@index([game, release_date])
   @@index([game, code])
   @@index([printed_card_count])
+  @@index([is_user_submitted])
 }
 
 model AppSetting {
@@ -60,6 +63,7 @@ model User {
   wants           CollectionWant[]
   sealedItems     CollectionSealed[]
   ebayListingCardOverrides EbayListingCardOverride[]
+  cardSubmissions CardSubmission[]
 
   @@index([role])
   @@index([disabled])
@@ -246,6 +250,8 @@ model Card {
   ebay_sold_graded_synced_at DateTime?
   ebay_sold_graded_status     String?
   ebay_sold_graded_checked_at DateTime?
+  is_user_submitted Boolean @default(false)
+  submitted_by_user_id String?
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
@@ -258,6 +264,8 @@ model Card {
   ebaySoldGradedPriceSnapshots CardEbaySoldGradedPriceSnapshot[]
   ebayListingOverrides EbayListingCardOverride[]
   prices          Price[]
+  cardSubmissions CardSubmission[] @relation("SubmissionCreatedCard")
+  officialCardSubmissions CardSubmission[] @relation("SubmissionOfficialCard")
 
   @@index([episode_id])
   @@index([game, episode_id])
@@ -269,6 +277,58 @@ model Card {
   @@index([ebay_sold_graded_synced_at])
   @@index([ebay_sold_graded_status, ebay_sold_graded_checked_at])
   @@index([tcggo_url, price_source_status, price_source_checked_at])
+  @@index([is_user_submitted])
+  @@index([submitted_by_user_id])
+}
+
+model CardSubmission {
+  id                    String   @id @default(cuid())
+  user_id               String?
+  status                String   @default("preview")
+  game                  String   @default("pokemon")
+  input_name            String
+  input_set_name        String
+  input_card_number     String?
+  input_cardmarket_url  String?
+  input_condition       String?  @default("Near Mint")
+  normalized_key        String
+  duplicate_card_id     String?
+  card_id               String?
+  episode_id            String?
+  official_card_id      String?
+  detected_name         String?
+  detected_set_name     String?
+  detected_card_number  String?
+  detected_language     String?
+  detected_condition    String?
+  cardmarket_url        String?
+  cardmarket_id         String?
+  image_url             String?
+  nm_price_eur          Float?
+  confidence            Float?
+  warnings_json         String?
+  firecrawl_search_json String?
+  firecrawl_scrape_json String?
+  search_count          Int      @default(0)
+  scrape_count          Int      @default(0)
+  credits_used          Int      @default(0)
+  last_scraped_at       DateTime?
+  migrated_at           DateTime?
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  user                  User?    @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  card                  Card?    @relation("SubmissionCreatedCard", fields: [card_id], references: [id], onDelete: SetNull)
+  episode               Episode? @relation(fields: [episode_id], references: [id], onDelete: SetNull)
+  officialCard          Card?    @relation("SubmissionOfficialCard", fields: [official_card_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id, created_at])
+  @@index([status, created_at])
+  @@index([normalized_key, status])
+  @@index([card_id])
+  @@index([episode_id])
+  @@index([official_card_id])
+  @@index([cardmarket_id])
 }
 
 model CardGradedPrice {
@@ -483,6 +543,7 @@ model Price {
   cm_fr_lowest_nm       Float?
   cm_es_lowest_nm       Float?
   cm_it_lowest_nm       Float?
+  cm_jp_lowest_nm       Float?
   cm_en_avg_30d         Float?
   cm_en_avg_7d          Float?
 

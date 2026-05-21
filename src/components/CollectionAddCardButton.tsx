@@ -57,6 +57,8 @@ interface Props {
   onAdded?: () => void | Promise<void>;
   initialBinderId?: string | null;
   lockedBinderName?: string | null;
+  defaultCondition?: string | null;
+  defaultPurchasePrice?: number | null;
 }
 
 function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", className?: string) {
@@ -85,6 +87,8 @@ export default function CollectionAddCardButton({
   onAdded,
   initialBinderId = null,
   lockedBinderName = null,
+  defaultCondition = null,
+  defaultPurchasePrice = null,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -95,8 +99,10 @@ export default function CollectionAddCardButton({
   const [flashAdded, setFlashAdded] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [binderId, setBinderId] = useState(initialBinderId ?? "");
-  const [purchasePrice, setPurchasePrice] = useState("");
-  const [condition, setCondition] = useState("Near Mint");
+  const [purchasePrice, setPurchasePrice] = useState(
+    defaultPurchasePrice != null ? String(defaultPurchasePrice) : ""
+  );
+  const [condition, setCondition] = useState(defaultCondition || "Near Mint");
   const [language, setLanguage] = useState("English");
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState("");
@@ -210,6 +216,8 @@ export default function CollectionAddCardButton({
     setShowAdvanced(false);
     setCardKind("raw");
     setBgsSubgrades({});
+    setCondition(defaultCondition || "Near Mint");
+    setPurchasePrice(defaultPurchasePrice != null ? String(defaultPurchasePrice) : "");
     setOpen(true);
   }
 

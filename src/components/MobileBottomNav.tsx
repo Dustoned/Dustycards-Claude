@@ -14,6 +14,7 @@ import {
   Mail,
   MoreHorizontal,
   PackageOpen,
+  Search,
   Settings as SettingsIcon,
   ShieldCheck,
   ShoppingBag,
@@ -100,6 +101,12 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
       items: [
         { href: "/account", label: "Account", icon: UserRound, matches: ["/account"] },
         { href: "/settings", label: "Settings", icon: SettingsIcon, matches: ["/settings"] },
+      ],
+    },
+    {
+      label: "Tools",
+      items: [
+        { href: "/submit-card", label: "Submit Card", shortLabel: "Submit", icon: Search, matches: ["/submit-card"] },
       ],
     },
   ];

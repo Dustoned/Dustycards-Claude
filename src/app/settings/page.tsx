@@ -871,7 +871,7 @@ export default async function SettingsPage() {
             key: "firecrawl",
             label: "Firecrawl",
             description: "Admin-only web context tools with clear credit guardrails.",
-            content: <FirecrawlSection config={firecrawlConfig} />,
+            content: <FirecrawlSection config={firecrawlConfig} isAdmin={user.role === "admin"} />,
           },
           {
             key: "sync",

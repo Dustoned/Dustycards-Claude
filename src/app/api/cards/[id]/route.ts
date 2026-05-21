@@ -81,6 +81,7 @@ async function getCardDetailCostBasis(
                 cm_fr_lowest_nm: true,
                 cm_es_lowest_nm: true,
                 cm_it_lowest_nm: true,
+                cm_jp_lowest_nm: true,
               },
             },
             gradedPrices: {
@@ -247,6 +248,7 @@ async function getCardDetailPayload(id: string, userId: string) {
           cm_fr_lowest_nm: true,
           cm_es_lowest_nm: true,
           cm_it_lowest_nm: true,
+          cm_jp_lowest_nm: true,
           tcp_market: true,
           tcp_mid: true,
           tcp_low: true,
@@ -338,6 +340,7 @@ async function getCardDetailPayload(id: string, userId: string) {
           cm_fr_lowest_nm: latestPrice.cm_fr_lowest_nm,
           cm_es_lowest_nm: latestPrice.cm_es_lowest_nm,
           cm_it_lowest_nm: latestPrice.cm_it_lowest_nm,
+          cm_jp_lowest_nm: latestPrice.cm_jp_lowest_nm,
           tcp_market: latestPrice.tcp_market,
           tcp_mid: latestPrice.tcp_mid,
           tcp_low: latestPrice.tcp_low,

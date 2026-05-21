@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.0",
+    releasedAt: "May 22, 2026",
+    title: "Firecrawl submitted cards",
+    summary: "DustyCards 3.2.0 adds a full CardMarket submit flow for cards that are missing from TCGGO.",
+    tone: "new",
+    highlights: [
+      "Added a Submit Card page where signed-in users can preview and save missing Pokemon and One Piece CardMarket cards through Firecrawl.",
+      "Saved submissions now create user-submitted sets and cards, add the submitter's collection copy automatically, and remain searchable for everyone.",
+      "CardMarket graded rows are parsed from listing comments and saved into the normal graded price chart data.",
+      "Added admin management for submitted cards, manual refreshes, deletion, and TCGGO takeover cleanup when official cards arrive later.",
+      "Added a separate User tab in Expansions so submitted sets stay out of the normal TCGGO Pokemon and One Piece set lists.",
+      "Moved the Submit Card shortcut into a lower Tools section so normal browsing stays cleaner.",
+    ],
+  },
+  {
     version: "3.1.18",
     releasedAt: "May 21, 2026",
     title: "Binder headers aligned",

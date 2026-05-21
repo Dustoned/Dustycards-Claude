@@ -13,6 +13,7 @@ import {
   LibraryBig,
   LogOut,
   PackageOpen,
+  Search,
   Settings,
   ShoppingBag,
   Sparkles,
@@ -77,6 +78,12 @@ const NAV_SECTIONS = [
       },
       { href: "/categories", label: "Categories", icon: Sparkles, badge: null, key: "categories" },
       { href: "/illustrators", label: "Illustrators", icon: Brush, badge: null, key: "illustrators" },
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
+      { href: "/submit-card", label: "Submit Card", icon: Search, badge: null, key: "submit-card" },
     ],
   },
 ] as const;

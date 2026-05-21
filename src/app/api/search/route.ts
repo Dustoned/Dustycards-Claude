@@ -53,6 +53,7 @@ interface SearchCardRecord {
   };
   prices: Array<{
     cm_en_lowest_nm: number | null;
+    cm_jp_lowest_nm: number | null;
     tcp_market: number | null;
   }>;
 }
@@ -426,7 +427,10 @@ function buildVisibleEpisodeWhere(
 
   if (HIDDEN_EXPANSION_CODES.length > 0) {
     hiddenConditions.push({
-      OR: HIDDEN_EXPANSION_CODES.map((code) => ({ code: { contains: code } })),
+      AND: [
+        { code: { not: null } },
+        { OR: HIDDEN_EXPANSION_CODES.map((code) => ({ code: { contains: code } })) },
+      ],
     });
   }
 
@@ -955,7 +959,7 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
       episode_id: card.episode.id,
       episode_name: card.episode.name,
       episode_code: card.episode.code,
-      cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? null,
+      cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? card.prices[0]?.cm_jp_lowest_nm ?? null,
       tcp_market: card.prices[0]?.tcp_market ?? null,
     }))
     .sort((a, b) => {
@@ -1153,7 +1157,7 @@ async function runFuzzyFallback(
           prices: {
             orderBy: { fetched_at: "desc" },
             take: 1,
-            select: { cm_en_lowest_nm: true, tcp_market: true },
+            select: { cm_en_lowest_nm: true, cm_jp_lowest_nm: true, tcp_market: true },
           },
         },
       })
@@ -1313,7 +1317,7 @@ async function runDirectSearch(
         prices: {
           orderBy: { fetched_at: "desc" },
           take: 1,
-          select: { cm_en_lowest_nm: true, tcp_market: true },
+          select: { cm_en_lowest_nm: true, cm_jp_lowest_nm: true, tcp_market: true },
         },
       },
       orderBy: [{ episode: { release_date: "desc" } }, { card_number: "asc" }],

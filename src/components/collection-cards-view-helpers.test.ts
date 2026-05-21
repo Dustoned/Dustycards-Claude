@@ -348,13 +348,13 @@ describe("filter chips and selection toggle", () => {
   });
 
   it("neutralFilterChip swaps active styling", () => {
-    expect(neutralFilterChip(true)).toContain("bg-gray-900");
+    expect(neutralFilterChip(true)).toContain("bg-violet-600");
     expect(neutralFilterChip(false)).toContain("text-white/55");
   });
 
   it("selectionToggleTextClass swaps active styling", () => {
-    expect(selectionToggleTextClass(true)).toContain("text-blue-600");
-    expect(selectionToggleTextClass(false)).toContain("text-gray-400");
+    expect(selectionToggleTextClass(true)).toContain("text-violet-200");
+    expect(selectionToggleTextClass(false)).toContain("text-white/45");
   });
 });
 

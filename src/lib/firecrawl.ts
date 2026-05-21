@@ -26,6 +26,28 @@ export interface FirecrawlScrapeResult {
   markdownLength: number;
 }
 
+export interface FirecrawlWebSearchResult {
+  title: string | null;
+  description: string | null;
+  url: string;
+}
+
+export interface FirecrawlWebSearchResponse {
+  results: FirecrawlWebSearchResult[];
+  creditsUsed: number | null;
+  warning: string | null;
+}
+
+export interface FirecrawlPageScrapeResult {
+  title: string | null;
+  sourceUrl: string;
+  markdown: string;
+  html: string;
+  links: string[];
+  creditsUsed: number | null;
+  metadata: Record<string, unknown>;
+}
+
 class FirecrawlRequestError extends Error {
   status: number;
 
@@ -169,7 +191,67 @@ function normalizeHttpUrl(value: string): string | null {
   }
 }
 
-export async function scrapeFirecrawlUrl(rawUrl: string): Promise<FirecrawlScrapeResult> {
+function getCreditsUsed(data: unknown): number | null {
+  if (!isRecord(data)) return null;
+  const value = data.creditsUsed;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizeSearchResult(value: unknown): FirecrawlWebSearchResult | null {
+  if (!isRecord(value)) return null;
+  const rawUrl = typeof value.url === "string" ? value.url : "";
+  const url = normalizeHttpUrl(rawUrl);
+  if (!url) return null;
+
+  const title = typeof value.title === "string" && value.title.trim() ? value.title.trim() : null;
+  const description =
+    typeof value.description === "string" && value.description.trim()
+      ? value.description.trim()
+      : null;
+
+  return { title, description, url };
+}
+
+export async function searchFirecrawlWeb(input: {
+  query: string;
+  limit?: number;
+  includeDomains?: string[];
+}): Promise<FirecrawlWebSearchResponse> {
+  const query = input.query.trim();
+  if (query.length < 3) {
+    throw new FirecrawlRequestError("Search query is too short.", 400);
+  }
+
+  const data = await postFirecrawl("/search", {
+    query,
+    limit: Math.min(Math.max(input.limit ?? 3, 1), 10),
+    sources: ["web"],
+    includeDomains: input.includeDomains?.filter(Boolean),
+    ignoreInvalidURLs: true,
+    timeout: 60000,
+  });
+  const container = isRecord(data) && isRecord(data.data) ? data.data : data;
+  const rawWebResults =
+    isRecord(container) && Array.isArray(container.web)
+      ? container.web
+      : Array.isArray(container)
+        ? container
+        : [];
+  const warning =
+    isRecord(data) && typeof data.warning === "string" && data.warning.trim()
+      ? data.warning.trim()
+      : null;
+
+  return {
+    results: rawWebResults
+      .map(normalizeSearchResult)
+      .filter((entry): entry is FirecrawlWebSearchResult => Boolean(entry)),
+    creditsUsed: getCreditsUsed(data),
+    warning,
+  };
+}
+
+export async function scrapeFirecrawlPage(rawUrl: string): Promise<FirecrawlPageScrapeResult> {
   const url = normalizeHttpUrl(rawUrl);
   if (!url) {
     throw new FirecrawlRequestError("Use a valid http(s) URL.", 400);
@@ -177,13 +259,16 @@ export async function scrapeFirecrawlUrl(rawUrl: string): Promise<FirecrawlScrap
 
   const data = await postFirecrawl("/scrape", {
     url,
-    formats: ["markdown"],
-    onlyMainContent: true,
+    formats: ["markdown", "html", "links"],
+    onlyMainContent: false,
+    timeout: 60000,
   });
   const container = isRecord(data) && isRecord(data.data) ? data.data : data;
   const metadata = isRecord(container) && isRecord(container.metadata) ? container.metadata : {};
   const markdown =
     isRecord(container) && typeof container.markdown === "string" ? container.markdown : "";
+  const html = isRecord(container) && typeof container.html === "string" ? container.html : "";
+  const rawLinks = isRecord(container) && Array.isArray(container.links) ? container.links : [];
   const title =
     isRecord(metadata) && typeof metadata.title === "string" && metadata.title.trim()
       ? metadata.title.trim()
@@ -196,8 +281,27 @@ export async function scrapeFirecrawlUrl(rawUrl: string): Promise<FirecrawlScrap
   return {
     title,
     sourceUrl,
-    markdownPreview: markdown.slice(0, 1800),
-    markdownLength: markdown.length,
+    markdown,
+    html,
+    links: rawLinks.filter((link): link is string => typeof link === "string"),
+    creditsUsed: getCreditsUsed(data),
+    metadata,
+  };
+}
+
+export async function scrapeFirecrawlUrl(rawUrl: string): Promise<FirecrawlScrapeResult> {
+  const url = normalizeHttpUrl(rawUrl);
+  if (!url) {
+    throw new FirecrawlRequestError("Use a valid http(s) URL.", 400);
+  }
+
+  const result = await scrapeFirecrawlPage(url);
+
+  return {
+    title: result.title,
+    sourceUrl: result.sourceUrl,
+    markdownPreview: result.markdown.slice(0, 1800),
+    markdownLength: result.markdown.length,
   };
 }
 

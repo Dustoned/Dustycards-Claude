@@ -75,6 +75,7 @@ export interface CollectionCardValueLike {
     cm_fr_lowest_nm: number | null;
     cm_es_lowest_nm: number | null;
     cm_it_lowest_nm: number | null;
+    cm_jp_lowest_nm?: number | null;
   }>;
   gradedPrices?: Array<{
     label: string;

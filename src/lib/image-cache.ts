@@ -3,6 +3,12 @@ export const CACHEABLE_IMAGE_HOSTS = new Set([
   "images.tcggo.com",
   "pokemoncardimages.pokedata.io",
   "product-images.tcgplayer.com",
+  "www.cardmarket.com",
+  "static.cardmarket.com",
+  "img.cardmarket.com",
+  "images.cardmarket.com",
+  "product-images.cardmarket.com",
+  "product-images.s3.cardmarket.com",
 ]);
 
 export function isCacheableRemoteImageUrl(value: string | null | undefined): value is string {

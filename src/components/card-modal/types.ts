@@ -32,6 +32,7 @@ export interface ModalCardData {
     cm_fr_lowest_nm: number | null;
     cm_es_lowest_nm: number | null;
     cm_it_lowest_nm: number | null;
+    cm_jp_lowest_nm?: number | null;
     tcp_market: number | null;
     tcp_mid: number | null;
     tcp_low: number | null;

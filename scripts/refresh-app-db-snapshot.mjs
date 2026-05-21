@@ -18,6 +18,61 @@ const TABLES_TO_CLEAR = [
   "ApiQuotaSnapshot",
 ];
 
+function prunePriceHistoryForSnapshot(db) {
+  db.exec(`
+    DELETE FROM "Price"
+    WHERE "id" NOT IN (
+      SELECT "id"
+      FROM (
+        SELECT
+          "id",
+          ROW_NUMBER() OVER (
+            PARTITION BY "card_id"
+            ORDER BY "fetched_at" DESC, "id" DESC
+          ) AS "snapshot_rank"
+        FROM "Price"
+      )
+      WHERE "snapshot_rank" = 1
+    );
+
+    DELETE FROM "CardGradedPriceSnapshot";
+    INSERT INTO "CardGradedPriceSnapshot" ("id", "card_id", "label", "price", "fetched_at")
+    SELECT
+      'snapshot-' || "id",
+      "card_id",
+      "label",
+      "price",
+      "fetched_at"
+    FROM "CardGradedPrice";
+
+    DELETE FROM "CardEbaySoldGradedPriceSnapshot";
+    INSERT INTO "CardEbaySoldGradedPriceSnapshot" (
+      "id",
+      "card_id",
+      "source",
+      "label",
+      "company",
+      "grade",
+      "median_price",
+      "currency",
+      "sample_size",
+      "fetched_at"
+    )
+    SELECT
+      'snapshot-' || "id",
+      "card_id",
+      "source",
+      "label",
+      "company",
+      "grade",
+      "median_price",
+      "currency",
+      "sample_size",
+      "fetched_at"
+    FROM "CardEbaySoldGradedPrice";
+  `);
+}
+
 if (!existsSync(LIVE_DB_PATH)) {
   throw new Error(`Live database not found at ${LIVE_DB_PATH}`);
 }
@@ -40,6 +95,7 @@ try {
   });
 
   clearTables();
+  prunePriceHistoryForSnapshot(db);
   db.pragma("foreign_keys = ON");
   db.exec("VACUUM");
 } finally {

@@ -9,7 +9,13 @@ import {
 import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
-import { getExpansionHref, POKEMON_GAME } from "@/lib/games";
+import {
+  getExpansionHref,
+  getGameLabel,
+  normalizeTradingCardGame,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+} from "@/lib/games";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -112,22 +118,41 @@ function getKnownEpisodeCardCount(input: {
   );
 }
 
-export default async function ExpansionsPage() {
+export default async function ExpansionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const { view } = await searchParams;
+  const userViewActive = view === "user";
   const user = await requirePageUser("/expansions");
   const settings = await getServerUserSettings(user.id);
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
 
   const episodes = await db.episode.findMany({
-    where: { game: POKEMON_GAME },
-    orderBy: [{ release_date: "desc" }, { name: "asc" }],
+    where: userViewActive
+      ? {
+          is_user_submitted: true,
+          game: {
+            in: settings.onePieceLibraryEnabled
+              ? [POKEMON_GAME, ONE_PIECE_GAME]
+              : [POKEMON_GAME],
+          },
+        }
+      : { game: POKEMON_GAME, is_user_submitted: false },
+    orderBy: userViewActive
+      ? [{ created_at: "desc" }, { name: "asc" }]
+      : [{ release_date: "desc" }, { name: "asc" }],
     include: { _count: { select: { cards: true } } },
   });
 
-  const needsSync = episodes.length === 0;
+  const needsSync = !userViewActive && episodes.length === 0;
 
-  const deduped = [
-    ...episodes
-      .reduce((map, episode) => {
+  const deduped = userViewActive
+    ? episodes
+    : [
+        ...episodes
+          .reduce((map, episode) => {
         const dedupeKey = episode.name;
         const existing = map.get(dedupeKey);
         if (!existing) {
@@ -149,33 +174,44 @@ export default async function ExpansionsPage() {
         return map;
       }, new Map<string, (typeof episodes)[number]>())
       .values(),
-  ];
+      ];
 
   const newestEra = ERA_ORDER[0];
-  const visibleSets = deduped.filter(
-    (episode) =>
-      !isRedundantSubsetExpansion(episode.name) &&
-      !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
-  );
-  const withCards = visibleSets.filter((episode) => {
-    const cardCount = getEpisodeDisplayCardCount(episode);
-    const era = getEra(episode.name, episode.series, episode.release_date);
-    return cardCount > 0 || era === newestEra;
-  });
+  const visibleSets = userViewActive
+    ? deduped.filter((episode) => getKnownEpisodeCardCount(episode) > 0)
+    : deduped.filter(
+        (episode) =>
+          !isRedundantSubsetExpansion(episode.name) &&
+          !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
+      );
+  const withCards = userViewActive
+    ? visibleSets
+    : visibleSets.filter((episode) => {
+        const cardCount = getEpisodeDisplayCardCount(episode);
+        const era = getEra(episode.name, episode.series, episode.release_date);
+        return cardCount > 0 || era === newestEra;
+      });
 
   const now = new Date();
   const grouped = new Map<string, typeof episodes>();
   for (const episode of withCards) {
     const era = getEra(episode.name, episode.series, episode.release_date);
-    const group = isFutureReleaseDate(episode.release_date, now)
-      ? UPCOMING_RELEASE_GROUP
-      : era;
+    const group = userViewActive
+      ? getGameLabel(normalizeTradingCardGame(episode.game))
+      : isFutureReleaseDate(episode.release_date, now)
+        ? UPCOMING_RELEASE_GROUP
+        : era;
     if (!grouped.has(group)) grouped.set(group, []);
     grouped.get(group)!.push(episode);
   }
 
   const sortedGroups = [...grouped.entries()]
     .sort(([a], [b]) => {
+      if (userViewActive) {
+        if (a === "Pokemon") return -1;
+        if (b === "Pokemon") return 1;
+        return a.localeCompare(b);
+      }
       if (a === UPCOMING_RELEASE_GROUP) return -1;
       if (b === UPCOMING_RELEASE_GROUP) return 1;
       const aIndex = ERA_ORDER.indexOf(a);
@@ -189,6 +225,7 @@ export default async function ExpansionsPage() {
     });
 
   const eraCount = sortedGroups.filter(([group]) => group !== UPCOMING_RELEASE_GROUP).length;
+  const userGameCount = new Set(withCards.map((episode) => episode.game)).size;
   const trackedCardCount = withCards.reduce(
     (total, episode) => total + getEpisodeDisplayCardCount(episode),
     0
@@ -222,8 +259,8 @@ export default async function ExpansionsPage() {
       tone: "amber",
     },
     {
-      label: "Eras",
-      value: eraCount.toLocaleString(),
+      label: userViewActive ? "Games" : "Eras",
+      value: (userViewActive ? userGameCount : eraCount).toLocaleString(),
       Icon: Shapes,
       tone: "emerald",
     },
@@ -240,25 +277,28 @@ export default async function ExpansionsPage() {
       <div className="mb-4 flex min-w-0 flex-col gap-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
-            Expansions
+            {userViewActive ? "User Expansions" : "Expansions"}
           </h1>
           <p className="mt-1 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
-            Browse released and upcoming sets. Upcoming sets stay empty until release.
+            {userViewActive
+              ? "Firecrawl and user-submitted sets live here, separate from the normal TCGGO expansion lists."
+              : "Browse released and upcoming sets. Upcoming sets stay empty until release."}
           </p>
         </div>
 
-        {settings.onePieceLibraryEnabled ? (
-          <div className="shrink-0 sm:ml-auto">
-            <GameFilterSwitch
-              items={[
-                { href: "/expansions", active: true, label: "Pokemon" },
-                { href: "/one-piece/expansions", active: false, label: "One Piece" },
-              ]}
-              ariaLabel="Expansion library"
-              className="max-w-[21rem]"
-            />
-          </div>
-        ) : null}
+        <div className="shrink-0 sm:ml-auto">
+          <GameFilterSwitch
+            items={[
+              { href: "/expansions", active: !userViewActive, label: "Pokemon" },
+              ...(settings.onePieceLibraryEnabled
+                ? [{ href: "/one-piece/expansions", active: false, label: "One Piece" }]
+                : []),
+              { href: "/expansions?view=user", active: userViewActive, label: "User" },
+            ]}
+            ariaLabel="Expansion library"
+            className="max-w-[28rem]"
+          />
+        </div>
       </div>
 
       <section className="mb-4 grid min-w-0 gap-3 sm:mb-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
@@ -288,6 +328,15 @@ export default async function ExpansionsPage() {
           </p>
         </div>
       )}
+
+      {userViewActive && withCards.length === 0 ? (
+        <div className="binder-panel mb-5 rounded-2xl p-5 text-center">
+          <p className="mb-1 font-semibold text-white">No user expansions yet</p>
+          <p className="text-sm text-white/45">
+            Submitted CardMarket cards will create their own user expansion here.
+          </p>
+        </div>
+      ) : null}
 
       <div className="space-y-5 sm:space-y-6">
         {sortedGroups.map(([era, sets], groupIndex) => (
@@ -323,7 +372,9 @@ export default async function ExpansionsPage() {
                     : isTimelineGroup && releaseLabel
                       ? releaseLabel
                       : releaseYear;
-                const metaParts = [setCode, releaseMeta].filter(Boolean);
+                const metaParts = userViewActive
+                  ? [getGameLabel(normalizeTradingCardGame(episode.game)), "User submitted"]
+                  : [setCode, releaseMeta].filter(Boolean);
                 const countHint = isUpcomingWithoutCards
                   ? hasKnownUpcomingCount
                     ? `${knownCardCount.toLocaleString(

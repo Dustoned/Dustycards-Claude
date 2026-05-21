@@ -136,6 +136,49 @@ function hasImageSignature(buffer: Buffer, contentType: string): boolean {
   return false;
 }
 
+function sniffImageContentType(buffer: Buffer, fallback: string): string {
+  if (buffer.byteLength >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    buffer.byteLength >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (
+    buffer.byteLength >= 6 &&
+    buffer[0] === 0x47 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x38
+  ) {
+    return "image/gif";
+  }
+  if (
+    buffer.byteLength >= 12 &&
+    buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buffer.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  if (
+    buffer.byteLength >= 12 &&
+    buffer.subarray(4, 8).toString("ascii") === "ftyp" &&
+    ["avif", "avis", "mif1", "msf1"].includes(buffer.subarray(8, 12).toString("ascii"))
+  ) {
+    return "image/avif";
+  }
+  return fallback;
+}
+
 async function isCachedImageReadable(imagePath: string, contentType: string): Promise<boolean> {
   const file = await fs.open(imagePath, "r");
 
@@ -190,21 +233,25 @@ async function downloadAndPersist(
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
+    const headers: HeadersInit = {
+      Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
+    };
+    if (sourceUrl.hostname.includes("cardmarket.com")) {
+      headers["User-Agent"] =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
+      headers.Referer = "https://www.cardmarket.com/";
+    }
+
     const response = await fetch(sourceUrl, {
       signal: controller.signal,
-      headers: {
-        Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
-      },
+      headers,
     });
 
     if (!response.ok) {
       throw new Error(`Image fetch failed with ${response.status}`);
     }
 
-    const contentType = response.headers.get("content-type") ?? "application/octet-stream";
-    if (!contentType.startsWith("image/")) {
-      throw new Error("Remote URL did not return an image");
-    }
+    const remoteContentType = response.headers.get("content-type") ?? "application/octet-stream";
 
     const contentLength = Number(response.headers.get("content-length") ?? 0);
     if (contentLength > MAX_IMAGE_BYTES) {
@@ -212,6 +259,7 @@ async function downloadAndPersist(
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
+    const contentType = sniffImageContentType(buffer, remoteContentType);
     if (!hasImageSignature(buffer, contentType)) {
       throw new Error("Remote URL returned invalid image bytes");
     }

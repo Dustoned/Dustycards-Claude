@@ -4,6 +4,7 @@ export interface CardMarketPriceSnapshot {
   cm_fr_lowest_nm: number | null;
   cm_es_lowest_nm: number | null;
   cm_it_lowest_nm: number | null;
+  cm_jp_lowest_nm?: number | null;
 }
 
 export interface CardPriceHistorySnapshot extends CardMarketPriceSnapshot {
@@ -22,6 +23,7 @@ export interface CardPriceHistoryPoint {
   cm_market_fr: number | null;
   cm_market_es: number | null;
   cm_market_it: number | null;
+  cm_market_jp: number | null;
   tcp_market: number | null;
   cm_avg_7d: number | null;
   cm_avg_30d: number | null;
@@ -66,6 +68,7 @@ export const CARD_MARKET_HISTORY_SERIES = [
   { key: "cm_market_fr", label: "FR" },
   { key: "cm_market_es", label: "ES" },
   { key: "cm_market_it", label: "IT" },
+  { key: "cm_market_jp", label: "JP" },
 ] as const;
 
 export type CardMarketHistorySeriesKey =
@@ -159,6 +162,7 @@ export function getCardMarketValue(snapshot: CardMarketPriceSnapshot | null | un
     snapshot.cm_fr_lowest_nm ??
     snapshot.cm_es_lowest_nm ??
     snapshot.cm_it_lowest_nm ??
+    snapshot.cm_jp_lowest_nm ??
     null
   );
 }
@@ -182,6 +186,7 @@ export function buildCardPriceHistory(
     cm_market_fr: price.cm_fr_lowest_nm ?? null,
     cm_market_es: price.cm_es_lowest_nm ?? null,
     cm_market_it: price.cm_it_lowest_nm ?? null,
+    cm_market_jp: price.cm_jp_lowest_nm ?? null,
     tcp_market: price.tcp_market ?? null,
     cm_avg_7d: price.cm_en_avg_7d ?? null,
     cm_avg_30d: price.cm_en_avg_30d ?? null,
@@ -331,6 +336,8 @@ export function getCardMarketHistorySeriesValue(
       return point.cm_market_es ?? null;
     case "cm_market_it":
       return point.cm_market_it ?? null;
+    case "cm_market_jp":
+      return point.cm_market_jp ?? null;
   }
 }
 
@@ -351,6 +358,8 @@ export function getCardMarketHistorySeriesCurrentValue(
       return snapshot.cm_es_lowest_nm ?? null;
     case "cm_market_it":
       return snapshot.cm_it_lowest_nm ?? null;
+    case "cm_market_jp":
+      return snapshot.cm_jp_lowest_nm ?? null;
   }
 }
 

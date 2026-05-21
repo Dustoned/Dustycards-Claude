@@ -51,7 +51,7 @@ type OnePieceEpisode = Awaited<ReturnType<typeof getOnePieceEpisodes>>[number];
 
 async function getOnePieceEpisodes() {
   return db.episode.findMany({
-    where: { game: ONE_PIECE_GAME },
+    where: { game: ONE_PIECE_GAME, is_user_submitted: false },
     orderBy: [{ release_date: "desc" }, { name: "asc" }],
     include: { _count: { select: { cards: true } } },
   });
@@ -145,9 +145,10 @@ export default async function OnePieceExpansionsPage() {
             items={[
               { href: "/expansions", active: false, label: "Pokemon" },
               { href: "/one-piece/expansions", active: true, label: "One Piece" },
+              { href: "/expansions?view=user", active: false, label: "User" },
             ]}
             ariaLabel="Expansion library"
-            className="max-w-[21rem]"
+            className="max-w-[28rem]"
           />
         </div>
       </div>

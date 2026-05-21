@@ -14,6 +14,7 @@ import {
 } from "@/lib/games";
 import { startPerformanceTimer, timeAsync } from "@/lib/performance-timing";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
+import { reconcileSubmittedCardsForOfficialEpisode } from "@/lib/card-submissions";
 import {
   decodeSyncLogMessage,
   encodeSyncLogDetailsJson,
@@ -1442,6 +1443,7 @@ async function backfillCardNativeHistoryDetailed(
               cm_fr_lowest_nm: point.cm_market_fr,
               cm_es_lowest_nm: point.cm_market_es,
               cm_it_lowest_nm: point.cm_market_it,
+              cm_jp_lowest_nm: null,
               cm_en_avg_30d: null,
               cm_en_avg_7d: null,
               tcp_market: point.tcp_market,
@@ -2317,6 +2319,20 @@ async function syncEpisodeCards(
         checkedAt: fetchedAt,
         markSynced: true,
       }),
+    });
+
+    await reconcileSubmittedCardsForOfficialEpisode(tx, {
+      game,
+      officialEpisodeId: episodeId,
+      officialEpisodeName: episode?.name ?? episodeId,
+      officialCards: cards.map((card) => ({
+        id: card.id,
+        name: card.name,
+        card_number: card.card_number,
+        cardmarket_id: card.cardmarket_id,
+        cardmarket_url: card.cardmarket_url,
+      })),
+      migratedAt: fetchedAt,
     });
 
     return {
@@ -3325,6 +3341,7 @@ export async function runSingleCardHistoryImport(
           cm_fr_lowest_nm: point.cm_market_fr,
           cm_es_lowest_nm: point.cm_market_es,
           cm_it_lowest_nm: point.cm_market_it,
+          cm_jp_lowest_nm: null,
           cm_en_avg_30d: null,
           cm_en_avg_7d: null,
           tcp_market: point.tcp_market,

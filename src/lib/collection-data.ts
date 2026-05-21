@@ -259,6 +259,7 @@ const collectionCardSelect = {
           cm_fr_lowest_nm: true,
           cm_es_lowest_nm: true,
           cm_it_lowest_nm: true,
+          cm_jp_lowest_nm: true,
           tcp_market: true,
         },
       },
@@ -312,6 +313,7 @@ const collectionCardMetricSelect = {
           cm_fr_lowest_nm: true,
           cm_es_lowest_nm: true,
           cm_it_lowest_nm: true,
+          cm_jp_lowest_nm: true,
           tcp_market: true,
         },
       },
@@ -360,6 +362,7 @@ const collectionWantSelect = {
           cm_fr_lowest_nm: true,
           cm_es_lowest_nm: true,
           cm_it_lowest_nm: true,
+          cm_jp_lowest_nm: true,
           tcp_market: true,
         },
       },
@@ -583,6 +586,7 @@ type CollectionCardMetricRecord = {
       cm_fr_lowest_nm: number | null;
       cm_es_lowest_nm: number | null;
       cm_it_lowest_nm: number | null;
+      cm_jp_lowest_nm: number | null;
       tcp_market: number | null;
     }>;
     gradedPrices: Array<{
@@ -645,6 +649,7 @@ type CollectionWantRecord = {
       cm_fr_lowest_nm: number | null;
       cm_es_lowest_nm: number | null;
       cm_it_lowest_nm: number | null;
+      cm_jp_lowest_nm: number | null;
       tcp_market: number | null;
     }>;
     gradedPrices: Array<{
@@ -828,7 +833,8 @@ async function getCardHistoryRows(cardIds: string[], since?: string) {
           cm_de_lowest_nm,
           cm_fr_lowest_nm,
           cm_es_lowest_nm,
-          cm_it_lowest_nm
+          cm_it_lowest_nm,
+          cm_jp_lowest_nm
         FROM (
           SELECT
             p.card_id,
@@ -838,6 +844,7 @@ async function getCardHistoryRows(cardIds: string[], since?: string) {
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
             p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm,
             ROW_NUMBER() OVER (
               PARTITION BY p.card_id, DATE(p.fetched_at)
               ORDER BY p.fetched_at DESC, p.id DESC
@@ -1784,11 +1791,13 @@ interface AllCardValueDriverRow {
   currentCmFrLowestNm: number | null;
   currentCmEsLowestNm: number | null;
   currentCmItLowestNm: number | null;
+  currentCmJpLowestNm: number | null;
   previousCmEnLowestNm: number | null;
   previousCmDeLowestNm: number | null;
   previousCmFrLowestNm: number | null;
   previousCmEsLowestNm: number | null;
   previousCmItLowestNm: number | null;
+  previousCmJpLowestNm: number | null;
   currentFallbackValue: number | null;
   previousFallbackValue: number | null;
   valueHistoryPoints: number;
@@ -1864,6 +1873,7 @@ async function getAllCardValueDriversData(
         OR p.cm_fr_lowest_nm IS NOT NULL
         OR p.cm_es_lowest_nm IS NOT NULL
         OR p.cm_it_lowest_nm IS NOT NULL
+        OR p.cm_jp_lowest_nm IS NOT NULL
       )
     GROUP BY DATE(p.fetched_at)
     ORDER BY date DESC
@@ -1892,6 +1902,7 @@ async function getAllCardValueDriversData(
           p.cm_fr_lowest_nm,
           p.cm_es_lowest_nm,
           p.cm_it_lowest_nm,
+          p.cm_jp_lowest_nm,
           ROW_NUMBER() OVER (
             PARTITION BY p.card_id
             ORDER BY p.fetched_at DESC, p.id DESC
@@ -1904,6 +1915,7 @@ async function getAllCardValueDriversData(
             OR p.cm_fr_lowest_nm IS NOT NULL
             OR p.cm_es_lowest_nm IS NOT NULL
             OR p.cm_it_lowest_nm IS NOT NULL
+            OR p.cm_jp_lowest_nm IS NOT NULL
           )
       )
       WHERE row_num = 1
@@ -1918,6 +1930,7 @@ async function getAllCardValueDriversData(
           p.cm_fr_lowest_nm,
           p.cm_es_lowest_nm,
           p.cm_it_lowest_nm,
+          p.cm_jp_lowest_nm,
           ROW_NUMBER() OVER (
             PARTITION BY p.card_id
             ORDER BY p.fetched_at DESC, p.id DESC
@@ -1930,6 +1943,7 @@ async function getAllCardValueDriversData(
             OR p.cm_fr_lowest_nm IS NOT NULL
             OR p.cm_es_lowest_nm IS NOT NULL
             OR p.cm_it_lowest_nm IS NOT NULL
+            OR p.cm_jp_lowest_nm IS NOT NULL
           )
       )
       WHERE row_num = 1
@@ -1944,7 +1958,8 @@ async function getAllCardValueDriversData(
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
+            p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm
           ) AS value,
           ROW_NUMBER() OVER (
             PARTITION BY p.card_id
@@ -1957,7 +1972,8 @@ async function getAllCardValueDriversData(
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
+            p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm
           ) >= 1
       )
       WHERE row_num = 1
@@ -1972,7 +1988,8 @@ async function getAllCardValueDriversData(
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
+            p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm
           ) AS value,
           ROW_NUMBER() OVER (
             PARTITION BY p.card_id
@@ -1985,7 +2002,8 @@ async function getAllCardValueDriversData(
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
+            p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm
           ) >= 1
       )
       WHERE row_num = 1
@@ -2000,6 +2018,7 @@ async function getAllCardValueDriversData(
          OR cm_fr_lowest_nm IS NOT NULL
          OR cm_es_lowest_nm IS NOT NULL
          OR cm_it_lowest_nm IS NOT NULL
+         OR cm_jp_lowest_nm IS NOT NULL
       GROUP BY card_id
     )
     SELECT
@@ -2015,11 +2034,13 @@ async function getAllCardValueDriversData(
       cp.cm_fr_lowest_nm AS "currentCmFrLowestNm",
       cp.cm_es_lowest_nm AS "currentCmEsLowestNm",
       cp.cm_it_lowest_nm AS "currentCmItLowestNm",
+      cp.cm_jp_lowest_nm AS "currentCmJpLowestNm",
       pp.cm_en_lowest_nm AS "previousCmEnLowestNm",
       pp.cm_de_lowest_nm AS "previousCmDeLowestNm",
       pp.cm_fr_lowest_nm AS "previousCmFrLowestNm",
       pp.cm_es_lowest_nm AS "previousCmEsLowestNm",
       pp.cm_it_lowest_nm AS "previousCmItLowestNm",
+      pp.cm_jp_lowest_nm AS "previousCmJpLowestNm",
       cfp.value AS "currentFallbackValue",
       pfp.value AS "previousFallbackValue",
       COALESCE(hc.value_history_points, 0) AS "valueHistoryPoints"
@@ -2043,6 +2064,7 @@ async function getAllCardValueDriversData(
         cm_fr_lowest_nm: row.currentCmFrLowestNm,
         cm_es_lowest_nm: row.currentCmEsLowestNm,
         cm_it_lowest_nm: row.currentCmItLowestNm,
+        cm_jp_lowest_nm: row.currentCmJpLowestNm,
       }),
       row.currentFallbackValue
     );
@@ -2053,6 +2075,7 @@ async function getAllCardValueDriversData(
         cm_fr_lowest_nm: row.previousCmFrLowestNm,
         cm_es_lowest_nm: row.previousCmEsLowestNm,
         cm_it_lowest_nm: row.previousCmItLowestNm,
+        cm_jp_lowest_nm: row.previousCmJpLowestNm,
       }),
       row.previousFallbackValue
     );
@@ -2590,6 +2613,7 @@ export async function getBinderPageData(
               cm_fr_lowest_nm: true,
               cm_es_lowest_nm: true,
               cm_it_lowest_nm: true,
+              cm_jp_lowest_nm: true,
               tcp_market: true,
             },
           },

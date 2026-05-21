@@ -225,6 +225,6 @@ describe("filter chips", () => {
     const active = neutralFilterChip(true);
     const inactive = neutralFilterChip(false);
     expect(active).not.toEqual(inactive);
-    expect(active).toContain("bg-gray-900");
+    expect(active).toContain("bg-violet-600");
   });
 });

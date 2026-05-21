@@ -13,6 +13,7 @@ export function getCardMarketPrice(card: CardData): number | null {
     card.price?.cm_fr_lowest_nm ??
     card.price?.cm_es_lowest_nm ??
     card.price?.cm_it_lowest_nm ??
+    card.price?.cm_jp_lowest_nm ??
     null
   );
 }
@@ -35,6 +36,7 @@ export function hasAnyVisiblePrice(card: CardData): boolean {
     price.cm_fr_lowest_nm,
     price.cm_es_lowest_nm,
     price.cm_it_lowest_nm,
+    price.cm_jp_lowest_nm,
     price.cm_en_avg_7d,
     price.cm_en_avg_30d,
     price.tcp_market,

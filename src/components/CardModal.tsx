@@ -98,6 +98,7 @@ function getInitialCardMarketFloorValue(card: ModalCardData): number | null {
     card.price?.cm_fr_lowest_nm ??
     card.price?.cm_es_lowest_nm ??
     card.price?.cm_it_lowest_nm ??
+    card.price?.cm_jp_lowest_nm ??
     null
   );
 }
@@ -249,6 +250,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
             modalCard.price?.cm_fr_lowest_nm ??
             modalCard.price?.cm_es_lowest_nm ??
             modalCard.price?.cm_it_lowest_nm ??
+            modalCard.price?.cm_jp_lowest_nm ??
             null,
           ignoredValue: null,
         };

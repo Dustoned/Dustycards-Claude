@@ -1,23 +1,64 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, BookOpen, Flame, Globe2, Loader2, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  AlertTriangle,
+  BookOpen,
+  Flame,
+  Globe2,
+  Loader2,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 import type {
   FirecrawlConfigSnapshot,
   FirecrawlDocsSearchResult,
   FirecrawlScrapeResult,
 } from "@/lib/firecrawl";
+import { COLLECTION_CONDITIONS } from "@/lib/collection";
+import { formatCurrency } from "@/lib/format";
+import { getGameLabel, getGameSearchParamValue, type TradingCardGame } from "@/lib/games";
+import { getCachedImageUrl } from "@/lib/image-cache";
 
 type FirecrawlAction = "docs-search" | "scrape";
 
 interface FirecrawlSectionProps {
   config: FirecrawlConfigSnapshot;
+  isAdmin: boolean;
 }
 
 interface FirecrawlActionResponse<T> {
   ok: boolean;
   result?: T;
   error?: string;
+}
+
+interface AdminCardSubmissionItem {
+  id: string;
+  status: string;
+  game: TradingCardGame;
+  canSave: boolean;
+  card: {
+    name: string;
+    setName: string;
+    cardNumber: string | null;
+    cardmarketUrl: string | null;
+    imageUrl: string | null;
+    language: "English" | "Japanese" | null;
+    condition: string;
+    nmPriceEur: number | null;
+    gradedPrices: Array<{ label: string; price: number }>;
+    confidence: number | null;
+  };
+  warnings: string[];
+  createdAt: string;
+  updatedAt: string;
+  migratedAt: string | null;
+  officialCardId: string | null;
 }
 
 function StatusTile({
@@ -109,7 +150,376 @@ function ActionButton({
   );
 }
 
-export default function FirecrawlSection({ config }: FirecrawlSectionProps) {
+function AdminSubmittedCards() {
+  const [items, setItems] = useState<AdminCardSubmissionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<
+    Record<
+      string,
+      {
+        name: string;
+        setName: string;
+        cardNumber: string;
+        cardmarketUrl: string;
+        imageUrl: string;
+        language: "English" | "Japanese";
+        condition: string;
+        nmPriceEur: string;
+      }
+    >
+  >({});
+
+  async function loadItems() {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/card-submissions", { cache: "no-store" });
+      const data = (await response.json()) as FirecrawlActionResponse<AdminCardSubmissionItem[]>;
+      if (!response.ok || !data.ok || !data.result) {
+        setStatus(data.error ?? "Could not load submitted cards.");
+        return;
+      }
+      setItems(data.result);
+      setDrafts(
+        Object.fromEntries(
+          data.result.map((item) => [
+            item.id,
+            {
+              name: item.card.name,
+              setName: item.card.setName === "Set unknown" ? "" : item.card.setName,
+              cardNumber: item.card.cardNumber ?? "",
+              cardmarketUrl: item.card.cardmarketUrl ?? "",
+              imageUrl: item.card.imageUrl ?? "",
+              language: item.card.language ?? "English",
+              condition: item.card.condition ?? "Near Mint",
+              nmPriceEur: item.card.nmPriceEur != null ? String(item.card.nmPriceEur) : "",
+            },
+          ])
+        )
+      );
+      setStatus(null);
+    } catch {
+      setStatus("Network error while loading submitted cards.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialItems() {
+      try {
+        const response = await fetch("/api/admin/card-submissions", { cache: "no-store" });
+        const data = (await response.json()) as FirecrawlActionResponse<AdminCardSubmissionItem[]>;
+        if (cancelled) return;
+
+        if (!response.ok || !data.ok || !data.result) {
+          setStatus(data.error ?? "Could not load submitted cards.");
+          return;
+        }
+
+        setItems(data.result);
+        setDrafts(
+          Object.fromEntries(
+            data.result.map((item) => [
+              item.id,
+              {
+                name: item.card.name,
+                setName: item.card.setName === "Set unknown" ? "" : item.card.setName,
+                cardNumber: item.card.cardNumber ?? "",
+                cardmarketUrl: item.card.cardmarketUrl ?? "",
+                imageUrl: item.card.imageUrl ?? "",
+                language: item.card.language ?? "English",
+                condition: item.card.condition ?? "Near Mint",
+                nmPriceEur: item.card.nmPriceEur != null ? String(item.card.nmPriceEur) : "",
+              },
+            ])
+          )
+        );
+        setStatus(null);
+      } catch {
+        if (!cancelled) setStatus("Network error while loading submitted cards.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadInitialItems();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function mutateItem(
+    id: string,
+    method: "PATCH" | "POST" | "DELETE",
+    body?: Record<string, unknown>
+  ) {
+    setBusyId(id);
+    setStatus(null);
+    try {
+      const response = await fetch(`/api/admin/card-submissions/${encodeURIComponent(id)}`, {
+        method,
+        headers: body ? { "content-type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = (await response.json()) as FirecrawlActionResponse<AdminCardSubmissionItem>;
+      if (!response.ok || !data.ok) {
+        setStatus(data.error ?? "Submitted card action failed.");
+        return;
+      }
+      if (method === "DELETE") {
+        setItems((current) => current.filter((item) => item.id !== id));
+        setDrafts((current) => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
+      }
+      await loadItems();
+      setStatus(method === "DELETE" ? "Submitted card deleted." : "Submitted card updated.");
+    } catch {
+      setStatus("Network error while updating submitted card.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="mt-5 rounded-2xl border border-black/6 bg-black/[0.015] p-4 dark:border-white/8 dark:bg-white/[0.025]">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+            Submitted CardMarket cards
+          </p>
+          <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-white/45">
+            Edit, refresh, delete, and review cards that users added through Firecrawl.
+          </p>
+        </div>
+        <ActionButton onClick={() => void loadItems()} loading={loading}>
+          Reload
+        </ActionButton>
+      </div>
+
+      {status ? <p className="mb-3 text-xs text-gray-500 dark:text-white/45">{status}</p> : null}
+
+      {loading ? (
+        <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] p-3 text-sm text-white/55">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading submitted cards...
+        </div>
+      ) : items.length === 0 ? (
+        <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-white/45">
+          No Firecrawl submitted cards yet.
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {items.map((item) => {
+            const draft = drafts[item.id];
+            const busy = busyId === item.id;
+            const gameParam = getGameSearchParamValue(item.game);
+            const cardHref =
+              item.status === "added"
+                ? `/search?q=${encodeURIComponent(item.card.name)}${gameParam ? `&game=${encodeURIComponent(gameParam)}` : ""}`
+                : null;
+
+            return (
+              <div
+                key={item.id}
+                className="grid gap-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3 lg:grid-cols-[70px_minmax(0,1fr)]"
+              >
+                <div className="aspect-[5/7] overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                  {item.card.imageUrl ? (
+                    <Image
+                      src={getCachedImageUrl(item.card.imageUrl) ?? item.card.imageUrl}
+                      alt={item.card.name}
+                      width={140}
+                      height={196}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  ) : null}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-gray-950 dark:text-white">
+                        {item.card.name}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-white/45">
+                        {item.card.setName} {item.card.cardNumber ? `/ #${item.card.cardNumber}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="rounded-full border border-cyan-300/16 bg-cyan-300/[0.08] px-2 py-1 text-[10px] font-bold text-cyan-100">
+                        {getGameLabel(item.game)}
+                      </span>
+                      <span className="rounded-full border border-white/8 bg-white/[0.045] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
+                        {item.status}
+                      </span>
+                      <span className="rounded-full border border-emerald-300/16 bg-emerald-300/[0.08] px-2 py-1 text-[10px] font-bold text-emerald-100">
+                        {formatCurrency(item.card.nmPriceEur, "EUR")}
+                      </span>
+                      <span className="rounded-full border border-white/8 bg-white/[0.045] px-2 py-1 text-[10px] font-bold text-white/55">
+                        {item.card.condition}
+                      </span>
+                      {item.card.gradedPrices.length > 0 ? (
+                        <span className="rounded-full border border-violet-300/16 bg-violet-300/[0.08] px-2 py-1 text-[10px] font-bold text-violet-100">
+                          {item.card.gradedPrices.length} graded
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {draft ? (
+                    <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      <input
+                        value={draft.name}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [item.id]: { ...draft, name: event.target.value },
+                          }))
+                        }
+                        className="rounded-xl border border-white/8 bg-black/10 px-3 py-2 text-xs font-semibold text-white outline-none dark:bg-white/[0.04]"
+                        placeholder="Name"
+                      />
+                      <input
+                        value={draft.setName}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [item.id]: { ...draft, setName: event.target.value },
+                          }))
+                        }
+                        className="rounded-xl border border-white/8 bg-black/10 px-3 py-2 text-xs font-semibold text-white outline-none dark:bg-white/[0.04]"
+                        placeholder="Set"
+                      />
+                      <input
+                        value={draft.cardNumber}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [item.id]: { ...draft, cardNumber: event.target.value },
+                          }))
+                        }
+                        className="rounded-xl border border-white/8 bg-black/10 px-3 py-2 text-xs font-semibold text-white outline-none dark:bg-white/[0.04]"
+                        placeholder="Number"
+                      />
+                      <input
+                        value={draft.nmPriceEur}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [item.id]: { ...draft, nmPriceEur: event.target.value },
+                          }))
+                        }
+                        className="rounded-xl border border-white/8 bg-black/10 px-3 py-2 text-xs font-semibold text-white outline-none dark:bg-white/[0.04]"
+                        placeholder={`${draft.condition} EUR`}
+                      />
+                      <select
+                        value={draft.condition}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [item.id]: { ...draft, condition: event.target.value },
+                          }))
+                        }
+                        className="rounded-xl border border-white/8 bg-black/10 px-3 py-2 text-xs font-semibold text-white outline-none dark:bg-white/[0.04]"
+                      >
+                        {COLLECTION_CONDITIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={draft.language}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [item.id]: {
+                              ...draft,
+                              language: event.target.value === "Japanese" ? "Japanese" : "English",
+                            },
+                          }))
+                        }
+                        className="rounded-xl border border-white/8 bg-black/10 px-3 py-2 text-xs font-semibold text-white outline-none dark:bg-white/[0.04]"
+                      >
+                        <option value="English">English</option>
+                        <option value="Japanese">Japanese</option>
+                      </select>
+                      <input
+                        value={draft.cardmarketUrl}
+                        onChange={(event) =>
+                          setDrafts((current) => ({
+                            ...current,
+                            [item.id]: { ...draft, cardmarketUrl: event.target.value },
+                          }))
+                        }
+                        className="rounded-xl border border-white/8 bg-black/10 px-3 py-2 text-xs font-semibold text-white outline-none dark:bg-white/[0.04]"
+                        placeholder="CardMarket URL"
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {cardHref ? (
+                      <Link
+                        href={cardHref}
+                        className="rounded-xl border border-white/8 bg-white/[0.045] px-3 py-2 text-xs font-bold text-white/75 transition hover:bg-white/[0.08]"
+                      >
+                        Open
+                      </Link>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={busy || !draft}
+                      onClick={() =>
+                        draft &&
+                        void mutateItem(item.id, "PATCH", {
+                          ...draft,
+                          nmPriceEur: Number(draft.nmPriceEur),
+                        })
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300/18 bg-emerald-300/[0.08] px-3 py-2 text-xs font-bold text-emerald-100 disabled:opacity-45"
+                    >
+                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void mutateItem(item.id, "POST", { action: "refresh" })}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/18 bg-cyan-300/[0.08] px-3 py-2 text-xs font-bold text-cyan-100 disabled:opacity-45"
+                    >
+                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void mutateItem(item.id, "DELETE")}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300/18 bg-rose-300/[0.08] px-3 py-2 text-xs font-bold text-rose-100 disabled:opacity-45"
+                    >
+                      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function FirecrawlSection({ config, isAdmin }: FirecrawlSectionProps) {
   const [docsQuestion, setDocsQuestion] = useState(
     "How should I debug Firecrawl API errors in a Next.js app without wasting credits?"
   );
@@ -313,6 +723,8 @@ export default function FirecrawlSection({ config }: FirecrawlSectionProps) {
       </div>
 
       {status ? <p className="mt-4 text-xs text-gray-400">{status}</p> : null}
+
+      {isAdmin ? <AdminSubmittedCards /> : null}
     </section>
   );
 }

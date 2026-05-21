@@ -186,6 +186,7 @@ export default async function ExpansionDetailPage({
     cm_fr_lowest_nm: number | null;
     cm_es_lowest_nm: number | null;
     cm_it_lowest_nm: number | null;
+    cm_jp_lowest_nm?: number | null;
   }> = [];
   const sealedGroups = activeTab === "sealed" ? getGroupedSealedProducts(sealedProducts) : [];
   const activeSealedFilter =
@@ -216,6 +217,7 @@ export default async function ExpansionDetailPage({
           cm_fr_lowest_nm: number | null;
           cm_es_lowest_nm: number | null;
           cm_it_lowest_nm: number | null;
+          cm_jp_lowest_nm: number | null;
         }>
       >`
         SELECT
@@ -225,7 +227,8 @@ export default async function ExpansionDetailPage({
           cm_de_lowest_nm,
           cm_fr_lowest_nm,
           cm_es_lowest_nm,
-          cm_it_lowest_nm
+          cm_it_lowest_nm,
+          cm_jp_lowest_nm
         FROM (
           SELECT
             p.card_id,
@@ -235,6 +238,7 @@ export default async function ExpansionDetailPage({
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
             p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm,
             ROW_NUMBER() OVER (
               PARTITION BY p.card_id, DATE(p.fetched_at)
               ORDER BY p.fetched_at DESC, p.id DESC
@@ -333,6 +337,7 @@ export default async function ExpansionDetailPage({
               cm_fr_lowest_nm: price.cm_fr_lowest_nm,
               cm_es_lowest_nm: price.cm_es_lowest_nm,
               cm_it_lowest_nm: price.cm_it_lowest_nm,
+              cm_jp_lowest_nm: price.cm_jp_lowest_nm,
               tcp_market: price.tcp_market,
               tcp_mid: price.tcp_mid,
               tcp_low: price.tcp_low,

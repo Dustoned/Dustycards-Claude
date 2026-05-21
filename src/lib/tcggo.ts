@@ -1315,6 +1315,7 @@ export function extractPrices(prices: RawPrices | undefined) {
     cm_fr_lowest_nm: cm?.lowest_near_mint_FR ?? null,
     cm_es_lowest_nm: cm?.lowest_near_mint_ES ?? null,
     cm_it_lowest_nm: cm?.lowest_near_mint_IT ?? null,
+    cm_jp_lowest_nm: null as number | null,
     cm_en_avg_30d: cm?.["30d_average"] ?? null,
     cm_en_avg_7d: cm?.["7d_average"] ?? null,
     tcp_market: tcp?.market_price ?? null,
