@@ -334,9 +334,11 @@ export default function CollectionOverviewSections({
               </div>
             ) : (
               <div
-                className="grid gap-4"
+                className="grid gap-2 sm:gap-4"
                 style={{
-                  gridTemplateColumns: getFixedTrackGridTemplate(binderTileTrackWidth),
+                  gridTemplateColumns: isMobileViewport
+                    ? "repeat(2, minmax(0, 1fr))"
+                    : getFixedTrackGridTemplate(binderTileTrackWidth),
                 }}
               >
                 {binders.map((binder) => (
@@ -355,6 +357,7 @@ export default function CollectionOverviewSections({
     binderTileTrackWidth,
     binders,
     gradedLooseSingles,
+    isMobileViewport,
     rawLooseSingles,
     sealed,
     showRawLooseSinglesSection,

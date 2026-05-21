@@ -37,6 +37,7 @@ interface Props {
   compact?: boolean;
   layout?: Layout;
   rangeStorageKey?: string | null;
+  rangeScopePoints?: PriceHistoryValuePoint[];
   fixedRange?: RangeKey;
   hideRangeControls?: boolean;
 }
@@ -54,6 +55,11 @@ interface ChartCoordinate extends ParsedHistoryPoint {
 interface RangeStorageKeys {
   primary: string | null;
   legacy: string | null;
+}
+
+interface TimeDomain {
+  start: number;
+  end: number;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -235,21 +241,53 @@ function formatInlinePointDate(point: ParsedHistoryPoint): string {
     return point.label || point.date || "";
   }
 
+  return formatTimestampAxisLabel(point.timestamp);
+}
+
+function formatTimestampAxisLabel(timestamp: number): string {
   return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
     month: "short",
-  }).format(point.timestamp);
+  }).format(timestamp);
 }
 
-function filterPointsByRange(points: ParsedHistoryPoint[], selectedRange: RangeKey): ParsedHistoryPoint[] {
+function getPointTimestamps(points: ParsedHistoryPoint[]): number[] {
+  return points
+    .map((point) => point.timestamp)
+    .filter((timestamp): timestamp is number => timestamp != null);
+}
+
+function buildScopedTimeDomain(points: ParsedHistoryPoint[], selectedRange: RangeKey): TimeDomain | null {
+  const timestamps = getPointTimestamps(points);
+  if (timestamps.length === 0) return null;
+
+  const end = Math.max(...timestamps);
+  const preset = RANGE_PRESETS.find((range) => range.key === selectedRange);
+  const start = preset?.days == null ? Math.min(...timestamps) : end - preset.days * DAY_MS;
+
+  return start < end ? { start, end } : null;
+}
+
+function filterPointsByRange(
+  points: ParsedHistoryPoint[],
+  selectedRange: RangeKey,
+  scopedDomain: TimeDomain | null = null
+): ParsedHistoryPoint[] {
+  if (scopedDomain) {
+    return points.filter(
+      (point) =>
+        point.timestamp != null &&
+        point.timestamp >= scopedDomain.start &&
+        point.timestamp <= scopedDomain.end
+    );
+  }
+
   const preset = RANGE_PRESETS.find((range) => range.key === selectedRange);
   if (!preset || preset.days == null) {
     return points;
   }
 
-  const timestamps = points
-    .map((point) => point.timestamp)
-    .filter((timestamp): timestamp is number => timestamp != null);
+  const timestamps = getPointTimestamps(points);
 
   if (timestamps.length === 0) {
     return points;
@@ -290,11 +328,30 @@ function buildAxisTicks(points: ChartCoordinate[], compact: boolean) {
   }));
 }
 
+function buildTimeAxisTicks(domain: TimeDomain, width: number, compact: boolean) {
+  const targetCount = compact ? 3 : 4;
+  const usableWidth = width - CHART_PADDING_X * 2;
+  const span = domain.end - domain.start;
+  if (span <= 0) return [];
+
+  return Array.from({ length: targetCount }, (_, index) => {
+    const ratio = index / (targetCount - 1);
+    const timestamp = domain.start + span * ratio;
+
+    return {
+      index,
+      x: CHART_PADDING_X + usableWidth * ratio,
+      label: formatTimestampAxisLabel(timestamp),
+    };
+  });
+}
+
 function buildChart(
   points: ParsedHistoryPoint[],
   width: number,
   height: number,
-  axisHeight: number
+  axisHeight: number,
+  timeDomain: TimeDomain | null = null
 ) {
   const validPoints = points.filter(
     (point): point is ParsedHistoryPoint & { value: number } => point.value != null
@@ -313,24 +370,47 @@ function buildChart(
   const usableWidth = width - CHART_PADDING_X * 2;
   const usableHeight = Math.max(plotBottom - plotTop, 1);
 
+  const activeTimeDomain = timeDomain && timeDomain.end > timeDomain.start ? timeDomain : null;
   const coordinates: ChartCoordinate[] = validPoints.map((point, index) => {
     const x =
-      validPoints.length === 1
-        ? width / 2
-        : CHART_PADDING_X + (usableWidth * index) / (validPoints.length - 1);
+      activeTimeDomain && point.timestamp != null
+        ? CHART_PADDING_X +
+          usableWidth *
+            clamp(
+              (point.timestamp - activeTimeDomain.start) /
+                (activeTimeDomain.end - activeTimeDomain.start),
+              0,
+              1
+            )
+        : validPoints.length === 1
+          ? width / 2
+          : CHART_PADDING_X + (usableWidth * index) / (validPoints.length - 1);
     const ratio = isFlat ? 0.5 : (point.value - min) / span;
     const y = plotBottom - ratio * usableHeight;
 
     return { ...point, x, y };
   });
+  const pathCoordinates =
+    activeTimeDomain && coordinates.length > 0
+      ? [
+          ...(coordinates[0].x > CHART_PADDING_X
+            ? [{ ...coordinates[0], x: CHART_PADDING_X }]
+            : []),
+          ...coordinates,
+          ...(coordinates[coordinates.length - 1].x < width - CHART_PADDING_X
+            ? [{ ...coordinates[coordinates.length - 1], x: width - CHART_PADDING_X }]
+            : []),
+        ]
+      : coordinates;
 
-  const linePath = coordinates
+  const linePath = pathCoordinates
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
     .join(" ");
-  const areaPath = `${linePath} L ${coordinates[coordinates.length - 1].x} ${plotBottom} L ${coordinates[0].x} ${plotBottom} Z`;
+  const areaPath = `${linePath} L ${pathCoordinates[pathCoordinates.length - 1].x} ${plotBottom} L ${pathCoordinates[0].x} ${plotBottom} Z`;
 
   return {
     coordinates,
+    pathCoordinates,
     linePath,
     areaPath,
     plotTop,
@@ -377,6 +457,7 @@ export default function PriceHistoryPanel({
   compact = false,
   layout = "default",
   rangeStorageKey,
+  rangeScopePoints,
   fixedRange,
   hideRangeControls = false,
 }: Props) {
@@ -483,7 +564,15 @@ export default function PriceHistoryPanel({
     ...point,
     timestamp: parsePointTimestamp(point),
   }));
-  const filteredPoints = filterPointsByRange(parsedPoints, selectedRange);
+  const parsedRangeScopePoints = rangeScopePoints?.map((point) => ({
+    ...point,
+    timestamp: parsePointTimestamp(point),
+  })) ?? [];
+  const scopedTimeDomain =
+    parsedRangeScopePoints.length > 0
+      ? buildScopedTimeDomain(parsedRangeScopePoints, selectedRange)
+      : null;
+  const filteredPoints = filterPointsByRange(parsedPoints, selectedRange, scopedTimeDomain);
   const hasDrawablePoints = filteredPoints.some((point) => point.value != null);
 
   useLayoutEffect(() => {
@@ -534,7 +623,7 @@ export default function PriceHistoryPanel({
   }, [hasDrawablePoints, loading, rangeResolved]);
 
   const measuredChartWidth = chartWidth ?? CHART_FALLBACK_WIDTH;
-  const chart = buildChart(filteredPoints, measuredChartWidth, height, axisHeight);
+  const chart = buildChart(filteredPoints, measuredChartWidth, height, axisHeight, scopedTimeDomain);
   const visibleCoordinates = chart?.coordinates ?? [];
   const latestPoint = visibleCoordinates[visibleCoordinates.length - 1] ?? null;
   const activePoint =
@@ -548,13 +637,24 @@ export default function PriceHistoryPanel({
       : null;
   const selectedPreset =
     RANGE_PRESETS.find((range) => range.key === selectedRange) ?? RANGE_PRESETS[3];
-  const rangeSummary = formatAxisRangeSummary(visibleCoordinates);
+  const rangeSummary = scopedTimeDomain
+    ? `${formatTimestampAxisLabel(scopedTimeDomain.start)} - ${formatTimestampAxisLabel(scopedTimeDomain.end)}`
+    : formatAxisRangeSummary(visibleCoordinates);
   const hoverDateText = activePoint ? formatInlinePointDate(activePoint) : null;
   const primaryMetaText = rangeSummary;
   const secondaryMetaText = subtitle ?? null;
-  const axisTicks = buildAxisTicks(visibleCoordinates, compact);
-  const showRangeControls = !hideRangeControls && fixedRange == null && parsedPoints.length > 1;
+  const axisTicks = scopedTimeDomain
+    ? buildTimeAxisTicks(scopedTimeDomain, measuredChartWidth, compact)
+    : buildAxisTicks(visibleCoordinates, compact);
+  const showRangeControls =
+    !hideRangeControls &&
+    fixedRange == null &&
+    Math.max(parsedPoints.length, parsedRangeScopePoints.length) > 1;
   const reserveDateSlot = visibleCoordinates.length > 0;
+  const stableHeroHeaderClass =
+    scopedTimeDomain && isHeroLayout
+      ? "h-[5.85rem] overflow-hidden max-[640px]:h-[4.95rem]"
+      : "";
 
   const shellClass = isMobileHeroLayout
     ? "rounded-[20px] border border-white/10 bg-[#101011] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
@@ -717,6 +817,13 @@ export default function PriceHistoryPanel({
         <p className={`${subtitleClass} mt-0.5`}>vs {selectedPreset.deltaText}</p>
       </div>
     ) : null;
+  const reservedDeltaJsx =
+    !deltaJsx && scopedTimeDomain && isHeroLayout && !isMobileHeroLayout ? (
+      <div className="invisible" aria-hidden="true">
+        <p className="text-lg font-semibold tabular-nums">+€0.00 (0.0%)</p>
+        <p className={`${subtitleClass} mt-0.5`}>vs {selectedPreset.deltaText}</p>
+      </div>
+    ) : null;
 
   if (isDashboardLayout) {
     return (
@@ -806,10 +913,10 @@ export default function PriceHistoryPanel({
                           strokeDasharray="4 4"
                         />
                       )}
-                      {chart.coordinates.length > 1 && (
+                      {chart.pathCoordinates.length > 1 && (
                         <circle
-                          cx={chart.coordinates[chart.coordinates.length - 1].x}
-                          cy={chart.coordinates[chart.coordinates.length - 1].y}
+                          cx={chart.pathCoordinates[chart.pathCoordinates.length - 1].x}
+                          cy={chart.pathCoordinates[chart.pathCoordinates.length - 1].y}
                           r="4"
                           fill={dotFill}
                         />
@@ -874,13 +981,13 @@ export default function PriceHistoryPanel({
   return (
     <section className={shellClass}>
       <div
-        className={
+        className={`${stableHeroHeaderClass} ${
           isMobileHeroLayout
             ? "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2"
             : isHeroLayout
             ? "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
             : "flex items-start justify-between gap-3"
-        }
+        }`}
       >
         <div className="min-w-0">
           <p className={titleClass}>{title}</p>
@@ -912,7 +1019,7 @@ export default function PriceHistoryPanel({
                   {hoverDateText ?? "\u00A0"}
                 </p>
               )}
-              {deltaJsx}
+              {deltaJsx ?? reservedDeltaJsx}
             </div>
           </div>
         )}
@@ -1002,25 +1109,25 @@ export default function PriceHistoryPanel({
                 />
               )}
 
-              {chart.coordinates.length === 1 ? (
+              {chart.pathCoordinates.length === 1 ? (
                 <circle
-                  cx={chart.coordinates[0].x}
-                  cy={chart.coordinates[0].y}
+                  cx={chart.pathCoordinates[0].x}
+                  cy={chart.pathCoordinates[0].y}
                   r="4.5"
                   fill={dotFill}
                 />
               ) : (
                 <>
                   <circle
-                    cx={chart.coordinates[0].x}
-                    cy={chart.coordinates[0].y}
+                    cx={chart.pathCoordinates[0].x}
+                    cy={chart.pathCoordinates[0].y}
                     r="3.25"
                     fill={dotFill}
                     fillOpacity="0.9"
                   />
                   <circle
-                    cx={chart.coordinates[chart.coordinates.length - 1].x}
-                    cy={chart.coordinates[chart.coordinates.length - 1].y}
+                    cx={chart.pathCoordinates[chart.pathCoordinates.length - 1].x}
+                    cy={chart.pathCoordinates[chart.pathCoordinates.length - 1].y}
                     r={isHeroLayout ? "4.5" : "4"}
                     fill={dotFill}
                   />

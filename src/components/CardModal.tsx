@@ -623,10 +623,11 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
               <CardModalFooter
                 card={modalCard}
                 collectionItem={collectionItem}
+                gradingCompanyLabel={gradingCompanyLabel}
+                gradingGradeLabel={gradingGradeLabel}
                 storedCardMarketUrl={storedCardMarketUrl}
                 onOpenCardMarket={openCardMarket}
                 onAddedToCollection={refreshModalCardFromServer}
-                onClose={onClose}
               />
               </div>
             </div>

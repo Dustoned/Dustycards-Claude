@@ -105,7 +105,7 @@ export default function BinderOverviewTile({
     <Link
       href={`/binders/${binder.id}`}
       prefetch={false}
-      className="binder-panel group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl p-3.5 transition-transform hover:scale-[1.01] hover:border-white/14 hover:bg-white/[0.07] max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-2.5"
+      className="binder-panel group relative flex h-full flex-col gap-3 overflow-hidden rounded-2xl p-3.5 transition-transform hover:scale-[1.01] hover:border-white/14 hover:bg-white/[0.07] max-[640px]:gap-2 max-[640px]:rounded-xl max-[640px]:p-2"
       style={
         binder.accent_color
           ? { boxShadow: `inset 0 0 0 1px ${binder.accent_color}2f` }
@@ -132,21 +132,21 @@ export default function BinderOverviewTile({
           <img
             src={getCachedImageUrl(binder.episode.logo_url) ?? binder.episode.logo_url}
             alt={binder.name}
-            className="h-full w-full object-contain p-3 max-[640px]:p-2 sm:p-4"
+            className="h-full w-full object-contain p-3 max-[640px]:p-1.5 sm:p-4"
           />
         ) : (
           <div
-            className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/10 bg-white/8 text-white/70"
+            className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/10 bg-white/8 text-white/70 max-[640px]:h-14 max-[640px]:w-14 max-[640px]:rounded-2xl"
             style={accentColor ? { color: accentColor } : undefined}
           >
-            <CollectionBinderIcon iconName={binder.icon_name} className="h-9 w-9" />
+            <CollectionBinderIcon iconName={binder.icon_name} className="h-9 w-9 max-[640px]:h-7 max-[640px]:w-7" />
           </div>
         )}
       </div>
 
-      <div className="min-w-0 space-y-2.5">
+      <div className="min-w-0 space-y-2.5 max-[640px]:space-y-1.5">
         <div className="min-w-0">
-          <h3 className="line-clamp-2 text-base font-bold leading-tight text-white max-[640px]:text-[13px]">
+          <h3 className="line-clamp-2 text-base font-bold leading-tight text-white max-[640px]:text-[12px]">
             {binder.name}
           </h3>
           <p className="mt-1 truncate text-xs font-medium text-white/45 max-[640px]:mt-0.5 max-[640px]:text-[10px]">
@@ -154,13 +154,13 @@ export default function BinderOverviewTile({
           </p>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 max-[640px]:space-y-1">
           <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-white/68 max-[640px]:text-[10px]">
             <span className="truncate">{cardCountLabel}</span>
             {completionLabel ? <span className="shrink-0 text-white/45">{completionLabel}</span> : null}
           </div>
           {progressWidth ? (
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/8 max-[640px]:h-1">
               <div
                 className="h-full rounded-full bg-violet-500"
                 style={{
@@ -174,12 +174,12 @@ export default function BinderOverviewTile({
           ) : null}
         </div>
 
-        <div className="flex items-end justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 max-[640px]:px-2.5 max-[640px]:py-2">
+        <div className="flex items-end justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 max-[640px]:rounded-lg max-[640px]:px-2 max-[640px]:py-1.5">
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/32 max-[640px]:text-[8px]">
               Value
             </p>
-            <p className="mt-0.5 truncate text-base font-black tracking-tight text-white max-[640px]:text-[13px]">
+            <p className="mt-0.5 truncate text-base font-black tracking-tight text-white max-[640px]:text-[12px]">
               {formatCollectionCurrency(binder.currentValue)}
             </p>
           </div>
@@ -195,7 +195,7 @@ export default function BinderOverviewTile({
           ) : null}
         </div>
 
-        <div className="flex min-w-0 flex-wrap gap-1.5">
+        <div className="flex min-w-0 flex-wrap gap-1.5 max-[640px]:hidden">
           {missingLabel ? (
             <span className="rounded-full border border-white/8 bg-white/[0.045] px-2.5 py-1 text-[10px] font-bold text-white/58 max-[640px]:px-2 max-[640px]:text-[9px]">
               {missingLabel}

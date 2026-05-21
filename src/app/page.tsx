@@ -1,5 +1,6 @@
 import nextDynamic from "next/dynamic";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import {
   Activity,
   BarChart3,
@@ -21,7 +22,7 @@ import {
   type CollectionOverviewData,
   type CollectionPageTab,
 } from "@/lib/collection-data";
-import { getFixedTrackGridTemplate, getSupportTileTrackWidth } from "@/lib/display-scale";
+import { getSupportTileTrackWidth } from "@/lib/display-scale";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
   GAME_FILTER_OPTIONS,
@@ -426,6 +427,9 @@ export default async function HomePage({
   const user = await requirePageUser("/");
   const settings = await getServerUserSettings(user.id);
   const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
+  const binderGridStyle = {
+    "--binder-tile-track": binderTileTrackWidth,
+  } as CSSProperties;
   const { tab, graded, game: gameParam } = await searchParams;
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
@@ -788,10 +792,8 @@ export default async function HomePage({
             </div>
           ) : (
             <div
-              className="grid gap-4"
-              style={{
-                gridTemplateColumns: getFixedTrackGridTemplate(binderTileTrackWidth),
-              }}
+              className="grid grid-cols-2 gap-2 sm:gap-4 sm:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
+              style={binderGridStyle}
             >
               {data.binders.map((binder) => (
                 <BinderOverviewTile key={binder.id} binder={binder} />
