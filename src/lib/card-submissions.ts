@@ -740,7 +740,8 @@ function extractCurrencyPriceMatchesFromText(text: string): Array<{ price: numbe
 function normalizeGradingCompany(value: string): string | null {
   const company = value.replace(/\s+/g, "").toUpperCase();
   if (company === "BECKETT") return "BGS";
-  if (["PSA", "BGS", "CGC", "SGC", "ACE", "TAG"].includes(company)) return company;
+  if (["AIGRAD", "AIGRADE", "AIGRADING"].includes(company)) return "AIGRAD";
+  if (["PSA", "BGS", "CGC", "SGC", "ACE", "TAG", "AOG"].includes(company)) return company;
   return null;
 }
 
@@ -751,9 +752,29 @@ function normalizeGradingGrade(value: string): string | null {
   return Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(1).replace(/\.0$/, "");
 }
 
+function isBlockedGradedContext(text: string, index: number): boolean {
+  const lineStart = text.lastIndexOf("\n", index) + 1;
+  const nextLineBreak = text.indexOf("\n", index);
+  const lineEnd = nextLineBreak === -1 ? text.length : nextLineBreak;
+  const context = text.slice(lineStart, lineEnd);
+
+  return /\b(potential|potenzial|contender|candidate|candidat|kandidat|maybe|possible|should\s+grade|could\s+grade|gradeable|raw|ungraded|not\s+graded|no\s+grade)\b/i.test(
+    context
+  );
+}
+
+function hasGenericGradedContext(text: string, index: number): boolean {
+  const lineStart = text.lastIndexOf("\n", index) + 1;
+  const nextLineBreak = text.indexOf("\n", index);
+  const lineEnd = nextLineBreak === -1 ? Math.min(text.length, index + 140) : nextLineBreak;
+  const context = text.slice(lineStart, lineEnd);
+
+  return /\b(graded|slabbed|slab|certificate|cert|certified|encased|sealed\s+case|gegradet)\b/i.test(context);
+}
+
 function extractGradingLabelMatches(text: string): Array<{ label: string; index: number }> {
   const gradeToken = String.raw`(?:10|9(?:[.,]5)?|9|8(?:[.,]5)?|8|7(?:[.,]5)?|7|6(?:[.,]5)?|6|5(?:[.,]5)?|5|4(?:[.,]5)?|4|3(?:[.,]5)?|3|2(?:[.,]5)?|2|1(?:[.,]5)?|1)`;
-  const companyToken = String.raw`(?:PSA|BGS|CGC|SGC|ACE|TAG|Beckett)`;
+  const companyToken = String.raw`(?:PSA|BGS|CGC|SGC|ACE|TAG|AOG|Ai\s*Grad(?:e|ing)?|AiGrad(?:e|ing)?|Beckett)`;
   const descriptorToken = String.raw`(?:(?:graded|grade|slabbed|gem\s*mint|gem\s*mt|pristine|mint|black\s*label|gold\s*label)\s*)`;
   const companyBefore = new RegExp(
     String.raw`\b(${companyToken})\s*(?:${descriptorToken}){0,3}(?:grade\s*)?(${gradeToken})(?:\s*/\s*10)?\b`,
@@ -763,12 +784,17 @@ function extractGradingLabelMatches(text: string): Array<{ label: string; index:
     String.raw`\b(${gradeToken})(?:\s*/\s*10)?\s*(${companyToken})\b`,
     "gi"
   );
+  const genericGrade = new RegExp(
+    String.raw`\b(?:graded\s+card|graded|slabbed|slab|grad|grade)\s*(${gradeToken})(?:\s*/\s*10)?\b`,
+    "gi"
+  );
   const labels: Array<{ label: string; index: number }> = [];
 
   for (const match of text.matchAll(companyBefore)) {
     const company = normalizeGradingCompany(match[1] ?? "");
     const grade = normalizeGradingGrade(match[2] ?? "");
     if (!company || !grade || match.index == null) continue;
+    if (isBlockedGradedContext(text, match.index)) continue;
     labels.push({ label: `${company} ${grade}`, index: match.index });
   }
 
@@ -776,7 +802,16 @@ function extractGradingLabelMatches(text: string): Array<{ label: string; index:
     const grade = normalizeGradingGrade(match[1] ?? "");
     const company = normalizeGradingCompany(match[2] ?? "");
     if (!company || !grade || match.index == null) continue;
+    if (isBlockedGradedContext(text, match.index)) continue;
     labels.push({ label: `${company} ${grade}`, index: match.index });
+  }
+
+  for (const match of text.matchAll(genericGrade)) {
+    const grade = normalizeGradingGrade(match[1] ?? "");
+    if (!grade || match.index == null) continue;
+    if (isBlockedGradedContext(text, match.index)) continue;
+    if (!hasGenericGradedContext(text, match.index)) continue;
+    labels.push({ label: `GRADED ${grade}`, index: match.index });
   }
 
   return labels;
@@ -797,7 +832,15 @@ function extractSubmittedGradedPrices(scrape: FirecrawlPageScrapeResult): Submit
       const priceMatches = extractCurrencyPriceMatchesFromText(localWindow);
       if (priceMatches.length === 0) continue;
 
-      const nearest = priceMatches
+      const relativeLabelIndex = labelMatch.index - start;
+      const nearestAfter = priceMatches
+        .map((priceMatch) => ({
+          ...priceMatch,
+          distance: priceMatch.index - relativeLabelIndex,
+        }))
+        .filter((priceMatch) => priceMatch.distance >= 0)
+        .sort((a, b) => a.distance - b.distance)[0];
+      const nearest = nearestAfter ?? priceMatches
         .map((priceMatch) => ({
           ...priceMatch,
           distance: Math.abs(start + priceMatch.index - labelMatch.index),

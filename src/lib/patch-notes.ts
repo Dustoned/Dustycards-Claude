@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.6",
+    releasedAt: "May 22, 2026",
+    title: "Cleaner graded scraping",
+    summary: "DustyCards 3.2.6 tightens CardMarket graded parsing so raw 'PSA 10 potential' listings are not treated as slabs.",
+    tone: "fixed",
+    highlights: [
+      "Ignored graded bait terms like potential, contender, candidate, raw, and ungraded when parsing seller comments.",
+      "Recognized more real graded labels such as AOG, AiGrad, and generic Grade 10 rows with certificate context.",
+      "Linked graded seller comments to the following row price first, which better matches CardMarket listing order.",
+    ],
+  },
+  {
     version: "3.2.5",
     releasedAt: "May 22, 2026",
     title: "Submit name autocomplete",

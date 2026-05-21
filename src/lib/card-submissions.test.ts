@@ -123,4 +123,36 @@ describe("card submission parsing", () => {
       { label: "PSA 10", price: 399 },
     ]);
   });
+
+  it("extracts more CardMarket graded labels and ignores raw potential text", () => {
+    const parsed = parseCardMarketScrape(
+      makeScrape({
+        markdown: [
+          "# Monkey.D.Luffy",
+          "English Near Mint Ã¢â€šÂ¬150.00",
+          "Seller comment: Top condition! PSA 10 potential",
+          "Ã¢â€šÂ¬600.00",
+          "Seller comment: AOG 9 speedversand",
+          "Ã¢â€šÂ¬499.99",
+          "Seller comment: AOG 9.5",
+          "Ã¢â€šÂ¬550.00",
+          "Seller comment: [AiGrad 10.0] Graded Card - Store image",
+          "Ã¢â€šÂ¬600.00",
+          "Seller comment: Grad 10 / ask to see certificate",
+          "Ã¢â€šÂ¬1,300.00",
+          "Seller comment: PSA 10",
+          "Ã¢â€šÂ¬1,499.00",
+        ].join("\n"),
+        html: '<meta property="og:image" content="https://img.example/luffy.jpg">',
+      })
+    );
+
+    expect(parsed.gradedPrices).toEqual([
+      { label: "AIGRAD 10", price: 600 },
+      { label: "AOG 9.5", price: 550 },
+      { label: "AOG 9", price: 499.99 },
+      { label: "GRADED 10", price: 1300 },
+      { label: "PSA 10", price: 1499 },
+    ]);
+  });
 });
