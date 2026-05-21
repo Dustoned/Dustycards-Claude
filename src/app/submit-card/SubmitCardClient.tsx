@@ -111,6 +111,15 @@ interface UserSubmittedCardItem {
   };
 }
 
+interface FirecrawlUsage {
+  configured: boolean;
+  monthlyBudget: number;
+  monthlyUsed: number;
+  monthlyRemaining: number;
+  dailyAttemptLimit: number;
+  dailyAttemptsUsed: number;
+}
+
 function fieldClass() {
   return "w-full rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2.5 text-sm font-semibold text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/10";
 }
@@ -137,8 +146,23 @@ export default function SubmitCardClient() {
   const [savedCard, setSavedCard] = useState<SavedSubmittedCard | null>(null);
   const [submittedCards, setSubmittedCards] = useState<UserSubmittedCardItem[]>([]);
   const [submittedLoading, setSubmittedLoading] = useState(true);
+  const [firecrawlUsage, setFirecrawlUsage] = useState<FirecrawlUsage | null>(null);
+  const [usageLoading, setUsageLoading] = useState(true);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<"preview" | "save" | null>(null);
+
+  async function loadFirecrawlUsage(options?: { quiet?: boolean }) {
+    if (!options?.quiet) setUsageLoading(true);
+    try {
+      const response = await fetch("/api/card-submissions/firecrawl-usage", { cache: "no-store" });
+      const data = (await response.json()) as ApiResponse<FirecrawlUsage>;
+      setFirecrawlUsage(response.ok && data.ok && data.result ? data.result : null);
+    } catch {
+      setFirecrawlUsage(null);
+    } finally {
+      setUsageLoading(false);
+    }
+  }
 
   async function loadSubmittedCards() {
     setSubmittedLoading(true);
@@ -173,7 +197,21 @@ export default function SubmitCardClient() {
       }
     }
 
+    async function loadInitialFirecrawlUsage() {
+      try {
+        const response = await fetch("/api/card-submissions/firecrawl-usage", { cache: "no-store" });
+        const data = (await response.json()) as ApiResponse<FirecrawlUsage>;
+        if (cancelled) return;
+        setFirecrawlUsage(response.ok && data.ok && data.result ? data.result : null);
+      } catch {
+        if (!cancelled) setFirecrawlUsage(null);
+      } finally {
+        if (!cancelled) setUsageLoading(false);
+      }
+    }
+
     void loadInitialSubmittedCards();
+    void loadInitialFirecrawlUsage();
     return () => {
       cancelled = true;
     };
@@ -206,15 +244,31 @@ export default function SubmitCardClient() {
         return;
       }
 
-      setPreview(data.result);
+      const result = data.result;
+      setPreview(result);
+      setFirecrawlUsage((current) =>
+        current
+          ? {
+              ...current,
+              monthlyBudget: result.firecrawl.monthlyBudget,
+              monthlyUsed: result.firecrawl.monthlyUsed,
+              monthlyRemaining: Math.max(
+                0,
+                result.firecrawl.monthlyBudget - result.firecrawl.monthlyUsed
+              ),
+              dailyAttemptsUsed: result.firecrawl.dailyAttemptsUsed,
+            }
+          : current
+      );
+      void loadFirecrawlUsage({ quiet: true });
       setStatus(
-        data.result.status === "duplicate"
-          ? `Found ${data.result.duplicateCards.length || 1} possible existing card${
-              (data.result.duplicateCards.length || 1) === 1 ? "" : "s"
+        result.status === "duplicate"
+          ? `Found ${result.duplicateCards.length || 1} possible existing card${
+              (result.duplicateCards.length || 1) === 1 ? "" : "s"
             }.`
-          : data.result.canSave
+          : result.canSave
             ? "Preview ready."
-            : data.result.error ?? "Preview needs more data before saving."
+            : result.error ?? "Preview needs more data before saving."
       );
     } catch {
       setStatus("Network error while previewing the card.");
@@ -280,9 +334,83 @@ export default function SubmitCardClient() {
           savedSearchGame ? `&game=${encodeURIComponent(savedSearchGame)}` : ""
         }`
       : null;
+  const usageMonthlyBudget = firecrawlUsage?.monthlyBudget ?? preview?.firecrawl.monthlyBudget ?? 1000;
+  const usageMonthlyUsed = firecrawlUsage?.monthlyUsed ?? preview?.firecrawl.monthlyUsed ?? 0;
+  const usageMonthlyRemaining =
+    firecrawlUsage?.monthlyRemaining ?? Math.max(0, usageMonthlyBudget - usageMonthlyUsed);
+  const usageDailyLimit = firecrawlUsage?.dailyAttemptLimit ?? 3;
+  const usageDailyUsed = firecrawlUsage?.dailyAttemptsUsed ?? preview?.firecrawl.dailyAttemptsUsed ?? 0;
+  const usagePercent =
+    usageMonthlyBudget > 0
+      ? Math.min(100, Math.max(0, (usageMonthlyUsed / usageMonthlyBudget) * 100))
+      : 0;
 
   return (
     <div className="grid gap-4">
+      <section className="glass min-w-0 rounded-2xl border border-white/8 bg-white/[0.035] p-5 shadow-md shadow-black/20">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-white">Firecrawl credits</h2>
+            <p className="mt-1 text-sm leading-5 text-white/45">
+              Monthly submit usage for CardMarket previews.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadFirecrawlUsage()}
+            disabled={usageLoading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2 text-sm font-bold text-white/72 transition hover:bg-white/[0.09] hover:text-white disabled:cursor-wait disabled:opacity-50"
+          >
+            {usageLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Refresh
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          <StatPill
+            label="This month"
+            value={
+              usageLoading && !firecrawlUsage
+                ? "Loading..."
+                : `${usageMonthlyUsed.toLocaleString("en-US")} / ${usageMonthlyBudget.toLocaleString("en-US")}`
+            }
+          />
+          <StatPill
+            label="Remaining"
+            value={
+              usageLoading && !firecrawlUsage
+                ? "Loading..."
+                : usageMonthlyRemaining.toLocaleString("en-US")
+            }
+          />
+          <StatPill
+            label="Today"
+            value={
+              usageLoading && !firecrawlUsage
+                ? "Loading..."
+                : `${usageDailyUsed.toLocaleString("en-US")} / ${usageDailyLimit.toLocaleString("en-US")} attempts`
+            }
+          />
+          <StatPill
+            label="API"
+            value={usageLoading && !firecrawlUsage ? "Loading..." : firecrawlUsage?.configured ? "Ready" : "Missing key"}
+          />
+        </div>
+
+        <div className="mt-4 h-2 overflow-hidden rounded-full border border-white/8 bg-black/28">
+          <div
+            className="h-full rounded-full bg-violet-500 transition-[width]"
+            style={{ width: `${usagePercent}%` }}
+          />
+        </div>
+
+        {firecrawlUsage && !firecrawlUsage.configured ? (
+          <p className="mt-3 rounded-xl border border-amber-300/14 bg-amber-300/[0.055] px-3 py-2 text-xs font-semibold leading-5 text-amber-100">
+            Firecrawl API key is missing on this server.
+          </p>
+        ) : null}
+      </section>
+
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <form
         onSubmit={runPreview}

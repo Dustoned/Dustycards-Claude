@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.3",
+    releasedAt: "May 22, 2026",
+    title: "Submit credit visibility",
+    summary: "DustyCards 3.2.3 makes Firecrawl usage visible before submitting a CardMarket card.",
+    tone: "improved",
+    highlights: [
+      "Added a Firecrawl credits panel to Submit Card with monthly usage, remaining budget, daily attempts, and API status.",
+      "Added a lightweight usage endpoint that reads tracked credits without spending a Firecrawl request.",
+    ],
+  },
+  {
     version: "3.2.2",
     releasedAt: "May 22, 2026",
     title: "Browse menu consistency",

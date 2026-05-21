@@ -142,6 +142,15 @@ export interface UserSubmittedCardItem {
   };
 }
 
+export interface CardSubmissionFirecrawlUsage {
+  configured: boolean;
+  monthlyBudget: number;
+  monthlyUsed: number;
+  monthlyRemaining: number;
+  dailyAttemptLimit: number;
+  dailyAttemptsUsed: number;
+}
+
 interface NormalizedSubmissionInput {
   game: TradingCardGame;
   name: string;
@@ -980,6 +989,22 @@ async function getFirecrawlUsage(userId: string, now = new Date()) {
   return {
     monthlyUsed: monthly._sum.credits_used ?? 0,
     dailyAttemptsUsed: dailyAttempts,
+  };
+}
+
+export async function getCardSubmissionFirecrawlUsage(
+  userId: string
+): Promise<CardSubmissionFirecrawlUsage> {
+  const config = getFirecrawlConfigSnapshot();
+  const usage = await getFirecrawlUsage(userId);
+
+  return {
+    configured: config.configured,
+    monthlyBudget: config.monthlyCreditBudget,
+    monthlyUsed: usage.monthlyUsed,
+    monthlyRemaining: Math.max(0, config.monthlyCreditBudget - usage.monthlyUsed),
+    dailyAttemptLimit: USER_DAILY_ATTEMPT_LIMIT,
+    dailyAttemptsUsed: usage.dailyAttemptsUsed,
   };
 }
 
