@@ -69,6 +69,7 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
         ...expansionItems,
         { href: "/categories", label: "Categories", icon: Sparkles, matches: ["/categories"] },
         { href: "/illustrators", label: "Illustrators", shortLabel: "Artists", icon: Brush, matches: ["/illustrators"] },
+        { href: "/submit-card", label: "Submit Card", shortLabel: "Submit", icon: Search, matches: ["/submit-card"] },
       ],
     },
     {
@@ -101,12 +102,6 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
       items: [
         { href: "/account", label: "Account", icon: UserRound, matches: ["/account"] },
         { href: "/settings", label: "Settings", icon: SettingsIcon, matches: ["/settings"] },
-      ],
-    },
-    {
-      label: "Tools",
-      items: [
-        { href: "/submit-card", label: "Submit Card", shortLabel: "Submit", icon: Search, matches: ["/submit-card"] },
       ],
     },
   ];
