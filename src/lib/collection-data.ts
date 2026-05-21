@@ -89,6 +89,7 @@ export interface CollectionOverviewData {
   looseSingles: CollectionCardViewItem[];
   binderCards: CollectionCardViewItem[];
   sealed: CollectionSealedViewItem[];
+  valueDrivers: CollectionValueDriversData;
   binders: Array<{
     id: string;
     name: string;
@@ -467,6 +468,7 @@ const collectionBinderMetricSelect = {
 const SQLITE_SAFE_CHUNK_SIZE = 250;
 const COLLECTION_OVERVIEW_CHART_DAYS = 120;
 const COLLECTION_VALUE_DRIVER_LIMIT = 24;
+const COLLECTION_VALUE_DRIVER_WINDOW_DAYS = 2;
 const EMPTY_COLLECTION_VALUE_DRIVERS: CollectionValueDriversData = {
   latestDate: null,
   latestLabel: null,
@@ -489,6 +491,12 @@ function toHistoryDateKey(value: Date | string): string {
 
 function toHistoryMillis(value: Date | string): number {
   return value instanceof Date ? value.getTime() : new Date(value).getTime();
+}
+
+function shiftHistoryDateKey(dateKey: string, days: number): string {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function toValueDriverDateLabel(dateKey: string): string {
@@ -1153,6 +1161,27 @@ function buildSealedValueDriverDetail(item: CollectionSealedViewItem): string {
   return [`x${item.quantity}`, episode].filter(Boolean).join(" / ");
 }
 
+function pickCollectionValueDriverPreviousPoint(
+  valuedPoints: Array<{ date: string; label: string; value: number }>,
+  latestPoint: { date: string; label: string; value: number },
+  windowDays: number | null
+): { date: string; label: string; value: number } | null {
+  const previousPoints = valuedPoints.filter((point) => point.date < latestPoint.date);
+
+  if (previousPoints.length === 0) {
+    return null;
+  }
+
+  if (windowDays == null || windowDays <= 0) {
+    return previousPoints[previousPoints.length - 1] ?? null;
+  }
+
+  const windowStartDate = shiftHistoryDateKey(latestPoint.date, -windowDays);
+  const windowPoints = previousPoints.filter((point) => point.date >= windowStartDate);
+
+  return windowPoints[0] ?? previousPoints[previousPoints.length - 1] ?? null;
+}
+
 type CollectionValueDriverDraft = Omit<
   CollectionValueDriverItem,
   "previousValue" | "currentValue" | "change" | "changePct"
@@ -1210,6 +1239,7 @@ function buildCollectionValueDrivers({
   chart,
   currentValue,
   limit = COLLECTION_VALUE_DRIVER_LIMIT,
+  windowDays = COLLECTION_VALUE_DRIVER_WINDOW_DAYS,
 }: {
   cards: CollectionCardViewItem[];
   sealed: CollectionSealedViewItem[];
@@ -1218,12 +1248,15 @@ function buildCollectionValueDrivers({
   chart: Array<{ date: string; label: string; value: number | null }>;
   currentValue: number;
   limit?: number | null;
+  windowDays?: number | null;
 }): CollectionValueDriversData {
   const valuedPoints = chart.filter(
     (point): point is { date: string; label: string; value: number } => point.value != null
   );
   const latestPoint = valuedPoints[valuedPoints.length - 1] ?? null;
-  const previousPoint = valuedPoints[valuedPoints.length - 2] ?? null;
+  const previousPoint = latestPoint
+    ? pickCollectionValueDriverPreviousPoint(valuedPoints, latestPoint, windowDays)
+    : null;
 
   if (!latestPoint || !previousPoint) {
     return {
@@ -1699,6 +1732,17 @@ export async function getCollectionOverviewData(
   const sealedViewItems = loadDetailedSealed
     ? (collectionSealed as CollectionSealedRecord[]).map(buildSealedViewItem)
     : [];
+  const valueDrivers =
+    loadDetailedCards && loadDetailedSealed && loadCollectionHistory
+      ? buildCollectionValueDrivers({
+          cards: collectionCardViewItems,
+          sealed: sealedViewItems,
+          cardHistory,
+          sealedHistory,
+          chart: combinedHistory,
+          currentValue: overviewMetric.currentValue,
+        })
+      : EMPTY_COLLECTION_VALUE_DRIVERS;
 
   const result = {
     overview: {
@@ -1712,6 +1756,7 @@ export async function getCollectionOverviewData(
     looseSingles: looseSingleViewItems,
     binderCards: binderCardViewItems,
     sealed: sealedViewItems,
+    valueDrivers,
     binders: binderSummaries,
   };
 
