@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.7",
+    releasedAt: "May 22, 2026",
+    title: "Cleaner binder and detail layout",
+    summary: "DustyCards 3.2.7 tightens binder tiles and makes the desktop card detail page read as one cleaner layout.",
+    tone: "improved",
+    highlights: [
+      "Made desktop binder tiles more compact with a calmer neutral surface and subtle set accent color.",
+      "Removed the extra dark frame behind card images in the card detail preview.",
+      "Reworked widescreen card details into a cleaner left media column and right content stack with fewer empty gaps.",
+    ],
+  },
+  {
     version: "3.2.6",
     releasedAt: "May 22, 2026",
     title: "Cleaner graded scraping",

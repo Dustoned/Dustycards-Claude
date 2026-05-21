@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
 import { useSettings, type CardSize } from "@/components/SettingsProvider";
-import { getSupportTileTrackWidth } from "@/lib/display-scale";
+import { getBinderTileTrackWidth } from "@/lib/display-scale";
 import {
   buildOverviewSectionOrderCookie,
   DEFAULT_OVERVIEW_SECTION_ORDER,
@@ -193,7 +193,7 @@ export default function CollectionOverviewSections({
   initialSectionOrder = null,
 }: Props) {
   const { displaySettings, isMobileViewport, setDisplay } = useSettings();
-  const binderTileTrackWidth = getSupportTileTrackWidth(
+  const binderTileTrackWidth = getBinderTileTrackWidth(
     displaySettings.uiScale,
     displaySettings.widescreen
   );
@@ -341,7 +341,7 @@ export default function CollectionOverviewSections({
               </div>
             ) : (
               <div
-                className="grid grid-cols-2 gap-2 lg:gap-4 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
+                className="grid grid-cols-2 gap-2 lg:gap-3 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
                 style={binderGridStyle}
               >
                 {binders.map((binder) => (

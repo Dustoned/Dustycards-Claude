@@ -178,11 +178,11 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   );
   const desktopWorkspaceStyle = {
     maxWidth: displaySettings.widescreen
-      ? "min(100%, 142rem)"
+      ? "min(100%, 126rem)"
       : `min(100%, ${layout.maxW})`,
   };
   const desktopGridClass = displaySettings.widescreen
-    ? "grid justify-center gap-5 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,0.9fr)_minmax(0,1.16fr)] xl:items-start 2xl:grid-cols-[minmax(26rem,38rem)_minmax(28rem,36rem)_minmax(36rem,48rem)] 2xl:gap-7"
+    ? "grid justify-center gap-6 xl:grid-cols-[minmax(22rem,34rem)_minmax(0,74rem)] xl:items-start 2xl:grid-cols-[minmax(23rem,34rem)_minmax(44rem,78rem)] 2xl:gap-7"
     : "grid gap-6 lg:grid-cols-[minmax(18rem,0.72fr)_minmax(22rem,0.92fr)] lg:items-start 2xl:grid-cols-[minmax(20rem,0.62fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)]";
   const desktopPreviewClass = displaySettings.widescreen
     ? "min-w-0 xl:justify-self-end"
@@ -200,7 +200,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     showGradedSlabPreview && gradingCompanyLabel && gradingGradeLabel
   );
   const desktopPreviewMediaWidth = displaySettings.widescreen
-    ? "clamp(26rem, 21vw, 38rem)"
+    ? "clamp(22rem, 22vw, 34rem)"
     : layout.mediaWidth;
   const previewAspectClass = showGradedPreview
     ? GRADED_SLAB_ASPECT_CLASS
@@ -557,16 +557,15 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
 
                   <div className="flex min-w-0 flex-col gap-5">
                     {desktopHeroPanel}
-                    <CardModalRecentPricesPanel card={modalCard} />
-                  </div>
-
-                  <div className={`${desktopHistoryClass} flex flex-col gap-5`}>
                     {desktopHistoryPanel}
-                    <CardModalActiveListingsPanel
-                      card={modalCard}
-                      storedCardMarketUrl={storedCardMarketUrl}
-                      onOpenCardMarket={openCardMarket}
-                    />
+                    <div className="grid min-w-0 gap-5 xl:grid-cols-2">
+                      <CardModalRecentPricesPanel card={modalCard} />
+                      <CardModalActiveListingsPanel
+                        card={modalCard}
+                        storedCardMarketUrl={storedCardMarketUrl}
+                        onOpenCardMarket={openCardMarket}
+                      />
+                    </div>
                   </div>
                 </div>
               ) : (

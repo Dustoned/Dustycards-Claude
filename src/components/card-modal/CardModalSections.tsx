@@ -1150,7 +1150,7 @@ export function CardModalPreview({
   onOpenThreeD: () => void;
 }) {
   const previewFrameClass =
-    "relative rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.018))] p-2 shadow-[0_22px_58px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.055)]";
+    "relative p-0";
   const previewButtonClass =
     showGradedPreview && gradingCompanyLabel && gradingGradeLabel
       ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-[22px] border border-white/10 shadow-[0_14px_34px_rgba(0,0,0,0.3)] transition-all duration-200 hover:scale-[1.006] hover:border-white/16 hover:shadow-[0_18px_42px_rgba(0,0,0,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35`
@@ -1518,7 +1518,7 @@ export function CardModalMobileShowcase({
                 showGradedPreview && gradingCompanyLabel && gradingGradeLabel
                   ? "rounded-[1.15rem]"
                   : "rounded-[4.75%]"
-              } bg-[#111] shadow-[0_28px_80px_rgba(0,0,0,0.62)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60`}
+              } bg-transparent shadow-[0_28px_80px_rgba(0,0,0,0.52)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60`}
               aria-label={`Open ${card.name} in 3D`}
             >
               {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (

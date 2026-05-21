@@ -26,7 +26,7 @@ import {
   type CollectionValueDriverItem,
   type CollectionValueDriversData,
 } from "@/lib/collection-data";
-import { getSupportTileTrackWidth } from "@/lib/display-scale";
+import { getBinderTileTrackWidth } from "@/lib/display-scale";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
   GAME_FILTER_OPTIONS,
@@ -632,7 +632,7 @@ export default async function HomePage({
 }) {
   const user = await requirePageUser("/");
   const settings = await getServerUserSettings(user.id);
-  const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
+  const binderTileTrackWidth = getBinderTileTrackWidth(settings.uiScale, settings.widescreen);
   const binderGridStyle = {
     "--binder-tile-track": binderTileTrackWidth,
   } as CSSProperties;
@@ -1018,7 +1018,7 @@ export default async function HomePage({
             </div>
           ) : (
             <div
-              className="grid grid-cols-2 gap-2 lg:gap-4 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
+              className="grid grid-cols-2 gap-2 lg:gap-3 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
               style={binderGridStyle}
             >
               {data.binders.map((binder) => (
