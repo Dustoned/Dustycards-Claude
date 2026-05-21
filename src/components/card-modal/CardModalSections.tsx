@@ -908,7 +908,7 @@ function GradedPricingPanel({
         </div>
       )}
 
-      <div className={`${graphFirst ? "mt-0" : "mt-3"} rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`}>
+      <div className={`${graphFirst ? "mt-0" : "mt-3"} min-w-0`}>
         <PriceHistoryPanel
           title="Price History"
           currency={chartCurrency}
@@ -2103,8 +2103,6 @@ export function CardModalHistorySection({
     "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-semibold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySourceToggleActiveClass =
     "bg-white/[0.13] text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
-  const chartShellClass =
-    "rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
   const chartHeaderChipClass =
     "inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76";
   const historyModeSwitchControl = hasGradedData ? (
@@ -2219,7 +2217,7 @@ export function CardModalHistorySection({
       <div className="flex flex-col gap-3">
         {effectiveHistoryChartMode === "graded" ? (
           <>
-            <div className={chartShellClass}>
+            <div className="min-w-0">
               <PriceHistoryPanel
                 title="Price History"
                 currency={gradedChartCurrency}
@@ -2257,7 +2255,7 @@ export function CardModalHistorySection({
           </>
         ) : (
           <>
-            <div className={chartShellClass}>
+            <div className="min-w-0">
               <PriceHistoryPanel
                 title="Price History"
                 currency={activeMarketHistory.currency}
