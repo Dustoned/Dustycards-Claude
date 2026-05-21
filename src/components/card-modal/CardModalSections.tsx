@@ -60,13 +60,6 @@ const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel")
 const ACTIVE_SEGMENT_CLASS =
   "border-violet-400/40 bg-violet-600 text-white";
 
-interface PriceMetric {
-  label: string;
-  value: string;
-  hint?: string | null;
-}
-
-type PricingAccent = "emerald" | "blue" | "violet" | "slate";
 type PriceStatusTone = "good" | "warning" | "danger" | "neutral";
 
 interface HistoryPointView {
@@ -1988,12 +1981,9 @@ export function CardModalHistorySection({
   activeMarketSource,
   cardMarketHistory,
   activeCardMarketCurrentValue,
-  ignoredCardMarketCurrentValue,
   showTcgPlayerSource,
   card,
   collectionItem,
-  gradingCompanyLabel,
-  gradingGradeLabel,
   availableCardMarketHistorySeries,
   activeCardMarketHistorySeries,
   activeCardMarketSeriesLabel,
@@ -2011,12 +2001,9 @@ export function CardModalHistorySection({
   activeMarketSource: "cardmarket" | "tcgplayer";
   cardMarketHistory: HistoryPointView[];
   activeCardMarketCurrentValue: number | null;
-  ignoredCardMarketCurrentValue: number | null;
   showTcgPlayerSource: boolean;
   card: ModalCardData;
   collectionItem: ModalCardCollectionItem | null;
-  gradingCompanyLabel: string | null;
-  gradingGradeLabel: string | null;
   availableCardMarketHistorySeries: Array<{
     key: CardMarketHistorySeriesKey;
     label: string;
@@ -2043,6 +2030,42 @@ export function CardModalHistorySection({
   const hasEbaySoldGradedData = hasEbaySoldGradedHistory || ebaySoldGradedPrices.length > 0;
   const hasGradedData = hasCardMarketGradedData || hasEbaySoldGradedData;
   const effectiveHistoryChartMode = hasGradedData ? historyChartMode : "market";
+  const gradedRows = getGradedPriceRows(card, collectionItem);
+  const cardMarketGradedRows = gradedRows.filter((row) => row.sourceType === "cardmarket");
+  const ebayGradedRows = gradedRows.filter((row) => row.sourceType === "ebay");
+  const fallbackGradedSource: GradedPriceSource =
+    gradedRows.find((row) => row.savedMatch)?.sourceType ??
+    (cardMarketGradedRows.length > 0 ? "cardmarket" : "ebay");
+  const [gradedSelection, setGradedSelection] = useState<{
+    cardId: string;
+    source: GradedPriceSource;
+    label: string;
+  }>(() => ({
+    cardId: card.id,
+    source: fallbackGradedSource,
+    label: "",
+  }));
+  const selectedGradedSource =
+    gradedSelection.cardId === card.id ? gradedSelection.source : fallbackGradedSource;
+  const effectiveGradedSource =
+    selectedGradedSource === "cardmarket" && cardMarketGradedRows.length > 0
+      ? "cardmarket"
+      : selectedGradedSource === "ebay" && ebayGradedRows.length > 0
+        ? "ebay"
+        : fallbackGradedSource;
+  const gradedSourceRows =
+    effectiveGradedSource === "cardmarket" ? cardMarketGradedRows : ebayGradedRows;
+  const selectedGradedSlabLabel =
+    gradedSelection.cardId === card.id ? gradedSelection.label : "";
+  const selectedGradedRow =
+    gradedSourceRows.find((row) => row.label === selectedGradedSlabLabel) ??
+    gradedSourceRows.find((row) => row.savedMatch) ??
+    gradedSourceRows[0] ??
+    null;
+  const gradedChartCurrency =
+    selectedGradedRow?.chartCurrency ?? selectedGradedRow?.currency ?? "EUR";
+  const showGradedSourceToggle = cardMarketGradedRows.length > 0 && ebayGradedRows.length > 0;
+
   const activeMarketHistory =
     activeMarketSource === "tcgplayer"
       ? {
@@ -2063,58 +2086,6 @@ export function CardModalHistorySection({
     activeMarketSource === "cardmarket" &&
     hasMultipleCardMarketSeries;
   const showRawSourceToggle = effectiveHistoryChartMode === "market" && showTcgPlayerSource;
-  const derivedCardMarketAverage7d = getRecentHistoryAverage(cardMarketHistory, 7);
-  const derivedCardMarketAverage30d = getRecentHistoryAverage(cardMarketHistory, 30);
-  const activeCardMarketAverage7d =
-    derivedCardMarketAverage7d ??
-    (activeCardMarketHistorySeries === "cm_market_en" ? card.price?.cm_en_avg_7d ?? null : null);
-  const activeCardMarketAverage30d =
-    derivedCardMarketAverage30d ??
-    (activeCardMarketHistorySeries === "cm_market_en" ? card.price?.cm_en_avg_30d ?? null : null);
-  const rawPricingMetrics: PriceMetric[] =
-    activeMarketSource === "tcgplayer"
-      ? [
-          {
-            label: "Current",
-            value: formatCurrency(card.price?.tcp_market ?? null, "USD"),
-            hint: "Source: TCGPlayer",
-          },
-          {
-            label: "TCP Mid",
-            value: formatCurrency(card.price?.tcp_mid ?? null, "USD"),
-          },
-          {
-            label: "TCP Low",
-            value: formatCurrency(card.price?.tcp_low ?? null, "USD"),
-          },
-        ]
-      : [
-          {
-            label: "Current",
-            value: formatCurrency(activeCardMarketCurrentValue, "EUR"),
-            hint:
-              ignoredCardMarketCurrentValue != null
-                ? `Source: ${activeCardMarketSeriesLabel} CardMarket / ignored suspicious ${formatCurrency(
-                    ignoredCardMarketCurrentValue,
-                    "EUR"
-                  )}`
-                : `Source: ${activeCardMarketSeriesLabel} CardMarket`,
-          },
-          {
-            label: "7D Avg",
-            value: formatCurrency(activeCardMarketAverage7d, "EUR"),
-          },
-          {
-            label: "30D Avg",
-            value: formatCurrency(activeCardMarketAverage30d, "EUR"),
-          },
-        ];
-  const activePricingAccent: PricingAccent =
-    effectiveHistoryChartMode === "graded"
-      ? "violet"
-      : activeMarketSource === "tcgplayer"
-        ? "blue"
-        : "emerald";
   const historyRangeScopePoints = [
     ...activeMarketHistory.points,
     ...gradedPriceHistory.flatMap((series) => series.points),
@@ -2128,11 +2099,71 @@ export function CardModalHistorySection({
     "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-semibold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySourceToggleActiveClass =
     "bg-white/[0.13] text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
+  const chartShellClass =
+    "rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+  const chartHeaderChipClass =
+    "inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76";
+  const rawSourceSwitchControl = showRawSourceToggle ? (
+    <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
+      {[
+        { key: "cardmarket" as const, label: "CardMarket" },
+        { key: "tcgplayer" as const, label: "TCGPlayer" },
+      ].map((source) => (
+        <button
+          key={source.key}
+          type="button"
+          onClick={() => onSelectMarketSource(source.key)}
+          aria-pressed={activeMarketSource === source.key}
+          className={`${historySourceToggleButtonClass} ${
+            activeMarketSource === source.key
+              ? historySourceToggleActiveClass
+              : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
+          }`}
+        >
+          {source.label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+  const gradedSourceSwitchControl = showGradedSourceToggle ? (
+    <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
+      {[
+        { key: "cardmarket" as const, label: "CardMarket" },
+        { key: "ebay" as const, label: "eBay" },
+      ].map((source) => (
+        <button
+          key={source.key}
+          type="button"
+          onClick={() => {
+            setGradedSelection({ cardId: card.id, source: source.key, label: "" });
+          }}
+          aria-pressed={effectiveGradedSource === source.key}
+          className={`${historySourceToggleButtonClass} ${
+            effectiveGradedSource === source.key
+              ? historySourceToggleActiveClass
+              : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
+          }`}
+        >
+          {source.label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+  const rawHeaderAccessory =
+    rawSourceSwitchControl ?? (
+      <span className={chartHeaderChipClass}>
+        {activeMarketHistory.currency} ·{" "}
+        {activeMarketSource === "cardmarket" ? activeCardMarketSeriesLabel : "Market"}
+      </span>
+    );
+  const gradedHeaderAccessory =
+    gradedSourceSwitchControl ?? (
+      <span className={chartHeaderChipClass}>
+        {gradedChartCurrency} · {selectedGradedRow?.label ?? "Graded"}
+      </span>
+    );
   return (
-    <section
-      className="overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.026))] p-4 text-white shadow-[0_24px_80px_rgba(0,0,0,0.22)]"
-      data-accent={activePricingAccent}
-    >
+    <section className="min-w-0 text-white">
       <div className="flex flex-col gap-3">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
           <div>
@@ -2184,69 +2215,60 @@ export function CardModalHistorySection({
               </div>
             )}
 
-            {effectiveHistoryChartMode === "market" && showRawSourceToggle && (
-              <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
-                {[
-                  { key: "cardmarket" as const, label: "CardMarket" },
-                  { key: "tcgplayer" as const, label: "TCGPlayer" },
-                ].map((source) => (
-                  <button
-                    key={source.key}
-                    type="button"
-                    onClick={() => onSelectMarketSource(source.key)}
-                    aria-pressed={activeMarketSource === source.key}
-                    className={`${historySourceToggleButtonClass} ${
-                      activeMarketSource === source.key
-                        ? historySourceToggleActiveClass
-                        : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
-                    }`}
-                  >
-                    {source.label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
         {effectiveHistoryChartMode === "graded" ? (
-          <GradedPricingPanel
-            card={card}
-            collectionItem={collectionItem}
-            gradingCompanyLabel={gradingCompanyLabel}
-            gradingGradeLabel={gradingGradeLabel}
-            compact
-            graphFirst
-            rangeScopePoints={historyRangeScopePoints}
-            rangeStorageKey={`card-history-${card.id}`}
-          />
+          <>
+            <div className={chartShellClass}>
+              <PriceHistoryPanel
+                title="Price History"
+                currency={gradedChartCurrency}
+                points={selectedGradedRow?.chartPoints ?? []}
+                currentValue={selectedGradedRow?.chartCurrentValue ?? selectedGradedRow?.value ?? null}
+                headerAccessory={gradedHeaderAccessory}
+                tone="dark"
+                layout="hero"
+                rangeScopePoints={historyRangeScopePoints}
+                rangeStorageKey={`card-history-${card.id}`}
+                emptyText="No graded history yet"
+              />
+            </div>
+
+            {gradedSourceRows.length > 1 && (
+              <select
+                value={selectedGradedRow?.label ?? ""}
+                onChange={(event) =>
+                  setGradedSelection({
+                    cardId: card.id,
+                    source: effectiveGradedSource,
+                    label: event.target.value,
+                  })
+                }
+                className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-white/18"
+              >
+                {gradedSourceRows.map((row) => (
+                  <option key={row.key} value={row.label} className="bg-[#111214] text-white">
+                    {row.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </>
         ) : (
           <>
-            <div className="min-h-0 overflow-hidden">
+            <div className={chartShellClass}>
               <PriceHistoryPanel
-                title={activeMarketHistory.title}
+                title="Price History"
                 currency={activeMarketHistory.currency}
                 points={activeMarketHistory.points}
                 currentValue={activeMarketHistory.currentValue}
+                headerAccessory={rawHeaderAccessory}
                 tone="dark"
                 layout="hero"
                 rangeScopePoints={historyRangeScopePoints}
                 rangeStorageKey={`card-history-${card.id}`}
               />
-            </div>
-
-            <div className="grid overflow-hidden rounded-2xl border border-white/8 bg-black/18 sm:grid-cols-3">
-              {rawPricingMetrics.slice(0, 3).map((metric) => (
-                <div
-                  key={metric.label}
-                  className="border-b border-white/8 px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
-                >
-                  <p className="text-[11px] font-medium text-white/40">{metric.label}</p>
-                  <p className="mt-1 text-base font-semibold tabular-nums text-white">
-                    {metric.value}
-                  </p>
-                </div>
-              ))}
             </div>
 
             <CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />
