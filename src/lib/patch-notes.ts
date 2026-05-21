@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.1",
+    releasedAt: "May 22, 2026",
+    title: "Submit Card navigation",
+    summary: "DustyCards 3.2.1 keeps the submitted-card flow tucked into the normal browsing menu.",
+    tone: "fixed",
+    highlights: [
+      "Moved Submit Card to the bottom of Browse on desktop and mobile.",
+      "Kept the submitted-card flow grouped with sets, categories, and illustrators.",
+    ],
+  },
+  {
     version: "3.2.0",
     releasedAt: "May 22, 2026",
     title: "Firecrawl submitted cards",
@@ -28,7 +39,7 @@ export const patchNotes: PatchNoteEntry[] = [
       "CardMarket graded rows are parsed from listing comments and saved into the normal graded price chart data.",
       "Added admin management for submitted cards, manual refreshes, deletion, and TCGGO takeover cleanup when official cards arrive later.",
       "Added a separate User tab in Expansions so submitted sets stay out of the normal TCGGO Pokemon and One Piece set lists.",
-      "Moved the Submit Card shortcut into a lower Tools section so normal browsing stays cleaner.",
+      "Added the Submit Card shortcut to the browsing navigation for quick access.",
     ],
   },
   {
