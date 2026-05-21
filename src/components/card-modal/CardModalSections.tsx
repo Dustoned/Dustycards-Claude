@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Award,
   BadgeEuro,
+  ChevronDown,
   ChevronRight,
   ExternalLink,
   Globe2,
@@ -586,6 +587,56 @@ function getPreferredGradedRow(rows: GradedPriceDisplayRow[]): GradedPriceDispla
   return rows.find((row) => row.savedMatch) ?? rows.find(isPsa10GradedRow) ?? rows[0] ?? null;
 }
 
+function GradedSlabSelectControl({
+  rows,
+  selectedRow,
+  currency,
+  onChange,
+  className = "",
+}: {
+  rows: GradedPriceDisplayRow[];
+  selectedRow: GradedPriceDisplayRow | null;
+  currency: CurrencyCode;
+  onChange: (label: string) => void;
+  className?: string;
+}) {
+  const label = selectedRow?.label ?? "Graded";
+  const displayLabel = `${currency} · ${label}`;
+  const shellClass = `relative inline-flex h-9 max-w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`;
+
+  if (rows.length <= 1) {
+    return (
+      <span className={shellClass}>
+        <span className="min-w-0 truncate">{displayLabel}</span>
+      </span>
+    );
+  }
+
+  return (
+    <label className={`${shellClass} cursor-pointer pr-8 transition-colors hover:border-white/18 hover:bg-white/[0.055] hover:text-white`}>
+      <span className="min-w-0 truncate">{displayLabel}</span>
+      <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-white/48" />
+      <select
+        aria-label="Select graded slab"
+        value={selectedRow?.label ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      >
+        {!selectedRow && (
+          <option value="" disabled>
+            Graded
+          </option>
+        )}
+        {rows.map((row) => (
+          <option key={row.key} value={row.label} className="bg-[#111214] text-white">
+            {row.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function getGradedPriceRows(
   card: ModalCardData,
   collectionItem: ModalCardData["collection_item"] | null | undefined
@@ -841,13 +892,12 @@ function GradedPricingPanel({
   const subgradeEntries = getBgsSubgradeEntries(collectionItem);
   const savedGradeLabel =
     gradingCompanyLabel && gradingGradeLabel ? `${gradingCompanyLabel} ${gradingGradeLabel}` : null;
-  const showSourceSwitch = cardMarketRows.length > 0 || ebayRows.length > 0;
+  const showSourceSwitch = cardMarketRows.length > 0 && ebayRows.length > 0;
   const sourceSummary =
     effectiveSource === "cardmarket"
       ? "CardMarket graded"
       : "eBay sold graded";
   const chartCurrency = chartRow?.chartCurrency ?? chartRow?.currency ?? "EUR";
-  const graphInfoLabel = chartRow?.label ?? savedGradeLabel ?? "Graded";
   const sourceToggleClass =
     "grid h-8 min-w-[12rem] grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:min-w-[10rem]";
   const sourceToggleButtonClass =
@@ -885,6 +935,21 @@ function GradedPricingPanel({
       ))}
     </div>
   ) : null;
+  const slabSelectControl = (
+    <GradedSlabSelectControl
+      rows={sourceRows}
+      selectedRow={selectedSlabRow}
+      currency={chartCurrency}
+      onChange={(label) =>
+        setSelectedSlab({
+          cardId: card.id,
+          source: effectiveSource,
+          label,
+        })
+      }
+      className="max-w-[11.5rem] max-[640px]:max-w-[7.25rem]"
+    />
+  );
 
   if (
     !hasGradedDetailContent(card, collectionItem, gradingCompanyLabel, gradingGradeLabel)
@@ -934,15 +999,8 @@ function GradedPricingPanel({
           currency={chartCurrency}
           points={chartRow?.chartPoints ?? []}
           currentValue={chartRow?.chartCurrentValue ?? chartRow?.value ?? null}
-          headerAccessory={
-            graphFirst && sourceSwitchControl ? (
-              sourceSwitchControl
-            ) : (
-              <span className="inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76">
-                {chartCurrency} · {graphInfoLabel}
-              </span>
-            )
-          }
+          headerLeadingAccessory={graphFirst ? sourceSwitchControl : null}
+          headerAccessory={slabSelectControl}
           tone="dark"
           layout="hero"
           rangeScopePoints={rangeScopePoints}
@@ -950,28 +1008,6 @@ function GradedPricingPanel({
           emptyText="No graded history yet"
         />
       </div>
-
-      {sourceRows.length > 1 && (
-        <div className="mt-2">
-          <select
-            value={selectedSlabRow?.label ?? ""}
-            onChange={(event) =>
-              setSelectedSlab({
-                cardId: card.id,
-                source: effectiveSource,
-                label: event.target.value,
-              })
-            }
-            className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-white/18"
-          >
-            {sourceRows.map((row) => (
-              <option key={row.key} value={row.label} className="bg-[#111214] text-white">
-                {row.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
     </section>
   );
 }
@@ -2165,13 +2201,6 @@ export function CardModalHistorySection({
         ))}
       </div>
     ) : null;
-  const historyHeaderLeadingAccessory =
-    historyModeSwitchControl || cardMarketSeriesPickerControl ? (
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        {historyModeSwitchControl}
-        {cardMarketSeriesPickerControl}
-      </div>
-    ) : null;
   const rawSourceSwitchControl = showRawSourceToggle ? (
     <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
       {[
@@ -2218,6 +2247,14 @@ export function CardModalHistorySection({
       ))}
     </div>
   ) : null;
+  const historyHeaderLeadingAccessory =
+    historyModeSwitchControl || cardMarketSeriesPickerControl || gradedSourceSwitchControl ? (
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        {historyModeSwitchControl}
+        {cardMarketSeriesPickerControl}
+        {effectiveHistoryChartMode === "graded" ? gradedSourceSwitchControl : null}
+      </div>
+    ) : null;
   const rawHeaderAccessory =
     rawSourceSwitchControl ?? (
       <span className={chartHeaderChipClass}>
@@ -2225,12 +2262,21 @@ export function CardModalHistorySection({
         {activeMarketSource === "cardmarket" ? activeCardMarketSeriesLabel : "Market"}
       </span>
     );
-  const gradedHeaderAccessory =
-    gradedSourceSwitchControl ?? (
-      <span className={chartHeaderChipClass}>
-        {gradedChartCurrency} · {selectedGradedRow?.label ?? "Graded"}
-      </span>
-    );
+  const gradedHeaderAccessory = (
+    <GradedSlabSelectControl
+      rows={gradedSourceRows}
+      selectedRow={selectedGradedRow}
+      currency={gradedChartCurrency}
+      onChange={(label) =>
+        setGradedSelection({
+          cardId: card.id,
+          source: effectiveGradedSource,
+          label,
+        })
+      }
+      className="max-w-[11.5rem] max-[640px]:max-w-[7.25rem]"
+    />
+  );
   return (
     <section className="min-w-0 text-white">
       <div className="flex flex-col gap-3">
@@ -2251,26 +2297,6 @@ export function CardModalHistorySection({
                 emptyText="No graded history yet"
               />
             </div>
-
-            {gradedSourceRows.length > 1 && (
-              <select
-                value={selectedGradedRow?.label ?? ""}
-                onChange={(event) =>
-                  setGradedSelection({
-                    cardId: card.id,
-                    source: effectiveGradedSource,
-                    label: event.target.value,
-                  })
-                }
-                className="h-9 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-white/18"
-              >
-                {gradedSourceRows.map((row) => (
-                  <option key={row.key} value={row.label} className="bg-[#111214] text-white">
-                    {row.label}
-                  </option>
-                ))}
-              </select>
-            )}
           </>
         ) : (
           <>
