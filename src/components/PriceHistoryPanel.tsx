@@ -30,6 +30,7 @@ interface Props {
   points: PriceHistoryValuePoint[];
   currentValue?: number | null;
   subtitle?: string;
+  headerLeadingAccessory?: ReactNode;
   headerAccessory?: ReactNode;
   tone?: Tone;
   loading?: boolean;
@@ -450,6 +451,7 @@ export default function PriceHistoryPanel({
   points,
   currentValue,
   subtitle,
+  headerLeadingAccessory,
   headerAccessory,
   tone = "default",
   loading = false,
@@ -992,11 +994,17 @@ export default function PriceHistoryPanel({
         }`}
       >
         <div className="min-w-0">
-          <p className={titleClass}>{title}</p>
-          <p className={`${valueClass} mt-1`}>{formatCurrency(displayedValue, currency)}</p>
-          {primaryMetaText && <p className={`${metaClass} mt-1`}>{primaryMetaText}</p>}
-          {secondaryMetaText && secondaryMetaText !== primaryMetaText && (
-            <p className={`${subtitleClass} mt-1`}>{secondaryMetaText}</p>
+          {headerLeadingAccessory ? (
+            <div className="min-w-0">{headerLeadingAccessory}</div>
+          ) : (
+            <>
+              <p className={titleClass}>{title}</p>
+              <p className={`${valueClass} mt-1`}>{formatCurrency(displayedValue, currency)}</p>
+              {primaryMetaText && <p className={`${metaClass} mt-1`}>{primaryMetaText}</p>}
+              {secondaryMetaText && secondaryMetaText !== primaryMetaText && (
+                <p className={`${subtitleClass} mt-1`}>{secondaryMetaText}</p>
+              )}
+            </>
           )}
         </div>
 

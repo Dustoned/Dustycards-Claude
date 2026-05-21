@@ -2095,6 +2095,10 @@ export function CardModalHistorySection({
     "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySourceToggleClass =
     "grid h-8 w-[13rem] min-w-[10.5rem] max-w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:w-[10.5rem]";
+  const historyModeToggleClass =
+    "grid h-9 w-[10.5rem] min-w-[9rem] max-w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/24 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-8 max-[640px]:w-[9.5rem]";
+  const historyModeToggleButtonClass =
+    "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-bold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySourceToggleButtonClass =
     "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-semibold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySourceToggleActiveClass =
@@ -2103,6 +2107,54 @@ export function CardModalHistorySection({
     "rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
   const chartHeaderChipClass =
     "inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76";
+  const historyModeSwitchControl = hasGradedData ? (
+    <div className={`card-modal-mode-toggle ${historyModeToggleClass}`}>
+      {[
+        { key: "market" as const, label: "Raw" },
+        { key: "graded" as const, label: "Graded" },
+      ].map((mode) => (
+        <button
+          key={mode.key}
+          type="button"
+          onClick={() => onSelectHistoryChartMode(mode.key)}
+          aria-pressed={effectiveHistoryChartMode === mode.key}
+          className={`${historyModeToggleButtonClass} ${
+            effectiveHistoryChartMode === mode.key
+              ? ACTIVE_SEGMENT_CLASS
+              : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
+          }`}
+        >
+          {mode.label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+  const cardMarketSeriesPickerControl =
+    effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker ? (
+      <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap items-center gap-1">
+        {availableCardMarketHistorySeries.map((series) => (
+          <button
+            key={series.key}
+            type="button"
+            onClick={() => onSelectCardMarketHistorySeries(series.key)}
+            className={`${historyPillClass} ${
+              activeCardMarketHistorySeries === series.key
+                ? ACTIVE_SEGMENT_CLASS
+                : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
+            }`}
+          >
+            {series.label}
+          </button>
+        ))}
+      </div>
+    ) : null;
+  const historyHeaderLeadingAccessory =
+    historyModeSwitchControl || cardMarketSeriesPickerControl ? (
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        {historyModeSwitchControl}
+        {cardMarketSeriesPickerControl}
+      </div>
+    ) : null;
   const rawSourceSwitchControl = showRawSourceToggle ? (
     <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
       {[
@@ -2165,59 +2217,6 @@ export function CardModalHistorySection({
   return (
     <section className="min-w-0 text-white">
       <div className="flex flex-col gap-3">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-[13px] font-semibold text-white/86">Market Price</p>
-            <p className="mt-0.5 text-xs text-white/42">
-              {effectiveHistoryChartMode === "graded" ? "Graded market view" : "Raw market view"}
-            </p>
-          </div>
-
-          <div className="flex min-h-8 min-w-0 flex-wrap items-center justify-end gap-1.5 overflow-hidden">
-            {hasGradedData && (
-              <div className="flex min-w-0 flex-wrap items-center gap-1">
-                {[
-                  { key: "market" as const, label: "Raw" },
-                  { key: "graded" as const, label: "Graded" },
-                ].map((mode) => (
-                  <button
-                    key={mode.key}
-                    type="button"
-                    onClick={() => onSelectHistoryChartMode(mode.key)}
-                    className={`${historyPillClass} ${
-                      effectiveHistoryChartMode === mode.key
-                        ? ACTIVE_SEGMENT_CLASS
-                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                    }`}
-                  >
-                    {mode.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker && (
-              <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap items-center gap-1">
-                {availableCardMarketHistorySeries.map((series) => (
-                  <button
-                    key={series.key}
-                    type="button"
-                    onClick={() => onSelectCardMarketHistorySeries(series.key)}
-                    className={`${historyPillClass} ${
-                      activeCardMarketHistorySeries === series.key
-                        ? ACTIVE_SEGMENT_CLASS
-                        : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-                    }`}
-                  >
-                    {series.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-          </div>
-        </div>
-
         {effectiveHistoryChartMode === "graded" ? (
           <>
             <div className={chartShellClass}>
@@ -2226,6 +2225,7 @@ export function CardModalHistorySection({
                 currency={gradedChartCurrency}
                 points={selectedGradedRow?.chartPoints ?? []}
                 currentValue={selectedGradedRow?.chartCurrentValue ?? selectedGradedRow?.value ?? null}
+                headerLeadingAccessory={historyHeaderLeadingAccessory}
                 headerAccessory={gradedHeaderAccessory}
                 tone="dark"
                 layout="hero"
@@ -2263,6 +2263,7 @@ export function CardModalHistorySection({
                 currency={activeMarketHistory.currency}
                 points={activeMarketHistory.points}
                 currentValue={activeMarketHistory.currentValue}
+                headerLeadingAccessory={historyHeaderLeadingAccessory}
                 headerAccessory={rawHeaderAccessory}
                 tone="dark"
                 layout="hero"
