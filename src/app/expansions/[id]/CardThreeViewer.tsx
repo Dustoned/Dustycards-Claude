@@ -23,7 +23,7 @@ import {
   normalizeGradingGradeLabel,
   type BgsSubgrades,
 } from "@/lib/graded-slabs";
-import { getCachedImageUrl } from "@/lib/image-cache";
+import { getCachedImageUrl, isTcggoStorageImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
 
@@ -1071,7 +1071,8 @@ function sliceGeometryByCentroidZ(
 function flattenTextureOnCardSurface(
   THREE: typeof import("three"),
   texture: import("three").Texture,
-  fillColor: string
+  fillColor: string,
+  options: { drawBleed?: boolean } = {}
 ) {
   const image = texture.image as
     | HTMLImageElement
@@ -1111,13 +1112,16 @@ function flattenTextureOnCardSurface(
   }
 
   try {
+    const drawBleed = options.drawBleed ?? true;
     const bleed = Math.max(2, Math.round(width * CARD_FRONT_TEXTURE_BLEED));
 
     context.fillStyle = fillColor;
     context.fillRect(0, 0, width, height);
     context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
-    context.drawImage(image, -bleed, -bleed, width + bleed * 2, height + bleed * 2);
+    if (drawBleed) {
+      context.drawImage(image, -bleed, -bleed, width + bleed * 2, height + bleed * 2);
+    }
     context.drawImage(image, 0, 0, width, height);
 
     const flattenedTexture = new THREE.CanvasTexture(canvas);
@@ -1449,7 +1453,8 @@ export default function CardThreeViewer({
         const frontTexture = flattenTextureOnCardSurface(
           THREE,
           loadedFrontTexture,
-          CARD_PAPER_COLOR
+          CARD_PAPER_COLOR,
+          { drawBleed: !isTcggoStorageImageUrl(frontImageUrl) }
         );
         if (frontTexture !== loadedFrontTexture) {
           loadedFrontTexture.dispose();
