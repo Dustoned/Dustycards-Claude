@@ -1,6 +1,5 @@
 import nextDynamic from "next/dynamic";
 import Link from "next/link";
-import type { CSSProperties } from "react";
 import {
   Activity,
   ArrowDownRight,
@@ -26,7 +25,6 @@ import {
   type CollectionValueDriverItem,
   type CollectionValueDriversData,
 } from "@/lib/collection-data";
-import { getBinderTileTrackWidth } from "@/lib/display-scale";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
   GAME_FILTER_OPTIONS,
@@ -43,7 +41,7 @@ import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionOverviewSections = nextDynamic(() => import("@/components/CollectionOverviewSections"));
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
-const BinderOverviewTile = nextDynamic(() => import("@/components/BinderOverviewTile"));
+const BinderOverviewGrid = nextDynamic(() => import("@/components/BinderOverviewGrid"));
 const HomeFeaturedCardsPanel = nextDynamic(() => import("@/components/HomeFeaturedCardsPanel"));
 
 export const dynamic = "force-dynamic";
@@ -632,10 +630,6 @@ export default async function HomePage({
 }) {
   const user = await requirePageUser("/");
   const settings = await getServerUserSettings(user.id);
-  const binderTileTrackWidth = getBinderTileTrackWidth(settings.uiScale, settings.widescreen);
-  const binderGridStyle = {
-    "--binder-tile-track": binderTileTrackWidth,
-  } as CSSProperties;
   const { tab, graded, game: gameParam } = await searchParams;
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
@@ -1017,14 +1011,7 @@ export default async function HomePage({
               </p>
             </div>
           ) : (
-            <div
-              className="grid grid-cols-2 gap-2 lg:gap-3 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
-              style={binderGridStyle}
-            >
-              {data.binders.map((binder) => (
-                <BinderOverviewTile key={binder.id} binder={binder} />
-              ))}
-            </div>
+            <BinderOverviewGrid binders={data.binders} />
           )}
         </div>
       }

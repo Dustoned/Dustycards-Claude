@@ -1604,14 +1604,14 @@ export function CardModalMobileShowcase({
         </div>
 
         <div className="mt-4 grid grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] gap-2.5">
-          <div className="rounded-[18px] border border-white/10 bg-[#0b0b0d] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[1.55rem] font-bold leading-none tabular-nums text-white min-[390px]:text-[1.7rem]">
+          <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#0b0b0d] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
+              <p className="max-w-full text-[1.42rem] font-bold leading-none tabular-nums text-white min-[390px]:text-[1.62rem]">
                 {formatCurrency(activeCardMarketCurrentValue, "EUR")}
               </p>
               {priceDeltaLabel && (
                 <p
-                  className={`shrink-0 pt-1 text-sm font-semibold tabular-nums ${
+                  className={`max-w-full text-[12px] font-semibold leading-none tabular-nums min-[390px]:text-[13px] ${
                     priceDeltaPositive ? "text-emerald-300" : "text-rose-300"
                   }`}
                 >

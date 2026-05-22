@@ -34,7 +34,7 @@ export default async function WantsPage({
 }) {
   const user = await requirePageUser("/wants");
   const settings = await getServerUserSettings(user.id);
-  const binderTileTrackWidth = getBinderTileTrackWidth(settings.uiScale, settings.widescreen);
+  const binderTileTrackWidth = getBinderTileTrackWidth(settings.cardSize, settings.widescreen);
   const { game: gameParam } = await searchParams;
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,

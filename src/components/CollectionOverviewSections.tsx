@@ -2,10 +2,9 @@
 
 import dynamic from "next/dynamic";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
 import { useSettings, type CardSize } from "@/components/SettingsProvider";
-import { getBinderTileTrackWidth } from "@/lib/display-scale";
 import {
   buildOverviewSectionOrderCookie,
   DEFAULT_OVERVIEW_SECTION_ORDER,
@@ -16,7 +15,7 @@ import {
 } from "@/lib/overview-section-order";
 import type { CollectionCardViewItem, CollectionSealedViewItem } from "@/types/collection-view";
 
-const BinderOverviewTile = dynamic(() => import("@/components/BinderOverviewTile"), {
+const BinderOverviewGrid = dynamic(() => import("@/components/BinderOverviewGrid"), {
   loading: () => null,
 });
 const BinderWatchSection = dynamic(() => import("@/components/BinderWatchSection"), {
@@ -193,17 +192,6 @@ export default function CollectionOverviewSections({
   initialSectionOrder = null,
 }: Props) {
   const { displaySettings, isMobileViewport, setDisplay } = useSettings();
-  const binderTileTrackWidth = getBinderTileTrackWidth(
-    displaySettings.uiScale,
-    displaySettings.widescreen
-  );
-  const binderGridStyle = useMemo(
-    () =>
-      ({
-        "--binder-tile-track": binderTileTrackWidth,
-      }) as CSSProperties,
-    [binderTileTrackWidth]
-  );
   const layoutOptions = isMobileViewport ? MOBILE_CARD_LAYOUT_OPTIONS : DESKTOP_CARD_LAYOUT_OPTIONS;
   const [sectionOrder, setSectionOrder] = useState<OverviewSectionKey[]>(
     initialSectionOrder ?? DEFAULT_OVERVIEW_SECTION_ORDER
@@ -340,14 +328,7 @@ export default function CollectionOverviewSections({
                 </p>
               </div>
             ) : (
-              <div
-                className="grid grid-cols-2 gap-2 lg:gap-3 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))]"
-                style={binderGridStyle}
-              >
-                {binders.map((binder) => (
-                  <BinderOverviewTile key={binder.id} binder={binder} />
-                ))}
-              </div>
+              <BinderOverviewGrid binders={binders} />
             )}
           </section>
         ),
@@ -357,7 +338,6 @@ export default function CollectionOverviewSections({
     return new Map(sections.map((section) => [section.key, section] as const));
   }, [
     binderCards,
-    binderGridStyle,
     binders,
     gradedLooseSingles,
     rawLooseSingles,

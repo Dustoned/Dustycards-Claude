@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.12",
+    releasedAt: "May 22, 2026",
+    title: "Binder density and mobile price fit",
+    summary: "DustyCards 3.2.12 keeps mobile price deltas inside their card and lets binder tiles follow card layout density.",
+    tone: "fixed",
+    highlights: [
+      "The mobile card detail percent change now wraps inside the main price tile instead of spilling into the next tile.",
+      "Collection binder grids now use card layout size 1-4 instead of the general UI scale.",
+      "Binder grids update from the active display settings on collection and wants views.",
+    ],
+  },
+  {
     version: "3.2.11",
     releasedAt: "May 22, 2026",
     title: "Cleaner mobile card controls",

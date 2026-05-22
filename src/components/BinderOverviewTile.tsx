@@ -6,7 +6,7 @@ import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getCachedImageUrl } from "@/lib/image-cache";
 
-interface BinderOverviewItem {
+export interface BinderOverviewItem {
   id: string;
   name: string;
   subtitle: string;

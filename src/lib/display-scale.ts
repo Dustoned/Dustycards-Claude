@@ -25,7 +25,8 @@ const SUPPORT_TILE_TRACK: TrackScale = {
   large: { normal: 430, wide: 520 },
 };
 
-const BINDER_TILE_TRACK: TrackScale = {
+const BINDER_TILE_TRACK: CardTrackScale = {
+  xsmall: { normal: 150, wide: 170 },
   small: { normal: 180, wide: 205 },
   medium: { normal: 240, wide: 275 },
   large: { normal: 320, wide: 370 },
@@ -112,7 +113,7 @@ export function getSupportTileTrackWidth(cardSize: CardSize, widescreen: boolean
 
 export function getBinderTileTrackWidth(cardSize: CardSize, widescreen: boolean): string {
   return responsiveTwoColumnTrack(
-    BINDER_TILE_TRACK[getSharedTrackSize(cardSize)][displayMode(widescreen)]
+    BINDER_TILE_TRACK[cardSize][displayMode(widescreen)]
   );
 }
 

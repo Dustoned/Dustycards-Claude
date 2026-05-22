@@ -17,6 +17,7 @@ import { createPortal } from "react-dom";
 import { ArrowDown, ArrowUp, List, Plus, RotateCcw, X } from "lucide-react";
 import type { ModalCardData } from "@/components/CardModal";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
+import { useSettings } from "@/components/SettingsProvider";
 import {
   modalCenteredMobileOverlayClass,
   modalCloseButtonClass,
@@ -25,6 +26,7 @@ import {
 } from "@/components/modal-glass-styles";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { CARD_NUMBER_FALLBACK, cardNumberCollator } from "@/lib/card-number-sort";
+import { getBinderTileTrackWidth } from "@/lib/display-scale";
 import type { TradingCardGameFilter } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { WantPlannerGroup } from "@/lib/collection-data";
@@ -859,6 +861,7 @@ export default function WantsPlannerSection({
   searchValue: string;
 }) {
   const router = useRouter();
+  const { displaySettings } = useSettings();
   const [expandedBinderId, setExpandedBinderId] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [openingCardId, setOpeningCardId] = useState<string | null>(null);
@@ -874,7 +877,9 @@ export default function WantsPlannerSection({
     [groups]
   );
   const binderGridStyle = {
-    "--wants-binder-track": tileTrackWidth,
+    "--wants-binder-track":
+      getBinderTileTrackWidth(displaySettings.cardSize, displaySettings.widescreen) ||
+      tileTrackWidth,
   } as CSSProperties;
   const searchActive = searchValue.trim().length > 0;
   const expandedGroup = groups.find((group) => group.binderId === expandedBinderId) ?? null;
