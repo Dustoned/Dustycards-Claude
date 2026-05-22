@@ -4700,10 +4700,22 @@ export async function runFullSync(): Promise<FullSyncResult> {
     async (progress) => {
       await progress.throwIfCancelled();
 
-      const [remoteEpisodes, localEpisodes] = await Promise.all([
-        fetchAllEpisodes(),
+      const [remoteEpisodeBatches, localEpisodes] = await Promise.all([
+        Promise.all(
+          AUTO_CATALOG_SYNC_GAMES.map(async (game) => {
+            try {
+              return await fetchAllEpisodes(game);
+            } catch (error) {
+              if (game !== POKEMON_GAME && shouldSkipAutoCatalogStatusError(error)) {
+                return [];
+              }
+
+              throw error;
+            }
+          })
+        ),
         db.episode.findMany({
-          where: { game: POKEMON_GAME },
+          where: { game: { in: [...AUTO_CATALOG_SYNC_GAMES] } },
           select: {
             id: true,
             card_count: true,
@@ -4716,6 +4728,7 @@ export async function runFullSync(): Promise<FullSyncResult> {
           },
         }),
       ]);
+      const remoteEpisodes = remoteEpisodeBatches.flat();
 
       const localEpisodeMap = new Map(localEpisodes.map((episode) => [episode.id, episode]));
 
@@ -4732,6 +4745,7 @@ export async function runFullSync(): Promise<FullSyncResult> {
         const existingEpisode = localEpisodeMap.get(episode.id);
         const isNewEpisode = !existingEpisode;
         const localCardCount = existingEpisode?._count.cards ?? 0;
+        const hasEmptyLocalCards = Boolean(existingEpisode) && localCardCount === 0;
         const mayHaveRemoteCards = episode.card_count == null || episode.card_count > 0;
         const missingRemoteCards =
           episode.card_count == null ? localCardCount === 0 : localCardCount < episode.card_count;
@@ -4756,7 +4770,11 @@ export async function runFullSync(): Promise<FullSyncResult> {
         });
         episode.card_count = mergeKnownEpisodeCardCount(existingEpisode?.card_count, episode.card_count);
 
-        if ((mayHaveRemoteCards && missingRemoteCards) || hasEpisodeSourceIssue(existingEpisode?.source_status ?? null)) {
+        if (
+          hasEmptyLocalCards ||
+          (mayHaveRemoteCards && missingRemoteCards) ||
+          hasEpisodeSourceIssue(existingEpisode?.source_status ?? null)
+        ) {
           episodesToSync.add(episode.id);
         }
       }
@@ -4766,6 +4784,7 @@ export async function runFullSync(): Promise<FullSyncResult> {
           (episode) =>
             !isHiddenExpansion(episode) &&
             !isRedundantSubsetExpansion(episode.name) &&
+            episode.game === POKEMON_GAME &&
             isPromoExpansion(episode) &&
             !episodesToSync.has(episode.id)
         )

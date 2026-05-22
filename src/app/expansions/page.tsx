@@ -29,6 +29,7 @@ import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { requirePageUser } from "@/lib/page-auth";
 import ExpansionsOverviewChart from "./ExpansionsOverviewChart";
+import SyncExpansionButton from "./SyncExpansionButton";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +127,7 @@ export default async function ExpansionsPage({
   const { view } = await searchParams;
   const userViewActive = view === "user";
   const user = await requirePageUser("/expansions");
+  const isAdmin = user.role === "admin";
   const settings = await getServerUserSettings(user.id);
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
 
@@ -391,6 +393,9 @@ export default async function ExpansionsPage({
                     title={countHint}
                 className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-3 ${tileConfig.tileClass}`}
                 >
+                    {isAdmin && !userViewActive ? (
+                      <SyncExpansionButton episodeId={episode.id} expansionName={episode.name} />
+                    ) : null}
                     {episode.logo_url ? (
                       <div
                           className={`relative flex w-full items-center justify-center rounded-xl border border-black/6 bg-black/[0.025] p-2 dark:border-white/7 dark:bg-white/[0.035] max-[640px]:h-16 ${tileConfig.logoHeightClass}`}

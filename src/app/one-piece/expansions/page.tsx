@@ -19,6 +19,7 @@ import { requirePageUser } from "@/lib/page-auth";
 import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import ExpansionsOverviewChart from "@/app/expansions/ExpansionsOverviewChart";
+import SyncExpansionButton from "@/app/expansions/SyncExpansionButton";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,7 @@ async function getOnePieceEpisodes() {
 
 export default async function OnePieceExpansionsPage() {
   const user = await requirePageUser("/one-piece/expansions");
+  const isAdmin = user.role === "admin";
   const settings = await getServerUserSettings(user.id);
   if (!settings.onePieceLibraryEnabled) {
     notFound();
@@ -214,6 +216,9 @@ export default async function OnePieceExpansionsPage() {
                       prefetch={false}
                       className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 max-[640px]:gap-2.5 max-[640px]:rounded-2xl max-[640px]:p-3 ${tileConfig.tileClass}`}
                     >
+                      {isAdmin ? (
+                        <SyncExpansionButton episodeId={episode.id} expansionName={episode.name} />
+                      ) : null}
                       {episode.logo_url ? (
                         <div
                           className={`relative flex w-full items-center justify-center rounded-xl border border-black/6 bg-black/[0.025] p-2 dark:border-white/7 dark:bg-white/[0.035] max-[640px]:h-16 ${tileConfig.logoHeightClass}`}

@@ -66,6 +66,23 @@ function shouldRecheckEpisodeSource(
   return now.getTime() - episode.source_checked_at.getTime() >= minIntervalMs;
 }
 
+function shouldRecheckEmptyEpisode(
+  episode: Pick<AutoCatalogLocalEpisode, "source_checked_at" | "synced_at" | "_count">,
+  now: Date,
+  minIntervalMs: number
+): boolean {
+  if (episode._count.cards > 0) {
+    return false;
+  }
+
+  const lastCheckedAt = episode.source_checked_at ?? episode.synced_at;
+  if (!lastCheckedAt) {
+    return true;
+  }
+
+  return now.getTime() - lastCheckedAt.getTime() >= minIntervalMs;
+}
+
 function getLatestEpisodeCatalogActivityAt(episodes: AutoCatalogLocalEpisode[]): Date | null {
   let latest: Date | null = null;
 
@@ -225,7 +242,7 @@ async function markAutoCatalogCheckedAt(
   );
 }
 
-function shouldRunAutoCatalogSync(
+export function shouldRunAutoCatalogSync(
   episodes: AutoCatalogLocalEpisode[],
   now: Date,
   minIntervalMs: number,
@@ -236,6 +253,16 @@ function shouldRunAutoCatalogSync(
       !lastRemoteCatalogCheckedAt ||
       now.getTime() - lastRemoteCatalogCheckedAt.getTime() >= minIntervalMs
     );
+  }
+
+  if (
+    episodes.some(
+      (episode) =>
+        shouldRecheckEpisodeSource(episode, now, minIntervalMs) ||
+        shouldRecheckEmptyEpisode(episode, now, minIntervalMs)
+    )
+  ) {
+    return true;
   }
 
   const latestLocalCatalogActivityAt = getLatestEpisodeCatalogActivityAt(episodes);
@@ -288,7 +315,7 @@ export async function previewAutoCatalogSync(input: {
   };
 }
 
-function planAutoCatalogSyncFromEpisodes(input: {
+export function planAutoCatalogSyncFromEpisodes(input: {
   remoteEpisodes: NormalizedEpisode[];
   localEpisodes: AutoCatalogLocalEpisode[];
   now: Date;
@@ -310,6 +337,9 @@ function planAutoCatalogSyncFromEpisodes(input: {
     const sourceNeedsRecheck = existingEpisode
       ? shouldRecheckEpisodeSource(existingEpisode, input.now, input.minIntervalMs)
       : false;
+    const emptyNeedsRecheck = existingEpisode
+      ? shouldRecheckEmptyEpisode(existingEpisode, input.now, input.minIntervalMs)
+      : false;
     const hasRemoteCards = episode.card_count == null || episode.card_count > 0;
     const missingCards =
       episode.card_count == null
@@ -320,11 +350,11 @@ function planAutoCatalogSyncFromEpisodes(input: {
       newEpisodes += 1;
     }
 
-    if (!hasRemoteCards && !sourceNeedsRecheck) {
+    if (!hasRemoteCards && !sourceNeedsRecheck && !emptyNeedsRecheck) {
       continue;
     }
 
-    if (isNewEpisode || localCardCount === 0 || missingCards > 0 || sourceNeedsRecheck) {
+    if (isNewEpisode || emptyNeedsRecheck || missingCards > 0 || sourceNeedsRecheck) {
       candidates.push({
         ...episode,
         isNewEpisode,
@@ -342,6 +372,12 @@ function planAutoCatalogSyncFromEpisodes(input: {
 
     if (a.sourceNeedsRecheck !== b.sourceNeedsRecheck) {
       return a.sourceNeedsRecheck ? -1 : 1;
+    }
+
+    const aEmpty = a.localCardCount === 0;
+    const bEmpty = b.localCardCount === 0;
+    if (aEmpty !== bEmpty) {
+      return aEmpty ? -1 : 1;
     }
 
     const missingDiff = b.missingCards - a.missingCards;
