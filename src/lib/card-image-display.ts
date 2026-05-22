@@ -1,6 +1,4 @@
 const TCGGO_IMAGE_CLASS = "object-contain z-10";
-const TCGGO_BOTTOM_EDGE_UNDERLAY_FRAME_CLASS =
-  "before:pointer-events-none before:absolute before:inset-x-[1.2%] before:bottom-[0.5%] before:z-0 before:h-[2.8%] before:rounded-b-[4.75%] before:bg-[#4b4d50] before:content-['']";
 
 export function hasTcggoGeneratedCardBorder(imageUrl: string | null | undefined): boolean {
   if (!imageUrl) return false;
@@ -42,6 +40,5 @@ export function getCardImageFrameClassName(
   return baseClassName
     .replace(/\boverflow-hidden\b\s*/g, "")
     .replace(/\brounded-(?:\[[^\]]+\]|[^\s]+)\s*/g, "")
-    .trim()
-    .concat(` ${TCGGO_BOTTOM_EDGE_UNDERLAY_FRAME_CLASS}`);
+    .trim();
 }

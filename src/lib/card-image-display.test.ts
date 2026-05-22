@@ -18,13 +18,7 @@ describe("card image display", () => {
         imageUrl,
         "relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent"
       )
-    ).toContain("relative aspect-[63/88] w-full bg-transparent");
-    expect(
-      getCardImageFrameClassName(
-        imageUrl,
-        "relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent"
-      )
-    ).toContain("before:bg-[#4b4d50]");
+    ).toBe("relative aspect-[63/88] w-full bg-transparent");
   });
 
   it("leaves other image sources unchanged", () => {
