@@ -26,3 +26,17 @@ export function getCardImageClassName(
     .replace(/\bobject-fill\b/g, "object-contain")
     .trim();
 }
+
+export function getCardImageFrameClassName(
+  imageUrl: string | null | undefined,
+  baseClassName: string
+): string {
+  if (!hasTcggoGeneratedCardBorder(imageUrl)) {
+    return baseClassName;
+  }
+
+  return baseClassName
+    .replace(/\boverflow-hidden\b\s*/g, "")
+    .replace(/\brounded-(?:\[[^\]]+\]|[^\s]+)\s*/g, "")
+    .trim();
+}

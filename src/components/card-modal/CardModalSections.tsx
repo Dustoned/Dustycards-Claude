@@ -25,7 +25,7 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import type { CardSize } from "@/components/SettingsProvider";
-import { getCardImageClassName } from "@/lib/card-image-display";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import {
   BGS_SUBGRADE_KEYS,
   formatBgsSubgradeName,
@@ -1158,7 +1158,10 @@ export function CardModalPreview({
   const previewButtonClass =
     showGradedPreview && gradingCompanyLabel && gradingGradeLabel
       ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-[22px] border border-white/10 shadow-[0_14px_34px_rgba(0,0,0,0.3)] transition-all duration-200 hover:scale-[1.006] hover:border-white/16 hover:shadow-[0_18px_42px_rgba(0,0,0,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35`
-      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] border border-transparent bg-transparent p-0 shadow-[0_16px_40px_rgba(0,0,0,0.34)] transition-transform hover:scale-[1.006]`;
+      : getCardImageFrameClassName(
+          card.image_url,
+          `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] border border-transparent bg-transparent p-0 shadow-[0_16px_40px_rgba(0,0,0,0.34)] transition-transform hover:scale-[1.006]`
+        );
 
   return (
     <aside
@@ -1528,11 +1531,14 @@ export function CardModalMobileShowcase({
                 event.stopPropagation();
                 onOpenThreeD();
               }}
-              className={`relative ${previewAspectClass} w-full overflow-hidden ${
+              className={
                 showGradedPreview && gradingCompanyLabel && gradingGradeLabel
-                  ? "rounded-[1.15rem]"
-                  : "rounded-[4.75%]"
-              } bg-transparent shadow-[0_28px_80px_rgba(0,0,0,0.52)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60`}
+                  ? `relative ${previewAspectClass} w-full overflow-hidden rounded-[1.15rem] bg-transparent shadow-[0_28px_80px_rgba(0,0,0,0.52)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60`
+                  : getCardImageFrameClassName(
+                      card.image_url,
+                      `relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] bg-transparent shadow-[0_28px_80px_rgba(0,0,0,0.52)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60`
+                    )
+              }
               aria-label={`Open ${card.name} in 3D`}
             >
               {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (
@@ -2450,7 +2456,12 @@ export function CardModalOwnedCopyPanel({
 
       <div className="mt-4 flex gap-3">
         {card.image_url && (
-          <div className="relative aspect-[63/88] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]">
+          <div
+            className={getCardImageFrameClassName(
+              card.image_url,
+              "relative aspect-[63/88] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]"
+            )}
+          >
             <Image
               src={getCachedImageUrl(card.image_url) ?? card.image_url}
               alt={card.name}

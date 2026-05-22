@@ -17,7 +17,7 @@ import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import { SectionHeader } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
-import { getCardImageClassName } from "@/lib/card-image-display";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -2018,8 +2018,14 @@ export default function CollectionCardsView({
                                   : "border-transparent shadow-md shadow-black/20"
                               }`
                             : isSelected
-                              ? "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
-                              : "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]"
+                              ? getCardImageFrameClassName(
+                                  item.image_url,
+                                  "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
+                                )
+                              : getCardImageFrameClassName(
+                                  item.image_url,
+                                  "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]"
+                                )
                         }`}
                       >
                         {isGradedCard && gradingCompanyLabel && gradingGradeLabel ? (

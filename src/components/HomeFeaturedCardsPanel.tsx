@@ -34,7 +34,7 @@ import {
   getCardGridTemplateColumns,
   getCardGridTrackWidth,
 } from "@/lib/display-scale";
-import { getCardImageClassName } from "@/lib/card-image-display";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -130,11 +130,14 @@ function FeaturedCardTile({
       style={{ contain: "layout paint style" }}
     >
       <div
-        className={`relative ${previewAspectClass} w-full transition-all duration-200 ${
-          isGradedCard
-            ? "overflow-hidden rounded-xl border border-transparent shadow-md shadow-black/20"
-            : "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]"
-        }`}
+          className={`relative ${previewAspectClass} w-full transition-all duration-200 ${
+            isGradedCard
+              ? "overflow-hidden rounded-xl border border-transparent shadow-md shadow-black/20"
+              : getCardImageFrameClassName(
+                  item.image_url,
+                  "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]"
+                )
+          }`}
       >
         {isGradedCard && gradingCompanyLabel && gradingGradeLabel ? (
           <div className="absolute inset-0 flex items-center justify-center">

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getCardImageFrameClassName,
   getCardImageClassName,
   hasTcggoGeneratedCardBorder,
 } from "@/lib/card-image-display";
@@ -12,6 +13,12 @@ describe("card image display", () => {
     expect(getCardImageClassName(imageUrl, "rounded-[4.75%] object-fill")).toBe(
       "object-contain"
     );
+    expect(
+      getCardImageFrameClassName(
+        imageUrl,
+        "relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent"
+      )
+    ).toBe("relative aspect-[63/88] w-full bg-transparent");
   });
 
   it("leaves other image sources unchanged", () => {
@@ -21,5 +28,11 @@ describe("card image display", () => {
     expect(getCardImageClassName(imageUrl, "rounded-[4.75%] object-fill")).toBe(
       "rounded-[4.75%] object-fill"
     );
+    expect(
+      getCardImageFrameClassName(
+        imageUrl,
+        "relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent"
+      )
+    ).toBe("relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent");
   });
 });
