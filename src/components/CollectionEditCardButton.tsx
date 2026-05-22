@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Pencil, X } from "lucide-react";
+import { FolderInput, Pencil, X } from "lucide-react";
 import {
   COLLECTION_CONDITIONS,
   COLLECTION_GRADING_COMPANIES,
@@ -51,6 +51,8 @@ interface CollectionCardRef {
 interface CollectionCardItemRef {
   id: string;
   binder_id: string | null;
+  binder_name?: string | null;
+  binder_type?: string | null;
   purchase_price: number | null;
   condition: string | null;
   language: string | null;
@@ -167,6 +169,9 @@ export default function CollectionEditCardButton({
     () => binders.find((binder) => binder.id === binderId) ?? null,
     [binders, binderId]
   );
+  const currentLocationLabel = item.binder_name ?? (item.binder_id ? "Binder" : "Singles");
+  const selectedLocationLabel =
+    selectedBinder?.name ?? (binderId && binderId === item.binder_id ? currentLocationLabel : "Singles");
   const purchasePriceLabel =
     selectedBinder?.type === "linked_set" ? "Card paid (adds to overall spend)" : "Purchase price";
 
@@ -294,9 +299,26 @@ export default function CollectionEditCardButton({
                 className={modalBodyClass}
                 onSubmit={handleSubmit}
               >
-                <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                  <label className={`${modalLabelClasses} col-span-2`}>
-                    <span className="text-white/60">Save to</span>
+                <div className="mb-4 rounded-2xl border border-violet-300/16 bg-violet-300/[0.06] p-3 max-[640px]:mb-3 max-[640px]:rounded-xl max-[640px]:p-2.5">
+                  <div className="mb-2.5 flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-violet-200/18 bg-violet-400/[0.12] text-violet-100 max-[640px]:h-7 max-[640px]:w-7">
+                        <FolderInput className="h-4 w-4 max-[640px]:h-3.5 max-[640px]:w-3.5" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white max-[640px]:text-[12px]">
+                          Move to binder
+                        </p>
+                        <p className="truncate text-xs text-white/42 max-[640px]:text-[10px]">
+                          Current: {currentLocationLabel}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="max-w-[42%] truncate rounded-full border border-white/10 bg-black/18 px-2.5 py-1 text-xs font-semibold text-white/62 max-[640px]:text-[10px]">
+                      {selectedLocationLabel}
+                    </span>
+                  </div>
+                  <label className={modalLabelClasses}>
                     <select
                       value={binderId}
                       onChange={(event) => setBinderId(event.target.value)}
@@ -309,12 +331,15 @@ export default function CollectionEditCardButton({
                         <option key={binder.id} value={binder.id} className={modalOptionClasses}>
                           {binder.name}
                           {binder.type === "linked_set" ? " - Set binder" : ""}
+                          {binder.id === item.binder_id ? " - Current" : ""}
                         </option>
                       ))}
                     </select>
                     {bindersLoading && <p className="text-xs text-white/35">Loading binders...</p>}
                   </label>
+                </div>
 
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
                   <label className={`${modalLabelClasses} max-[640px]:col-span-2`}>
                     <span className="text-white/60">{purchasePriceLabel}</span>
                     <input
