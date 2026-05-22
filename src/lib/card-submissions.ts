@@ -123,6 +123,7 @@ export interface CardMarketVariantPreview {
   cardNumber: string | null;
   cardmarketUrl: string | null;
   cardmarketId: string | null;
+  imageUrl: string | null;
   existingCard: DuplicateCardPreview | null;
 }
 
@@ -317,6 +318,16 @@ export function cardNumberMatchesSubmittedBase(
 
 function slugify(value: string): string {
   return normalizeSubmissionText(value).replace(/\s+/g, "-").replace(/^-+|-+$/g, "") || "card";
+}
+
+function slugifyCardMarketCardName(value: string): string {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/&/g, "and")
+    .replace(/[.'’"`]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function getDisplaySetName(value: string | null | undefined): string {
@@ -1170,6 +1181,69 @@ function getCardMarketVariantKey(cardmarketUrl: string | null, cardmarketId: str
   return cardmarketId ? `cm-id:${cardmarketId}` : `cm-url:${cardmarketUrl ?? ""}`;
 }
 
+function buildOnePieceCardMarketVersionsUrl(input: NormalizedSubmissionInput): string | null {
+  if (input.game !== ONE_PIECE_GAME || !input.cardNumber) return null;
+
+  const nameSlug = slugifyCardMarketCardName(input.name);
+  const numberSlug = normalizeCardNumber(input.cardNumber);
+  if (!nameSlug || !numberSlug) return null;
+
+  return `https://www.cardmarket.com/en/OnePiece/Cards/${nameSlug}-${numberSlug}/Versions`;
+}
+
+function extractVersionFromProductUrl(url: string): string | null {
+  const match = decodeURIComponent(url).match(/(?:-|%20)(V\d+)$/i);
+  return match?.[1]?.toUpperCase() ?? null;
+}
+
+function getVersionedCardNumber(cardNumber: string | null, version: string | null): string | null {
+  if (!cardNumber) return version;
+  return version ? `${cardNumber} / ${version}` : cardNumber;
+}
+
+function extractNearestMarkdownImage(markdown: string, productUrl: string): string | null {
+  const index = markdown.indexOf(productUrl);
+  if (index < 0) return null;
+
+  const before = markdown.slice(Math.max(0, index - 700), index);
+  const matches = [...before.matchAll(/!\[[^\]]*]\((https?:\/\/[^)\s]+)\)/g)];
+  return matches.at(-1)?.[1] ?? null;
+}
+
+export function parseCardMarketVersionsScrape(
+  scrape: Pick<FirecrawlPageScrapeResult, "links" | "markdown">,
+  input: { game: TradingCardGame; name: string; cardNumber: string | null }
+): CardMarketVariantPreview[] {
+  const seen = new Set<string>();
+  const variants: CardMarketVariantPreview[] = [];
+
+  for (const link of scrape.links) {
+    const normalizedUrl = normalizeCardMarketUrl(link);
+    if (!normalizedUrl || !isCardMarketProductUrl(normalizedUrl, input.game)) continue;
+    if (seen.has(normalizedUrl)) continue;
+
+    const pathParts = extractCardMarketPathParts(normalizedUrl);
+    const extractedNumber = extractCardNumberFromText(decodeURIComponent(normalizedUrl));
+    const version = extractVersionFromProductUrl(normalizedUrl);
+    const cardmarketId = extractCardMarketProductId(normalizedUrl);
+    const imageUrl = extractNearestMarkdownImage(scrape.markdown, normalizedUrl);
+
+    variants.push({
+      key: getCardMarketVariantKey(normalizedUrl, cardmarketId),
+      name: input.name,
+      setName: getDisplaySetName(pathParts.setName),
+      cardNumber: getVersionedCardNumber(extractedNumber ?? input.cardNumber, version),
+      cardmarketUrl: normalizedUrl,
+      cardmarketId,
+      imageUrl,
+      existingCard: null,
+    });
+    seen.add(normalizedUrl);
+  }
+
+  return variants;
+}
+
 function searchResultMatchesSubmittedNumber(
   result: FirecrawlWebSearchResponse["results"][number],
   input: NormalizedSubmissionInput
@@ -1213,6 +1287,7 @@ function serializeCardMarketSearchVariant(
     cardNumber: extractCardNumberFromText(haystack) ?? input.cardNumber,
     cardmarketUrl: normalizedUrl,
     cardmarketId,
+    imageUrl: null,
     existingCard: null,
   };
 }
@@ -1287,6 +1362,7 @@ function addLocalDuplicateVariants(
       cardNumber: card.cardNumber,
       cardmarketUrl: null,
       cardmarketId: null,
+      imageUrl: card.imageUrl,
       existingCard: card,
     });
     seenExistingIds.add(card.id);
@@ -1364,6 +1440,14 @@ async function buildCardMarketVariantPreviews(
       .map((result) => serializeCardMarketSearchVariant(result, input))
       .filter((entry): entry is CardMarketVariantPreview => Boolean(entry))
   );
+  return enrichCardMarketVariants(input, variants, duplicateCards);
+}
+
+async function enrichCardMarketVariants(
+  input: Pick<NormalizedSubmissionInput, "game">,
+  variants: CardMarketVariantPreview[],
+  duplicateCards: DuplicateCardPreview[]
+): Promise<CardMarketVariantPreview[]> {
   const existingCards = await findExistingCardsForCardMarketVariants(input.game, variants);
   return attachExistingCardsToVariants(variants, existingCards, duplicateCards);
 }
@@ -1785,6 +1869,53 @@ export async function previewCardSubmission(
 
   try {
     if (!selectedUrl) {
+      const versionsUrl = buildOnePieceCardMarketVersionsUrl(input);
+      if (!input.skipDuplicateCheck && versionsUrl) {
+        try {
+          const versionsScrape = await scrapeFirecrawlPage(versionsUrl);
+          scrapeCount += 1;
+          creditsUsed += versionsScrape.creditsUsed ?? 1;
+          cardmarketMatches = await enrichCardMarketVariants(
+            input,
+            parseCardMarketVersionsScrape(versionsScrape, input),
+            knownDuplicateResult.cards
+          );
+
+          if (cardmarketMatches.length > 0) {
+            return createDuplicateSubmissionPreview(userId, input, knownDuplicateResult.cards, {
+              status: "variant_select",
+              canForceFirecrawl: false,
+              cardmarketMatches,
+              warnings,
+              scrapeCount,
+              creditsUsed,
+              firecrawlScrapeJson: {
+                title: versionsScrape.title,
+                sourceUrl: versionsScrape.sourceUrl,
+                cardmarketVariants: cardmarketMatches.map((variant) => ({
+                  name: variant.name,
+                  setName: variant.setName,
+                  cardNumber: variant.cardNumber,
+                  cardmarketUrl: variant.cardmarketUrl,
+                  imageUrl: variant.imageUrl,
+                  existingCardId: variant.existingCard?.id ?? null,
+                })),
+                markdownLength: versionsScrape.markdown.length,
+                htmlLength: versionsScrape.html.length,
+              },
+              lastScrapedAt: new Date(),
+              usage: {
+                monthlyUsed: guard.usage.monthlyUsed + creditsUsed,
+                dailyAttemptsUsed: guard.usage.dailyAttemptsUsed + 1,
+              },
+              monthlyBudget: config.monthlyCreditBudget,
+            });
+          }
+        } catch {
+          cardmarketMatches = [];
+        }
+      }
+
       searchResponse = await searchFirecrawlWeb({
         query: buildSearchQuery(input),
         limit: CARDMARKET_VARIANT_SEARCH_LIMIT,
@@ -1889,7 +2020,7 @@ export async function previewCardSubmission(
     }
 
     const scrape = await scrapeFirecrawlPage(selectedUrl);
-    scrapeCount = 1;
+    scrapeCount += 1;
     creditsUsed += scrape.creditsUsed ?? 1;
     const parsed = parseCardMarketScrape(scrape, input.condition);
     const parsedCardMarketUrl = normalizeCardMarketUrl(parsed.sourceUrl) ?? selectedUrl;

@@ -4,6 +4,7 @@ import {
   getCardMarketUrlGame,
   normalizeSubmissionText,
   parseCardMarketScrape,
+  parseCardMarketVersionsScrape,
 } from "@/lib/card-submissions";
 import type { FirecrawlPageScrapeResult } from "@/lib/firecrawl";
 
@@ -58,6 +59,46 @@ describe("card submission parsing", () => {
     expect(cardNumberMatchesSubmittedBase("OP09-061", "OP09-061#1")).toBe(true);
     expect(cardNumberMatchesSubmittedBase("OP09-061", "OP09-061#3")).toBe(true);
     expect(cardNumberMatchesSubmittedBase("OP09-061", "OP09-062#1")).toBe(false);
+  });
+
+  it("extracts One Piece CardMarket version product links", () => {
+    const variants = parseCardMarketVersionsScrape(
+      {
+        links: [
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/Adventure-on-Kamis-Island/Zeus-OP11-106",
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2",
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed-Non-English/Zeus-OP11-106-V1",
+        ],
+        markdown: [
+          "[![Zeus (OP11-106)](https://product-images.s3.cardmarket.com/1621/OP15/880055/880055.jpg)\\\\",
+          "**Adventure on Kami’s IslandOP15**](https://www.cardmarket.com/en/OnePiece/Products/Singles/Adventure-on-Kamis-Island/Zeus-OP11-106)",
+          "[![Zeus (OP11-106) (V.2)](https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg)\\\\",
+          "Version **2**](https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2)",
+          "[![Zeus (OP11-106) (V.1)](https://product-images.s3.cardmarket.com/1621/OP11-JP/817480/817480.jpg)\\\\",
+          "Version **1**](https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed-Non-English/Zeus-OP11-106-V1)",
+        ].join("\n"),
+      },
+      { game: "one-piece", name: "Zeus", cardNumber: "OP11-106" }
+    );
+
+    expect(variants).toEqual([
+      expect.objectContaining({
+        name: "Zeus",
+        setName: "Adventure on Kamis Island",
+        cardNumber: "OP11-106",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/OP15/880055/880055.jpg",
+      }),
+      expect.objectContaining({
+        setName: "A Fist of Divine Speed",
+        cardNumber: "OP11-106 / V2",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg",
+      }),
+      expect.objectContaining({
+        setName: "A Fist of Divine Speed Non English",
+        cardNumber: "OP11-106 / V1",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11-JP/817480/817480.jpg",
+      }),
+    ]);
   });
 
   it("extracts an English NM price and image from a CardMarket scrape", () => {

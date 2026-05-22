@@ -42,6 +42,7 @@ interface CardMarketVariantPreview {
   cardNumber: string | null;
   cardmarketUrl: string | null;
   cardmarketId: string | null;
+  imageUrl: string | null;
   existingCard: DuplicateCardPreview | null;
 }
 
@@ -387,6 +388,7 @@ export default function SubmitCardClient() {
           cardNumber: card.cardNumber,
           cardmarketUrl: null,
           cardmarketId: null,
+          imageUrl: card.imageUrl,
           existingCard: card,
         }))
       : [];
@@ -704,7 +706,7 @@ export default function SubmitCardClient() {
                 const href = existingCard
                   ? `${getExpansionHref(existingCard.episodeId)}?card=${encodeURIComponent(existingCard.id)}`
                   : null;
-                const imageUrl = existingCard?.imageUrl ?? null;
+                const imageUrl = existingCard?.imageUrl ?? variant.imageUrl;
                 return (
                   <div
                     key={variant.key}
