@@ -1365,10 +1365,7 @@ async function buildCardMarketVariantPreviews(
       .filter((entry): entry is CardMarketVariantPreview => Boolean(entry))
   );
   const existingCards = await findExistingCardsForCardMarketVariants(input.game, variants);
-  return addLocalDuplicateVariants(
-    attachExistingCardsToVariants(variants, existingCards, duplicateCards),
-    duplicateCards
-  );
+  return attachExistingCardsToVariants(variants, existingCards, duplicateCards);
 }
 
 function getDuplicateCardMarketRefs(cards: DuplicateCandidateCard[]): CardMarketRefSet {
@@ -1801,9 +1798,14 @@ export async function previewCardSubmission(
         searchResponse,
         knownDuplicateResult.cards
       );
-      if (
+      const shouldShowVariantSelection =
         !input.skipDuplicateCheck &&
-        (knownDuplicateResult.cards.length > 0 || cardmarketMatches.length > 1)
+        cardmarketMatches.length > 0 &&
+        (input.game === ONE_PIECE_GAME ||
+          knownDuplicateResult.cards.length > 0 ||
+          cardmarketMatches.length > 1);
+      if (
+        shouldShowVariantSelection
       ) {
         return createDuplicateSubmissionPreview(userId, input, knownDuplicateResult.cards, {
           status: "variant_select",

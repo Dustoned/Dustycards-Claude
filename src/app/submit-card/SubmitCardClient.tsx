@@ -379,15 +379,17 @@ export default function SubmitCardClient() {
   const cardmarketMatches = preview?.cardmarketMatches ?? [];
   const variantRows = cardmarketMatches.length
     ? cardmarketMatches
-    : duplicateCards.map((card) => ({
-        key: `local:${card.id}`,
-        name: card.name,
-        setName: card.episodeName,
-        cardNumber: card.cardNumber,
-        cardmarketUrl: null,
-        cardmarketId: null,
-        existingCard: card,
-      }));
+    : preview?.status === "duplicate"
+      ? duplicateCards.map((card) => ({
+          key: `local:${card.id}`,
+          name: card.name,
+          setName: card.episodeName,
+          cardNumber: card.cardNumber,
+          cardmarketUrl: null,
+          cardmarketId: null,
+          existingCard: card,
+        }))
+      : [];
   const gameLabel = getGameLabel(game);
   const savedCardHref = savedCard
     ? `${getExpansionHref(savedCard.episode.id)}?card=${encodeURIComponent(savedCard.id)}`
@@ -726,7 +728,7 @@ export default function SubmitCardClient() {
                           <p className="truncate text-sm font-bold text-white">{variant.name}</p>
                           {existingCard ? (
                             <span className="rounded-full border border-emerald-300/20 bg-emerald-300/[0.09] px-2 py-1 text-[10px] font-bold text-emerald-100">
-                              Already in app
+                              Staat al in app
                             </span>
                           ) : (
                             <span className="rounded-full border border-violet-300/20 bg-violet-300/[0.09] px-2 py-1 text-[10px] font-bold text-violet-100">
@@ -740,7 +742,7 @@ export default function SubmitCardClient() {
                         </p>
                         {existingCard ? (
                           <p className="mt-1 text-xs font-semibold text-white/42">
-                            This variant is already in DustyCards.
+                            Deze variant staat al in DustyCards.
                           </p>
                         ) : null}
                       </div>
