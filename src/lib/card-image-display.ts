@@ -14,8 +14,15 @@ export function hasTcggoGeneratedCardBorder(imageUrl: string | null | undefined)
 }
 
 export function getCardImageClassName(
-  _imageUrl: string | null | undefined,
+  imageUrl: string | null | undefined,
   baseClassName: string
 ): string {
-  return baseClassName;
+  if (!hasTcggoGeneratedCardBorder(imageUrl)) {
+    return baseClassName;
+  }
+
+  return baseClassName
+    .replace(/\brounded-\[4\.75%\]\s*/g, "")
+    .replace(/\bobject-fill\b/g, "object-contain")
+    .trim();
 }
