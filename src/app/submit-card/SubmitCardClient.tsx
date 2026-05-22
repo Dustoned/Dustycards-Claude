@@ -644,9 +644,22 @@ export default function SubmitCardClient() {
           <div className="mt-5 rounded-2xl border border-amber-300/18 bg-amber-300/[0.07] p-4">
             <p className="text-sm font-bold text-amber-100">Possible existing cards</p>
             <p className="mt-1 text-sm leading-5 text-white/62">
-              Check these variants first. If your exact variant is missing, you can still run the
-              CardMarket preview.
+              Check these variants first. If your exact variant is missing, use the CardMarket URL
+              for the best match.
             </p>
+
+            {preview.warnings.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                {preview.warnings.map((warning) => (
+                  <p
+                    key={warning}
+                    className="rounded-xl border border-amber-300/18 bg-black/18 px-3 py-2 text-xs font-semibold leading-5 text-amber-100"
+                  >
+                    {warning}
+                  </p>
+                ))}
+              </div>
+            ) : null}
 
             <div className="mt-4 grid gap-2">
               {duplicateCards.map((card) => {
@@ -696,6 +709,10 @@ export default function SubmitCardClient() {
                 )}
                 My variant is missing
               </button>
+            ) : preview.warnings.length === 0 ? (
+              <p className="mt-4 rounded-xl border border-white/10 bg-black/16 px-3 py-2 text-xs font-semibold leading-5 text-white/48">
+                Paste the exact CardMarket URL if this is a different variant.
+              </p>
             ) : null}
           </div>
         ) : (

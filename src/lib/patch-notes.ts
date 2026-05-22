@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.10",
+    releasedAt: "May 22, 2026",
+    title: "Submit variant guard",
+    summary: "DustyCards 3.2.10 keeps Submit Card from previewing a CardMarket variant that is already in your library.",
+    tone: "fixed",
+    highlights: [
+      "My variant is missing now skips known CardMarket product IDs and URLs during Firecrawl search.",
+      "If Firecrawl still lands on an already listed set/card-number variant, the preview is blocked and asks for the exact CardMarket URL.",
+      "Duplicate previews now keep Firecrawl credit counts accurate when a search or scrape was already used.",
+    ],
+  },
+  {
     version: "3.2.9",
     releasedAt: "May 22, 2026",
     title: "Steadier card detail layout",
