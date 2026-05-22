@@ -22,6 +22,7 @@ const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const USER_DAILY_ATTEMPT_LIMIT = 0;
 const CARDMARKET_DOMAIN = "cardmarket.com";
 const CARDMARKET_VARIANT_SEARCH_LIMIT = 10;
+const CARDMARKET_VARIANT_IMAGE_HYDRATION_LIMIT = 12;
 const SUBMITTED_SOURCE_STATUS = "firecrawl-submitted";
 const UNKNOWN_SET_LABEL = "Set unknown";
 const DEFAULT_SUBMISSION_CONDITION = "Near Mint";
@@ -1321,17 +1322,156 @@ function getCardMarketVariantLanguageGroup(input: {
   return nonEnglish ? "non_english" : "english";
 }
 
-function extractNearestMarkdownImage(markdown: string, productUrl: string): string | null {
-  const index = markdown.indexOf(productUrl);
+function normalizeScrapedUrlText(value: string): string {
+  return value
+    .replace(/\\\//g, "/")
+    .replace(/\\u002f/gi, "/")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function getProductUrlNeedles(productUrl: string): string[] {
+  const needles = [productUrl, decodeURIComponent(productUrl)];
+
+  try {
+    const parsed = new URL(productUrl);
+    needles.push(parsed.pathname, decodeURIComponent(parsed.pathname));
+    const lastTwoSegments = parsed.pathname.split("/").filter(Boolean).slice(-2).join("/");
+    if (lastTwoSegments) needles.push(lastTwoSegments, decodeURIComponent(lastTwoSegments));
+  } catch {
+    // The product URL was already validated by the caller.
+  }
+
+  return uniqueStrings(needles.map(normalizeScrapedUrlText));
+}
+
+function findProductUrlIndex(text: string, productUrl: string): number {
+  const normalizedText = normalizeScrapedUrlText(text);
+  const indexes = getProductUrlNeedles(productUrl)
+    .map((needle) => normalizedText.indexOf(needle))
+    .filter((index) => index >= 0);
+
+  return indexes.length > 0 ? Math.min(...indexes) : -1;
+}
+
+function cleanImageCandidate(value: string): string {
+  return normalizeScrapedUrlText(value)
+    .replace(/^["'([{]+/, "")
+    .replace(/[)"'\]}>,.]+$/g, "")
+    .trim();
+}
+
+function extractImageCandidatesFromText(value: string, sourceUrl: string): string[] {
+  const text = normalizeScrapedUrlText(value);
+  const candidates: string[] = [];
+
+  for (const match of text.matchAll(/!\[[^\]]*]\(([^)\s]+)\)/g)) {
+    if (match[1]) candidates.push(match[1]);
+  }
+
+  for (const attribute of ["src", "data-src", "data-original", "data-lazy-src"]) {
+    candidates.push(...extractHtmlAttributeValues(text, attribute));
+  }
+  for (const srcset of extractHtmlAttributeValues(text, "srcset")) {
+    candidates.push(...expandSrcset(srcset));
+  }
+
+  const directImageRegex =
+    /(?:https?:)?\/\/[^"'()<>\s\\]+?\.(?:jpg|jpeg|png|webp|avif)(?:\?[^"'()<>\s\\]*)?/gi;
+  for (const match of text.matchAll(directImageRegex)) {
+    if (match[0]) candidates.push(match[0]);
+  }
+
+  return uniqueStrings(
+    candidates
+      .map(cleanImageCandidate)
+      .map((candidate) =>
+        candidate.startsWith("//") ? `https:${candidate}` : candidate
+      )
+      .map((candidate) => absolutizeUrl(candidate, sourceUrl))
+      .filter((candidate): candidate is string => Boolean(candidate))
+      .filter((candidate) => scoreImageCandidate(candidate) > -25)
+  );
+}
+
+function pickBestImageCandidate(
+  candidates: string[],
+  cardmarketId: string | null
+): string | null {
+  return uniqueStrings(candidates)
+    .map((candidate) => {
+      const productScore =
+        cardmarketId &&
+        (candidate.includes(`/${cardmarketId}/`) || candidate.includes(`/${cardmarketId}.`))
+          ? 100
+          : 0;
+      return { candidate, score: scoreImageCandidate(candidate) + productScore };
+    })
+    .sort((a, b) => b.score - a.score)[0]?.candidate ?? null;
+}
+
+function extractNearestMarkdownImage(
+  markdown: string,
+  sourceUrl: string,
+  productUrl: string
+): string | null {
+  const index = findProductUrlIndex(markdown, productUrl);
   if (index < 0) return null;
 
-  const before = markdown.slice(Math.max(0, index - 700), index);
-  const matches = [...before.matchAll(/!\[[^\]]*]\((https?:\/\/[^)\s]+)\)/g)];
-  return matches.at(-1)?.[1] ?? null;
+  const normalizedMarkdown = normalizeScrapedUrlText(markdown);
+  const before = normalizedMarkdown.slice(Math.max(0, index - 900), index);
+  const beforeImages = extractImageCandidatesFromText(before, sourceUrl);
+  if (beforeImages.length > 0) {
+    return beforeImages.at(-1) ?? null;
+  }
+
+  const after = normalizedMarkdown.slice(index, index + 900);
+  return extractImageCandidatesFromText(after, sourceUrl)[0] ?? null;
+}
+
+function extractNearestVariantImage(
+  scrape: Pick<FirecrawlPageScrapeResult, "markdown"> &
+    Partial<Pick<FirecrawlPageScrapeResult, "html" | "sourceUrl">>,
+  productUrl: string,
+  cardmarketId: string | null
+): string | null {
+  const sourceUrl = scrape.sourceUrl ?? productUrl;
+  const markdownImage = extractNearestMarkdownImage(scrape.markdown, sourceUrl, productUrl);
+  if (markdownImage) return markdownImage;
+
+  const regions: string[] = [];
+
+  for (const text of [scrape.markdown, scrape.html ?? ""]) {
+    const index = findProductUrlIndex(text, productUrl);
+    if (index < 0) continue;
+    regions.push(text.slice(Math.max(0, index - 1800), index + 1800));
+  }
+
+  const regionalImage = pickBestImageCandidate(
+    regions.flatMap((region) => extractImageCandidatesFromText(region, sourceUrl)),
+    cardmarketId
+  );
+  if (regionalImage) return regionalImage;
+
+  if (!cardmarketId) return null;
+
+  return pickBestImageCandidate(
+    extractImageCandidatesFromText(`${scrape.markdown}\n${scrape.html ?? ""}`, sourceUrl).filter(
+      (candidate) =>
+        candidate.includes(`/${cardmarketId}/`) || candidate.includes(`/${cardmarketId}.`)
+    ),
+    cardmarketId
+  );
 }
 
 export function parseCardMarketVersionsScrape(
-  scrape: Pick<FirecrawlPageScrapeResult, "links" | "markdown">,
+  scrape: Pick<FirecrawlPageScrapeResult, "links" | "markdown"> &
+    Partial<Pick<FirecrawlPageScrapeResult, "html" | "sourceUrl">>,
   input: { game: TradingCardGame; name: string; cardNumber: string | null }
 ): CardMarketVariantPreview[] {
   const seen = new Set<string>();
@@ -1346,7 +1486,7 @@ export function parseCardMarketVersionsScrape(
     const extractedNumber = extractCardNumberFromText(decodeURIComponent(normalizedUrl));
     const version = extractVersionFromProductUrl(normalizedUrl);
     const cardmarketId = extractCardMarketProductId(normalizedUrl);
-    const imageUrl = extractNearestMarkdownImage(scrape.markdown, normalizedUrl);
+    const imageUrl = extractNearestVariantImage(scrape, normalizedUrl, cardmarketId);
     const setName = getDisplaySetName(pathParts.setName);
     const languageGroup = getCardMarketVariantLanguageGroup({
       game: input.game,
@@ -1520,6 +1660,60 @@ interface CardMarketVersionsDiscovery {
   }>;
 }
 
+async function hydrateMissingCardMarketVariantImages(
+  input: Pick<NormalizedSubmissionInput, "condition">,
+  variants: CardMarketVariantPreview[],
+  scrapedPages: CardMarketVersionsDiscovery["scrapedPages"]
+): Promise<{
+  variants: CardMarketVariantPreview[];
+  scrapeCount: number;
+  creditsUsed: number;
+}> {
+  let scrapeCount = 0;
+  let creditsUsed = 0;
+  let hydratedCount = 0;
+  const hydratedVariants: CardMarketVariantPreview[] = [];
+
+  for (const variant of variants) {
+    if (
+      variant.imageUrl ||
+      variant.existingCard?.imageUrl ||
+      !variant.cardmarketUrl ||
+      hydratedCount >= CARDMARKET_VARIANT_IMAGE_HYDRATION_LIMIT
+    ) {
+      hydratedVariants.push(variant);
+      continue;
+    }
+
+    try {
+      const scrape = await scrapeFirecrawlPage(variant.cardmarketUrl);
+      scrapeCount += 1;
+      hydratedCount += 1;
+      creditsUsed += scrape.creditsUsed ?? 1;
+      scrapedPages.push({
+        title: scrape.title,
+        sourceUrl: scrape.sourceUrl,
+        markdownLength: scrape.markdown.length,
+        htmlLength: scrape.html.length,
+      });
+
+      const parsed = parseCardMarketScrape(scrape, input.condition);
+      hydratedVariants.push({
+        ...variant,
+        imageUrl: parsed.imageUrl ?? variant.imageUrl,
+      });
+    } catch {
+      hydratedVariants.push(variant);
+    }
+  }
+
+  return {
+    variants: hydratedVariants,
+    scrapeCount,
+    creditsUsed,
+  };
+}
+
 async function discoverCardMarketVersionPreviews(
   input: NormalizedSubmissionInput,
   duplicateCards: DuplicateCardPreview[]
@@ -1594,14 +1788,21 @@ async function discoverCardMarketVersionPreviews(
     }
   }
 
-  const enrichedVariants = await enrichCardMarketVariants(
+  const variantsWithExistingCards = await enrichCardMarketVariants(
     input,
     sortCardMarketVariantsForSelection(dedupeCardMarketVariants(variants)),
     duplicateCards
   );
+  const hydrated = await hydrateMissingCardMarketVariantImages(
+    input,
+    variantsWithExistingCards,
+    scrapedPages
+  );
+  scrapeCount += hydrated.scrapeCount;
+  creditsUsed += hydrated.creditsUsed;
 
   return {
-    variants: sortCardMarketVariantsForSelection(enrichedVariants),
+    variants: sortCardMarketVariantsForSelection(hydrated.variants),
     searchResponse,
     searchCount,
     scrapeCount,
@@ -1957,7 +2158,7 @@ export async function previewCardSubmission(
     return serializeSubmission(submission, { usage, monthlyBudget: config.monthlyCreditBudget });
   }
 
-  const estimatedCredits = input.cardmarketUrl ? 1 : input.game === POKEMON_GAME ? 5 : 4;
+  const estimatedCredits = input.cardmarketUrl ? 1 : 8;
   let guard: Awaited<ReturnType<typeof assertFirecrawlBudget>>;
   try {
     guard = await assertFirecrawlBudget(userId, estimatedCredits);

@@ -157,6 +157,35 @@ describe("card submission parsing", () => {
     ]);
   });
 
+  it("extracts CardMarket version thumbnails from html when markdown has no images", () => {
+    const variants = parseCardMarketVersionsScrape(
+      {
+        sourceUrl:
+          "https://www.cardmarket.com/en/OnePiece/Cards/Zeus-OP11-106/Versions",
+        links: [
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2",
+        ],
+        markdown:
+          "[Version 2](https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2)",
+        html: [
+          '<article class="row">',
+          '<a href="/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2">Version 2</a>',
+          '<img data-src="https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg">',
+          "</article>",
+        ].join(""),
+      },
+      { game: "one-piece", name: "Zeus", cardNumber: "OP11-106" }
+    );
+
+    expect(variants).toEqual([
+      expect.objectContaining({
+        setName: "A Fist of Divine Speed",
+        cardNumber: "OP11-106 / V2",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg",
+      }),
+    ]);
+  });
+
   it("extracts an English NM price and image from a CardMarket scrape", () => {
     const parsed = parseCardMarketScrape(
       makeScrape({
