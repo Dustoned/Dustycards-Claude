@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.11",
+    releasedAt: "May 22, 2026",
+    title: "Cleaner mobile card controls",
+    summary: "DustyCards 3.2.11 cleans up mobile card actions and graded chart controls.",
+    tone: "improved",
+    highlights: [
+      "Regular users now get a direct remove button instead of a three-dot menu with only one action.",
+      "The graded slab selector now matches the compact switch styling and sits with the graded chart switches.",
+      "Chart chips no longer repeat the EUR label, so grade labels such as PSA 10 stay readable on mobile.",
+    ],
+  },
+  {
     version: "3.2.10",
     releasedAt: "May 22, 2026",
     title: "Submit variant guard",

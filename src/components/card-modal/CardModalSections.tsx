@@ -591,31 +591,28 @@ function getPreferredGradedRow(rows: GradedPriceDisplayRow[]): GradedPriceDispla
 function GradedSlabSelectControl({
   rows,
   selectedRow,
-  currency,
   onChange,
   className = "",
 }: {
   rows: GradedPriceDisplayRow[];
   selectedRow: GradedPriceDisplayRow | null;
-  currency: CurrencyCode;
   onChange: (label: string) => void;
   className?: string;
 }) {
   const label = selectedRow?.label ?? "Graded";
-  const displayLabel = `${currency} · ${label}`;
-  const shellClass = `relative inline-flex h-9 max-w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] ${className}`;
+  const shellClass = `relative inline-flex h-8 max-w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-black/20 px-2.5 text-[11px] font-semibold leading-none text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors max-[640px]:h-7 max-[640px]:px-2 max-[640px]:text-[10px] ${className}`;
 
   if (rows.length <= 1) {
     return (
       <span className={shellClass}>
-        <span className="min-w-0 truncate">{displayLabel}</span>
+        <span className="whitespace-nowrap">{label}</span>
       </span>
     );
   }
 
   return (
-    <label className={`${shellClass} cursor-pointer pr-8 transition-colors hover:border-white/18 hover:bg-white/[0.055] hover:text-white`}>
-      <span className="min-w-0 truncate">{displayLabel}</span>
+    <label className={`${shellClass} cursor-pointer pr-7 hover:border-white/18 hover:bg-white/[0.055] hover:text-white`}>
+      <span className="whitespace-nowrap">{label}</span>
       <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-white/48" />
       <select
         aria-label="Select graded slab"
@@ -900,7 +897,7 @@ function GradedPricingPanel({
       : "eBay sold graded";
   const chartCurrency = chartRow?.chartCurrency ?? chartRow?.currency ?? "EUR";
   const sourceToggleClass =
-    "grid h-8 min-w-[12rem] grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:min-w-[10rem]";
+    "grid h-8 min-w-[12rem] grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:min-w-[9.25rem]";
   const sourceToggleButtonClass =
     "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-semibold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const sourceToggleActiveClass =
@@ -940,7 +937,6 @@ function GradedPricingPanel({
     <GradedSlabSelectControl
       rows={sourceRows}
       selectedRow={selectedSlabRow}
-      currency={chartCurrency}
       onChange={(label) =>
         setSelectedSlab({
           cardId: card.id,
@@ -948,9 +944,16 @@ function GradedPricingPanel({
           label,
         })
       }
-      className="max-w-[11.5rem] max-[640px]:max-w-[7.25rem]"
+      className="max-w-[10rem] max-[640px]:max-w-[8.5rem]"
     />
   );
+  const graphFirstHeaderLeadingAccessory =
+    graphFirst && (sourceSwitchControl || slabSelectControl) ? (
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        {sourceSwitchControl}
+        {slabSelectControl}
+      </div>
+    ) : null;
 
   if (
     !hasGradedDetailContent(card, collectionItem, gradingCompanyLabel, gradingGradeLabel)
@@ -1000,8 +1003,8 @@ function GradedPricingPanel({
           currency={chartCurrency}
           points={chartRow?.chartPoints ?? []}
           currentValue={chartRow?.chartCurrentValue ?? chartRow?.value ?? null}
-          headerLeadingAccessory={graphFirst ? sourceSwitchControl : null}
-          headerAccessory={slabSelectControl}
+          headerLeadingAccessory={graphFirstHeaderLeadingAccessory}
+          headerAccessory={graphFirst ? null : slabSelectControl}
           tone="dark"
           layout="hero"
           rangeScopePoints={rangeScopePoints}
@@ -1435,7 +1438,17 @@ export function CardModalMobileShowcase({
               onSaved={onClose}
             />
           )}
-          {(collectionItem || canManageCardPrices) && (
+          {collectionItem && !canManageCardPrices && (
+            <MobileDetailIconButton
+              label="Remove from collection"
+              onClick={onRemoveCollectionItem}
+              disabled={isBusy || removingCollectionItem}
+              destructive
+            >
+              <Trash2 className={`h-5 w-5 ${removingCollectionItem ? "animate-pulse" : ""}`} />
+            </MobileDetailIconButton>
+          )}
+          {canManageCardPrices && (
             <MobileDetailIconButton
               label={moreOpen ? "Close more actions" : "More actions"}
               onClick={() => setMoreOpen((value) => !value)}
@@ -1444,7 +1457,7 @@ export function CardModalMobileShowcase({
             </MobileDetailIconButton>
           )}
 
-          {moreOpen && (
+          {moreOpen && canManageCardPrices && (
             <div className="absolute right-0 top-[3.25rem] z-40 min-w-52 overflow-hidden rounded-2xl border border-white/12 bg-[#0b0b0d]/94 p-1.5 text-sm font-semibold text-white shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
               {collectionItem && (
                 <button
@@ -1759,7 +1772,7 @@ export function CardModalMobileShowcase({
               rangeStorageKey={`card-mobile-${card.id}`}
               headerAccessory={
                 <span className="inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76">
-                  EUR · {activeCardMarketSeriesLabel}
+                  {activeCardMarketSeriesLabel}
                 </span>
               }
             />
@@ -2298,15 +2311,13 @@ export function CardModalHistorySection({
   const rawHeaderAccessory =
     rawSourceSwitchControl ?? (
       <span className={chartHeaderChipClass}>
-        {activeMarketHistory.currency} ·{" "}
         {activeMarketSource === "cardmarket" ? activeCardMarketSeriesLabel : "Market"}
       </span>
     );
-  const gradedHeaderAccessory = (
+  const gradedSlabSelectControl = (
     <GradedSlabSelectControl
       rows={gradedSourceRows}
       selectedRow={selectedGradedRow}
-      currency={gradedChartCurrency}
       onChange={(label) =>
         setGradedSelection({
           cardId: card.id,
@@ -2314,8 +2325,15 @@ export function CardModalHistorySection({
           label,
         })
       }
-      className="max-w-[11.5rem] max-[640px]:max-w-[7.25rem]"
+      className="max-w-[10rem] max-[640px]:max-w-[8.5rem]"
     />
+  );
+  const gradedHeaderLeadingAccessory = (
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      {historyModeSwitchControl}
+      {gradedSourceSwitchControl}
+      {gradedSlabSelectControl}
+    </div>
   );
   return (
     <section className="min-w-0 text-white">
@@ -2328,8 +2346,7 @@ export function CardModalHistorySection({
                 currency={gradedChartCurrency}
                 points={selectedGradedRow?.chartPoints ?? []}
                 currentValue={selectedGradedRow?.chartCurrentValue ?? selectedGradedRow?.value ?? null}
-                headerLeadingAccessory={historyHeaderLeadingAccessory}
-                headerAccessory={gradedHeaderAccessory}
+                headerLeadingAccessory={gradedHeaderLeadingAccessory}
                 tone="dark"
                 layout="hero"
                 rangeScopePoints={historyRangeScopePoints}
