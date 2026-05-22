@@ -208,8 +208,8 @@ const TILE_METRICS = {
   psaDescriptor: "mt-[1px]",
   psaGrade: "mt-0 text-[13px]",
   psaLogoWrap:
-    "left-1/2 top-[55%] h-[10px] w-[23%] -translate-x-1/2 rounded-[2px] p-[1px]",
-  psaLogoInner: "rounded-t-[1px]",
+    "left-1/2 bottom-[8px] h-[10px] w-[23%] -translate-x-1/2 rounded-[2px] p-[1px]",
+  psaLogoInner: "rounded-[1px]",
   psaLogo: "text-[9px]",
   psaCertArea: "left-[7px] right-[7px] bottom-[2px] h-[8px] gap-[3px]",
   psaCertText: "text-[4.5px]",
@@ -246,8 +246,8 @@ const DETAIL_METRICS = {
   psaDescriptor: "mt-[2px]",
   psaGrade: "mt-0 text-[28px]",
   psaLogoWrap:
-    "left-1/2 top-[54%] h-[19px] w-[23%] -translate-x-1/2 rounded-[3px] p-[1.5px]",
-  psaLogoInner: "rounded-t-[2px]",
+    "left-1/2 bottom-[17px] h-[19px] w-[23%] -translate-x-1/2 rounded-[3px] p-[1.5px]",
+  psaLogoInner: "rounded-[2px]",
   psaLogo: "text-[17px]",
   psaCertArea: "left-[13px] right-[12px] bottom-[4px] h-[13px] gap-[6px]",
   psaCertText: "text-[8px]",
@@ -395,7 +395,8 @@ function GradedSlabPreview({
           >
             <div className="relative h-full w-full" style={scaledLabelContentStyle}>
               <div className={`relative h-full w-full overflow-hidden rounded-[2px] ${theme.labelInner}`}>
-                <div className="absolute inset-[2px] rounded-[1px] border border-[#df1f2d]/80" />
+                <div className="absolute inset-[2px] rounded-[1px] border-2 border-[#df1f2d]" />
+                <div className="absolute inset-x-[4px] bottom-[22%] h-px bg-black/14" />
                 <div
                   className={`absolute flex flex-col items-start text-left leading-none text-[#111111] ${metrics.psaLeft}`}
                 >
@@ -433,17 +434,17 @@ function GradedSlabPreview({
                 </div>
 
                 <div
-                  className={`absolute border border-black/10 bg-white/90 shadow-[0_1px_0_rgba(255,255,255,0.7)] ${metrics.psaLogoWrap}`}
+                  className={`absolute border border-black/10 bg-white shadow-[0_1px_0_rgba(255,255,255,0.7)] ${metrics.psaLogoWrap}`}
                 >
                   <div
-                    className={`flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,#ffffff,#eef3fb)] ${metrics.psaLogoInner}`}
+                    className={`flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,#ffffff,#eef3fb_48%,#ffffff)] ${metrics.psaLogoInner}`}
                   >
                     <PsaLogoMark className={metrics.psaLogo} />
                   </div>
                 </div>
 
                 <div
-                  className={`absolute flex items-end border-t border-black/12 pt-[1px] ${metrics.psaCertArea}`}
+                  className={`absolute flex items-end pt-[1px] ${metrics.psaCertArea}`}
                 >
                   <BarcodeStrip value={certNumber} className="min-w-0 flex-1 opacity-90" />
                   <span
