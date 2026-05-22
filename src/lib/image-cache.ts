@@ -11,7 +11,7 @@ export const CACHEABLE_IMAGE_HOSTS = new Set([
   "product-images.s3.cardmarket.com",
 ]);
 
-export const TCGGO_CARD_TRANSPARENT_TRIM_VARIANT = "tcggo-card-transparent-trim-v1";
+export const TCGGO_CARD_TRANSPARENT_TRIM_VARIANT = "tcggo-card-horizontal-transparent-trim-v2";
 
 export type ImageCacheVariant = typeof TCGGO_CARD_TRANSPARENT_TRIM_VARIANT;
 

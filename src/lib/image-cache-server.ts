@@ -316,7 +316,7 @@ async function prepareCachedImageBuffer(
     return { buffer, contentType };
   }
 
-  const trimmed = await trimTransparentImagePadding(buffer);
+  const trimmed = await trimHorizontalTransparentImagePadding(buffer);
   if (!trimmed) {
     return { buffer, contentType };
   }
@@ -328,15 +328,13 @@ async function prepareCachedImageBuffer(
   return { buffer: trimmed, contentType: "image/png" };
 }
 
-async function trimTransparentImagePadding(buffer: Buffer): Promise<Buffer | null> {
+async function trimHorizontalTransparentImagePadding(buffer: Buffer): Promise<Buffer | null> {
   const image = sharp(buffer, { limitInputPixels: false }).ensureAlpha();
   const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
 
   let left = width;
   let right = -1;
-  let top = height;
-  let bottom = -1;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -344,23 +342,20 @@ async function trimTransparentImagePadding(buffer: Buffer): Promise<Buffer | nul
       if (alpha === 0) continue;
       if (x < left) left = x;
       if (x > right) right = x;
-      if (y < top) top = y;
-      if (y > bottom) bottom = y;
     }
   }
 
-  if (right < left || bottom < top) {
+  if (right < left) {
     return null;
   }
 
   const trimWidth = right - left + 1;
-  const trimHeight = bottom - top + 1;
-  if (left === 0 && top === 0 && trimWidth === width && trimHeight === height) {
+  if (left === 0 && trimWidth === width) {
     return null;
   }
 
   return sharp(buffer, { limitInputPixels: false })
-    .extract({ left, top, width: trimWidth, height: trimHeight })
+    .extract({ left, top: 0, width: trimWidth, height })
     .png({ compressionLevel: 9, effort: 10 })
     .toBuffer();
 }
