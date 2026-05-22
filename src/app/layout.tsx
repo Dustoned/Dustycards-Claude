@@ -7,6 +7,7 @@ import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import HeaderSearch from "@/components/HeaderSearch";
 import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import MobileEdgeBackGesture from "@/components/MobileEdgeBackGesture";
 import MobileHoverTooltip from "@/components/MobileHoverTooltip";
 import SettingsProvider from "@/components/SettingsProvider";
 import { getCurrentUser } from "@/lib/auth";
@@ -200,6 +201,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         >
           <AppVersionWatcher />
           <MobileHoverTooltip />
+          {currentUser ? <MobileEdgeBackGesture /> : null}
           {currentUser && <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} />}
           {currentUser && sidebarSummary ? <DesktopSidebar summary={sidebarSummary} /> : null}
           <header
