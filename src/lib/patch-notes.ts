@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.9",
+    releasedAt: "May 22, 2026",
+    title: "Steadier card detail layout",
+    summary: "DustyCards 3.2.9 keeps the desktop price chart in a more consistent position across different cards.",
+    tone: "improved",
+    highlights: [
+      "Split the desktop card detail header into a compact fixed header and a separate Details panel.",
+      "Moved variable fields such as pull odds, location, paid price, type, condition, tags, and notes below the graph.",
+      "Reduced layout jumping between saved and unsaved cards with different amounts of metadata.",
+    ],
+  },
+  {
     version: "3.2.8",
     releasedAt: "May 22, 2026",
     title: "Wants binder tiles aligned",

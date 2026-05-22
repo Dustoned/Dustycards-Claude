@@ -431,9 +431,24 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
       gradingCompanyLabel={gradingCompanyLabel}
       gradingGradeLabel={gradingGradeLabel}
       refreshError={refreshError}
+      variant={displaySettings.widescreen ? "compact" : "full"}
       onClose={onClose}
     />
   );
+  const desktopDetailsPanel = displaySettings.widescreen ? (
+    <CardModalHeroSection
+      card={modalCard}
+      collectionItem={collectionItem}
+      titleClass={layout.titleClass}
+      metaClassName={layout.metaClassName}
+      detailStatClass={layout.detailStatClass}
+      gradingCompanyLabel={gradingCompanyLabel}
+      gradingGradeLabel={gradingGradeLabel}
+      refreshError={null}
+      variant="details"
+      onClose={onClose}
+    />
+  ) : null;
   const desktopHistoryPanel = (
     <CardModalHistorySection
       historyChartMode={effectiveHistoryChartMode}
@@ -558,7 +573,8 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                   <div className="flex min-w-0 flex-col gap-5">
                     {desktopHeroPanel}
                     {desktopHistoryPanel}
-                    <div className="grid min-w-0 gap-5 xl:grid-cols-2">
+                    <div className="grid min-w-0 gap-5 xl:grid-cols-3">
+                      {desktopDetailsPanel}
                       <CardModalRecentPricesPanel card={modalCard} />
                       <CardModalActiveListingsPanel
                         card={modalCard}

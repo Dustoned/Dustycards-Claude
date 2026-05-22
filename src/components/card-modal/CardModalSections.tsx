@@ -1812,6 +1812,8 @@ export function CardModalMobileShowcase({
   );
 }
 
+type CardModalHeroVariant = "full" | "compact" | "details";
+
 export function CardModalHeroSection({
   card,
   collectionItem,
@@ -1821,6 +1823,7 @@ export function CardModalHeroSection({
   gradingCompanyLabel,
   gradingGradeLabel,
   refreshError,
+  variant = "full",
   onClose,
 }: {
   card: ModalCardData;
@@ -1831,6 +1834,7 @@ export function CardModalHeroSection({
   gradingCompanyLabel: string | null;
   gradingGradeLabel: string | null;
   refreshError: string | null;
+  variant?: CardModalHeroVariant;
   onClose: () => void;
 }) {
   const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
@@ -1944,6 +1948,74 @@ export function CardModalHeroSection({
   const desktopDetailStats = headerDetailStats.filter(
     (stat) => stat.label !== "Set" && stat.label !== "Artist"
   );
+  const showCollectionExtras = Boolean(
+    collectionItem && (collectionTags.length > 0 || collectionItem.notes)
+  );
+  const hasDetailsPanelContent = desktopDetailStats.length > 0 || showCollectionExtras;
+  const detailRows = (
+    <>
+      {desktopDetailStats.length > 0 && (
+        <div className="grid border-y border-white/[0.08]">
+          {desktopDetailStats.map((stat) => (
+            <div
+              key={stat.label}
+              className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3 border-b border-white/[0.07] py-2.5 last:border-b-0 2xl:grid-cols-[7.2rem_minmax(0,1fr)]"
+            >
+              <p className="text-sm font-medium text-white/42 2xl:text-[0.95rem]">
+                {stat.label}
+              </p>
+              <div className="min-w-0 text-sm font-semibold leading-snug text-white/88 2xl:text-[0.95rem] [&_*]:max-w-full">
+                {stat.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {collectionItem && (
+        <>
+          {collectionTags.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {collectionTags.map((tag) => (
+                <MetaPill key={tag}>{tag}</MetaPill>
+              ))}
+            </div>
+          )}
+
+          {collectionItem.notes && (
+            <div className={`mt-3 ${detailStatClass}`}>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
+                Notes
+              </p>
+              <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-white/72">
+                {collectionItem.notes}
+              </p>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+
+  if (variant === "details") {
+    if (!hasDetailsPanelContent) return null;
+
+    return (
+      <section className="binder-panel min-w-0 rounded-[var(--ui-page-header-radius)] p-3.5 text-white sm:p-4">
+        <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-white/38">
+              Details
+            </p>
+            <p className="mt-1 truncate text-sm font-semibold text-white/78">
+              {card.episode_name}
+            </p>
+          </div>
+        </div>
+        {detailRows}
+      </section>
+    );
+  }
 
   return (
     <section className="min-w-0 py-1 text-white">
@@ -1990,44 +2062,7 @@ export function CardModalHeroSection({
 
       </div>
 
-      <div className="mt-5 grid border-y border-white/[0.08] 2xl:mt-6">
-        {desktopDetailStats.map((stat) => (
-          <div
-            key={stat.label}
-            className="grid min-w-0 grid-cols-[7.2rem_minmax(0,1fr)] items-center gap-4 border-b border-white/[0.07] py-3 last:border-b-0 2xl:grid-cols-[8.2rem_minmax(0,1fr)] 2xl:py-3.5"
-          >
-            <p className="text-sm font-medium text-white/42 2xl:text-[0.95rem]">
-              {stat.label}
-            </p>
-            <div className="min-w-0 text-sm font-semibold leading-snug text-white/88 2xl:text-[0.95rem] [&_*]:max-w-full">
-              {stat.value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {collectionItem && (
-        <>
-          {collectionTags.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {collectionTags.map((tag) => (
-                <MetaPill key={tag}>{tag}</MetaPill>
-              ))}
-            </div>
-          )}
-
-          {collectionItem.notes && (
-            <div className={`mt-4 ${detailStatClass}`}>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/36">
-                Notes
-              </p>
-              <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-white/72">
-                {collectionItem.notes}
-              </p>
-            </div>
-          )}
-        </>
-      )}
+      {variant === "full" && <div className="mt-5 2xl:mt-6">{detailRows}</div>}
 
       {refreshError && <p className="mt-4 text-sm text-rose-300">{refreshError}</p>}
     </section>
