@@ -21,6 +21,7 @@ import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-plan
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const USER_DAILY_ATTEMPT_LIMIT = 3;
 const CARDMARKET_DOMAIN = "cardmarket.com";
+const CARDMARKET_VARIANT_SEARCH_LIMIT = 10;
 const SUBMITTED_SOURCE_STATUS = "firecrawl-submitted";
 const UNKNOWN_SET_LABEL = "Set unknown";
 const DEFAULT_SUBMISSION_CONDITION = "Near Mint";
@@ -42,7 +43,8 @@ type SubmissionStatus =
   | "added"
   | "deleted"
   | "migrated_to_tcggo"
-  | "possible_tcggo_match";
+  | "possible_tcggo_match"
+  | "variant_select";
 
 type SubmissionRecord = Awaited<ReturnType<typeof db.cardSubmission.findFirst>>;
 
@@ -78,6 +80,7 @@ export interface CardSubmissionPreview {
   canSave: boolean;
   duplicateCard: DuplicateCardPreview | null;
   duplicateCards: DuplicateCardPreview[];
+  cardmarketMatches: CardMarketVariantPreview[];
   canForceFirecrawl: boolean;
   card: {
     name: string;
@@ -111,6 +114,16 @@ export interface DuplicateCardPreview {
   episodeName: string;
   cardNumber: string | null;
   imageUrl: string | null;
+}
+
+export interface CardMarketVariantPreview {
+  key: string;
+  name: string;
+  setName: string;
+  cardNumber: string | null;
+  cardmarketUrl: string | null;
+  cardmarketId: string | null;
+  existingCard: DuplicateCardPreview | null;
 }
 
 export interface AdminCardSubmissionItem extends CardSubmissionPreview {
@@ -1153,6 +1166,211 @@ function uniqueDuplicateCards(cards: DuplicateCandidateCard[]): DuplicateCardPre
   return previews;
 }
 
+function getCardMarketVariantKey(cardmarketUrl: string | null, cardmarketId: string | null): string {
+  return cardmarketId ? `cm-id:${cardmarketId}` : `cm-url:${cardmarketUrl ?? ""}`;
+}
+
+function searchResultMatchesSubmittedNumber(
+  result: FirecrawlWebSearchResponse["results"][number],
+  input: NormalizedSubmissionInput
+): boolean {
+  const submittedNumber = normalizeCardNumber(input.cardNumber);
+  if (!submittedNumber) return true;
+
+  const haystack = `${result.title ?? ""} ${result.description ?? ""} ${decodeURIComponent(
+    result.url
+  )}`;
+  const extractedNumber = extractCardNumberFromText(haystack);
+  if (cardNumberMatchesSubmittedBase(input.cardNumber, extractedNumber)) return true;
+  if (!extractedNumber) return true;
+
+  const compactSubmitted = compactCardNumber(input.cardNumber).toLowerCase();
+  const compactHaystack = normalizeSubmissionText(haystack).replace(/\s+/g, "");
+  return Boolean(compactSubmitted && compactHaystack.includes(compactSubmitted.toLowerCase()));
+}
+
+function serializeCardMarketSearchVariant(
+  result: FirecrawlWebSearchResponse["results"][number],
+  input: NormalizedSubmissionInput
+): CardMarketVariantPreview | null {
+  if (scoreSearchCandidate(result, input) <= 0) return null;
+  if (!searchResultMatchesSubmittedNumber(result, input)) return null;
+
+  const normalizedUrl = normalizeCardMarketUrl(result.url);
+  if (!normalizedUrl || !isCardMarketProductUrl(normalizedUrl, input.game)) return null;
+
+  const pathParts = extractCardMarketPathParts(normalizedUrl);
+  const title = result.title ?? pathParts.cardName;
+  const haystack = `${result.title ?? ""} ${result.description ?? ""} ${decodeURIComponent(
+    normalizedUrl
+  )}`;
+  const cardmarketId = extractCardMarketProductId(normalizedUrl);
+
+  return {
+    key: getCardMarketVariantKey(normalizedUrl, cardmarketId),
+    name: extractNameFromTitle(title, pathParts.cardName) ?? input.name,
+    setName: getDisplaySetName(pathParts.setName),
+    cardNumber: extractCardNumberFromText(haystack) ?? input.cardNumber,
+    cardmarketUrl: normalizedUrl,
+    cardmarketId,
+    existingCard: null,
+  };
+}
+
+function dedupeCardMarketVariants(
+  variants: CardMarketVariantPreview[]
+): CardMarketVariantPreview[] {
+  const deduped = new Map<string, CardMarketVariantPreview>();
+
+  for (const variant of variants) {
+    const key = variant.key || getCardMarketVariantKey(variant.cardmarketUrl, variant.cardmarketId);
+    const existing = deduped.get(key);
+    if (!existing || (!existing.existingCard && variant.existingCard)) {
+      deduped.set(key, { ...variant, key });
+    }
+  }
+
+  return [...deduped.values()];
+}
+
+function attachExistingCardsToVariants(
+  variants: CardMarketVariantPreview[],
+  existingCards: DuplicateCandidateCard[],
+  knownDuplicates: DuplicateCardPreview[]
+): CardMarketVariantPreview[] {
+  return variants.map((variant) => {
+    const refs = createEmptyCardMarketRefs();
+    addCardMarketRef(refs, variant.cardmarketUrl, variant.cardmarketId);
+    const refMatch = existingCards.find((card) =>
+      cardMarketRefMatches(refs, card.cardmarket_url, card.cardmarket_id)
+    );
+    const setNumberMatch =
+      refMatch ??
+      existingCards.find((card) => {
+        const preview = serializeDuplicateCard(card);
+        return (
+          normalizeSubmissionText(preview.name) === normalizeSubmissionText(variant.name) &&
+          duplicatePreviewMatchesSetAndNumber(preview, variant.setName, variant.cardNumber)
+        );
+      });
+    const knownMatch =
+      knownDuplicates.find(
+        (card) =>
+          normalizeSubmissionText(card.name) === normalizeSubmissionText(variant.name) &&
+          duplicatePreviewMatchesSetAndNumber(card, variant.setName, variant.cardNumber)
+      ) ?? null;
+
+    return {
+      ...variant,
+      existingCard: setNumberMatch ? serializeDuplicateCard(setNumberMatch) : knownMatch,
+    };
+  });
+}
+
+function addLocalDuplicateVariants(
+  variants: CardMarketVariantPreview[],
+  duplicateCards: DuplicateCardPreview[]
+): CardMarketVariantPreview[] {
+  const deduped = dedupeCardMarketVariants(variants);
+  const seenExistingIds = new Set(
+    deduped
+      .map((variant) => variant.existingCard?.id)
+      .filter((id): id is string => Boolean(id))
+  );
+
+  for (const card of duplicateCards) {
+    if (seenExistingIds.has(card.id)) continue;
+    deduped.push({
+      key: `local:${card.id}`,
+      name: card.name,
+      setName: card.episodeName,
+      cardNumber: card.cardNumber,
+      cardmarketUrl: null,
+      cardmarketId: null,
+      existingCard: card,
+    });
+    seenExistingIds.add(card.id);
+  }
+
+  return deduped;
+}
+
+async function findExistingCardsForCardMarketVariants(
+  game: TradingCardGame,
+  variants: CardMarketVariantPreview[]
+): Promise<DuplicateCandidateCard[]> {
+  if (variants.length === 0) return [];
+
+  const productIds = variants
+    .map((variant) => variant.cardmarketId)
+    .filter((id): id is string => Boolean(id));
+  const select = {
+    id: true,
+    game: true,
+    name: true,
+    card_number: true,
+    printed_card_number: true,
+    image_url: true,
+    cardmarket_url: true,
+    cardmarket_id: true,
+    episode: { select: { id: true, name: true } },
+  } satisfies Prisma.CardSelect;
+
+  const [productMatches, urlCandidates] = await Promise.all([
+    productIds.length > 0
+      ? db.card.findMany({
+          where: { game, cardmarket_id: { in: productIds } },
+          select,
+        })
+      : Promise.resolve([]),
+    db.card.findMany({
+      where: { game, cardmarket_url: { not: null } },
+      take: 5000,
+      select,
+    }),
+  ]);
+
+  const variantRefs = variants.map((variant) => {
+    const refs = createEmptyCardMarketRefs();
+    addCardMarketRef(refs, variant.cardmarketUrl, variant.cardmarketId);
+    return refs;
+  });
+  const seen = new Set<string>();
+  const matches: DuplicateCandidateCard[] = [];
+
+  for (const card of [...productMatches, ...urlCandidates]) {
+    if (seen.has(card.id)) continue;
+    if (
+      !variantRefs.some((refs) =>
+        cardMarketRefMatches(refs, card.cardmarket_url, card.cardmarket_id)
+      )
+    ) {
+      continue;
+    }
+    seen.add(card.id);
+    matches.push(card);
+  }
+
+  return matches;
+}
+
+async function buildCardMarketVariantPreviews(
+  input: NormalizedSubmissionInput,
+  response: FirecrawlWebSearchResponse,
+  duplicateCards: DuplicateCardPreview[]
+): Promise<CardMarketVariantPreview[]> {
+  const variants = dedupeCardMarketVariants(
+    response.results
+      .map((result) => serializeCardMarketSearchVariant(result, input))
+      .filter((entry): entry is CardMarketVariantPreview => Boolean(entry))
+  );
+  const existingCards = await findExistingCardsForCardMarketVariants(input.game, variants);
+  return addLocalDuplicateVariants(
+    attachExistingCardsToVariants(variants, existingCards, duplicateCards),
+    duplicateCards
+  );
+}
+
 function getDuplicateCardMarketRefs(cards: DuplicateCandidateCard[]): CardMarketRefSet {
   const refs = createEmptyCardMarketRefs();
   for (const card of cards) {
@@ -1314,7 +1532,9 @@ async function createDuplicateSubmissionPreview(
   input: NormalizedSubmissionInput,
   duplicateCards: DuplicateCardPreview[],
   options?: {
+    status?: "duplicate" | "variant_select";
     canForceFirecrawl?: boolean;
+    cardmarketMatches?: CardMarketVariantPreview[];
     warnings?: string[];
     usage?: { monthlyUsed: number; dailyAttemptsUsed: number } | null;
     monthlyBudget?: number | null;
@@ -1333,7 +1553,7 @@ async function createDuplicateSubmissionPreview(
   const submission = await db.cardSubmission.create({
     data: {
       user_id: userId,
-      status: "duplicate",
+      status: options?.status ?? "duplicate",
       game: input.game,
       input_name: input.name,
       input_set_name: input.setName,
@@ -1360,6 +1580,7 @@ async function createDuplicateSubmissionPreview(
 
   return serializeSubmission(submission, {
     duplicateCards,
+    cardmarketMatches: options?.cardmarketMatches,
     canForceFirecrawl: options?.canForceFirecrawl ?? true,
     usage,
     monthlyBudget: options?.monthlyBudget ?? config.monthlyCreditBudget,
@@ -1371,6 +1592,7 @@ function serializeSubmission(
   options?: {
     duplicateCard?: DuplicateCardPreview | null;
     duplicateCards?: DuplicateCardPreview[] | null;
+    cardmarketMatches?: CardMarketVariantPreview[] | null;
     canForceFirecrawl?: boolean | null;
     usage?: { monthlyUsed: number; dailyAttemptsUsed: number } | null;
     monthlyBudget?: number | null;
@@ -1384,6 +1606,7 @@ function serializeSubmission(
   const duplicateCards =
     options?.duplicateCards ??
     (options?.duplicateCard ? [options.duplicateCard] : []);
+  const cardmarketMatches = options?.cardmarketMatches ?? [];
   const inferredSetName = inferSetNameFromCardMarketUrl(submission.cardmarket_url);
   const inferredCardNumber = inferCardNumberFromCardMarketUrl(submission.cardmarket_url);
 
@@ -1394,6 +1617,7 @@ function serializeSubmission(
     canSave: submission.status === "preview" && hasRequiredFields,
     duplicateCard: duplicateCards[0] ?? null,
     duplicateCards,
+    cardmarketMatches,
     canForceFirecrawl: Boolean(options?.canForceFirecrawl),
     card: {
       name: submission.detected_name ?? submission.input_name,
@@ -1470,27 +1694,33 @@ export async function previewCardSubmission(
   const knownDuplicateResult = await findDuplicateCards(input);
   const config = getFirecrawlConfigSnapshot();
 
-  if (!input.skipDuplicateCheck && knownDuplicateResult.cards.length > 0) {
+  if (
+    !input.skipDuplicateCheck &&
+    input.cardmarketUrl &&
+    knownDuplicateResult.exactCardmarketUrl &&
+    knownDuplicateResult.cards.length > 0
+  ) {
     return createDuplicateSubmissionPreview(userId, input, knownDuplicateResult.cards, {
-      canForceFirecrawl: !knownDuplicateResult.exactCardmarketUrl,
-      warnings: knownDuplicateResult.exactCardmarketUrl
-        ? ["This CardMarket page is already linked to a card in your library."]
-        : undefined,
+      canForceFirecrawl: false,
+      cardmarketMatches: addLocalDuplicateVariants([], knownDuplicateResult.cards),
+      warnings: ["This CardMarket page is already linked to a card in your library."],
       monthlyBudget: config.monthlyCreditBudget,
     });
   }
 
-  const cached = await db.cardSubmission.findFirst({
-    where: {
-      game: input.game,
-      normalized_key: input.normalizedKey,
-      status: { in: ["preview", "added"] },
-      image_url: { not: null },
-      nm_price_eur: { not: null },
-      last_scraped_at: { gte: new Date(Date.now() - CACHE_TTL_MS) },
-    },
-    orderBy: { updated_at: "desc" },
-  });
+  const cached = input.cardmarketUrl
+    ? await db.cardSubmission.findFirst({
+        where: {
+          game: input.game,
+          normalized_key: input.normalizedKey,
+          status: { in: ["preview", "added"] },
+          image_url: { not: null },
+          nm_price_eur: { not: null },
+          last_scraped_at: { gte: new Date(Date.now() - CACHE_TTL_MS) },
+        },
+        orderBy: { updated_at: "desc" },
+      })
+    : null;
 
   if (cached && storedScrapeHasGradedPriceParse(cached.firecrawl_scrape_json)) {
     const exactCachedDuplicates = await findDuplicateCardsByCardMarketRef(input.game, cached.cardmarket_url);
@@ -1525,9 +1755,32 @@ export async function previewCardSubmission(
   }
 
   const estimatedCredits = input.cardmarketUrl ? 1 : 3;
-  const guard = await assertFirecrawlBudget(userId, estimatedCredits);
+  let guard: Awaited<ReturnType<typeof assertFirecrawlBudget>>;
+  try {
+    guard = await assertFirecrawlBudget(userId, estimatedCredits);
+  } catch (error) {
+    if (
+      !input.skipDuplicateCheck &&
+      !input.cardmarketUrl &&
+      knownDuplicateResult.cards.length > 0
+    ) {
+      const message =
+        error instanceof CardSubmissionError
+          ? error.message
+          : "Could not load CardMarket variants right now.";
+      return createDuplicateSubmissionPreview(userId, input, knownDuplicateResult.cards, {
+        status: "variant_select",
+        canForceFirecrawl: false,
+        cardmarketMatches: addLocalDuplicateVariants([], knownDuplicateResult.cards),
+        warnings: [message],
+        monthlyBudget: config.monthlyCreditBudget,
+      });
+    }
+    throw error;
+  }
   let searchResponse: FirecrawlWebSearchResponse | null = null;
   let selectedUrl = input.cardmarketUrl;
+  let cardmarketMatches: CardMarketVariantPreview[] = [];
   let searchCount = 0;
   let scrapeCount = 0;
   let creditsUsed = 0;
@@ -1537,24 +1790,71 @@ export async function previewCardSubmission(
     if (!selectedUrl) {
       searchResponse = await searchFirecrawlWeb({
         query: buildSearchQuery(input),
-        limit: 3,
+        limit: CARDMARKET_VARIANT_SEARCH_LIMIT,
         includeDomains: [CARDMARKET_DOMAIN],
       });
       searchCount = 1;
       creditsUsed += searchResponse.creditsUsed ?? 2;
       if (searchResponse.warning) warnings.push(searchResponse.warning);
+      cardmarketMatches = await buildCardMarketVariantPreviews(
+        input,
+        searchResponse,
+        knownDuplicateResult.cards
+      );
+      if (
+        !input.skipDuplicateCheck &&
+        (knownDuplicateResult.cards.length > 0 || cardmarketMatches.length > 1)
+      ) {
+        return createDuplicateSubmissionPreview(userId, input, knownDuplicateResult.cards, {
+          status: "variant_select",
+          canForceFirecrawl: false,
+          cardmarketMatches,
+          warnings,
+          searchCount,
+          creditsUsed,
+          firecrawlSearchJson: searchResponse,
+          usage: {
+            monthlyUsed: guard.usage.monthlyUsed + creditsUsed,
+            dailyAttemptsUsed: guard.usage.dailyAttemptsUsed + 1,
+          },
+          monthlyBudget: config.monthlyCreditBudget,
+        });
+      }
       const excludedCount = countExcludedSearchCandidates(
         searchResponse,
         input,
         knownDuplicateResult.cardmarketRefs
       );
-      selectedUrl = pickSearchCandidate(searchResponse, input, {
-        excludeCardmarketRefs: knownDuplicateResult.cardmarketRefs,
-      });
+      selectedUrl =
+        cardmarketMatches.find((variant) => variant.cardmarketUrl && !variant.existingCard)
+          ?.cardmarketUrl ??
+        pickSearchCandidate(searchResponse, input, {
+          excludeCardmarketRefs: knownDuplicateResult.cardmarketRefs,
+        });
       if (!selectedUrl && excludedCount > 0 && input.skipDuplicateCheck) {
         warnings.push(
           "Firecrawl only found CardMarket pages that are already in your library. Paste the exact CardMarket URL for the missing variant."
         );
+      }
+      if (
+        !selectedUrl &&
+        !input.skipDuplicateCheck &&
+        knownDuplicateResult.cards.length > 0
+      ) {
+        return createDuplicateSubmissionPreview(userId, input, knownDuplicateResult.cards, {
+          status: "variant_select",
+          canForceFirecrawl: false,
+          cardmarketMatches,
+          warnings,
+          searchCount,
+          creditsUsed,
+          firecrawlSearchJson: searchResponse,
+          usage: {
+            monthlyUsed: guard.usage.monthlyUsed + creditsUsed,
+            dailyAttemptsUsed: guard.usage.dailyAttemptsUsed + 1,
+          },
+          monthlyBudget: config.monthlyCreditBudget,
+        });
       }
     }
 

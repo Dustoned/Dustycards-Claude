@@ -22,31 +22,37 @@ type SubmissionStatus =
   | "added"
   | "deleted"
   | "migrated_to_tcggo"
-  | "possible_tcggo_match";
+  | "possible_tcggo_match"
+  | "variant_select";
+
+interface DuplicateCardPreview {
+  id: string;
+  game: TradingCardGame;
+  name: string;
+  episodeId: string;
+  episodeName: string;
+  cardNumber: string | null;
+  imageUrl: string | null;
+}
+
+interface CardMarketVariantPreview {
+  key: string;
+  name: string;
+  setName: string;
+  cardNumber: string | null;
+  cardmarketUrl: string | null;
+  cardmarketId: string | null;
+  existingCard: DuplicateCardPreview | null;
+}
 
 interface SubmissionPreview {
   id: string;
   status: SubmissionStatus;
   game: TradingCardGame;
   canSave: boolean;
-  duplicateCard: {
-    id: string;
-    game: TradingCardGame;
-    name: string;
-    episodeId: string;
-    episodeName: string;
-    cardNumber: string | null;
-    imageUrl: string | null;
-  } | null;
-  duplicateCards: Array<{
-    id: string;
-    game: TradingCardGame;
-    name: string;
-    episodeId: string;
-    episodeName: string;
-    cardNumber: string | null;
-    imageUrl: string | null;
-  }>;
+  duplicateCard: DuplicateCardPreview | null;
+  duplicateCards: DuplicateCardPreview[];
+  cardmarketMatches: CardMarketVariantPreview[];
   canForceFirecrawl: boolean;
   card: {
     name: string;
@@ -251,10 +257,19 @@ export default function SubmitCardClient() {
     };
   }, [game, name]);
 
-  async function runPreview(event?: React.FormEvent<HTMLFormElement>, options?: { skipDuplicateCheck?: boolean }) {
+  async function runPreview(
+    event?: React.FormEvent<HTMLFormElement>,
+    options?: { skipDuplicateCheck?: boolean; cardmarketUrl?: string }
+  ) {
     event?.preventDefault();
     setLoading("preview");
-    setStatus(options?.skipDuplicateCheck ? "Running Firecrawl preview..." : "Checking local cards first...");
+    setStatus(
+      options?.cardmarketUrl
+        ? "Loading selected CardMarket variant..."
+        : options?.skipDuplicateCheck
+          ? "Running Firecrawl preview..."
+          : "Checking CardMarket variants..."
+    );
     setPreview(null);
     setSavedCard(null);
 
@@ -267,7 +282,7 @@ export default function SubmitCardClient() {
           game,
           setName: setNameValue,
           cardNumber,
-          cardmarketUrl,
+          cardmarketUrl: options?.cardmarketUrl ?? cardmarketUrl,
           condition,
           skipDuplicateCheck: options?.skipDuplicateCheck ?? false,
         }),
@@ -296,7 +311,11 @@ export default function SubmitCardClient() {
       );
       void loadFirecrawlUsage({ quiet: true });
       setStatus(
-        result.status === "duplicate"
+        result.status === "variant_select"
+          ? `Found ${result.cardmarketMatches.length || result.duplicateCards.length} CardMarket variant${
+              (result.cardmarketMatches.length || result.duplicateCards.length) === 1 ? "" : "s"
+            }.`
+          : result.status === "duplicate"
           ? `Found ${result.duplicateCards.length || 1} possible existing card${
               (result.duplicateCards.length || 1) === 1 ? "" : "s"
             }.`
@@ -357,6 +376,18 @@ export default function SubmitCardClient() {
     : preview?.duplicateCard
       ? [preview.duplicateCard]
       : [];
+  const cardmarketMatches = preview?.cardmarketMatches ?? [];
+  const variantRows = cardmarketMatches.length
+    ? cardmarketMatches
+    : duplicateCards.map((card) => ({
+        key: `local:${card.id}`,
+        name: card.name,
+        setName: card.episodeName,
+        cardNumber: card.cardNumber,
+        cardmarketUrl: null,
+        cardmarketId: null,
+        existingCard: card,
+      }));
   const gameLabel = getGameLabel(game);
   const savedCardHref = savedCard
     ? `${getExpansionHref(savedCard.episode.id)}?card=${encodeURIComponent(savedCard.id)}`
@@ -640,12 +671,12 @@ export default function SubmitCardClient() {
           <div className="mt-5 rounded-2xl border border-dashed border-white/10 bg-black/15 p-8 text-center text-sm text-white/45">
             Submit a card to see the CardMarket preview here.
           </div>
-        ) : preview.status === "duplicate" && duplicateCards.length > 0 ? (
+        ) : (preview.status === "duplicate" || preview.status === "variant_select") && variantRows.length > 0 ? (
           <div className="mt-5 rounded-2xl border border-amber-300/18 bg-amber-300/[0.07] p-4">
-            <p className="text-sm font-bold text-amber-100">Possible existing cards</p>
+            <p className="text-sm font-bold text-amber-100">Choose CardMarket variant</p>
             <p className="mt-1 text-sm leading-5 text-white/62">
-              Check these variants first. If your exact variant is missing, use the CardMarket URL
-              for the best match.
+              These are the CardMarket matches found for this name and card number. Existing cards
+              are marked, so you can open them directly or preview a missing variant.
             </p>
 
             {preview.warnings.length > 0 ? (
@@ -662,58 +693,104 @@ export default function SubmitCardClient() {
             ) : null}
 
             <div className="mt-4 grid gap-2">
-              {duplicateCards.map((card) => {
-                const href = `${getExpansionHref(card.episodeId)}?card=${encodeURIComponent(card.id)}`;
+              {variantRows.map((variant) => {
+                const existingCard = variant.existingCard;
+                const href = existingCard
+                  ? `${getExpansionHref(existingCard.episodeId)}?card=${encodeURIComponent(existingCard.id)}`
+                  : null;
+                const imageUrl = existingCard?.imageUrl ?? null;
                 return (
-                  <Link
-                    key={card.id}
-                    href={href}
-                    className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/10 bg-black/16 p-2 transition hover:bg-white/[0.055]"
+                  <div
+                    key={variant.key}
+                    className="grid gap-3 rounded-xl border border-white/10 bg-black/16 p-2 sm:grid-cols-[44px_minmax(0,1fr)_auto] sm:items-center"
                   >
-                    <div className="aspect-[5/7] overflow-hidden rounded-lg border border-white/10 bg-black/24">
-                      {card.imageUrl ? (
+                    <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-3 sm:contents">
+                      <div className="aspect-[5/7] overflow-hidden rounded-lg border border-white/10 bg-black/24">
+                        {imageUrl ? (
                         <Image
-                          src={getCachedImageUrl(card.imageUrl) ?? card.imageUrl}
-                          alt={card.name}
+                          src={getCachedImageUrl(imageUrl) ?? imageUrl}
+                          alt={variant.name}
                           width={88}
                           height={124}
                           className="h-full w-full object-cover"
                           unoptimized
                         />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-white/35">
+                            <Search className="h-4 w-4" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-bold text-white">{variant.name}</p>
+                          {existingCard ? (
+                            <span className="rounded-full border border-emerald-300/20 bg-emerald-300/[0.09] px-2 py-1 text-[10px] font-bold text-emerald-100">
+                              Already in app
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-violet-300/20 bg-violet-300/[0.09] px-2 py-1 text-[10px] font-bold text-violet-100">
+                              Found on CardMarket
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 truncate text-xs font-semibold text-white/48">
+                          {variant.setName}
+                          {variant.cardNumber ? ` / #${variant.cardNumber}` : ""}
+                        </p>
+                        {existingCard ? (
+                          <p className="mt-1 text-xs font-semibold text-white/42">
+                            This variant is already in DustyCards.
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                      {href ? (
+                        <Link
+                          href={href}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs font-bold text-white/78 transition hover:bg-white/[0.1] hover:text-white"
+                        >
+                          Open card
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Link>
+                      ) : variant.cardmarketUrl ? (
+                        <button
+                          type="button"
+                          disabled={loading != null}
+                          onClick={() => {
+                            setCardmarketUrl(variant.cardmarketUrl ?? "");
+                            void runPreview(undefined, {
+                              skipDuplicateCheck: true,
+                              cardmarketUrl: variant.cardmarketUrl ?? "",
+                            });
+                          }}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-300/28 bg-violet-500/18 px-3 py-2 text-xs font-bold text-violet-100 transition hover:bg-violet-500/24 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {loading === "preview" ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3.5 w-3.5" />
+                          )}
+                          Preview
+                        </button>
+                      ) : null}
+                      {variant.cardmarketUrl ? (
+                        <a
+                          href={variant.cardmarketUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-bold text-white/62 transition hover:bg-white/[0.08] hover:text-white"
+                          title="Open CardMarket page"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
                       ) : null}
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-white">{card.name}</p>
-                      <p className="mt-0.5 truncate text-xs font-semibold text-white/48">
-                        {card.episodeName}
-                        {card.cardNumber ? ` / #${card.cardNumber}` : ""}
-                      </p>
-                    </div>
-                    <ExternalLink className="h-4 w-4 text-white/45" />
-                  </Link>
+                  </div>
                 );
               })}
             </div>
-
-            {preview.canForceFirecrawl ? (
-              <button
-                type="button"
-                disabled={loading != null}
-                onClick={() => void runPreview(undefined, { skipDuplicateCheck: true })}
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-violet-300/28 bg-violet-500/18 px-4 py-3 text-sm font-bold text-violet-100 transition hover:bg-violet-500/24 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-              >
-                {loading === "preview" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                My variant is missing
-              </button>
-            ) : preview.warnings.length === 0 ? (
-              <p className="mt-4 rounded-xl border border-white/10 bg-black/16 px-3 py-2 text-xs font-semibold leading-5 text-white/48">
-                Paste the exact CardMarket URL if this is a different variant.
-              </p>
-            ) : null}
           </div>
         ) : (
           <div className="mt-5 grid gap-4 lg:grid-cols-[150px_minmax(0,1fr)]">
