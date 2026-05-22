@@ -61,7 +61,7 @@ describe("card submission parsing", () => {
     expect(cardNumberMatchesSubmittedBase("OP09-061", "OP09-062#1")).toBe(false);
   });
 
-  it("extracts English One Piece CardMarket version product links", () => {
+  it("extracts One Piece CardMarket versions and separates English from non-English", () => {
     const variants = parseCardMarketVersionsScrape(
       {
         links: [
@@ -87,17 +87,72 @@ describe("card submission parsing", () => {
       { game: "one-piece", name: "Zeus", cardNumber: "OP11-106" }
     );
 
-    expect(variants).toEqual([
+    expect(variants).toHaveLength(5);
+    expect(variants.filter((variant) => variant.languageGroup === "english")).toEqual([
       expect.objectContaining({
         name: "Zeus",
         setName: "Adventure on Kamis Island",
         cardNumber: "OP11-106",
         imageUrl: "https://product-images.s3.cardmarket.com/1621/OP15/880055/880055.jpg",
+        languageGroup: "english",
+        source: "versions",
       }),
       expect.objectContaining({
         setName: "A Fist of Divine Speed",
         cardNumber: "OP11-106 / V2",
         imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg",
+        languageGroup: "english",
+        source: "versions",
+      }),
+    ]);
+    expect(variants.filter((variant) => variant.languageGroup === "non_english")).toEqual([
+      expect.objectContaining({
+        setName: "Egghead Crisis Asia Region Legal",
+        cardNumber: "OP11-106",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/EB04-JP/871503/871503.jpg",
+        languageGroup: "non_english",
+      }),
+      expect.objectContaining({
+        setName: "A Fist of Divine Speed Non English",
+        cardNumber: "OP11-106 / V1",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11-JP/817480/817480.jpg",
+        languageGroup: "non_english",
+      }),
+      expect.objectContaining({
+        setName: "Unnumbered Promos Japanese",
+        cardNumber: "OP11-106 / V1",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/UP-JP/825210/825210.jpg",
+        languageGroup: "non_english",
+      }),
+    ]);
+  });
+
+  it("extracts Pokemon CardMarket versions from a versions page", () => {
+    const variants = parseCardMarketVersionsScrape(
+      {
+        links: [
+          "https://www.cardmarket.com/en/Pokemon/Products/Singles/Prismatic-Evolutions/Umbreon-ex-161-131",
+          "https://www.cardmarket.com/en/Pokemon/Products/Singles/Terastal-Festival-ex-Japanese/Umbreon-ex-161-131",
+        ],
+        markdown: [
+          "[![Umbreon ex](https://product-images.s3.cardmarket.com/51/PRE/123/123.jpg)](https://www.cardmarket.com/en/Pokemon/Products/Singles/Prismatic-Evolutions/Umbreon-ex-161-131)",
+          "[![Umbreon ex](https://product-images.s3.cardmarket.com/51/SV8A-JP/456/456.jpg)](https://www.cardmarket.com/en/Pokemon/Products/Singles/Terastal-Festival-ex-Japanese/Umbreon-ex-161-131)",
+        ].join("\n"),
+      },
+      { game: "pokemon", name: "Umbreon ex", cardNumber: "161/131" }
+    );
+
+    expect(variants).toEqual([
+      expect.objectContaining({
+        name: "Umbreon ex",
+        setName: "Prismatic Evolutions",
+        languageGroup: "english",
+        source: "versions",
+      }),
+      expect.objectContaining({
+        setName: "Terastal Festival ex Japanese",
+        languageGroup: "non_english",
+        source: "versions",
       }),
     ]);
   });
