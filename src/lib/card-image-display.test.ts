@@ -11,14 +11,20 @@ describe("card image display", () => {
 
     expect(hasTcggoGeneratedCardBorder(imageUrl)).toBe(true);
     expect(getCardImageClassName(imageUrl, "rounded-[4.75%] object-fill")).toBe(
-      "object-contain"
+      "object-contain z-10"
     );
     expect(
       getCardImageFrameClassName(
         imageUrl,
         "relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent"
       )
-    ).toBe("relative aspect-[63/88] w-full bg-transparent");
+    ).toContain("relative aspect-[63/88] w-full bg-transparent");
+    expect(
+      getCardImageFrameClassName(
+        imageUrl,
+        "relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent"
+      )
+    ).toContain("before:bg-[#4b4d50]");
   });
 
   it("leaves other image sources unchanged", () => {
