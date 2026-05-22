@@ -34,8 +34,8 @@ const MoverGrid = dynamic(() => import("./MoverCards").then((module) => module.M
   loading: () => <MoverGridFallback />,
 });
 
-const INITIAL_MOVER_RENDER_COUNT = 24;
-const MOVER_RENDER_BATCH_SIZE = 36;
+const INITIAL_MOVER_RENDER_COUNT = 12;
+const MOVER_RENDER_BATCH_SIZE = 24;
 
 interface PreviewCardConfig {
   title: string;
@@ -352,7 +352,7 @@ export default function MoversBrowser({
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 sm:space-y-5">
       {visibleSpotlights.length > 0 || visiblePreviewCards.length > 0 ? (
         <MoverSpotlightSections
           spotlights={visibleSpotlights}

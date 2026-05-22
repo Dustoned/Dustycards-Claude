@@ -3,7 +3,16 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { type KeyboardEvent, useDeferredValue, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ExternalLink, Package, Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
@@ -176,7 +185,10 @@ function buildSealedProductData(item: SealedMoverItem): SealedModalProductData {
   };
 }
 
-function SealedMoverTile({
+const INITIAL_SEALED_RENDER_COUNT = 12;
+const SEALED_RENDER_BATCH_SIZE = 24;
+
+const SealedMoverTile = memo(function SealedMoverTile({
   item,
   onOpen,
 }: {
@@ -200,43 +212,57 @@ function SealedMoverTile({
       aria-label={`Open sealed details for ${item.name}`}
       onClick={openDetails}
       onKeyDown={handleKeyDown}
-      className="group flex h-full cursor-pointer flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-sm shadow-black/5 transition hover:-translate-y-0.5 hover:border-white/16 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+      className="group flex h-full cursor-pointer flex-col rounded-2xl border border-white/8 bg-white/[0.035] p-2.5 outline-none transition-colors hover:border-white/14 hover:bg-white/[0.055] focus-visible:ring-2 focus-visible:ring-emerald-400/50 sm:p-3"
     >
-      <div className="grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-3 text-left">
-        <span className="relative aspect-square w-full overflow-hidden rounded-xl bg-black/[0.035] dark:bg-black/24">
+      <div className="flex min-w-0 items-start gap-2.5 text-left sm:gap-3">
+        <span className="relative aspect-square w-[3.5rem] shrink-0 overflow-hidden rounded-lg bg-black/20 sm:w-[4.25rem]">
           {item.imageUrl ? (
             <Image
               src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
               alt={item.name}
               fill
-              sizes="88px"
-              className="object-contain p-1.5 transition-transform duration-300 group-hover:scale-[1.03]"
+              sizes="(max-width: 640px) 56px, 68px"
+              className="object-contain p-1.5"
               unoptimized
             />
           ) : (
-            <span className="flex h-full w-full items-center justify-center text-gray-400 dark:text-white/35">
-              <Package className="h-7 w-7" />
+            <span className="flex h-full w-full items-center justify-center text-white/35">
+              <Package className="h-5 w-5 sm:h-6 sm:w-6" />
             </span>
           )}
         </span>
 
-        <span className="min-w-0">
-          <span className="block truncate text-base font-bold text-gray-950 dark:text-white">
-            {item.name}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-start justify-between gap-2 sm:gap-3">
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-white sm:text-[15px]">
+                {item.name}
+              </span>
+              <span className="mt-0.5 block truncate text-[10.5px] font-medium text-white/42 sm:text-[11px]">
+                {item.episodeName}
+                {item.episodeCode ? ` · ${item.episodeCode}` : ""}
+              </span>
+            </span>
+            <span className="shrink-0 text-right">
+              <span className="block text-base font-bold leading-none tabular-nums text-white sm:text-lg">
+                {formatCurrency(item.currentPrice, "EUR")}
+              </span>
+              <span className="mt-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-white/32 sm:text-[9.5px]">
+                Current
+              </span>
+            </span>
           </span>
-          <span className="mt-1 block truncate text-xs font-medium text-gray-500 dark:text-white/45">
-            {item.episodeName}
-            {item.episodeCode ? ` / ${item.episodeCode}` : ""}
-          </span>
-          <span className="mt-2 flex flex-wrap gap-1.5">
-            <span className="rounded-full border border-blue-400/16 bg-blue-400/[0.08] px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:text-blue-200">
+          <span className="mt-1.5 flex flex-wrap items-center gap-1 sm:mt-2 sm:gap-1.5">
+            <span className="rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/55">
               {item.categoryLabel}
             </span>
-            <span className="rounded-full border border-black/8 bg-black/[0.035] px-2 py-0.5 text-[10px] font-semibold text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/50">
-              {item.ownedCount > 0 ? `x${item.ownedCount} owned` : "Not owned"}
-            </span>
+            {item.ownedCount > 0 ? (
+              <span className="rounded-md border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/45">
+                {item.ownedCount}× owned
+              </span>
+            ) : null}
             {reason ? (
-              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${reason.className}`}>
+              <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${reason.className}`}>
                 {reason.label}
               </span>
             ) : null}
@@ -244,50 +270,36 @@ function SealedMoverTile({
         </span>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <div className="rounded-xl border border-emerald-400/14 bg-emerald-400/[0.07] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700/70 dark:text-emerald-200/65">
-            Current
-          </p>
-          <p className="mt-1 text-lg font-bold tabular-nums text-gray-950 dark:text-white">
-            {formatCurrency(item.currentPrice, "EUR")}
-          </p>
-        </div>
-        <div className="rounded-xl border border-black/8 bg-black/[0.03] px-3 py-2 dark:border-white/8 dark:bg-white/[0.04]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
-            7D
-          </p>
-          <p className={`mt-1 text-lg font-bold tabular-nums ${toneClass(item.change7dPct)}`}>
+      <div className="mt-2.5 grid grid-cols-3 gap-x-2 border-t border-white/8 pt-2 sm:mt-3 sm:gap-x-3 sm:pt-2.5">
+        <div className="min-w-0">
+          <p className="text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">7D</p>
+          <p className={`mt-0.5 text-[12px] font-semibold tabular-nums sm:text-[13px] ${toneClass(item.change7dPct)}`}>
             {formatPercent(item.change7dPct)}
           </p>
         </div>
-        <div className="rounded-xl border border-black/8 bg-black/[0.03] px-3 py-2 dark:border-white/8 dark:bg-white/[0.04]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
-            30D
-          </p>
-          <p className={`mt-1 text-lg font-bold tabular-nums ${toneClass(item.change30dPct)}`}>
+        <div className="min-w-0">
+          <p className="text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">30D</p>
+          <p className={`mt-0.5 text-[12px] font-semibold tabular-nums sm:text-[13px] ${toneClass(item.change30dPct)}`}>
             {formatPercent(item.change30dPct)}
           </p>
         </div>
-        <div className="rounded-xl border border-black/8 bg-black/[0.03] px-3 py-2 dark:border-white/8 dark:bg-white/[0.04]">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
-            Low / Peak
-          </p>
-          <p className="mt-1 whitespace-nowrap text-sm font-bold tabular-nums text-gray-950 dark:text-white">
+        <div className="min-w-0">
+          <p className="text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">Low / Peak</p>
+          <p className="mt-0.5 whitespace-nowrap text-[12px] font-semibold tabular-nums text-white/82 sm:text-[13px]">
             {formatCurrency(item.lowPrice, "EUR")} / {formatCurrency(item.highPrice, "EUR")}
           </p>
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-2 border-t border-black/8 pt-3 text-xs font-semibold text-gray-500 dark:border-white/8 dark:text-white/45">
-        <span>
+      <div className="mt-2.5 flex items-center justify-between gap-2 text-[10px] font-medium text-white/35">
+        <span className="tabular-nums">
           {item.historyPoints.toLocaleString("en-US")} recent /{" "}
           {item.lifetimeHistoryPoints.toLocaleString("en-US")} lifetime
         </span>
         <Link
           href={`/deals?mode=sealed&productId=${encodeURIComponent(item.productId)}`}
           prefetch={false}
-          className="inline-flex items-center gap-1 rounded-lg border border-black/8 px-2.5 py-1.5 text-white/75 transition-colors hover:bg-black/[0.035] dark:border-white/8 dark:text-white/70 dark:hover:bg-white/[0.05]"
+          className="inline-flex items-center gap-1 rounded-md border border-white/8 px-2 py-1 font-semibold text-white/60 transition-colors hover:bg-white/[0.05] hover:text-white/80"
           onClick={(event) => event.stopPropagation()}
         >
           Deals
@@ -296,7 +308,7 @@ function SealedMoverTile({
       </div>
     </article>
   );
-}
+});
 
 export default function SealedMoversBrowser({ data }: Props) {
   const [search, setSearch] = useState("");
@@ -305,6 +317,7 @@ export default function SealedMoversBrowser({ data }: Props) {
   const [focusFilter, setFocusFilter] = useState<SealedFocusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState<SealedModalProductData | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
 
@@ -350,6 +363,48 @@ export default function SealedMoversBrowser({ data }: Props) {
     sortKey,
   ]);
 
+  const [renderState, setRenderState] = useState({ key: "", limit: INITIAL_SEALED_RENDER_COUNT });
+  const renderKey = `${visibleMovers.length}:${visibleMovers[0]?.productId ?? ""}:${
+    visibleMovers[visibleMovers.length - 1]?.productId ?? ""
+  }:${sortKey}:${direction}`;
+  const renderLimit =
+    renderState.key === renderKey ? renderState.limit : INITIAL_SEALED_RENDER_COUNT;
+  const renderedMovers = useMemo(
+    () => visibleMovers.slice(0, renderLimit),
+    [renderLimit, visibleMovers]
+  );
+  const hasMoreMovers = renderLimit < visibleMovers.length;
+
+  useEffect(() => {
+    if (!hasMoreMovers) return;
+    const loadMoreElement = loadMoreRef.current;
+    if (!loadMoreElement) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setRenderState((current) => {
+          const currentLimit =
+            current.key === renderKey ? current.limit : INITIAL_SEALED_RENDER_COUNT;
+          const nextLimit = Math.min(
+            currentLimit + SEALED_RENDER_BATCH_SIZE,
+            visibleMovers.length
+          );
+          if (current.key === renderKey && nextLimit === current.limit) return current;
+          return { key: renderKey, limit: nextLimit };
+        });
+      },
+      { rootMargin: "700px 0px" }
+    );
+
+    observer.observe(loadMoreElement);
+    return () => observer.disconnect();
+  }, [hasMoreMovers, renderKey, renderLimit, visibleMovers.length]);
+
+  const handleOpenSealedProduct = useCallback((item: SealedMoverItem) => {
+    setSelectedProduct(buildSealedProductData(item));
+  }, []);
+
   const hasActiveControls =
     search.trim().length > 0 ||
     direction !== "all" ||
@@ -374,7 +429,7 @@ export default function SealedMoversBrowser({ data }: Props) {
   ];
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-4 sm:space-y-6">
       <section>
         <SectionHeader
           eyebrow="Sealed Market"
@@ -503,15 +558,27 @@ export default function SealedMoversBrowser({ data }: Props) {
             </p>
           </div>
         ) : (
-          <div className="grid auto-rows-fr items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {visibleMovers.map((item) => (
-              <SealedMoverTile
-                key={item.productId}
-                item={item}
-                onOpen={(selected) => setSelectedProduct(buildSealedProductData(selected))}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid auto-rows-fr items-stretch gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3 2xl:grid-cols-4">
+              {renderedMovers.map((item) => (
+                <SealedMoverTile
+                  key={item.productId}
+                  item={item}
+                  onOpen={handleOpenSealedProduct}
+                />
+              ))}
+            </div>
+            {hasMoreMovers ? (
+              <div
+                ref={loadMoreRef}
+                className="mt-4 flex h-10 items-center justify-center text-xs font-semibold text-white/35"
+                aria-live="polite"
+              >
+                Loading more products ({renderedMovers.length.toLocaleString("en-US")} /{" "}
+                {visibleMovers.length.toLocaleString("en-US")})
+              </div>
+            ) : null}
+          </>
         )}
       </section>
 

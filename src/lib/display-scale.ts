@@ -41,9 +41,9 @@ const SEALED_PRODUCT_TRACK: TrackScale = {
 const MOBILE_SEALED_PRODUCT_COLUMNS = 2;
 
 const RICH_MOVER_TRACK: TrackScale = {
-  small: { normal: 360, wide: 420 },
-  medium: { normal: 460, wide: 540 },
-  large: { normal: 620, wide: 720 },
+  small: { normal: 300, wide: 330 },
+  medium: { normal: 360, wide: 410 },
+  large: { normal: 440, wide: 520 },
 };
 
 const DETAIL_MODAL_MEDIA: Record<ModalSize, { imagePx: number; mediaWidth: string }> = {

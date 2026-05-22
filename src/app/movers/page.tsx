@@ -574,9 +574,9 @@ export default async function MoversPage({
       : [];
   return (
     <div
-      className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8"
+      className="page-container mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-8 lg:px-8"
     >
-      <div className="flex w-full flex-col gap-5 sm:gap-6">
+      <div className="flex w-full flex-col gap-3 sm:gap-6">
         <div className="min-w-0">
           <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
             {modeCopy.title}

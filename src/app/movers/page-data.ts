@@ -27,23 +27,71 @@ export {
   normalizeMoversScope,
 };
 
-const MOVERS_PAGE_CACHE_MS = 15_000;
+// Fresh window: callers within this TTL get a no-op cache hit.
+const MOVERS_FRESH_TTL_MS = 60_000;
+// Stale window: callers up to this age get the stale value immediately while a
+// background refresh refills the cache. Anything older blocks on a fresh fetch.
+const MOVERS_STALE_TTL_MS = 5 * 60_000;
+
+interface CachedMoversEntry<T> {
+  /** Absolute timestamp at which the entry stops being fresh. */
+  expiresAt: number;
+  /** Absolute timestamp at which the entry stops being usable at all. */
+  staleAt: number;
+  promise: Promise<T>;
+  refreshing: boolean;
+}
 
 const moversPageCache = new Map<
   string,
-  {
-    expiresAt: number;
-    promise: Promise<CollectionMoversData | SealedMoversData>;
-  }
+  CachedMoversEntry<CollectionMoversData | SealedMoversData>
 >();
 
 const valueDriversPageCache = new Map<
   string,
-  {
-    expiresAt: number;
-    promise: Promise<CollectionValueDriversData>;
-  }
+  CachedMoversEntry<CollectionValueDriversData>
 >();
+
+function storeCachedEntry<T>(
+  cache: Map<string, CachedMoversEntry<T>>,
+  key: string,
+  promise: Promise<T>
+): CachedMoversEntry<T> {
+  const now = Date.now();
+  const entry: CachedMoversEntry<T> = {
+    expiresAt: now + MOVERS_FRESH_TTL_MS,
+    staleAt: now + MOVERS_STALE_TTL_MS,
+    promise,
+    refreshing: false,
+  };
+  cache.set(key, entry);
+  promise.catch(() => {
+    if (cache.get(key) === entry) {
+      cache.delete(key);
+    }
+  });
+  return entry;
+}
+
+function refreshInBackground<T>(
+  cache: Map<string, CachedMoversEntry<T>>,
+  key: string,
+  staleEntry: CachedMoversEntry<T>,
+  fetcher: () => Promise<T>
+) {
+  if (staleEntry.refreshing) return;
+  staleEntry.refreshing = true;
+  const refreshed = fetcher();
+  refreshed
+    .then(() => {
+      // Replace the entry with a fresh promise resolving to the new value.
+      storeCachedEntry(cache, key, refreshed);
+    })
+    .catch(() => {
+      // Keep the stale entry; let it expire naturally so the next caller blocks.
+      staleEntry.refreshing = false;
+    });
+}
 
 function getCachedMovers(
   activePriceSource: ReturnType<typeof normalizeMoversPriceSource>,
@@ -55,26 +103,21 @@ function getCachedMovers(
   const key = `${userId}:${game}:${activePriceSource}:${activeScope}:${activeItemScope}`;
   const now = Date.now();
   const cached = moversPageCache.get(key);
+  const fetcher = () =>
+    activeScope === "sealed"
+      ? getSealedMovers(activeItemScope, userId, game)
+      : getMovers(activePriceSource, activeScope, activeItemScope, userId, game);
 
   if (cached && cached.expiresAt > now) {
     return cached.promise;
   }
 
-  const promise =
-    activeScope === "sealed"
-      ? getSealedMovers(activeItemScope, userId, game)
-      : getMovers(activePriceSource, activeScope, activeItemScope, userId, game);
-  moversPageCache.set(key, {
-    expiresAt: now + MOVERS_PAGE_CACHE_MS,
-    promise,
-  });
-  promise.catch(() => {
-    if (moversPageCache.get(key)?.promise === promise) {
-      moversPageCache.delete(key);
-    }
-  });
+  if (cached && cached.staleAt > now) {
+    refreshInBackground(moversPageCache, key, cached, fetcher);
+    return cached.promise;
+  }
 
-  return promise;
+  return storeCachedEntry(moversPageCache, key, fetcher()).promise;
 }
 
 function getCachedValueDrivers(
@@ -85,23 +128,18 @@ function getCachedValueDrivers(
   const key = `${userId}:${game}:value-drivers:${scope}`;
   const now = Date.now();
   const cached = valueDriversPageCache.get(key);
+  const fetcher = () => getCollectionValueDriversData(userId, scope, game);
 
   if (cached && cached.expiresAt > now) {
     return cached.promise;
   }
 
-  const promise = getCollectionValueDriversData(userId, scope, game);
-  valueDriversPageCache.set(key, {
-    expiresAt: now + MOVERS_PAGE_CACHE_MS,
-    promise,
-  });
-  promise.catch(() => {
-    if (valueDriversPageCache.get(key)?.promise === promise) {
-      valueDriversPageCache.delete(key);
-    }
-  });
+  if (cached && cached.staleAt > now) {
+    refreshInBackground(valueDriversPageCache, key, cached, fetcher);
+    return cached.promise;
+  }
 
-  return promise;
+  return storeCachedEntry(valueDriversPageCache, key, fetcher()).promise;
 }
 
 export async function loadMoversPageData(

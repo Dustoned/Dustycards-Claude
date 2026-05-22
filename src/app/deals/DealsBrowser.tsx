@@ -415,7 +415,6 @@ function ResultSkeleton() {
 
 function ListingCard({
   listing,
-  marketplaceId,
   busy,
   onConfirmMatch,
   onIgnoreMatch,
@@ -423,7 +422,6 @@ function ListingCard({
   onOpenCard,
 }: {
   listing: DealListing;
-  marketplaceId: string;
   busy: boolean;
   onConfirmMatch: (listing: DealListing, cardId: string) => Promise<void>;
   onIgnoreMatch: (listing: DealListing) => Promise<void>;
@@ -497,7 +495,7 @@ function ListingCard({
   }, [cardQuery, pickerOpen]);
 
   return (
-    <article className="binder-panel grid min-w-0 gap-3 rounded-2xl p-3 sm:grid-cols-[96px_minmax(0,1fr)]">
+    <article className="binder-panel grid min-w-0 grid-cols-[68px_minmax(0,1fr)] gap-2.5 rounded-2xl p-2.5 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-3 sm:p-3">
       <a
         href={listing.itemWebUrl}
         target="_blank"
@@ -530,9 +528,9 @@ function ListingCard({
             >
               {listing.title}
             </a>
-            <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] font-medium text-white/45">
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-white/40">
               <span
-                className={`inline-flex items-center rounded-full border px-2 py-0.5 font-bold ${languageBadgeClass(
+                className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${languageBadgeClass(
                   language
                 )}`}
                 title={language.reason}
@@ -540,7 +538,7 @@ function ListingCard({
                 {language.label}
               </span>
               <span
-                className={`inline-flex items-center rounded-full border px-2 py-0.5 font-bold ${conditionBadgeClass(
+                className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${conditionBadgeClass(
                   cardCondition
                 )}`}
                 title={cardCondition.reason}
@@ -549,21 +547,22 @@ function ListingCard({
               </span>
               {listing.isGradedListing && (
                 <span
-                  className="inline-flex items-center rounded-full border border-violet-400/20 bg-violet-400/[0.1] px-2 py-0.5 font-bold text-violet-100"
+                  className="inline-flex items-center rounded-md border border-violet-400/20 bg-violet-400/[0.1] px-1.5 py-0.5 text-[10px] font-bold text-violet-100"
                   title={listing.gradingReason ?? "Graded-looking listing"}
                 >
                   Graded
                 </span>
               )}
-              {listing.condition && <span>{listing.condition}</span>}
-              {listing.locationCountry && <span>{listing.locationCountry}</span>}
-              <span>{listing.buyingOptions.join(" / ") || "Listing"}</span>
-              <span>{marketplaceId}</span>
+              <span className="truncate">
+                {[listing.buyingOptions.join(" / ") || "Listing", listing.locationCountry]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
             </div>
           </div>
 
           <span
-            className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold tabular-nums ${dealToneClass(
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold tabular-nums sm:px-2.5 sm:py-1 sm:text-xs ${dealToneClass(
               listing.dealTone
             )}`}
           >
@@ -571,39 +570,39 @@ function ListingCard({
           </span>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
           <span
-            className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${matchBadgeClass(
+            className={`inline-flex max-w-full items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold sm:gap-1.5 sm:rounded-full sm:px-2.5 sm:py-1 sm:text-[11px] ${matchBadgeClass(
               match
             )}`}
             title={match.reason}
           >
             {match.status === "matched" ? (
-              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              <CheckCircle2 className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" />
             ) : (
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <AlertTriangle className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" />
             )}
             <span className="truncate">{matchLabel(match)}</span>
           </span>
-          <span className="text-[11px] font-semibold text-white/35">
+          <span className="text-[10px] font-semibold text-white/35 sm:text-[11px]">
             {match.confidence > 0 ? `${match.confidence}%` : "--"}
           </span>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
+        <div className="mt-2.5 grid grid-cols-3 gap-x-2 border-t border-white/8 pt-2 sm:mt-3 sm:gap-x-3 sm:pt-2.5">
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-white/30 sm:text-[9.5px]">
               Total
             </p>
-            <p className="mt-1 text-base font-bold tabular-nums text-white">
+            <p className="mt-0.5 text-[13px] font-bold tabular-nums text-white sm:text-sm">
               {totalLabel}
             </p>
           </div>
-          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-white/30 sm:text-[9.5px]">
               Versus
             </p>
-            <p className="mt-1 text-base font-bold tabular-nums text-white">
+            <p className="mt-0.5 whitespace-nowrap text-[13px] font-bold tabular-nums text-white/82 sm:text-sm">
               {listing.differenceEur == null
                 ? "--"
                 : `${listing.differenceEur >= 0 ? "+" : "-"}${formatCurrency(
@@ -612,28 +611,28 @@ function ListingCard({
                   )}`}
             </p>
           </div>
-          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-white/30 sm:text-[9.5px]">
               Base
             </p>
-            <p className="mt-1 whitespace-nowrap text-base font-bold tabular-nums text-white">
+            <p className="mt-0.5 whitespace-nowrap text-[13px] font-bold tabular-nums text-white/82 sm:text-sm">
               {formatCurrency(reference.valueEur, "EUR")}
             </p>
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="min-w-0 text-xs font-medium text-white/42">
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1.5 sm:mt-3 sm:gap-2">
+          <p className="min-w-0 text-[10.5px] font-medium text-white/42 sm:text-xs">
             {shippingLabel}
             {listing.seller.username ? ` / ${listing.seller.username}` : ""}
             {listing.seller.feedbackPercentage ? ` / ${listing.seller.feedbackPercentage}%` : ""}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-2">
             {match.card && (
               <button
                 type="button"
                 onClick={() => onOpenCard(match.card!.id)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05]"
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/8 px-2 py-1 text-[11px] font-semibold text-white/68 transition-colors hover:bg-white/[0.05] sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
               >
                 DustyCards
               </button>
@@ -641,7 +640,7 @@ function ListingCard({
             <button
               type="button"
               onClick={() => setPickerOpen((current) => !current)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05]"
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/8 px-2 py-1 text-[11px] font-semibold text-white/68 transition-colors hover:bg-white/[0.05] sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
             >
               Change
             </button>
@@ -649,7 +648,7 @@ function ListingCard({
               type="button"
               disabled={busy}
               onClick={() => void onIgnoreMatch(listing)}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-50"
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/8 px-2 py-1 text-[11px] font-semibold text-white/68 transition-colors hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-50 sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
             >
               Ignore
             </button>
@@ -658,20 +657,20 @@ function ListingCard({
                 type="button"
                 disabled={busy}
                 onClick={() => void onResetMatch(listing)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-white/8 px-3 py-2 text-xs font-semibold text-white/68 transition-colors hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-50"
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/8 px-2 py-1 text-[11px] font-semibold text-white/68 transition-colors hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-50 sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
                 title="Reset manual match"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </button>
             )}
             <a
               href={listing.itemWebUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-gray-950 transition-colors hover:bg-white/86"
+              className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-white px-2 py-1 text-[11px] font-semibold text-gray-950 transition-colors hover:bg-white/86 sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
             >
               Open
-              <ExternalLink className="h-3.5 w-3.5" />
+              <ExternalLink className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
             </a>
           </div>
         </div>
@@ -1429,12 +1428,11 @@ export default function DealsBrowser() {
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </div>
-            <div className="grid gap-3 xl:grid-cols-2">
+            <div className="grid gap-2.5 sm:gap-3 xl:grid-cols-2">
               {visibleData.listings.map((listing, index) => (
                 <ListingCard
                   key={`${listing.itemId}-${index}`}
                   listing={listing}
-                  marketplaceId={visibleData.marketplaceId}
                   busy={
                     overrideBusyItemId === listing.itemId ||
                     (listing.cardMatch.card ? loadingCardId === listing.cardMatch.card.id : false)

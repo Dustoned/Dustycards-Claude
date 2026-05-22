@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.13",
+    releasedAt: "May 23, 2026",
+    title: "Mobile market density",
+    summary: "DustyCards 3.2.13 makes Market and Deals easier to browse on phones while keeping market data warm for repeat visits.",
+    tone: "improved",
+    highlights: [
+      "Deal listings now use a tighter mobile card layout with cleaner badges, compact price metrics, and less repeated marketplace text.",
+      "Raw, graded, target, and sealed mover tiles are more compact so more market cards fit on screen without truncating key prices.",
+      "Sealed movers now render in batches and use a stale-while-refresh cache so large market pages feel lighter after the first load.",
+    ],
+  },
+  {
     version: "3.2.12",
     releasedAt: "May 22, 2026",
     title: "Binder density and mobile price fit",

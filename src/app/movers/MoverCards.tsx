@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { memo } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
-import { BarChart3, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
@@ -26,8 +26,6 @@ interface SpotlightConfig {
   item: CollectionMoverItem | null;
   windowKey: "7d" | "30d";
 }
-
-type TrendTone = "negative" | "positive" | "neutral";
 
 function formatPercent(value: number | null | undefined): string {
   if (value == null) {
@@ -101,35 +99,6 @@ function formatOptionalScore(value: number | null | undefined): string {
   return value == null ? "--" : formatScoreValue(value);
 }
 
-function formatShortDate(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-  }).format(new Date(value));
-}
-
-function getTrendTone(value: number | null | undefined): TrendTone {
-  if (value == null || value === 0) {
-    return "neutral";
-  }
-
-  return value < 0 ? "negative" : "positive";
-}
-
-function sourcePillClasses(source: CollectionMoverItem["source"], toneValue?: number | null) {
-  if (getTrendTone(toneValue) === "negative") {
-    return "border-rose-400/18 bg-rose-400/[0.08] text-rose-200";
-  }
-
-  if (source === "graded") {
-    return "border-amber-400/18 bg-amber-400/[0.08] text-amber-200";
-  }
-
-  return source === "tcgplayer"
-    ? "border-blue-400/18 bg-blue-400/[0.08] text-blue-200"
-    : "border-emerald-400/18 bg-emerald-400/[0.08] text-emerald-200";
-}
-
 function getToneClass(value: number | null | undefined): string {
   if (value == null) {
     return "text-white/45";
@@ -144,35 +113,6 @@ function getToneClass(value: number | null | undefined): string {
   }
 
   return "text-white/45";
-}
-
-
-function getCurrentPanelClasses(tone: TrendTone): {
-  panel: string;
-  label: string;
-  icon: string;
-} {
-  if (tone === "negative") {
-    return {
-      panel: "border-rose-400/14 bg-rose-400/[0.08]",
-      label: "text-rose-700/80 dark:text-rose-200/72",
-      icon: "text-rose-700/60 dark:text-rose-200/60",
-    };
-  }
-
-  if (tone === "positive") {
-    return {
-      panel: "border-emerald-400/14 bg-emerald-400/[0.08]",
-      label: "text-emerald-700/80 dark:text-emerald-200/72",
-      icon: "text-emerald-700/60 dark:text-emerald-200/60",
-    };
-  }
-
-  return {
-    panel: "border-white/8 bg-white/[0.04]",
-    label: "text-white/34",
-    icon: "text-white/34",
-  };
 }
 
 
@@ -363,6 +303,13 @@ function MoverReasonChips({
   );
 }
 
+function metricValueClass(toneValue?: number | null): string {
+  if (toneValue == null) return "text-white/82";
+  if (toneValue < 0) return "text-rose-300";
+  if (toneValue > 0) return "text-emerald-300";
+  return "text-white/82";
+}
+
 function CompactMetric({
   label,
   value,
@@ -373,11 +320,11 @@ function CompactMetric({
   toneValue?: number | null;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.045] px-3 py-2">
-      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-white/34">
+    <div className="min-w-0">
+      <p className="truncate text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">
         {label}
       </p>
-      <p className={`mt-1 whitespace-nowrap text-sm font-bold tabular-nums ${getToneClass(toneValue)}`}>
+      <p className={`mt-0.5 whitespace-nowrap text-[13px] font-semibold tabular-nums ${metricValueClass(toneValue)}`}>
         {value}
       </p>
     </div>
@@ -481,20 +428,12 @@ const MoverTile = memo(function MoverTile({
 }) {
   const open = () => onOpen(item.cardId);
   const mode = displayMode;
-  const trendTone = getTrendTone(mode === "target" ? item.moverScore : item.movementScore);
-  const currentPanelClasses = getCurrentPanelClasses(trendTone);
+  const isTarget = mode === "target";
   const compactMetrics = buildCompactMetrics(item, mode);
-  const primaryLabel =
-    mode === "target" ? "Grade Score" : item.gradedLabel ? `Current ${item.gradedLabel}` : "Current";
-  const primaryValue =
-    mode === "target" ? formatScoreValue(item.moverScore) : formatTileCurrency(item.currentPrice, item.currency);
-  const primaryHint =
-    mode === "target" && item.grading
-      ? `${formatCurrency(item.grading.rawPrice, "EUR")} raw to ${formatTileCurrency(
-          item.grading.gradedPrice,
-          "EUR"
-        )} graded`
-      : `${item.historyPoints} recent / ${item.lifetimeHistoryPoints} lifetime points`;
+  const primaryLabel = isTarget ? "Grade score" : item.gradedLabel ?? "Current";
+  const primaryValue = isTarget
+    ? formatScoreValue(item.moverScore)
+    : formatTileCurrency(item.currentPrice, item.currency);
 
   return (
     <article
@@ -503,23 +442,23 @@ const MoverTile = memo(function MoverTile({
       onClick={open}
       onKeyDown={(event) => handleOpenKey(event, open)}
       aria-label={`Open details for ${item.name}`}
-      className="group relative flex h-full cursor-pointer flex-col rounded-2xl border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025))] p-3 shadow-sm shadow-black/25 outline-none transition hover:-translate-y-0.5 hover:border-white/16 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+      className="group relative flex h-full cursor-pointer flex-col rounded-2xl border border-white/8 bg-white/[0.035] p-2.5 outline-none transition-colors hover:border-white/14 hover:bg-white/[0.055] focus-visible:ring-2 focus-visible:ring-emerald-400/50 sm:p-3"
     >
       {isLoading ? (
-        <div className="absolute right-4 top-4 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/80 text-white shadow-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="absolute right-2.5 top-2.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/80 text-white sm:h-7 sm:w-7">
+          <Loader2 className="h-3.5 w-3.5 animate-spin sm:h-4 sm:w-4" />
         </div>
       ) : null}
 
-      <div className="flex items-start gap-3">
-        <div className="relative h-24 w-[4.4rem] shrink-0 bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]">
+      <div className="flex items-start gap-2.5 sm:gap-3">
+        <div className="relative h-[4.5rem] w-[3.2rem] shrink-0 bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.22)] sm:h-[5.25rem] sm:w-[3.7rem]">
           {item.imageUrl ? (
             <Image
               src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
               alt={item.name}
               fill
-              className="object-contain transition-transform duration-300 group-hover:scale-[1.03]"
-              sizes="80px"
+              className="object-contain"
+              sizes="(max-width: 640px) 52px, 64px"
               unoptimized
             />
           ) : (
@@ -530,19 +469,19 @@ const MoverTile = memo(function MoverTile({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start justify-between gap-2 sm:gap-3">
             <div className="min-w-0">
-              <p className="block max-w-full truncate pr-1 text-base font-semibold leading-tight text-white transition-colors group-hover:text-emerald-200">
+              <p className="block max-w-full truncate text-sm font-semibold leading-tight text-white sm:text-[15px]">
                 {item.name}
               </p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/46">
-                <span>{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
-                <span>/</span>
+              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10.5px] text-white/42 sm:text-[11px]">
+                <span className="shrink-0 tabular-nums">{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
+                <span className="text-white/20">·</span>
                 <Link
                   href={getExpansionHref(item.episodeId)}
                   prefetch={false}
                   onClick={stopCardOpen}
-                  className="truncate transition-colors hover:text-white hover:underline underline-offset-2"
+                  className="truncate transition-colors hover:text-white/80"
                 >
                   {item.episodeName}
                   {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
@@ -550,79 +489,42 @@ const MoverTile = memo(function MoverTile({
               </div>
             </div>
 
-            <span
-              className={`inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${sourcePillClasses(
-                item.source,
-                item.movementScore
-              )}`}
-            >
-              {mode === "target" ? "Target" : item.sourceLabel}
-            </span>
+            <div className="shrink-0 text-right">
+              <p className="text-base font-bold leading-none tabular-nums text-white sm:text-lg">
+                {primaryValue}
+              </p>
+              <p className="mt-1 text-[9px] font-medium uppercase tracking-[0.12em] text-white/32 sm:text-[9.5px]">
+                {primaryLabel}
+              </p>
+            </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <MoverReasonChips item={item} mode={mode} />
+          <div className="mt-1.5 flex flex-wrap items-center gap-1 sm:mt-2 sm:gap-1.5">
             {item.normalizedRarity ? (
               <span
-                className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${rarityBadge(
+                className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold ${rarityBadge(
                   item.normalizedRarity
                 )}`}
               >
-              {item.normalizedRarity}
+                {item.normalizedRarity}
               </span>
             ) : null}
-            <span
-              className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${
-                item.ownedCount > 0
-                  ? "border-white/10 bg-white/[0.05] text-white/60"
-                  : "border-white/8 bg-white/[0.035] text-white/40"
-              }`}
-            >
-              {item.ownedCount > 0 ? `x${item.ownedCount} owned` : "Not owned"}
-            </span>
-            {item.gradedLabel ? (
-              <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-amber-200">
-                {item.gradedLabel}
+            <MoverReasonChips item={item} mode={mode} />
+            {mode === "target" ? (
+              <span className="inline-flex rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/45">
+                Target
               </span>
             ) : null}
-            {mode === "raw" && item.gradedPrices.length > 0 ? (
-              <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-amber-200">
-                {item.gradedPrices.length} graded
-              </span>
-            ) : null}
-            {item.tcggoScore?.score != null ? (
-              <span className="inline-flex rounded-full border border-sky-400/16 bg-sky-400/[0.08] px-2.5 py-1 text-[11px] font-semibold tabular-nums text-sky-200">
-                TCGGO {formatScoreValue(item.tcggoScore.score)}
-                {item.tcggoScore.tier ? ` ${item.tcggoScore.tier}` : ""}
+            {item.ownedCount > 0 ? (
+              <span className="inline-flex rounded-md border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/45">
+                {item.ownedCount}× owned
               </span>
             ) : null}
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
-            <div className={`rounded-2xl border px-3 py-3 ${currentPanelClasses.panel}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p
-                    className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${currentPanelClasses.label}`}
-                  >
-                    {primaryLabel}
-                  </p>
-                  <p className="mt-2 break-words text-xl font-bold leading-tight tabular-nums text-white sm:text-2xl">
-                    {primaryValue}
-                  </p>
-                </div>
-                <BarChart3 className={`mt-0.5 h-4 w-4 shrink-0 ${currentPanelClasses.icon}`} />
-              </div>
-              <p className="mt-1 text-xs text-white/46">
-                Updated {formatShortDate(item.latestFetchedAt)}
-              </p>
-              <p className="mt-2 line-clamp-2 text-[11px] text-white/42">
-                {primaryHint}
-              </p>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              {compactMetrics.map((metric) => (
+          {compactMetrics.length > 0 ? (
+            <div className="mt-2.5 grid grid-cols-4 gap-x-2 gap-y-1.5 border-t border-white/8 pt-2 sm:mt-3 sm:gap-x-3 sm:gap-y-2 sm:pt-2.5">
+              {compactMetrics.slice(0, 4).map((metric) => (
                 <CompactMetric
                   key={metric.label}
                   label={metric.label}
@@ -631,7 +533,7 @@ const MoverTile = memo(function MoverTile({
                 />
               ))}
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </article>
@@ -667,73 +569,73 @@ function MoverSpotlightCard({
       tabIndex={item ? 0 : undefined}
       onClick={item ? open : undefined}
       onKeyDown={item ? (event) => handleOpenKey(event, open) : undefined}
-      className={`relative rounded-[24px] border border-black/8 bg-black/[0.03] p-4 shadow-lg shadow-black/5 outline-none transition dark:border-white/8 dark:bg-white/[0.04] ${
+      className={`relative rounded-2xl border border-white/8 bg-white/[0.035] p-3.5 outline-none transition-colors ${
         item
-          ? "cursor-pointer hover:-translate-y-0.5 hover:border-white/16 hover:bg-black/[0.045] focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:hover:border-white/16 dark:hover:bg-white/[0.06]"
+          ? "cursor-pointer hover:border-white/14 hover:bg-white/[0.055] focus-visible:ring-2 focus-visible:ring-emerald-400/50"
           : ""
       }`}
     >
       {isLoading ? (
-        <div className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-white/75 shadow-sm dark:border-white/10 dark:bg-black/80 dark:text-white">
+        <div className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-black/80 text-white">
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
       ) : null}
 
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/38">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/38">
         {title}
       </p>
 
       {item ? (
         <div className="mt-3 flex items-start gap-3">
-          <div className="relative h-[4.5rem] w-14 shrink-0 bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.16)]">
+          <div className="relative h-[4.25rem] w-[3rem] shrink-0 bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)]">
             {item.imageUrl ? (
               <Image
                 src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
                 alt={item.name}
                 fill
                 className="object-contain"
-                sizes="56px"
+                sizes="48px"
                 unoptimized
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
+              <div className="flex h-full w-full items-center justify-center text-xs text-white/35">
                 {item.name.slice(0, 2)}
               </div>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-semibold text-white dark:text-white">
+            <p className="truncate text-[15px] font-semibold text-white">
               {item.name}
             </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-white/46">
-              <span>{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
-              <span>/</span>
+            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-white/42">
+              <span className="shrink-0 tabular-nums">{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
+              <span className="text-white/20">·</span>
               <Link
                 href={getExpansionHref(item.episodeId)}
                 prefetch={false}
                 onClick={stopCardOpen}
-                className="truncate transition-colors hover:text-white hover:underline underline-offset-2 dark:hover:text-white"
+                className="truncate transition-colors hover:text-white/80"
               >
                 {item.episodeName}
                 {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
               </Link>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {item.normalizedRarity ? (
                 <span
-                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${rarityBadge(
+                  className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold ${rarityBadge(
                     item.normalizedRarity
                   )}`}
                 >
                   {item.normalizedRarity}
                 </span>
               ) : null}
-              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${sourcePillClasses(item.source)}`}>
+              <span className="inline-flex rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/50">
                 {item.sourceLabel}
               </span>
               {item.gradedLabel ? (
-                <span className="inline-flex rounded-full border border-amber-400/16 bg-amber-400/[0.08] px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:text-amber-200">
+                <span className="inline-flex rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/50">
                   {item.gradedLabel}
                 </span>
               ) : null}
@@ -741,19 +643,19 @@ function MoverSpotlightCard({
           </div>
 
           <div className="shrink-0 text-right">
-            <p className={`text-lg font-bold tabular-nums ${getToneClass(pct)}`}>
+            <p className={`text-lg font-bold leading-none tabular-nums ${getToneClass(pct)}`}>
               {formatPercent(pct)}
             </p>
-            <p className="mt-1 text-sm font-medium text-gray-500 dark:text-white/48">
+            <p className="mt-1 text-xs font-medium text-white/55">
               {formatDelta(delta, item.currency)}
             </p>
-            <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-gray-400 dark:text-white/32">
+            <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-white/30">
               {coveredDays != null ? `${coveredDays}d used` : "Recent"}
             </p>
           </div>
         </div>
       ) : (
-        <p className="mt-3 text-sm text-gray-500 dark:text-white/48">
+        <p className="mt-3 text-sm text-white/48">
           Not enough recent history yet to show a clear winner here.
         </p>
       )}
@@ -783,29 +685,29 @@ function PocketPreviewCard({
   reasonMode?: MoverDisplayMode;
 }) {
   return (
-    <article className="rounded-[24px] border border-black/8 bg-black/[0.03] p-4 shadow-lg shadow-black/5 dark:border-white/8 dark:bg-white/[0.04]">
+    <article className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/36">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/36">
             {eyebrow}
           </p>
-          <h2 className="mt-1 text-xl font-bold tracking-tight text-white dark:text-white">
+          <h2 className="mt-1 text-lg font-bold tracking-tight text-white">
             {title}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-gray-500 dark:text-white/48">{description}</p>
+          <p className="mt-1.5 max-w-2xl text-[13px] leading-snug text-white/48">{description}</p>
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-2xl font-bold tracking-tight text-white dark:text-white">
+          <p className="text-2xl font-bold tracking-tight tabular-nums text-white">
             {items.length.toLocaleString("en-US")}
           </p>
-          <p className="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-white/34">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-white/34">
             cards
           </p>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {items.slice(0, 4).map((item) => {
           const isLoading = loadingCardId === item.cardId;
           const displayScore = reasonMode === "target" ? item.moverScore : item.rankingScore;
@@ -815,10 +717,10 @@ function PocketPreviewCard({
               key={`${href}-${item.cardId}`}
               type="button"
               onClick={() => onOpenCard(item.cardId)}
-              className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-3 text-left outline-none transition hover:border-white/16 hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-emerald-400/60 dark:border-white/8 dark:bg-white/[0.05] dark:hover:border-white/16 dark:hover:bg-white/[0.07]"
+              className="min-w-0 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left outline-none transition-colors hover:border-white/14 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-emerald-400/50"
             >
               <div className="flex items-center justify-between gap-3">
-                <p className="truncate text-sm font-semibold text-white dark:text-white">
+                <p className="truncate text-[13px] font-semibold text-white">
                   {item.name}
                 </p>
                 <span className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${getToneClass(displayScore)}`}>
@@ -827,12 +729,12 @@ function PocketPreviewCard({
                   {displayScore.toFixed(1)}
                 </span>
               </div>
-              <div className="mt-1 flex items-center justify-between gap-3 text-xs text-gray-500 dark:text-white/46">
+              <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-white/45">
                 <span className="truncate">
                   {item.episodeName}
                   {item.episodeCode ? ` (${item.episodeCode})` : ""}
                 </span>
-                <span>{formatCurrency(item.currentPrice, item.currency)}</span>
+                <span className="tabular-nums">{formatCurrency(item.currentPrice, item.currency)}</span>
               </div>
               {(() => {
                 const reasons = getMoverReasons(item, reasonMode);
@@ -842,7 +744,7 @@ function PocketPreviewCard({
                     {reasons.map((reason) => (
                       <span
                         key={reason.label}
-                        className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold tabular-nums ${reasonChipClass(
+                        className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${reasonChipClass(
                           reason.tone
                         )}`}
                       >
@@ -935,7 +837,7 @@ export function MoverGrid({
 }) {
   return (
     <div
-      className="grid auto-rows-fr items-stretch gap-4"
+      className="grid auto-rows-fr items-stretch gap-2.5 sm:gap-3 lg:gap-4"
       style={{
         gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
         justifyContent: "stretch",
