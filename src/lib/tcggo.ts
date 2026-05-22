@@ -19,6 +19,7 @@ const MAX_RETRY_ATTEMPTS = 2;
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 500, 502, 503, 504]);
 const HISTORY_PAGE_FETCH_DELAY_MS = 250;
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
+const CARD_PAGE_FETCH_SIZE = 150;
 export const TCGGO_REQUEST_CONCURRENCY = 8;
 
 // RapidAPI plan caps requests at 300 per rolling minute. We track outgoing
@@ -1149,7 +1150,7 @@ export async function fetchCardsForEpisode(
   const firstPage = await apiFetch<{
     data: RawCard[];
     paging?: { total?: number };
-  }>(`/${gamePath}/episodes/${remoteEpisodeId}/cards?page=1&per_page=100`);
+  }>(`/${gamePath}/episodes/${remoteEpisodeId}/cards?page=1&per_page=${CARD_PAGE_FETCH_SIZE}`);
 
   const all: NormalizedCard[] = filterRawCardsForGame(firstPage.data ?? [], game).map((card) =>
     normalizeCard(card, tcgdexImageLookup, game)
@@ -1165,7 +1166,11 @@ export async function fetchCardsForEpisode(
       apiFetch<{
         data: RawCard[];
         paging?: { total?: number };
-      }>(`/${gamePath}/episodes/${remoteEpisodeId}/cards?page=${index + 2}&per_page=100`)
+      }>(
+        `/${gamePath}/episodes/${remoteEpisodeId}/cards?page=${
+          index + 2
+        }&per_page=${CARD_PAGE_FETCH_SIZE}`
+      )
     )
   );
 

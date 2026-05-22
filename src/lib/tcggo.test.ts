@@ -108,6 +108,34 @@ describe("TCGGO request limiter", () => {
       });
     }
   });
+
+  it("fetches cards with an over-100 page size to avoid empty first pages from TCGGO", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: 35127,
+              name: "Mega Greninja ex",
+              card_number: 100,
+              prices: {},
+            },
+          ],
+          paging: { current: 1, total: 1, per_page: 100 },
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const cards = await fetchCardsForEpisode("413");
+
+    expect(cards).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/pokemon/episodes/413/cards?page=1&per_page=150"),
+      expect.any(Object)
+    );
+  });
 });
 
 describe("TCGGO price extraction", () => {
