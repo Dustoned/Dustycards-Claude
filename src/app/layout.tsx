@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { Geist } from "next/font/google";
 import Link from "next/link";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
-import AppBackButton from "@/components/AppBackButton";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import HeaderSearch from "@/components/HeaderSearch";
 import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/DesktopSidebar";
@@ -213,7 +212,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/" prefetch={false} className={`shrink-0 font-bold tracking-tight text-white transition-opacity hover:opacity-75 [font-size:var(--ui-brand-size)] ${currentUser ? "xl:hidden" : ""}`}>
                 DustyCards
               </Link>
-              {currentUser ? <AppBackButton /> : null}
               {currentUser ? (
                 <>
                   <div className="flex-1 lg:hidden" />
