@@ -25,6 +25,7 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import type { CardSize } from "@/components/SettingsProvider";
+import { getCardImageClassName } from "@/lib/card-image-display";
 import {
   BGS_SUBGRADE_KEYS,
   formatBgsSubgradeName,
@@ -1207,7 +1208,7 @@ export function CardModalPreview({
                 src={getCachedImageUrl(card.image_url) ?? card.image_url}
                 alt={card.name}
                 fill
-                className="rounded-[4.75%] object-fill"
+                className={getCardImageClassName(card.image_url, "rounded-[4.75%] object-fill")}
                 sizes={imageSize}
                 loading="eager"
                 unoptimized
@@ -1558,7 +1559,7 @@ export function CardModalMobileShowcase({
                   src={getCachedImageUrl(card.image_url) ?? card.image_url}
                   alt={card.name}
                   fill
-                  className="rounded-[4.75%] object-fill"
+                  className={getCardImageClassName(card.image_url, "rounded-[4.75%] object-fill")}
                   sizes="58vw"
                   loading="eager"
                   priority
@@ -2455,7 +2456,7 @@ export function CardModalOwnedCopyPanel({
               alt={card.name}
               fill
               sizes="64px"
-              className="object-fill"
+              className={getCardImageClassName(card.image_url, "object-fill")}
               unoptimized
             />
           </div>

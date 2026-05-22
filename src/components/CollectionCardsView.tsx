@@ -17,6 +17,7 @@ import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import { SectionHeader } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getCardImageClassName } from "@/lib/card-image-display";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -1936,10 +1937,11 @@ export default function CollectionCardsView({
                   const baseImageClass = isGradedCard
                     ? "object-contain"
                     : "rounded-[4.75%] object-fill";
+                  const croppedImageClass = getCardImageClassName(item.image_url, baseImageClass);
                   const imageClass =
                     blurMissing && missing
-                      ? `${baseImageClass} blur-[2.5px] saturate-[0.72] opacity-55`
-                      : baseImageClass;
+                      ? `${croppedImageClass} blur-[2.5px] saturate-[0.72] opacity-55`
+                      : croppedImageClass;
                   const displayPrice = getCollectionItemPrice(item, primaryPriceSource);
                   const displayPriceCurrency = getCollectionItemPriceCurrency(
                     item,

@@ -10,6 +10,7 @@ import type { ModalCardData } from "@/components/card-modal/types";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import { getCardImageClassName } from "@/lib/card-image-display";
 import { getExpansionHref } from "@/lib/games";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
 import { rarityBadge } from "@/lib/rarity-styles";
@@ -1041,7 +1042,10 @@ export default function ExpansionView({
                           src={getCachedImageUrl(card.image_url) ?? card.image_url}
                           alt={card.name}
                           fill
-                          className="rounded-[4.75%] object-fill"
+                          className={getCardImageClassName(
+                            card.image_url,
+                            "rounded-[4.75%] object-fill"
+                          )}
                           sizes="68px"
                           loading={index < eagerImageCount ? "eager" : undefined}
                           unoptimized
@@ -1171,7 +1175,10 @@ export default function ExpansionView({
                                 src={getCachedImageUrl(card.image_url) ?? card.image_url}
                                 alt={card.name}
                                 fill
-                                className="rounded-[4.75%] object-fill"
+                                className={getCardImageClassName(
+                                  card.image_url,
+                                  "rounded-[4.75%] object-fill"
+                                )}
                                 sizes="48px"
                                 loading={index < eagerImageCount ? "eager" : undefined}
                                 unoptimized
@@ -1313,7 +1320,10 @@ export default function ExpansionView({
                       src={getCachedImageUrl(card.image_url) ?? card.image_url}
                       alt={card.name}
                       fill
-                      className="rounded-[4.75%] object-fill"
+                      className={getCardImageClassName(
+                        card.image_url,
+                        "rounded-[4.75%] object-fill"
+                      )}
                       sizes={cardTrackWidth}
                       loading={index < eagerImageCount ? "eager" : undefined}
                       unoptimized

@@ -34,6 +34,7 @@ import {
   getCardGridTemplateColumns,
   getCardGridTrackWidth,
 } from "@/lib/display-scale";
+import { getCardImageClassName } from "@/lib/card-image-display";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -108,7 +109,10 @@ function FeaturedCardTile({
   const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
   const isGradedCard = Boolean(item.owned && gradingCompanyLabel && gradingGradeLabel);
   const previewAspectClass = RAW_CARD_ASPECT_CLASS;
-  const imageClass = isGradedCard ? "object-contain" : "rounded-[4.75%] object-fill";
+  const imageClass = getCardImageClassName(
+    item.image_url,
+    isGradedCard ? "object-contain" : "rounded-[4.75%] object-fill"
+  );
   const displayPrice = getCollectionItemPrice(item, settings.primaryPriceSource);
   const displayPriceCurrency = getCollectionItemPriceCurrency(
     item,

@@ -33,6 +33,7 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import { getCardImageClassName } from "@/lib/card-image-display";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
@@ -467,7 +468,7 @@ function SearchPageContent({
                             src={getCachedImageUrl(card.image_url) ?? card.image_url}
                             alt={card.name}
                             fill
-                            className="object-contain"
+                            className={getCardImageClassName(card.image_url, "object-contain")}
                             sizes={minWidth}
                             loading={index < 18 ? "eager" : undefined}
                             unoptimized
