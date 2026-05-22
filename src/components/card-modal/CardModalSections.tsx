@@ -1158,7 +1158,7 @@ export function CardModalPreview({
   const previewButtonClass =
     showGradedPreview && gradingCompanyLabel && gradingGradeLabel
       ? `group relative ${previewAspectClass} w-full overflow-hidden rounded-[22px] border border-white/10 shadow-[0_14px_34px_rgba(0,0,0,0.3)] transition-all duration-200 hover:scale-[1.006] hover:border-white/16 hover:shadow-[0_18px_42px_rgba(0,0,0,0.36)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/35`
-      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] border border-white/12 bg-[#d8d5cc] p-0 shadow-[0_16px_40px_rgba(0,0,0,0.34),0_0_0_1px_rgba(255,255,255,0.045)] transition-transform after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-1 after:ring-inset after:ring-white/16 hover:scale-[1.006] hover:border-white/18`;
+      : `group relative ${previewAspectClass} w-full overflow-hidden rounded-[4.75%] border border-transparent bg-transparent p-0 shadow-[0_16px_40px_rgba(0,0,0,0.34)] transition-transform hover:scale-[1.006]`;
 
   return (
     <aside

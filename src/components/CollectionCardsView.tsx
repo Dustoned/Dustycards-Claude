@@ -2018,8 +2018,8 @@ export default function CollectionCardsView({
                                   : "border-transparent shadow-md shadow-black/20"
                               }`
                             : isSelected
-                              ? "overflow-hidden rounded-[4.75%] bg-[#dedbd1] drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80 after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-black/8 dark:bg-[#d8d5cc] dark:after:ring-white/12"
-                              : "overflow-hidden rounded-[4.75%] bg-[#dedbd1] drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-black/8 dark:bg-[#d8d5cc] dark:after:ring-white/12"
+                              ? "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
+                              : "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]"
                         }`}
                       >
                         {isGradedCard && gradingCompanyLabel && gradingGradeLabel ? (

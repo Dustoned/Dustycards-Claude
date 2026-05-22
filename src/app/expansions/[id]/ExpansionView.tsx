@@ -1036,7 +1036,7 @@ export default function ExpansionView({
                   }}
                 >
                   <div className="flex gap-3">
-                    <div className="relative h-24 w-[4.25rem] shrink-0 overflow-hidden rounded-[4.75%] border border-black/8 bg-[#dedbd1] dark:border-white/8 dark:bg-[#d8d5cc]">
+                    <div className="relative h-24 w-[4.25rem] shrink-0 overflow-hidden rounded-[4.75%] border border-transparent bg-transparent">
                       {card.image_url ? (
                         <Image
                           src={getCachedImageUrl(card.image_url) ?? card.image_url}
@@ -1169,7 +1169,7 @@ export default function ExpansionView({
                     >
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-[4.75%] border border-black/8 bg-[#dedbd1] dark:border-white/8 dark:bg-[#d8d5cc]">
+                          <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded-[4.75%] border border-transparent bg-transparent">
                             {card.image_url ? (
                               <Image
                                 src={getCachedImageUrl(card.image_url) ?? card.image_url}
@@ -1309,7 +1309,7 @@ export default function ExpansionView({
                 }}
               >
                 <div
-                  className={`relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-[#dedbd1] transition-all duration-200 after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-black/8 dark:bg-[#d8d5cc] dark:after:ring-white/12 ${
+                  className={`relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent transition-all duration-200 ${
                     gridSelected
                       ? "drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
                       : "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
