@@ -130,6 +130,54 @@ interface FirecrawlUsage {
   dailyAttemptsUsed: number;
 }
 
+function uniqueImageSources(sources: Array<string | null | undefined>): string[] {
+  return [...new Set(sources.map((source) => source?.trim()).filter(Boolean) as string[])];
+}
+
+function VariantThumbnail({
+  sources,
+  alt,
+}: {
+  sources: Array<string | null | undefined>;
+  alt: string;
+}) {
+  const imageSources = uniqueImageSources(sources);
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const [useRawSource, setUseRawSource] = useState(false);
+  const source = imageSources[sourceIndex] ?? null;
+
+  if (!source) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-white/35">
+        <Search className="h-4 w-4" />
+      </div>
+    );
+  }
+
+  const cachedSource = getCachedImageUrl(source);
+  const displaySource = !useRawSource && cachedSource ? cachedSource : source;
+
+  return (
+    <Image
+      src={displaySource}
+      alt={alt}
+      width={88}
+      height={124}
+      className="h-full w-full object-cover"
+      unoptimized
+      onError={() => {
+        if (cachedSource && !useRawSource) {
+          setUseRawSource(true);
+          return;
+        }
+
+        setUseRawSource(false);
+        setSourceIndex((current) => current + 1);
+      }}
+    />
+  );
+}
+
 function fieldClass() {
   return "w-full rounded-xl border border-white/10 bg-white/[0.055] px-3 py-2.5 text-sm font-semibold text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:ring-2 focus:ring-violet-400/10";
 }
@@ -440,7 +488,9 @@ export default function SubmitCardClient() {
           const href = existingCard
             ? `${getExpansionHref(existingCard.episodeId)}?card=${encodeURIComponent(existingCard.id)}`
             : null;
-          const imageUrl = existingCard?.imageUrl ?? variant.imageUrl;
+          const thumbnailSources = [variant.imageUrl, existingCard?.imageUrl];
+          const thumbnailKey =
+            uniqueImageSources(thumbnailSources).join("|") || variant.key;
 
           return (
             <div
@@ -449,20 +499,11 @@ export default function SubmitCardClient() {
             >
               <div className="grid grid-cols-[44px_minmax(0,1fr)] gap-3 sm:contents">
                 <div className="aspect-[5/7] overflow-hidden rounded-lg border border-white/10 bg-black/24">
-                  {imageUrl ? (
-                    <Image
-                      src={getCachedImageUrl(imageUrl) ?? imageUrl}
-                      alt={variant.name}
-                      width={88}
-                      height={124}
-                      className="h-full w-full object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-white/35">
-                      <Search className="h-4 w-4" />
-                    </div>
-                  )}
+                  <VariantThumbnail
+                    key={thumbnailKey}
+                    sources={thumbnailSources}
+                    alt={variant.name}
+                  />
                 </div>
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">

@@ -163,15 +163,25 @@ describe("card submission parsing", () => {
         sourceUrl:
           "https://www.cardmarket.com/en/OnePiece/Cards/Zeus-OP11-106/Versions",
         links: [
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/Adventure-on-Kamis-Island/Zeus-OP11-106",
           "https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2",
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed-Non-English/Zeus-OP11-106-V1",
         ],
-        markdown:
+        markdown: [
+          "[Adventure](https://www.cardmarket.com/en/OnePiece/Products/Singles/Adventure-on-Kamis-Island/Zeus-OP11-106)",
           "[Version 2](https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2)",
+          "[Japanese Version 1](https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed-Non-English/Zeus-OP11-106-V1)",
+        ].join("\n"),
         html: [
-          '<article class="row">',
-          '<a href="/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2">Version 2</a>',
-          '<img data-src="https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg">',
-          "</article>",
+          '<div class="card-column"><a href="/en/OnePiece/Products/Singles/Adventure-on-Kamis-Island/Zeus-OP11-106">',
+          '<img src="/img/transparent.gif" data-echo="https://product-images.s3.cardmarket.com/1621/OP15/880055/880055.jpg">',
+          "</a></div>",
+          '<div class="card-column"><a href="/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2">',
+          '<img src="/img/transparent.gif" data-echo="https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg">',
+          "</a></div>",
+          '<div class="card-column"><a href="/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed-Non-English/Zeus-OP11-106-V1">',
+          '<img src="/img/transparent.gif" data-echo="https://product-images.s3.cardmarket.com/1621/OP11-JP/817480/817480.jpg">',
+          "</a></div>",
         ].join(""),
       },
       { game: "one-piece", name: "Zeus", cardNumber: "OP11-106" }
@@ -179,9 +189,20 @@ describe("card submission parsing", () => {
 
     expect(variants).toEqual([
       expect.objectContaining({
+        setName: "Adventure on Kamis Island",
+        cardNumber: "OP11-106",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/OP15/880055/880055.jpg",
+      }),
+      expect.objectContaining({
         setName: "A Fist of Divine Speed",
         cardNumber: "OP11-106 / V2",
         imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg",
+      }),
+      expect.objectContaining({
+        setName: "A Fist of Divine Speed Non English",
+        cardNumber: "OP11-106 / V1",
+        imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11-JP/817480/817480.jpg",
+        languageGroup: "non_english",
       }),
     ]);
   });

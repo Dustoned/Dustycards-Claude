@@ -825,11 +825,33 @@ function expandSrcset(value: string): string[] {
     .filter(Boolean) as string[];
 }
 
+const CARDMARKET_IMAGE_ATTRIBUTES = [
+  "src",
+  "data-src",
+  "data-echo",
+  "data-original",
+  "data-original-src",
+  "data-lazy",
+  "data-lazy-src",
+];
+
+const CARDMARKET_SRCSET_ATTRIBUTES = ["srcset", "data-srcset"];
+
 function scoreImageCandidate(url: string): number {
   try {
     const parsed = new URL(url);
     const haystack = `${parsed.hostname} ${parsed.pathname}`.toLowerCase();
     let score = 0;
+    if (
+      haystack.includes("transparent.gif") ||
+      haystack.includes("placeholder") ||
+      haystack.includes("nopicture") ||
+      haystack.includes("no-picture") ||
+      haystack.includes("no_image") ||
+      haystack.includes("no-image")
+    ) {
+      score -= 120;
+    }
     if (/\.(?:jpg|jpeg|png|webp|avif)(?:$|\?)/i.test(parsed.pathname)) score += 20;
     if (haystack.includes("product")) score += 30;
     if (haystack.includes("cardmarket")) score += 25;
@@ -856,11 +878,13 @@ function extractImageUrl(scrape: FirecrawlPageScrapeResult): string | null {
   const markdownImage = scrape.markdown.match(/!\[[^\]]*]\(([^)]+)\)/)?.[1]?.trim();
   if (markdownImage) candidates.push(markdownImage);
 
-  for (const attribute of ["src", "data-src", "data-original", "data-lazy-src"]) {
+  for (const attribute of CARDMARKET_IMAGE_ATTRIBUTES) {
     candidates.push(...extractHtmlAttributeValues(scrape.html, attribute));
   }
-  for (const srcset of extractHtmlAttributeValues(scrape.html, "srcset")) {
-    candidates.push(...expandSrcset(srcset));
+  for (const attribute of CARDMARKET_SRCSET_ATTRIBUTES) {
+    for (const srcset of extractHtmlAttributeValues(scrape.html, attribute)) {
+      candidates.push(...expandSrcset(srcset));
+    }
   }
 
   return candidates
@@ -1374,11 +1398,13 @@ function extractImageCandidatesFromText(value: string, sourceUrl: string): strin
     if (match[1]) candidates.push(match[1]);
   }
 
-  for (const attribute of ["src", "data-src", "data-original", "data-lazy-src"]) {
+  for (const attribute of CARDMARKET_IMAGE_ATTRIBUTES) {
     candidates.push(...extractHtmlAttributeValues(text, attribute));
   }
-  for (const srcset of extractHtmlAttributeValues(text, "srcset")) {
-    candidates.push(...expandSrcset(srcset));
+  for (const attribute of CARDMARKET_SRCSET_ATTRIBUTES) {
+    for (const srcset of extractHtmlAttributeValues(text, attribute)) {
+      candidates.push(...expandSrcset(srcset));
+    }
   }
 
   const directImageRegex =
@@ -1434,6 +1460,59 @@ function extractNearestMarkdownImage(
   return extractImageCandidatesFromText(after, sourceUrl)[0] ?? null;
 }
 
+function findPreviousOpeningTag(html: string, index: number, tagName: string): number {
+  const regex = new RegExp(`<${tagName}\\b[^>]*>`, "gi");
+  let lastIndex = -1;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(html)) !== null) {
+    if (match.index > index) break;
+    lastIndex = match.index;
+  }
+
+  return lastIndex;
+}
+
+function findNextClosingTagEnd(html: string, index: number, tagName: string): number {
+  const closingTag = `</${tagName}>`;
+  const closingIndex = html.toLowerCase().indexOf(closingTag, index);
+  return closingIndex >= 0 ? closingIndex + closingTag.length : -1;
+}
+
+function extractNearestHtmlElementImage(
+  html: string | null | undefined,
+  sourceUrl: string,
+  productUrl: string,
+  cardmarketId: string | null
+): string | null {
+  if (!html) return null;
+
+  const normalizedHtml = normalizeScrapedUrlText(html);
+  const index = findProductUrlIndex(normalizedHtml, productUrl);
+  if (index < 0) return null;
+
+  const regions: string[] = [];
+  for (const tagName of ["a", "article", "tr", "li", "section", "div"]) {
+    const start = findPreviousOpeningTag(normalizedHtml, index, tagName);
+    const end = findNextClosingTagEnd(normalizedHtml, index, tagName);
+    if (start < 0 || end <= index || end <= start) continue;
+
+    const region = normalizedHtml.slice(start, end);
+    if (region.length > 12000) continue;
+    regions.push(region);
+  }
+
+  for (const region of regions) {
+    const image = pickBestImageCandidate(
+      extractImageCandidatesFromText(region, sourceUrl),
+      cardmarketId
+    );
+    if (image) return image;
+  }
+
+  return null;
+}
+
 function extractNearestVariantImage(
   scrape: Pick<FirecrawlPageScrapeResult, "markdown"> &
     Partial<Pick<FirecrawlPageScrapeResult, "html" | "sourceUrl">>,
@@ -1441,6 +1520,14 @@ function extractNearestVariantImage(
   cardmarketId: string | null
 ): string | null {
   const sourceUrl = scrape.sourceUrl ?? productUrl;
+  const htmlElementImage = extractNearestHtmlElementImage(
+    scrape.html,
+    sourceUrl,
+    productUrl,
+    cardmarketId
+  );
+  if (htmlElementImage) return htmlElementImage;
+
   const markdownImage = extractNearestMarkdownImage(scrape.markdown, sourceUrl, productUrl);
   if (markdownImage) return markdownImage;
 
