@@ -5,6 +5,7 @@ import { authErrorResponse, requireUser } from "@/lib/auth";
 import {
   ensureImageCached,
   parseCacheableImageUrl,
+  parseImageCacheVariant,
 } from "@/lib/image-cache-server";
 
 export const dynamic = "force-dynamic";
@@ -28,9 +29,10 @@ export async function GET(request: NextRequest) {
   if (!sourceUrl) {
     return NextResponse.json({ error: "Unsupported image URL" }, { status: 400 });
   }
+  const variant = parseImageCacheVariant(sourceUrl, request.nextUrl.searchParams.get("variant"));
 
   try {
-    const result = await ensureImageCached(sourceUrl);
+    const result = await ensureImageCached(sourceUrl, { variant });
     if (result.hit) {
       const stream = Readable.toWeb(createReadStream(result.imagePath)) as ReadableStream<Uint8Array>;
       return new NextResponse(stream, { headers: imageHeaders(result.contentType, "HIT") });

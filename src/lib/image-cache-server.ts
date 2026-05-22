@@ -3,7 +3,13 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CACHEABLE_IMAGE_HOSTS } from "@/lib/image-cache";
+import sharp from "sharp";
+import {
+  CACHEABLE_IMAGE_HOSTS,
+  getImageCacheVariantForSourceUrl,
+  TCGGO_CARD_TRANSPARENT_TRIM_VARIANT,
+  type ImageCacheVariant,
+} from "@/lib/image-cache";
 
 function resolveImageCacheDir() {
   if (process.env.DUSTYCARDS_IMAGE_CACHE_DIR) {
@@ -31,6 +37,7 @@ const pendingDownloads = new Map<string, Promise<EnsureImageResult>>();
 interface ImageMeta {
   contentType: string;
   sourceUrl: string;
+  variant?: ImageCacheVariant | null;
 }
 
 export interface EnsureImageResult {
@@ -41,12 +48,23 @@ export interface EnsureImageResult {
   buffer: Buffer | null;
 }
 
-export function getCachePaths(sourceUrl: string) {
-  const hash = createHash("sha256").update(sourceUrl).digest("hex");
+export function getCachePaths(sourceUrl: string, variant: ImageCacheVariant | null = null) {
+  const hashInput = variant ? `${sourceUrl}\n${variant}` : sourceUrl;
+  const hash = createHash("sha256").update(hashInput).digest("hex");
   return {
     imagePath: path.join(IMAGE_CACHE_DIR, `${hash}.img`),
     metaPath: path.join(IMAGE_CACHE_DIR, `${hash}.json`),
   };
+}
+
+export function parseImageCacheVariant(
+  sourceUrl: URL,
+  value: string | null | undefined
+): ImageCacheVariant | null {
+  const sourceVariant = getImageCacheVariantForSourceUrl(sourceUrl);
+  if (!sourceVariant) return null;
+  if (!value) return sourceVariant;
+  return value === sourceVariant ? sourceVariant : null;
 }
 
 export function parseCacheableImageUrl(value: string | null | undefined): URL | null {
@@ -226,7 +244,8 @@ async function acquireRemoteImageFetchSlot(): Promise<() => void> {
 async function downloadAndPersist(
   sourceUrl: URL,
   imagePath: string,
-  metaPath: string
+  metaPath: string,
+  variant: ImageCacheVariant | null
 ): Promise<EnsureImageResult> {
   const release = await acquireRemoteImageFetchSlot();
   const controller = new AbortController();
@@ -258,22 +277,26 @@ async function downloadAndPersist(
       throw new Error("Image too large");
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    const contentType = sniffImageContentType(buffer, remoteContentType);
-    if (!hasImageSignature(buffer, contentType)) {
+    const rawBuffer = Buffer.from(await response.arrayBuffer());
+    const rawContentType = sniffImageContentType(rawBuffer, remoteContentType);
+    if (!hasImageSignature(rawBuffer, rawContentType)) {
       throw new Error("Remote URL returned invalid image bytes");
     }
 
-    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+    if (rawBuffer.byteLength > MAX_IMAGE_BYTES) {
       throw new Error("Image too large");
     }
+
+    const prepared = await prepareCachedImageBuffer(rawBuffer, rawContentType, variant);
+    const buffer = prepared.buffer;
+    const contentType = prepared.contentType;
 
     await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
     await Promise.all([
       fs.writeFile(imagePath, buffer),
       fs.writeFile(
         metaPath,
-        JSON.stringify({ contentType, sourceUrl: sourceUrl.href } satisfies ImageMeta)
+        JSON.stringify({ contentType, sourceUrl: sourceUrl.href, variant } satisfies ImageMeta)
       ),
     ]);
 
@@ -284,8 +307,114 @@ async function downloadAndPersist(
   }
 }
 
-export async function ensureImageCached(sourceUrl: URL): Promise<EnsureImageResult> {
-  const { imagePath, metaPath } = getCachePaths(sourceUrl.href);
+async function prepareCachedImageBuffer(
+  buffer: Buffer,
+  contentType: string,
+  variant: ImageCacheVariant | null
+): Promise<{ buffer: Buffer; contentType: string }> {
+  if (variant !== TCGGO_CARD_TRANSPARENT_TRIM_VARIANT) {
+    return { buffer, contentType };
+  }
+
+  const trimmed = await trimTransparentImagePadding(buffer);
+  if (!trimmed) {
+    return { buffer, contentType };
+  }
+
+  if (!hasImageSignature(trimmed, "image/png") || trimmed.byteLength > MAX_IMAGE_BYTES) {
+    return { buffer, contentType };
+  }
+
+  return { buffer: trimmed, contentType: "image/png" };
+}
+
+async function trimTransparentImagePadding(buffer: Buffer): Promise<Buffer | null> {
+  const image = sharp(buffer, { limitInputPixels: false }).ensureAlpha();
+  const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+
+  let left = width;
+  let right = -1;
+  let top = height;
+  let bottom = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = data[(y * width + x) * channels + 3];
+      if (alpha === 0) continue;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+  }
+
+  if (right < left || bottom < top) {
+    return null;
+  }
+
+  const trimWidth = right - left + 1;
+  const trimHeight = bottom - top + 1;
+  if (left === 0 && top === 0 && trimWidth === width && trimHeight === height) {
+    return null;
+  }
+
+  return sharp(buffer, { limitInputPixels: false })
+    .extract({ left, top, width: trimWidth, height: trimHeight })
+    .png({ compressionLevel: 9, effort: 10 })
+    .toBuffer();
+}
+
+async function createVariantFromOriginalCache(
+  sourceUrl: URL,
+  variant: ImageCacheVariant,
+  imagePath: string,
+  metaPath: string
+): Promise<EnsureImageResult | null> {
+  const originalPaths = getCachePaths(sourceUrl.href);
+  const originalMeta = await readMeta(originalPaths.metaPath);
+  if (!originalMeta) return null;
+
+  const originalContentType = originalMeta.contentType || "application/octet-stream";
+  try {
+    const isReadableImage = await isCachedImageReadable(
+      originalPaths.imagePath,
+      originalContentType
+    );
+    if (!isReadableImage) return null;
+
+    const originalBuffer = await fs.readFile(originalPaths.imagePath);
+    const prepared = await prepareCachedImageBuffer(originalBuffer, originalContentType, variant);
+    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
+    await Promise.all([
+      fs.writeFile(imagePath, prepared.buffer),
+      fs.writeFile(
+        metaPath,
+        JSON.stringify({
+          contentType: prepared.contentType,
+          sourceUrl: sourceUrl.href,
+          variant,
+        } satisfies ImageMeta)
+      ),
+    ]);
+
+    return {
+      imagePath,
+      contentType: prepared.contentType,
+      hit: false,
+      buffer: prepared.buffer,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function ensureImageCached(
+  sourceUrl: URL,
+  options: { variant?: ImageCacheVariant | null } = {}
+): Promise<EnsureImageResult> {
+  const variant = options.variant ?? getImageCacheVariantForSourceUrl(sourceUrl);
+  const { imagePath, metaPath } = getCachePaths(sourceUrl.href, variant);
   const cachedMeta = await readMeta(metaPath);
 
   if (cachedMeta) {
@@ -309,14 +438,25 @@ export async function ensureImageCached(sourceUrl: URL): Promise<EnsureImageResu
     }
   }
 
-  const inflight = pendingDownloads.get(sourceUrl.href);
-  if (inflight) return inflight;
+  if (variant) {
+    const variantFromOriginal = await createVariantFromOriginalCache(
+      sourceUrl,
+      variant,
+      imagePath,
+      metaPath
+    );
+    if (variantFromOriginal) return variantFromOriginal;
+  }
 
-  const download = downloadAndPersist(sourceUrl, imagePath, metaPath);
-  pendingDownloads.set(sourceUrl.href, download);
+  const pendingKey = `${sourceUrl.href}\n${variant ?? "original"}`;
+  const inflightForVariant = pendingDownloads.get(pendingKey);
+  if (inflightForVariant) return inflightForVariant;
+
+  const download = downloadAndPersist(sourceUrl, imagePath, metaPath, variant);
+  pendingDownloads.set(pendingKey, download);
   download.then(
-    () => pendingDownloads.delete(sourceUrl.href),
-    () => pendingDownloads.delete(sourceUrl.href)
+    () => pendingDownloads.delete(pendingKey),
+    () => pendingDownloads.delete(pendingKey)
   );
   return download;
 }
@@ -392,7 +532,9 @@ export async function warmCardImages(
       const url = queue[index];
 
       try {
-        const result = await ensureImageCached(url);
+        const result = await ensureImageCached(url, {
+          variant: getImageCacheVariantForSourceUrl(url),
+        });
         if (result.hit) {
           progress.hits += 1;
         } else {

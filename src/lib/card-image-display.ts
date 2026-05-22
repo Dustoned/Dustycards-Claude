@@ -1,5 +1,3 @@
-const TCGGO_BORDERED_CARD_SCALE_CLASS = "scale-[1.075]";
-
 export function hasTcggoGeneratedCardBorder(imageUrl: string | null | undefined): boolean {
   if (!imageUrl) return false;
 
@@ -16,10 +14,8 @@ export function hasTcggoGeneratedCardBorder(imageUrl: string | null | undefined)
 }
 
 export function getCardImageClassName(
-  imageUrl: string | null | undefined,
+  _imageUrl: string | null | undefined,
   baseClassName: string
 ): string {
-  return hasTcggoGeneratedCardBorder(imageUrl)
-    ? `${baseClassName} ${TCGGO_BORDERED_CARD_SCALE_CLASS}`
-    : baseClassName;
+  return baseClassName;
 }
