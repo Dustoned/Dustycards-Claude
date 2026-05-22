@@ -406,8 +406,12 @@ export default function SubmitCardClient() {
   const usageMonthlyUsed = firecrawlUsage?.monthlyUsed ?? preview?.firecrawl.monthlyUsed ?? 0;
   const usageMonthlyRemaining =
     firecrawlUsage?.monthlyRemaining ?? Math.max(0, usageMonthlyBudget - usageMonthlyUsed);
-  const usageDailyLimit = firecrawlUsage?.dailyAttemptLimit ?? 3;
+  const usageDailyLimit = firecrawlUsage?.dailyAttemptLimit ?? 0;
   const usageDailyUsed = firecrawlUsage?.dailyAttemptsUsed ?? preview?.firecrawl.dailyAttemptsUsed ?? 0;
+  const usageDailyValue =
+    usageDailyLimit > 0
+      ? `${usageDailyUsed.toLocaleString("en-US")} / ${usageDailyLimit.toLocaleString("en-US")} attempts`
+      : `${usageDailyUsed.toLocaleString("en-US")} today`;
   const usagePercent =
     usageMonthlyBudget > 0
       ? Math.min(100, Math.max(0, (usageMonthlyUsed / usageMonthlyBudget) * 100))
@@ -467,7 +471,7 @@ export default function SubmitCardClient() {
             value={
               usageLoading && !firecrawlUsage
                 ? "Loading..."
-                : `${usageDailyUsed.toLocaleString("en-US")} / ${usageDailyLimit.toLocaleString("en-US")} attempts`
+                : usageDailyValue
             }
           />
           <StatPill

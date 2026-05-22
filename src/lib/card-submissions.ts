@@ -19,7 +19,7 @@ import {
 import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30;
-const USER_DAILY_ATTEMPT_LIMIT = 3;
+const USER_DAILY_ATTEMPT_LIMIT = 0;
 const CARDMARKET_DOMAIN = "cardmarket.com";
 const CARDMARKET_VARIANT_SEARCH_LIMIT = 10;
 const SUBMITTED_SOURCE_STATUS = "firecrawl-submitted";
@@ -1124,7 +1124,7 @@ async function assertFirecrawlBudget(userId: string, estimatedCredits: number) {
     throw new CardSubmissionError("Firecrawl monthly budget is reached.", 429);
   }
 
-  if (usage.dailyAttemptsUsed >= USER_DAILY_ATTEMPT_LIMIT) {
+  if (USER_DAILY_ATTEMPT_LIMIT > 0 && usage.dailyAttemptsUsed >= USER_DAILY_ATTEMPT_LIMIT) {
     throw new CardSubmissionError("Daily Firecrawl submit limit reached for this user.", 429);
   }
 
