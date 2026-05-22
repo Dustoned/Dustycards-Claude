@@ -103,7 +103,7 @@ function SealedProductCard({
             </div>
           </div>
 
-          <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink-0 sm:justify-end">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1.5 gap-y-1 sm:shrink-0 sm:justify-end">
             {productPrice != null ? (
               <span className={sealedTilePriceClass(cardSize)}>
                 {formatCurrency(productPrice)}

@@ -129,7 +129,7 @@ export function HeaderProgressMeter({
           <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
             {label}
           </p>
-          <p className="mt-1.5 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight tabular-nums text-white">
+          <p className="mt-1.5 whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight tabular-nums text-white">
             {value}
           </p>
         </div>
@@ -188,7 +188,7 @@ export function HeaderStackedProgressMeter({
           <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
             {label}
           </p>
-          <p className="mt-1.5 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight tabular-nums text-white">
+          <p className="mt-1.5 whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight tabular-nums text-white">
             {value}
           </p>
         </div>
@@ -288,7 +288,7 @@ export function HeaderStatCard({
           <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
             {label}
           </p>
-          <p className="mt-1.5 truncate whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight text-white">
+          <p className="mt-1.5 whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight text-white">
             {value}
           </p>
         </div>

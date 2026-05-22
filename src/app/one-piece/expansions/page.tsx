@@ -284,14 +284,14 @@ export default async function OnePieceExpansionsPage() {
                               )}
                             </p>
                           </div>
-                          <div className="min-w-0 text-left sm:shrink-0 sm:text-right">
+                          <div className="min-w-fit text-left sm:shrink-0 sm:text-right">
                             <p
                               className={`font-semibold uppercase tracking-[0.14em] text-emerald-600/70 dark:text-emerald-200/52 max-[640px]:text-[10px] ${tileConfig.metaClass}`}
                             >
                               Value
                             </p>
                             <p
-                              className={`mt-0.5 min-w-0 truncate font-bold leading-tight text-emerald-700 tabular-nums dark:text-emerald-100 max-[640px]:text-[16px] ${tileConfig.valueClass}`}
+                              className={`mt-0.5 whitespace-nowrap font-bold leading-tight text-emerald-700 tabular-nums dark:text-emerald-100 max-[640px]:text-[16px] ${tileConfig.valueClass}`}
                             >
                               {formatCollectionCurrency(currentValue.value)}
                             </p>

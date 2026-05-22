@@ -169,23 +169,23 @@ export default function BinderOverviewTile({
           ) : null}
         </div>
 
-        <div className="flex items-end justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-2.5 py-2 max-[640px]:rounded-lg max-[640px]:px-2 max-[640px]:py-1.5">
-          <div className="min-w-0">
+        <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1.5 rounded-xl border border-white/8 bg-white/[0.035] px-2.5 py-2 max-[640px]:rounded-lg max-[640px]:px-2 max-[640px]:py-1.5">
+          <div className="min-w-fit flex-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/32 max-[640px]:text-[8px]">
               Value
             </p>
-            <p className="mt-0.5 truncate text-[15px] font-black tracking-tight text-white max-[640px]:text-[12px]">
+            <p className="mt-0.5 whitespace-nowrap text-[15px] font-black tracking-tight text-white max-[640px]:text-[12px]">
               {formatCollectionCurrency(binder.currentValue)}
             </p>
           </div>
           {recentMoveLabel ? (
             <div
-              className={`max-w-[48%] shrink-0 rounded-full border px-2.5 py-1 text-right text-[10px] font-black leading-none max-[640px]:px-2 max-[640px]:text-[9px] ${moveBadgeClass(
+              className={`max-w-full shrink-0 rounded-full border px-2.5 py-1 text-right text-[10px] font-black leading-none max-[640px]:px-2 max-[640px]:text-[9px] ${moveBadgeClass(
                 binder.recentChange
               )}`}
               title={valueSubtitle}
             >
-              <span className="block truncate">{recentMoveLabel}</span>
+              <span className="block whitespace-nowrap">{recentMoveLabel}</span>
             </div>
           ) : null}
         </div>
@@ -198,7 +198,7 @@ export default function BinderOverviewTile({
           ) : null}
           {secondaryChip ? (
             <span
-              className={`rounded-full border border-white/8 bg-white/[0.045] px-2.5 py-1 text-[10px] font-bold max-[640px]:px-2 max-[640px]:text-[9px] ${moveToneClass(
+              className={`whitespace-nowrap rounded-full border border-white/8 bg-white/[0.045] px-2.5 py-1 text-[10px] font-bold max-[640px]:px-2 max-[640px]:text-[9px] ${moveToneClass(
                 roiPct ?? binder.pnl
               )}`}
             >

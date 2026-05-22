@@ -616,7 +616,7 @@ function ListingCard({
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
               Base
             </p>
-            <p className="mt-1 truncate text-base font-bold tabular-nums text-white">
+            <p className="mt-1 whitespace-nowrap text-base font-bold tabular-nums text-white">
               {formatCurrency(reference.valueEur, "EUR")}
             </p>
           </div>

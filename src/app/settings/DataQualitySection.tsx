@@ -103,7 +103,7 @@ function SummaryTile({
         {label}
       </p>
       <p
-        className={`mt-1 truncate text-sm font-bold leading-tight tabular-nums ${toneClass}`}
+        className={`mt-1 whitespace-nowrap text-sm font-bold leading-tight tabular-nums ${toneClass}`}
         title={title ?? value}
       >
         {value}
@@ -129,7 +129,7 @@ function SignalPill({ metric }: { metric: DataQualityMetric }) {
         </p>
         {rate ? <span className="shrink-0 text-[10px] text-gray-400">{rate}</span> : null}
       </div>
-      <p className={`mt-1 truncate text-sm font-bold tabular-nums ${getSignalTone(metric)}`}>
+      <p className={`mt-1 whitespace-nowrap text-sm font-bold tabular-nums ${getSignalTone(metric)}`}>
         {formatCount(metric.value)}
       </p>
     </div>

@@ -517,7 +517,7 @@ function SearchPageContent({
                             className={
                               compactFourColumnSingles
                                 ? "grid min-w-0 gap-1"
-                                : "flex min-w-0 items-center justify-between gap-1.5"
+                                : "flex min-w-0 flex-wrap items-center justify-between gap-x-1.5 gap-y-1"
                             }
                           >
                             {card.cm_en_lowest_nm != null ? (
@@ -525,7 +525,7 @@ function SearchPageContent({
                                 className={
                                   compactFourColumnSingles
                                     ? "block min-w-0 max-w-full whitespace-nowrap text-[clamp(9px,2.85vw,11px)] font-bold tabular-nums leading-tight text-white"
-                                    : "min-w-0 truncate text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]"
+                                    : "whitespace-nowrap text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]"
                                 }
                               >
                                 {formatEur(card.cm_en_lowest_nm)}
@@ -623,9 +623,9 @@ function SearchPageContent({
                           </div>
                         </div>
 
-                        <div className="flex min-w-0 items-center justify-between gap-1.5">
+                        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1.5 gap-y-1">
                           {product.cm_lowest != null ? (
-                            <span className="min-w-0 truncate text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]">
+                            <span className="whitespace-nowrap text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]">
                               {formatEur(product.cm_lowest)}
                             </span>
                           ) : (

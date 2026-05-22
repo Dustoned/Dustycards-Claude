@@ -377,7 +377,7 @@ function CompactMetric({
       <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-white/34">
         {label}
       </p>
-      <p className={`mt-1 truncate text-sm font-bold tabular-nums ${getToneClass(toneValue)}`}>
+      <p className={`mt-1 whitespace-nowrap text-sm font-bold tabular-nums ${getToneClass(toneValue)}`}>
         {value}
       </p>
     </div>

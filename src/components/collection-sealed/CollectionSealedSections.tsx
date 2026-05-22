@@ -280,7 +280,7 @@ function CollectionSealedTile({
             </div>
           </div>
 
-          <div className="flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1.5 gap-y-1 sm:shrink sm:justify-end">
             {currentTotal != null ? (
               <span className={sealedTilePriceClass(cardSize)}>
                 {formatCollectionCurrency(currentTotal)}

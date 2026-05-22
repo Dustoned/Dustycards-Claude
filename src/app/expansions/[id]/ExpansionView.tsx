@@ -1109,7 +1109,7 @@ export default function ExpansionView({
                           <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
                             CardMarket
                           </p>
-                          <p className="mt-1 truncate font-semibold tabular-nums text-gray-950 dark:text-white">
+                          <p className="mt-1 whitespace-nowrap font-semibold tabular-nums text-gray-950 dark:text-white">
                             {cardMarketPrice != null
                               ? formatCurrency(cardMarketPrice, "EUR")
                               : "No price"}
@@ -1119,7 +1119,7 @@ export default function ExpansionView({
                           <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
                             TCGPlayer
                           </p>
-                          <p className="mt-1 truncate font-semibold tabular-nums text-gray-950 dark:text-white">
+                          <p className="mt-1 whitespace-nowrap font-semibold tabular-nums text-gray-950 dark:text-white">
                             {tcgPlayerPrice != null
                               ? formatCurrency(tcgPlayerPrice, "USD")
                               : "No price"}
@@ -1396,7 +1396,7 @@ export default function ExpansionView({
                           className={
                             compactFourColumnGrid
                               ? "block min-w-0 max-w-full whitespace-nowrap text-[clamp(9px,2.85vw,11px)] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white"
-                              : "min-w-0 truncate text-[12px] font-semibold tabular-nums text-gray-900 dark:text-white sm:text-[15px]"
+                            : "whitespace-nowrap text-[12px] font-semibold tabular-nums text-gray-900 dark:text-white sm:text-[15px]"
                           }
                         >
                           {primaryPriceSource === "tcp"

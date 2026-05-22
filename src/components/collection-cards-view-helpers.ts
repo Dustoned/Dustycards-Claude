@@ -319,18 +319,18 @@ export function collectionTileMetaLineClass(cardSize: CardSize): string {
 
 export function collectionTilePriceClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "min-w-0 truncate text-[16px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[14px]";
+    return "whitespace-nowrap text-[16px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[14px]";
   }
 
   if (cardSize === "medium") {
-    return "min-w-0 truncate text-[14px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
+    return "whitespace-nowrap text-[14px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
   }
 
   if (cardSize === "xsmall") {
-    return "min-w-0 max-w-full whitespace-nowrap text-[11px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[clamp(9px,2.85vw,11px)]";
+    return "max-w-full whitespace-nowrap text-[11px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[clamp(9px,2.85vw,11px)]";
   }
 
-  return "min-w-0 truncate text-[13px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[11px]";
+  return "whitespace-nowrap text-[13px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[11px]";
 }
 
 export function collectionTileNoPriceClass(cardSize: CardSize): string {
@@ -357,7 +357,7 @@ export function collectionTilePriceRowClass(
     return "mt-auto flex min-w-0 flex-col items-start gap-0.5 pt-1";
   }
 
-  return "mt-auto grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5 pt-1";
+  return "mt-auto flex min-w-0 flex-wrap items-end justify-between gap-x-1.5 gap-y-0.5 pt-1";
 }
 
 export function collectionTileTrendClass(
@@ -368,10 +368,10 @@ export function collectionTileTrendClass(
   const toneClass = positive ? "text-emerald-300" : "text-rose-300";
 
   if (isMobileViewport && cardSize === "xsmall") {
-    return `inline-flex max-w-full items-center justify-start gap-0.5 text-left text-[8.5px] font-bold tabular-nums leading-tight ${toneClass}`;
+    return `inline-flex max-w-full items-center justify-start gap-0.5 whitespace-nowrap text-left text-[8.5px] font-bold tabular-nums leading-tight ${toneClass}`;
   }
 
-  return `inline-flex min-w-0 shrink-0 items-center justify-end gap-0.5 text-right text-[11px] font-bold tabular-nums max-[640px]:text-[9px] ${toneClass}`;
+  return `inline-flex shrink-0 items-center justify-end gap-0.5 whitespace-nowrap text-right text-[11px] font-bold tabular-nums max-[640px]:text-[9px] ${toneClass}`;
 }
 
 export function collectionTileTrendIconClass(

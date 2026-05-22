@@ -2531,7 +2531,7 @@ export default function CardThreeViewer({
                             {activePriceSource === "tcgplayer" ? "TCGPlayer" : "CardMarket"}
                           </span>
                           <span
-                            className={`mt-1 block truncate font-semibold tabular-nums text-white ${
+                            className={`mt-1 block whitespace-nowrap font-semibold tabular-nums text-white ${
                               compactMobileDetails ? "text-base" : "text-xl"
                             }`}
                           >

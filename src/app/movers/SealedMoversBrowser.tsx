@@ -273,7 +273,7 @@ function SealedMoverTile({
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
             Low / Peak
           </p>
-          <p className="mt-1 truncate text-sm font-bold tabular-nums text-gray-950 dark:text-white">
+          <p className="mt-1 whitespace-nowrap text-sm font-bold tabular-nums text-gray-950 dark:text-white">
             {formatCurrency(item.lowPrice, "EUR")} / {formatCurrency(item.highPrice, "EUR")}
           </p>
         </div>

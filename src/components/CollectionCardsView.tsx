@@ -1606,7 +1606,7 @@ export default function CollectionCardsView({
                               <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
                                 {primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
                               </p>
-                              <p className="mt-1 truncate font-semibold tabular-nums text-gray-950 dark:text-white">
+                              <p className="mt-1 whitespace-nowrap font-semibold tabular-nums text-gray-950 dark:text-white">
                                 {displayPrice != null
                                   ? formatMarketCurrency(displayPrice, displayPriceCurrency)
                                   : "No price"}
@@ -1617,7 +1617,7 @@ export default function CollectionCardsView({
                                 P&amp;L
                               </p>
                               <p
-                                className={`mt-1 truncate font-semibold tabular-nums ${
+                                className={`mt-1 whitespace-nowrap font-semibold tabular-nums ${
                                   pnl == null
                                     ? "text-gray-400 dark:text-white/35"
                                     : pnl >= 0
@@ -2149,7 +2149,7 @@ export default function CollectionCardsView({
                             )}
                           />
                         )}
-                        <span className="truncate">
+                        <span className="whitespace-nowrap">
                           {trendPercent >= 0 ? "+" : ""}
                           {trendPercent}%
                         </span>

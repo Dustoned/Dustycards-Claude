@@ -557,7 +557,7 @@ function WantsQuickViewModal({
             <h3 className="mt-0.5 truncate text-base font-bold text-white sm:text-lg">
               {group.name}
             </h3>
-            <p className="mt-0.5 truncate text-xs font-semibold text-white/48">
+            <p className="mt-0.5 text-xs font-semibold text-white/48">
               {missingLabel(group)} missing - {formatCollectionCurrency(group.estimatedCost)}
             </p>
           </div>
@@ -796,7 +796,7 @@ function WantBinderTile({
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/32 max-[640px]:text-[8px]">
                 Cost
               </p>
-              <p className="mt-0.5 truncate text-[15px] font-black tracking-tight text-white max-[640px]:text-[12px]">
+              <p className="mt-0.5 whitespace-nowrap text-[15px] font-black tracking-tight text-white max-[640px]:text-[12px]">
                 {group.estimatedCost > 0 ? formatCollectionCurrency(group.estimatedCost) : "No price"}
               </p>
             </div>

@@ -46,7 +46,7 @@ function HealthTile({
         {label}
       </p>
       <p
-        className="mt-1 truncate text-sm font-bold leading-tight tabular-nums text-gray-950 dark:text-white"
+        className="mt-1 whitespace-nowrap text-sm font-bold leading-tight tabular-nums text-gray-950 dark:text-white"
         title={title ?? String(value)}
       >
         {value}

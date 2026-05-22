@@ -71,14 +71,14 @@ export function sealedTileMetaLineClass(cardSize: CardSize): string {
 
 export function sealedTilePriceClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "min-w-0 truncate text-[18px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
+    return "whitespace-nowrap text-[18px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
   }
 
   if (cardSize === "medium") {
-    return "min-w-0 truncate text-[16px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
+    return "whitespace-nowrap text-[16px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
   }
 
-  return "min-w-0 truncate text-[14px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[11px]";
+  return "whitespace-nowrap text-[14px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[11px]";
 }
 
 export function sealedTileNoPriceClass(cardSize: CardSize): string {

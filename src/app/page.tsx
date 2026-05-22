@@ -75,7 +75,7 @@ function CollectionValueSummaryCard({
           <p className="text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase tracking-[0.12em] text-white/42">
             Collection Value
           </p>
-          <p className="mt-1 truncate text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tabular-nums text-white">
+          <p className="mt-1 whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tabular-nums text-white">
             {formatCollectionCurrency(currentValue)}
           </p>
         </div>
@@ -118,26 +118,6 @@ function formatSignedCurrency(value: number | null | undefined): string {
   if (value == null) return "--";
   if (value === 0) return formatCollectionCurrency(0);
   return `${value > 0 ? "+" : "-"}${formatCollectionCurrency(Math.abs(value))}`;
-}
-
-function formatCompactCollectionCurrency(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return "--";
-  const absolute = Math.abs(value);
-  const sign = value < 0 ? "-" : "";
-
-  if (absolute >= 1_000_000) {
-    return `${sign}€${(absolute / 1_000_000).toFixed(1)}m`;
-  }
-
-  if (absolute >= 10_000) {
-    return `${sign}€${(absolute / 1_000).toFixed(0)}k`;
-  }
-
-  if (absolute >= 1_000) {
-    return `${sign}€${(absolute / 1_000).toFixed(1)}k`;
-  }
-
-  return formatCollectionCurrency(value);
 }
 
 function formatPlainPercent(value: number | null | undefined): string {
@@ -689,7 +669,7 @@ export default async function HomePage({
     },
     {
       label: "Overall Spend",
-      value: formatCompactCollectionCurrency(data.overview.investment),
+      value: formatCollectionCurrency(data.overview.investment),
       hint: formatCollectionCurrency(data.overview.investment),
       Icon: WalletCards,
       tone: "amber",
