@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.8",
+    releasedAt: "May 22, 2026",
+    title: "Wants binder tiles aligned",
+    summary: "DustyCards 3.2.8 brings the Wants binder planner tiles in line with the cleaner binder layout.",
+    tone: "fixed",
+    highlights: [
+      "Applied the compact binder tile sizing to Missing by Binder on Wants.",
+      "Matched Wants planner tiles to the same neutral surface, accent strip, logo frame, and spacing as collection binders.",
+    ],
+  },
+  {
     version: "3.2.7",
     releasedAt: "May 22, 2026",
     title: "Cleaner binder and detail layout",

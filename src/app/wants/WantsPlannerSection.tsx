@@ -716,19 +716,18 @@ function WantBinderTile({
       : "No prices";
   const hiddenLabel =
     group.hiddenCards > 0 ? `${group.hiddenCards.toLocaleString("en-US")} hidden` : null;
+  const tileStyle = {
+    "--binder-accent": accentColor ?? "#8b5cf6",
+  } as CSSProperties;
 
   return (
     <article
-      className="binder-panel relative flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-2xl p-3 max-[640px]:gap-2 max-[640px]:p-2.5"
-      style={
-        accentColor
-          ? { boxShadow: `inset 0 0 0 1px ${accentColor}2f` }
-          : undefined
-      }
+      className="binder-panel binder-overview-tile relative flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-[18px] p-3 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 max-[640px]:gap-2 max-[640px]:rounded-xl max-[640px]:p-2"
+      style={tileStyle}
     >
       {accentColor ? (
         <div
-          className="absolute inset-x-5 top-0 h-1 rounded-b-full"
+          className="absolute inset-x-4 top-0 h-0.5 rounded-b-full opacity-80"
           style={{ backgroundColor: accentColor }}
         />
       ) : null}
@@ -736,40 +735,35 @@ function WantBinderTile({
       <Link
         href={`/wants/binders/${group.binderId}`}
         prefetch={false}
-        className="group/tile flex min-w-0 flex-col gap-3 text-left outline-none"
+        className="group/tile flex min-w-0 flex-col gap-2.5 text-left outline-none"
       >
         <div
-          className="relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-xl border border-white/8 bg-black/24 transition-colors group-hover/tile:bg-white/[0.055]"
-          style={
-            accentColor
-              ? { boxShadow: `inset 0 0 0 1px ${accentColor}24` }
-              : undefined
-          }
+          className="binder-overview-media relative flex aspect-[16/9] items-center justify-center overflow-hidden rounded-[14px] border border-white/8 sm:aspect-[2.25/1]"
         >
           {group.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={getCachedImageUrl(group.logoUrl) ?? group.logoUrl}
               alt={group.name}
-              className="h-full w-full object-contain p-3 max-[640px]:p-2 sm:p-4"
+              className="h-full w-full object-contain p-2 max-[640px]:p-1.5 sm:p-2.5"
             />
           ) : (
             <div
-              className="flex h-20 w-20 items-center justify-center rounded-3xl border border-white/10 bg-white/8 text-white/70"
+              className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-white/70 max-[640px]:h-14 max-[640px]:w-14"
               style={accentColor ? { color: accentColor } : undefined}
             >
-              <CollectionBinderIcon iconName={group.iconName} className="h-9 w-9" />
+              <CollectionBinderIcon iconName={group.iconName} className="h-8 w-8 max-[640px]:h-7 max-[640px]:w-7" />
             </div>
           )}
         </div>
 
-        <div className="min-w-0 space-y-2.5">
+        <div className="min-w-0 space-y-2 max-[640px]:space-y-1.5">
           <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="line-clamp-2 text-base font-bold leading-tight text-white max-[640px]:text-[13px]">
+              <h3 className="line-clamp-2 text-[15px] font-bold leading-tight text-white max-[640px]:text-[12px]">
                 {group.name}
               </h3>
-              <p className="mt-1 truncate text-sm text-white/50 max-[640px]:mt-0.5 max-[640px]:text-[10px]">
+              <p className="mt-1 truncate text-xs font-medium text-white/45 max-[640px]:mt-0.5 max-[640px]:text-[10px]">
                 {expanded ? expandedSubtitle : group.subtitle}
               </p>
             </div>
@@ -795,12 +789,12 @@ function WantBinderTile({
             </div>
           </div>
 
-          <div className="flex items-end justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2.5 max-[640px]:px-2.5 max-[640px]:py-2">
+          <div className="flex items-end justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-2.5 py-2 max-[640px]:rounded-lg max-[640px]:px-2 max-[640px]:py-1.5">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/32 max-[640px]:text-[8px]">
                 Cost
               </p>
-              <p className="mt-0.5 truncate text-base font-black tracking-tight text-white max-[640px]:text-[13px]">
+              <p className="mt-0.5 truncate text-[15px] font-black tracking-tight text-white max-[640px]:text-[12px]">
                 {group.estimatedCost > 0 ? formatCollectionCurrency(group.estimatedCost) : "No price"}
               </p>
             </div>
@@ -809,7 +803,7 @@ function WantBinderTile({
             </span>
           </div>
 
-          <div className="flex min-w-0 flex-wrap gap-1.5">
+          <div className="flex min-w-0 flex-wrap gap-1.5 max-[640px]:hidden">
             <span className="rounded-full border border-white/8 bg-white/[0.045] px-2.5 py-1 text-[10px] font-bold text-white/58 max-[640px]:px-2 max-[640px]:text-[9px]">
               {missingLabel(group)} missing
             </span>
@@ -969,7 +963,7 @@ export default function WantsPlannerSection({
       ) : null}
 
       <div
-        className="mt-4 grid grid-cols-2 items-start gap-2 sm:gap-4 sm:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--wants-binder-track)),1fr))]"
+        className="mt-4 grid grid-cols-2 items-start gap-2 sm:gap-3 sm:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--wants-binder-track)),1fr))]"
         style={binderGridStyle}
       >
         {groups.map((group) => (

@@ -4,7 +4,7 @@ import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getWantsPageData } from "@/lib/collection-data";
-import { getSupportTileTrackWidth } from "@/lib/display-scale";
+import { getBinderTileTrackWidth } from "@/lib/display-scale";
 import {
   GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
@@ -34,7 +34,7 @@ export default async function WantsPage({
 }) {
   const user = await requirePageUser("/wants");
   const settings = await getServerUserSettings(user.id);
-  const binderTileTrackWidth = getSupportTileTrackWidth(settings.uiScale, settings.widescreen);
+  const binderTileTrackWidth = getBinderTileTrackWidth(settings.uiScale, settings.widescreen);
   const { game: gameParam } = await searchParams;
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
