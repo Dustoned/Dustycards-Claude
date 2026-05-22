@@ -61,21 +61,27 @@ describe("card submission parsing", () => {
     expect(cardNumberMatchesSubmittedBase("OP09-061", "OP09-062#1")).toBe(false);
   });
 
-  it("extracts One Piece CardMarket version product links", () => {
+  it("extracts English One Piece CardMarket version product links", () => {
     const variants = parseCardMarketVersionsScrape(
       {
         links: [
           "https://www.cardmarket.com/en/OnePiece/Products/Singles/Adventure-on-Kamis-Island/Zeus-OP11-106",
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/Egghead-Crisis-Asia-Region-Legal/Zeus-OP11-106",
           "https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2",
           "https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed-Non-English/Zeus-OP11-106-V1",
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/Unnumbered-Promos-Japanese/Zeus-OP11-106-V1",
         ],
         markdown: [
           "[![Zeus (OP11-106)](https://product-images.s3.cardmarket.com/1621/OP15/880055/880055.jpg)\\\\",
           "**Adventure on Kami’s IslandOP15**](https://www.cardmarket.com/en/OnePiece/Products/Singles/Adventure-on-Kamis-Island/Zeus-OP11-106)",
+          "[![Zeus (OP11-106)](https://product-images.s3.cardmarket.com/1621/EB04-JP/871503/871503.jpg)\\\\",
+          "**Egghead Crisis Asia Region LegalEB04-JP**](https://www.cardmarket.com/en/OnePiece/Products/Singles/Egghead-Crisis-Asia-Region-Legal/Zeus-OP11-106)",
           "[![Zeus (OP11-106) (V.2)](https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg)\\\\",
           "Version **2**](https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed/Zeus-OP11-106-V2)",
           "[![Zeus (OP11-106) (V.1)](https://product-images.s3.cardmarket.com/1621/OP11-JP/817480/817480.jpg)\\\\",
           "Version **1**](https://www.cardmarket.com/en/OnePiece/Products/Singles/A-Fist-of-Divine-Speed-Non-English/Zeus-OP11-106-V1)",
+          "[![Zeus (OP11-106) (V.1)](https://product-images.s3.cardmarket.com/1621/UP-JP/825210/825210.jpg)\\\\",
+          "Version **1**](https://www.cardmarket.com/en/OnePiece/Products/Singles/Unnumbered-Promos-Japanese/Zeus-OP11-106-V1)",
         ].join("\n"),
       },
       { game: "one-piece", name: "Zeus", cardNumber: "OP11-106" }
@@ -92,11 +98,6 @@ describe("card submission parsing", () => {
         setName: "A Fist of Divine Speed",
         cardNumber: "OP11-106 / V2",
         imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11/827244/827244.jpg",
-      }),
-      expect.objectContaining({
-        setName: "A Fist of Divine Speed Non English",
-        cardNumber: "OP11-106 / V1",
-        imageUrl: "https://product-images.s3.cardmarket.com/1621/OP11-JP/817480/817480.jpg",
       }),
     ]);
   });

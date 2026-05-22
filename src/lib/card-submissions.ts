@@ -1201,6 +1201,28 @@ function getVersionedCardNumber(cardNumber: string | null, version: string | nul
   return version ? `${cardNumber} / ${version}` : cardNumber;
 }
 
+function isNonEnglishOnePieceVariant(input: {
+  game: TradingCardGame;
+  cardmarketUrl: string;
+  setName: string | null;
+  imageUrl?: string | null;
+}): boolean {
+  if (input.game !== ONE_PIECE_GAME) return false;
+
+  const haystack = normalizeSubmissionText(
+    decodeURIComponent(`${input.cardmarketUrl} ${input.setName ?? ""} ${input.imageUrl ?? ""}`)
+  );
+
+  return (
+    haystack.includes("non english") ||
+    haystack.includes("japanese") ||
+    haystack.includes("asia region legal") ||
+    /\b[A-Z]{2,4}\d{1,3} JP\b/i.test(
+      decodeURIComponent(`${input.cardmarketUrl} ${input.imageUrl ?? ""}`).replace(/[-_/]+/g, " ")
+    )
+  );
+}
+
 function extractNearestMarkdownImage(markdown: string, productUrl: string): string | null {
   const index = markdown.indexOf(productUrl);
   if (index < 0) return null;
@@ -1227,11 +1249,23 @@ export function parseCardMarketVersionsScrape(
     const version = extractVersionFromProductUrl(normalizedUrl);
     const cardmarketId = extractCardMarketProductId(normalizedUrl);
     const imageUrl = extractNearestMarkdownImage(scrape.markdown, normalizedUrl);
+    const setName = getDisplaySetName(pathParts.setName);
+    if (
+      isNonEnglishOnePieceVariant({
+        game: input.game,
+        cardmarketUrl: normalizedUrl,
+        setName,
+        imageUrl,
+      })
+    ) {
+      seen.add(normalizedUrl);
+      continue;
+    }
 
     variants.push({
       key: getCardMarketVariantKey(normalizedUrl, cardmarketId),
       name: input.name,
-      setName: getDisplaySetName(pathParts.setName),
+      setName,
       cardNumber: getVersionedCardNumber(extractedNumber ?? input.cardNumber, version),
       cardmarketUrl: normalizedUrl,
       cardmarketId,
@@ -1279,11 +1313,21 @@ function serializeCardMarketSearchVariant(
     normalizedUrl
   )}`;
   const cardmarketId = extractCardMarketProductId(normalizedUrl);
+  const setName = getDisplaySetName(pathParts.setName);
+  if (
+    isNonEnglishOnePieceVariant({
+      game: input.game,
+      cardmarketUrl: normalizedUrl,
+      setName,
+    })
+  ) {
+    return null;
+  }
 
   return {
     key: getCardMarketVariantKey(normalizedUrl, cardmarketId),
     name: extractNameFromTitle(title, pathParts.cardName) ?? input.name,
-    setName: getDisplaySetName(pathParts.setName),
+    setName,
     cardNumber: extractCardNumberFromText(haystack) ?? input.cardNumber,
     cardmarketUrl: normalizedUrl,
     cardmarketId,
