@@ -650,6 +650,46 @@ function drawPsaLogoMark(
   drawLetter("A", centerX + fontSize * 0.41, "#1f57ab", 1.02);
 }
 
+function drawBeckettLogoMark(
+  context: CanvasRenderingContext2D,
+  centerX: number,
+  centerY: number,
+  fontSize: number
+) {
+  context.save();
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = `900 ${fontSize}px Georgia, 'Times New Roman', serif`;
+  context.lineJoin = "round";
+  context.lineWidth = fontSize * 0.045;
+  context.strokeStyle = "rgba(0,0,0,0.34)";
+  context.fillStyle = "#ffffff";
+  context.strokeText("(B)", centerX, centerY);
+  context.fillText("(B)", centerX, centerY);
+  context.restore();
+}
+
+function drawLabelBarcode(
+  context: CanvasRenderingContext2D,
+  value: string,
+  x: number,
+  y: number,
+  height: number,
+  maxWidth: number
+) {
+  let cursorX = x;
+  const limitX = x + maxWidth;
+  const unit = Math.max(2, Math.round(height * 0.045));
+
+  for (let index = 0; index < 74 && cursorX < limitX; index += 1) {
+    const digit = Number(value[index % value.length] ?? 1);
+    const width = unit + (digit % 4) * unit;
+    context.fillStyle = digit % 2 === 0 ? "#101828" : "#344054";
+    context.fillRect(cursorX, y, width, height);
+    cursorX += width + unit + (digit % 3) * unit;
+  }
+}
+
 function createPsaLabelTexture(
   THREE: typeof import("three"),
   cardName: string,
@@ -669,66 +709,85 @@ function createPsaLabelTexture(
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
-  context.fillStyle = "#e13b37";
-  drawRoundedRect(context, 0, 0, canvas.width, canvas.height - s(34), s(30));
+
+  const certNumber = createPsaCertNumber(cardName, cardNumber, grade);
+
+  context.fillStyle = "#fbfbf8";
+  drawRoundedRect(context, s(6), s(6), canvas.width - s(12), canvas.height - s(12), s(22));
   context.fill();
 
-  context.fillStyle = "#fbfbfb";
-  drawRoundedRect(context, s(16), s(16), canvas.width - s(32), canvas.height - s(66), s(24));
-  context.fill();
+  context.strokeStyle = "#df1f2d";
+  context.lineWidth = s(8);
+  drawRoundedRect(context, s(8), s(8), canvas.width - s(16), canvas.height - s(16), s(22));
+  context.stroke();
 
-  const leftX = s(50);
-  const rightX = canvas.width - s(48);
-  const eyebrowY = s(92);
-  const nameY = s(184);
-  const setY = s(258);
-  const cardNumberY = s(104);
-  const descriptorY = s(180);
-  const gradeY = s(302);
+  context.strokeStyle = "rgba(223,31,45,0.55)";
+  context.lineWidth = s(2);
+  drawRoundedRect(context, s(28), s(28), canvas.width - s(56), canvas.height - s(56), s(12));
+  context.stroke();
+
+  const leftX = s(58);
+  const rightX = canvas.width - s(58);
+  const textRight = canvas.width - s(350);
+  const logoX = canvas.width * 0.5;
+  const logoY = s(280);
 
   context.fillStyle = "#111111";
-  context.font = `700 ${s(34)}px Arial, sans-serif`;
-  context.fillText("POKEMON TCG", leftX, eyebrowY);
+  context.font = `700 ${s(32)}px Arial, sans-serif`;
+  context.fillText("POKEMON TCG", leftX, s(82), textRight - leftX);
 
-  context.font = `700 ${s(68)}px Arial, sans-serif`;
-  context.fillText(formatPsaNameLine(cardName), leftX, nameY);
+  context.font = `900 ${s(62)}px Arial Black, Arial, sans-serif`;
+  context.fillText(formatPsaNameLine(cardName), leftX, s(164), textRight - leftX);
 
   context.globalAlpha = 0.85;
-  context.font = `600 ${s(46)}px Arial, sans-serif`;
-  context.fillText(formatPsaSetLine(episodeName ?? cardName, cardNumber), leftX, setY);
+  context.font = `800 ${s(38)}px Arial, sans-serif`;
+  context.fillText(formatPsaSetLine(episodeName ?? cardName, cardNumber), leftX, s(220), textRight - leftX);
   context.globalAlpha = 1;
 
   context.textAlign = "right";
-  context.font = `700 ${s(52)}px Arial, sans-serif`;
+  context.font = `800 ${s(44)}px Arial, sans-serif`;
   if (cardNumber) {
-    context.fillText(`#${cardNumber}`, rightX, cardNumberY);
+    context.fillText(`#${cardNumber}`, rightX, s(88));
   }
 
-  context.font = `700 ${s(52)}px Arial, sans-serif`;
-  context.fillText(getPsaGradeDescriptor(grade) ?? "GRADE", rightX, descriptorY);
+  context.font = `900 ${s(44)}px Arial, sans-serif`;
+  context.fillText(getPsaGradeDescriptor(grade) ?? "GRADE", rightX, s(150));
 
-  context.font = `900 ${s(128)}px Arial Black, Arial, sans-serif`;
-  context.fillText(grade, rightX, gradeY);
+  context.font = `900 ${s(126)}px Arial Black, Arial, sans-serif`;
+  context.fillText(grade, rightX, s(278));
   context.textAlign = "start";
 
-  context.fillStyle = "#e13b37";
-  const logoOuterWidth = canvas.width * 0.27;
+  const logoOuterWidth = s(270);
   const logoOuterX = (canvas.width - logoOuterWidth) / 2;
-  const logoOuterY = canvas.height - s(72);
-  drawRoundedRect(context, logoOuterX, logoOuterY, logoOuterWidth, s(62), s(10));
+  const logoOuterY = s(242);
+  context.fillStyle = "rgba(255,255,255,0.96)";
+  drawRoundedRect(context, logoOuterX, logoOuterY, logoOuterWidth, s(74), s(10));
   context.fill();
+  context.strokeStyle = "rgba(17,24,39,0.16)";
+  context.lineWidth = s(2);
+  context.stroke();
 
-  context.fillStyle = "#fcfcfc";
+  context.fillStyle = "rgba(231,238,250,0.92)";
   drawRoundedRect(
     context,
     logoOuterX + s(8),
     logoOuterY + s(8),
     logoOuterWidth - s(16),
-    s(50),
+    s(58),
     s(8)
   );
   context.fill();
-  drawPsaLogoMark(context, canvas.width / 2, canvas.height - s(24), s(52));
+  drawPsaLogoMark(context, logoX, logoY + s(18), s(62));
+
+  context.fillStyle = "rgba(17,24,39,0.16)";
+  context.fillRect(s(58), s(334), canvas.width - s(116), s(2));
+  drawLabelBarcode(context, certNumber, s(64), s(354), s(42), canvas.width - s(430));
+
+  context.textAlign = "right";
+  context.fillStyle = "#111827";
+  context.font = `900 ${s(34)}px Arial Black, Arial, sans-serif`;
+  context.fillText(certNumber, rightX, s(386));
+  context.textAlign = "left";
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -769,57 +828,41 @@ function createPsaLabelBackTexture(
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  const background = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-  background.addColorStop(0, "#f8f7f3");
-  background.addColorStop(0.5, "#eeece6");
-  background.addColorStop(1, "#faf9f5");
-  context.fillStyle = background;
-  drawRoundedRect(context, 0, 0, canvas.width, canvas.height, s(28));
+  context.fillStyle = "#f7f7f2";
+  drawRoundedRect(context, s(6), s(6), canvas.width - s(12), canvas.height - s(12), s(22));
   context.fill();
+  context.strokeStyle = "#df1f2d";
+  context.lineWidth = s(7);
+  drawRoundedRect(context, s(8), s(8), canvas.width - s(16), canvas.height - s(16), s(22));
+  context.stroke();
 
-  context.fillStyle = "#d93431";
-  drawRoundedRect(context, 0, 0, canvas.width, s(62), s(24));
+  const panelX = s(56);
+  const panelY = s(62);
+  const panelW = s(455);
+  const panelH = s(142);
+  const panelGradient = context.createLinearGradient(panelX, panelY, panelX + panelW, panelY + panelH);
+  panelGradient.addColorStop(0, "#0f172a");
+  panelGradient.addColorStop(0.55, "#1f2d4f");
+  panelGradient.addColorStop(1, "#111827");
+  context.fillStyle = panelGradient;
+  drawRoundedRect(context, panelX, panelY, panelW, panelH, s(10));
   context.fill();
-  context.fillRect(0, s(34), canvas.width, s(34));
+  drawPsaLogoMark(context, panelX + panelW * 0.43, panelY + s(94), s(92));
+  context.fillStyle = "rgba(255,255,255,0.8)";
+  context.font = `800 ${s(22)}px Arial, sans-serif`;
+  context.fillText("Lighthouse label", panelX + s(28), panelY + s(122));
 
-  context.strokeStyle = "rgba(20,34,55,0.12)";
-  context.lineWidth = s(3);
-  for (let y = s(96); y < canvas.height - s(70); y += s(42)) {
-    context.beginPath();
-    context.moveTo(s(56), y);
-    context.lineTo(canvas.width - s(56), y);
-    context.stroke();
-  }
+  context.fillStyle = "#111827";
+  context.font = `900 ${s(42)}px Arial Black, Arial, sans-serif`;
+  context.fillText("PSA CERTIFICATION", s(560), s(96));
+  context.font = `700 ${s(27)}px Arial, sans-serif`;
+  context.fillStyle = "rgba(17,24,39,0.68)";
+  context.fillText("Verify certification and population data", s(562), s(138));
+  context.fillText("at PSAcard.com/cert", s(562), s(174));
 
-  context.fillStyle = "#17223a";
-  context.font = `900 ${s(34)}px Arial Black, Arial, sans-serif`;
-  context.fillText("PSA CERTIFICATION", s(56), s(120));
-  context.font = `700 ${s(24)}px Arial, sans-serif`;
-  context.fillStyle = "rgba(23,34,58,0.72)";
-  context.fillText("Verify certification and population data at PSAcard.com/cert", s(56), s(160));
-
-  context.fillStyle = "#101828";
-  context.font = `900 ${s(78)}px Arial Black, Arial, sans-serif`;
-  context.fillText(certNumber, s(56), s(250));
-  context.font = `800 ${s(30)}px Arial, sans-serif`;
-  context.fillStyle = "rgba(16,24,40,0.62)";
-  context.fillText(`GRADE ${grade}`, s(58), s(300));
-
-  const barcodeX = s(56);
-  const barcodeY = s(326);
-  const barcodeH = s(56);
-  let x = barcodeX;
-  for (let index = 0; index < 52; index += 1) {
-    const digit = Number(certNumber[index % certNumber.length]);
-    const width = s(2 + (digit % 4));
-    context.fillStyle = digit % 2 === 0 ? "#111827" : "#334155";
-    context.fillRect(x, barcodeY, width, barcodeH);
-    x += width + s(3 + (digit % 3));
-  }
-
-  const qrSize = s(180);
-  const qrX = canvas.width - s(260);
-  const qrY = s(122);
+  const qrSize = s(176);
+  const qrX = canvas.width - s(258);
+  const qrY = s(64);
   context.fillStyle = "#f9fafb";
   drawRoundedRect(context, qrX - s(14), qrY - s(14), qrSize + s(28), qrSize + s(28), s(16));
   context.fill();
@@ -842,14 +885,21 @@ function createPsaLabelBackTexture(
     }
   }
 
-  drawPsaLogoMark(context, canvas.width - s(150), canvas.height - s(42), s(56));
+  context.fillStyle = "#101828";
+  drawLabelBarcode(context, certNumber, s(72), s(292), s(64), canvas.width - s(440));
+  context.font = `900 ${s(44)}px Arial Black, Arial, sans-serif`;
+  context.fillText(certNumber, s(72), s(268));
+  context.font = `800 ${s(26)}px Arial, sans-serif`;
+  context.fillStyle = "rgba(16,24,40,0.62)";
+  context.fillText(`GRADE ${grade}`, s(74), s(394));
 
-  context.fillStyle = "rgba(255,255,255,0.92)";
-  context.font = `900 ${s(28)}px Arial Black, Arial, sans-serif`;
-  context.fillText("PSA", s(56), s(43));
   context.textAlign = "right";
+  context.fillStyle = "#111827";
+  context.font = `900 ${s(30)}px Arial Black, Arial, sans-serif`;
+  context.fillText(certNumber, canvas.width - s(70), s(294));
   context.font = `700 ${s(22)}px Arial, sans-serif`;
-  context.fillText("AUTHENTICATED AND GRADED", canvas.width - s(56), s(42));
+  context.fillStyle = "rgba(17,24,39,0.64)";
+  context.fillText("AUTHENTICATED AND GRADED", canvas.width - s(70), s(340));
   context.textAlign = "left";
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -880,75 +930,97 @@ function createBgsLabelTexture(
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
+  const certNumber = createPsaCertNumber(`BGS ${cardName}`, cardNumber, grade);
   const goldGradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-  goldGradient.addColorStop(0, "#fff4bc");
-  goldGradient.addColorStop(0.25, "#ddb95a");
-  goldGradient.addColorStop(0.62, "#8b631e");
-  goldGradient.addColorStop(1, "#f2d57a");
+  goldGradient.addColorStop(0, "#fff1bd");
+  goldGradient.addColorStop(0.38, "#dbc070");
+  goldGradient.addColorStop(0.72, "#b38a35");
+  goldGradient.addColorStop(1, "#f6e2a6");
   context.fillStyle = goldGradient;
-  drawRoundedRect(context, 0, 0, canvas.width, canvas.height, s(26));
+  drawRoundedRect(context, s(6), s(6), canvas.width - s(12), canvas.height - s(12), s(18));
   context.fill();
 
-  context.strokeStyle = "rgba(39,24,7,0.72)";
-  context.lineWidth = s(7);
+  context.strokeStyle = "rgba(24,17,9,0.86)";
+  context.lineWidth = s(8);
   context.stroke();
 
-  context.fillStyle = "rgba(255,255,255,0.42)";
-  context.fillRect(s(18), s(18), canvas.width - s(36), s(48));
+  context.fillStyle = "rgba(255,255,255,0.35)";
+  context.fillRect(s(24), s(22), canvas.width - s(48), s(54));
 
-  context.fillStyle = "#1b1207";
+  const logoX = s(34);
+  const logoY = s(34);
+  const logoW = s(252);
+  const logoH = canvas.height - s(68);
+  const logoGradient = context.createLinearGradient(logoX, logoY, logoX + logoW, logoY + logoH);
+  logoGradient.addColorStop(0, "#8b8b83");
+  logoGradient.addColorStop(0.5, "#333331");
+  logoGradient.addColorStop(1, "#111111");
+  context.fillStyle = logoGradient;
+  drawRoundedRect(context, logoX, logoY, logoW, logoH, s(12));
+  context.fill();
+  context.strokeStyle = "rgba(255,255,255,0.3)";
+  context.lineWidth = s(2);
+  context.stroke();
+  drawBeckettLogoMark(context, logoX + logoW / 2, logoY + s(116), s(84));
+  context.textAlign = "center";
+  context.fillStyle = "#ffffff";
   context.font = `900 ${s(30)}px Arial Black, Arial, sans-serif`;
-  context.fillText("BECKETT GRADING SERVICES", s(36), s(52));
-  context.textAlign = "right";
-  context.fillStyle = "#771b14";
-  context.font = `900 ${s(35)}px Arial Black, Arial, sans-serif`;
-  context.fillText("BGS", canvas.width - s(36), s(54));
+  context.fillText("BECKETT", logoX + logoW / 2, logoY + s(194));
+  context.font = `800 ${s(22)}px Arial, sans-serif`;
+  context.fillText("BGS", logoX + logoW / 2, logoY + s(236));
   context.textAlign = "left";
 
-  const subgradeX = s(34);
-  const subgradeY = s(92);
-  const subgradeW = s(390);
-  const subgradeH = s(258);
-  context.fillStyle = "rgba(255,249,222,0.62)";
-  drawRoundedRect(context, subgradeX, subgradeY, subgradeW, subgradeH, s(16));
+  const detailsX = logoX + logoW + s(34);
+  const detailsRight = canvas.width - s(324);
+  context.fillStyle = "#17110a";
+  context.font = `900 ${s(38)}px Arial Black, Arial, sans-serif`;
+  context.fillText(formatPsaNameLine(cardName), detailsX, s(76), detailsRight - detailsX);
+  context.font = `900 ${s(34)}px Arial Black, Arial, sans-serif`;
+  context.fillText(formatPsaSetLine(episodeName ?? cardName, cardNumber), detailsX, s(124), detailsRight - detailsX);
+  context.globalAlpha = 0.78;
+  context.font = `800 ${s(24)}px Arial, sans-serif`;
+  context.fillText("BECKETT GRADING SERVICES", detailsX, s(164), detailsRight - detailsX);
+  context.globalAlpha = 1;
+
+  const subgradeX = detailsX;
+  const subgradeY = s(208);
+  const subgradeW = detailsRight - detailsX - s(22);
+  const subgradeH = s(102);
+  context.fillStyle = "rgba(255,249,222,0.64)";
+  drawRoundedRect(context, subgradeX, subgradeY, subgradeW, subgradeH, s(8));
   context.fill();
-  context.strokeStyle = "rgba(37,24,9,0.46)";
-  context.lineWidth = s(3);
+  context.strokeStyle = "rgba(37,24,9,0.5)";
+  context.lineWidth = s(2);
   context.stroke();
 
-  const cellW = subgradeW / 2;
-  const cellH = subgradeH / 2;
+  const cellW = subgradeW / 4;
   BGS_SUBGRADE_KEYS.forEach((key, index) => {
-    const x = subgradeX + (index % 2) * cellW;
-    const y = subgradeY + Math.floor(index / 2) * cellH;
-    context.strokeStyle = "rgba(37,24,9,0.26)";
+    const x = subgradeX + index * cellW;
+    context.strokeStyle = "rgba(37,24,9,0.28)";
     context.lineWidth = s(2);
-    context.strokeRect(x, y, cellW, cellH);
+    if (index > 0) {
+      context.beginPath();
+      context.moveTo(x, subgradeY);
+      context.lineTo(x, subgradeY + subgradeH);
+      context.stroke();
+    }
+
     context.fillStyle = "#33230b";
-    context.font = `800 ${s(22)}px Arial, sans-serif`;
-    context.fillText(formatBgsSubgradeName(key).toUpperCase(), x + s(18), y + s(38));
-    context.fillStyle = "#111";
-    context.font = `900 ${s(54)}px Arial Black, Arial, sans-serif`;
-    context.fillText(subgrades?.[key] ?? "-", x + s(20), y + s(98));
+    context.font = `900 ${s(22)}px Arial, sans-serif`;
+    context.fillText(formatBgsSubgradeName(key).toUpperCase(), x + s(14), subgradeY + s(36));
+    context.fillStyle = "#111111";
+    context.font = `900 ${s(44)}px Arial Black, Arial, sans-serif`;
+    context.fillText(subgrades?.[key] ?? "-", x + s(14), subgradeY + s(84));
   });
 
-  const detailsX = s(456);
-  const detailsRight = canvas.width - s(330);
-  context.fillStyle = "#17110a";
-  context.font = `900 ${s(52)}px Arial Black, Arial, sans-serif`;
-  context.fillText(formatPsaNameLine(cardName), detailsX, s(150), detailsRight - detailsX);
-  context.globalAlpha = 0.82;
-  context.font = `800 ${s(32)}px Arial, sans-serif`;
-  context.fillText(formatPsaSetLine(episodeName ?? cardName, cardNumber), detailsX, s(206), detailsRight - detailsX);
-  context.globalAlpha = 1;
-  context.font = `700 ${s(24)}px Arial, sans-serif`;
-  context.fillText("CERTIFIED AUTHENTIC", detailsX, s(284));
-  context.fillText("SUBGRADES", subgradeX, s(384));
+  context.fillStyle = "rgba(49,33,13,0.7)";
+  context.font = `800 ${s(24)}px Arial, sans-serif`;
+  context.fillText(certNumber, detailsX, s(362));
 
   const gradeX = canvas.width - s(292);
-  const gradeY = s(92);
+  const gradeY = s(34);
   const gradeW = s(258);
-  const gradeH = s(258);
+  const gradeH = canvas.height - s(68);
   const gradeGradient = context.createLinearGradient(gradeX, gradeY, gradeX, gradeY + gradeH);
   gradeGradient.addColorStop(0, "#2b1c09");
   gradeGradient.addColorStop(1, "#050403");
@@ -960,11 +1032,14 @@ function createBgsLabelTexture(
   context.stroke();
   context.textAlign = "center";
   context.fillStyle = "#f9df83";
-  context.font = `900 ${s(25)}px Arial Black, Arial, sans-serif`;
-  context.fillText(getBgsGradeDescriptor(grade), gradeX + gradeW / 2, gradeY + s(52));
+  context.font = `900 ${s(30)}px Arial Black, Arial, sans-serif`;
+  context.fillText(getBgsGradeDescriptor(grade), gradeX + gradeW / 2, gradeY + s(62));
   context.fillStyle = "#ffffff";
-  context.font = `900 ${s(132)}px Arial Black, Arial, sans-serif`;
-  context.fillText(grade, gradeX + gradeW / 2, gradeY + s(190));
+  context.font = `900 ${s(150)}px Arial Black, Arial, sans-serif`;
+  context.fillText(grade, gradeX + gradeW / 2, gradeY + s(218));
+  context.fillStyle = "rgba(255,245,206,0.78)";
+  context.font = `800 ${s(24)}px Arial, sans-serif`;
+  context.fillText(certNumber, gradeX + gradeW / 2, gradeY + s(304));
   context.textAlign = "left";
 
   const texture = new THREE.CanvasTexture(canvas);

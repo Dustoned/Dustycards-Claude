@@ -60,6 +60,52 @@ function PsaLogoMark({ className = "" }: { className?: string }) {
   );
 }
 
+function BeckettLogoMark({ className = "" }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex items-center justify-center font-black uppercase leading-none tracking-[0] text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)] ${className}`}
+    >
+      (B)
+    </span>
+  );
+}
+
+function createLabelCertNumber(
+  company: string,
+  name: string,
+  cardNumber: string | null,
+  grade: string
+) {
+  const input = `${company}|${name}|${cardNumber ?? ""}|${grade}`;
+  let hash = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+
+  return String(10000000 + (hash % 90000000));
+}
+
+function BarcodeStrip({ value, className = "" }: { value: string; className?: string }) {
+  return (
+    <span aria-hidden="true" className={`flex h-full items-end gap-px overflow-hidden ${className}`}>
+      {Array.from({ length: 28 }, (_, index) => {
+        const digit = Number(value[index % value.length] ?? 1);
+        const width = 1 + (digit % 3);
+        const height = 44 + ((digit + index) % 5) * 12;
+        return (
+          <span
+            key={`${value}-${index}`}
+            className="block bg-[#111827]"
+            style={{ width: `${width}px`, height: `${height}%` }}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
 function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
   switch (company) {
     case "PSA":
@@ -68,9 +114,9 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
           "border-white/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.045)_36%,rgba(255,255,255,0.012)_100%)]",
         inner:
           "border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.022)_40%,rgba(255,255,255,0.01)_100%)]",
-        labelOuter: "bg-[#e13b37]",
+        labelOuter: "border border-[#df1f2d] bg-[#fbfbf8]",
         labelInner:
-          "bg-[linear-gradient(180deg,rgba(255,255,255,0.995),rgba(246,246,246,0.976))]",
+          "bg-[linear-gradient(180deg,rgba(255,255,255,0.998),rgba(245,246,247,0.982))]",
         labelDivider: "bg-black/14",
         gradeDivider: "border-l border-black/10",
         window:
@@ -83,8 +129,8 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
         inner:
           "border-white/12 bg-[linear-gradient(180deg,rgba(255,244,214,0.08),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.015)_100%)]",
         labelOuter:
-          "border border-amber-200/70 bg-[linear-gradient(180deg,#f7e4a5_0%,#d9b75f_44%,#8a6522_100%)]",
-        labelInner: "bg-[linear-gradient(180deg,rgba(255,248,218,0.72),rgba(156,108,34,0.18))]",
+          "border border-[#2b2114]/80 bg-[linear-gradient(180deg,#f9eac0_0%,#d7bd75_45%,#b89038_100%)]",
+        labelInner: "bg-[linear-gradient(180deg,rgba(255,250,225,0.9),rgba(184,132,45,0.28))]",
         labelDivider: "bg-black/35",
         gradeDivider: "border-l border-black/28",
         window:
@@ -161,9 +207,12 @@ const TILE_METRICS = {
   psaRightMeta: "text-[7px]",
   psaDescriptor: "mt-[1px]",
   psaGrade: "mt-0 text-[13px]",
-  psaLogoWrap: "bottom-[-1.5px] h-[10px] w-[27%] rounded-t-[2px] p-[1.1px]",
+  psaLogoWrap:
+    "left-1/2 top-[55%] h-[10px] w-[23%] -translate-x-1/2 rounded-[2px] p-[1px]",
   psaLogoInner: "rounded-t-[1px]",
   psaLogo: "text-[9px]",
+  psaCertArea: "left-[7px] right-[7px] bottom-[2px] h-[8px] gap-[3px]",
+  psaCertText: "text-[4.5px]",
   genericLabel:
     "inset-x-[3.7%] top-[3.2%] h-[13%] min-h-[30px] rounded-[4px] px-[2px]",
   genericContent: "px-[8px] py-[6px]",
@@ -173,6 +222,8 @@ const TILE_METRICS = {
   genericGradeColumn: "min-w-[31%] px-2",
   genericGradeLabel: "text-[5px]",
   genericGrade: "mt-[1px] text-[14px]",
+  bgsSubgradeName: "text-[4.4px]",
+  bgsSubgradeValue: "text-[7px]",
   cardWindow:
     "left-1/2 top-[18.9%] h-[76.1%] aspect-[63/88] -translate-x-1/2 rounded-[4px]",
   cardBorderOuter: "-inset-x-[1px] inset-y-[3px] rounded-[3px]",
@@ -194,9 +245,12 @@ const DETAIL_METRICS = {
   psaRightMeta: "text-[13px]",
   psaDescriptor: "mt-[2px]",
   psaGrade: "mt-0 text-[28px]",
-  psaLogoWrap: "bottom-[-2px] h-[18px] w-[27%] rounded-t-[3px] p-[1.6px]",
+  psaLogoWrap:
+    "left-1/2 top-[54%] h-[19px] w-[23%] -translate-x-1/2 rounded-[3px] p-[1.5px]",
   psaLogoInner: "rounded-t-[2px]",
   psaLogo: "text-[17px]",
+  psaCertArea: "left-[13px] right-[12px] bottom-[4px] h-[13px] gap-[6px]",
+  psaCertText: "text-[8px]",
   genericLabel:
     "inset-x-[3.6%] top-[3%] h-[13.2%] min-h-[38px] rounded-[7px] px-[3px] max-[640px]:min-h-[30px]",
   genericContent: "px-[12px] py-[9px]",
@@ -206,6 +260,8 @@ const DETAIL_METRICS = {
   genericGradeColumn: "min-w-[30%] px-3",
   genericGradeLabel: "text-[8.5px]",
   genericGrade: "mt-[3px] text-[33px]",
+  bgsSubgradeName: "text-[7px]",
+  bgsSubgradeValue: "text-[12px]",
   cardWindow:
     "left-1/2 top-[18.5%] h-[77.2%] aspect-[63/88] -translate-x-1/2 rounded-[8px]",
   cardBorderOuter: "inset-x-0 inset-y-[4px] rounded-[6px]",
@@ -318,6 +374,7 @@ function GradedSlabPreview({
   const slabSubtitle = [episodeCode ?? episodeName, cardNumber ? `#${cardNumber}` : null]
     .filter(Boolean)
     .join(" ");
+  const certNumber = createLabelCertNumber(company, name, cardNumber ?? null, grade);
 
   return (
     <div
@@ -337,7 +394,8 @@ function GradedSlabPreview({
             className={`absolute z-[2] shadow-sm shadow-black/15 ${metrics.psaLabel} ${theme.labelOuter}`}
           >
             <div className="relative h-full w-full" style={scaledLabelContentStyle}>
-              <div className={`relative h-full w-full rounded-[2px] ${theme.labelInner}`}>
+              <div className={`relative h-full w-full overflow-hidden rounded-[2px] ${theme.labelInner}`}>
+                <div className="absolute inset-[2px] rounded-[1px] border border-[#df1f2d]/80" />
                 <div
                   className={`absolute flex flex-col items-start text-left leading-none text-[#111111] ${metrics.psaLeft}`}
                 >
@@ -373,15 +431,26 @@ function GradedSlabPreview({
                   </p>
                   <p className={`font-black leading-none ${metrics.psaGrade}`}>{grade}</p>
                 </div>
-              </div>
 
-              <div
-                className={`absolute left-1/2 -translate-x-1/2 bg-[#e13b37] shadow-[0_1px_0_rgba(255,255,255,0.16)] ${metrics.psaLogoWrap}`}
-              >
                 <div
-                  className={`flex h-full w-full items-center justify-center bg-[#fffefe] ${metrics.psaLogoInner}`}
+                  className={`absolute border border-black/10 bg-white/90 shadow-[0_1px_0_rgba(255,255,255,0.7)] ${metrics.psaLogoWrap}`}
                 >
-                  <PsaLogoMark className={metrics.psaLogo} />
+                  <div
+                    className={`flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,#ffffff,#eef3fb)] ${metrics.psaLogoInner}`}
+                  >
+                    <PsaLogoMark className={metrics.psaLogo} />
+                  </div>
+                </div>
+
+                <div
+                  className={`absolute flex items-end border-t border-black/12 pt-[1px] ${metrics.psaCertArea}`}
+                >
+                  <BarcodeStrip value={certNumber} className="min-w-0 flex-1 opacity-90" />
+                  <span
+                    className={`shrink-0 font-black leading-none tracking-[0.05em] text-[#111827] ${metrics.psaCertText}`}
+                  >
+                    {certNumber}
+                  </span>
                 </div>
               </div>
             </div>
@@ -391,39 +460,22 @@ function GradedSlabPreview({
             className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/20 ${metrics.genericLabel} ${theme.labelOuter}`}
           >
             <div className="relative h-full w-full" style={scaledLabelContentStyle}>
-              <div className={`relative grid h-full w-full grid-cols-[26%_minmax(0,1fr)_26%] overflow-hidden ${theme.labelInner}`}>
+              <div
+                className={`relative grid h-full w-full grid-cols-[20%_minmax(0,1fr)_25%] overflow-hidden ${theme.labelInner}`}
+              >
                 <div className={`absolute inset-x-0 top-0 h-[3px] ${theme.labelDivider}`} />
                 <div className="absolute inset-x-0 bottom-0 h-px bg-white/35" />
-                <div className="relative z-[1] grid grid-cols-2 border-r border-black/25 bg-black/12 text-[#17110a]">
-                  {BGS_SUBGRADE_KEYS.map((key) => (
-                    <div
-                      key={key}
-                      className="flex flex-col items-center justify-center border-b border-r border-black/16 px-0.5 last:border-r-0"
-                    >
-                      <span className="truncate text-[4.6px] font-black uppercase leading-none tracking-[0.08em] opacity-70">
-                        {formatBgsSubgradeName(key).slice(0, 4)}
-                      </span>
-                      <span className="mt-[1px] text-[8px] font-black leading-none">
-                        {bgsSubgrades?.[key] ?? "-"}
-                      </span>
-                    </div>
-                  ))}
+                <div className="relative z-[1] flex flex-col items-center justify-center border-r border-black/35 bg-[linear-gradient(180deg,#777,#2d2d2d_45%,#111)] text-white">
+                  <BeckettLogoMark className={metrics.genericName} />
+                  <span
+                    className={`mt-[2px] font-black uppercase leading-none tracking-[0.08em] ${metrics.genericEyebrow}`}
+                  >
+                    BECKETT
+                  </span>
                 </div>
                 <div
-                  className={`relative min-w-0 text-left leading-none text-[#17110a] ${metrics.genericContent}`}
+                  className={`relative z-[1] min-w-0 text-left leading-none text-[#17110a] ${metrics.genericContent}`}
                 >
-                  <div className="flex min-w-0 items-baseline gap-2">
-                    <span
-                      className={`font-black uppercase tracking-[0.18em] ${metrics.genericEyebrow}`}
-                    >
-                      BECKETT
-                    </span>
-                    <span
-                      className={`font-bold uppercase tracking-[0.16em] text-[#6a1d16] ${metrics.genericEyebrow}`}
-                    >
-                      BGS
-                    </span>
-                  </div>
                   <p
                     className={`truncate font-black uppercase tracking-[0.07em] ${metrics.genericName}`}
                   >
@@ -434,9 +486,33 @@ function GradedSlabPreview({
                   >
                     {slabSubtitle}
                   </p>
+                  <div className="mt-[3px] grid grid-cols-4 overflow-hidden rounded-[2px] border border-black/28 bg-[#fff4c7]/60">
+                    {BGS_SUBGRADE_KEYS.map((key) => (
+                      <div
+                        key={key}
+                        className="min-w-0 border-r border-black/18 px-[2px] py-[1px] last:border-r-0"
+                      >
+                        <span
+                          className={`block truncate font-black uppercase leading-none tracking-[0.06em] opacity-70 ${metrics.bgsSubgradeName}`}
+                        >
+                          {formatBgsSubgradeName(key)}
+                        </span>
+                        <span
+                          className={`mt-[1px] block font-black leading-none ${metrics.bgsSubgradeValue}`}
+                        >
+                          {bgsSubgrades?.[key] ?? "-"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <p
+                    className={`mt-[2px] truncate font-bold uppercase tracking-[0.06em] text-[#31210d]/70 ${metrics.genericEyebrow}`}
+                  >
+                    {certNumber}
+                  </p>
                 </div>
                 <div
-                  className={`relative flex flex-col items-center justify-center bg-[linear-gradient(180deg,rgba(35,23,9,0.95),rgba(8,7,6,0.96))] text-[#f6d778] ${metrics.genericGradeColumn} ${theme.gradeDivider}`}
+                  className={`relative z-[1] flex flex-col items-center justify-center bg-[linear-gradient(180deg,rgba(35,23,9,0.98),rgba(8,7,6,0.98))] text-[#f6d778] ${metrics.genericGradeColumn} ${theme.gradeDivider}`}
                 >
                   <span
                     className={`font-black uppercase tracking-[0.16em] text-[#f7e7ad] ${metrics.genericGradeLabel}`}
