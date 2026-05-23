@@ -16,6 +16,7 @@ import { cardMatchesSearchQuery } from "@/lib/card-search";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import { SectionHeader } from "@/components/PageHeader";
+import VendorBuyEstimate from "@/components/VendorBuyEstimate";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
@@ -40,6 +41,7 @@ import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { ModalCardData } from "@/components/card-modal/types";
 import {
   modalActionRowClass,
+  modalBodyClass,
   modalCenteredMobileOverlayClass,
   modalCenteredPanelClass,
   modalCloseButtonClass,
@@ -148,6 +150,10 @@ interface SoldDialogState {
   error: string | null;
 }
 
+interface SellQuoteDialogState {
+  items: SoldDialogItem[];
+}
+
 type CollectionView = Exclude<CardView, "binder">;
 
 const INITIAL_COLLECTION_RENDER_COUNT = 72;
@@ -217,6 +223,7 @@ export default function CollectionCardsView({
   const [removingItems, setRemovingItems] = useState(false);
   const [removeDialog, setRemoveDialog] = useState<RemoveDialogState | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [sellQuoteDialog, setSellQuoteDialog] = useState<SellQuoteDialogState | null>(null);
   const [soldDialog, setSoldDialog] = useState<SoldDialogState | null>(null);
   const [savingSold, setSavingSold] = useState(false);
   const selectionEnabled =
@@ -666,6 +673,7 @@ export default function CollectionCardsView({
 
   function toggleSelectionMode() {
     setBulkAddOpen(false);
+    setSellQuoteDialog(null);
     setSelectionMode((prev) => {
       if (prev) {
         setSelectedKeys([]);
@@ -737,10 +745,12 @@ export default function CollectionCardsView({
   }
 
   function handleBulkAdd() {
+    setSellQuoteDialog(null);
     setBulkAddOpen(true);
   }
 
   function handleBulkRemove() {
+    setSellQuoteDialog(null);
     if (canRemoveFromWants) {
       if (selectedWantItemIds.length === 0) return;
       setRemoveError(null);
@@ -781,13 +791,23 @@ export default function CollectionCardsView({
     setBulkAddOpen(false);
     setRemoveDialog(null);
     setRemoveError(null);
-    setSoldDialog({
+    setSoldDialog(null);
+    setSellQuoteDialog({
       items: selectedSoldItems,
+    });
+  }
+
+  function openSoldPriceDialog(items: SoldDialogItem[]) {
+    if (items.length === 0) return;
+
+    setSoldDialog({
+      items,
       mode: "per-card",
-      prices: Object.fromEntries(selectedSoldItems.map(({ itemId }) => [itemId, ""])),
+      prices: Object.fromEntries(items.map(({ itemId }) => [itemId, ""])),
       totalPrice: "",
       error: null,
     });
+    setSellQuoteDialog(null);
   }
 
   function updateSoldPrice(itemId: string, value: string) {
@@ -850,6 +870,7 @@ export default function CollectionCardsView({
         throw new Error(data.error ?? "Could not mark cards sold");
       }
 
+      setSellQuoteDialog(null);
       setSoldDialog(null);
       setSelectionMode(false);
       setSelectedKeys([]);
@@ -938,6 +959,16 @@ export default function CollectionCardsView({
     soldDialog && soldStackTotal != null && soldDialog.items.length > 0
       ? soldStackTotal / soldDialog.items.length
       : null;
+  const sellQuoteTotal =
+    sellQuoteDialog?.items.reduce((total, { item }) => total + (item.current_value ?? 0), 0) ?? 0;
+  const sellQuotePricedCards =
+    sellQuoteDialog?.items.filter(({ item }) => item.current_value != null).length ?? 0;
+  const sellQuotePaidTotal =
+    sellQuoteDialog?.items.reduce((total, { item }) => {
+      const costBasis = getCollectionItemCostBasis(item);
+      return total + (costBasis ?? 0);
+    }, 0) ?? 0;
+  const sellQuotePnl = Number((sellQuoteTotal - sellQuotePaidTotal).toFixed(2));
   const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
     { value: "number", label: "#" },
     { value: "cm_en", label: "CM" },
@@ -1270,7 +1301,7 @@ export default function CollectionCardsView({
                           className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-emerald-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          Sold
+                          Sell
                         </button>
                       )}
                       {canRemoveFromCollection && (
@@ -1440,7 +1471,7 @@ export default function CollectionCardsView({
                         className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        Sold
+                        Sell
                       </button>
                     )}
                     {canRemoveFromCollection && (
@@ -1602,7 +1633,7 @@ export default function CollectionCardsView({
                   className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-emerald-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  Sold
+                  Sell
                 </button>
               )}
               {canRemoveFromCollection && (
@@ -2416,6 +2447,121 @@ export default function CollectionCardsView({
                   className={modalSecondaryButtonClass}
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sellQuoteDialog && (
+        <div
+          className={`${modalCenteredMobileOverlayClass} z-[360]`}
+          onClick={() => setSellQuoteDialog(null)}
+        >
+          <div
+            className={`${modalCenteredPanelClass} max-w-3xl`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={modalCompactHeaderClass}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+                  Sell Selection
+                </p>
+                <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+                  {sellQuoteDialog.items.length === 1
+                    ? "1 selected card"
+                    : `${sellQuoteDialog.items.length} selected cards`}
+                </h2>
+                <p className="mt-2 text-sm text-white/55 max-[640px]:text-[12px]">
+                  Selected market value and vendor estimate before marking cards sold.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSellQuoteDialog(null)}
+                className={modalCloseButtonClass}
+                aria-label="Close sell selection"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className={modalBodyClass}>
+              <div className="grid gap-2.5 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                    Market Total
+                  </p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-white max-[640px]:text-xl">
+                    {formatCollectionCurrency(sellQuoteTotal)}
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-white/42">
+                    {sellQuotePricedCards} / {sellQuoteDialog.items.length} priced
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                    Paid
+                  </p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-white max-[640px]:text-xl">
+                    {formatCollectionCurrency(sellQuotePaidTotal)}
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-white/42">Cost basis</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                    P&amp;L
+                  </p>
+                  <p
+                    className={`mt-1 text-2xl font-black tabular-nums max-[640px]:text-xl ${
+                      sellQuotePnl >= 0 ? "text-emerald-300" : "text-rose-300"
+                    }`}
+                  >
+                    {sellQuotePnl >= 0 ? "+" : ""}
+                    {formatCollectionCurrency(sellQuotePnl)}
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-white/42">Market minus paid</p>
+                </div>
+              </div>
+
+              <VendorBuyEstimate estimatedValue={sellQuoteTotal} className="mt-3" />
+
+              <div className="mt-4 max-h-[36vh] space-y-2 overflow-y-auto pr-1 max-[640px]:max-h-[32vh]">
+                {sellQuoteDialog.items.map(({ itemId, item }) => (
+                  <div
+                    key={itemId}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-white">{item.name}</p>
+                      <p className="mt-0.5 truncate text-xs font-semibold text-white/42">
+                        {item.card_number ? `#${item.card_number}` : item.episode_name}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-black tabular-nums text-white">
+                      {item.current_value != null
+                        ? formatCollectionCurrency(item.current_value)
+                        : "No price"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className={modalActionRowClass}>
+                <button
+                  type="button"
+                  onClick={() => openSoldPriceDialog(sellQuoteDialog.items)}
+                  className={modalPrimaryButtonClass}
+                >
+                  Mark sold
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSellQuoteDialog(null)}
+                  className={modalSecondaryButtonClass}
+                >
+                  Close
                 </button>
               </div>
             </div>

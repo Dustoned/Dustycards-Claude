@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.22",
+    releasedAt: "May 23, 2026",
+    title: "Sell selection quote popup",
+    summary: "DustyCards 3.2.22 adds a review popup for selected For Sale cards before marking them sold.",
+    tone: "new",
+    highlights: [
+      "Selecting For Sale cards and pressing Sell now opens a popup with selected market value.",
+      "The popup includes the vendor percentage estimator for just the selected cards.",
+      "You can still continue into Mark sold afterwards to save the final sold prices.",
+    ],
+  },
+  {
     version: "3.2.21",
     releasedAt: "May 23, 2026",
     title: "Better convention caching",
