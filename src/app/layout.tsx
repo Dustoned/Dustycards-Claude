@@ -9,6 +9,7 @@ import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/Desktop
 import MobileBottomNav from "@/components/MobileBottomNav";
 import MobileEdgeBackGesture from "@/components/MobileEdgeBackGesture";
 import MobileHoverTooltip from "@/components/MobileHoverTooltip";
+import OfflineCacheRegistration from "@/components/OfflineCacheRegistration";
 import SettingsProvider from "@/components/SettingsProvider";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -202,6 +203,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           currentUserRole={currentUser?.role ?? null}
         >
           <AppVersionWatcher />
+          {currentUser ? <OfflineCacheRegistration /> : null}
           <MobileHoverTooltip />
           {currentUser ? <MobileEdgeBackGesture /> : null}
           {currentUser && <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} />}

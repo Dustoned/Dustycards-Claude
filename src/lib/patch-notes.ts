@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.21",
+    releasedAt: "May 23, 2026",
+    title: "Better convention caching",
+    summary: "DustyCards 3.2.21 adds a phone-friendly offline cache layer for card images and app assets.",
+    tone: "improved",
+    highlights: [
+      "Previously loaded card images are cached on the device so they can still show when mobile internet is weak.",
+      "App scripts, styles, public assets, and recent pages are cached with safe fallback behavior.",
+      "Dynamic account and collection API actions still use fresh network data instead of stale cache.",
+    ],
+  },
+  {
     version: "3.2.20",
     releasedAt: "May 23, 2026",
     title: "Cleaner wants card actions",
