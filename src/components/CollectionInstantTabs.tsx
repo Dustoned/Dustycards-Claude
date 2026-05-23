@@ -24,6 +24,7 @@ interface Props {
   bindersSlot: ReactNode;
   sealedSlot: ReactNode;
   gradedSlot: ReactNode;
+  sellingSlot: ReactNode;
   emptySlot?: ReactNode;
 }
 
@@ -34,7 +35,8 @@ function normalizeTab(value: string | null | undefined): CollectionPageTab {
     value === "singles" ||
     value === "binders" ||
     value === "sealed" ||
-    value === "graded"
+    value === "graded" ||
+    value === "selling"
   ) {
     return value;
   }
@@ -69,6 +71,7 @@ export default function CollectionInstantTabs({
   bindersSlot,
   sealedSlot,
   gradedSlot,
+  sellingSlot,
   emptySlot = null,
 }: Props) {
   const [activeTab, setActiveTab] = useState<CollectionPageTab>(() => normalizeTab(initialTab));
@@ -137,6 +140,7 @@ export default function CollectionInstantTabs({
     if (activeTab === "binders") return bindersSlot;
     if (activeTab === "sealed") return sealedSlot;
     if (activeTab === "graded") return gradedSlot;
+    if (activeTab === "selling") return sellingSlot;
     return null;
   }
 

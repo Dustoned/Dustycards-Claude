@@ -135,6 +135,7 @@ export async function syncMissingBinderWantsForUser(
       ? db.collectionCard.findMany({
           where: {
             user_id: userId,
+            for_sale: false,
             card: { episode_id: { in: linkedEpisodeIds } },
           },
           select: { card_id: true },

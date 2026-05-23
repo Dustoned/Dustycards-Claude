@@ -125,7 +125,7 @@ async function getCardDealContext(cardId: string, userId: string) {
         },
       },
       collectionItems: {
-        where: { user_id: userId },
+        where: { user_id: userId, for_sale: false },
         orderBy: { updated_at: "desc" },
         take: 1,
         select: {
@@ -510,7 +510,7 @@ async function getCandidateCardContexts(input: {
         },
       },
       collectionItems: {
-        where: { user_id: input.userId },
+        where: { user_id: input.userId, for_sale: false },
         orderBy: { updated_at: "desc" },
         take: 1,
         select: {

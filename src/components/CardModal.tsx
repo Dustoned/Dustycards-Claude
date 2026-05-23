@@ -348,7 +348,9 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   async function removeCurrentCollectionItem() {
     if (!collectionItem || removingCollectionItem) return;
 
-    const location = collectionItem.binder_name ?? "loose singles";
+    const location = collectionItem.for_sale
+      ? "For Sale"
+      : collectionItem.binder_name ?? "loose singles";
     const confirmed = window.confirm(`Remove this saved copy from ${location}?`);
     if (!confirmed) return;
 

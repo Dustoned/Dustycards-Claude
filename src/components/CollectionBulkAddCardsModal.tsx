@@ -58,6 +58,7 @@ export default function CollectionBulkAddCardsModal({
   const [bindersLoading, setBindersLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [forSale, setForSale] = useState(false);
   const [binderId, setBinderId] = useState(initialBinderId ?? "");
   const [purchasePrice, setPurchasePrice] = useState("");
   const [condition, setCondition] = useState("Near Mint");
@@ -141,7 +142,8 @@ export default function CollectionBulkAddCardsModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cardIds: cards.map((card) => card.id),
-          binderId: binderId || null,
+          binderId: forSale ? null : binderId || null,
+          forSale,
           purchasePrice: purchasePrice || null,
           condition,
           language,
@@ -171,6 +173,7 @@ export default function CollectionBulkAddCardsModal({
     setBindersLoading(false);
 
     if (binder.type === "custom" || (sharedEpisode && binder.episode_id === sharedEpisode.id)) {
+      setForSale(false);
       setBinderId(binder.id);
       setSaveError(null);
       return;
@@ -233,10 +236,21 @@ export default function CollectionBulkAddCardsModal({
               <label className="space-y-1.5 text-sm">
                 <span className="text-white/60">Save to</span>
                 <select
-                  value={binderId}
-                  onChange={(event) => setBinderId(event.target.value)}
+                  value={forSale ? "__for_sale__" : binderId}
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    if (nextValue === "__for_sale__") {
+                      setForSale(true);
+                      setBinderId("");
+                      return;
+                    }
+
+                    setForSale(false);
+                    setBinderId(nextValue);
+                  }}
                   className={modalSelectClasses}
                 >
+                  <option value="__for_sale__" className={modalOptionClasses}>For sale</option>
                   <option value="" className={modalOptionClasses}>Singles</option>
                   {availableBinders.map((binder) => (
                     <option key={binder.id} value={binder.id} className={modalOptionClasses}>
@@ -321,7 +335,7 @@ export default function CollectionBulkAddCardsModal({
             </label>
           </div>
 
-          {!binderLocked && (
+          {!binderLocked && !forSale && (
             <CollectionInlineBinderCreator
               suggestedEpisode={sharedEpisode}
               onCreated={handleBinderCreated}

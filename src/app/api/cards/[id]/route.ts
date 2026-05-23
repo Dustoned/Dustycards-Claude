@@ -31,6 +31,7 @@ type CardAction = "refresh" | "sync-history";
 type CardDetailCollectionItem = {
   id: string;
   binder_id: string | null;
+  for_sale: boolean;
   purchase_price: number | null;
   grading_company: string | null;
   grading_grade: string | null;
@@ -63,7 +64,7 @@ async function getCardDetailCostBasis(
   const binder = collectionItem.binder;
   if (binder?.type === "linked_set" && binder.episode_id) {
     const binderCards = await db.collectionCard.findMany({
-      where: { binder_id: binder.id, user_id: userId },
+      where: { binder_id: binder.id, user_id: userId, for_sale: false },
       select: {
         id: true,
         purchase_price: true,
@@ -165,12 +166,13 @@ async function getCardDetailPayload(id: string, userId: string) {
         select: { id: true, name: true, code: true, series: true, release_date: true },
       },
       collectionItems: {
-        where: { user_id: userId },
+        where: { user_id: userId, for_sale: false },
         orderBy: { updated_at: "desc" },
         take: 1,
         select: {
           id: true,
           binder_id: true,
+          for_sale: true,
           purchase_price: true,
           condition: true,
           language: true,
@@ -372,6 +374,7 @@ async function getCardDetailPayload(id: string, userId: string) {
       ? {
           id: collectionItem.id,
           binder_id: collectionItem.binder_id,
+          for_sale: collectionItem.for_sale,
           binder_name: collectionItem.binder?.name ?? null,
           binder_type: collectionItem.binder?.type ?? null,
           purchase_price: collectionItem.purchase_price,

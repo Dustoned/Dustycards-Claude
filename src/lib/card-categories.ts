@@ -1023,6 +1023,7 @@ async function getOwnedCategoryRecords(
       db.collectionCard.findMany({
         where: {
           user_id: userId,
+          for_sale: false,
           card_id: { in: chunk },
         },
         select: {

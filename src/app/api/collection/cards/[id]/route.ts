@@ -20,6 +20,16 @@ function toNullableNumber(value: unknown): number | null {
   return null;
 }
 
+function toNullableBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+  }
+  return null;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -29,6 +39,7 @@ export async function PATCH(
     const { id } = await params;
     const body = (await req.json()) as {
     binderId?: unknown;
+    forSale?: unknown;
     purchasePrice?: unknown;
     condition?: unknown;
     language?: unknown;
@@ -51,6 +62,7 @@ export async function PATCH(
     where: { id, user_id: user.id },
     select: {
       id: true,
+      card_id: true,
       card: {
         select: {
           episode_id: true,
@@ -63,7 +75,8 @@ export async function PATCH(
     return NextResponse.json({ error: "Collection item not found" }, { status: 404 });
   }
 
-  const binderId = toNullableString(body.binderId);
+  const forSale = toNullableBoolean(body.forSale) ?? false;
+  const binderId = forSale ? null : toNullableString(body.binderId);
   if (binderId) {
     const binder = await db.collectionBinder.findFirst({
       where: { id: binderId, user_id: user.id },
@@ -107,6 +120,7 @@ export async function PATCH(
       where: { id },
       data: {
         binder_id: binderId,
+        for_sale: forSale,
         purchase_price: purchasePrice,
         condition,
         language,
@@ -127,6 +141,15 @@ export async function PATCH(
           collection_card_id: id,
           label,
         })),
+      });
+    }
+
+    if (!forSale) {
+      await tx.collectionWant.deleteMany({
+        where: {
+          user_id: user.id,
+          card_id: collectionItem.card_id,
+        },
       });
     }
   });

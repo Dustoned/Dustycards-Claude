@@ -451,6 +451,7 @@ model CollectionCard {
   grading_company String?
   grading_grade   String?
   grading_subgrades_json String?
+  for_sale        Boolean  @default(false)
   added_at        DateTime @default(now())
   updated_at      DateTime @updatedAt
 
@@ -464,6 +465,7 @@ model CollectionCard {
   @@index([card_id, added_at])
   @@index([binder_id])
   @@index([binder_id, added_at])
+  @@index([user_id, for_sale])
   @@index([added_at])
 }
 

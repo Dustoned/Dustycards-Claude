@@ -57,8 +57,9 @@ async function getDesktopSidebarSummary(
   email: string,
   role: DesktopSidebarSummary["role"]
 ): Promise<DesktopSidebarSummary> {
-  const [cards, binders, wants, sealed] = await Promise.all([
-    db.collectionCard.count({ where: { user_id: userId } }),
+  const [cards, forSaleCards, binders, wants, sealed] = await Promise.all([
+    db.collectionCard.count({ where: { user_id: userId, for_sale: false } }),
+    db.collectionCard.count({ where: { user_id: userId, for_sale: true } }),
     db.collectionBinder.count({ where: { user_id: userId } }),
     db.collectionWant.count({ where: { user_id: userId, dismissed_at: null } }),
     db.collectionSealed.aggregate({
@@ -69,6 +70,7 @@ async function getDesktopSidebarSummary(
 
   return {
     cards,
+    forSaleCards,
     binders,
     sealedUnits: sealed._sum.quantity ?? 0,
     wants,

@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.14",
+    releasedAt: "May 23, 2026",
+    title: "For Sale collection tab",
+    summary: "DustyCards 3.2.14 adds a separate For Sale area for cards you want to sell without counting them in your collection value.",
+    tone: "new",
+    highlights: [
+      "Added a Sell tab on the collection page with estimated sale value, priced-card count, and paid total.",
+      "Cards saved to For Sale are excluded from collection totals, binder progress, wants ownership checks, categories, and collection market movers.",
+      "Add, bulk-add, and edit flows can now save or move cards directly into For Sale.",
+    ],
+  },
+  {
     version: "3.2.13",
     releasedAt: "May 23, 2026",
     title: "Mobile market density",

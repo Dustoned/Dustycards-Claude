@@ -98,6 +98,7 @@ export default function CollectionAddCardButton({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [flashAdded, setFlashAdded] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [forSale, setForSale] = useState(false);
   const [binderId, setBinderId] = useState(initialBinderId ?? "");
   const [purchasePrice, setPurchasePrice] = useState(
     defaultPurchasePrice != null ? String(defaultPurchasePrice) : ""
@@ -178,7 +179,8 @@ export default function CollectionAddCardButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cardId: card.id,
-          binderId: binderId || null,
+          binderId: forSale ? null : binderId || null,
+          forSale,
           purchasePrice: purchasePrice || null,
           condition,
           language,
@@ -214,6 +216,7 @@ export default function CollectionAddCardButton({
     setBindersLoading(true);
     setSaveError(null);
     setShowAdvanced(false);
+    setForSale(false);
     setCardKind("raw");
     setBgsSubgrades({});
     setCondition(defaultCondition || "Near Mint");
@@ -233,6 +236,7 @@ export default function CollectionAddCardButton({
     setBindersLoading(false);
 
     if (binder.type === "custom" || binder.episode_id === card.episode.id) {
+      setForSale(false);
       setBinderId(binder.id);
       setSaveError(null);
       return;
@@ -303,10 +307,21 @@ export default function CollectionAddCardButton({
                     <label className={`${modalLabelClasses} col-span-2`}>
                       <span className="text-white/60">Save to</span>
                       <select
-                        value={binderId}
-                        onChange={(event) => setBinderId(event.target.value)}
+                        value={forSale ? "__for_sale__" : binderId}
+                        onChange={(event) => {
+                          const nextValue = event.target.value;
+                          if (nextValue === "__for_sale__") {
+                            setForSale(true);
+                            setBinderId("");
+                            return;
+                          }
+
+                          setForSale(false);
+                          setBinderId(nextValue);
+                        }}
                         className={modalSelectClasses}
                       >
+                        <option value="__for_sale__" className={modalOptionClasses}>For sale</option>
                         <option value="" className={modalOptionClasses}>Singles</option>
                         {availableBinders.map((binder) => (
                           <option key={binder.id} value={binder.id} className={modalOptionClasses}>
@@ -466,7 +481,7 @@ export default function CollectionAddCardButton({
                   )}
                 </div>
 
-                {!binderLocked && (
+                {!binderLocked && !forSale && (
                   <div className="mt-3">
                     <CollectionInlineBinderCreator
                       suggestedEpisode={card.episode}

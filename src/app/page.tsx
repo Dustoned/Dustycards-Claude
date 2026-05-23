@@ -557,11 +557,13 @@ function HomeCollectionLinks({
   bindersHref,
   sealedHref,
   gradedHref,
+  sellingHref,
 }: {
   cardsHref: string;
   bindersHref: string;
   sealedHref: string;
   gradedHref: string;
+  sellingHref: string;
 }) {
   const links = [
     {
@@ -573,10 +575,11 @@ function HomeCollectionLinks({
     { href: bindersHref, label: "Binders", hint: "Open set binders and progress", Icon: BarChart3 },
     { href: sealedHref, label: "Sealed", hint: "Manage sealed products", Icon: PackageCheck },
     { href: gradedHref, label: "Graded", hint: "View slabs and graded pricing", Icon: Sparkles },
+    { href: sellingHref, label: "For Sale", hint: "Cards set aside to sell", Icon: WalletCards },
   ];
 
   return (
-    <section className="grid gap-2 sm:grid-cols-4">
+    <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
       {links.map((item) => (
         <Link
           key={item.label}
@@ -621,7 +624,8 @@ export default async function HomePage({
     normalizedTab === "singles" ||
     normalizedTab === "binders" ||
     normalizedTab === "sealed" ||
-    normalizedTab === "graded"
+    normalizedTab === "graded" ||
+    normalizedTab === "selling"
       ? normalizedTab
       : graded === "1"
         ? "graded"
@@ -716,6 +720,11 @@ export default async function HomePage({
   const gradedCards = data.cards.filter(isGradedCollectionCard);
   const gradedLooseSingles = data.looseSingles.filter(isGradedCollectionCard);
   const rawLooseSingles = data.looseSingles.filter((item) => !isGradedCollectionCard(item));
+  const forSaleValue = sumCardViewValue(data.forSaleCards);
+  const forSaleInvestment = Number(
+    data.forSaleCards.reduce((total, item) => total + (item.purchase_price ?? 0), 0).toFixed(2)
+  );
+  const forSalePricedCards = data.forSaleCards.filter((item) => item.current_value != null).length;
 
   function buildCollectionHref(tabValue: CollectionPageTab) {
     const params = new URLSearchParams();
@@ -810,6 +819,16 @@ export default async function HomePage({
       label: "Graded",
       title: "Graded Collection",
       summary: `${gradedCards.length.toLocaleString("en-US")} graded cards`,
+    },
+    {
+      key: "selling" as const,
+      href: buildCollectionHref("selling"),
+      active: activeTab === "selling",
+      label: "Sell",
+      title: "For Sale",
+      summary: `${formatCollectionCurrency(forSaleValue)} / ${data.forSaleCards.length.toLocaleString(
+        "en-US"
+      )} cards`,
     },
   ];
   return (
@@ -923,6 +942,7 @@ export default async function HomePage({
             bindersHref={buildCollectionHref("binders")}
             sealedHref={buildCollectionHref("sealed")}
             gradedHref={buildCollectionHref("graded")}
+            sellingHref={buildCollectionHref("selling")}
           />
         </div>
       }
@@ -1001,6 +1021,49 @@ export default async function HomePage({
           emptyTitle="No sealed in your collection"
           emptyText="Use the + button on any sealed product to add it here."
         />
+      }
+      sellingSlot={
+        <div className="space-y-3">
+          <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                Estimated Sale Value
+              </p>
+              <p className="mt-1 text-xl font-black tabular-nums text-white">
+                {formatCollectionCurrency(forSaleValue)}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                Cards
+              </p>
+              <p className="mt-1 text-xl font-black tabular-nums text-white">
+                {data.forSaleCards.length.toLocaleString("en-US")}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                Priced / Paid
+              </p>
+              <p className="mt-1 text-xl font-black tabular-nums text-white">
+                {forSalePricedCards.toLocaleString("en-US")} / {formatCollectionCurrency(forSaleInvestment)}
+              </p>
+            </div>
+          </section>
+          <CollectionCardsView
+            items={data.forSaleCards}
+            allowCollectionRemoval
+            showGradedSlabPreview
+            emptyTitle="No cards marked for sale"
+            emptyText="Cards you save to For Sale will appear here."
+            showFilters
+            forcedSortBy="cm_en"
+            forcedSortDir="desc"
+            hideSortControls
+            collectionRemovalLabel="For Sale"
+            collectionRemovalWarning="This removes the saved For Sale entry entirely."
+          />
+        </div>
       }
     />
   );

@@ -1100,7 +1100,7 @@ function getMoverCandidateCardsCte(
       SELECT DISTINCT cc.card_id
       FROM "CollectionCard" cc
       INNER JOIN "Card" c_filter ON c_filter.id = cc.card_id
-      WHERE ${userId ? "cc.user_id = ? AND " : ""}c_filter.game = ?
+      WHERE ${userId ? "cc.user_id = ? AND " : ""}cc.for_sale = 0 AND c_filter.game = ?
     `,
     params: userId ? [userId, game] : [game],
   };
@@ -1163,6 +1163,7 @@ async function fetchCollectionMoverPriceOverrides(
       db.collectionCard.findMany({
         where: {
           user_id: userId,
+          for_sale: false,
           card_id: { in: chunk },
           grading_company: { not: null },
           grading_grade: { not: null },
@@ -1211,7 +1212,7 @@ async function fetchMoverCandidateCards(
   game: TradingCardGame = POKEMON_GAME
 ): Promise<MoverCandidateCardRecord[]> {
   const candidateCardsCte = getMoverCandidateCardsCte(scope, userId, game);
-  const ownedCountWhere = userId ? "WHERE user_id = ?" : "";
+  const ownedCountWhere = userId ? "WHERE user_id = ? AND for_sale = 0" : "WHERE for_sale = 0";
   const rows = await db.$queryRawUnsafe<MoverCandidateCardRow[]>(
     `
     WITH candidate_cards AS (
@@ -1375,7 +1376,7 @@ async function buildGradedMoversData(
   game: TradingCardGame = POKEMON_GAME
 ): Promise<{ result: CollectionMoversData; historyRows: number }> {
   const historyCutoff = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * DAY_MS).toISOString();
-  const ownedCountWhere = userId ? "WHERE user_id = ?" : "";
+  const ownedCountWhere = userId ? "WHERE user_id = ? AND for_sale = 0" : "WHERE for_sale = 0";
   const gradedWhereParts = ["c.game = ?"];
   if (itemScope === "collection") {
     gradedWhereParts.push("COALESCE(oc.owned_count, 0) > 0");

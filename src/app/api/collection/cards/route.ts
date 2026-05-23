@@ -24,6 +24,16 @@ function toNullableNumber(value: unknown): number | null {
   return null;
 }
 
+function toNullableBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+  }
+  return null;
+}
+
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
@@ -47,6 +57,7 @@ export async function POST(req: NextRequest) {
     cardId?: unknown;
     cardIds?: unknown;
     binderId?: unknown;
+    forSale?: unknown;
     purchasePrice?: unknown;
     condition?: unknown;
     language?: unknown;
@@ -102,7 +113,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const binderId = toNullableString(body.binderId);
+  const forSale = toNullableBoolean(body.forSale) ?? false;
+  const binderId = forSale ? null : toNullableString(body.binderId);
   let binder:
     | {
         id: string;
@@ -157,6 +169,7 @@ export async function POST(req: NextRequest) {
             card_id: card.id,
             user_id: user.id,
             binder_id: binderId,
+            for_sale: forSale,
             purchase_price: purchasePrice,
             condition,
             language,
@@ -174,12 +187,14 @@ export async function POST(req: NextRequest) {
       )
     );
 
-    await tx.collectionWant.deleteMany({
-      where: {
-        user_id: user.id,
-        card_id: { in: orderedCards.map((card) => card.id) },
-      },
-    });
+    if (!forSale) {
+      await tx.collectionWant.deleteMany({
+        where: {
+          user_id: user.id,
+          card_id: { in: orderedCards.map((card) => card.id) },
+        },
+      });
+    }
 
     return items;
   });
@@ -212,6 +227,7 @@ export async function PATCH(req: NextRequest) {
     itemId?: unknown;
     itemIds?: unknown;
     binderId?: unknown;
+    forSale?: unknown;
     };
 
   const itemIds = (() => {
@@ -233,7 +249,8 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  const binderId = toNullableString(body.binderId);
+  const forSale = toNullableBoolean(body.forSale) ?? false;
+  const binderId = forSale ? null : toNullableString(body.binderId);
   let binder:
     | {
         id: string;
@@ -246,6 +263,7 @@ export async function PATCH(req: NextRequest) {
     where: { id: { in: itemIds }, user_id: user.id },
     select: {
       id: true,
+      card_id: true,
       card: {
         select: {
           episode_id: true,
@@ -280,9 +298,22 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  const updated = await db.collectionCard.updateMany({
-    where: { id: { in: itemIds }, user_id: user.id },
-    data: { binder_id: binderId },
+  const updated = await db.$transaction(async (tx) => {
+    const result = await tx.collectionCard.updateMany({
+      where: { id: { in: itemIds }, user_id: user.id },
+      data: { binder_id: binderId, for_sale: forSale },
+    });
+
+    if (!forSale) {
+      await tx.collectionWant.deleteMany({
+        where: {
+          user_id: user.id,
+          card_id: { in: collectionItems.map((item) => item.card_id) },
+        },
+      });
+    }
+
+    return result;
   });
 
   await syncMissingBinderWantsAfterCollectionChange(user.id);

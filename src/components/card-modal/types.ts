@@ -75,6 +75,7 @@ export interface ModalCardData {
   collection_item?: {
     id: string;
     binder_id: string | null;
+    for_sale?: boolean;
     binder_name?: string | null;
     binder_type?: string | null;
     purchase_price: number | null;

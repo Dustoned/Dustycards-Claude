@@ -68,6 +68,12 @@ const COLLECTION_GRADED_ITEM: NavItem = {
   matches: ["tab:graded"],
 };
 
+const COLLECTION_SELLING_ITEM: NavItem = {
+  href: "/?tab=selling",
+  label: "For Sale",
+  matches: ["tab:selling"],
+};
+
 const SEARCH_ITEM: NavItem = {
   href: "/search",
   label: "Search",
@@ -201,6 +207,7 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         COLLECTION_BINDERS_ITEM,
         COLLECTION_SEALED_ITEM,
         COLLECTION_GRADED_ITEM,
+        COLLECTION_SELLING_ITEM,
       ],
     },
     { label: "Wants", items: [WANTS_ITEM] },

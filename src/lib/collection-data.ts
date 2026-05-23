@@ -88,6 +88,7 @@ export interface CollectionOverviewData {
   cards: CollectionCardViewItem[];
   looseSingles: CollectionCardViewItem[];
   binderCards: CollectionCardViewItem[];
+  forSaleCards: CollectionCardViewItem[];
   sealed: CollectionSealedViewItem[];
   valueDrivers: CollectionValueDriversData;
   binders: Array<{
@@ -127,7 +128,8 @@ export type CollectionPageTab =
   | "cards"
   | "binders"
   | "sealed"
-  | "graded";
+  | "graded"
+  | "selling";
 
 export interface BinderPageData {
   binder: {
@@ -222,6 +224,7 @@ export interface WantPlannerGroup {
 const collectionCardSelect = {
   id: true,
   binder_id: true,
+  for_sale: true,
   purchase_price: true,
   condition: true,
   language: true,
@@ -296,6 +299,7 @@ const collectionCardSelect = {
 const collectionCardMetricSelect = {
   id: true,
   binder_id: true,
+  for_sale: true,
   purchase_price: true,
   grading_company: true,
   grading_grade: true,
@@ -520,6 +524,7 @@ async function fetchCollectionCardsPage(
     userId: string;
     game?: TradingCardGameFilter;
     binderId?: string;
+    forSale?: boolean;
     skip?: number;
     take?: number;
     detail?: boolean;
@@ -528,6 +533,7 @@ async function fetchCollectionCardsPage(
   return db.collectionCard.findMany({
     where: {
       user_id: options.userId,
+      for_sale: options.forSale ?? false,
       ...(isSpecificTradingCardGame(options.game) ? { card: { game: options.game } } : {}),
       ...(options.binderId ? { binder_id: options.binderId } : {}),
     },
@@ -542,6 +548,7 @@ async function fetchCollectionCards(options: {
   userId: string;
   game?: TradingCardGameFilter;
   binderId?: string;
+  forSale?: boolean;
   detail?: boolean;
 }) {
   const pageSize = 200;
@@ -553,6 +560,7 @@ async function fetchCollectionCards(options: {
       userId: options.userId,
       game: options.game,
       binderId: options.binderId,
+      forSale: options.forSale,
       skip,
       take: pageSize,
       detail: options.detail,
@@ -573,6 +581,7 @@ async function fetchCollectionCards(options: {
 type CollectionCardMetricRecord = {
   id: string;
   binder_id: string | null;
+  for_sale: boolean;
   purchase_price: number | null;
   grading_company: string | null;
   grading_grade: string | null;
@@ -734,6 +743,18 @@ async function getCollectionCardMetrics(userId: string, game: TradingCardGameFil
   return records as CollectionCardMetricRecord[];
 }
 
+async function getForSaleCollectionCards(options: {
+  userId: string;
+  game?: TradingCardGameFilter;
+}) {
+  return fetchCollectionCards({
+    userId: options.userId,
+    game: options.game,
+    forSale: true,
+    detail: true,
+  });
+}
+
 async function getCollectionWants(userId: string, game: TradingCardGameFilter = POKEMON_GAME) {
   return db.collectionWant.findMany({
     where: {
@@ -742,7 +763,7 @@ async function getCollectionWants(userId: string, game: TradingCardGameFilter = 
       card: {
         ...(isSpecificTradingCardGame(game) ? { game } : {}),
         collectionItems: {
-          none: { user_id: userId },
+          none: { user_id: userId, for_sale: false },
         },
       },
     },
@@ -781,11 +802,11 @@ function buildCollectionBinderGameWhere(
 
   const gameConditions: Prisma.CollectionBinderWhereInput[] = [
     { episode: { game } },
-    { cards: { some: { card: { game } } } },
+    { cards: { some: { for_sale: false, card: { game } } } },
   ];
 
   if (game === POKEMON_GAME) {
-    gameConditions.push({ episode_id: null, cards: { none: {} } });
+    gameConditions.push({ episode_id: null, cards: { none: { for_sale: false } } });
   }
 
   return {
@@ -1003,6 +1024,7 @@ function buildCardViewItem(
     binder_id: record.binder_id,
     binder_name: record.binder?.name ?? null,
     binder_type: record.binder?.type ?? null,
+    for_sale: record.for_sale,
     card_id: record.card.id,
     name: record.card.name,
     image_url: record.card.image_url,
@@ -1042,6 +1064,7 @@ function buildWantViewItem(record: CollectionWantRecord): CollectionCardViewItem
     want_item_id: record.id,
     want_source: record.source,
     want_source_episode_id: record.source_episode_id,
+    for_sale: false,
     card_id: record.card.id,
     name: record.card.name,
     image_url: record.card.image_url,
@@ -1524,7 +1547,8 @@ function shouldLoadDetailedCards(activeTab: CollectionPageTab): boolean {
     activeTab === "complete" ||
     activeTab === "singles" ||
     activeTab === "cards" ||
-    activeTab === "graded"
+    activeTab === "graded" ||
+    activeTab === "selling"
   );
 }
 
@@ -1563,10 +1587,12 @@ export async function getCollectionOverviewData(
       : getCollectionSealedMetrics(options.userId, game),
     getCollectionBinders(options.userId, loadDetailedBinders, game),
   ]);
+  const forSaleCards = await getForSaleCollectionCards({ userId: options.userId, game });
 
   const metricCards = collectionCards as CollectionCardMetricRecord[];
+  const metricForSaleCards = forSaleCards as CollectionCardMetricRecord[];
   const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
-  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards)
+  const usdToEurRate = hasUsdEbaySoldGradedPrices([...metricCards, ...metricForSaleCards])
     ? await getUsdToEurRate()
     : null;
   const valueOptions = { usdToEurRate };
@@ -1633,6 +1659,9 @@ export async function getCollectionOverviewData(
         buildCardViewItem(record, costBasisByItemId.get(record.id), valueOptions)
       )
     : [];
+  const forSaleCardViewItems = (forSaleCards as CollectionCardRecord[]).map((record) =>
+    buildCardViewItem(record, null, valueOptions)
+  );
   const looseSingleViewItems: CollectionCardViewItem[] = [];
   const binderCardViewItems: CollectionCardViewItem[] = [];
 
@@ -1762,6 +1791,7 @@ export async function getCollectionOverviewData(
     cards: collectionCardViewItems,
     looseSingles: looseSingleViewItems,
     binderCards: binderCardViewItems,
+    forSaleCards: forSaleCardViewItems,
     sealed: sealedViewItems,
     valueDrivers,
     binders: binderSummaries,
@@ -1769,6 +1799,7 @@ export async function getCollectionOverviewData(
 
   timer.finish({
     cards: metricCards.length,
+    forSaleCards: metricForSaleCards.length,
     sealedItems: metricSealed.length,
     binders: binders.length,
     historyLoaded: loadCollectionHistory,
@@ -2292,6 +2323,7 @@ export async function getWantsPageData(
           db.collectionCard.findMany({
             where: {
               user_id: userId,
+              for_sale: false,
               card: { episode_id: { in: linkedEpisodeIds } },
             },
             select: { card_id: true },
@@ -2485,7 +2517,7 @@ export async function getWantBinderPageData(
         dismissed_at: null,
         card: {
           episode_id: binder.episode.id,
-          collectionItems: { none: { user_id: userId } },
+          collectionItems: { none: { user_id: userId, for_sale: false } },
         },
       },
       orderBy: { created_at: "desc" },
@@ -2494,6 +2526,7 @@ export async function getWantBinderPageData(
     db.collectionCard.findMany({
       where: {
         user_id: userId,
+        for_sale: false,
         card: { episode_id: binder.episode.id },
       },
       select: { card_id: true },
@@ -2505,7 +2538,7 @@ export async function getWantBinderPageData(
         source_episode_id: binder.episode.id,
         dismissed_at: { not: null },
         card: {
-          collectionItems: { none: { user_id: userId } },
+          collectionItems: { none: { user_id: userId, for_sale: false } },
         },
       },
     }),
@@ -2640,7 +2673,7 @@ export async function getBinderPageData(
         },
       }),
       db.collectionCard.findMany({
-        where: { binder_id: binder.id, user_id: userId },
+        where: { binder_id: binder.id, user_id: userId, for_sale: false },
         select: {
           id: true,
           purchase_price: true,

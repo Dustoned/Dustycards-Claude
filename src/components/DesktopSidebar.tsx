@@ -24,6 +24,7 @@ import { GAME_SEARCH_PARAM } from "@/lib/games";
 
 export interface DesktopSidebarSummary {
   cards: number;
+  forSaleCards: number;
   binders: number;
   sealedUnits: number;
   wants: number;
@@ -47,6 +48,7 @@ const NAV_SECTIONS = [
       { href: "/?tab=binders", label: "Binders", icon: Boxes, badge: null, key: "binders" },
       { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "sealed" },
       { href: "/?tab=graded", label: "Graded", icon: LibraryBig, badge: null, key: "graded" },
+      { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
     ],
   },
   {
@@ -114,6 +116,7 @@ function isActive(
   if (key === "binders") return (pathname === "/" && tab === "binders") || pathname.startsWith("/binders");
   if (key === "sealed") return pathname === "/" && tab === "sealed";
   if (key === "graded") return pathname === "/" && tab === "graded";
+  if (key === "selling") return pathname === "/" && tab === "selling";
   if (key === "market-raw") {
     return pathname.startsWith("/movers") && !["graded", "grading", "sealed", "value"].includes(moverScope ?? "");
   }
@@ -127,8 +130,9 @@ function isActive(
   return pathname === `/${key}` || pathname.startsWith(`/${key}/`);
 }
 
-function navBadge(summary: DesktopSidebarSummary, badge: "cards" | "wants" | null) {
+function navBadge(summary: DesktopSidebarSummary, badge: "cards" | "forSale" | "wants" | null) {
   if (badge === "cards") return formatCount(summary.cards);
+  if (badge === "forSale") return formatCount(summary.forSaleCards);
   if (badge === "wants") return formatCount(summary.wants);
   return null;
 }

@@ -1046,7 +1046,9 @@ export function CardModalDesktopActionGroup({
 }) {
   const collectionCard = buildCollectionCard(card);
   const locationLabel = collectionItem
-    ? collectionItem.binder_name
+    ? collectionItem.for_sale
+      ? "For sale"
+      : collectionItem.binder_name
       ? `In ${collectionItem.binder_name}`
       : "Loose single"
     : null;
@@ -1095,7 +1097,9 @@ export function CardModalDesktopActionGroup({
             aria-label={
               removingCollectionItem
                 ? "Removing this saved copy"
-                : "Remove this saved copy from collection"
+                : collectionItem.for_sale
+                  ? "Remove this saved copy from For Sale"
+                  : "Remove this saved copy from collection"
             }
             title={locationLabel ? `Remove this copy: ${locationLabel}` : "Remove this saved copy"}
           >
@@ -1364,7 +1368,7 @@ export function CardModalMobileShowcase({
     .filter(Boolean)
     .join(" ");
   const language = collectionItem?.language?.trim() || "English";
-  const savedLabel = collectionItem ? "Saved" : "Not saved";
+  const savedLabel = collectionItem?.for_sale ? "For sale" : collectionItem ? "Saved" : "Not saved";
   const conditionLabel =
     collectionItem?.condition ||
     (gradingCompanyLabel && gradingGradeLabel
@@ -1444,7 +1448,7 @@ export function CardModalMobileShowcase({
           )}
           {collectionItem && !canManageCardPrices && (
             <MobileDetailIconButton
-              label="Remove from collection"
+              label={collectionItem.for_sale ? "Remove from For Sale" : "Remove from collection"}
               onClick={onRemoveCollectionItem}
               disabled={isBusy || removingCollectionItem}
               destructive
@@ -2446,7 +2450,9 @@ export function CardModalOwnedCopyPanel({
   return (
     <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} ${className}`}>
       <div className="flex items-center justify-between gap-3">
-        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Owned Copy</h3>
+        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>
+          {collectionItem?.for_sale ? "For Sale Copy" : "Owned Copy"}
+        </h3>
         {collectionItem && (
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-white">
             <Sparkles className="h-3.5 w-3.5" />
@@ -2482,9 +2488,11 @@ export function CardModalOwnedCopyPanel({
           <p className="mt-3 text-lg font-semibold tabular-nums text-white">
             {formatCurrency(ownedPrice, "EUR")}
           </p>
-          {collectionItem?.binder_name && (
+          {collectionItem?.for_sale ? (
+            <p className="mt-1 truncate text-xs text-amber-200/62">For sale</p>
+          ) : collectionItem?.binder_name ? (
             <p className="mt-1 truncate text-xs text-white/42">{collectionItem.binder_name}</p>
-          )}
+          ) : null}
         </div>
       </div>
 

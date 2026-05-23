@@ -51,6 +51,7 @@ interface CollectionCardRef {
 interface CollectionCardItemRef {
   id: string;
   binder_id: string | null;
+  for_sale?: boolean;
   binder_name?: string | null;
   binder_type?: string | null;
   purchase_price: number | null;
@@ -112,7 +113,8 @@ export default function CollectionEditCardButton({
     Boolean(item.notes || item.tags.length > 0)
   );
   const [cardKind, setCardKind] = useState<CardKind>(() => getInitialCardKind(item));
-  const [binderId, setBinderId] = useState(item.binder_id ?? "");
+  const [forSale, setForSale] = useState(Boolean(item.for_sale));
+  const [binderId, setBinderId] = useState(item.for_sale ? "" : item.binder_id ?? "");
   const [purchasePrice, setPurchasePrice] = useState(
     item.purchase_price != null ? String(item.purchase_price) : ""
   );
@@ -169,9 +171,13 @@ export default function CollectionEditCardButton({
     () => binders.find((binder) => binder.id === binderId) ?? null,
     [binders, binderId]
   );
-  const currentLocationLabel = item.binder_name ?? (item.binder_id ? "Binder" : "Singles");
+  const currentLocationLabel = item.for_sale
+    ? "For sale"
+    : item.binder_name ?? (item.binder_id ? "Binder" : "Singles");
   const selectedLocationLabel =
-    selectedBinder?.name ?? (binderId && binderId === item.binder_id ? currentLocationLabel : "Singles");
+    forSale
+      ? "For sale"
+      : selectedBinder?.name ?? (binderId && binderId === item.binder_id ? currentLocationLabel : "Singles");
   const purchasePriceLabel =
     selectedBinder?.type === "linked_set" ? "Card paid (adds to overall spend)" : "Purchase price";
 
@@ -185,7 +191,8 @@ export default function CollectionEditCardButton({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          binderId: binderId || null,
+          binderId: forSale ? null : binderId || null,
+          forSale,
           purchasePrice: purchasePrice || null,
           condition,
           language,
@@ -218,7 +225,8 @@ export default function CollectionEditCardButton({
       event.stopPropagation();
     }
 
-    setBinderId(item.binder_id ?? "");
+    setForSale(Boolean(item.for_sale));
+    setBinderId(item.for_sale ? "" : item.binder_id ?? "");
     setPurchasePrice(item.purchase_price != null ? String(item.purchase_price) : "");
     setCondition(item.condition ?? "Near Mint");
     setLanguage(item.language ?? "English");
@@ -246,6 +254,7 @@ export default function CollectionEditCardButton({
     setBindersLoading(false);
 
     if (binder.type === "custom" || binder.episode_id === card.episode.id) {
+      setForSale(false);
       setBinderId(binder.id);
       setSaveError(null);
       return;
@@ -307,7 +316,7 @@ export default function CollectionEditCardButton({
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white max-[640px]:text-[12px]">
-                          Move to binder
+                          Save location
                         </p>
                         <p className="truncate text-xs text-white/42 max-[640px]:text-[10px]">
                           Current: {currentLocationLabel}
@@ -320,18 +329,33 @@ export default function CollectionEditCardButton({
                   </div>
                   <label className={modalLabelClasses}>
                     <select
-                      value={binderId}
-                      onChange={(event) => setBinderId(event.target.value)}
+                      value={forSale ? "__for_sale__" : binderId}
+                      onChange={(event) => {
+                        const nextValue = event.target.value;
+                        if (nextValue === "__for_sale__") {
+                          setForSale(true);
+                          setBinderId("");
+                          return;
+                        }
+
+                        setForSale(false);
+                        setBinderId(nextValue);
+                      }}
                       className={modalSelectClasses}
                     >
+                      <option value="__for_sale__" className={modalOptionClasses}>
+                        For sale
+                        {item.for_sale ? " - Current" : ""}
+                      </option>
                       <option value="" className={modalOptionClasses}>
                         Singles
+                        {!item.for_sale && !item.binder_id ? " - Current" : ""}
                       </option>
                       {availableBinders.map((binder) => (
                         <option key={binder.id} value={binder.id} className={modalOptionClasses}>
                           {binder.name}
                           {binder.type === "linked_set" ? " - Set binder" : ""}
-                          {binder.id === item.binder_id ? " - Current" : ""}
+                          {!item.for_sale && binder.id === item.binder_id ? " - Current" : ""}
                         </option>
                       ))}
                     </select>
@@ -489,12 +513,14 @@ export default function CollectionEditCardButton({
                   )}
                 </div>
 
+                {!forSale && (
                 <div className="mt-3">
                   <CollectionInlineBinderCreator
                     suggestedEpisode={card.episode}
                     onCreated={handleBinderCreated}
                   />
                 </div>
+                )}
 
                 <button
                   type="button"

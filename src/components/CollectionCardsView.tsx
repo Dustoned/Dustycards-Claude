@@ -122,6 +122,8 @@ interface Props {
   onSearchChange?: (value: string) => void;
   hideToolbarSearch?: boolean;
   showGradedSlabPreview?: boolean;
+  collectionRemovalLabel?: string;
+  collectionRemovalWarning?: string;
 }
 
 interface RemoveDialogState {
@@ -164,6 +166,8 @@ export default function CollectionCardsView({
   onSearchChange,
   hideToolbarSearch = false,
   showGradedSlabPreview = false,
+  collectionRemovalLabel = "My Collection",
+  collectionRemovalWarning = "This removes the saved collection entry entirely. It will not be moved to loose singles.",
 }: Props) {
   const router = useRouter();
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
@@ -562,6 +566,7 @@ export default function CollectionCardsView({
             ? {
                 id: item.collection_item_id,
                 binder_id: item.binder_id ?? null,
+                for_sale: item.for_sale ?? false,
                 binder_name: item.binder_name ?? null,
                 binder_type: item.binder_type ?? null,
                 purchase_price: item.purchase_price,
@@ -709,12 +714,12 @@ export default function CollectionCardsView({
       target: "collection",
       title:
         selectedCollectionItemIds.length === 1
-          ? "Remove 1 card from My Collection?"
-          : `Remove ${selectedCollectionItemIds.length} cards from My Collection?`,
+          ? `Remove 1 card from ${collectionRemovalLabel}?`
+          : `Remove ${selectedCollectionItemIds.length} cards from ${collectionRemovalLabel}?`,
       description:
         selectedCollectionItemIds.length === 1
-          ? "This card will be deleted from your collection."
-          : "These cards will be deleted from your collection.",
+          ? `This card will be deleted from ${collectionRemovalLabel}.`
+          : `These cards will be deleted from ${collectionRemovalLabel}.`,
     });
   }
 
@@ -743,12 +748,12 @@ export default function CollectionCardsView({
       target: "collection",
       title:
         removableIds.length === 1
-          ? `Remove ${item.name} from My Collection?`
-          : `Remove ${item.name} (${removableIds.length} copies) from My Collection?`,
+          ? `Remove ${item.name} from ${collectionRemovalLabel}?`
+          : `Remove ${item.name} (${removableIds.length} copies) from ${collectionRemovalLabel}?`,
       description:
         removableIds.length === 1
-          ? "This saved card will be deleted from your collection."
-          : "These saved copies will be deleted from your collection.",
+          ? `This saved card will be deleted from ${collectionRemovalLabel}.`
+          : `These saved copies will be deleted from ${collectionRemovalLabel}.`,
     });
   }
 
@@ -1562,8 +1567,8 @@ export default function CollectionCardsView({
                                     onClick={(event) => handleSingleRemove(event, item)}
                                     disabled={removingItems}
                                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                                    aria-label={`Remove ${item.name} from collection`}
-                                    title="Remove from collection"
+                                    aria-label={`Remove ${item.name} from ${collectionRemovalLabel}`}
+                                    title={`Remove from ${collectionRemovalLabel}`}
                                   >
                                     <Minus className="h-3.5 w-3.5" />
                                   </button>
@@ -1855,8 +1860,8 @@ export default function CollectionCardsView({
                                       onClick={(event) => handleSingleRemove(event, item)}
                                       disabled={removingItems}
                                       className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-md border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                                      aria-label={`Remove ${item.name} from collection`}
-                                      title="Remove from collection"
+                                      aria-label={`Remove ${item.name} from ${collectionRemovalLabel}`}
+                                      title={`Remove from ${collectionRemovalLabel}`}
                                     >
                                       <Minus className="h-3.5 w-3.5" />
                                     </button>
@@ -2210,7 +2215,9 @@ export default function CollectionCardsView({
             <div className={modalCompactHeaderClass}>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
-                  {removeDialog.target === "wants" ? "Remove From Wants" : "Remove From Collection"}
+                  {removeDialog.target === "wants"
+                    ? "Remove From Wants"
+                    : `Remove From ${collectionRemovalLabel}`}
                 </p>
                 <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
                   {removeDialog.title}
@@ -2237,7 +2244,7 @@ export default function CollectionCardsView({
               <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/68 max-[640px]:rounded-xl max-[640px]:text-[12px]">
                 {removeDialog.target === "wants"
                   ? "This only removes the card from Wants. Your collection stays unchanged."
-                  : "This removes the saved collection entry entirely. It will not be moved to loose singles."}
+                  : collectionRemovalWarning}
               </div>
 
               {removeError && <p className="mt-4 text-sm text-rose-300">{removeError}</p>}

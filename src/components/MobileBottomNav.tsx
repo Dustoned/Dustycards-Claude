@@ -35,7 +35,7 @@ const PRIMARY_NAV_ITEMS = [
     href: "/?tab=complete",
     label: "Collection",
     icon: LibraryBig,
-    matches: ["tab:complete", "tab:cards", "tab:singles", "tab:binders", "tab:sealed", "tab:graded", "/binders"],
+    matches: ["tab:complete", "tab:cards", "tab:singles", "tab:binders", "tab:sealed", "tab:graded", "tab:selling", "/binders"],
   },
   { href: "/wants", label: "Wants", icon: Heart, matches: ["/wants"] },
   { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers"] },
@@ -87,6 +87,7 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
         { href: "/?tab=binders", label: "Binders", icon: Boxes, matches: ["tab:binders", "/binders"] },
         { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, matches: ["tab:sealed"] },
         { href: "/?tab=graded", label: "Graded", icon: LibraryBig, matches: ["tab:graded"] },
+        { href: "/?tab=selling", label: "For Sale", shortLabel: "Sell", icon: ShoppingBag, matches: ["tab:selling"] },
       ],
     },
     {
@@ -250,7 +251,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                       <span className="truncate">{summary.email}</span>
                     </div>
                     <p className="mt-0.5 truncate text-[8.5px] font-bold text-white/38">
-                      {formatCount(summary.cards)} cards / {formatCount(summary.wants)} wants / {formatCount(summary.binders)} binders / {formatCount(summary.sealedUnits)} sealed
+                      {formatCount(summary.cards)} cards / {formatCount(summary.forSaleCards)} for sale / {formatCount(summary.wants)} wants / {formatCount(summary.binders)} binders / {formatCount(summary.sealedUnits)} sealed
                     </p>
                   </div>
                   <button
