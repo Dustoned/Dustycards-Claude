@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CollectionWantButton from "@/components/CollectionWantButton";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
@@ -130,6 +131,7 @@ function buildModalCardData(
     price_history: [],
     pull_rate_info: card.pull_rate_info ?? null,
     collection_item: null,
+    want_item: card.want_item ?? null,
   };
 }
 
@@ -262,6 +264,15 @@ export default function ExpansionView({
     }
 
     return collectionEpisode;
+  }
+
+  function getCollectionButtonCard(card: CardData) {
+    return {
+      id: card.id,
+      name: card.name,
+      image_url: card.image_url,
+      episode: getCollectionEpisodeForCard(card),
+    };
   }
   const availableRarities = useMemo(
     () =>
@@ -1092,15 +1103,18 @@ export default function ExpansionView({
                         </div>
 
                         {!selectionMode && (
-                          <CollectionAddCardButton
-                            card={{
-                              id: card.id,
-                              name: card.name,
-                              image_url: card.image_url,
-                              episode: getCollectionEpisodeForCard(card),
-                            }}
-                            className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                          />
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            <CollectionAddCardButton
+                              card={getCollectionButtonCard(card)}
+                              className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                            />
+                            <CollectionWantButton
+                              card={getCollectionButtonCard(card)}
+                              initialWanted={Boolean(card.want_item)}
+                              wantItemId={card.want_item?.id ?? null}
+                              className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                            />
+                          </div>
                         )}
                       </div>
 
@@ -1264,15 +1278,18 @@ export default function ExpansionView({
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1.5">
                           {!selectionMode && (
-                            <CollectionAddCardButton
-                              card={{
-                                id: card.id,
-                                name: card.name,
-                                image_url: card.image_url,
-                                episode: getCollectionEpisodeForCard(card),
-                              }}
-                              className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                            />
+                            <>
+                              <CollectionAddCardButton
+                                card={getCollectionButtonCard(card)}
+                                className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                              />
+                              <CollectionWantButton
+                                card={getCollectionButtonCard(card)}
+                                initialWanted={Boolean(card.want_item)}
+                                wantItemId={card.want_item?.id ?? null}
+                                className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                              />
+                            </>
                           )}
                         </div>
                       </td>
@@ -1408,14 +1425,15 @@ export default function ExpansionView({
                       )}
 
                       {!selectionMode && (
-                        <div className={compactFourColumnGrid ? "flex justify-start" : ""}>
+                        <div className={compactFourColumnGrid ? "flex justify-start gap-1" : "flex items-center gap-1"}>
                           <CollectionAddCardButton
-                            card={{
-                              id: card.id,
-                              name: card.name,
-                              image_url: card.image_url,
-                              episode: getCollectionEpisodeForCard(card),
-                            }}
+                            card={getCollectionButtonCard(card)}
+                            className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
+                          />
+                          <CollectionWantButton
+                            card={getCollectionButtonCard(card)}
+                            initialWanted={Boolean(card.want_item)}
+                            wantItemId={card.want_item?.id ?? null}
                             className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
                           />
                         </div>

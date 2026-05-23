@@ -103,7 +103,7 @@ export default async function ExpansionDetailPage({
   if (tab) nextParams.set("tab", tab);
   if (sealed) nextParams.set("sealed", sealed);
   const nextQuery = nextParams.toString();
-  await requirePageUser(`/expansions/${id}${nextQuery ? `?${nextQuery}` : ""}`);
+  const user = await requirePageUser(`/expansions/${id}${nextQuery ? `?${nextQuery}` : ""}`);
 
   const episode = await db.episode.findFirst({
     where: { id, game: POKEMON_GAME },
@@ -254,6 +254,14 @@ export default async function ExpansionDetailPage({
         where: { episode_id: id },
         orderBy: [{ card_number: "asc" }, { name: "asc" }],
         include: {
+          wants: {
+            where: { user_id: user.id },
+            take: 1,
+            select: {
+              id: true,
+              created_at: true,
+            },
+          },
           prices: {
             orderBy: { fetched_at: "desc" },
             take: 1,
@@ -309,6 +317,7 @@ export default async function ExpansionDetailPage({
 
     cards = dbCards.map((card) => {
       const price = card.prices[0] ?? null;
+      const wantItem = card.wants[0] ?? null;
       const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
       const pullRateInfo = normalizedRarity ? pullRateByRarity.get(normalizedRarity) : null;
 
@@ -353,6 +362,12 @@ export default async function ExpansionDetailPage({
               specific_pull_odds: pullRateInfo.specificPullOdds,
               pull_rate_weight: pullRateInfo.pullRateWeight,
               psa_avg_gem_pct: pullRateInfo.psaAvgGemPct,
+            }
+          : null,
+        want_item: wantItem
+          ? {
+              id: wantItem.id,
+              created_at: wantItem.created_at.toISOString(),
             }
           : null,
       };

@@ -6,6 +6,7 @@ import { useSettings, type Card3dSize } from "@/components/SettingsProvider";
 import PriceRefreshCountdown from "@/components/PriceRefreshCountdown";
 import IllustratorLink from "@/components/IllustratorLink";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CollectionWantButton from "@/components/CollectionWantButton";
 import { withCardMarketFilters } from "@/lib/cardmarket";
 import { formatCurrency } from "@/lib/format";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
@@ -75,6 +76,10 @@ interface ViewerCard {
     grading_company: string | null;
     grading_grade: string | null;
     grading_subgrades?: BgsSubgrades | null;
+  } | null;
+  want_item?: {
+    id: string;
+    created_at: string;
   } | null;
 }
 
@@ -2738,8 +2743,8 @@ export default function CardThreeViewer({
                   <div
                     className={`grid gap-2 ${
                       compactMobileDetails
-                        ? `mt-2 ${filteredCardMarketUrl ? "grid-cols-2" : "grid-cols-1"}`
-                        : `mt-4 ${filteredCardMarketUrl ? "sm:grid-cols-2" : ""}`
+                        ? `mt-2 ${filteredCardMarketUrl ? "grid-cols-3" : "grid-cols-2"}`
+                        : `mt-4 ${filteredCardMarketUrl ? "grid-cols-3" : "grid-cols-2"}`
                     }`}
                   >
                     {filteredCardMarketUrl && (
@@ -2771,6 +2776,28 @@ export default function CardThreeViewer({
                       theme="dark"
                       label="Add"
                       className={`w-full border-emerald-400/20 bg-emerald-600 text-white hover:border-emerald-300/40 hover:bg-emerald-500 ${
+                        compactMobileDetails
+                          ? "min-h-0 rounded-xl px-3 py-2 text-[13px]"
+                          : "rounded-2xl px-4 py-3"
+                      }`}
+                    />
+                    <CollectionWantButton
+                      card={{
+                        id: card.id,
+                        name: card.name,
+                        image_url: frontImageUrl,
+                        episode: {
+                          id: card.episode_id,
+                          name: card.episode_name ?? "Set",
+                          code: card.episode_code ?? null,
+                        },
+                      }}
+                      mode="button"
+                      theme="dark"
+                      label="Want"
+                      initialWanted={Boolean(card.want_item)}
+                      wantItemId={card.want_item?.id ?? null}
+                      className={`w-full border-white/10 bg-white/[0.065] text-white hover:border-white/18 hover:bg-white/[0.1] ${
                         compactMobileDetails
                           ? "min-h-0 rounded-xl px-3 py-2 text-[13px]"
                           : "rounded-2xl px-4 py-3"

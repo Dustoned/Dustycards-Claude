@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Heart } from "lucide-react";
+import { Heart } from "lucide-react";
 
 interface CollectionCardRef {
   id: string;
@@ -97,7 +97,6 @@ export default function CollectionWantButton({
     }
   }
 
-  const Icon = wanted ? Check : Heart;
   const displayLabel = wanted ? "Wanted" : label;
 
   return (
@@ -106,10 +105,15 @@ export default function CollectionWantButton({
       onClick={toggleWant}
       disabled={saving}
       className={buttonClasses(mode, theme, className)}
+      aria-pressed={wanted}
       aria-label={wanted ? `Remove ${card.name} from wants` : `Add ${card.name} to wants`}
       title={wanted ? "Remove from Wants" : "Add to Wants"}
     >
-      <Icon className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      <Heart
+        className={`${mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} ${
+          wanted ? "fill-current" : ""
+        }`}
+      />
       {mode === "button" && <span>{saving ? "Saving..." : displayLabel}</span>}
     </button>
   );

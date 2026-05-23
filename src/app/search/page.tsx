@@ -9,6 +9,7 @@ import { Package } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import CollectionWantButton from "@/components/CollectionWantButton";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
@@ -59,6 +60,10 @@ interface SingleResult {
   episode_code: string | null;
   cm_en_lowest_nm: number | null;
   tcp_market: number | null;
+  want_item?: {
+    id: string;
+    created_at: string;
+  } | null;
 }
 
 interface SealedResult {
@@ -542,7 +547,7 @@ function SearchPageContent({
                               <span className="text-[10px] text-white/35 sm:text-xs">No price</span>
                             )}
 
-                            <div className={compactFourColumnSingles ? "flex justify-start" : ""}>
+                            <div className={compactFourColumnSingles ? "flex justify-start gap-1" : "flex items-center gap-1"}>
                               <CollectionAddCardButton
                                 card={{
                                   id: card.id,
@@ -554,6 +559,21 @@ function SearchPageContent({
                                     code: card.episode_code,
                                   },
                                 }}
+                                className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
+                              />
+                              <CollectionWantButton
+                                card={{
+                                  id: card.id,
+                                  name: card.name,
+                                  image_url: card.image_url,
+                                  episode: {
+                                    id: card.episode_id,
+                                    name: card.episode_name,
+                                    code: card.episode_code,
+                                  },
+                                }}
+                                initialWanted={Boolean(card.want_item)}
+                                wantItemId={card.want_item?.id ?? null}
                                 className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
                               />
                             </div>

@@ -1435,6 +1435,15 @@ export function CardModalMobileShowcase({
             className={floatingButtonClass}
             onAdded={onAddedToCollection}
           />
+          <CollectionWantButton
+            card={collectionCard}
+            mode="icon"
+            theme="dark"
+            label="Want"
+            initialWanted={Boolean(card.want_item)}
+            wantItemId={card.want_item?.id ?? null}
+            className={floatingButtonClass}
+          />
           {collectionItem && (
             <CollectionEditCardButton
               card={collectionCard}
@@ -2496,7 +2505,7 @@ export function CardModalOwnedCopyPanel({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <CollectionAddCardButton
           card={collectionCard}
           mode="button"
@@ -2504,6 +2513,15 @@ export function CardModalOwnedCopyPanel({
           label={collectionItem ? "Add Another Copy" : "Add to Collection"}
           className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.035] !text-sm !font-semibold"
           onAdded={onAddedToCollection}
+        />
+        <CollectionWantButton
+          card={collectionCard}
+          mode="button"
+          theme="dark"
+          label="Want"
+          initialWanted={Boolean(card.want_item)}
+          wantItemId={card.want_item?.id ?? null}
+          className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.035] !text-sm !font-semibold"
         />
       </div>
     </section>

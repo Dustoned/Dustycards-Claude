@@ -56,6 +56,10 @@ interface SearchCardRecord {
     cm_jp_lowest_nm: number | null;
     tcp_market: number | null;
   }>;
+  wants: Array<{
+    id: string;
+    created_at: Date;
+  }>;
 }
 
 interface SearchSealedRecord {
@@ -949,19 +953,29 @@ function buildFuzzyExpansionCandidateWhere(rawQuery: string): Prisma.EpisodeWher
 
 function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) {
   return cards
-    .map((card) => ({
-      id: card.id,
-      name: card.name,
-      card_number: getDisplayCardNumber(card),
-      rarity: card.rarity,
-      supertype: card.supertype,
-      image_url: card.image_url,
-      episode_id: card.episode.id,
-      episode_name: card.episode.name,
-      episode_code: card.episode.code,
-      cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? card.prices[0]?.cm_jp_lowest_nm ?? null,
-      tcp_market: card.prices[0]?.tcp_market ?? null,
-    }))
+    .map((card) => {
+      const wantItem = card.wants?.[0] ?? null;
+
+      return {
+        id: card.id,
+        name: card.name,
+        card_number: getDisplayCardNumber(card),
+        rarity: card.rarity,
+        supertype: card.supertype,
+        image_url: card.image_url,
+        episode_id: card.episode.id,
+        episode_name: card.episode.name,
+        episode_code: card.episode.code,
+        cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? card.prices[0]?.cm_jp_lowest_nm ?? null,
+        tcp_market: card.prices[0]?.tcp_market ?? null,
+        want_item: wantItem
+          ? {
+              id: wantItem.id,
+              created_at: wantItem.created_at.toISOString(),
+            }
+          : null,
+      };
+    })
     .sort((a, b) => {
       const priceDiff = compareSingleSearchPriceDesc(a, b);
       if (priceDiff !== 0) return priceDiff;
@@ -1030,7 +1044,8 @@ async function runFuzzyFallback(
   parsed: ParsedQuery,
   activeGame: TradingCardGame,
   itemEpisodeWhere: Prisma.EpisodeWhereInput,
-  visibleExpansionWhere: Prisma.EpisodeWhereInput
+  visibleExpansionWhere: Prisma.EpisodeWhereInput,
+  userId: string
 ) {
   const normalizedQuery = normalizeSearchText(rawQuery);
   if (normalizedQuery.length < 4) {
@@ -1159,6 +1174,11 @@ async function runFuzzyFallback(
             take: 1,
             select: { cm_en_lowest_nm: true, cm_jp_lowest_nm: true, tcp_market: true },
           },
+          wants: {
+            where: { user_id: userId },
+            take: 1,
+            select: { id: true, created_at: true },
+          },
         },
       })
     : [];
@@ -1217,7 +1237,8 @@ function getAutoSwitchGame(
 async function runDirectSearch(
   q: string,
   activeGame: TradingCardGame,
-  itemEpisodeWhere: Prisma.EpisodeWhereInput
+  itemEpisodeWhere: Prisma.EpisodeWhereInput,
+  userId: string
 ) {
   const parsed = parseSearchQuery(q, activeGame);
   const { name, cardNumber, setCode, rawCardRef } = parsed;
@@ -1319,6 +1340,11 @@ async function runDirectSearch(
           take: 1,
           select: { cm_en_lowest_nm: true, cm_jp_lowest_nm: true, tcp_market: true },
         },
+        wants: {
+          where: { user_id: userId },
+          take: 1,
+          select: { id: true, created_at: true },
+        },
       },
       orderBy: [{ episode: { release_date: "desc" } }, { card_number: "asc" }],
     }),
@@ -1396,14 +1422,16 @@ function toDirectSearchResponse(results: DirectSearchResults) {
 async function runFuzzySearchForDirectResults(
   q: string,
   directResults: DirectSearchResults,
-  itemEpisodeWhere: Prisma.EpisodeWhereInput
+  itemEpisodeWhere: Prisma.EpisodeWhereInput,
+  userId: string
 ): Promise<SearchResponsePayload> {
   const fuzzyResults = await runFuzzyFallback(
     q,
     directResults.parsed,
     directResults.game,
     itemEpisodeWhere,
-    buildVisibleEpisodeWhere(directResults.game)
+    buildVisibleEpisodeWhere(directResults.game),
+    userId
   );
 
   return {
@@ -1413,12 +1441,12 @@ async function runFuzzySearchForDirectResults(
   };
 }
 
-async function runAllGameSearch(q: string): Promise<SearchResponsePayload> {
+async function runAllGameSearch(q: string, userId: string): Promise<SearchResponsePayload> {
   const pokemonEpisodeWhere = buildVisibleEpisodeWhere(POKEMON_GAME, { includeGame: false });
   const onePieceEpisodeWhere = buildVisibleEpisodeWhere(ONE_PIECE_GAME, { includeGame: false });
   const [pokemonDirectResults, onePieceDirectResults] = await Promise.all([
-    runDirectSearch(q, POKEMON_GAME, pokemonEpisodeWhere),
-    runDirectSearch(q, ONE_PIECE_GAME, onePieceEpisodeWhere),
+    runDirectSearch(q, POKEMON_GAME, pokemonEpisodeWhere, userId),
+    runDirectSearch(q, ONE_PIECE_GAME, onePieceEpisodeWhere, userId),
   ]);
   const directResponses = [
     toDirectSearchResponse(pokemonDirectResults),
@@ -1435,8 +1463,8 @@ async function runAllGameSearch(q: string): Promise<SearchResponsePayload> {
   }
 
   const fuzzyResponses = await Promise.all([
-    runFuzzySearchForDirectResults(q, pokemonDirectResults, pokemonEpisodeWhere),
-    runFuzzySearchForDirectResults(q, onePieceDirectResults, onePieceEpisodeWhere),
+    runFuzzySearchForDirectResults(q, pokemonDirectResults, pokemonEpisodeWhere, userId),
+    runFuzzySearchForDirectResults(q, onePieceDirectResults, onePieceEpisodeWhere, userId),
   ]);
 
   return mergeSearchResponses(fuzzyResponses);
@@ -1499,11 +1527,11 @@ export async function GET(req: NextRequest) {
 
   try {
     if (activeGame === ALL_GAMES) {
-      return NextResponse.json(await runAllGameSearch(q));
+      return NextResponse.json(await runAllGameSearch(q, user.id));
     }
 
     const itemEpisodeWhere = buildVisibleEpisodeWhere(activeGame, { includeGame: false });
-    const directResults = await runDirectSearch(q, activeGame, itemEpisodeWhere);
+    const directResults = await runDirectSearch(q, activeGame, itemEpisodeWhere, user.id);
     const autoSwitchGame = allowAutoSwitch
       ? getAutoSwitchGame(activeGame, settings.onePieceLibraryEnabled)
       : null;
@@ -1517,7 +1545,8 @@ export async function GET(req: NextRequest) {
       const alternateResults = await runDirectSearch(
         q,
         autoSwitchGame,
-        buildVisibleEpisodeWhere(autoSwitchGame, { includeGame: false })
+        buildVisibleEpisodeWhere(autoSwitchGame, { includeGame: false }),
+        user.id
       );
 
       if (alternateResults.total > 0) {
@@ -1538,7 +1567,8 @@ export async function GET(req: NextRequest) {
         directResults.parsed,
         activeGame,
         itemEpisodeWhere,
-        buildVisibleEpisodeWhere(activeGame)
+        buildVisibleEpisodeWhere(activeGame),
+        user.id
       );
 
       return NextResponse.json({

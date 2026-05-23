@@ -58,4 +58,8 @@ export interface CardData {
     pull_rate_weight: number | null;
     psa_avg_gem_pct: number | null;
   } | null;
+  want_item?: {
+    id: string;
+    created_at: string;
+  } | null;
 }

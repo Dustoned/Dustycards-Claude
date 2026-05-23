@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.19",
+    releasedAt: "May 23, 2026",
+    title: "Wishlist hearts on cards",
+    summary: "DustyCards 3.2.19 adds quick wishlist hearts next to card add buttons.",
+    tone: "improved",
+    highlights: [
+      "Search results and expansion card grids now show a heart next to the add button.",
+      "Card detail actions include the same wishlist heart on desktop, mobile, and 3D detail views.",
+      "Cards that are already wanted now show as active with a filled heart.",
+    ],
+  },
+  {
     version: "3.2.18",
     releasedAt: "May 23, 2026",
     title: "Vendor buy estimate",
