@@ -1277,7 +1277,7 @@ function MobileDetailIconButton({
       className={`inline-flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-xl transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
         destructive
           ? "border-rose-300/22 bg-rose-500/[0.12] text-rose-100 hover:border-rose-200/34 hover:bg-rose-500/20"
-          : "border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34"
+          : "border-white/12 bg-black/38 text-white/86 hover:border-white/24 hover:bg-white/[0.1]"
       }`}
       aria-label={label}
       title={label}
@@ -1415,7 +1415,7 @@ export function CardModalMobileShowcase({
   const showGraded = effectiveActiveTab === "graded";
   const showPreviousPrices = effectiveActiveTab === "previous-prices";
   const floatingButtonClass =
-    "!h-11 !w-11 !rounded-full !border-violet-300/24 !bg-violet-600/24 !p-0 !text-violet-50 !backdrop-blur-xl hover:!border-violet-200/42 hover:!bg-violet-500/34";
+    "!h-11 !w-11 !rounded-full !border-white/12 !bg-black/38 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-white/24 hover:!bg-white/[0.1]";
 
   return (
     <div className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">

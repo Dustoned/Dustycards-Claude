@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.24",
+    releasedAt: "May 23, 2026",
+    title: "Wants add button visibility",
+    summary: "DustyCards 3.2.24 restores the old top card-detail button look and makes Wants add buttons visible on card tiles.",
+    tone: "fixed",
+    highlights: [
+      "The top mobile card-detail buttons are back to the darker glass style.",
+      "Personal Wants cards now show the plus directly next to the card title.",
+      "The plus still opens the normal add-to-collection flow.",
+    ],
+  },
+  {
     version: "3.2.23",
     releasedAt: "May 23, 2026",
     title: "Purple card quick actions",
