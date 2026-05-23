@@ -24,6 +24,7 @@ import {
   modalCompactHeaderClass,
   modalPanelBaseClass,
 } from "@/components/modal-glass-styles";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { CARD_NUMBER_FALLBACK, cardNumberCollator } from "@/lib/card-number-sort";
 import { getBinderTileTrackWidth } from "@/lib/display-scale";
@@ -260,13 +261,21 @@ function PlannerCardRow({
         className="grid min-w-0 grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-2.5 rounded-lg text-left outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-emerald-400/45 disabled:cursor-wait disabled:opacity-60 sm:grid-cols-[5rem_minmax(0,1fr)]"
         title={`Open ${item.name}`}
       >
-        <span className="flex h-[5.8rem] w-[4.15rem] items-center justify-center overflow-hidden rounded-lg border border-white/12 bg-[#07070a] shadow-sm shadow-black/35 sm:h-[6.75rem] sm:w-[4.85rem]">
+        <span
+          className={getCardImageFrameClassName(
+            item.image_url,
+            "flex h-[5.8rem] w-[4.15rem] items-center justify-center overflow-hidden rounded-[4.75%] bg-transparent shadow-sm shadow-black/35 sm:h-[6.75rem] sm:w-[4.85rem]"
+          )}
+        >
           {item.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={item.image_url}
+              src={getCachedImageUrl(item.image_url) ?? item.image_url}
               alt=""
-              className="h-full w-full object-contain"
+              className={getCardImageClassName(
+                item.image_url,
+                "h-full w-full rounded-[4.75%] object-fill"
+              )}
               loading="lazy"
             />
           ) : (

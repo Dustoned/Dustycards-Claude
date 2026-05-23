@@ -19,6 +19,7 @@ import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { getExpansionHref } from "@/lib/games";
 import { getFixedTrackGridTemplate, getRichMoverTrackWidth } from "@/lib/display-scale";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -148,8 +149,18 @@ function DriverRow({
   const percent = formatPercent(item.changePct);
   const imageUrl = getCachedImageUrl(item.imageUrl) ?? item.imageUrl;
   const imageFrameClass = item.kind === "card"
-    ? "h-24 w-[4.4rem] bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]"
-    : "h-24 w-[4.4rem] rounded-xl border border-black/8 bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.05]";
+    ? getCardImageFrameClassName(
+        item.imageUrl,
+        "h-24 w-[4.4rem] overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]"
+      )
+    : "h-24 w-[4.4rem] overflow-hidden rounded-xl border border-black/8 bg-black/[0.04] dark:border-white/8 dark:bg-white/[0.05]";
+  const imageClassName =
+    item.kind === "card"
+      ? getCardImageClassName(
+          item.imageUrl,
+          "rounded-[4.75%] object-fill transition-transform duration-300 group-hover:scale-[1.03]"
+        )
+      : "object-contain transition-transform duration-300 group-hover:scale-[1.03]";
   const cardClassName =
     "group relative flex h-full min-w-0 flex-col rounded-2xl border border-black/8 bg-white/72 p-3 text-left shadow-sm shadow-black/5 outline-none transition hover:-translate-y-0.5 hover:border-black/14 hover:bg-white/90 aria-busy:opacity-60 dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-white/16 dark:hover:bg-white/[0.06]";
 
@@ -179,16 +190,14 @@ function DriverRow({
 
   const content = (
     <div className="flex min-w-0 items-start gap-3">
-      <div
-        className={`relative shrink-0 overflow-hidden ${imageFrameClass}`}
-      >
+      <div className={`relative shrink-0 ${imageFrameClass}`}>
         {imageUrl ? (
           <Image
             src={imageUrl}
             alt={item.name}
             fill
             sizes="80px"
-            className="object-contain transition-transform duration-300 group-hover:scale-[1.03]"
+            className={imageClassName}
             unoptimized
           />
         ) : (

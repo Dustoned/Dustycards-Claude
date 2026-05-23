@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { ModalCardData } from "@/components/CardModal";
 import { HeaderStatCard } from "@/components/PageHeader";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { formatCurrency, type CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 
@@ -1273,13 +1274,21 @@ export default function DealsBrowser() {
                     className="grid min-w-0 grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-white/8 bg-white/[0.025] p-2 text-left transition-colors hover:bg-white/[0.055]"
                   >
                     {card.image_url ? (
-                        <span className="relative aspect-[63/88] w-11 overflow-hidden rounded-md bg-black/24">
+                      <span
+                        className={getCardImageFrameClassName(
+                          card.image_url,
+                          "relative aspect-[63/88] w-11 overflow-hidden rounded-[4.75%] bg-transparent"
+                        )}
+                      >
                         <Image
                           src={card.image_url}
                           alt={card.name}
                           fill
                           sizes="44px"
-                          className="object-contain"
+                          className={getCardImageClassName(
+                            card.image_url,
+                            "rounded-[4.75%] object-fill"
+                          )}
                           unoptimized
                         />
                       </span>
@@ -1317,13 +1326,21 @@ export default function DealsBrowser() {
         {visibleData.card && (
           <section className="binder-panel grid gap-3 rounded-2xl p-3 sm:grid-cols-[72px_minmax(0,1fr)_auto] sm:items-center">
             {visibleData.card.image_url ? (
-              <div className="relative aspect-[63/88] w-16 overflow-hidden rounded-lg bg-black/24">
+              <div
+                className={getCardImageFrameClassName(
+                  visibleData.card.image_url,
+                  "relative aspect-[63/88] w-16 overflow-hidden rounded-[4.75%] bg-transparent"
+                )}
+              >
                 <Image
                   src={visibleData.card.image_url}
                   alt={visibleData.card.name}
                   fill
                   sizes="72px"
-                  className="object-contain"
+                  className={getCardImageClassName(
+                    visibleData.card.image_url,
+                    "rounded-[4.75%] object-fill"
+                  )}
                   unoptimized
                 />
               </div>

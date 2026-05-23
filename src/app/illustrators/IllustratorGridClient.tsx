@@ -6,6 +6,7 @@ import { Images, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SectionHeader } from "@/components/PageHeader";
 import { textMatchesSearchQuery } from "@/lib/card-search";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { IllustratorSummary } from "./page";
@@ -226,7 +227,10 @@ export default function IllustratorGridClient({
                 className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
               >
                 <div
-                  className={`relative bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] ${tileConfig.imageWrapClass}`}
+                  className={getCardImageFrameClassName(
+                    illustrator.topCard?.image_url,
+                    `relative overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] ${tileConfig.imageWrapClass}`
+                  )}
                 >
                   {illustrator.topCard?.image_url ? (
                     <Image
@@ -236,7 +240,10 @@ export default function IllustratorGridClient({
                       }
                       alt={illustrator.topCard.name}
                       fill
-                      className="object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                      className={getCardImageClassName(
+                        illustrator.topCard.image_url,
+                        "rounded-[4.75%] object-fill transition-transform duration-300 group-hover:scale-[1.02]"
+                      )}
                       sizes={tileConfig.minWidth}
                       priority={globalIndex < 4 && priorityGroups.includes(group)}
                       unoptimized

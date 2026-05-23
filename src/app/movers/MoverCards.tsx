@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionMoverItem } from "@/lib/movers";
 
@@ -451,13 +452,18 @@ const MoverTile = memo(function MoverTile({
       ) : null}
 
       <div className="flex items-start gap-2.5 sm:gap-3">
-        <div className="relative h-[4.5rem] w-[3.2rem] shrink-0 bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.22)] sm:h-[5.25rem] sm:w-[3.7rem]">
+        <div
+          className={getCardImageFrameClassName(
+            item.imageUrl,
+            "relative h-[4.5rem] w-[3.2rem] shrink-0 overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.22)] sm:h-[5.25rem] sm:w-[3.7rem]"
+          )}
+        >
           {item.imageUrl ? (
             <Image
               src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
               alt={item.name}
               fill
-              className="object-contain"
+              className={getCardImageClassName(item.imageUrl, "rounded-[4.75%] object-fill")}
               sizes="(max-width: 640px) 52px, 64px"
               unoptimized
             />
@@ -587,13 +593,18 @@ function MoverSpotlightCard({
 
       {item ? (
         <div className="mt-3 flex items-start gap-3">
-          <div className="relative h-[4.25rem] w-[3rem] shrink-0 bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)]">
+          <div
+            className={getCardImageFrameClassName(
+              item.imageUrl,
+              "relative h-[4.25rem] w-[3rem] shrink-0 overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.2)]"
+            )}
+          >
             {item.imageUrl ? (
               <Image
                 src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
                 alt={item.name}
                 fill
-                className="object-contain"
+                className={getCardImageClassName(item.imageUrl, "rounded-[4.75%] object-fill")}
                 sizes="48px"
                 unoptimized
               />

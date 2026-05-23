@@ -33,7 +33,7 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
-import { getCardImageClassName } from "@/lib/card-image-display";
+import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 
@@ -462,13 +462,21 @@ function SearchPageContent({
                       className="relative flex cursor-pointer flex-col rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 text-left shadow-[0_12px_28px_rgba(0,0,0,0.24)] outline-none transition-colors hover:border-white/14 max-[640px]:rounded-[13px] max-[640px]:p-1"
                       aria-busy={openingCardId === card.id}
                     >
-                      <div className="relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-[#d8d5cc] drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:ring-2 after:ring-inset after:ring-white/12">
+                      <div
+                        className={getCardImageFrameClassName(
+                          card.image_url,
+                          "relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]"
+                        )}
+                      >
                         {card.image_url ? (
                           <Image
                             src={getCachedImageUrl(card.image_url) ?? card.image_url}
                             alt={card.name}
                             fill
-                            className={getCardImageClassName(card.image_url, "object-contain")}
+                            className={getCardImageClassName(
+                              card.image_url,
+                              "rounded-[4.75%] object-fill"
+                            )}
                             sizes={minWidth}
                             loading={index < 18 ? "eager" : undefined}
                             unoptimized

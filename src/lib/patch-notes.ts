@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.17",
+    releasedAt: "May 23, 2026",
+    title: "Consistent card previews",
+    summary: "DustyCards 3.2.17 brings smaller card previews in Search and related card lists in line with collection and card detail images.",
+    tone: "fixed",
+    highlights: [
+      "Search single-card previews now use the same card frame and crop behavior as collection tiles.",
+      "Mover, value-driver, illustrator, deals, and want-planner card previews now share the same card image handling.",
+      "Sealed product previews keep their full product image fit while card previews avoid the old light frame and extra border look.",
+    ],
+  },
+  {
     version: "3.2.16",
     releasedAt: "May 23, 2026",
     title: "Printed number search padding",
