@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.20",
+    releasedAt: "May 23, 2026",
+    title: "Cleaner wants card actions",
+    summary: "DustyCards 3.2.20 keeps wants cards focused on the normal add-to-collection action.",
+    tone: "improved",
+    highlights: [
+      "Wants cards now show only the standard plus button for adding a bought card to your collection.",
+      "The extra per-card remove/minus action has been removed from wants card previews.",
+      "The add button keeps the same look and behavior as the rest of the app.",
+    ],
+  },
+  {
     version: "3.2.19",
     releasedAt: "May 23, 2026",
     title: "Wishlist hearts on cards",
