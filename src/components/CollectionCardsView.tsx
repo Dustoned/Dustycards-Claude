@@ -2160,7 +2160,7 @@ export default function CollectionCardsView({
                         theme="dark"
                       />
                     ) : null;
-                  const showInlineWantAddAction = allowWantRemoval && Boolean(tileAction);
+                  const showWantPriceRowAction = allowWantRemoval && Boolean(tileAction);
 
                   return (
                     <div
@@ -2263,7 +2263,7 @@ export default function CollectionCardsView({
                             x{item.owned_count}
                           </span>
                         )}
-                        {tileAction && !showInlineWantAddAction && (
+                        {tileAction && !showWantPriceRowAction && (
                           <div
                             className="absolute bottom-1.5 right-1.5 z-10"
                             onClick={(event) => event.stopPropagation()}
@@ -2277,20 +2277,9 @@ export default function CollectionCardsView({
               <div className={collectionTileInfoClass(displaySettings.cardSize)}>
                 <div className="flex min-h-0 flex-1 flex-col gap-1">
                   <div className="min-w-0">
-                    <div className="flex min-w-0 items-start justify-between gap-1.5">
-                      <p className={collectionTileTitleClass(displaySettings.cardSize)}>
-                        {item.name}
-                      </p>
-                      {showInlineWantAddAction ? (
-                        <span
-                          className="shrink-0"
-                          onClick={(event) => event.stopPropagation()}
-                          onPointerDown={(event) => event.stopPropagation()}
-                        >
-                          {tileAction}
-                        </span>
-                      ) : null}
-                    </div>
+                    <p className={collectionTileTitleClass(displaySettings.cardSize)}>
+                      {item.name}
+                    </p>
                     <div className={collectionTileMetaLineClass(displaySettings.cardSize)}>
                       <span className="shrink-0 text-white/42">
                         {item.card_number ? `#${item.card_number}` : "--"}
@@ -2343,6 +2332,15 @@ export default function CollectionCardsView({
                         </span>
                       </span>
                     )}
+                    {showWantPriceRowAction ? (
+                      <span
+                        className="ml-auto shrink-0"
+                        onClick={(event) => event.stopPropagation()}
+                        onPointerDown={(event) => event.stopPropagation()}
+                      >
+                        {tileAction}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 

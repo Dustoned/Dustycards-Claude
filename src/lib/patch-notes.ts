@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.25",
+    releasedAt: "May 23, 2026",
+    title: "Cleaner Wants plus placement",
+    summary: "DustyCards 3.2.25 moves the Personal Wants plus button into the normal card action row.",
+    tone: "fixed",
+    highlights: [
+      "Personal Wants cards now place the plus beside the price, matching the compact card action pattern.",
+      "Card titles keep their normal layout without a button squeezed into the name row.",
+      "The add action still opens the standard add-to-collection popup.",
+    ],
+  },
+  {
     version: "3.2.24",
     releasedAt: "May 23, 2026",
     title: "Wants add button visibility",
