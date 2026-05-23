@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.18",
+    releasedAt: "May 23, 2026",
+    title: "Vendor buy estimate",
+    summary: "DustyCards 3.2.18 adds a vendor buy percentage estimator to the Sell tab.",
+    tone: "new",
+    highlights: [
+      "The Sell tab now lets you choose common vendor buy rates such as 70% or 80%.",
+      "Estimated Sale Value now shows the matching vendor offer amount in EUR.",
+      "The estimate updates instantly when the selected buy percentage changes.",
+    ],
+  },
+  {
     version: "3.2.17",
     releasedAt: "May 23, 2026",
     title: "Consistent card previews",

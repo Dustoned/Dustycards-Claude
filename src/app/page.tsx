@@ -17,6 +17,7 @@ import {
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
 import CollectionInstantTabs from "@/components/CollectionInstantTabs";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
+import VendorBuyEstimate from "@/components/VendorBuyEstimate";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
   getCollectionOverviewData,
@@ -1035,6 +1036,7 @@ export default async function HomePage({
               <p className="mt-1 text-xl font-black tabular-nums text-white">
                 {formatCollectionCurrency(forSaleValue)}
               </p>
+              <VendorBuyEstimate estimatedValue={forSaleValue} />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
