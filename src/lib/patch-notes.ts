@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.16",
+    releasedAt: "May 23, 2026",
+    title: "Printed number search padding",
+    summary: "DustyCards 3.2.16 fixes printed card searches where the total after the slash is typed with a leading zero.",
+    tone: "fixed",
+    highlights: [
+      "Searches such as 230/091 now also match cards stored as 230/91.",
+      "Printed card-number aliases now handle leading zeroes on both sides of the slash.",
+      "Added search tests for padded printed totals so exact number searches stay reliable.",
+    ],
+  },
+  {
     version: "3.2.15",
     releasedAt: "May 23, 2026",
     title: "For Sale sold tracking",

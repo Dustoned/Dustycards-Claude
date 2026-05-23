@@ -18,6 +18,19 @@ function stripNumericLeadingZeros(value: string): string {
   return stripped || "0";
 }
 
+function numericPaddingVariants(value: string): string[] {
+  if (!/^\d+$/.test(value)) return [value];
+
+  const withoutLeadingZeros = stripNumericLeadingZeros(value);
+  return uniqueLowerStrings([
+    value,
+    withoutLeadingZeros,
+    withoutLeadingZeros.padStart(2, "0"),
+    withoutLeadingZeros.padStart(3, "0"),
+    withoutLeadingZeros.padStart(4, "0"),
+  ]);
+}
+
 function extractSearchableInput(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return "";
@@ -49,20 +62,16 @@ function tokenizeSearchText(value: string): string[] {
 }
 
 function cardNumberReferenceVariants(left: string, right: string): string[] {
-  const leftVariants = /^\d+$/.test(left)
-    ? [
-        stripNumericLeadingZeros(left),
-        stripNumericLeadingZeros(left).padStart(2, "0"),
-        stripNumericLeadingZeros(left).padStart(3, "0"),
-        stripNumericLeadingZeros(left).padStart(4, "0"),
-      ]
-    : [left];
+  const leftVariants = numericPaddingVariants(left);
+  const rightVariants = numericPaddingVariants(right);
 
-  return leftVariants.flatMap((variant) => [
-    `${variant}/${right}`,
-    `${variant} ${right}`,
-    `${variant}${right}`,
-  ]);
+  return leftVariants.flatMap((leftVariant) =>
+    rightVariants.flatMap((rightVariant) => [
+      `${leftVariant}/${rightVariant}`,
+      `${leftVariant} ${rightVariant}`,
+      `${leftVariant}${rightVariant}`,
+    ])
+  );
 }
 
 export function buildCardNumberSearchAliases(value: string | null | undefined): string[] {
@@ -81,11 +90,14 @@ export function buildCardNumberSearchAliases(value: string | null | undefined): 
 
   const slashMatch = /^(\d+)(\/.+)$/.exec(normalized);
   if (slashMatch) {
-    const withoutLeadingZeros = stripNumericLeadingZeros(slashMatch[1]);
-    aliases.push(`${withoutLeadingZeros}${slashMatch[2]}`);
-    aliases.push(`${withoutLeadingZeros.padStart(2, "0")}${slashMatch[2]}`);
-    aliases.push(`${withoutLeadingZeros.padStart(3, "0")}${slashMatch[2]}`);
-    aliases.push(`${withoutLeadingZeros.padStart(4, "0")}${slashMatch[2]}`);
+    const leftVariants = numericPaddingVariants(slashMatch[1]);
+    const right = slashMatch[2].slice(1);
+    const rightVariants = numericPaddingVariants(right);
+    aliases.push(
+      ...leftVariants.flatMap((leftVariant) =>
+        rightVariants.map((rightVariant) => `${leftVariant}/${rightVariant}`)
+      )
+    );
   }
 
   if (/^\d+$/.test(normalized)) {

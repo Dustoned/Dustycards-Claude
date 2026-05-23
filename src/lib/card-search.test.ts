@@ -22,6 +22,7 @@ describe("card search helpers", () => {
     expect(cardNumberMatchesSearch("002/203", "002 203")).toBe(true);
     expect(cardNumberMatchesSearch("002/203", "2 203")).toBe(true);
     expect(cardNumberMatchesSearch("002/203", "002203")).toBe(true);
+    expect(cardNumberMatchesSearch("230/91", "230/091")).toBe(true);
   });
 
   it("matches compact set references with padded or unpadded numbers", () => {

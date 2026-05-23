@@ -318,6 +318,40 @@ describe("GET /api/search", () => {
     expect(whereJson).not.toContain('"contains":"2/203"');
   });
 
+  it("matches exact printed card numbers when the total is typed with leading zeroes", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "card-230-91",
+        name: "Paldean Student",
+        card_number: "230",
+        printed_card_number: "230/91",
+        rarity: "Rare",
+        supertype: "Trainer",
+        image_url: null,
+        episode: {
+          id: "set",
+          name: "Paldean Fates",
+          code: "PAF",
+        },
+        prices: [{ cm_en_lowest_nm: 2, tcp_market: 3 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=230%2F091"));
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(false);
+    expect(body.singles[0].card_number).toBe("230/91");
+    expect(whereJson).toContain('"printed_card_number":"230/091"');
+    expect(whereJson).toContain('"printed_card_number":"230/91"');
+    expect(whereJson).not.toContain('"contains":"230/91"');
+  });
+
   it("does not fuzzy fallback for missing exact printed card number searches", async () => {
     dbMock.card.findMany.mockResolvedValue([]);
     dbMock.sealedProduct.findMany.mockResolvedValue([]);
