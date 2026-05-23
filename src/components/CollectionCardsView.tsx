@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Minus, TrendingDown, TrendingUp, X } from "lucide-react";
+import { CheckCircle2, Minus, TrendingDown, TrendingUp, X } from "lucide-react";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -45,6 +45,8 @@ import {
   modalCloseButtonClass,
   modalCompactHeaderClass,
   modalDangerButtonClass,
+  modalInputClass,
+  modalPrimaryButtonClass,
   modalSecondaryButtonClass,
 } from "@/components/modal-glass-styles";
 import {
@@ -124,6 +126,7 @@ interface Props {
   showGradedSlabPreview?: boolean;
   collectionRemovalLabel?: string;
   collectionRemovalWarning?: string;
+  allowSoldMarking?: boolean;
 }
 
 interface RemoveDialogState {
@@ -131,6 +134,19 @@ interface RemoveDialogState {
   target: "collection" | "wants";
   title: string;
   description: string;
+}
+
+interface SoldDialogItem {
+  itemId: string;
+  item: CollectionCardViewItem;
+}
+
+interface SoldDialogState {
+  items: SoldDialogItem[];
+  mode: "per-card" | "stack";
+  prices: Record<string, string>;
+  totalPrice: string;
+  error: string | null;
 }
 
 type CollectionView = Exclude<CardView, "binder">;
@@ -144,6 +160,16 @@ function getTileTrendPercent(currentValue: number | null | undefined, costBasis:
   return Number((((currentValue - costBasis) / costBasis) * 100).toFixed(1));
 }
 
+function parseCurrencyInput(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function formatPricePlaceholder(value: number | null | undefined): string {
+  return value == null ? "0.00" : value.toFixed(2);
+}
 
 export default function CollectionCardsView({
   items,
@@ -168,6 +194,7 @@ export default function CollectionCardsView({
   showGradedSlabPreview = false,
   collectionRemovalLabel = "My Collection",
   collectionRemovalWarning = "This removes the saved collection entry entirely. It will not be moved to loose singles.",
+  allowSoldMarking = false,
 }: Props) {
   const router = useRouter();
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
@@ -191,10 +218,14 @@ export default function CollectionCardsView({
   const [removingItems, setRemovingItems] = useState(false);
   const [removeDialog, setRemoveDialog] = useState<RemoveDialogState | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  const selectionEnabled = Boolean(bulkAddBinder) || allowCollectionRemoval || allowWantRemoval;
+  const [soldDialog, setSoldDialog] = useState<SoldDialogState | null>(null);
+  const [savingSold, setSavingSold] = useState(false);
+  const selectionEnabled =
+    Boolean(bulkAddBinder) || allowCollectionRemoval || allowWantRemoval || allowSoldMarking;
   const canBulkAddToBinder = Boolean(bulkAddBinder) && blurMissing;
   const canRemoveFromCollection = Boolean(bulkAddBinder) || allowCollectionRemoval;
   const canRemoveFromWants = allowWantRemoval;
+  const canMarkSold = allowSoldMarking;
   const availableRarities = useMemo(
     () =>
       buildFilterOptions(items.map((item) => item.rarity), KNOWN_RARITY_ORDER, normalizeRarityLabel),
@@ -531,6 +562,28 @@ export default function CollectionCardsView({
     },
     [preparedEntries, selectedKeySet]
   );
+  const selectedSoldItems = useMemo(() => {
+    const itemsById = new Map<string, CollectionCardViewItem>();
+
+    for (const entry of preparedEntries) {
+      if (!selectedKeySet.has(entry.selectionKey) || !entry.item.for_sale || entry.item.sold_at) {
+        continue;
+      }
+
+      const itemIds =
+        entry.item.collection_item_ids ??
+        (entry.item.collection_item_id ? [entry.item.collection_item_id] : []);
+      for (const itemId of itemIds) {
+        itemsById.set(itemId, {
+          ...entry.item,
+          collection_item_id: itemId,
+          collection_item_ids: [itemId],
+        });
+      }
+    }
+
+    return [...itemsById.entries()].map(([itemId, item]) => ({ itemId, item }));
+  }, [preparedEntries, selectedKeySet]);
   const selectedWantItemIds = useMemo(
     () => {
       const ids = new Set<string>();
@@ -723,6 +776,99 @@ export default function CollectionCardsView({
     });
   }
 
+  function handleBulkMarkSold() {
+    if (selectedSoldItems.length === 0) return;
+
+    setBulkAddOpen(false);
+    setRemoveDialog(null);
+    setRemoveError(null);
+    setSoldDialog({
+      items: selectedSoldItems,
+      mode: "per-card",
+      prices: Object.fromEntries(selectedSoldItems.map(({ itemId }) => [itemId, ""])),
+      totalPrice: "",
+      error: null,
+    });
+  }
+
+  function updateSoldPrice(itemId: string, value: string) {
+    setSoldDialog((current) =>
+      current
+        ? {
+            ...current,
+            error: null,
+            prices: { ...current.prices, [itemId]: value },
+          }
+        : current
+    );
+  }
+
+  function updateSoldMode(mode: SoldDialogState["mode"]) {
+    setSoldDialog((current) => (current ? { ...current, mode, error: null } : current));
+  }
+
+  async function markSoldItems() {
+    if (!soldDialog || soldDialog.items.length === 0) return;
+
+    const itemIds = soldDialog.items.map((item) => item.itemId);
+    let payload: { itemIds: string[]; prices?: Record<string, number>; totalPrice?: number };
+
+    if (soldDialog.mode === "per-card") {
+      const prices: Record<string, number> = {};
+      for (const item of soldDialog.items) {
+        const price = parseCurrencyInput(soldDialog.prices[item.itemId] ?? "");
+        if (price == null) {
+          setSoldDialog((current) =>
+            current ? { ...current, error: "Fill in a sold price for every card." } : current
+          );
+          return;
+        }
+        prices[item.itemId] = price;
+      }
+      payload = { itemIds, prices };
+    } else {
+      const totalPrice = parseCurrencyInput(soldDialog.totalPrice);
+      if (totalPrice == null) {
+        setSoldDialog((current) =>
+          current ? { ...current, error: "Fill in a valid stack sold price." } : current
+        );
+        return;
+      }
+      payload = { itemIds, totalPrice };
+    }
+
+    setSavingSold(true);
+    setSoldDialog((current) => (current ? { ...current, error: null } : current));
+
+    try {
+      const response = await fetch("/api/collection/cards/sold", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not mark cards sold");
+      }
+
+      setSoldDialog(null);
+      setSelectionMode(false);
+      setSelectedKeys([]);
+      router.refresh();
+    } catch (error) {
+      setSoldDialog((current) =>
+        current
+          ? {
+              ...current,
+              error: error instanceof Error ? error.message : "Could not mark cards sold",
+            }
+          : current
+      );
+    } finally {
+      setSavingSold(false);
+    }
+  }
+
   function handleSingleRemove(
     event: React.MouseEvent<HTMLButtonElement>,
     item: CollectionCardViewItem
@@ -787,6 +933,12 @@ export default function CollectionCardsView({
     appliedSupertypes.length > 0 ||
     effectiveOnlyPriced;
   const sortSummary = hideSortControls ? "Highest price first" : formatSortSummary(sortBy, sortDir);
+  const soldStackTotal =
+    soldDialog?.mode === "stack" ? parseCurrencyInput(soldDialog.totalPrice) : null;
+  const soldStackPerCard =
+    soldDialog && soldStackTotal != null && soldDialog.items.length > 0
+      ? soldStackTotal / soldDialog.items.length
+      : null;
   const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
     { value: "number", label: "#" },
     { value: "cm_en", label: "CM" },
@@ -1111,6 +1263,17 @@ export default function CollectionCardsView({
                           Bulk add
                         </button>
                       )}
+                      {canMarkSold && (
+                        <button
+                          type="button"
+                          onClick={handleBulkMarkSold}
+                          disabled={savingSold || selectedSoldItems.length === 0}
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-emerald-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Sold
+                        </button>
+                      )}
                       {canRemoveFromCollection && (
                         <button
                           type="button"
@@ -1270,6 +1433,17 @@ export default function CollectionCardsView({
                         Bulk add
                       </button>
                     )}
+                    {canMarkSold && (
+                      <button
+                        type="button"
+                        onClick={handleBulkMarkSold}
+                        disabled={savingSold || selectedSoldItems.length === 0}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Sold
+                      </button>
+                    )}
                     {canRemoveFromCollection && (
                       <button
                         type="button"
@@ -1419,6 +1593,17 @@ export default function CollectionCardsView({
                   className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Bulk add
+                </button>
+              )}
+              {canMarkSold && (
+                <button
+                  type="button"
+                  onClick={handleBulkMarkSold}
+                  disabled={savingSold || selectedSoldItems.length === 0}
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-emerald-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Sold
                 </button>
               )}
               {canRemoveFromCollection && (
@@ -2273,6 +2458,161 @@ export default function CollectionCardsView({
                     setRemoveError(null);
                   }}
                   disabled={removingItems}
+                  className={modalSecondaryButtonClass}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {soldDialog && (
+        <div
+          className={`${modalCenteredMobileOverlayClass} z-[365]`}
+          onClick={() => {
+            if (!savingSold) {
+              setSoldDialog(null);
+            }
+          }}
+        >
+          <div
+            className={`${modalCenteredPanelClass} max-w-2xl`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={modalCompactHeaderClass}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+                  Mark Sold
+                </p>
+                <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+                  {soldDialog.items.length === 1
+                    ? "Sold price"
+                    : `${soldDialog.items.length} cards sold`}
+                </h2>
+                <p className="mt-2 text-sm text-white/55 max-[640px]:text-[12px]">
+                  Save the final EUR amount for your sold cards.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSoldDialog(null)}
+                disabled={savingSold}
+                className={modalCloseButtonClass}
+                aria-label="Close sold dialog"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 overflow-y-auto px-6 pb-6 pt-5 max-[640px]:px-4 max-[640px]:pb-4 max-[640px]:pt-3">
+              {soldDialog.items.length > 1 && (
+                <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.045] p-1.5 max-[640px]:rounded-xl">
+                  {[
+                    { mode: "per-card" as const, label: "Per card" },
+                    { mode: "stack" as const, label: "Stack total" },
+                  ].map((option) => (
+                    <button
+                      key={option.mode}
+                      type="button"
+                      onClick={() => updateSoldMode(option.mode)}
+                      disabled={savingSold}
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors max-[640px]:text-[12px] ${
+                        soldDialog.mode === option.mode
+                          ? "bg-emerald-600 text-white"
+                          : "text-white/56 hover:bg-white/[0.06] hover:text-white"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {soldDialog.mode === "stack" ? (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-white/70 max-[640px]:text-[12px]">
+                    Stack sold price
+                  </label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-white/36">
+                      EUR
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={soldDialog.totalPrice}
+                      onChange={(event) =>
+                        setSoldDialog((current) =>
+                          current
+                            ? { ...current, totalPrice: event.target.value, error: null }
+                            : current
+                        )
+                      }
+                      disabled={savingSold}
+                      placeholder="0.00"
+                      className={`${modalInputClass} pl-12 tabular-nums`}
+                    />
+                  </div>
+                  {soldStackPerCard != null && (
+                    <p className="text-xs font-semibold text-white/42">
+                      Split over {soldDialog.items.length} cards:{" "}
+                      {formatCollectionCurrency(soldStackPerCard)} each
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1 max-[640px]:max-h-[38vh]">
+                  {soldDialog.items.map(({ itemId, item }) => (
+                    <label
+                      key={itemId}
+                      className="grid gap-2 rounded-2xl border border-white/10 bg-white/[0.045] p-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-center max-[640px]:rounded-xl"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-white">
+                          {item.name}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs font-semibold text-white/42">
+                          {item.card_number ? `#${item.card_number}` : item.episode_name}
+                        </span>
+                      </span>
+                      <span className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-white/36">
+                          EUR
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={soldDialog.prices[itemId] ?? ""}
+                          onChange={(event) => updateSoldPrice(itemId, event.target.value)}
+                          disabled={savingSold}
+                          placeholder={formatPricePlaceholder(item.current_value)}
+                          className={`${modalInputClass} pl-11 text-right tabular-nums`}
+                        />
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {soldDialog.error && (
+                <p className="mt-4 text-sm font-semibold text-rose-300">{soldDialog.error}</p>
+              )}
+
+              <div className={modalActionRowClass}>
+                <button
+                  type="button"
+                  onClick={() => void markSoldItems()}
+                  disabled={savingSold}
+                  className={modalPrimaryButtonClass}
+                >
+                  {savingSold ? "Saving..." : "Mark sold"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSoldDialog(null)}
+                  disabled={savingSold}
                   className={modalSecondaryButtonClass}
                 >
                   Cancel

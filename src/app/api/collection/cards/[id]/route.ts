@@ -121,6 +121,8 @@ export async function PATCH(
       data: {
         binder_id: binderId,
         for_sale: forSale,
+        sale_price: null,
+        sold_at: null,
         purchase_price: purchasePrice,
         condition,
         language,

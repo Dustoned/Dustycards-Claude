@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.15",
+    releasedAt: "May 23, 2026",
+    title: "For Sale sold tracking",
+    summary: "DustyCards 3.2.15 lets selected For Sale cards be marked sold with per-card or stack sale prices.",
+    tone: "new",
+    highlights: [
+      "Added a Sold action to the Sell tab selection flow with a focused popup for EUR sale prices.",
+      "Multiple selected cards can be priced one by one or sold as a stack total that is split across every card.",
+      "The Sell tab now shows total sold value, sold card count, and sold P&L while active For Sale cards remain separate from collection totals.",
+    ],
+  },
+  {
     version: "3.2.14",
     releasedAt: "May 23, 2026",
     title: "For Sale collection tab",

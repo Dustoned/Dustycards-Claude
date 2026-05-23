@@ -63,7 +63,7 @@ const REQUIRED_RUNTIME_FIELDS = {
     "detected_condition",
   ],
   CollectionBinder: ["user_id"],
-  CollectionCard: ["user_id", "for_sale"],
+  CollectionCard: ["user_id", "for_sale", "sale_price", "sold_at"],
   CollectionWant: ["user_id", "source", "source_episode_id", "dismissed_at"],
   CollectionSealed: ["user_id"],
   SyncLog: ["details_json"],

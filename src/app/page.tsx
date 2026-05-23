@@ -725,6 +725,9 @@ export default async function HomePage({
     data.forSaleCards.reduce((total, item) => total + (item.purchase_price ?? 0), 0).toFixed(2)
   );
   const forSalePricedCards = data.forSaleCards.filter((item) => item.current_value != null).length;
+  const soldTotal = data.saleSummary.soldTotal;
+  const soldCount = data.saleSummary.soldCards;
+  const soldPnl = data.saleSummary.soldPnl;
 
   function buildCollectionHref(tabValue: CollectionPageTab) {
     const params = new URLSearchParams();
@@ -1024,7 +1027,7 @@ export default async function HomePage({
       }
       sellingSlot={
         <div className="space-y-3">
-          <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-3">
+          <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
                 Estimated Sale Value
@@ -1035,7 +1038,7 @@ export default async function HomePage({
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
-                Cards
+                Active Cards
               </p>
               <p className="mt-1 text-xl font-black tabular-nums text-white">
                 {data.forSaleCards.length.toLocaleString("en-US")}
@@ -1049,10 +1052,25 @@ export default async function HomePage({
                 {forSalePricedCards.toLocaleString("en-US")} / {formatCollectionCurrency(forSaleInvestment)}
               </p>
             </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                Sold Total
+              </p>
+              <p className="mt-1 text-xl font-black tabular-nums text-white">
+                {formatCollectionCurrency(soldTotal)}
+              </p>
+              <p className="mt-0.5 truncate text-[11px] font-semibold tabular-nums text-white/42">
+                {soldCount.toLocaleString("en-US")} sold / P&amp;L{" "}
+                <span className={soldPnl >= 0 ? "text-emerald-300" : "text-rose-300"}>
+                  {formatSignedCurrency(soldPnl)}
+                </span>
+              </p>
+            </div>
           </section>
           <CollectionCardsView
             items={data.forSaleCards}
             allowCollectionRemoval
+            allowSoldMarking
             showGradedSlabPreview
             emptyTitle="No cards marked for sale"
             emptyText="Cards you save to For Sale will appear here."

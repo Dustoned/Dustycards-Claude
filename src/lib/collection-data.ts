@@ -89,6 +89,13 @@ export interface CollectionOverviewData {
   looseSingles: CollectionCardViewItem[];
   binderCards: CollectionCardViewItem[];
   forSaleCards: CollectionCardViewItem[];
+  soldCards: CollectionCardViewItem[];
+  saleSummary: {
+    soldTotal: number;
+    soldCards: number;
+    soldCost: number;
+    soldPnl: number;
+  };
   sealed: CollectionSealedViewItem[];
   valueDrivers: CollectionValueDriversData;
   binders: Array<{
@@ -225,6 +232,8 @@ const collectionCardSelect = {
   id: true,
   binder_id: true,
   for_sale: true,
+  sale_price: true,
+  sold_at: true,
   purchase_price: true,
   condition: true,
   language: true,
@@ -300,6 +309,8 @@ const collectionCardMetricSelect = {
   id: true,
   binder_id: true,
   for_sale: true,
+  sale_price: true,
+  sold_at: true,
   purchase_price: true,
   grading_company: true,
   grading_grade: true,
@@ -525,6 +536,7 @@ async function fetchCollectionCardsPage(
     game?: TradingCardGameFilter;
     binderId?: string;
     forSale?: boolean;
+    sold?: boolean;
     skip?: number;
     take?: number;
     detail?: boolean;
@@ -534,10 +546,11 @@ async function fetchCollectionCardsPage(
     where: {
       user_id: options.userId,
       for_sale: options.forSale ?? false,
+      ...(options.forSale ? { sold_at: options.sold ? { not: null } : null } : {}),
       ...(isSpecificTradingCardGame(options.game) ? { card: { game: options.game } } : {}),
       ...(options.binderId ? { binder_id: options.binderId } : {}),
     },
-    orderBy: { added_at: "desc" },
+    orderBy: options.sold ? [{ sold_at: "desc" }, { added_at: "desc" }] : { added_at: "desc" },
     skip: options.skip,
     take: options.take,
     select: options.detail ? collectionCardSelect : collectionCardMetricSelect,
@@ -549,6 +562,7 @@ async function fetchCollectionCards(options: {
   game?: TradingCardGameFilter;
   binderId?: string;
   forSale?: boolean;
+  sold?: boolean;
   detail?: boolean;
 }) {
   const pageSize = 200;
@@ -561,6 +575,7 @@ async function fetchCollectionCards(options: {
       game: options.game,
       binderId: options.binderId,
       forSale: options.forSale,
+      sold: options.sold,
       skip,
       take: pageSize,
       detail: options.detail,
@@ -582,6 +597,8 @@ type CollectionCardMetricRecord = {
   id: string;
   binder_id: string | null;
   for_sale: boolean;
+  sale_price: number | null;
+  sold_at: Date | null;
   purchase_price: number | null;
   grading_company: string | null;
   grading_grade: string | null;
@@ -751,6 +768,20 @@ async function getForSaleCollectionCards(options: {
     userId: options.userId,
     game: options.game,
     forSale: true,
+    sold: false,
+    detail: true,
+  });
+}
+
+async function getSoldCollectionCards(options: {
+  userId: string;
+  game?: TradingCardGameFilter;
+}) {
+  return fetchCollectionCards({
+    userId: options.userId,
+    game: options.game,
+    forSale: true,
+    sold: true,
     detail: true,
   });
 }
@@ -1025,6 +1056,8 @@ function buildCardViewItem(
     binder_name: record.binder?.name ?? null,
     binder_type: record.binder?.type ?? null,
     for_sale: record.for_sale,
+    sale_price: record.sale_price,
+    sold_at: record.sold_at ? record.sold_at.toISOString() : null,
     card_id: record.card.id,
     name: record.card.name,
     image_url: record.card.image_url,
@@ -1578,7 +1611,7 @@ export async function getCollectionOverviewData(
     history: loadCollectionHistory,
   });
 
-  const [collectionCards, collectionSealed, binders] = await Promise.all([
+  const [collectionCards, collectionSealed, binders, forSaleCards, soldCards] = await Promise.all([
     loadDetailedCards
       ? getCollectionCards({ userId: options.userId, game })
       : getCollectionCardMetrics(options.userId, game),
@@ -1586,13 +1619,15 @@ export async function getCollectionOverviewData(
       ? getCollectionSealedItems(options.userId, true, game)
       : getCollectionSealedMetrics(options.userId, game),
     getCollectionBinders(options.userId, loadDetailedBinders, game),
+    getForSaleCollectionCards({ userId: options.userId, game }),
+    getSoldCollectionCards({ userId: options.userId, game }),
   ]);
-  const forSaleCards = await getForSaleCollectionCards({ userId: options.userId, game });
 
   const metricCards = collectionCards as CollectionCardMetricRecord[];
   const metricForSaleCards = forSaleCards as CollectionCardMetricRecord[];
+  const metricSoldCards = soldCards as CollectionCardMetricRecord[];
   const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
-  const usdToEurRate = hasUsdEbaySoldGradedPrices([...metricCards, ...metricForSaleCards])
+  const usdToEurRate = hasUsdEbaySoldGradedPrices([...metricCards, ...metricForSaleCards, ...metricSoldCards])
     ? await getUsdToEurRate()
     : null;
   const valueOptions = { usdToEurRate };
@@ -1662,6 +1697,19 @@ export async function getCollectionOverviewData(
   const forSaleCardViewItems = (forSaleCards as CollectionCardRecord[]).map((record) =>
     buildCardViewItem(record, null, valueOptions)
   );
+  const soldCardViewItems = (soldCards as CollectionCardRecord[]).map((record) =>
+    buildCardViewItem(record, null, valueOptions)
+  );
+  const soldTotal = roundCurrency(
+    metricSoldCards.reduce((total, item) => total + (item.sale_price ?? 0), 0)
+  );
+  const soldCost = sumCollectionPurchasePrices(metricSoldCards.map((item) => item.purchase_price));
+  const saleSummary = {
+    soldTotal,
+    soldCards: metricSoldCards.length,
+    soldCost,
+    soldPnl: roundCurrency(soldTotal - soldCost),
+  };
   const looseSingleViewItems: CollectionCardViewItem[] = [];
   const binderCardViewItems: CollectionCardViewItem[] = [];
 
@@ -1792,6 +1840,8 @@ export async function getCollectionOverviewData(
     looseSingles: looseSingleViewItems,
     binderCards: binderCardViewItems,
     forSaleCards: forSaleCardViewItems,
+    soldCards: soldCardViewItems,
+    saleSummary,
     sealed: sealedViewItems,
     valueDrivers,
     binders: binderSummaries,
@@ -1800,6 +1850,7 @@ export async function getCollectionOverviewData(
   timer.finish({
     cards: metricCards.length,
     forSaleCards: metricForSaleCards.length,
+    soldCards: metricSoldCards.length,
     sealedItems: metricSealed.length,
     binders: binders.length,
     historyLoaded: loadCollectionHistory,

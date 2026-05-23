@@ -301,7 +301,7 @@ export async function PATCH(req: NextRequest) {
   const updated = await db.$transaction(async (tx) => {
     const result = await tx.collectionCard.updateMany({
       where: { id: { in: itemIds }, user_id: user.id },
-      data: { binder_id: binderId, for_sale: forSale },
+      data: { binder_id: binderId, for_sale: forSale, sale_price: null, sold_at: null },
     });
 
     if (!forSale) {

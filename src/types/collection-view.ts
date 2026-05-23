@@ -10,6 +10,8 @@ export interface CollectionCardViewItem {
   binder_name?: string | null;
   binder_type?: string | null;
   for_sale?: boolean;
+  sale_price?: number | null;
+  sold_at?: string | null;
   card_id: string;
   name: string;
   image_url: string | null;
