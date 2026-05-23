@@ -2775,7 +2775,7 @@ export default function CardThreeViewer({
                       mode="button"
                       theme="dark"
                       label="Add"
-                      className={`w-full border-emerald-400/20 bg-emerald-600 text-white hover:border-emerald-300/40 hover:bg-emerald-500 ${
+                      className={`w-full border-violet-300/28 bg-violet-600 text-violet-50 hover:border-violet-200/45 hover:bg-violet-500 ${
                         compactMobileDetails
                           ? "min-h-0 rounded-xl px-3 py-2 text-[13px]"
                           : "rounded-2xl px-4 py-3"
@@ -2797,7 +2797,7 @@ export default function CardThreeViewer({
                       label="Want"
                       initialWanted={Boolean(card.want_item)}
                       wantItemId={card.want_item?.id ?? null}
-                      className={`w-full border-white/10 bg-white/[0.065] text-white hover:border-white/18 hover:bg-white/[0.1] ${
+                      className={`w-full border-violet-300/22 bg-violet-600/24 text-violet-50 hover:border-violet-200/40 hover:bg-violet-500/32 ${
                         compactMobileDetails
                           ? "min-h-0 rounded-xl px-3 py-2 text-[13px]"
                           : "rounded-2xl px-4 py-3"

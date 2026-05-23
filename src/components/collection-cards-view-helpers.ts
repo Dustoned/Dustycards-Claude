@@ -393,7 +393,7 @@ export function collectionTileActionButtonClass(cardSize: CardSize): string {
         ? "h-[28px] w-[28px] rounded-xl max-[640px]:h-[26px] max-[640px]:w-[26px]"
         : "h-[26px] w-[26px] rounded-lg max-[640px]:h-[24px] max-[640px]:w-[24px]";
 
-  return `inline-flex ${size} shrink-0 items-center justify-center border border-white/12 bg-black/40 text-white shadow-sm shadow-black/30 backdrop-blur transition-colors hover:border-emerald-300/35 hover:bg-emerald-400/14 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50`;
+  return `inline-flex ${size} shrink-0 items-center justify-center border border-violet-300/24 bg-violet-600/24 text-violet-50 shadow-sm shadow-black/30 backdrop-blur transition-colors hover:border-violet-200/42 hover:bg-violet-500/34 hover:text-white disabled:cursor-not-allowed disabled:opacity-50`;
 }
 
 export function collectionTileActionIconClass(cardSize: CardSize): string {

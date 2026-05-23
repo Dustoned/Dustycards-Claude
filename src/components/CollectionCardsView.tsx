@@ -1802,7 +1802,7 @@ export default function CollectionCardsView({
                                   }}
                                   initialBinderId={bulkAddBinder?.id ?? null}
                                   lockedBinderName={bulkAddBinder?.name ?? null}
-                                  className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                  className="h-8 w-8 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
                                 />
                               ))}
                           </div>
@@ -2081,7 +2081,7 @@ export default function CollectionCardsView({
                                     }}
                                     initialBinderId={bulkAddBinder?.id ?? null}
                                     lockedBinderName={bulkAddBinder?.name ?? null}
-                                    className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                    className="h-[28px] w-[28px] rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
                                   />
                                 ))}
                             </div>

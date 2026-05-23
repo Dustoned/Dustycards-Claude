@@ -559,7 +559,7 @@ function SearchPageContent({
                                     code: card.episode_code,
                                   },
                                 }}
-                                className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
+                                className="h-[24px] w-[24px] shrink-0 rounded-lg border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34 sm:h-7 sm:w-7"
                               />
                               <CollectionWantButton
                                 card={{
@@ -574,7 +574,7 @@ function SearchPageContent({
                                 }}
                                 initialWanted={Boolean(card.want_item)}
                                 wantItemId={card.want_item?.id ?? null}
-                                className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
+                                className="h-[24px] w-[24px] shrink-0 rounded-lg border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34 sm:h-7 sm:w-7"
                               />
                             </div>
                           </div>
@@ -667,7 +667,7 @@ function SearchPageContent({
                               image_url: product.image_url,
                               episode: product.episode,
                             }}
-                            className="h-[24px] w-[24px] shrink-0 rounded-lg border-white/10 bg-black/38 text-white hover:bg-white/12 sm:h-7 sm:w-7"
+                            className="h-[24px] w-[24px] shrink-0 rounded-lg border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34 sm:h-7 sm:w-7"
                           />
                         </div>
                       </div>

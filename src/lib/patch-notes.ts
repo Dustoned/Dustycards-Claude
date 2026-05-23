@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.23",
+    releasedAt: "May 23, 2026",
+    title: "Purple card quick actions",
+    summary: "DustyCards 3.2.23 aligns card quick-action buttons with the dark purple app theme and restores normal add buttons on Wants planner cards.",
+    tone: "fixed",
+    highlights: [
+      "Card plus and heart quick actions now use dark purple styling instead of white controls.",
+      "Wants planner cards now use the standard add-to-collection plus button.",
+      "The wants add flow opens the normal collection add modal with the target binder preselected.",
+    ],
+  },
+  {
     version: "3.2.22",
     releasedAt: "May 23, 2026",
     title: "Sell selection quote popup",

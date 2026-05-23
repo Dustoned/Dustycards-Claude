@@ -14,8 +14,9 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { ArrowDown, ArrowUp, List, Plus, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, List, RotateCcw, X } from "lucide-react";
 import type { ModalCardData } from "@/components/CardModal";
+import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import { useSettings } from "@/components/SettingsProvider";
 import {
@@ -239,12 +240,12 @@ function QuickViewSegmentedControl<TValue extends string>({
 
 function PlannerCardRow({
   item,
-  onAddToBinder,
+  binderTarget,
   onOpenCard,
   disabled,
 }: {
   item: CollectionCardViewItem;
-  onAddToBinder: (cardId: string) => void;
+  binderTarget: { id: string; name: string };
   onOpenCard: (item: CollectionCardViewItem) => void;
   disabled: boolean;
 }) {
@@ -302,16 +303,22 @@ function PlannerCardRow({
         </span>
       </button>
       <div className="flex shrink-0 justify-end">
-        <button
-          type="button"
-          onClick={() => onAddToBinder(item.card_id)}
-          disabled={disabled}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-400/24 bg-emerald-400/[0.14] text-emerald-100 transition-colors hover:border-emerald-400/40 hover:bg-emerald-400/[0.20] disabled:cursor-not-allowed disabled:opacity-50"
-          title="Add to binder"
-          aria-label={`Add ${item.name} to binder`}
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+        <CollectionAddCardButton
+          card={{
+            id: item.card_id,
+            name: item.name,
+            image_url: item.image_url,
+            episode: {
+              id: item.episode_id,
+              name: item.episode_name,
+              code: item.episode_code,
+            },
+          }}
+          initialBinderId={binderTarget.id}
+          lockedBinderName={binderTarget.name}
+          theme="dark"
+          className="h-9 w-9 rounded-lg border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34"
+        />
       </div>
     </div>
   );
@@ -320,7 +327,6 @@ function PlannerCardRow({
 function BinderQuickViewBody({
   group,
   disabled,
-  onAddToBinder,
   onOpenCard,
   onResetHidden,
   mobileCloseAction,
@@ -330,7 +336,6 @@ function BinderQuickViewBody({
 }: {
   group: WantPlannerGroup;
   disabled: boolean;
-  onAddToBinder: (cardId: string) => void;
   onOpenCard: (item: CollectionCardViewItem) => void;
   onResetHidden: () => void;
   mobileCloseAction?: ReactNode;
@@ -408,7 +413,7 @@ function BinderQuickViewBody({
               key={item.want_item_id ?? item.card_id}
               item={item}
               disabled={disabled}
-              onAddToBinder={onAddToBinder}
+              binderTarget={{ id: group.binderId, name: group.name }}
               onOpenCard={onOpenCard}
             />
           ))}
@@ -425,13 +430,11 @@ function BinderQuickViewBody({
 function BinderSearchMatches({
   group,
   disabled,
-  onAddToBinder,
   onOpenCard,
   onShowAll,
 }: {
   group: WantPlannerGroup;
   disabled: boolean;
-  onAddToBinder: (cardId: string) => void;
   onOpenCard: (item: CollectionCardViewItem) => void;
   onShowAll: () => void;
 }) {
@@ -460,7 +463,7 @@ function BinderSearchMatches({
             key={item.want_item_id ?? item.card_id}
             item={item}
             disabled={disabled}
-            onAddToBinder={onAddToBinder}
+            binderTarget={{ id: group.binderId, name: group.name }}
             onOpenCard={onOpenCard}
           />
         ))}
@@ -484,7 +487,6 @@ function WantsQuickViewModal({
   group,
   disabled,
   onClose,
-  onAddToBinder,
   onOpenCard,
   onResetHidden,
   widescreen,
@@ -492,7 +494,6 @@ function WantsQuickViewModal({
   group: WantPlannerGroup;
   disabled: boolean;
   onClose: () => void;
-  onAddToBinder: (cardId: string, binderId: string) => void;
   onOpenCard: (item: CollectionCardViewItem) => void;
   onResetHidden: () => void;
   widescreen: boolean;
@@ -663,7 +664,6 @@ function WantsQuickViewModal({
             <BinderQuickViewBody
               group={group}
               disabled={disabled}
-              onAddToBinder={(cardId) => onAddToBinder(cardId, group.binderId)}
               onOpenCard={onOpenCard}
               onResetHidden={onResetHidden}
               mobileCloseAction={
@@ -703,7 +703,6 @@ function WantBinderTile({
   expanded,
   disabled,
   onToggle,
-  onAddToBinder,
   onOpenCard,
   searchActive,
 }: {
@@ -711,7 +710,6 @@ function WantBinderTile({
   expanded: boolean;
   disabled: boolean;
   onToggle: () => void;
-  onAddToBinder: (cardId: string, binderId: string) => void;
   onOpenCard: (item: CollectionCardViewItem) => void;
   searchActive: boolean;
 }) {
@@ -845,7 +843,6 @@ function WantBinderTile({
         <BinderSearchMatches
           group={group}
           disabled={disabled}
-          onAddToBinder={(cardId) => onAddToBinder(cardId, group.binderId)}
           onOpenCard={onOpenCard}
           onShowAll={onToggle}
         />
@@ -906,27 +903,6 @@ export default function WantsPlannerSection({
       setPendingKey(null);
     }
   }, [game, router, startTransition]);
-
-  const addToBinder = useCallback(async (cardId: string, binderId: string) => {
-    setPendingKey(`${binderId}:${cardId}`);
-    try {
-      const response = await fetch("/api/collection/cards", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cardId,
-          binderId,
-          condition: "Near Mint",
-        }),
-      });
-      if (!response.ok) {
-        throw new Error("Failed to add card to binder");
-      }
-      startTransition(() => router.refresh());
-    } finally {
-      setPendingKey(null);
-    }
-  }, [router, startTransition]);
 
   const openCard = useCallback(async (item: CollectionCardViewItem) => {
     if (openingCardId === item.card_id) return;
@@ -991,7 +967,6 @@ export default function WantsPlannerSection({
                 current === group.binderId ? null : group.binderId
               )
             }
-            onAddToBinder={addToBinder}
             onOpenCard={openCard}
             searchActive={searchActive}
           />
@@ -1003,7 +978,6 @@ export default function WantsPlannerSection({
         group={expandedGroup}
         disabled={Boolean(pendingKey) || isPending}
         onClose={() => setExpandedBinderId(null)}
-        onAddToBinder={addToBinder}
         onOpenCard={openCard}
         onResetHidden={() =>
           void postPlannerSync({ resetHidden: true, episodeId: expandedGroup.episodeId })

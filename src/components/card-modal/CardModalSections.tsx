@@ -1053,7 +1053,7 @@ export function CardModalDesktopActionGroup({
       : "Loose single"
     : null;
   const iconButtonClass =
-    "!inline-flex !h-10 !w-10 !items-center !justify-center !rounded-xl !border-white/10 !bg-white/[0.045] !p-0 !text-white/76 !transition-colors hover:!border-white/18 hover:!bg-white/[0.085] hover:!text-white";
+    "!inline-flex !h-10 !w-10 !items-center !justify-center !rounded-xl !border-violet-300/24 !bg-violet-600/22 !p-0 !text-violet-50 !transition-colors hover:!border-violet-200/42 hover:!bg-violet-500/32 hover:!text-white";
   const utilityButtonClass =
     "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] p-0 text-white/70 transition-colors hover:border-white/18 hover:bg-white/[0.085] hover:text-white disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -1075,7 +1075,7 @@ export function CardModalDesktopActionGroup({
         label="Want"
         initialWanted={Boolean(card.want_item)}
         wantItemId={card.want_item?.id ?? null}
-        className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.045] !px-3 !text-sm !font-bold !text-white/78 hover:!border-white/18 hover:!bg-white/[0.08]"
+        className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-600/20 !px-3 !text-sm !font-bold !text-violet-50 hover:!border-violet-200/38 hover:!bg-violet-500/30"
       />
 
       {collectionItem && (
@@ -1277,7 +1277,7 @@ function MobileDetailIconButton({
       className={`inline-flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-xl transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
         destructive
           ? "border-rose-300/22 bg-rose-500/[0.12] text-rose-100 hover:border-rose-200/34 hover:bg-rose-500/20"
-          : "border-white/12 bg-black/38 text-white/86 hover:border-white/24 hover:bg-white/[0.1]"
+          : "border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34"
       }`}
       aria-label={label}
       title={label}
@@ -1415,7 +1415,7 @@ export function CardModalMobileShowcase({
   const showGraded = effectiveActiveTab === "graded";
   const showPreviousPrices = effectiveActiveTab === "previous-prices";
   const floatingButtonClass =
-    "!h-11 !w-11 !rounded-full !border-white/12 !bg-black/38 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-white/24 hover:!bg-white/[0.1]";
+    "!h-11 !w-11 !rounded-full !border-violet-300/24 !bg-violet-600/24 !p-0 !text-violet-50 !backdrop-blur-xl hover:!border-violet-200/42 hover:!bg-violet-500/34";
 
   return (
     <div className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">
@@ -1817,7 +1817,7 @@ export function CardModalMobileShowcase({
             label="Want"
             initialWanted={Boolean(card.want_item)}
             wantItemId={card.want_item?.id ?? null}
-            className="!min-h-12 !rounded-2xl !border-white/10 !bg-white/[0.065] !px-2 !text-[13px] !font-bold"
+            className="!min-h-12 !rounded-2xl !border-violet-300/24 !bg-violet-600/22 !px-2 !text-[13px] !font-bold !text-violet-50 hover:!border-violet-200/38 hover:!bg-violet-500/30"
           />
           {storedCardMarketUrl ? (
             <a
@@ -2511,7 +2511,7 @@ export function CardModalOwnedCopyPanel({
           mode="button"
           theme="dark"
           label={collectionItem ? "Add Another Copy" : "Add to Collection"}
-          className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.035] !text-sm !font-semibold"
+          className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-600/22 !text-sm !font-semibold !text-violet-50 hover:!border-violet-200/38 hover:!bg-violet-500/30"
           onAdded={onAddedToCollection}
         />
         <CollectionWantButton
@@ -2521,7 +2521,7 @@ export function CardModalOwnedCopyPanel({
           label="Want"
           initialWanted={Boolean(card.want_item)}
           wantItemId={card.want_item?.id ?? null}
-          className="!min-h-10 !rounded-xl !border-white/10 !bg-white/[0.035] !text-sm !font-semibold"
+          className="!min-h-10 !rounded-xl !border-violet-300/20 !bg-violet-600/18 !text-sm !font-semibold !text-violet-50 hover:!border-violet-200/36 hover:!bg-violet-500/28"
         />
       </div>
     </section>

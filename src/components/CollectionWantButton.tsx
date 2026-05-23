@@ -35,8 +35,8 @@ function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", classNa
 
   const palette =
     theme === "dark"
-      ? "border-white/12 bg-white/8 text-white hover:border-white/20 hover:bg-white/12"
-      : "border-white/12 bg-white/[0.06] text-white hover:border-white/20 hover:bg-white/[0.1]";
+      ? "border-violet-300/28 bg-violet-600/22 text-violet-50 hover:border-violet-200/45 hover:bg-violet-500/32"
+      : "border-violet-300/24 bg-violet-600/18 text-violet-50 hover:border-violet-200/40 hover:bg-violet-500/28";
 
   return [base, palette, className].filter(Boolean).join(" ");
 }

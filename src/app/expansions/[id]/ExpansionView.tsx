@@ -1106,13 +1106,13 @@ export default function ExpansionView({
                           <div className="flex shrink-0 items-center gap-1.5">
                             <CollectionAddCardButton
                               card={getCollectionButtonCard(card)}
-                              className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                              className="h-8 w-8 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
                             />
                             <CollectionWantButton
                               card={getCollectionButtonCard(card)}
                               initialWanted={Boolean(card.want_item)}
                               wantItemId={card.want_item?.id ?? null}
-                              className="h-8 w-8 shrink-0 rounded-lg border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                              className="h-8 w-8 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
                             />
                           </div>
                         )}
@@ -1281,13 +1281,13 @@ export default function ExpansionView({
                             <>
                               <CollectionAddCardButton
                                 card={getCollectionButtonCard(card)}
-                                className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                className="h-[28px] w-[28px] rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
                               />
                               <CollectionWantButton
                                 card={getCollectionButtonCard(card)}
                                 initialWanted={Boolean(card.want_item)}
                                 wantItemId={card.want_item?.id ?? null}
-                                className="h-[28px] w-[28px] rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                className="h-[28px] w-[28px] rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
                               />
                             </>
                           )}
@@ -1428,13 +1428,13 @@ export default function ExpansionView({
                         <div className={compactFourColumnGrid ? "flex justify-start gap-1" : "flex items-center gap-1"}>
                           <CollectionAddCardButton
                             card={getCollectionButtonCard(card)}
-                            className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
+                            className="h-[20px] w-[20px] shrink-0 rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32 sm:h-[22px] sm:w-[22px]"
                           />
                           <CollectionWantButton
                             card={getCollectionButtonCard(card)}
                             initialWanted={Boolean(card.want_item)}
                             wantItemId={card.want_item?.id ?? null}
-                            className="h-[20px] w-[20px] shrink-0 rounded-md border-black/8 bg-black/5 text-gray-900 hover:border-black/15 hover:bg-black/8 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 sm:h-[22px] sm:w-[22px]"
+                            className="h-[20px] w-[20px] shrink-0 rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32 sm:h-[22px] sm:w-[22px]"
                           />
                         </div>
                       )}
