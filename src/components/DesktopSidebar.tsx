@@ -64,7 +64,6 @@ const NAV_SECTIONS = [
       { href: "/movers?scope=graded", label: "Graded", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
       { href: "/movers?scope=grading", label: "Targets", icon: Sparkles, badge: null, key: "market-targets", marketMode: "targets" },
       { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
-      { href: "/deals", label: "Deals", icon: ShoppingBag, badge: null, key: "deals" },
     ],
   },
   {

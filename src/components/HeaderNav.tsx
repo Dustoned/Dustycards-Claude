@@ -80,6 +80,12 @@ const SEARCH_ITEM: NavItem = {
   matches: ["/search"],
 };
 
+const MARKET_ITEM: NavItem = {
+  href: "/movers",
+  label: "Market",
+  matches: ["/movers"],
+};
+
 const BASE_BROWSE_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/expansions", label: "Expansions", matches: ["/expansions"] },
   { href: "/categories", label: "Categories", matches: ["/categories"] },
@@ -98,11 +104,6 @@ const SUBMIT_CARD_ITEM: NavItem = {
   matches: ["/submit-card"],
 };
 
-const MARKET_ITEMS: ReadonlyArray<NavItem> = [
-  { href: "/movers", label: "Market", matches: ["/movers"] },
-  { href: "/deals", label: "Deals", matches: ["/deals"] },
-];
-
 function getNavGroups(onePieceEnabled: boolean): ReadonlyArray<NavGroup> {
   return [
     {
@@ -113,11 +114,6 @@ function getNavGroups(onePieceEnabled: boolean): ReadonlyArray<NavGroup> {
       items: onePieceEnabled
         ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
         : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
-    },
-    {
-      label: "Market",
-      matches: ["/movers", "/deals"],
-      items: MARKET_ITEMS,
     },
   ];
 }
@@ -217,7 +213,7 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
         : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
     },
-    { label: "Market", items: MARKET_ITEMS },
+    { label: "Market", items: [MARKET_ITEM] },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
   ];
 }
@@ -258,7 +254,7 @@ export function HeaderNav() {
       ref={navRef}
       className="hidden shrink-0 items-center gap-1 rounded-full border border-white/9 bg-white/[0.045] p-1 shadow-sm shadow-black/20 2xl:flex"
     >
-      {[HOME_ITEM, COLLECTION_ITEM, WANTS_ITEM].map((item) => {
+      {[HOME_ITEM, COLLECTION_ITEM, WANTS_ITEM, MARKET_ITEM].map((item) => {
         const active = isTopLevelActive(pathname, tab, item);
         return (
           <Link

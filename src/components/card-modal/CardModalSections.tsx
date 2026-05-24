@@ -46,6 +46,7 @@ import {
 import type { CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { formatCurrency } from "./utils";
 import type { ModalCardCollectionItem, ModalCardData } from "./types";
@@ -2601,14 +2602,20 @@ export function CardModalActiveListingsPanel({
           </button>
         )}
 
-        <Link
-          href={`/deals?cardId=${encodeURIComponent(card.id)}`}
-          prefetch={false}
+        <a
+          href={buildCardEbaySearchUrl({
+            name: card.name,
+            cardNumber: card.card_number,
+            gradingCompany: normalizeGradingCompanyLabel(card.collection_item?.grading_company),
+            gradingGrade: normalizeGradingGradeLabel(card.collection_item?.grading_grade),
+          })}
+          target="_blank"
+          rel="noopener noreferrer"
           className={CARD_MODAL_MARKET_BUTTON_CLASS}
         >
           eBay Deals
           <ExternalLink className="h-4 w-4" />
-        </Link>
+        </a>
       </div>
     </section>
   );

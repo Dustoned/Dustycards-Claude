@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Link from "next/link";
 import {
   type KeyboardEvent,
   memo,
@@ -17,6 +16,7 @@ import { ExternalLink, Package, Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { textMatchesSearchQuery } from "@/lib/card-search";
+import { buildSealedEbaySearchUrl } from "@/lib/ebay-search-url";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { formatCurrency } from "@/lib/format";
 import type { SealedMoverItem, SealedMoversData } from "@/lib/sealed-movers";
@@ -296,15 +296,20 @@ const SealedMoverTile = memo(function SealedMoverTile({
           {item.historyPoints.toLocaleString("en-US")} recent /{" "}
           {item.lifetimeHistoryPoints.toLocaleString("en-US")} lifetime
         </span>
-        <Link
-          href={`/deals?mode=sealed&productId=${encodeURIComponent(item.productId)}`}
-          prefetch={false}
+        <a
+          href={buildSealedEbaySearchUrl({
+            name: item.name,
+            episodeName: item.episodeName,
+            episodeCode: item.episodeCode,
+          })}
+          target="_blank"
+          rel="noopener noreferrer"
           className="inline-flex items-center gap-1 rounded-md border border-white/8 px-2 py-1 font-semibold text-white/60 transition-colors hover:bg-white/[0.05] hover:text-white/80"
           onClick={(event) => event.stopPropagation()}
         >
           Deals
           <ExternalLink className="h-3 w-3" />
-        </Link>
+        </a>
       </div>
     </article>
   );

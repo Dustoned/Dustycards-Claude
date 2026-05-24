@@ -240,37 +240,36 @@ async function main() {
       { route: "/movers/discount-watch", slug: "06-movers-discount" },
       { route: "/categories", slug: "07-categories" },
       { route: "/illustrators", slug: "08-illustrators" },
-      { route: "/deals", slug: "09-deals" },
-      { route: "/search?q=pikachu", slug: "10-search-pikachu" },
-      { route: "/search", slug: "11-search-empty" },
-      { route: "/settings", slug: "12-settings" },
-      { route: "/account", slug: "13-account" },
-      { route: "/one-piece", slug: "14-one-piece" },
-      { route: "/one-piece/expansions", slug: "15-one-piece-expansions" },
+      { route: "/search?q=pikachu", slug: "09-search-pikachu" },
+      { route: "/search", slug: "10-search-empty" },
+      { route: "/settings", slug: "11-settings" },
+      { route: "/account", slug: "12-account" },
+      { route: "/one-piece", slug: "13-one-piece" },
+      { route: "/one-piece/expansions", slug: "14-one-piece-expansions" },
     ];
 
     if (episodeId) {
-      routes.push({ route: `/expansions/${episodeId}`, slug: "16-expansion-detail" });
+      routes.push({ route: `/expansions/${episodeId}`, slug: "15-expansion-detail" });
     }
     const upcomingEpisode = findUpcomingEpisode();
     if (upcomingEpisode) {
-      routes.push({ route: `/expansions/${upcomingEpisode}`, slug: "16b-expansion-upcoming" });
+      routes.push({ route: `/expansions/${upcomingEpisode}`, slug: "15b-expansion-upcoming" });
     }
     if (categorySlug) {
-      routes.push({ route: `/categories/${categorySlug}`, slug: "17-category-detail" });
+      routes.push({ route: `/categories/${categorySlug}`, slug: "16-category-detail" });
     }
     if (artistName) {
       routes.push({
         route: `/illustrators/${encodeURIComponent(artistName)}`,
-        slug: "18-illustrator-detail",
+        slug: "17-illustrator-detail",
       });
     }
 
     // Logged-out routes
     routes.push(
-      { route: "/login", slug: "19-login", logout: true },
-      { route: "/register", slug: "20-register", logout: true },
-      { route: "/forgot-password", slug: "21-forgot-password", logout: true }
+      { route: "/login", slug: "18-login", logout: true },
+      { route: "/register", slug: "19-register", logout: true },
+      { route: "/forgot-password", slug: "20-forgot-password", logout: true }
     );
 
     for (const item of routes) {

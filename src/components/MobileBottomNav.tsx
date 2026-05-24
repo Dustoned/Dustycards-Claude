@@ -95,7 +95,6 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
       items: [
         { href: "/wants", label: "Wants", icon: Heart, matches: ["/wants"] },
         { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers"] },
-        { href: "/deals", label: "Deals", icon: ShoppingBag, matches: ["/deals"] },
       ],
     },
     {

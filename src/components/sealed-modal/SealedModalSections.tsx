@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, ExternalLink, LineChart, Package, RefreshCw } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import { buildSealedEbaySearchUrl } from "@/lib/ebay-search-url";
 import { getExpansionHref } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { SealedMarketHistorySeriesKey } from "@/lib/price-history";
@@ -790,15 +791,20 @@ export function SealedModalFooter({
             </a>
           )}
 
-          <Link
-            href={`/deals?mode=sealed&productId=${encodeURIComponent(product.id)}`}
-            prefetch={false}
+          <a
+            href={buildSealedEbaySearchUrl({
+              name: product.name,
+              episodeName: product.episode?.name,
+              episodeCode: product.episode?.code,
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
             onClick={onClose}
             className={`${marketButtonBase} bg-emerald-600 hover:bg-emerald-500`}
           >
             eBay Deals
             <ExternalLink className="h-4 w-4" />
-          </Link>
+          </a>
 
           {product.tcggo_url && (
             <a

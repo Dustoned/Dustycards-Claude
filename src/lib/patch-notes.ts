@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.26",
+    releasedAt: "May 24, 2026",
+    title: "Direct eBay searches",
+    summary: "DustyCards 3.2.26 removes the eBay Deals tab from navigation and opens eBay directly from card and sealed detail links.",
+    tone: "improved",
+    highlights: [
+      "The standalone eBay Deals tab is no longer shown in desktop, mobile, or header navigation.",
+      "Card detail eBay Deals now opens eBay.nl with the card name, number, and saved grade when available.",
+      "Sealed product eBay links now open a direct eBay.nl search for that product instead of the internal deals page.",
+    ],
+  },
+  {
     version: "3.2.25",
     releasedAt: "May 23, 2026",
     title: "Cleaner Wants plus placement",
