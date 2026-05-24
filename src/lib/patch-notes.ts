@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.27",
+    releasedAt: "May 24, 2026",
+    title: "For Sale sidebar cleanup",
+    summary: "DustyCards 3.2.27 moves For Sale into the Market navigation group and fixes the sidebar count.",
+    tone: "fixed",
+    highlights: [
+      "For Sale now sits at the bottom of the Market section in desktop and mobile navigation.",
+      "The sidebar For Sale badge now counts only active For Sale cards, not already sold cards, and hides when zero.",
+      "The Collection navigation group is cleaner now that selling lives with market tools.",
+    ],
+  },
+  {
     version: "3.2.26",
     releasedAt: "May 24, 2026",
     title: "Direct eBay searches",

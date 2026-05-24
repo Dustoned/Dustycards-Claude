@@ -86,6 +86,12 @@ const MARKET_ITEM: NavItem = {
   matches: ["/movers"],
 };
 
+const MARKET_TOP_ITEM: NavItem = {
+  href: "/movers",
+  label: "Market",
+  matches: ["/movers", "tab:selling"],
+};
+
 const BASE_BROWSE_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/expansions", label: "Expansions", matches: ["/expansions"] },
   { href: "/categories", label: "Categories", matches: ["/categories"] },
@@ -160,7 +166,7 @@ function isTopLevelActive(pathname: string, tab: string | null, item: NavItem): 
     return (
       pathname === "/binders" ||
       pathname.startsWith("/binders/") ||
-      (pathname === "/" && Boolean(tab && tab !== "overview"))
+      (pathname === "/" && Boolean(tab && tab !== "overview" && tab !== "selling"))
     );
   }
 
@@ -203,7 +209,6 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         COLLECTION_BINDERS_ITEM,
         COLLECTION_SEALED_ITEM,
         COLLECTION_GRADED_ITEM,
-        COLLECTION_SELLING_ITEM,
       ],
     },
     { label: "Wants", items: [WANTS_ITEM] },
@@ -213,7 +218,7 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
         : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
     },
-    { label: "Market", items: [MARKET_ITEM] },
+    { label: "Market", items: [MARKET_ITEM, COLLECTION_SELLING_ITEM] },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
   ];
 }
@@ -254,7 +259,7 @@ export function HeaderNav() {
       ref={navRef}
       className="hidden shrink-0 items-center gap-1 rounded-full border border-white/9 bg-white/[0.045] p-1 shadow-sm shadow-black/20 2xl:flex"
     >
-      {[HOME_ITEM, COLLECTION_ITEM, WANTS_ITEM, MARKET_ITEM].map((item) => {
+      {[HOME_ITEM, COLLECTION_ITEM, WANTS_ITEM, MARKET_TOP_ITEM].map((item) => {
         const active = isTopLevelActive(pathname, tab, item);
         return (
           <Link

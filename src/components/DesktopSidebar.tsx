@@ -48,7 +48,6 @@ const NAV_SECTIONS = [
       { href: "/?tab=binders", label: "Binders", icon: Boxes, badge: null, key: "binders" },
       { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "sealed" },
       { href: "/?tab=graded", label: "Graded", icon: LibraryBig, badge: null, key: "graded" },
-      { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
     ],
   },
   {
@@ -64,6 +63,7 @@ const NAV_SECTIONS = [
       { href: "/movers?scope=graded", label: "Graded", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
       { href: "/movers?scope=grading", label: "Targets", icon: Sparkles, badge: null, key: "market-targets", marketMode: "targets" },
       { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
+      { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
     ],
   },
   {
@@ -131,7 +131,7 @@ function isActive(
 
 function navBadge(summary: DesktopSidebarSummary, badge: "cards" | "forSale" | "wants" | null) {
   if (badge === "cards") return formatCount(summary.cards);
-  if (badge === "forSale") return formatCount(summary.forSaleCards);
+  if (badge === "forSale") return summary.forSaleCards > 0 ? formatCount(summary.forSaleCards) : null;
   if (badge === "wants") return formatCount(summary.wants);
   return null;
 }

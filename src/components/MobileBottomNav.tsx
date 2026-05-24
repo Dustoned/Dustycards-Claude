@@ -35,10 +35,10 @@ const PRIMARY_NAV_ITEMS = [
     href: "/?tab=complete",
     label: "Collection",
     icon: LibraryBig,
-    matches: ["tab:complete", "tab:cards", "tab:singles", "tab:binders", "tab:sealed", "tab:graded", "tab:selling", "/binders"],
+    matches: ["tab:complete", "tab:cards", "tab:singles", "tab:binders", "tab:sealed", "tab:graded", "/binders"],
   },
   { href: "/wants", label: "Wants", icon: Heart, matches: ["/wants"] },
-  { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers"] },
+  { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers", "tab:selling"] },
 ] as const;
 
 type MobileNavItem = {
@@ -87,7 +87,6 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
         { href: "/?tab=binders", label: "Binders", icon: Boxes, matches: ["tab:binders", "/binders"] },
         { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, matches: ["tab:sealed"] },
         { href: "/?tab=graded", label: "Graded", icon: LibraryBig, matches: ["tab:graded"] },
-        { href: "/?tab=selling", label: "For Sale", shortLabel: "Sell", icon: ShoppingBag, matches: ["tab:selling"] },
       ],
     },
     {
@@ -95,6 +94,7 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
       items: [
         { href: "/wants", label: "Wants", icon: Heart, matches: ["/wants"] },
         { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers"] },
+        { href: "/?tab=selling", label: "For Sale", shortLabel: "Sell", icon: ShoppingBag, matches: ["tab:selling"] },
       ],
     },
     {
