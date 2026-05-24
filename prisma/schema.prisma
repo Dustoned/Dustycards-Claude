@@ -116,11 +116,18 @@ model SetPullRateProfile {
   source                String   @default("collectrics")
   set_code              String
   set_name              String?
+  source_url            String?
+  source_note           String?
   generated_at          String?
   release_date          String?
+  prices_updated_at     String?
   promo_flag            String?
   rarity_buckets        Int?
   cards_counted         Int?
+  booster_pack_ev_usd   Float?
+  booster_box_ev_usd    Float?
+  packs_per_booster_box Float?
+  cards_per_booster_pack Float?
   psa_pop_10_base       Int?
   psa_pop_total_base    Int?
   psa_avg_gem_pct       Float?
@@ -143,10 +150,15 @@ model SetPullRateRarity {
   rarity_code                String?
   rarity_name                String
   card_count                 Int?
+  per_booster_box            Float?
   pull_rate                  Float?
   pull_rate_odds             String?
   pull_rate_denominator      Float?
   specific_pull_denominator  Float?
+  ev_total                   Int?
+  ev_priced                  Int?
+  avg_value_usd              Float?
+  ev_per_pack_usd            Float?
   psa_pop_10_base            Int?
   psa_pop_total_base         Int?
   psa_avg_gem_pct            Float?

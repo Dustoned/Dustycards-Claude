@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.28",
+    releasedAt: "May 24, 2026",
+    title: "ThePriceDex EV imports",
+    summary: "DustyCards 3.2.28 imports ThePriceDex pull rates and expected-value data for richer expansion and movers context.",
+    tone: "new",
+    highlights: [
+      "Settings can now fetch public ThePriceDex pull-rate pages and store booster EV, box EV, rarity odds, and EV per pack.",
+      "Expansion pull-rate cards now prefer ThePriceDex data and show a compact EV breakdown with source attribution.",
+      "Movers and card detail pull-rate lookup now prefer ThePriceDex odds while keeping Collectrics as a fallback.",
+    ],
+  },
+  {
     version: "3.2.27",
     releasedAt: "May 24, 2026",
     title: "For Sale sidebar cleanup",

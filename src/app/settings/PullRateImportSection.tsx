@@ -25,6 +25,8 @@ interface ImportResponse {
 interface FetchResponse extends ImportResponse {
   requestedSets?: number;
   fetchedSets?: number;
+  discoveredPages?: number;
+  matchedPages?: number;
   failedSets?: Array<{
     setCode: string;
     status: number | null;
@@ -38,7 +40,9 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
   const [content, setContent] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState<"missing" | "all" | null>(null);
+  const [fetching, setFetching] = useState<
+    "collectrics-missing" | "collectrics-all" | "pricedex-missing" | "pricedex-all" | null
+  >(null);
   const [status, setStatus] = useState<string | null>(null);
   const [fetchStatus, setFetchStatus] = useState<string | null>(null);
   const [manualImportOpen, setManualImportOpen] = useState(false);
@@ -95,7 +99,7 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
   }
 
   async function handleCollectricsFetch(missingOnly: boolean) {
-    const mode = missingOnly ? "missing" : "all";
+    const mode = missingOnly ? "collectrics-missing" : "collectrics-all";
     setFetching(mode);
     setFetchStatus(
       missingOnly
@@ -107,7 +111,7 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
       const response = await fetch("/api/pull-rates/fetch", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ missingOnly }),
+        body: JSON.stringify({ source: "collectrics", missingOnly }),
       });
       const data = (await response.json()) as FetchResponse;
 
@@ -138,6 +142,49 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
     }
   }
 
+  async function handleThePriceDexFetch(missingOnly: boolean) {
+    const mode = missingOnly ? "pricedex-missing" : "pricedex-all";
+    setFetching(mode);
+    setFetchStatus(
+      missingOnly
+        ? "Fetching missing ThePriceDex pull-rate and EV pages..."
+        : "Refreshing all local sets from ThePriceDex..."
+    );
+
+    try {
+      const response = await fetch("/api/pull-rates/fetch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ source: "pricedex", missingOnly }),
+      });
+      const data = (await response.json()) as FetchResponse;
+
+      if (!response.ok || !data.ok) {
+        const warning = data.warnings?.[0];
+        setFetchStatus(data.error ?? warning ?? "No ThePriceDex pull-rate pages could be fetched.");
+        return;
+      }
+
+      if ((data.requestedSets ?? 0) === 0) {
+        setFetchStatus("All local set codes already have ThePriceDex pull-rate and EV data.");
+      } else {
+        setFetchStatus(
+          `Scanned ${data.discoveredPages ?? 0} ThePriceDex pages, matched ${
+            data.matchedPages ?? 0
+          } local sets, imported ${data.setsImported ?? 0} with ${
+            data.rarityRowsImported ?? 0
+          } rarity/EV rows.`
+        );
+      }
+
+      router.refresh();
+    } catch {
+      setFetchStatus("Network error while fetching ThePriceDex pull-rate data.");
+    } finally {
+      setFetching(null);
+    }
+  }
+
   return (
     <div className="settings-panel glass min-w-0 rounded-2xl p-6 shadow-md shadow-black/5">
       <div className="mb-5 flex items-start justify-between gap-4">
@@ -146,7 +193,7 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
             Pull Rate Data
           </h2>
           <p className="mt-0.5 text-sm text-gray-400">
-            Fetch Collectrics odds on demand for movers weighting, or import a local JSON/CSV backup.
+            Fetch ThePriceDex EV tables for expansions and movers, with Collectrics as fallback.
           </p>
         </div>
         <Database className="mt-1 h-5 w-5 shrink-0 text-gray-400 dark:text-white/40" />
@@ -187,6 +234,43 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
         </div>
       </div>
 
+      <div className="mt-5 rounded-2xl border border-violet-500/16 bg-violet-500/[0.045] p-4 dark:border-violet-300/12 dark:bg-violet-300/[0.055]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              Fetch from ThePriceDex
+            </p>
+            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-white/45">
+              Imports public pull-rate tables, booster EV, and expected-value breakdowns for local Pokemon sets.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:min-w-48">
+            <button
+              type="button"
+              onClick={() => void handleThePriceDexFetch(true)}
+              disabled={Boolean(fetching) || loading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/18 bg-violet-500/12 px-4 py-2.5 text-sm font-semibold text-violet-900 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-violet-500/16 disabled:cursor-not-allowed disabled:scale-100 disabled:opacity-50 dark:text-violet-100"
+            >
+              <Download
+                className={`h-4 w-4 ${fetching === "pricedex-missing" ? "animate-pulse" : ""}`}
+              />
+              {fetching === "pricedex-missing" ? "Fetching..." : "Fetch Missing"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleThePriceDexFetch(false)}
+              disabled={Boolean(fetching) || loading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:scale-100 disabled:opacity-50 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08]"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${fetching === "pricedex-all" ? "animate-spin" : ""}`}
+              />
+              {fetching === "pricedex-all" ? "Refreshing..." : "Refresh All"}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="mt-5 rounded-2xl border border-emerald-500/12 bg-emerald-500/[0.035] p-4 dark:border-emerald-300/10 dark:bg-emerald-300/[0.04]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
@@ -205,8 +289,10 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
               disabled={Boolean(fetching) || loading}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/18 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-900 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-emerald-500/14 disabled:cursor-not-allowed disabled:scale-100 disabled:opacity-50 dark:text-emerald-100"
             >
-              <Download className={`h-4 w-4 ${fetching === "missing" ? "animate-pulse" : ""}`} />
-              {fetching === "missing" ? "Fetching..." : "Fetch Missing"}
+              <Download
+                className={`h-4 w-4 ${fetching === "collectrics-missing" ? "animate-pulse" : ""}`}
+              />
+              {fetching === "collectrics-missing" ? "Fetching..." : "Fetch Missing"}
             </button>
             <button
               type="button"
@@ -214,8 +300,10 @@ export default function PullRateImportSection({ summary }: PullRateImportSection
               disabled={Boolean(fetching) || loading}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:scale-100 disabled:opacity-50 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08]"
             >
-              <RefreshCw className={`h-4 w-4 ${fetching === "all" ? "animate-spin" : ""}`} />
-              {fetching === "all" ? "Refreshing..." : "Refresh All"}
+              <RefreshCw
+                className={`h-4 w-4 ${fetching === "collectrics-all" ? "animate-spin" : ""}`}
+              />
+              {fetching === "collectrics-all" ? "Refreshing..." : "Refresh All"}
             </button>
           </div>
         </div>

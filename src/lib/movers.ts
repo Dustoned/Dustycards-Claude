@@ -15,7 +15,7 @@ import {
 } from "@/lib/price-history";
 import {
   buildPullRateInfoFromRarity,
-  DEFAULT_PULL_RATE_SOURCE,
+  PREFERRED_PULL_RATE_SOURCES,
   type PullRateInfo,
 } from "@/lib/pull-rates";
 import {
@@ -478,6 +478,13 @@ function combineCollectionMoversData(
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function getPullRateSourcePriority(source: string): number {
+  const index = PREFERRED_PULL_RATE_SOURCES.indexOf(
+    source as (typeof PREFERRED_PULL_RATE_SOURCES)[number]
+  );
+  return index >= 0 ? index : PREFERRED_PULL_RATE_SOURCES.length;
 }
 
 function toDateKey(value: Date | string): string {
@@ -1582,14 +1589,20 @@ async function buildGradedMoversData(
         INNER JOIN "Card" c ON c.id = gp.card_id
         INNER JOIN "Episode" e ON e.id = c.episode_id
         INNER JOIN "SetPullRateRarity" spr
-          ON spr.source = ?
+          ON spr.source IN (?, ?)
           AND spr.set_code = UPPER(e.code)
         WHERE e.code IS NOT NULL
           AND c.game = ?
-        ORDER BY spr.set_code ASC, spr.normalized_rarity ASC
+        ORDER BY
+          spr.set_code ASC,
+          spr.normalized_rarity ASC,
+          CASE spr.source WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END ASC
       `,
-        DEFAULT_PULL_RATE_SOURCE,
-        game
+        PREFERRED_PULL_RATE_SOURCES[0],
+        PREFERRED_PULL_RATE_SOURCES[1],
+        game,
+        PREFERRED_PULL_RATE_SOURCES[0],
+        PREFERRED_PULL_RATE_SOURCES[1]
       ),
     ]);
 
@@ -1617,6 +1630,13 @@ async function buildGradedMoversData(
   const pullRateBySetAndRarity = new Map<string, PullRateInfo>();
   for (const row of pullRateRows) {
     const key = `${row.set_code.toUpperCase()}::${row.normalized_rarity}`;
+    const existing = pullRateBySetAndRarity.get(key);
+    if (
+      existing &&
+      getPullRateSourcePriority(existing.source) <= getPullRateSourcePriority(row.source)
+    ) {
+      continue;
+    }
     pullRateBySetAndRarity.set(
       key,
       buildPullRateInfoFromRarity({
@@ -2186,13 +2206,19 @@ export async function getMovers(
       INNER JOIN "Card" c ON c.id = cc.card_id
       INNER JOIN "Episode" e ON e.id = c.episode_id
       INNER JOIN "SetPullRateRarity" spr
-        ON spr.source = ?
+        ON spr.source IN (?, ?)
         AND spr.set_code = UPPER(e.code)
       WHERE e.code IS NOT NULL
-      ORDER BY spr.set_code ASC, spr.normalized_rarity ASC
+      ORDER BY
+        spr.set_code ASC,
+        spr.normalized_rarity ASC,
+        CASE spr.source WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END ASC
     `,
       ...candidateCardsCte.params,
-      DEFAULT_PULL_RATE_SOURCE
+      PREFERRED_PULL_RATE_SOURCES[0],
+      PREFERRED_PULL_RATE_SOURCES[1],
+      PREFERRED_PULL_RATE_SOURCES[0],
+      PREFERRED_PULL_RATE_SOURCES[1]
     ),
     db.$queryRawUnsafe<GradedPriceRow[]>(
       `
@@ -2251,6 +2277,13 @@ export async function getMovers(
   const pullRateBySetAndRarity = new Map<string, PullRateInfo>();
   for (const row of pullRateRows) {
     const key = `${row.set_code.toUpperCase()}::${row.normalized_rarity}`;
+    const existing = pullRateBySetAndRarity.get(key);
+    if (
+      existing &&
+      getPullRateSourcePriority(existing.source) <= getPullRateSourcePriority(row.source)
+    ) {
+      continue;
+    }
     pullRateBySetAndRarity.set(
       key,
       buildPullRateInfoFromRarity({
@@ -2263,7 +2296,7 @@ export async function getMovers(
         specificPullDenominator: row.specific_pull_denominator,
         psaAvgGemPct: row.psa_avg_gem_pct,
       })
-      );
+    );
   }
 
   const gradedPricesByCardId = new Map<string, MoverGradedPrice[]>();

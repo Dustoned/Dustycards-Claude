@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
 import {
   buildCollectricsSetApiUrl,
+  extractThePriceDexPullRateUrls,
   fetchAndImportCollectricsPullRates,
   getSpecificPullDenominator,
   importPullRateData,
   parsePullRateImportContent,
+  parseThePriceDexPullRatePage,
 } from "@/lib/pull-rates";
 
 const TEST_SOURCE = "vitest-pull-rates";
@@ -117,6 +119,102 @@ describe("pull-rate imports", () => {
 
   it("builds Collectrics set API URLs from normalized set codes", () => {
     expect(buildCollectricsSetApiUrl(" sfa ")).toBe("https://mycollectrics.com/api/set/SFA");
+  });
+
+  it("parses ThePriceDex pull-rate and EV tables", () => {
+    const parsed = parseThePriceDexPullRatePage({
+      url: "https://www.thepricedex.com/set/me3/perfect-order/pull-rates",
+      html: `
+        <title>Perfect Order Pull Rates (2026) - Expected Value | ThePriceDex</title>
+        <meta name="last-modified" content="2026-05-21T00:00:00.000Z">
+        <span>Released: 2026/03/27</span><span>124 Cards</span><span>Set Code: POR</span>
+        <p>Booster Pack EV</p><h5>$4.39</h5>
+        <p>Booster Box EV</p><h5>$158.15</h5>
+        <p>Packs Per Booster Box</p><h5>36</h5>
+        <p>Cards Per Booster Pack</p><h5>11</h5>
+        <table>
+          <thead><tr><th>Rarity</th><th>Pull Rate</th><th>Per Booster Box</th><th>Specific Card Odds</th></tr></thead>
+          <tbody>
+            <tr><td>Special Illustration Rare</td><td>1 in 81 packs</td><td>0.4 cards</td><td>1 in 486 packs</td></tr>
+            <tr><td>Common</td><td>4 cards per pack</td><td>144 cards</td><td>1 in 11 packs</td></tr>
+            <tr><td>Total</td><td>11 cards per pack</td><td>396 cards</td><td></td></tr>
+          </tbody>
+        </table>
+        <table>
+          <thead><tr><th>Rarity</th><th>Total</th><th>Priced</th><th>Avg Value</th><th>EV/Pack</th></tr></thead>
+          <tbody>
+            <tr><td>Special Illustration Rare</td><td>6</td><td>6</td><td>$91.59</td><td>$1.13</td></tr>
+            <tr><td>Common</td><td>44</td><td>44</td><td>$0.14</td><td>$0.58</td></tr>
+            <tr><td>Total</td><td>211</td><td>203</td><td></td><td>$4.39</td></tr>
+          </tbody>
+        </table>
+        <p>Card values assume Near Mint condition where available and represent market averages. Pull rates are estimates primarily sourced from Perfect Order pull rates research and based on community data and may vary from actual pack openings. Prices last updated May 21, 2026.</p>
+      `,
+    });
+
+    expect(parsed?.setCode).toBe("POR");
+    expect(parsed?.setName).toBe("Perfect Order");
+    expect(parsed?.releaseDate).toBe("2026-03-27");
+    expect(parsed?.pricesUpdatedAt).toBe("2026-05-21");
+    expect(parsed?.boosterPackEvUsd).toBe(4.39);
+    expect(parsed?.boosterBoxEvUsd).toBe(158.15);
+    expect(parsed?.rarities).toHaveLength(2);
+    const sir = parsed?.rarities.find((rarity) => rarity.rarityName === "Special Illustration Rare");
+    const common = parsed?.rarities.find((rarity) => rarity.rarityName === "Common");
+    expect(sir).toMatchObject({
+      rarityName: "Special Illustration Rare",
+      cardCount: 6,
+      pullRateDenominator: 81,
+      specificPullDenominator: 486,
+      perBoosterBox: 0.4,
+      avgValueUsd: 91.59,
+      evPerPackUsd: 1.13,
+    });
+    expect(common).toMatchObject({
+      rarityName: "Common",
+      cardCount: 44,
+      pullRateDenominator: null,
+      specificPullDenominator: 11,
+      evPerPackUsd: 0.58,
+    });
+  });
+
+  it("extracts ThePriceDex pull-rate URLs from a sitemap", () => {
+    expect(
+      extractThePriceDexPullRateUrls(`
+        <urlset>
+          <url><loc>https://www.thepricedex.com/set/me3/perfect-order/pull-rates</loc></url>
+          <url><loc>https://www.thepricedex.com/set/me3/perfect-order</loc></url>
+        </urlset>
+      `)
+    ).toEqual(["https://www.thepricedex.com/set/me3/perfect-order/pull-rates"]);
+  });
+
+  it("parses ThePriceDex pull-rate tables when per-box values are not present", () => {
+    const parsed = parseThePriceDexPullRatePage({
+      url: "https://www.thepricedex.com/set/me2pt5/ascended-heroes/pull-rates",
+      html: `
+        <title>Ascended Heroes Pull Rates (2026) - Expected Value | ThePriceDex</title>
+        <span>Released: 2026/01/30</span><span>295 Cards</span><span>Set Code: ASC</span>
+        <p>Booster Pack EV</p><h5>$7.50</h5>
+        <table>
+          <thead><tr><th>Rarity</th><th>Pull Rate</th><th>Specific Card Odds</th></tr></thead>
+          <tbody><tr><td>Special Illustration Rare</td><td>1 in 74 packs</td><td>1 in 520 packs</td></tr></tbody>
+        </table>
+        <table>
+          <thead><tr><th>Rarity</th><th>Total</th><th>Priced</th><th>Avg Value</th><th>EV/Pack</th></tr></thead>
+          <tbody><tr><td>Special Illustration Rare</td><td>7</td><td>7</td><td>$100.00</td><td>$1.35</td></tr></tbody>
+        </table>
+      `,
+    });
+
+    expect(parsed?.setCode).toBe("ASC");
+    expect(parsed?.rarities[0]).toMatchObject({
+      perBoosterBox: null,
+      pullRateDenominator: 74,
+      specificPullDenominator: 520,
+      evPerPackUsd: 1.35,
+    });
   });
 
   it("fetches Collectrics JSON and imports usable pull-rate rows", async () => {

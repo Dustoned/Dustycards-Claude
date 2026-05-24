@@ -14,7 +14,7 @@ import {
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
 } from "@/lib/price-history";
-import { buildPullRateInfoFromRarity } from "@/lib/pull-rates";
+import { PREFERRED_PULL_RATE_SOURCES, buildPullRateInfoFromRarity } from "@/lib/pull-rates";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import {
@@ -131,18 +131,24 @@ export default async function ExpansionDetailPage({
   const isReleasedEmptySetWithKnownCount =
     !isUpcomingRelease && isCardListEmpty && knownCardCount > 0;
 
-  const pullRateProfile = episode.code
-    ? await db.setPullRateProfile.findFirst({
-      where: {
-        source: "collectrics",
-        set_code: episode.code.toUpperCase(),
-        rarity_buckets: { gt: 0 },
-      },
+  const pullRateProfiles = episode.code
+    ? await db.setPullRateProfile.findMany({
+        where: {
+          source: { in: [...PREFERRED_PULL_RATE_SOURCES] },
+          set_code: episode.code.toUpperCase(),
+          rarity_buckets: { gt: 0 },
+        },
         include: {
           rarities: true,
         },
       })
-    : null;
+    : [];
+  const pullRateProfile =
+    pullRateProfiles.sort(
+      (a, b) =>
+        PREFERRED_PULL_RATE_SOURCES.indexOf(a.source as (typeof PREFERRED_PULL_RATE_SOURCES)[number]) -
+        PREFERRED_PULL_RATE_SOURCES.indexOf(b.source as (typeof PREFERRED_PULL_RATE_SOURCES)[number])
+    )[0] ?? null;
   const hasLocalSealedProducts = episode._count.sealedProducts > 0;
   let sealedProducts: NormalizedSealedProduct[] = [];
 

@@ -50,8 +50,8 @@ const REQUIRED_RUNTIME_FIELDS = {
   CardEbaySoldGradedPrice: ["source", "currency", "sample_size"],
   CardEbaySoldGradedPriceSnapshot: ["source", "currency", "sample_size"],
   EbayListingCardOverride: ["user_id", "marketplace_id", "item_id", "card_id", "status"],
-  SetPullRateProfile: ["set_code", "imported_at"],
-  SetPullRateRarity: ["normalized_rarity", "specific_pull_denominator"],
+  SetPullRateProfile: ["set_code", "imported_at", "source_url", "booster_pack_ev_usd"],
+  SetPullRateRarity: ["normalized_rarity", "specific_pull_denominator", "ev_per_pack_usd"],
   SealedPriceSnapshot: ["cm_avg_7d", "cm_avg_30d"],
   Price: ["cm_en_avg_7d", "cm_en_avg_30d", "cm_jp_lowest_nm"],
   CardSubmission: [
