@@ -329,7 +329,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
           aria-expanded={accountOpen}
           aria-controls="desktop-account-panel"
           onClick={() => setAccountOpen((current) => !current)}
-          className="flex w-full items-center gap-2 rounded-2xl border px-2 py-1.5 text-left backdrop-blur-xl transition-colors"
+          className="inline-flex max-w-full items-center gap-2 rounded-xl px-1.5 py-1 text-left transition-colors"
         >
           <span
             data-sidebar-avatar
