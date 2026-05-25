@@ -329,7 +329,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
           aria-expanded={accountOpen}
           aria-controls="desktop-account-panel"
           onClick={() => setAccountOpen((current) => !current)}
-          className="flex w-full items-center gap-2 rounded-xl px-1.5 py-1 text-left transition-colors"
+          className="flex w-full items-center gap-2 rounded-2xl border px-2 py-1.5 text-left backdrop-blur-xl transition-colors"
         >
           <span
             data-sidebar-avatar
@@ -338,19 +338,19 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
             {summary.email.slice(0, 1).toUpperCase()}
           </span>
           <span className="min-w-0 flex-1">
-            <span className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-[12px] font-black leading-tight text-white">
-                {displayName}
-              </span>
+            <span className="block truncate text-[12px] font-black leading-tight text-white">
+              {displayName}
+            </span>
+            <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
               <span
                 data-sidebar-badge-admin
                 className="inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-200"
               >
                 {roleLabel === "Admin" ? "ADMIN" : "USER"}
               </span>
-            </span>
-            <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/44">
-              {formatCount(summary.cards)} cards
+              <span className="min-w-0 truncate text-[10px] font-semibold leading-none text-white/56">
+                {formatCount(summary.cards)} cards
+              </span>
             </span>
           </span>
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.045] text-white/58">
