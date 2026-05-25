@@ -503,7 +503,7 @@ function HomeValueDriversPanel({
   const netToneClass = netChange >= 0 ? "text-emerald-300" : "text-rose-300";
 
   return (
-    <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 xl:-ml-[17.25rem] xl:pl-[18rem]">
+    <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 xl:-ml-[18rem] xl:pl-[18.75rem]">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/34">
