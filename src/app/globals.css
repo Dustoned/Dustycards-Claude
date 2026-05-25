@@ -1069,12 +1069,6 @@ body :where(option) {
   color: var(--dc-text-primary) !important;
 }
 
-body [data-sidebar-scroll] {
-  background: transparent !important;
-  background-color: transparent !important;
-  border-color: transparent !important;
-}
-
 [data-mobile-bottom-nav] {
   background: linear-gradient(180deg, rgb(var(--dc-surface-primary-rgb) / 0.98), rgb(var(--dc-bg-main-rgb) / 1)) !important;
   border-color: rgb(var(--dc-border-rgb) / 0.95) !important;
