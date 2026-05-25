@@ -1,19 +1,10 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
 
 function resolveImageCacheDir() {
-  if (process.env.DUSTYCARDS_IMAGE_CACHE_DIR) {
-    return path.resolve(process.env.DUSTYCARDS_IMAGE_CACHE_DIR);
-  }
-
-  if (process.env.LOCALAPPDATA) {
-    return path.join(process.env.LOCALAPPDATA, "DustyCards", "image-cache");
-  }
-
-  return path.join(os.homedir(), ".dustycards", "image-cache");
+  return path.join(process.cwd(), "data", "image-cache");
 }
 
 const IMAGE_CACHE_DIR = resolveImageCacheDir();

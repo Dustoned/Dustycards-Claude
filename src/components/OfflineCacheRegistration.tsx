@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 const SERVICE_WORKER_PATH = "/dustycards-sw.js";
+const CACHE_PREFIX = "dustycards-";
 
 function canUseServiceWorker(): boolean {
   if (typeof window === "undefined") return false;
@@ -20,9 +21,38 @@ async function requestPersistentStorage() {
   }
 }
 
+async function clearLocalOfflineCache() {
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(
+      registrations
+        .filter((registration) => registration.scope.startsWith(window.location.origin))
+        .map((registration) => registration.unregister())
+    );
+  } catch {
+    // Development cleanup should never block the app.
+  }
+
+  try {
+    const keys = await caches.keys();
+    await Promise.all(
+      keys
+        .filter((key) => key.startsWith(CACHE_PREFIX))
+        .map((key) => caches.delete(key))
+    );
+  } catch {
+    // Cache storage is optional and may be unavailable in some browsers.
+  }
+}
+
 export default function OfflineCacheRegistration() {
   useEffect(() => {
     if (!canUseServiceWorker()) return;
+
+    if (process.env.NODE_ENV !== "production") {
+      void clearLocalOfflineCache();
+      return;
+    }
 
     let cancelled = false;
 

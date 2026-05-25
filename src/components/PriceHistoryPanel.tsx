@@ -727,7 +727,7 @@ export default function PriceHistoryPanel({
     tone === "dark"
       ? "border-white/12 bg-[#0c0c0f]/92 text-white shadow-2xl shadow-black/35"
       : "border-white/10 bg-[#0c0c0f]/90 text-white shadow-xl shadow-black/35";
-  const accentStroke = currency === "USD" ? "#f59e0b" : "#8b5cf6";
+  const accentStroke = currency === "USD" ? "#FBBF24" : "#7C5CFF";
   const accentFillStart =
     currency === "USD" ? "rgba(245, 158, 11, 0.32)" : "rgba(139, 92, 246, 0.28)";
   const accentFillEnd =

@@ -7,6 +7,8 @@ import {
   BarChart3,
   Boxes,
   Brush,
+  ChevronDown,
+  ChevronUp,
   FolderOpen,
   Heart,
   Home,
@@ -141,6 +143,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
   const searchParams = useSearchParams();
   const router = useRouter();
   const tab = useLiveCollectionTab();
+  const [accountOpen, setAccountOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const displayName = getDisplayName(summary.email);
   const roleLabel = summary.role === "admin" ? "Admin" : "Collector";
@@ -194,9 +197,9 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 hidden h-dvh w-[16rem] border-r border-white/8 bg-[#08080c] xl:block">
-      <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain px-3 py-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent">
+      <div className="flex h-[calc(100dvh-5.25rem)] min-h-0 flex-col overflow-y-auto overscroll-contain px-3 py-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent">
         <Link href="/" prefetch={false} className="mb-5 flex shrink-0 items-center gap-2.5 px-1">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500 text-base font-black text-white shadow-[0_0_22px_rgba(139,92,246,0.4)]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500 text-base font-black text-white shadow-[0_0_22px_rgba(124,92,255,0.34)]">
             D
           </span>
           <span className="text-[19px] font-black tracking-tight text-white">DustyCards</span>
@@ -225,7 +228,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                     data-active={active ? "true" : "false"}
                     className={`group flex min-h-[34px] items-center gap-3 rounded-lg px-2.5 text-[13px] font-medium transition-colors ${
                       active
-                        ? "text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.32),0_0_22px_rgba(139,92,246,0.18)]"
+                        ? "text-white shadow-[inset_0_0_0_1px_rgba(179,155,255,0.28),0_0_22px_rgba(124,92,255,0.18)]"
                         : "text-white/62 hover:text-white"
                     }`}
                   >
@@ -250,63 +253,39 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
             </div>
           ))}
         </nav>
+      </div>
 
-        <div
-          data-sidebar-card
-          className="mt-auto shrink-0 rounded-2xl border border-white/8 p-3"
-        >
-          <div className="flex items-center gap-2.5">
-            <Link
-              href="/account"
-              prefetch={false}
-              data-sidebar-avatar
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black text-violet-100 shadow-[0_0_22px_rgba(139,92,246,0.22)] transition"
-              aria-label="Open account"
-              title="Open account"
-            >
-              {summary.email.slice(0, 1).toUpperCase()}
-            </Link>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <Link
-                  href="/account"
-                  prefetch={false}
-                  className="truncate text-[13px] font-bold leading-tight text-white transition hover:text-white/82"
+      <div
+        data-sidebar-account-dock
+        className="fixed bottom-3 left-3 z-[70] w-[14.5rem]"
+      >
+        {accountOpen ? (
+          <div
+            id="desktop-account-panel"
+            data-sidebar-card
+            className="mb-2 rounded-2xl border border-white/10 p-2.5 shadow-2xl shadow-black/45 backdrop-blur-xl"
+          >
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                ["Cards", summary.cards],
+                ["Binders", summary.binders],
+                ["Sealed", summary.sealedUnits],
+              ].map(([label, value]) => (
+                <div
+                  key={label as string}
+                  className="rounded-xl border border-white/8 bg-black/18 px-2 py-1.5"
                 >
-                  {displayName}
-                </Link>
-                <span
-                  data-sidebar-badge-admin
-                  className="inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-200"
-                >
-                  {roleLabel === "Admin" ? "ADMIN" : "USER"}
-                </span>
-              </div>
-              <p className="mt-0.5 truncate text-[10px] font-medium text-white/42">
-                {summary.email}
-              </p>
+                  <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/35">
+                    {label}
+                  </p>
+                  <p className="mt-0.5 text-[12px] font-black tabular-nums text-white">
+                    {formatCount(Number(value))}
+                  </p>
+                </div>
+              ))}
             </div>
-          </div>
 
-          <div className="mt-2.5 grid grid-cols-3 gap-2">
-            {[
-              ["Cards", summary.cards],
-              ["Binders", summary.binders],
-              ["Sealed", summary.sealedUnits],
-            ].map(([label, value]) => (
-              <div key={label as string}>
-                <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/35">
-                  {label}
-                </p>
-                <p className="mt-0.5 text-[13px] font-black tabular-nums text-white">
-                  {formatCount(Number(value))}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-2.5 border-t border-white/8 pt-2">
-            <nav className="grid gap-px" aria-label="Account navigation">
+            <nav className="mt-2 grid gap-px border-t border-white/8 pt-2" aria-label="Account navigation">
               {ACCOUNT_ITEMS.map((item) => {
                 const active = isActive(pathname, tab, item.key, moverScope);
                 const Icon = item.icon;
@@ -317,9 +296,9 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                     prefetch={false}
                     data-sidebar-item
                     data-active={active ? "true" : "false"}
-                    className={`flex min-h-[30px] items-center gap-3 rounded-lg px-1.5 text-[12px] font-medium transition-colors ${
+                    className={`flex min-h-[28px] items-center gap-2.5 rounded-lg px-2 text-[12px] font-medium transition-colors ${
                       active
-                        ? "text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.32),0_0_22px_rgba(139,92,246,0.18)]"
+                        ? "text-white shadow-[inset_0_0_0_1px_rgba(179,155,255,0.28),0_0_18px_rgba(124,92,255,0.14)]"
                         : "text-white/62 hover:text-white"
                     }`}
                   >
@@ -334,7 +313,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                 disabled={loggingOut}
                 data-sidebar-item
                 data-active="false"
-                className="flex min-h-[30px] items-center gap-3 rounded-lg px-1.5 text-left text-[12px] font-medium text-white/62 transition-colors hover:text-white disabled:cursor-wait disabled:opacity-60"
+                className="flex min-h-[28px] items-center gap-2.5 rounded-lg px-2 text-left text-[12px] font-medium text-white/62 transition-colors hover:text-white disabled:cursor-wait disabled:opacity-60"
                 aria-label="Log out"
               >
                 <LogOut className="h-3.5 w-3.5 text-white/55" />
@@ -342,7 +321,42 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
               </button>
             </nav>
           </div>
-        </div>
+        ) : null}
+
+        <button
+          type="button"
+          data-sidebar-card
+          aria-expanded={accountOpen}
+          aria-controls="desktop-account-panel"
+          onClick={() => setAccountOpen((current) => !current)}
+          className="flex w-full items-center gap-2 rounded-2xl border border-white/10 p-2 text-left shadow-2xl shadow-black/45 backdrop-blur-xl transition-colors hover:border-white/16 hover:bg-white/[0.035]"
+        >
+          <span
+            data-sidebar-avatar
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black text-violet-100 shadow-[0_0_18px_rgba(124,92,255,0.22)]"
+          >
+            {summary.email.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-[12px] font-black leading-tight text-white">
+                {displayName}
+              </span>
+              <span
+                data-sidebar-badge-admin
+                className="inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-200"
+              >
+                {roleLabel === "Admin" ? "ADMIN" : "USER"}
+              </span>
+            </span>
+            <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/44">
+              {formatCount(summary.cards)} cards
+            </span>
+          </span>
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.045] text-white/58">
+            {accountOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+          </span>
+        </button>
       </div>
     </aside>
   );

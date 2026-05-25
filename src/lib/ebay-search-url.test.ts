@@ -32,15 +32,13 @@ describe("eBay search urls", () => {
   it("builds sealed searches without forcing the single-card category", () => {
     const url = new URL(
       buildSealedEbaySearchUrl({
-        name: "Prismatic Evolutions Booster Bundle",
-        episodeName: "Scarlet & Violet",
-        episodeCode: "PRE",
+        name: "Rebel Clash Booster Box (18 Boosters)",
+        episodeName: "Rebel Clash",
+        episodeCode: "RCL",
       })
     );
 
-    expect(url.searchParams.get("_nkw")).toBe(
-      "Prismatic Evolutions Booster Bundle Scarlet & Violet PRE"
-    );
+    expect(url.searchParams.get("_nkw")).toBe("Pokemon Rebel Clash Booster Box");
     expect(url.searchParams.has("_sacat")).toBe(false);
   });
 });

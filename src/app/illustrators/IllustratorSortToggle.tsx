@@ -63,7 +63,7 @@ export default function IllustratorSortToggle({
             aria-pressed={active}
             className={`min-h-9 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ${
               active
-                ? "bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,58,237,0.26)]"
+                ? "bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,92,255,0.24)]"
                 : "text-white/55 hover:bg-white/[0.06] hover:text-white disabled:opacity-60"
             }`}
           >

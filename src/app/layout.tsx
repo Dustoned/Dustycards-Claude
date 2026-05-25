@@ -9,6 +9,7 @@ import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/Desktop
 import MobileBottomNav from "@/components/MobileBottomNav";
 import MobileEdgeBackGesture from "@/components/MobileEdgeBackGesture";
 import MobileHoverTooltip from "@/components/MobileHoverTooltip";
+import NavigationStateController from "@/components/NavigationStateController";
 import OfflineCacheRegistration from "@/components/OfflineCacheRegistration";
 import SettingsProvider from "@/components/SettingsProvider";
 import { getCurrentUser } from "@/lib/auth";
@@ -130,7 +131,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   `;
   const prepaintThemeStyles = `
     html {
-      background-color: #08080c;
+      background-color: #07080B;
       color-scheme: dark;
     }
 
@@ -140,31 +141,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     }
 
     [data-app-header] {
-      background-color: #08080c;
-      border-color: rgba(255, 255, 255, 0.08);
+      background-color: #07080B;
+      border-color: #252A38;
     }
 
     html.dark,
     html[data-theme="dark"] {
-      background-color: #08080c;
+      background-color: #07080B;
       color-scheme: dark;
     }
 
     html.dark [data-app-header],
     html[data-theme="dark"] [data-app-header] {
-      background-color: #08080c;
-      border-color: rgba(255, 255, 255, 0.08);
+      background-color: #07080B;
+      border-color: #252A38;
     }
 
     @media (prefers-color-scheme: dark) {
       html[data-theme="system"] {
-        background-color: #08080c;
+        background-color: #07080B;
         color-scheme: dark;
       }
 
       html[data-theme="system"] [data-app-header] {
-        background-color: #08080c;
-        border-color: rgba(255, 255, 255, 0.08);
+        background-color: #07080B;
+        border-color: #252A38;
       }
     }
   `;
@@ -204,6 +205,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         >
           <AppVersionWatcher />
           {currentUser ? <OfflineCacheRegistration /> : null}
+          {currentUser ? <NavigationStateController /> : null}
           <MobileHoverTooltip />
           {currentUser ? <MobileEdgeBackGesture /> : null}
           {currentUser && <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} />}

@@ -970,13 +970,13 @@ export async function GET(req: NextRequest) {
       });
 
     const searchQueries = card
-      ? buildCardDealSearchQueries({
-          card,
-          mode: mode === "graded" ? "graded" : "raw",
-          primaryQuery: query,
-        })
+        ? buildCardDealSearchQueries({
+            card,
+            mode: mode === "graded" ? "graded" : "raw",
+            primaryQuery: query,
+          })
       : sealedProduct
-        ? uniqueDealQueries([sealedProduct.name])
+        ? uniqueDealQueries([query])
         : [query];
     const mergedListingsByItemId = new Map<string, EbayDealListing>();
     const maxCandidateListings = card ? Math.max(limit * 3, limit) : limit;

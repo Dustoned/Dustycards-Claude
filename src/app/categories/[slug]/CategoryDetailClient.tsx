@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useCallback, useDeferredValue, useMemo, useState, useTransition } from "react";
+import BackNavigationLink from "@/components/BackNavigationLink";
 import CollectionCardsView from "@/components/CollectionCardsView";
 import {
   HeaderAction,
@@ -191,14 +192,13 @@ export default function CategoryDetailClient({
         <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(19rem,0.82fr)_minmax(0,1.18fr)] xl:grid-cols-[minmax(20rem,0.78fr)_minmax(0,1.08fr)_minmax(20rem,0.72fr)] xl:items-stretch">
           <div className="flex min-h-[var(--ui-dashboard-header-panel-min-height)] min-w-0 flex-col justify-between rounded-[var(--ui-page-header-radius)] border border-white/8 bg-black/10 p-[var(--ui-page-header-padding)]">
             <div className="min-w-0">
-              <Link
+              <BackNavigationLink
                 href={backHref}
-                prefetch={false}
                 className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-white/50 transition-colors hover:text-white"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to categories
-              </Link>
+              </BackNavigationLink>
               <p className="text-[length:var(--ui-page-header-eyebrow-size)] font-semibold uppercase tracking-[0.14em] text-white/42">
                 {eyebrow}
               </p>

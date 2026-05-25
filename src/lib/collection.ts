@@ -55,14 +55,14 @@ export const COLLECTION_BINDER_ICONS = [
 ] as const;
 
 export const COLLECTION_BINDER_COLORS = [
-  "#2563eb",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#ec4899",
-  "#8b5cf6",
-  "#06b6d4",
-  "#f97316",
+  "#7C5CFF",
+  "#9278FF",
+  "#B39BFF",
+  "#38BDF8",
+  "#FBBF24",
+  "#EC4899",
+  "#6E4DFF",
+  "#353C50",
 ] as const;
 
 

@@ -192,13 +192,15 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
     <>
       {moreOpen && (
         <div
+          data-mobile-more-backdrop
           className="fixed inset-0 z-[70] touch-none bg-black/64 backdrop-blur-sm md:hidden"
           onClick={() => {
             setMoreOpen(false);
           }}
         >
           <div
-            className="absolute inset-x-2 bottom-[calc(4.15rem+env(safe-area-inset-bottom))] max-h-[min(58dvh,30rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-[22px] border border-violet-300/18 bg-[#070708]/98 p-2 shadow-[0_28px_90px_rgba(88,28,135,0.28),0_28px_90px_rgba(0,0,0,0.68)] [scrollbar-width:none] backdrop-blur-xl [&::-webkit-scrollbar]:hidden"
+            data-mobile-more-sheet
+            className="absolute inset-x-2 bottom-[calc(4.15rem+env(safe-area-inset-bottom))] max-h-[min(58dvh,30rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-[22px] border border-violet-300/18 bg-[#070708]/98 p-2 shadow-[0_28px_90px_rgba(124,92,255,0.20),0_28px_90px_rgba(0,0,0,0.68)] [scrollbar-width:none] backdrop-blur-xl [&::-webkit-scrollbar]:hidden"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-1.5 flex items-center justify-between gap-3 px-1">
@@ -219,13 +221,13 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
             </div>
 
             {summary ? (
-              <div className="mb-2 rounded-[16px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.18)]">
+              <div data-mobile-nav-card className="mb-2 rounded-[16px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.18)]">
                 <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
                   <Link
                     href="/account"
                     prefetch={false}
                     onClick={() => setMoreOpen(false)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-violet-300/18 bg-violet-500/18 text-[11px] font-black text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.18)]"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-violet-300/18 bg-violet-500/18 text-[11px] font-black text-violet-100 shadow-[0_0_18px_rgba(124,92,255,0.18)]"
                     aria-label="Open account"
                   >
                     {summary.email.slice(0, 1).toUpperCase()}
@@ -240,7 +242,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                       >
                         {getDisplayName(summary.email)}
                       </Link>
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-300/18 bg-emerald-400/[0.075] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/18 bg-amber-400/[0.075] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-amber-200">
                         <ShieldCheck className="h-2.5 w-2.5" />
                         {summary.role === "admin" ? "Admin" : "Collector"}
                       </span>
@@ -267,7 +269,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               </div>
             ) : null}
 
-            <div className="mb-1.5 grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-white/[0.035] p-1">
+            <div data-mobile-nav-card className="mb-1.5 grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-white/[0.035] p-1">
               {moreSections.map((section) => {
                 const active = section.label === visibleMoreSection?.label;
                 return (
@@ -277,7 +279,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     onClick={() => setActiveMoreSection(section.label)}
                     className={`min-h-7 rounded-xl px-1 text-[9px] font-black uppercase tracking-[0.08em] transition-colors ${
                       active
-                        ? "bg-violet-500/[0.22] text-violet-50 shadow-[0_0_18px_rgba(139,92,246,0.16)]"
+                        ? "bg-violet-500/[0.22] text-violet-50 shadow-[0_0_18px_rgba(124,92,255,0.16)]"
                         : "text-white/38 hover:bg-white/[0.055] hover:text-white/72"
                     }`}
                   >
@@ -287,7 +289,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               })}
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5 rounded-[18px] border border-white/8 bg-white/[0.025] p-1.5">
+            <div data-mobile-nav-card className="grid grid-cols-2 gap-1.5 rounded-[18px] border border-white/8 bg-white/[0.025] p-1.5">
               {visibleMoreSection?.items.map((item) => {
                 const active = isNavItemActive(pathname, collectionTab, item.matches);
                 const Icon = item.icon;
@@ -302,13 +304,13 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     title={item.label}
                     className={`flex min-h-9 min-w-0 items-center gap-2 rounded-xl border px-2 text-[10.5px] font-black leading-tight transition-colors ${
                       active
-                        ? "border-violet-300/28 bg-violet-500/[0.18] text-violet-50 shadow-[inset_2px_0_0_rgba(168,85,247,0.58)]"
+                        ? "border-violet-300/28 bg-violet-500/[0.18] text-violet-50 shadow-[inset_2px_0_0_rgba(124,92,255,0.58)]"
                         : "border-white/7 bg-black/12 text-white/58 hover:border-violet-300/16 hover:bg-violet-500/[0.08] hover:text-white"
                     }`}
                   >
                     <Icon
                       className={`h-4 w-4 shrink-0 ${
-                        active ? "text-violet-100 drop-shadow-[0_0_12px_rgba(168,85,247,0.42)]" : "text-white/42"
+                        active ? "text-violet-100 drop-shadow-[0_0_12px_rgba(124,92,255,0.36)]" : "text-white/42"
                       }`}
                       aria-hidden="true"
                     />
@@ -322,8 +324,9 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
       )}
 
       <nav
+        data-mobile-bottom-nav
         aria-label="Mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-violet-300/12 bg-[linear-gradient(180deg,rgba(8,8,10,0.98),rgba(5,5,6,1))] px-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_45px_rgba(0,0,0,0.58),0_-10px_42px_rgba(88,28,135,0.14)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-violet-300/12 bg-[linear-gradient(180deg,rgba(16,18,24,0.98),rgba(7,8,11,1))] px-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_45px_rgba(0,0,0,0.58),0_-10px_42px_rgba(124,92,255,0.14)] md:hidden"
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {PRIMARY_NAV_ITEMS.map((item) => {
@@ -338,12 +341,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-[3.05rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 text-[9px] font-semibold transition-colors min-[390px]:text-[10px] ${
                   active
-                    ? "border-violet-300/35 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgba(139,92,246,0.18)]"
+                    ? "border-violet-300/35 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgba(124,92,255,0.18)]"
                     : "border-transparent text-white/45 hover:bg-violet-500/[0.08] hover:text-white/80"
                 }`}
               >
                 <Icon
-                  className={`h-5 w-5 shrink-0 ${active ? "text-violet-100 drop-shadow-[0_0_14px_rgba(168,85,247,0.45)]" : ""}`}
+                  className={`h-5 w-5 shrink-0 ${active ? "text-violet-100 drop-shadow-[0_0_14px_rgba(124,92,255,0.36)]" : ""}`}
                   aria-hidden="true"
                 />
                 <span className="truncate">{item.label}</span>
@@ -360,12 +363,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
             aria-expanded={moreOpen}
             className={`flex min-h-[3.05rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 text-[9px] font-semibold transition-colors hover:bg-violet-500/[0.08] hover:text-white/80 min-[390px]:text-[10px] ${
               moreActive
-                ? "border-violet-300/35 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgba(139,92,246,0.18)]"
+                ? "border-violet-300/35 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgba(124,92,255,0.18)]"
                 : "border-transparent text-white/45"
             }`}
           >
             <MoreHorizontal
-              className={`h-5 w-5 shrink-0 ${moreActive ? "text-violet-100 drop-shadow-[0_0_14px_rgba(168,85,247,0.45)]" : ""}`}
+              className={`h-5 w-5 shrink-0 ${moreActive ? "text-violet-100 drop-shadow-[0_0_14px_rgba(124,92,255,0.36)]" : ""}`}
             />
             <span className="truncate">More</span>
           </button>

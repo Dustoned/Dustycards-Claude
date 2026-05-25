@@ -1,7 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import {
@@ -12,15 +11,7 @@ import {
 } from "@/lib/image-cache";
 
 function resolveImageCacheDir() {
-  if (process.env.DUSTYCARDS_IMAGE_CACHE_DIR) {
-    return path.resolve(process.env.DUSTYCARDS_IMAGE_CACHE_DIR);
-  }
-
-  if (process.env.LOCALAPPDATA) {
-    return path.join(process.env.LOCALAPPDATA, "DustyCards", "image-cache");
-  }
-
-  return path.join(os.homedir(), ".dustycards", "image-cache");
+  return path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "image-cache");
 }
 
 export const IMAGE_CACHE_DIR = resolveImageCacheDir();
@@ -82,7 +73,7 @@ export function parseCacheableImageUrl(value: string | null | undefined): URL | 
 
 async function readMeta(metaPath: string): Promise<ImageMeta | null> {
   try {
-    return JSON.parse(await fs.readFile(metaPath, "utf8")) as ImageMeta;
+    return JSON.parse(await fs.readFile(/*turbopackIgnore: true*/ metaPath, "utf8")) as ImageMeta;
   } catch {
     return null;
   }
@@ -198,7 +189,7 @@ function sniffImageContentType(buffer: Buffer, fallback: string): string {
 }
 
 async function isCachedImageReadable(imagePath: string, contentType: string): Promise<boolean> {
-  const file = await fs.open(imagePath, "r");
+  const file = await fs.open(/*turbopackIgnore: true*/ imagePath, "r");
 
   try {
     const { size } = await file.stat();
@@ -216,8 +207,8 @@ async function isCachedImageReadable(imagePath: string, contentType: string): Pr
 
 async function removeCachedImage(imagePath: string, metaPath: string) {
   await Promise.all([
-    fs.rm(imagePath, { force: true }).catch(() => undefined),
-    fs.rm(metaPath, { force: true }).catch(() => undefined),
+    fs.rm(/*turbopackIgnore: true*/ imagePath, { force: true }).catch(() => undefined),
+    fs.rm(/*turbopackIgnore: true*/ metaPath, { force: true }).catch(() => undefined),
   ]);
 }
 
@@ -293,8 +284,9 @@ async function downloadAndPersist(
 
     await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
     await Promise.all([
-      fs.writeFile(imagePath, buffer),
+      fs.writeFile(/*turbopackIgnore: true*/ imagePath, buffer),
       fs.writeFile(
+        /*turbopackIgnore: true*/
         metaPath,
         JSON.stringify({ contentType, sourceUrl: sourceUrl.href, variant } satisfies ImageMeta)
       ),
@@ -316,7 +308,7 @@ async function prepareCachedImageBuffer(
     return { buffer, contentType };
   }
 
-  const trimmed = await trimHorizontalTransparentImagePadding(buffer);
+  const trimmed = await trimTransparentImagePadding(buffer);
   if (!trimmed) {
     return { buffer, contentType };
   }
@@ -328,13 +320,15 @@ async function prepareCachedImageBuffer(
   return { buffer: trimmed, contentType: "image/png" };
 }
 
-async function trimHorizontalTransparentImagePadding(buffer: Buffer): Promise<Buffer | null> {
+async function trimTransparentImagePadding(buffer: Buffer): Promise<Buffer | null> {
   const image = sharp(buffer, { limitInputPixels: false }).ensureAlpha();
   const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
 
   let left = width;
   let right = -1;
+  let top = height;
+  let bottom = -1;
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -342,6 +336,8 @@ async function trimHorizontalTransparentImagePadding(buffer: Buffer): Promise<Bu
       if (alpha === 0) continue;
       if (x < left) left = x;
       if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
     }
   }
 
@@ -350,12 +346,13 @@ async function trimHorizontalTransparentImagePadding(buffer: Buffer): Promise<Bu
   }
 
   const trimWidth = right - left + 1;
-  if (left === 0 && trimWidth === width) {
+  const trimHeight = bottom - top + 1;
+  if (left === 0 && top === 0 && trimWidth === width && trimHeight === height) {
     return null;
   }
 
   return sharp(buffer, { limitInputPixels: false })
-    .extract({ left, top: 0, width: trimWidth, height })
+    .extract({ left, top, width: trimWidth, height: trimHeight })
     .png({ compressionLevel: 9, effort: 10 })
     .toBuffer();
 }
@@ -378,12 +375,15 @@ async function createVariantFromOriginalCache(
     );
     if (!isReadableImage) return null;
 
-    const originalBuffer = await fs.readFile(originalPaths.imagePath);
+    const originalBuffer = await fs.readFile(
+      /*turbopackIgnore: true*/ originalPaths.imagePath
+    );
     const prepared = await prepareCachedImageBuffer(originalBuffer, originalContentType, variant);
     await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
     await Promise.all([
-      fs.writeFile(imagePath, prepared.buffer),
+      fs.writeFile(/*turbopackIgnore: true*/ imagePath, prepared.buffer),
       fs.writeFile(
+        /*turbopackIgnore: true*/
         metaPath,
         JSON.stringify({
           contentType: prepared.contentType,

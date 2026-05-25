@@ -6,6 +6,7 @@ import {
   PageHeroHeader,
   type HeaderStat,
 } from "@/components/PageHeader";
+import BackNavigationLink from "@/components/BackNavigationLink";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import { buildMoversSourceHref, loadMoversPageData } from "@/app/movers/page-data";
 import { GAME_SEARCH_PARAM, getGameFilterSearchParamValue, parseVisibleGameFilter } from "@/lib/games";
@@ -70,19 +71,18 @@ export default async function DiscountWatchPage({
           stats={headerStats}
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-white/50">
-                <Link
+                <BackNavigationLink
                   href={withGame(buildMoversSourceHref(
                     "/movers",
                     activePriceSource,
                     cardScope,
                     activeItemScope
                   ))}
-                  prefetch={false}
                   className="inline-flex items-center gap-2 font-medium transition-colors hover:text-gray-900 dark:hover:text-white"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Back to market
-                </Link>
+                </BackNavigationLink>
                 <Link
                   href={withGame(buildMoversSourceHref(
                     "/movers/cheap-high-rarity",

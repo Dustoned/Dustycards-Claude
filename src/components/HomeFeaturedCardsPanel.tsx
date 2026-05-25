@@ -104,7 +104,7 @@ function FeaturedCardTile({
   onOpen: (item: CollectionCardViewItem) => void;
   imageSizes: string;
 }) {
-  const { settings, displaySettings, isMobileViewport } = useSettings();
+  const { settings, displaySettings } = useSettings();
   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(item.grading_grade);
   const isGradedCard = Boolean(item.owned && gradingCompanyLabel && gradingGradeLabel);
@@ -190,7 +190,7 @@ function FeaturedCardTile({
             </div>
           </div>
 
-          <div className={collectionTilePriceRowClass(cardSize, isMobileViewport)}>
+          <div className={collectionTilePriceRowClass(cardSize)}>
             {displayPrice != null ? (
               <span className={collectionTilePriceClass(cardSize)}>
                 {formatMarketCurrency(displayPrice, displayPriceCurrency)}
@@ -202,15 +202,14 @@ function FeaturedCardTile({
               <span
                 className={collectionTileTrendClass(
                   cardSize,
-                  isMobileViewport,
                   trendPercent >= 0
                 )}
                 title={`P&L ${trendPercent >= 0 ? "+" : ""}${trendPercent}%`}
               >
                 {trendPercent >= 0 ? (
-                  <TrendingUp className={collectionTileTrendIconClass(cardSize, isMobileViewport)} />
+                  <TrendingUp className={collectionTileTrendIconClass(cardSize)} />
                 ) : (
-                  <TrendingDown className={collectionTileTrendIconClass(cardSize, isMobileViewport)} />
+                  <TrendingDown className={collectionTileTrendIconClass(cardSize)} />
                 )}
                 <span className="truncate">
                   {trendPercent >= 0 ? "+" : ""}

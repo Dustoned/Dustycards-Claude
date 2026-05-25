@@ -25,6 +25,7 @@ import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
 import { parseBgsSubgrades } from "@/lib/graded-slabs";
+import { buildBuySignal } from "@/lib/buy-signal";
 
 type CardAction = "refresh" | "sync-history";
 
@@ -280,6 +281,16 @@ async function getCardDetailPayload(id: string, userId: string) {
     setCode: card.episode.code,
     rarity: card.rarity,
   });
+  const pullRateInfoPayload = pullRateInfo
+    ? {
+        source: pullRateInfo.source,
+        rarity_name: pullRateInfo.rarityName,
+        pull_rate_odds: pullRateInfo.pullRateOdds,
+        specific_pull_odds: pullRateInfo.specificPullOdds,
+        pull_rate_weight: pullRateInfo.pullRateWeight,
+        psa_avg_gem_pct: pullRateInfo.psaAvgGemPct,
+      }
+    : null;
   const collectionItem = card.collectionItems[0] ?? null;
   const wantItem = card.wants[0] ?? null;
   const collectionCostBasis = await getCardDetailCostBasis(collectionItem, userId);
@@ -309,6 +320,62 @@ async function getCardDetailPayload(id: string, userId: string) {
       fetched_at: price.fetched_at ? price.fetched_at.toISOString() : null,
     };
   });
+  const latestPricePayload = latestPrice
+    ? {
+        cm_en_lowest_nm: latestPrice.cm_en_lowest_nm,
+        cm_de_lowest_nm: latestPrice.cm_de_lowest_nm,
+        cm_fr_lowest_nm: latestPrice.cm_fr_lowest_nm,
+        cm_es_lowest_nm: latestPrice.cm_es_lowest_nm,
+        cm_it_lowest_nm: latestPrice.cm_it_lowest_nm,
+        cm_jp_lowest_nm: latestPrice.cm_jp_lowest_nm,
+        tcp_market: latestPrice.tcp_market,
+        tcp_mid: latestPrice.tcp_mid,
+        tcp_low: latestPrice.tcp_low,
+        cm_en_avg_7d: latestPrice.cm_en_avg_7d,
+        cm_en_avg_30d: latestPrice.cm_en_avg_30d,
+      }
+    : null;
+  const collectionItemPayload = collectionItem
+    ? {
+        id: collectionItem.id,
+        binder_id: collectionItem.binder_id,
+        for_sale: collectionItem.for_sale,
+        binder_name: collectionItem.binder?.name ?? null,
+        binder_type: collectionItem.binder?.type ?? null,
+        purchase_price: collectionItem.purchase_price,
+        cost_basis_value: collectionCostBasis?.value ?? null,
+        cost_basis_label: collectionCostBasis?.label ?? "Paid",
+        cost_basis_source: collectionCostBasis?.source ?? "direct",
+        condition: collectionItem.condition,
+        language: collectionItem.language,
+        notes: collectionItem.notes,
+        tags: collectionItem.tags.map((tag) => tag.label),
+        grading_company: collectionItem.grading_company,
+        grading_grade: collectionItem.grading_grade,
+        grading_subgrades: parseBgsSubgrades(collectionItem.grading_subgrades_json),
+      }
+    : null;
+  const buySignal = buildBuySignal({
+    rarity: card.rarity,
+    episode_name: card.episode.name,
+    episode_code: card.episode.code,
+    episode_release_date: card.episode.release_date,
+    price: latestPricePayload,
+    price_fetched_at: latestPrice ? latestPrice.fetched_at.toISOString() : null,
+    price_source_checked_at: card.price_source_checked_at
+      ? card.price_source_checked_at.toISOString()
+      : null,
+    ebay_sold_graded_synced_at: card.ebay_sold_graded_synced_at
+      ? card.ebay_sold_graded_synced_at.toISOString()
+      : null,
+    price_history: priceHistory,
+    graded_prices: card.gradedPrices,
+    ebay_sold_graded_prices: ebaySoldGradedPrices,
+    graded_price_history: gradedPriceHistory,
+    ebay_sold_graded_price_history: ebaySoldGradedPriceHistory,
+    pull_rate_info: pullRateInfoPayload,
+    collection_item: collectionItemPayload,
+  });
 
   return {
     id: card.id,
@@ -335,61 +402,20 @@ async function getCardDetailPayload(id: string, userId: string) {
       ? card.ebay_sold_graded_synced_at.toISOString()
       : null,
     price_fetched_at: latestPrice ? latestPrice.fetched_at.toISOString() : null,
-    price: latestPrice
-      ? {
-          cm_en_lowest_nm: latestPrice.cm_en_lowest_nm,
-          cm_de_lowest_nm: latestPrice.cm_de_lowest_nm,
-          cm_fr_lowest_nm: latestPrice.cm_fr_lowest_nm,
-          cm_es_lowest_nm: latestPrice.cm_es_lowest_nm,
-          cm_it_lowest_nm: latestPrice.cm_it_lowest_nm,
-          cm_jp_lowest_nm: latestPrice.cm_jp_lowest_nm,
-          tcp_market: latestPrice.tcp_market,
-          tcp_mid: latestPrice.tcp_mid,
-          tcp_low: latestPrice.tcp_low,
-          cm_en_avg_7d: latestPrice.cm_en_avg_7d,
-          cm_en_avg_30d: latestPrice.cm_en_avg_30d,
-        }
-      : null,
+    price: latestPricePayload,
     graded_prices: card.gradedPrices,
     ebay_sold_graded_prices: ebaySoldGradedPrices,
     graded_price_history: gradedPriceHistory,
     ebay_sold_graded_price_history: ebaySoldGradedPriceHistory,
     price_history: priceHistory,
-    pull_rate_info: pullRateInfo
-      ? {
-          source: pullRateInfo.source,
-          rarity_name: pullRateInfo.rarityName,
-          pull_rate_odds: pullRateInfo.pullRateOdds,
-          specific_pull_odds: pullRateInfo.specificPullOdds,
-          pull_rate_weight: pullRateInfo.pullRateWeight,
-          psa_avg_gem_pct: pullRateInfo.psaAvgGemPct,
-        }
-      : null,
+    buy_signal: buySignal,
+    pull_rate_info: pullRateInfoPayload,
     episode_id: card.episode.id,
     episode_name: card.episode.name,
     episode_code: card.episode.code,
     episode_series: card.episode.series,
     episode_release_date: card.episode.release_date,
-    collection_item: collectionItem
-      ? {
-          id: collectionItem.id,
-          binder_id: collectionItem.binder_id,
-          for_sale: collectionItem.for_sale,
-          binder_name: collectionItem.binder?.name ?? null,
-          binder_type: collectionItem.binder?.type ?? null,
-          purchase_price: collectionItem.purchase_price,
-          cost_basis_value: collectionCostBasis?.value ?? null,
-          cost_basis_label: collectionCostBasis?.label ?? "Paid",
-          cost_basis_source: collectionCostBasis?.source ?? "direct",
-          condition: collectionItem.condition,
-          language: collectionItem.language,
-          notes: collectionItem.notes,
-          tags: collectionItem.tags.map((tag) => tag.label),
-          grading_company: collectionItem.grading_company,
-          grading_grade: collectionItem.grading_grade,
-          grading_subgrades: parseBgsSubgrades(collectionItem.grading_subgrades_json),
-        }
-      : null,
+    collection_item: collectionItemPayload,
     want_item: wantItem
       ? {
           id: wantItem.id,

@@ -52,7 +52,6 @@ import {
   type AutoCatalogSyncSelection,
   upsertVisibleRemoteEpisodes,
 } from "@/lib/sync/catalog";
-import { warmEpisodeImages } from "@/lib/sync/image-warmer";
 import {
   extractEbaySoldGradedPrices,
   extractGradedPrices,
@@ -153,6 +152,17 @@ function getAutoCatalogGameLabel(game: TradingCardGame): string {
 
 function shouldSkipAutoCatalogStatusError(error: unknown): boolean {
   return isTcggoHttpStatusError(error, 403);
+}
+
+function warmEpisodeImagesInBackground(episodeId: string) {
+  void import("@/lib/sync/image-warmer")
+    .then(({ warmEpisodeImages }) => warmEpisodeImages(episodeId))
+    .catch((error: unknown) => {
+      console.warn(
+        `[image-warmer] episode ${episodeId} could not start:`,
+        error instanceof Error ? error.message : String(error)
+      );
+    });
 }
 
 interface DueCardCandidate {
@@ -2365,7 +2375,7 @@ async function syncEpisodeCards(
 
   // Fire-and-forget: pre-warm the image cache so cards work offline.
   // Already-cached images are fast HITs; new images get downloaded in the background.
-  void warmEpisodeImages(episodeId);
+  warmEpisodeImagesInBackground(episodeId);
 
   return result;
 }
@@ -4613,7 +4623,7 @@ async function syncEpisodeSealed(
   }
 
   // Fire-and-forget image cache warm-up for sealed product art.
-  void warmEpisodeImages(episodeId);
+  warmEpisodeImagesInBackground(episodeId);
 }
 
 export async function runEpisodeSync(episodeId: string): Promise<EpisodeSyncResult> {

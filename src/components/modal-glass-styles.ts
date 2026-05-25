@@ -42,7 +42,7 @@ export const modalLabelClass = "space-y-1.5 text-sm max-[640px]:text-[12px]";
 export const modalOptionClass = "bg-[#080808] text-white";
 
 export const modalPrimaryButtonClass =
-  "flex-1 rounded-2xl border border-violet-300/35 bg-violet-600/85 px-4 py-3 font-semibold text-white shadow-[0_14px_34px_rgba(109,40,217,0.26)] transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:py-2.5 max-[640px]:text-[13px]";
+  "flex-1 rounded-2xl border border-violet-300/35 bg-violet-600/85 px-4 py-3 font-semibold text-white shadow-[0_14px_34px_rgba(124,92,255,0.24)] transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:py-2.5 max-[640px]:text-[13px]";
 
 export const modalSecondaryButtonClass =
   "rounded-2xl border border-white/10 bg-[#15151a] px-4 py-3 font-semibold text-white/72 transition-colors hover:bg-[#1d1d24] hover:text-white disabled:cursor-not-allowed disabled:opacity-60 max-[640px]:rounded-xl max-[640px]:px-3 max-[640px]:py-2.5 max-[640px]:text-[13px]";

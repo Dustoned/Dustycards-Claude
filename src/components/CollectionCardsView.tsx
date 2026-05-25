@@ -975,10 +975,10 @@ export default function CollectionCardsView({
     { value: "tcp", label: "TCP" },
   ];
   const SIZE_OPTIONS: Array<{ value: CardSize; label: string }> = [
-    { value: "large", label: "1" },
-    { value: "medium", label: "2" },
-    { value: "small", label: "3" },
-    { value: "xsmall", label: "4" },
+    { value: "large", label: "L" },
+    { value: "medium", label: "M" },
+    { value: "small", label: "S" },
+    { value: "xsmall", label: "XS" },
   ];
 
   useEffect(() => {
@@ -1077,20 +1077,24 @@ export default function CollectionCardsView({
   const toolbarSizeOptions: CardBrowserToolbarOption[] = [
     {
       value: "large",
-      label: "1",
-      title: isMobileViewport ? "Show one card per row" : "Largest card tiles",
+      label: "L",
+      title: isMobileViewport ? "Largest phone card tiles" : "Largest card tiles",
     },
     {
       value: "medium",
-      label: "2",
-      title: isMobileViewport ? "Show two cards per row" : "Medium card tiles",
+      label: "M",
+      title: isMobileViewport ? "Medium phone card tiles" : "Medium card tiles",
     },
     {
       value: "small",
-      label: "3",
-      title: isMobileViewport ? "Show three cards per row" : "Small card tiles",
+      label: "S",
+      title: isMobileViewport ? "Small phone card tiles" : "Small card tiles",
     },
-    { value: "xsmall", label: "4", title: isMobileViewport ? "Show four cards per row" : "Densest card tiles" },
+    {
+      value: "xsmall",
+      label: "XS",
+      title: isMobileViewport ? "Compact phone card tiles" : "Densest card tiles",
+    },
   ];
   const toolbarActiveFilters: CardBrowserToolbarActiveFilter[] = [
     ...(search.trim()
@@ -2197,7 +2201,7 @@ export default function CollectionCardsView({
                             : isSelected
                               ? getCardImageFrameClassName(
                                   item.image_url,
-                                  "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
+                                  "overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_12px_24px_rgba(56,189,248,0.24)] ring-2 ring-blue-400/80"
                                 )
                               : getCardImageFrameClassName(
                                   item.image_url,
@@ -2287,7 +2291,7 @@ export default function CollectionCardsView({
                     </div>
                   </div>
 
-                  <div className={collectionTilePriceRowClass(displaySettings.cardSize, isMobileViewport)}>
+                  <div className={collectionTilePriceRowClass(displaySettings.cardSize)}>
                     {displayPrice != null ? (
                       <span
                         title={
@@ -2306,7 +2310,6 @@ export default function CollectionCardsView({
                       <span
                         className={collectionTileTrendClass(
                           displaySettings.cardSize,
-                          isMobileViewport,
                           trendPercent >= 0
                         )}
                         title={`P&L ${trendPercent >= 0 ? "+" : ""}${trendPercent}%`}
@@ -2314,15 +2317,13 @@ export default function CollectionCardsView({
                         {trendPercent >= 0 ? (
                           <TrendingUp
                             className={collectionTileTrendIconClass(
-                              displaySettings.cardSize,
-                              isMobileViewport
+                              displaySettings.cardSize
                             )}
                           />
                         ) : (
                           <TrendingDown
                             className={collectionTileTrendIconClass(
-                              displaySettings.cardSize,
-                              isMobileViewport
+                              displaySettings.cardSize
                             )}
                           />
                         )}

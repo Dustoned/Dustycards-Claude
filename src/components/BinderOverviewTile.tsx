@@ -102,7 +102,7 @@ export default function BinderOverviewTile({
         ? "No latest move"
         : binder.recentChangeLabel ?? "Latest move";
   const tileStyle = {
-    "--binder-accent": accentColor ?? "#8b5cf6",
+    "--binder-accent": accentColor ?? "#7C5CFF",
   } as CSSProperties;
 
   return (

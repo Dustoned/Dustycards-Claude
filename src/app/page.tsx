@@ -44,6 +44,7 @@ const CollectionOverviewSections = nextDynamic(() => import("@/components/Collec
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
 const BinderOverviewGrid = nextDynamic(() => import("@/components/BinderOverviewGrid"));
 const HomeFeaturedCardsPanel = nextDynamic(() => import("@/components/HomeFeaturedCardsPanel"));
+const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"));
 
 export const dynamic = "force-dynamic";
 
@@ -286,7 +287,7 @@ function TopSetsProgressPanel({
             ? 0
             : Math.min(100, Math.max(0, binder.completionPct));
           const total = binder.totalCards ?? 0;
-          const accent = binder.accent_color ?? "#8b5cf6";
+          const accent = binder.accent_color ?? "#7C5CFF";
           const logoUrl = binder.episode?.logo_url ?? null;
           return (
             <Link
@@ -316,7 +317,7 @@ function TopSetsProgressPanel({
                   className="h-full rounded-full"
                   style={{
                     width: `${completion}%`,
-                    background: `linear-gradient(90deg, ${accent}, #c4b5fd)`,
+                    background: `linear-gradient(90deg, ${accent}, #B39BFF)`,
                   }}
                 />
               </div>
@@ -965,6 +966,7 @@ export default async function HomePage({
               >
                 Browse cards
               </Link>
+              <CreateBinderButton className="rounded-full" />
             </div>
           </div>
         ) : null

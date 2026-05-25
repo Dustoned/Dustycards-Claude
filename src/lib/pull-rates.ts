@@ -1011,9 +1011,21 @@ async function getLocalPullRateSetCodes(input: {
         source: input.source,
         set_code: { in: setCodes },
       },
-      select: { set_code: true },
+      select: {
+        set_code: true,
+        promo_flag: true,
+        rarity_buckets: true,
+      },
     });
-    const existingCodes = new Set(existingProfiles.map((profile) => profile.set_code));
+    const existingCodes = new Set(
+      existingProfiles
+        .filter(
+          (profile) =>
+            profile.promo_flag !== "collectrics_unavailable" &&
+            (profile.rarity_buckets ?? 0) > 0
+        )
+        .map((profile) => profile.set_code)
+    );
     setCodes = setCodes.filter((code) => !existingCodes.has(code));
   }
 

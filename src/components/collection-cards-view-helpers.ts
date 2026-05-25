@@ -349,11 +349,8 @@ export function collectionTileNoPriceClass(cardSize: CardSize): string {
   return "text-[11px] text-white/35";
 }
 
-export function collectionTilePriceRowClass(
-  cardSize: CardSize,
-  isMobileViewport: boolean
-): string {
-  if (isMobileViewport && cardSize === "xsmall") {
+export function collectionTilePriceRowClass(cardSize: CardSize): string {
+  if (cardSize === "xsmall") {
     return "mt-auto flex min-w-0 flex-col items-start gap-0.5 pt-1";
   }
 
@@ -362,23 +359,19 @@ export function collectionTilePriceRowClass(
 
 export function collectionTileTrendClass(
   cardSize: CardSize,
-  isMobileViewport: boolean,
   positive: boolean
 ): string {
   const toneClass = positive ? "text-emerald-300" : "text-rose-300";
 
-  if (isMobileViewport && cardSize === "xsmall") {
+  if (cardSize === "xsmall") {
     return `inline-flex max-w-full items-center justify-start gap-0.5 whitespace-nowrap text-left text-[8.5px] font-bold tabular-nums leading-tight ${toneClass}`;
   }
 
   return `inline-flex shrink-0 items-center justify-end gap-0.5 whitespace-nowrap text-right text-[11px] font-bold tabular-nums max-[640px]:text-[9px] ${toneClass}`;
 }
 
-export function collectionTileTrendIconClass(
-  cardSize: CardSize,
-  isMobileViewport: boolean
-): string {
-  if (isMobileViewport && cardSize === "xsmall") {
+export function collectionTileTrendIconClass(cardSize: CardSize): string {
+  if (cardSize === "xsmall") {
     return "h-2.5 w-2.5 shrink-0";
   }
 

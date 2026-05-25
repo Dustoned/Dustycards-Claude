@@ -53,9 +53,16 @@ describe("ebay deal helpers", () => {
         episodeName: "Mega Evolution",
         episodeCode: "MEG",
       })
-    ).toBe("Mega Evolution Sleeved Booster");
+    ).toBe("Pokemon Mega Evolution Sleeved Booster");
+    expect(
+      buildEbaySealedSearchQuery({
+        name: "Rebel Clash Booster Box (18 Boosters)",
+        episodeName: "Rebel Clash",
+        episodeCode: "RCL",
+      })
+    ).toBe("Pokemon Rebel Clash Booster Box");
     expect(buildEbaySealedManualSearchQuery("Mega Evolution booster box")).toBe(
-      "Mega Evolution booster box"
+      "Pokemon Mega Evolution booster box"
     );
   });
 

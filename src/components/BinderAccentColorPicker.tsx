@@ -3,7 +3,7 @@
 import { Palette } from "lucide-react";
 import { COLLECTION_BINDER_COLORS } from "@/lib/collection";
 
-const DEFAULT_CUSTOM_COLOR = "#2563eb";
+const DEFAULT_CUSTOM_COLOR = "#7C5CFF";
 
 function isHexColor(value: string | null | undefined): value is string {
   return /^#[0-9a-f]{6}$/i.test(value ?? "");
@@ -99,7 +99,7 @@ export default function BinderAccentColorPicker({
             onChange(next || null);
           }}
           className="h-9 w-full rounded-xl border border-white/10 bg-white/8 px-3 text-xs font-semibold text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/18 max-[640px]:h-8 max-[640px]:text-[12px]"
-          placeholder="#2563eb"
+          placeholder="#7C5CFF"
           aria-label="Custom accent color hex"
         />
       )}

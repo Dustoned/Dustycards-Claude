@@ -2,8 +2,8 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Coins, Layers, WalletCards } from "lucide-react";
+import BackNavigationLink from "@/components/BackNavigationLink";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import CollectionCardsView from "@/components/CollectionCardsView";
 import { HeaderStatCard, PageHeroHeader } from "@/components/PageHeader";
@@ -56,14 +56,13 @@ export default function WantBinderDetailClient({ data }: { data: WantBinderPageD
         description={description}
         gridClassName="xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch"
         backLinks={
-          <Link
+          <BackNavigationLink
             href="/wants"
-            prefetch={false}
             className="hidden items-center gap-2 font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to wants
-          </Link>
+          </BackNavigationLink>
         }
         leadingVisual={
           <div

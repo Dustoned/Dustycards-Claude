@@ -551,7 +551,7 @@ export default function ExpansionView({
         ? "gap-x-3 gap-y-4"
         : "gap-x-2 gap-y-3"
     : "gap-2";
-  const compactFourColumnGrid = isMobileViewport && displaySettings.cardSize === "xsmall";
+  const compactCardGrid = displaySettings.cardSize === "xsmall";
   const renderedCards = useIncrementalItems(filtered, {
     initialCount: isMobileViewport ? 28 : INITIAL_RENDERED_CARDS,
     batchSize: isMobileViewport ? 24 : RENDERED_CARD_BATCH_SIZE,
@@ -581,10 +581,10 @@ export default function ExpansionView({
   ];
 
   const SIZE_OPTIONS: Array<{ value: CardSize; label: string }> = [
-    { value: "large", label: isMobileViewport ? "1" : "Large" },
-    { value: "medium", label: isMobileViewport ? "2" : "Medium" },
-    { value: "small", label: isMobileViewport ? "3" : "Small" },
-    ...(isMobileViewport ? [{ value: "xsmall" as const, label: "4" }] : []),
+    { value: "large", label: isMobileViewport ? "L" : "Large" },
+    { value: "medium", label: isMobileViewport ? "M" : "Medium" },
+    { value: "small", label: isMobileViewport ? "S" : "Small" },
+    { value: "xsmall", label: "XS" },
   ];
   const filtersPanelExpanded = filtersExpanded || persistentFiltersHideEverything;
   const filterBadgeCount =
@@ -612,22 +612,24 @@ export default function ExpansionView({
   const toolbarSizeOptions: CardBrowserToolbarOption[] = [
     {
       value: "large",
-      label: isMobileViewport ? "1" : "Large",
-      title: isMobileViewport ? "Show one card per row" : "Large card tiles",
+      label: isMobileViewport ? "L" : "Large",
+      title: isMobileViewport ? "Largest phone card tiles" : "Large card tiles",
     },
     {
       value: "medium",
-      label: isMobileViewport ? "2" : "Medium",
-      title: isMobileViewport ? "Show two cards per row" : "Medium card tiles",
+      label: isMobileViewport ? "M" : "Medium",
+      title: isMobileViewport ? "Medium phone card tiles" : "Medium card tiles",
     },
     {
       value: "small",
-      label: isMobileViewport ? "3" : "Small",
-      title: isMobileViewport ? "Show three cards per row" : "Small card tiles",
+      label: isMobileViewport ? "S" : "Small",
+      title: isMobileViewport ? "Small phone card tiles" : "Small card tiles",
     },
-    ...(isMobileViewport
-      ? [{ value: "xsmall", label: "4", title: "Show four cards per row" }]
-      : []),
+    {
+      value: "xsmall",
+      label: "XS",
+      title: isMobileViewport ? "Compact phone card tiles" : "Densest card tiles",
+    },
   ];
   const toolbarActiveFilters: CardBrowserToolbarActiveFilter[] = [
     ...(search.trim()
@@ -1340,7 +1342,7 @@ export default function ExpansionView({
                     card.image_url,
                     `relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent transition-all duration-200 ${
                       gridSelected
-                        ? "drop-shadow-[0_12px_24px_rgba(59,130,246,0.32)] ring-2 ring-blue-400/80"
+                        ? "drop-shadow-[0_12px_24px_rgba(56,189,248,0.24)] ring-2 ring-blue-400/80"
                         : "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
                     }`
                   )}
@@ -1371,7 +1373,7 @@ export default function ExpansionView({
                     <div className="min-w-0 flex-1">
                       <p
                         className={
-                          compactFourColumnGrid
+                          compactCardGrid
                             ? "line-clamp-3 text-[10px] font-semibold leading-tight text-gray-900 dark:text-white"
                             : "truncate text-[11px] font-semibold leading-snug text-gray-900 dark:text-white sm:text-[13px]"
                         }
@@ -1403,7 +1405,7 @@ export default function ExpansionView({
 
                     <div
                       className={
-                        compactFourColumnGrid
+                        compactCardGrid
                           ? "grid min-w-0 gap-1"
                           : "flex min-w-0 items-center justify-between gap-1.5 sm:shrink sm:justify-end"
                       }
@@ -1411,7 +1413,7 @@ export default function ExpansionView({
                       {gridPrice != null ? (
                         <span
                           className={
-                            compactFourColumnGrid
+                            compactCardGrid
                               ? "block min-w-0 max-w-full whitespace-nowrap text-[clamp(9px,2.85vw,11px)] font-semibold tabular-nums leading-tight text-gray-900 dark:text-white"
                             : "whitespace-nowrap text-[12px] font-semibold tabular-nums text-gray-900 dark:text-white sm:text-[15px]"
                           }
@@ -1425,7 +1427,7 @@ export default function ExpansionView({
                       )}
 
                       {!selectionMode && (
-                        <div className={compactFourColumnGrid ? "flex justify-start gap-1" : "flex items-center gap-1"}>
+                        <div className={compactCardGrid ? "flex justify-start gap-1" : "flex items-center gap-1"}>
                           <CollectionAddCardButton
                             card={getCollectionButtonCard(card)}
                             className="h-[20px] w-[20px] shrink-0 rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32 sm:h-[22px] sm:w-[22px]"

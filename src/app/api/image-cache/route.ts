@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
   try {
     const result = await ensureImageCached(sourceUrl, { variant });
     if (result.hit) {
-      const stream = Readable.toWeb(createReadStream(result.imagePath)) as ReadableStream<Uint8Array>;
+      const stream = Readable.toWeb(
+        createReadStream(/*turbopackIgnore: true*/ result.imagePath)
+      ) as ReadableStream<Uint8Array>;
       return new NextResponse(stream, { headers: imageHeaders(result.contentType, "HIT") });
     }
 

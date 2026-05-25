@@ -2,6 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import {
+  getDustyHistoryIndex,
+  saveCurrentScrollPosition,
+} from "@/lib/client-navigation-state";
 
 const EDGE_START_PX = 26;
 const MIN_SWIPE_PX = 76;
@@ -136,6 +140,11 @@ export default function MobileEdgeBackGesture() {
       }
 
       lastNavigateAtRef.current = now;
+      if (getDustyHistoryIndex() <= 0) {
+        return;
+      }
+
+      saveCurrentScrollPosition();
       window.history.back();
     }
 

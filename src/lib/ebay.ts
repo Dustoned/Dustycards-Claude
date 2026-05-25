@@ -1,4 +1,5 @@
 import { convertUsdToEur, getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
+import { buildEbaySealedProductSearchQuery } from "@/lib/ebay-sealed-query";
 import type { CurrencyCode } from "@/lib/format";
 
 const EBAY_SCOPE = "https://api.ebay.com/oauth/api_scope";
@@ -940,21 +941,11 @@ export function buildEbayManualSearchQuery(value: string): string {
 }
 
 export function buildEbaySealedSearchQuery(input: EbaySealedSearchInput): string {
-  const query = normalizeQueryToken(input.name);
-  if (!query) return "";
-
-  return query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH
-    ? query
-    : query.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
+  return buildEbaySealedProductSearchQuery(input);
 }
 
 export function buildEbaySealedManualSearchQuery(value: string): string {
-  const query = normalizeQueryToken(value);
-  if (!query) return "";
-
-  return query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH
-    ? query
-    : query.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
+  return buildEbaySealedProductSearchQuery({ name: value });
 }
 
 export function buildEbayMarketplaceSearchUrl(

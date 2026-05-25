@@ -149,7 +149,7 @@ export default function SyncAllButton({ episodes, totalSets }: Props) {
           className="h-full rounded-full transition-all duration-300"
           style={{
             width: `${pct}%`,
-            background: isDone ? (errors > 0 ? "#f87171" : "#34d399") : "white",
+            background: isDone ? (errors > 0 ? "#EF4444" : "#22C55E") : "white",
           }}
         />
       </div>

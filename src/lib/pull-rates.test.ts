@@ -18,6 +18,7 @@ async function clearTestData() {
   await db.setPullRateProfile.deleteMany({ where: { source: TEST_SOURCE } });
   await db.setPullRateRarity.deleteMany({ where: { source: FETCH_TEST_SOURCE } });
   await db.setPullRateProfile.deleteMany({ where: { source: FETCH_TEST_SOURCE } });
+  await db.episode.deleteMany({ where: { id: "vitest-pull-rate-fetch-episode" } });
 }
 
 afterEach(async () => {
@@ -304,6 +305,82 @@ describe("pull-rate imports", () => {
     expect(marker).toEqual({
       rarity_buckets: 0,
       promo_flag: "collectrics_unavailable",
+    });
+  });
+
+  it("retries Collectrics set codes that were previously marked unavailable", async () => {
+    await clearTestData();
+
+    await db.episode.create({
+      data: {
+        id: "vitest-pull-rate-fetch-episode",
+        game: "pokemon",
+        name: "Vitest Pull Rate",
+        code: "VT1",
+        release_date: "2099-05-24",
+      },
+    });
+    await db.setPullRateProfile.create({
+      data: {
+        source: FETCH_TEST_SOURCE,
+        set_code: "VT1",
+        promo_flag: "collectrics_unavailable",
+        rarity_buckets: 0,
+      },
+    });
+
+    const requestedUrls: string[] = [];
+    const fetchImpl = async (url: string) => {
+      requestedUrls.push(url);
+
+      return new Response(
+        JSON.stringify({
+          "set-code": "VT1",
+          "set-name": "Pokemon Vitest Pull Rate",
+          "rarity-breakdown": {
+            SIR: {
+              "rarity-name": "Special Illustration Rare",
+              "card-count": 4,
+              "pull-rate-odds": "1/80",
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      );
+    };
+
+    const result = await fetchAndImportCollectricsPullRates({
+      source: FETCH_TEST_SOURCE,
+      missingOnly: true,
+      limit: 1,
+      fetchImpl,
+      requestDelayMs: 0,
+    });
+
+    expect(requestedUrls).toContain("https://mycollectrics.com/api/set/VT1");
+    expect(result.fetchedSets).toBe(1);
+    expect(result.setsImported).toBe(1);
+
+    const profile = await db.setPullRateProfile.findUniqueOrThrow({
+      where: {
+        source_set_code: {
+          source: FETCH_TEST_SOURCE,
+          set_code: "VT1",
+        },
+      },
+      select: {
+        set_name: true,
+        promo_flag: true,
+        rarity_buckets: true,
+      },
+    });
+    expect(profile).toEqual({
+      set_name: "Pokemon Vitest Pull Rate",
+      promo_flag: null,
+      rarity_buckets: 1,
     });
   });
 });

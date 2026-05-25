@@ -6,6 +6,7 @@ import type {
   CardGradedPriceHistorySeries,
   CardPriceHistoryPoint,
 } from "@/lib/price-history";
+import type { BuySignalResult } from "@/lib/buy-signal";
 
 export interface ModalCardData {
   id: string;
@@ -59,6 +60,7 @@ export interface ModalCardData {
   graded_price_history?: CardGradedPriceHistorySeries[];
   ebay_sold_graded_price_history?: CardEbaySoldGradedPriceHistorySeries[];
   price_history: CardPriceHistoryPoint[];
+  buy_signal?: BuySignalResult;
   pull_rate_info?: {
     source: string;
     rarity_name: string;

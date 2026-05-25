@@ -6,14 +6,14 @@ type TrackScale = Record<UiScale, Record<DisplayMode, number>>;
 type CardTrackScale = Record<CardSize, Record<DisplayMode, number>>;
 
 const CARD_GRID_TRACK: CardTrackScale = {
-  xsmall: { normal: 110, wide: 122 },
-  small: { normal: 128, wide: 144 },
+  xsmall: { normal: 126, wide: 140 },
+  small: { normal: 144, wide: 162 },
   medium: { normal: 154, wide: 176 },
   large: { normal: 188, wide: 212 },
 };
 
 const MOBILE_CARD_GRID_COLUMNS: Record<CardSize, number> = {
-  xsmall: 4,
+  xsmall: 3,
   small: 3,
   medium: 2,
   large: 1,

@@ -24,10 +24,10 @@ const CARD_SIZE_OPTIONS: Array<{
   label: string;
   desc: string;
 }> = [
-  { value: "large", label: "1", desc: "1 card" },
-  { value: "medium", label: "2", desc: "2 cards" },
-  { value: "small", label: "3", desc: "3 cards" },
-  { value: "xsmall", label: "4", desc: "4 cards" },
+  { value: "large", label: "Large", desc: "1 card" },
+  { value: "medium", label: "Medium", desc: "2 cards" },
+  { value: "small", label: "Small", desc: "3 cards" },
+  { value: "xsmall", label: "Compact", desc: "3 tighter cards" },
 ];
 
 const VIEW_OPTIONS: Array<{ value: CardView; label: string; desc: string }> = [

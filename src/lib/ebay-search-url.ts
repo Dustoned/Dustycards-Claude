@@ -1,3 +1,5 @@
+import { buildEbaySealedProductSearchQuery } from "@/lib/ebay-sealed-query";
+
 const EBAY_NL_SEARCH_URL = "https://www.ebay.nl/sch/i.html";
 const EBAY_CARD_CATEGORY_ID = "183454";
 const EBAY_MAX_SEARCH_QUERY_LENGTH = 100;
@@ -78,9 +80,7 @@ export function buildSealedEbaySearchUrl(input: {
   episodeName?: SearchToken;
   episodeCode?: SearchToken;
 }): string {
-  const query = buildLimitedEbaySearchQuery(
-    uniqueEbaySearchTokens([input.name, input.episodeName, input.episodeCode])
-  );
+  const query = buildEbaySealedProductSearchQuery(input);
 
   return buildEbaySearchUrl(query);
 }

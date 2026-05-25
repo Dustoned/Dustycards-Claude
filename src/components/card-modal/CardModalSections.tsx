@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ExternalLink,
   Globe2,
+  Info,
   LineChart,
   MoreHorizontal,
   RefreshCw,
@@ -427,6 +428,147 @@ function MetaPill({ children, className = "" }: { children: ReactNode; className
     >
       {children}
     </span>
+  );
+}
+
+const BUY_SIGNAL_STEPS = [
+  { key: "strong_sell", label: "STRONG SELL" },
+  { key: "sell", label: "SELL" },
+  { key: "hold", label: "HOLD" },
+  { key: "buy", label: "BUY" },
+  { key: "strong_buy", label: "STRONG BUY" },
+] as const;
+
+function getBuySignalConfidenceClass(confidence: string): string {
+  if (confidence === "high") {
+    return "border-emerald-300/24 bg-emerald-400/12 text-emerald-200";
+  }
+  if (confidence === "medium") {
+    return "border-amber-300/24 bg-amber-400/12 text-amber-200";
+  }
+  return "border-white/12 bg-white/[0.06] text-white/58";
+}
+
+function getBuySignalEvidenceClass(tone: string): string {
+  if (tone === "positive") return "border-emerald-300/14 bg-emerald-400/[0.055] text-emerald-100";
+  if (tone === "negative") return "border-rose-300/14 bg-rose-400/[0.055] text-rose-100";
+  if (tone === "warning") return "border-amber-300/14 bg-amber-400/[0.055] text-amber-100";
+  return "border-white/8 bg-white/[0.035] text-white/76";
+}
+
+function getBuySignalMarkerClass(label: string): string {
+  if (label === "strong_sell" || label === "sell") {
+    return "border-red-300 bg-red-500 shadow-[0_0_0_5px_rgba(239,68,68,0.16),0_0_22px_rgba(239,68,68,0.32)]";
+  }
+  if (label === "buy" || label === "strong_buy") {
+    return "border-emerald-200 bg-emerald-500 shadow-[0_0_0_5px_rgba(34,197,94,0.15),0_0_22px_rgba(34,197,94,0.28)]";
+  }
+  return "border-violet-200 bg-violet-500 shadow-[0_0_0_5px_rgba(124,92,255,0.14),0_0_22px_rgba(124,92,255,0.24)]";
+}
+
+export function CardModalBuySignalPanel({
+  signal,
+  compact = false,
+}: {
+  signal: ModalCardData["buy_signal"] | null | undefined;
+  compact?: boolean;
+}) {
+  if (!signal) return null;
+
+  const markerPercent = Math.min(Math.max(signal.marker_percent ?? signal.score, 2), 98);
+  const evidence = signal.evidence.slice(0, compact ? 4 : 6);
+  const warnings = signal.warnings.slice(0, 2);
+
+  return (
+    <section
+      className={`min-w-0 rounded-[20px] border border-white/10 bg-[#08080a] shadow-[inset_0_1px_0_rgba(179,155,255,0.05)] ${
+        compact ? "p-3.5" : "p-4"
+      }`}
+    >
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <h3 className="min-w-0 truncate text-sm font-semibold text-white">Buy Signal</h3>
+          <span title="Based on saved market data, price history, and eBay sold graded samples">
+            <Info
+              className="h-3.5 w-3.5 shrink-0 text-white/36"
+              aria-hidden="true"
+            />
+          </span>
+        </div>
+        <span
+          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase leading-none ${getBuySignalConfidenceClass(
+            signal.confidence
+          )}`}
+          title={`${signal.confidence.toUpperCase()} confidence`}
+        >
+          {signal.confidence.toUpperCase()}
+        </span>
+      </div>
+
+      <div className={compact ? "mt-3" : "mt-4"}>
+        <div className="relative h-2.5 overflow-hidden rounded-full bg-[linear-gradient(90deg,#EF4444_0%,#EF4444_19%,#1D2130_39%,#252A38_50%,#1D2130_61%,#22C55E_81%,#7C5CFF_100%)] shadow-[0_0_24px_rgba(124,92,255,0.14)]">
+          <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0))]" />
+          <span
+            className={`absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${getBuySignalMarkerClass(
+              signal.label
+            )}`}
+            style={{ left: `${markerPercent}%` }}
+          />
+        </div>
+
+        <div className="mt-3 grid grid-cols-5 gap-1 text-center text-[9px] font-black uppercase leading-tight text-white/38 max-[420px]:text-[8px]">
+          {BUY_SIGNAL_STEPS.map((step) => (
+            <span
+              key={step.key}
+              className={signal.label === step.key ? "text-white/86" : undefined}
+            >
+              {step.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5">
+        <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-white/68">
+          {signal.market_mode === "graded" ? "Graded" : "Raw"}
+        </span>
+        <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-white/68">
+          {signal.context === "owned" ? "Owned" : "Market"}
+        </span>
+        <span className="rounded-full border border-violet-300/16 bg-violet-400/[0.08] px-2.5 py-1 text-[11px] font-bold text-violet-100">
+          {signal.label_text}
+        </span>
+      </div>
+
+      <div
+        className={`mt-3 grid min-w-0 gap-2 ${
+          compact ? "grid-cols-2 min-[720px]:grid-cols-4" : "grid-cols-2 xl:grid-cols-3"
+        }`}
+      >
+        {evidence.map((item) => (
+          <div
+            key={`${item.label}-${item.value}`}
+            className={`min-w-0 rounded-xl border px-2.5 py-2 ${getBuySignalEvidenceClass(item.tone)}`}
+          >
+            <p className="truncate text-[10px] font-semibold text-white/42">{item.label}</p>
+            <p className="mt-1 truncate text-[12px] font-bold tabular-nums">{item.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {warnings.length > 0 && (
+        <div className="mt-3 flex min-w-0 flex-wrap gap-1.5">
+          {warnings.map((warning) => (
+            <span
+              key={warning}
+              className="rounded-full border border-amber-300/14 bg-amber-400/[0.055] px-2 py-1 text-[10px] font-semibold text-amber-100/82"
+            >
+              {warning}
+            </span>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1265,6 +1407,8 @@ function MobileDetailIconButton({
 }) {
   return (
     <button
+      data-mobile-detail-icon
+      data-destructive={destructive ? "true" : "false"}
       type="button"
       onPointerDown={(event) => {
         event.stopPropagation();
@@ -1298,7 +1442,7 @@ function MobileInfoRow({
   value: ReactNode;
 }) {
   return (
-    <div className="flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-white/10 bg-[#0b0b0d] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+    <div data-mobile-info-row className="flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-white/10 bg-[#0b0b0d] p-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.04)]">
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white/68">
         {icon}
       </span>
@@ -1416,11 +1560,11 @@ export function CardModalMobileShowcase({
   const showGraded = effectiveActiveTab === "graded";
   const showPreviousPrices = effectiveActiveTab === "previous-prices";
   const floatingButtonClass =
-    "!h-11 !w-11 !rounded-full !border-white/12 !bg-black/38 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-white/24 hover:!bg-white/[0.1]";
+    "!h-11 !w-11 !rounded-full !border-white/12 !bg-[#101218]/82 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-violet-300/24 hover:!bg-[#1D2130]";
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_24%,rgba(139,92,246,0.38),transparent_34%),radial-gradient(circle_at_30%_22%,rgba(16,185,129,0.16),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent_52%)]" />
+    <div data-mobile-showcase-root className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_24%,rgba(124,92,255,0.28),transparent_34%),radial-gradient(circle_at_30%_22%,rgba(56,189,248,0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_52%)]" />
 
       <div className="relative z-20 flex items-center justify-between">
         <MobileDetailIconButton label="Back to collection" onClick={onClose}>
@@ -1476,7 +1620,7 @@ export function CardModalMobileShowcase({
           )}
 
           {moreOpen && canManageCardPrices && (
-            <div className="absolute right-0 top-[3.25rem] z-40 min-w-52 overflow-hidden rounded-2xl border border-white/12 bg-[#0b0b0d]/94 p-1.5 text-sm font-semibold text-white shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
+            <div data-mobile-action-sheet className="absolute right-0 top-[3.25rem] z-40 min-w-52 overflow-hidden rounded-2xl border border-white/12 bg-[#0b0b0d]/94 p-1.5 text-sm font-semibold text-white shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
               {collectionItem && (
                 <button
                   type="button"
@@ -1532,7 +1676,7 @@ export function CardModalMobileShowcase({
 
       <div className="relative z-10 mt-1 flex flex-col items-center">
         <div className="relative w-[min(58vw,18rem)] max-w-full min-[430px]:w-[min(55vw,18rem)]">
-          <div className="pointer-events-none absolute -inset-10 rounded-[3rem] bg-[radial-gradient(circle,rgba(168,85,247,0.34),rgba(16,185,129,0.12)_42%,transparent_70%)] blur-2xl" />
+          <div className="pointer-events-none absolute -inset-10 rounded-[3rem] bg-[radial-gradient(circle,rgba(124,92,255,0.28),rgba(56,189,248,0.10)_42%,transparent_70%)] blur-2xl" />
           {card.image_url ? (
             <button
               type="button"
@@ -1598,7 +1742,7 @@ export function CardModalMobileShowcase({
 
       <div className="relative z-10 mt-4">
         <div className="relative min-w-0">
-          <span className="absolute right-0 top-0 shrink-0 rounded-full border border-violet-300/20 bg-violet-500/18 px-3 py-2 text-sm font-semibold text-violet-100 shadow-[0_14px_34px_rgba(109,40,217,0.18)]">
+          <span className="absolute right-0 top-0 shrink-0 rounded-full border border-violet-300/20 bg-violet-500/18 px-3 py-2 text-sm font-semibold text-violet-100 shadow-[0_14px_34px_rgba(124,92,255,0.18)]">
             {conditionLabel}
           </span>
 
@@ -1625,7 +1769,7 @@ export function CardModalMobileShowcase({
         </div>
 
         <div className="mt-4 grid grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] gap-2.5">
-          <div className="overflow-hidden rounded-[18px] border border-white/10 bg-[#0b0b0d] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+          <div data-mobile-showcase-card className="overflow-hidden rounded-[18px] border border-white/10 bg-[#0b0b0d] p-3.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.045)]">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
               <p className="max-w-full text-[1.42rem] font-bold leading-none tabular-nums text-white min-[390px]:text-[1.62rem]">
                 {formatCurrency(activeCardMarketCurrentValue, "EUR")}
@@ -1643,7 +1787,7 @@ export function CardModalMobileShowcase({
             <p className="mt-2 truncate text-[12px] font-medium text-white/48">CardMarket</p>
           </div>
 
-          <div className="rounded-[18px] border border-white/10 bg-[#0b0b0d] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
+          <div data-mobile-showcase-card className="rounded-[18px] border border-white/10 bg-[#0b0b0d] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(179,155,255,0.045)]">
             <div className="flex items-center justify-between gap-1.5 border-b border-white/[0.07] pb-2">
               <p className="shrink-0 whitespace-nowrap text-[13px] font-medium text-white/46">
                 7d avg
@@ -1664,6 +1808,7 @@ export function CardModalMobileShowcase({
         </div>
 
         <nav
+          data-mobile-showcase-tabs
           className={`mt-5 grid min-w-0 ${
             showGradedTab ? "grid-cols-4" : "grid-cols-3"
           } gap-1 rounded-2xl border border-white/8 bg-black/22 p-1 text-[13px] font-bold text-white/48`}
@@ -1685,7 +1830,7 @@ export function CardModalMobileShowcase({
         </nav>
 
         {showOverview && (
-          <div className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-3 shadow-[inset_0_1px_0_rgba(179,155,255,0.04)]">
             <div className="grid grid-cols-2 gap-2">
               <MobileInfoRow
                 icon={<Sparkles className="h-4 w-4" />}
@@ -1746,7 +1891,7 @@ export function CardModalMobileShowcase({
         )}
 
         {showPreviousPrices && (
-          <div className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4">
+          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-white">Previous Prices</p>
@@ -1781,7 +1926,7 @@ export function CardModalMobileShowcase({
         )}
 
         {showChart && (
-          <div className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.04)]">
             <PriceHistoryPanel
               title="Price History"
               currency="EUR"
@@ -1801,14 +1946,14 @@ export function CardModalMobileShowcase({
         )}
       </div>
 
-      <div className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(179,155,255,0.05)]">
         <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
           <CollectionAddCardButton
             card={collectionCard}
             mode="button"
             theme="dark"
             label={collectionItem ? "Add Copy" : "Add to Collection"}
-            className="!min-h-12 !rounded-2xl !border-violet-300/35 !bg-violet-600/72 !px-2 !text-[13px] !font-bold !shadow-[0_16px_34px_rgba(109,40,217,0.28)]"
+            className="!min-h-12 !rounded-2xl !border-violet-300/35 !bg-violet-600/72 !px-2 !text-[13px] !font-bold !shadow-[0_16px_34px_rgba(124,92,255,0.24)]"
             onAdded={onAddedToCollection}
           />
           <CollectionWantButton
@@ -1842,6 +1987,12 @@ export function CardModalMobileShowcase({
           )}
         </div>
       </div>
+
+      {card.buy_signal && (
+        <div className="relative z-10 mt-4">
+          <CardModalBuySignalPanel signal={card.buy_signal} compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -2055,7 +2206,7 @@ export function CardModalHeroSection({
     <section className="min-w-0 py-1 text-white">
       <div className="min-w-0">
         <div className="min-w-0">
-          <h2 className={`${titleClass} !text-[2rem] font-bold leading-tight tracking-[-0.01em] text-white 2xl:!text-[2.35rem]`}>
+          <h2 className={`${titleClass} !text-[2rem] font-bold leading-tight text-white 2xl:!text-[2.35rem]`}>
             {card.name}
           </h2>
 

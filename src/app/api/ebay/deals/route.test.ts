@@ -264,9 +264,11 @@ describe("GET /api/ebay/deals", () => {
       (input: { name: string; cardNumber?: string | null }) =>
         [input.name, input.cardNumber, "Pokemon"].filter(Boolean).join(" ")
     );
-    ebayMock.buildEbaySealedManualSearchQuery.mockImplementation((query: string) => query);
+    ebayMock.buildEbaySealedManualSearchQuery.mockImplementation((query: string) =>
+      /\bpokemon\b/i.test(query) ? query : `Pokemon ${query}`
+    );
     ebayMock.buildEbaySealedSearchQuery.mockImplementation(
-      (input: { name: string }) => input.name
+      (input: { name: string }) => `Pokemon ${input.name}`
     );
     ebayMock.buildEbayMarketplaceSearchUrl.mockReturnValue(
       "https://www.ebay.nl/sch/i.html"
@@ -682,12 +684,12 @@ describe("GET /api/ebay/deals", () => {
     expect(ebayMock.searchEbayDeals).toHaveBeenCalledTimes(1);
     expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: "Mega Evolution Sleeved Booster",
+        query: "Pokemon Mega Evolution Sleeved Booster",
         buyingMode: "all",
         listingKind: "sealed",
       })
     );
-    expect(body.query).toBe("Mega Evolution Sleeved Booster");
+    expect(body.query).toBe("Pokemon Mega Evolution Sleeved Booster");
     expect(body.buyingMode).toBe("all");
     expect(body.listings.map((listing: { itemId: string }) => listing.itemId)).toEqual([
       "sealed-title",

@@ -56,16 +56,10 @@ export default function SealedProductModal({ product, onClose }: Props) {
     displaySettings.widescreen
   );
   const desktopWorkspaceStyle = {
-    maxWidth: displaySettings.widescreen
-      ? "min(100%, 176rem)"
-      : `min(100%, ${layout.maxW})`,
+    maxWidth: `min(100%, max(${layout.maxW}, min(176rem, calc(100vw - 20rem))))`,
   };
-  const desktopGridClass = displaySettings.widescreen
-    ? `grid gap-6 xl:grid-cols-[minmax(22rem,0.82fr)_minmax(28rem,1fr)] xl:items-start 2xl:grid-cols-[minmax(23rem,0.76fr)_minmax(24rem,0.86fr)_minmax(30rem,1.08fr)] 2xl:gap-7`
-    : `grid ${layout.gridGap} lg:grid-cols-[minmax(17rem,0.62fr)_minmax(0,1fr)] lg:items-start 2xl:grid-cols-[minmax(18rem,0.58fr)_minmax(20rem,0.82fr)_minmax(28rem,1fr)]`;
-  const desktopHistoryClass = displaySettings.widescreen
-    ? "min-w-0 xl:col-start-2 2xl:col-start-auto"
-    : "min-w-0 lg:col-start-2 2xl:col-start-auto";
+  const desktopGridClass = `grid min-w-0 gap-5 xl:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1fr)] xl:items-start 2xl:grid-cols-[minmax(20rem,0.72fr)_minmax(24rem,0.86fr)_minmax(32rem,1.32fr)] 2xl:gap-6`;
+  const desktopHistoryClass = "min-w-0 xl:col-start-2 2xl:col-start-auto";
   const primaryPrice = getSealedProductPrice(modalProduct);
   const priceHistory = modalProduct.price_history;
   const availableSealedHistorySeries = SEALED_MARKET_HISTORY_SERIES.filter(
@@ -250,19 +244,15 @@ export default function SealedProductModal({ product, onClose }: Props) {
             className={`${layout.pad} mx-auto w-full md:px-6 md:pb-6 md:pt-0 lg:px-8`}
             style={desktopWorkspaceStyle}
           >
-            <div
-              className={desktopGridClass}
-            >
+            <div className={desktopGridClass}>
               <SealedModalPreview
                 product={modalProduct}
-                mediaWidth={
-                  displaySettings.widescreen ? "clamp(22rem, 20vw, 32rem)" : layout.mediaWidth
-                }
+                mediaWidth="clamp(20rem, 18vw, 32rem)"
                 imageSize={layout.imageSize}
                 imagePadding={layout.imagePadding}
               />
 
-              <div className="min-w-0">
+              <div className="flex min-w-0 flex-col gap-5">
                 <SealedModalHeroSection
                   product={modalProduct}
                   titleClass={layout.titleClass}
@@ -278,6 +268,15 @@ export default function SealedProductModal({ product, onClose }: Props) {
                   onAddedToCollection={refreshModalProductFromServer}
                   onClose={onClose}
                 />
+                <div className="hidden md:block">
+                  <SealedModalFooter
+                    product={modalProduct}
+                    footerGridClass="grid gap-3 sm:grid-cols-2"
+                    cardMarketUrl={cardMarketUrl}
+                    onAddedToCollection={refreshModalProductFromServer}
+                    onClose={onClose}
+                  />
+                </div>
               </div>
 
               <div className={desktopHistoryClass}>
@@ -297,13 +296,15 @@ export default function SealedProductModal({ product, onClose }: Props) {
             </div>
           </div>
 
-          <SealedModalFooter
-            product={modalProduct}
-            footerGridClass={layout.footerGridClass}
-            cardMarketUrl={cardMarketUrl}
-            onAddedToCollection={refreshModalProductFromServer}
-            onClose={onClose}
-          />
+          <div className="md:hidden">
+            <SealedModalFooter
+              product={modalProduct}
+              footerGridClass={layout.footerGridClass}
+              cardMarketUrl={cardMarketUrl}
+              onAddedToCollection={refreshModalProductFromServer}
+              onClose={onClose}
+            />
+          </div>
         </div>
       </div>
     </div>

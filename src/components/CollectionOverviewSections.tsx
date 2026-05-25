@@ -75,10 +75,10 @@ const MOBILE_CARD_LAYOUT_OPTIONS: Array<{
   label: string;
   title: string;
 }> = [
-  { value: "large", label: "1", title: "Show one card per row" },
-  { value: "medium", label: "2", title: "Show two cards per row" },
-  { value: "small", label: "3", title: "Show three cards per row" },
-  { value: "xsmall", label: "4", title: "Show four cards per row" },
+  { value: "large", label: "L", title: "Largest phone card tiles" },
+  { value: "medium", label: "M", title: "Medium phone card tiles" },
+  { value: "small", label: "S", title: "Small phone card tiles" },
+  { value: "xsmall", label: "XS", title: "Compact phone card tiles" },
 ];
 
 const DESKTOP_CARD_LAYOUT_OPTIONS: Array<{
@@ -86,10 +86,10 @@ const DESKTOP_CARD_LAYOUT_OPTIONS: Array<{
   label: string;
   title: string;
 }> = [
-  { value: "large", label: "1", title: "Largest card tiles" },
-  { value: "medium", label: "2", title: "Medium card tiles" },
-  { value: "small", label: "3", title: "Small card tiles" },
-  { value: "xsmall", label: "4", title: "Densest card tiles" },
+  { value: "large", label: "L", title: "Largest card tiles" },
+  { value: "medium", label: "M", title: "Medium card tiles" },
+  { value: "small", label: "S", title: "Small card tiles" },
+  { value: "xsmall", label: "XS", title: "Densest card tiles" },
 ];
 
 function moveVisibleSection(

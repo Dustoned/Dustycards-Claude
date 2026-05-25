@@ -626,7 +626,7 @@ function WantsQuickViewModal({
                 style={{
                   width: progressWidth(group),
                   background: accentColor
-                    ? `linear-gradient(90deg, ${accentColor}, #34d399)`
+                    ? `linear-gradient(90deg, ${accentColor}, #38BDF8)`
                     : undefined,
                 }}
               />
@@ -726,7 +726,7 @@ function WantBinderTile({
   const hiddenLabel =
     group.hiddenCards > 0 ? `${group.hiddenCards.toLocaleString("en-US")} hidden` : null;
   const tileStyle = {
-    "--binder-accent": accentColor ?? "#8b5cf6",
+    "--binder-accent": accentColor ?? "#7C5CFF",
   } as CSSProperties;
 
   return (
@@ -791,23 +791,23 @@ function WantBinderTile({
                 style={{
                   width: progressWidth(group),
                   background: accentColor
-                    ? `linear-gradient(90deg, ${accentColor}, #34d399)`
+                    ? `linear-gradient(90deg, ${accentColor}, #38BDF8)`
                     : undefined,
                 }}
               />
             </div>
           </div>
 
-          <div className="flex items-end justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.035] px-2.5 py-2 max-[640px]:rounded-lg max-[640px]:px-2 max-[640px]:py-1.5">
+          <div data-want-cost-card className="grid min-w-0 gap-1.5 rounded-xl border border-white/8 bg-white/[0.035] px-2.5 py-2 max-[640px]:rounded-lg max-[640px]:px-2 max-[640px]:py-1.5">
             <div className="min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/32 max-[640px]:text-[8px]">
                 Cost
               </p>
-              <p className="mt-0.5 whitespace-nowrap text-[15px] font-black tracking-tight text-white max-[640px]:text-[12px]">
+              <p className="mt-0.5 max-w-full text-[15px] font-black leading-tight tracking-tight text-white max-[640px]:text-[12px]">
                 {group.estimatedCost > 0 ? formatCollectionCurrency(group.estimatedCost) : "No price"}
               </p>
             </div>
-            <span className="shrink-0 rounded-full border border-emerald-400/18 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black leading-none text-emerald-200 max-[640px]:px-2 max-[640px]:text-[9px]">
+            <span data-want-priced-badge className="w-fit max-w-full rounded-full border border-emerald-400/18 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black leading-none text-emerald-200 max-[640px]:px-2 max-[640px]:text-[9px]">
               {pricedLabel}
             </span>
           </div>

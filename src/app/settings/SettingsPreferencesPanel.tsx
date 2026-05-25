@@ -32,10 +32,10 @@ const SIZE_OPTIONS: Option<UiScale>[] = [
 ];
 
 const PHONE_CARD_SIZE_OPTIONS: Option<CardSize>[] = [
-  { value: "large", label: "1", description: "One card per row" },
-  { value: "medium", label: "2", description: "Two cards per row" },
-  { value: "small", label: "3", description: "Three cards per row" },
-  { value: "xsmall", label: "4", description: "Four cards per row" },
+  { value: "large", label: "Large", description: "One card per row" },
+  { value: "medium", label: "Medium", description: "Two cards per row" },
+  { value: "small", label: "Small", description: "Three cards per row" },
+  { value: "xsmall", label: "Compact", description: "Three tighter cards per row" },
 ];
 
 const PHONE_VIEW_OPTIONS: Option<CardView>[] = [

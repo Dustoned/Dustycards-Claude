@@ -329,8 +329,8 @@ function createFoilOverlayMaterial(
         return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
       }
 
-      vec3 sampleCard(vec2 uv) {
-        return texture2D(uCardTexture, clamp(uv, 0.0, 1.0)).rgb;
+      vec4 sampleCard(vec2 uv) {
+        return texture2D(uCardTexture, clamp(uv, 0.0, 1.0));
       }
 
       void main() {
@@ -342,10 +342,15 @@ function createFoilOverlayMaterial(
         vec2 centeredUv = vUv - 0.5;
         vec2 holoDrift = vec2(reflectDir.x * 0.24, reflectDir.y * 0.18);
         vec2 pointerUv = mix(vec2(0.5, 0.5), uPointerUv, clamp(uPointerStrength, 0.0, 1.0));
-        vec3 artColor = sampleCard(vUv);
-        vec3 artSampleX = sampleCard(vUv + vec2(uTexelSize.x * 2.0, 0.0));
-        vec3 artSampleY = sampleCard(vUv + vec2(0.0, uTexelSize.y * 2.0));
-        vec3 artSampleDiag = sampleCard(vUv + uTexelSize * vec2(1.75, -1.75));
+        vec4 artTexture = sampleCard(vUv);
+        float cardAlpha = artTexture.a;
+        if (cardAlpha < 0.02) {
+          discard;
+        }
+        vec3 artColor = artTexture.rgb;
+        vec3 artSampleX = sampleCard(vUv + vec2(uTexelSize.x * 2.0, 0.0)).rgb;
+        vec3 artSampleY = sampleCard(vUv + vec2(0.0, uTexelSize.y * 2.0)).rgb;
+        vec3 artSampleDiag = sampleCard(vUv + uTexelSize * vec2(1.75, -1.75)).rgb;
         float artLuma = dot(artColor, vec3(0.299, 0.587, 0.114));
         float artMax = max(max(artColor.r, artColor.g), artColor.b);
         float artMin = min(min(artColor.r, artColor.g), artColor.b);
@@ -556,7 +561,7 @@ function createFoilOverlayMaterial(
           alpha += prismMask * 0.35;
         }
 
-        gl_FragColor = vec4(color, clamp(alpha, 0.0, 0.68));
+        gl_FragColor = vec4(color, clamp(alpha * cardAlpha, 0.0, 0.68));
       }
     `,
   });
@@ -1515,13 +1520,15 @@ export default function CardThreeViewer({
           return;
         }
 
-        const frontTexture = flattenTextureOnCardSurface(
-          THREE,
-          loadedFrontTexture,
-          CARD_PAPER_COLOR,
-          { drawBleed: !isTcggoStorageImageUrl(frontImageUrl) }
-        );
-        if (frontTexture !== loadedFrontTexture) {
+        const isTcggoFrontImage = isTcggoStorageImageUrl(frontImageUrl);
+        const frontTexture = isTcggoFrontImage
+          ? loadedFrontTexture
+          : flattenTextureOnCardSurface(
+              THREE,
+              loadedFrontTexture,
+              CARD_PAPER_COLOR
+            );
+        if (!isTcggoFrontImage && frontTexture !== loadedFrontTexture) {
           loadedFrontTexture.dispose();
         }
 
@@ -1556,6 +1563,7 @@ export default function CardThreeViewer({
           metalness: 0.02,
           clearcoat: 0.18,
           clearcoatRoughness: 0.55,
+          alphaTest: isTcggoFrontImage ? 0.02 : 0,
         });
         const backMaterial = new THREE.MeshPhysicalMaterial({
           map: backTexture,

@@ -107,13 +107,16 @@ function cleanupSmokeSessions(sessionIds: string[]) {
   db.close();
 }
 
-function findEpisodeWithImageCards(): string | null {
+function findPokemonEpisodeWithImageCards(): string | null {
   const db = openDb();
   const row = db.prepare<[], { episode_id: string }>(`
-    SELECT episode_id
-    FROM "Card"
-    WHERE image_url IS NOT NULL AND image_url <> ''
-    GROUP BY episode_id
+    SELECT c.episode_id
+    FROM "Card" c
+    JOIN "Episode" e ON e.id = c.episode_id
+    WHERE c.image_url IS NOT NULL
+      AND c.image_url <> ''
+      AND e.game = 'pokemon'
+    GROUP BY c.episode_id
     ORDER BY COUNT(*) DESC
     LIMIT 1
   `).get();
@@ -174,6 +177,13 @@ async function expectNoHorizontalOverflow(page: Page) {
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2
   );
   expect(hasHorizontalOverflow).toBe(false);
+}
+
+async function openSettingsTab(page: Page, name: string) {
+  const tab = page.getByRole("tab", { name, exact: true });
+  await expect(tab).toBeVisible();
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
 async function expectCanvasHasPixels(page: Page) {
@@ -302,10 +312,12 @@ test.describe("DustyCards smoke", () => {
 
   test("settings shows background refresh status", async ({ page }) => {
     await page.goto("/settings");
+    await openSettingsTab(page, "Sync");
 
+    await expect(page.getByRole("heading", { name: "Sync Control Center" })).toBeVisible();
     await expect(page.getByText("Background Price Refresh", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Scraper Requests", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Known Unavailable", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sync Automation" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check Known Unavailable" })).toBeVisible();
   });
 
   test("settings mobile layout does not overflow horizontally", async ({ page }) => {
@@ -313,8 +325,9 @@ test.describe("DustyCards smoke", () => {
     await page.goto("/settings");
 
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-    await expect(page.getByText("Automation", { exact: true })).toBeVisible();
-    await expect(page.getByText("Sync Status", { exact: true })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Preferences" })).toBeVisible();
+    await expect(page.getByText("Phone overrides", { exact: true })).toBeVisible();
+    await expect(page.getByText("Default view", { exact: true })).toBeVisible();
 
     await expectNoHorizontalOverflow(page);
   });
@@ -349,13 +362,13 @@ test.describe("DustyCards smoke", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
-    await page.getByRole("button", { name: "Open menu" }).click();
-    await expect(page.getByRole("menu", { name: "Main navigation" })).toBeVisible();
+    await page.getByRole("button", { name: "More" }).click();
+    await expect(page.locator("[data-mobile-more-sheet]")).toBeVisible();
 
-    await page.mouse.click(360, 760);
+    await page.mouse.click(20, 120);
 
-    await expect(page.getByRole("menu", { name: "Main navigation" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible();
+    await expect(page.locator("[data-mobile-more-sheet]")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "More" })).toBeVisible();
   });
 
   test("mobile collection add dialogs stay fixed in the viewport", async ({ page }) => {
@@ -375,7 +388,7 @@ test.describe("DustyCards smoke", () => {
   });
 
   test("mobile add card dialog opens as a fixed sheet", async ({ page }) => {
-    const episodeId = findEpisodeWithImageCards();
+    const episodeId = findPokemonEpisodeWithImageCards();
     if (!episodeId) {
       test.skip(true, "No cards with images are available in this local database.");
       return;
@@ -486,7 +499,7 @@ test.describe("DustyCards smoke", () => {
       const freshPage = await freshContext.newPage();
       await freshPage.goto("/settings");
 
-      await expect(freshPage.getByText("Mobile Display", { exact: true })).toBeVisible();
+      await expect(freshPage.getByText("Phone overrides", { exact: true })).toBeVisible();
       await expect
         .poll(() => freshPage.evaluate(() => document.documentElement.dataset.uiScale))
         .toBe("small");
@@ -545,7 +558,7 @@ test.describe("DustyCards smoke", () => {
   test("mobile expansion grid and 3D viewer stay compact", async ({ browser, page }) => {
     test.setTimeout(180_000);
 
-    const episodeId = findEpisodeWithImageCards();
+    const episodeId = findPokemonEpisodeWithImageCards();
     if (!episodeId) {
       test.skip(true, "No cards with images are available in this local database.");
       return;
@@ -625,8 +638,9 @@ test.describe("DustyCards smoke", () => {
         const dialogBox = await dialog.boundingBox();
         expect(dialogBox?.width ?? 0).toBeLessThanOrEqual(viewport.width + 2);
 
-        const openThreeDButton = checkPage
+        const openThreeDButton = dialog
           .locator('button[aria-label^="Open "][aria-label$=" in 3D"]')
+          .filter({ visible: true })
           .first();
         await expect(openThreeDButton).toBeVisible();
         await checkPage.waitForTimeout(500);
@@ -652,6 +666,7 @@ test.describe("DustyCards smoke", () => {
 
   test("settings exposes no-scraper mode when the test server has it enabled", async ({ page }) => {
     await page.goto("/settings");
+    await openSettingsTab(page, "Sync");
 
     const disabledNotice = page.getByText("Scraper requests are disabled by").first();
     if (!(await disabledNotice.isVisible().catch(() => false))) {

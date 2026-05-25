@@ -313,7 +313,7 @@ function SearchPageContent({
         ? "gap-x-2 gap-y-2.5"
         : "gap-x-1.5 gap-y-2"
     : "gap-2.5";
-  const compactFourColumnSingles = isMobileViewport && displaySettings.cardSize === "xsmall";
+  const compactSinglesGrid = displaySettings.cardSize === "xsmall";
   const sealedImageSizes = getSealedProductImageSizes(
     displaySettings.cardSize,
     displaySettings.widescreen,
@@ -499,7 +499,7 @@ function SearchPageContent({
                           <div className="min-w-0">
                             <p
                               className={
-                                compactFourColumnSingles
+                                compactSinglesGrid
                                   ? "line-clamp-3 text-[10px] font-bold leading-tight text-white"
                                   : "line-clamp-2 text-[11px] font-bold leading-tight text-white sm:text-[13px]"
                               }
@@ -528,7 +528,7 @@ function SearchPageContent({
 
                           <div
                             className={
-                              compactFourColumnSingles
+                              compactSinglesGrid
                                 ? "grid min-w-0 gap-1"
                                 : "flex min-w-0 flex-wrap items-center justify-between gap-x-1.5 gap-y-1"
                             }
@@ -536,7 +536,7 @@ function SearchPageContent({
                             {card.cm_en_lowest_nm != null ? (
                               <span
                                 className={
-                                  compactFourColumnSingles
+                                  compactSinglesGrid
                                     ? "block min-w-0 max-w-full whitespace-nowrap text-[clamp(9px,2.85vw,11px)] font-bold tabular-nums leading-tight text-white"
                                     : "whitespace-nowrap text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]"
                                 }
@@ -547,7 +547,7 @@ function SearchPageContent({
                               <span className="text-[10px] text-white/35 sm:text-xs">No price</span>
                             )}
 
-                            <div className={compactFourColumnSingles ? "flex justify-start gap-1" : "flex items-center gap-1"}>
+                            <div className={compactSinglesGrid ? "flex justify-start gap-1" : "flex items-center gap-1"}>
                               <CollectionAddCardButton
                                 card={{
                                   id: card.id,

@@ -7,6 +7,7 @@ import {
   HeaderStatCard,
   PageHeroHeader,
 } from "@/components/PageHeader";
+import BackNavigationLink from "@/components/BackNavigationLink";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
 import { POKEMON_GAME } from "@/lib/games";
@@ -496,14 +497,13 @@ export default async function ExpansionDetailPage({
         description={expansionHeaderDescription}
         gridClassName="xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch"
         backLinks={
-          <Link
+          <BackNavigationLink
             href="/expansions"
-            prefetch={false}
             className="hidden items-center gap-2 font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to expansions
-          </Link>
+          </BackNavigationLink>
         }
         leadingVisual={
           <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-2 text-center text-sm font-bold text-white/70 shadow-sm shadow-black/20 sm:flex lg:h-16 lg:w-16">
