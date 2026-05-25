@@ -326,10 +326,11 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
         <button
           type="button"
           data-sidebar-card
+          data-sidebar-account-toggle
           aria-expanded={accountOpen}
           aria-controls="desktop-account-panel"
           onClick={() => setAccountOpen((current) => !current)}
-          className="flex w-full items-center gap-2 rounded-2xl border border-white/10 p-2 text-left shadow-2xl shadow-black/45 backdrop-blur-xl transition-colors hover:border-white/16 hover:bg-white/[0.035]"
+          className="flex w-full items-center gap-2 rounded-2xl border border-white/10 p-2 text-left backdrop-blur-xl transition-colors hover:border-white/16"
         >
           <span
             data-sidebar-avatar
