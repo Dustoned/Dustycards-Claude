@@ -3,7 +3,7 @@
 import { useMemo, type CSSProperties } from "react";
 import BinderOverviewTile, { type BinderOverviewItem } from "@/components/BinderOverviewTile";
 import { useSettings } from "@/components/SettingsProvider";
-import { getBinderTileTrackWidth } from "@/lib/display-scale";
+import { getBinderGridTemplateColumns, getBinderTileTrackWidth } from "@/lib/display-scale";
 
 export default function BinderOverviewGrid({
   binders,
@@ -12,22 +12,28 @@ export default function BinderOverviewGrid({
   binders: BinderOverviewItem[];
   className?: string;
 }) {
-  const { displaySettings } = useSettings();
+  const { displaySettings, isMobileViewport } = useSettings();
   const binderTileTrackWidth = getBinderTileTrackWidth(
     displaySettings.cardSize,
     displaySettings.widescreen
+  );
+  const gridTemplateColumns = getBinderGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
   );
   const binderGridStyle = useMemo(
     () =>
       ({
         "--binder-tile-track": binderTileTrackWidth,
+        gridTemplateColumns,
       }) as CSSProperties,
-    [binderTileTrackWidth]
+    [binderTileTrackWidth, gridTemplateColumns]
   );
 
   return (
     <div
-      className={`grid grid-cols-2 gap-2 lg:gap-3 lg:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--binder-tile-track)),1fr))] ${className}`}
+      className={`grid gap-2 lg:gap-3 ${className}`}
       style={binderGridStyle}
     >
       {binders.map((binder) => (

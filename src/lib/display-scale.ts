@@ -19,6 +19,13 @@ const MOBILE_CARD_GRID_COLUMNS: Record<CardSize, number> = {
   large: 1,
 };
 
+const MOBILE_BINDER_GRID_COLUMNS: Record<CardSize, number> = {
+  xsmall: 3,
+  small: 3,
+  medium: 2,
+  large: 1,
+};
+
 const SUPPORT_TILE_TRACK: TrackScale = {
   small: { normal: 200, wide: 230 },
   medium: { normal: 285, wide: 340 },
@@ -115,6 +122,19 @@ export function getBinderTileTrackWidth(cardSize: CardSize, widescreen: boolean)
   return responsiveTwoColumnTrack(
     BINDER_TILE_TRACK[cardSize][displayMode(widescreen)]
   );
+}
+
+export function getBinderGridTemplateColumns(
+  cardSize: CardSize,
+  widescreen: boolean,
+  isMobileViewport: boolean
+): string {
+  if (isMobileViewport) {
+    return `repeat(${MOBILE_BINDER_GRID_COLUMNS[cardSize]}, minmax(0, 1fr))`;
+  }
+
+  const trackWidth = getBinderTileTrackWidth(cardSize, widescreen);
+  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), 1fr))`;
 }
 
 export function getSealedProductTrackWidth(cardSize: CardSize, widescreen: boolean): string {

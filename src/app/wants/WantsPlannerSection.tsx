@@ -28,7 +28,7 @@ import {
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { CARD_NUMBER_FALLBACK, cardNumberCollator } from "@/lib/card-number-sort";
-import { getBinderTileTrackWidth } from "@/lib/display-scale";
+import { getBinderGridTemplateColumns, getBinderTileTrackWidth } from "@/lib/display-scale";
 import type { TradingCardGameFilter } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { WantPlannerGroup } from "@/lib/collection-data";
@@ -867,7 +867,7 @@ export default function WantsPlannerSection({
   searchValue: string;
 }) {
   const router = useRouter();
-  const { displaySettings } = useSettings();
+  const { displaySettings, isMobileViewport } = useSettings();
   const [expandedBinderId, setExpandedBinderId] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [openingCardId, setOpeningCardId] = useState<string | null>(null);
@@ -886,6 +886,11 @@ export default function WantsPlannerSection({
     "--wants-binder-track":
       getBinderTileTrackWidth(displaySettings.cardSize, displaySettings.widescreen) ||
       tileTrackWidth,
+    gridTemplateColumns: getBinderGridTemplateColumns(
+      displaySettings.cardSize,
+      displaySettings.widescreen,
+      isMobileViewport
+    ),
   } as CSSProperties;
   const searchActive = searchValue.trim().length > 0;
   const expandedGroup = groups.find((group) => group.binderId === expandedBinderId) ?? null;
@@ -953,7 +958,7 @@ export default function WantsPlannerSection({
       ) : null}
 
       <div
-        className="mt-4 grid grid-cols-2 items-start gap-2 sm:gap-3 sm:[grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--wants-binder-track)),1fr))]"
+        className="mt-4 grid items-start gap-2 sm:gap-3"
         style={binderGridStyle}
       >
         {groups.map((group) => (
