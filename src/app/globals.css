@@ -686,18 +686,12 @@ body {
 }
 
 [data-sidebar-account-toggle] {
-  background:
-    linear-gradient(135deg, rgb(var(--dc-surface-elevated-rgb) / 0.74), rgb(var(--dc-primary-rgb) / 0.1)),
-    rgb(var(--dc-bg-main-rgb) / 0.28);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 8px 22px rgb(0 0 0 / 0.18);
+  background: transparent;
+  box-shadow: none;
 }
 
 [data-sidebar-account-toggle]:hover {
-  background:
-    linear-gradient(135deg, rgb(var(--dc-surface-hover-rgb) / 0.82), rgb(var(--dc-primary-rgb) / 0.13)),
-    rgb(var(--dc-bg-main-rgb) / 0.24);
+  background: rgb(var(--dc-surface-hover-rgb) / 0.18);
 }
 
 [data-sidebar-avatar] {
