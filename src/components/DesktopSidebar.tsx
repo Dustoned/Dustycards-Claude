@@ -197,7 +197,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 hidden h-dvh w-[16rem] border-r border-white/8 bg-[#08080c] xl:block">
-      <div className="flex h-[calc(100dvh-5.25rem)] min-h-0 flex-col overflow-y-auto overscroll-contain px-3 py-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent">
+      <div className="flex h-dvh min-h-0 flex-col overflow-y-auto overscroll-contain px-3 pt-4 pr-2.5 pb-28 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent">
         <Link href="/" prefetch={false} className="mb-5 flex shrink-0 items-center gap-2.5 px-1">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500 text-base font-black text-white shadow-[0_0_22px_rgba(124,92,255,0.34)]">
             D
