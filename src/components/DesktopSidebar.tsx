@@ -257,7 +257,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
 
       <div
         data-sidebar-account-dock
-        className="pointer-events-auto fixed bottom-3 left-3 z-[70] w-[14.5rem]"
+        className="pointer-events-auto fixed bottom-3 left-[calc(16rem+0.75rem)] z-[70] w-[14.5rem]"
       >
         {accountOpen ? (
           <div
