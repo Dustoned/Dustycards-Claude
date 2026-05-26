@@ -810,6 +810,24 @@ export function resolveMoverRarityWeight(
   return pullRateWeight ?? getRarityWeight(rarity);
 }
 
+export function resolveRawMoverRarityWeight(
+  rarity: string | null,
+  pullRateWeight: number | null | undefined
+): number {
+  const weight = resolveMoverRarityWeight(rarity, pullRateWeight);
+  const normalized = normalizeRarityLabel(rarity);
+
+  if (normalized === "Common") {
+    return Math.min(weight, 0.9);
+  }
+
+  if (normalized === "Uncommon") {
+    return Math.min(weight, 1);
+  }
+
+  return weight;
+}
+
 function getCheapnessWeight(currentPrice: number): number {
   // Bulk cards under 1 EUR/USD are usually too noisy to deserve the strongest cheapness boost.
   if (currentPrice <= 0.25) return 0.82;
@@ -2363,7 +2381,7 @@ export async function getMovers(
         ? pullRateBySetAndRarity.get(`${card.episode.code.toUpperCase()}::${normalizedRarity}`) ??
           null
         : null;
-    const rarityWeight = resolveMoverRarityWeight(card.rarity, pullRateInfo?.pullRateWeight);
+    const rarityWeight = resolveRawMoverRarityWeight(card.rarity, pullRateInfo?.pullRateWeight);
     const cheapnessWeight = getCheapnessWeight(currentPrice);
     const releaseAgeYears = getReleaseAgeYears(card.episode.release_date);
     const ageWeight = getAgeWeight(releaseAgeYears);

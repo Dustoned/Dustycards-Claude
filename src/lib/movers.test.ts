@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { getMovers, resolveMoverRarityWeight } from "@/lib/movers";
+import { getMovers, resolveMoverRarityWeight, resolveRawMoverRarityWeight } from "@/lib/movers";
 import { POKEMON_GAME } from "@/lib/games";
 
 describe("mover pull-rate weighting", () => {
@@ -12,6 +12,12 @@ describe("mover pull-rate weighting", () => {
     expect(resolveMoverRarityWeight("Hyper Rare", null)).toBeGreaterThan(
       resolveMoverRarityWeight("Common", null)
     );
+  });
+
+  it("caps bulk rarity pull-rate boosts for raw movers", () => {
+    expect(resolveRawMoverRarityWeight("Common", 1.82)).toBe(0.9);
+    expect(resolveRawMoverRarityWeight("Uncommon", 1.82)).toBe(1);
+    expect(resolveRawMoverRarityWeight("Rare", 1.82)).toBe(1.82);
   });
 });
 
