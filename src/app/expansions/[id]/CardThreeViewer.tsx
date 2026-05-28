@@ -356,7 +356,7 @@ function createFoilOverlayMaterial(
         float artMin = min(min(artColor.r, artColor.g), artColor.b);
         float artSaturation = artMax - artMin;
         float artDetail = clamp(
-          (length(artColor - artSampleX) + length(artColor - artSampleY) + length(artColor - artSampleDiag)) * 1.28,
+          (length(artColor - artSampleX) + length(artColor - artSampleY) + length(artColor - artSampleDiag)) * 1.62,
           0.0,
           1.0
         );
@@ -396,8 +396,8 @@ function createFoilOverlayMaterial(
           smoothstep(0.02, 0.22, 1.0 - artSaturation) *
           smoothstep(0.12, 0.74, 1.0 - artLuma);
         float readabilityMask = mix(
-          mix(1.0, 0.74, smoothstep(0.24, 0.92, detailPresence)),
-          0.42,
+          mix(1.0, 0.82, smoothstep(0.24, 0.92, detailPresence)),
+          0.46,
           textInkMask
         );
         float localFoilFocus = clamp(
@@ -406,7 +406,7 @@ function createFoilOverlayMaterial(
           1.0
         );
         float foilMask = clamp(
-          0.08 + artSaturation * 0.39 + artDetail * 0.6 + gradientStrength * 0.34 + (1.0 - artLuma) * 0.04,
+          0.08 + artSaturation * 0.38 + artDetail * 0.58 + gradientStrength * 0.32 + (1.0 - artLuma) * 0.04,
           0.0,
           1.0
         ) * readabilityMask;
@@ -447,6 +447,19 @@ function createFoilOverlayMaterial(
           clamp(dot(reflectDir, normalize(vec3(0.16, 0.14, 1.0))), 0.0, 1.0),
           8.0
         );
+        float specularBand = clamp(
+          artSweep * 0.6 +
+            artSpecular * 1.0 +
+            microSpecular * 0.7 +
+            microBand * 0.35 +
+            tiltSweep * 0.32 +
+            secondarySweep * 0.2 +
+            grazingHighlight * 0.35 +
+            cursorSoft * 0.2,
+          0.0,
+          1.0
+        );
+        float activeFoil = foilMask * clamp(0.56 + specularBand * 0.74 + localFoilFocus * 0.12, 0.0, 1.0);
 
         vec3 silverColor = mix(
           vec3(0.72, 0.76, 0.82),
@@ -462,22 +475,27 @@ function createFoilOverlayMaterial(
             1.0
           )
         );
+        vec3 cardFoilColor = mix(
+          silverColor,
+          clamp(artColor * 1.15 + vec3(0.08), 0.0, 1.0),
+          0.18
+        );
         vec3 baseFoil =
-          silverColor *
+          cardFoilColor *
           clamp(
-            0.1 +
+            0.09 +
               fresnel * 0.13 +
-              tiltSweep * 0.08 +
-              secondarySweep * 0.055 +
-              artSweep * 0.34 +
-              artSpecular * 0.5 +
-              microSpecular * 0.3 +
-              microBand * 0.12 +
-              cursorSoft * 0.1,
+              tiltSweep * 0.1 +
+              secondarySweep * 0.07 +
+              artSweep * 0.46 +
+              artSpecular * 0.62 +
+              microSpecular * 0.42 +
+              microBand * 0.18 +
+              cursorSoft * 0.12,
             0.0,
             1.0
           ) *
-          foilMask *
+          activeFoil *
           localFoilBoost *
           uFoilStrength;
         vec3 color = screenBlend(vec3(0.02), baseFoil);
@@ -485,28 +503,28 @@ function createFoilOverlayMaterial(
           color,
           vec3(1.0, 0.98, 0.94) *
             cursorHighlight *
-            foilMask *
-            0.08 *
+            activeFoil *
+            0.1 *
             uFoilStrength
         );
         color = screenBlend(
           color,
-          vec3(1.0) * microSpecular * foilMask * 0.1 * uFoilStrength
+          vec3(1.0) * microSpecular * activeFoil * 0.12 * uFoilStrength
         );
         float alpha = clamp(
-          foilMask *
-            (0.026 +
-              fresnel * 0.06 +
-              artSweep * 0.12 +
-              artSpecular * 0.17 +
-              microSpecular * 0.11 +
-              microBand * 0.09 +
-              cursorHighlight * 0.055 +
-              grazingHighlight * 0.15) *
+          activeFoil *
+            (0.038 +
+              fresnel * 0.065 +
+              artSweep * 0.15 +
+              artSpecular * 0.22 +
+              microSpecular * 0.13 +
+              microBand * 0.12 +
+              cursorHighlight * 0.07 +
+              grazingHighlight * 0.16) *
             mix(1.0, 1.18, localFoilFocus * microBand) *
-            uFoilStrength,
+          uFoilStrength,
           0.0,
-          0.54
+          0.64
         );
 
         if (uRainbowStrength > 0.0) {
@@ -529,17 +547,31 @@ function createFoilOverlayMaterial(
                 reflectDir.y * 0.68
             )
           );
+          float rainbowActive = foilMask * clamp(
+            0.28 +
+              specularBand * 0.45 +
+              rainbowSweep * 0.65 +
+              prismBand * 0.42 +
+              localFoilFocus * 0.14,
+            0.0,
+            1.0
+          );
           float prismMask = clamp(
-            foilMask *
+            rainbowActive *
               (
-                0.13 +
-                artSaturation * 0.45 +
-                artDetail * 0.43 +
+                0.12 +
+                artSaturation * 0.42 +
+                artDetail * 0.42 +
                 gradientStrength * 0.26 +
                 artSpecular * 0.3 +
-                localFoilFocus * 0.18
+                localFoilFocus * 0.2
               ) *
-              (rainbowSweep * 0.84 + prismBand * 0.38 + microBand * 0.28 + cursorSoft * 0.13),
+              (
+                rainbowSweep * 0.9 +
+                prismBand * 0.44 +
+                microBand * 0.28 +
+                cursorSoft * 0.13
+              ),
             0.0,
             1.0
           ) * uRainbowStrength;
@@ -556,12 +588,12 @@ function createFoilOverlayMaterial(
             )
           );
           vec3 rainbowBlend = rainbow * prismMask;
-          color = screenBlend(color, rainbowBlend * 1.18);
-          color = mix(color, colorDodgeBlend(color, rainbowBlend * 1.06), 0.52);
-          alpha += prismMask * 0.35;
+          color = screenBlend(color, rainbowBlend * 1.14);
+          color = mix(color, colorDodgeBlend(color, rainbowBlend * 0.76), 0.3);
+          alpha += prismMask * 0.38;
         }
 
-        gl_FragColor = vec4(color, clamp(alpha * cardAlpha, 0.0, 0.68));
+        gl_FragColor = vec4(color, clamp(alpha * cardAlpha, 0.0, 0.72));
       }
     `,
   });

@@ -161,6 +161,8 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const { settings } = useSettings();
   const [moreOpen, setMoreOpen] = useState(false);
   const [activeMoreSection, setActiveMoreSection] = useState("Browse");
+  const [accountPopupOpen, setAccountPopupOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const moreSections = getMoreMenuSections(settings.onePieceLibraryEnabled);
   const primaryActive = PRIMARY_NAV_ITEMS.some((item) =>
@@ -174,6 +176,19 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
     )?.label ?? "Browse";
   const visibleMoreSection =
     moreSections.find((section) => section.label === activeMoreSection) ?? moreSections[0];
+  const accountInitial = summary?.email.slice(0, 1).toUpperCase() ?? "D";
+  const accountName = summary ? getDisplayName(summary.email) : "Account";
+
+  function closeMoreMenu() {
+    setMoreOpen(false);
+    setAccountPopupOpen(false);
+    setLogoutConfirmOpen(false);
+  }
+
+  function openAccountPopup() {
+    setAccountPopupOpen(true);
+    setLogoutConfirmOpen(false);
+  }
 
   async function logout() {
     if (loggingOut) return;
@@ -185,6 +200,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
       router.refresh();
     } finally {
       setLoggingOut(false);
+      setLogoutConfirmOpen(false);
     }
   }
 
@@ -193,14 +209,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
       {moreOpen && (
         <div
           data-mobile-more-backdrop
-          className="fixed inset-0 z-[70] touch-none bg-black/64 backdrop-blur-sm md:hidden"
-          onClick={() => {
-            setMoreOpen(false);
-          }}
+          className="fixed inset-0 z-[70] flex touch-none items-center justify-center bg-black/64 px-3 py-4 backdrop-blur-sm md:hidden"
+          onClick={closeMoreMenu}
         >
           <div
             data-mobile-more-sheet
-            className="absolute inset-x-2 bottom-[calc(4.15rem+env(safe-area-inset-bottom))] max-h-[min(58dvh,30rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-[22px] border border-violet-300/18 bg-[#070708]/98 p-2 shadow-[0_28px_90px_rgba(124,92,255,0.20),0_28px_90px_rgba(0,0,0,0.68)] [scrollbar-width:none] backdrop-blur-xl [&::-webkit-scrollbar]:hidden"
+            className="w-full max-w-md max-h-[min(76dvh,34rem)] touch-pan-y overflow-y-auto overscroll-contain rounded-[22px] border border-violet-300/18 bg-[#070708]/98 p-2 shadow-[0_28px_90px_rgba(124,92,255,0.20),0_28px_90px_rgba(0,0,0,0.68)] [scrollbar-width:none] backdrop-blur-xl [&::-webkit-scrollbar]:hidden"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-1.5 flex items-center justify-between gap-3 px-1">
@@ -210,64 +224,13 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setMoreOpen(false);
-                }}
+                onClick={closeMoreMenu}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-violet-300/18 bg-violet-500/[0.09] text-violet-50"
                 aria-label="Close navigation menu"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
-
-            {summary ? (
-              <div data-mobile-nav-card className="mb-2 rounded-[16px] border border-white/10 bg-gradient-to-b from-white/[0.05] to-white/[0.02] p-1.5 shadow-[0_16px_36px_rgba(0,0,0,0.18)]">
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-                  <Link
-                    href="/account"
-                    prefetch={false}
-                    onClick={() => setMoreOpen(false)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-violet-300/18 bg-violet-500/18 text-[11px] font-black text-violet-100 shadow-[0_0_18px_rgba(124,92,255,0.18)]"
-                    aria-label="Open account"
-                  >
-                    {summary.email.slice(0, 1).toUpperCase()}
-                  </Link>
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <Link
-                        href="/account"
-                        prefetch={false}
-                        onClick={() => setMoreOpen(false)}
-                        className="truncate text-[12px] font-black leading-tight text-white"
-                      >
-                        {getDisplayName(summary.email)}
-                      </Link>
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/18 bg-amber-400/[0.075] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-amber-200">
-                        <ShieldCheck className="h-2.5 w-2.5" />
-                        {summary.role === "admin" ? "Admin" : "Collector"}
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex min-w-0 items-center gap-1 text-[8.5px] font-semibold text-white/38">
-                      <Mail className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{summary.email}</span>
-                    </div>
-                    <p className="mt-0.5 truncate text-[8.5px] font-bold text-white/38">
-                      {formatCount(summary.cards)} cards / {formatCount(summary.forSaleCards)} for sale / {formatCount(summary.wants)} wants / {formatCount(summary.binders)} binders / {formatCount(summary.sealedUnits)} sealed
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={logout}
-                    disabled={loggingOut}
-                    className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-rose-300/18 bg-rose-500/[0.075] px-2 text-[9px] font-black text-rose-100 disabled:cursor-wait disabled:opacity-60"
-                    aria-label="Log out"
-                  >
-                    <LogOut className="h-3 w-3" />
-                    {loggingOut ? "..." : "Log out"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
 
             <div data-mobile-nav-card className="mb-1.5 grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-white/[0.035] p-1">
               {moreSections.map((section) => {
@@ -289,6 +252,49 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               })}
             </div>
 
+            {summary && visibleMoreSection?.label === "Account" ? (
+              <div data-mobile-account-card className="mb-1.5 rounded-[18px] border border-white/10 bg-[linear-gradient(145deg,rgba(124,92,255,0.13),rgba(255,255,255,0.035))] p-2 shadow-[0_16px_36px_rgba(0,0,0,0.20)]">
+                <button
+                  type="button"
+                  onClick={openAccountPopup}
+                  className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-2xl border border-white/8 bg-black/16 p-2 text-left transition-colors hover:border-violet-300/18 hover:bg-violet-500/[0.08]"
+                  aria-label="Open account details"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-violet-300/22 bg-violet-500/20 text-sm font-black text-violet-50 shadow-[0_0_22px_rgba(124,92,255,0.20)]">
+                    {accountInitial}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-[12px] font-black leading-tight text-white">{accountName}</span>
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/18 bg-amber-400/[0.075] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-amber-200">
+                        <ShieldCheck className="h-2.5 w-2.5" />
+                        {summary.role === "admin" ? "Admin" : "Collector"}
+                      </span>
+                    </span>
+                    <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[9px] font-semibold text-white/44">
+                      <Mail className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{summary.email}</span>
+                    </span>
+                  </span>
+                  <span className="rounded-full border border-violet-300/18 bg-violet-500/[0.10] px-2 py-1 text-[9px] font-black text-violet-100">
+                    Open
+                  </span>
+                </button>
+                <div className="mt-1.5 grid grid-cols-3 gap-1">
+                  {[
+                    ["Cards", summary.cards],
+                    ["Wants", summary.wants],
+                    ["For sale", summary.forSaleCards],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl border border-white/7 bg-white/[0.035] px-2 py-1.5">
+                      <p className="text-[12px] font-black leading-none text-white">{formatCount(Number(value))}</p>
+                      <p className="mt-1 truncate text-[8px] font-bold uppercase tracking-[0.08em] text-white/38">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div data-mobile-nav-card className="grid grid-cols-2 gap-1.5 rounded-[18px] border border-white/8 bg-white/[0.025] p-1.5">
               {visibleMoreSection?.items.map((item) => {
                 const active = isNavItemActive(pathname, collectionTab, item.matches);
@@ -299,7 +305,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     key={`${visibleMoreSection.label}:${item.href}:${item.label}`}
                     href={item.href}
                     prefetch={false}
-                    onClick={() => setMoreOpen(false)}
+                    onClick={closeMoreMenu}
                     aria-current={active ? "page" : undefined}
                     title={item.label}
                     className={`flex min-h-9 min-w-0 items-center gap-2 rounded-xl border px-2 text-[10.5px] font-black leading-tight transition-colors ${
@@ -322,6 +328,133 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
           </div>
         </div>
       )}
+
+      {moreOpen && accountPopupOpen && summary ? (
+        <div
+          data-mobile-account-popup
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/72 px-4 backdrop-blur-md md:hidden"
+          onClick={() => {
+            setAccountPopupOpen(false);
+            setLogoutConfirmOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-[24px] border border-violet-300/18 bg-[#08090d]/98 p-3 shadow-[0_28px_90px_rgba(124,92,255,0.22),0_28px_90px_rgba(0,0,0,0.72)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-200/58">Account</p>
+                <p className="truncate text-sm font-black text-white">{accountName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountPopupOpen(false);
+                  setLogoutConfirmOpen(false);
+                }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-violet-300/18 bg-violet-500/[0.09] text-violet-50"
+                aria-label="Close account details"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="rounded-[20px] border border-white/10 bg-[linear-gradient(145deg,rgba(124,92,255,0.16),rgba(255,255,255,0.035))] p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] border border-violet-300/24 bg-violet-500/22 text-xl font-black text-violet-50 shadow-[0_0_28px_rgba(124,92,255,0.22)]">
+                  {accountInitial}
+                </div>
+                <div className="min-w-0">
+                  <div className="mb-1 flex min-w-0 items-center gap-1.5">
+                    <p className="truncate text-base font-black leading-tight text-white">{accountName}</p>
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/18 bg-amber-400/[0.08] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-amber-200">
+                      <ShieldCheck className="h-2.5 w-2.5" />
+                      {summary.role === "admin" ? "Admin" : "Collector"}
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-white/48">
+                    <Mail className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{summary.email}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-1.5">
+                {[
+                  ["Cards", summary.cards],
+                  ["Wants", summary.wants],
+                  ["Binders", summary.binders],
+                  ["Sealed", summary.sealedUnits],
+                  ["Selling", summary.forSaleCards],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-white/8 bg-black/18 px-2 py-2">
+                    <p className="text-sm font-black leading-none text-white">{formatCount(Number(value))}</p>
+                    <p className="mt-1 truncate text-[8px] font-bold uppercase tracking-[0.08em] text-white/40">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Link
+                href="/account"
+                prefetch={false}
+                onClick={closeMoreMenu}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-violet-300/20 bg-violet-500/[0.15] px-3 text-[12px] font-black text-violet-50"
+              >
+                <UserRound className="h-4 w-4" />
+                Account
+              </Link>
+              <Link
+                href="/settings"
+                prefetch={false}
+                onClick={closeMoreMenu}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.045] px-3 text-[12px] font-black text-white/74"
+              >
+                <SettingsIcon className="h-4 w-4" />
+                Settings
+              </Link>
+            </div>
+
+            <div className="mt-2 rounded-2xl border border-rose-300/12 bg-rose-500/[0.045] p-2">
+              {logoutConfirmOpen ? (
+                <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+                  <p className="min-w-0 text-[10px] font-bold leading-snug text-rose-100/72">
+                    Zeker weten dat je wilt uitloggen?
+                  </p>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setLogoutConfirmOpen(false)}
+                      className="h-8 rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[10px] font-black text-white/72"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={logout}
+                      disabled={loggingOut}
+                      className="h-8 rounded-xl border border-rose-300/20 bg-rose-500/[0.16] px-2 text-[10px] font-black text-rose-100 disabled:cursor-wait disabled:opacity-60"
+                    >
+                      {loggingOut ? "..." : "Log out"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setLogoutConfirmOpen(true)}
+                  className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl text-[11px] font-black text-rose-100"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <nav
         data-mobile-bottom-nav
@@ -358,6 +491,8 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
             type="button"
             onClick={() => {
               setActiveMoreSection(defaultMoreSection);
+              setAccountPopupOpen(false);
+              setLogoutConfirmOpen(false);
               setMoreOpen(true);
             }}
             aria-expanded={moreOpen}

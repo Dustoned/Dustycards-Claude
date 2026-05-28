@@ -476,11 +476,64 @@ export function CardModalBuySignalPanel({
   if (!signal) return null;
 
   const markerPercent = Math.min(Math.max(signal.marker_percent ?? signal.score, 2), 98);
-  const evidence = signal.evidence.slice(0, compact ? 4 : 6);
+  const evidence = signal.evidence.slice(0, 6);
   const warnings = signal.warnings.slice(0, 2);
+
+  if (compact) {
+    return (
+      <section
+        data-buy-signal-panel
+        className="min-w-0 rounded-2xl border border-white/10 bg-[#08080a] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.05)]"
+      >
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 text-[11px] font-black uppercase tracking-[0.12em] text-white/46">
+              Buy Signal
+            </span>
+            <span title="Based on saved market data, price history, and eBay sold graded samples">
+              <Info
+                className="h-3.5 w-3.5 shrink-0 text-white/30"
+                aria-hidden="true"
+              />
+            </span>
+            <span className="min-w-0 truncate text-[12px] font-black text-white">
+              {signal.label_text}
+            </span>
+          </div>
+          <span
+            className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase leading-none ${getBuySignalConfidenceClass(
+              signal.confidence
+            )}`}
+            title={`${signal.confidence.toUpperCase()} confidence`}
+          >
+            {signal.confidence}
+          </span>
+        </div>
+
+        <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+          <span className="text-[9px] font-black uppercase tracking-[0.08em] text-rose-200/52">
+            Sell
+          </span>
+          <div className="relative h-2 overflow-visible rounded-full bg-[linear-gradient(90deg,#EF4444_0%,#EF4444_18%,#1D2130_38%,#252A38_50%,#1D2130_62%,#22C55E_82%,#7C5CFF_100%)] shadow-[0_0_18px_rgba(124,92,255,0.12)]">
+            <span className="pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0))]" />
+            <span
+              className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${getBuySignalMarkerClass(
+                signal.label
+              )}`}
+              style={{ left: `${markerPercent}%` }}
+            />
+          </div>
+          <span className="text-[9px] font-black uppercase tracking-[0.08em] text-emerald-200/58">
+            Buy
+          </span>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
+      data-buy-signal-panel
       className={`min-w-0 rounded-[20px] border border-white/10 bg-[#08080a] shadow-[inset_0_1px_0_rgba(179,155,255,0.05)] ${
         compact ? "p-3.5" : "p-4"
       }`}
@@ -2372,11 +2425,11 @@ export function CardModalHistorySection({
     ...ebaySoldGradedPriceHistory.flatMap((series) => series.points),
   ];
   const historyPillClass =
-    "inline-flex h-8 items-center justify-center rounded-full border px-3 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-1.5 max-[640px]:text-[10px]";
+    "inline-flex h-8 shrink-0 items-center justify-center rounded-full border px-2.5 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySourceToggleClass =
     "grid h-8 w-[13rem] min-w-[10.5rem] max-w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:w-[10.5rem]";
   const historyModeToggleClass =
-    "grid h-9 w-[10.5rem] min-w-[9rem] max-w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/24 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-8 max-[640px]:w-[9.5rem]";
+    "grid h-8 w-[8.75rem] min-w-[8.75rem] max-w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/24 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:w-[8.25rem]";
   const historyModeToggleButtonClass =
     "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-bold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySourceToggleButtonClass =
@@ -2409,7 +2462,7 @@ export function CardModalHistorySection({
   ) : null;
   const cardMarketSeriesPickerControl =
     effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker ? (
-      <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 flex-wrap items-center gap-1">
+      <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 max-w-full flex-nowrap items-center gap-1">
         {availableCardMarketHistorySeries.map((series) => (
           <button
             key={series.key}
@@ -2472,19 +2525,27 @@ export function CardModalHistorySection({
       ))}
     </div>
   ) : null;
-  const historyHeaderLeadingAccessory =
-    historyModeSwitchControl || cardMarketSeriesPickerControl || gradedSourceSwitchControl ? (
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+  const historyHeaderPrimaryControls =
+    historyModeSwitchControl || (effectiveHistoryChartMode === "graded" ? gradedSourceSwitchControl : null) ? (
+      <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-1.5">
         {historyModeSwitchControl}
-        {cardMarketSeriesPickerControl}
         {effectiveHistoryChartMode === "graded" ? gradedSourceSwitchControl : null}
+      </div>
+    ) : null;
+  const historyHeaderLeadingAccessory =
+    historyHeaderPrimaryControls || cardMarketSeriesPickerControl ? (
+      <div className="flex min-w-0 max-w-full flex-nowrap items-center gap-1.5">
+        {historyHeaderPrimaryControls}
+        {cardMarketSeriesPickerControl}
       </div>
     ) : null;
   const rawHeaderAccessory =
     rawSourceSwitchControl ?? (
-      <span className={chartHeaderChipClass}>
-        {activeMarketSource === "cardmarket" ? activeCardMarketSeriesLabel : "Market"}
-      </span>
+      showCardMarketSeriesPicker ? null : (
+        <span className={chartHeaderChipClass}>
+          {activeMarketSource === "cardmarket" ? activeCardMarketSeriesLabel : "Market"}
+        </span>
+      )
     );
   const gradedSlabSelectControl = (
     <GradedSlabSelectControl
@@ -2501,9 +2562,11 @@ export function CardModalHistorySection({
     />
   );
   const gradedHeaderLeadingAccessory = (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-      {historyModeSwitchControl}
-      {gradedSourceSwitchControl}
+    <div className="grid min-w-0 max-w-full gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        {historyModeSwitchControl}
+        {gradedSourceSwitchControl}
+      </div>
       {gradedSlabSelectControl}
     </div>
   );

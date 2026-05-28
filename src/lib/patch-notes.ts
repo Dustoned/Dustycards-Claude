@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.2.29",
+    releasedAt: "May 28, 2026",
+    title: "Card detail interface polish",
+    summary: "DustyCards 3.2.29 restores the calmer 3D holo feel and tightens the card detail, navigation, and mobile account experience.",
+    tone: "improved",
+    highlights: [
+      "3D cards now have a softer art-aware holo effect that follows the card image without washing out the artwork.",
+      "Card detail price controls keep raw/graded and language switches aligned at tighter widths, with Market moved lower in the sidebar.",
+      "Mobile More now opens as a centered menu, moves account details into a cleaner popup, and requires confirmation before logging out.",
+      "Buy Signal on card detail is now a compact status bar instead of a stack of extra text bubbles.",
+    ],
+  },
+  {
     version: "3.2.28",
     releasedAt: "May 24, 2026",
     title: "ThePriceDex EV imports",

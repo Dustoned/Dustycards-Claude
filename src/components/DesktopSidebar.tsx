@@ -50,22 +50,7 @@ const NAV_SECTIONS = [
       { href: "/?tab=binders", label: "Binders", icon: Boxes, badge: null, key: "binders" },
       { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "sealed" },
       { href: "/?tab=graded", label: "Graded", icon: LibraryBig, badge: null, key: "graded" },
-    ],
-  },
-  {
-    label: "Wants",
-    items: [
       { href: "/wants", label: "Wants", icon: Heart, badge: "wants", key: "wants" },
-    ],
-  },
-  {
-    label: "Market",
-    items: [
-      { href: "/movers", label: "Raw", icon: BarChart3, badge: null, key: "market-raw", marketMode: "raw" },
-      { href: "/movers?scope=graded", label: "Graded", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
-      { href: "/movers?scope=grading", label: "Targets", icon: Sparkles, badge: null, key: "market-targets", marketMode: "targets" },
-      { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
-      { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
     ],
   },
   {
@@ -82,6 +67,16 @@ const NAV_SECTIONS = [
       { href: "/categories", label: "Categories", icon: Sparkles, badge: null, key: "categories" },
       { href: "/illustrators", label: "Illustrators", icon: Brush, badge: null, key: "illustrators" },
       { href: "/submit-card", label: "Submit Card", icon: Search, badge: null, key: "submit-card" },
+    ],
+  },
+  {
+    label: "Market",
+    items: [
+      { href: "/movers", label: "Raw", icon: BarChart3, badge: null, key: "market-raw", marketMode: "raw" },
+      { href: "/movers?scope=graded", label: "Graded", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
+      { href: "/movers?scope=grading", label: "Targets", icon: Sparkles, badge: null, key: "market-targets", marketMode: "targets" },
+      { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
+      { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
     ],
   },
 ] as const;

@@ -655,7 +655,7 @@ export default function PriceHistoryPanel({
   const reserveDateSlot = visibleCoordinates.length > 0;
   const stableHeroHeaderClass =
     scopedTimeDomain && isHeroLayout
-      ? "h-[5.85rem] overflow-hidden max-[640px]:h-[4.95rem]"
+      ? "min-h-[5.85rem] overflow-visible max-[640px]:min-h-[4.95rem]"
       : "";
 
   const shellClass = isMobileHeroLayout
