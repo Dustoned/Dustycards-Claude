@@ -1,9 +1,26 @@
 param(
-  [string]$HostName = "root@93.190.187.221",
+  [string]$HostName = "",
   [string]$RemoteAppPath = "/opt/dustycards/app"
 )
 
 $ErrorActionPreference = "Stop"
+
+# Resolve the deploy target: -HostName param, DUSTYCARDS_DEPLOY_HOST env var, or .env entry.
+if (-not $HostName) {
+  $HostName = $env:DUSTYCARDS_DEPLOY_HOST
+}
+if (-not $HostName) {
+  $envFile = Join-Path $PSScriptRoot "..\.env"
+  if (Test-Path -LiteralPath $envFile) {
+    $match = Select-String -LiteralPath $envFile -Pattern '^\s*DUSTYCARDS_DEPLOY_HOST\s*=\s*"?([^"\r\n]+)"?' | Select-Object -First 1
+    if ($match) {
+      $HostName = $match.Matches[0].Groups[1].Value.Trim()
+    }
+  }
+}
+if (-not $HostName) {
+  throw "No deploy host configured. Pass -HostName user@host or set DUSTYCARDS_DEPLOY_HOST in .env."
+}
 
 $archive = Join-Path $env:TEMP "dustycards-deploy.tar.gz"
 if (Test-Path -LiteralPath $archive) {
@@ -16,15 +33,22 @@ if (Test-Path -LiteralPath $remoteScriptFile) {
 
 tar -czf $archive `
   --exclude=".git" `
+  --exclude=".codex-screenshots" `
+  --exclude=".firecrawl" `
   --exclude="node_modules" `
   --exclude=".next" `
+  --exclude="data/image-cache" `
   --exclude="test-results" `
   --exclude="playwright-report" `
+  --exclude="screenshots-ui" `
   --exclude=".env*" `
   --exclude="*.log" `
+  --exclude="*.png" `
   --exclude="*.db" `
   --exclude="*.sqlite" `
   --exclude="*.sqlite3" `
+  --exclude="*.tsbuildinfo" `
+  --exclude="next-env.d.ts" `
   -C . .
 
 scp -o BatchMode=yes -o StrictHostKeyChecking=no $archive "${HostName}:/tmp/dustycards-deploy.tar.gz"
@@ -62,6 +86,46 @@ prune_predeploy_backups() {
 }
 
 prune_predeploy_backups 8
+
+cleanup_remote_junk() {
+  [ -d "$RemoteAppPath" ] || return 0
+
+  case "$RemoteAppPath" in
+    /opt/dustycards/*) ;;
+    *) echo "Refusing cleanup outside /opt/dustycards: $RemoteAppPath" >&2; exit 1 ;;
+  esac
+
+  for path in \
+    .codex-screenshots \
+    .firecrawl \
+    screenshots-ui \
+    test-results \
+    playwright-report \
+    data/image-cache
+  do
+    target="$RemoteAppPath/$path"
+    if [ -e "$target" ]; then
+      rm -rf -- "$target"
+    fi
+  done
+
+  find "$RemoteAppPath" -maxdepth 1 -type f \
+    \( -name 'devserver*.log' \
+      -o -name 'devserver*.out.log' \
+      -o -name 'devserver*.err.log' \
+      -o -name '.next-dev*' \
+      -o -name '*.png' \
+      -o -name 'tsconfig.tsbuildinfo' \
+      -o -name 'next-env.d.ts' \) \
+    -delete
+
+  if [ -d "$RemoteAppPath/.next/cache" ]; then
+    rm -rf -- "$RemoteAppPath/.next/cache"
+  fi
+}
+
+cleanup_remote_junk
+
 if [ -f "$RemoteAppPath/dustycards.db" ]; then
   backup_file="/opt/dustycards/backups/dustycards-predeploy-$(date -u +%Y%m%d-%H%M%S).db"
   rm -f "$backup_file.tmp"
@@ -112,6 +176,7 @@ fi
 npm install
 npx prisma migrate deploy
 npm run build
+cleanup_remote_junk
 systemctl restart dustycards
 systemctl is-active dustycards
 
@@ -160,3 +225,4 @@ scp -o BatchMode=yes -o StrictHostKeyChecking=no $remoteScriptFile "${HostName}:
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no $HostName "bash /tmp/dustycards-deploy.sh"
 
 Remove-Item -LiteralPath $remoteScriptFile -Force
+Remove-Item -LiteralPath $archive -Force

@@ -1,45 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DustyCards
 
-## Getting Started
+Self-hosted trading card collection tracker for Pokémon and One Piece. Tracks your
+collection, binders, sealed products and want lists, with market prices, price history,
+movers, eBay deals and a 3D card viewer.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router) + React 19 + Tailwind 4
+- Prisma 7 with the better-sqlite3 adapter (single SQLite database)
+- Background sync engine (scheduler + jobs) for catalog, prices, card history and eBay sold data
+- Session-cookie auth with `user`/`admin` roles; mail via nodemailer
+- three.js for the 3D card viewer; Firecrawl for card submissions
+
+## Getting started
 
 ```bash
+npm install
+cp .env.example .env   # fill in secrets
+npm run auth:bootstrap # create the initial admin account
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-## Database Files
+## Database files
 
 - `data/dustycards.app.db` is the tracked app snapshot that ships with the repo.
-- `dustycards.db` is the local live database created automatically from that snapshot if it is missing.
-- Collection data stays in the live database, so if you want to move your personal collection to another machine you can still copy `dustycards.db`.
-- To refresh the tracked app snapshot from your current live database, run:
+- `dustycards.db` is the local live database, created automatically from that snapshot if missing.
+- Collection data lives in the live database; copy `dustycards.db` to move your collection to another machine.
+- Refresh the tracked snapshot from your live database with `npm run db:snapshot`.
 
-```bash
-npm run db:snapshot
-```
+## Useful scripts
 
-## Learn More
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server (Turbopack); `dev:webpack` for the webpack fallback |
+| `npm run build` / `npm start` | Production build / serve |
+| `npm test` | Vitest unit tests |
+| `npm run smoke` | Playwright smoke test |
+| `npm run lint` | ESLint |
+| `npm run db:snapshot` | Refresh `data/dustycards.app.db` from the live DB |
+| `npm run images:cache` | Pre-cache card images locally |
+| `npm run sync:one-piece*` | One Piece catalog/metadata/price sync helpers |
+| `npm run backfill:*` | One-off data backfills (artists, printed card numbers) |
 
-To learn more about Next.js, take a look at the following resources:
+## Docs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Roadmap](docs/app-improvements-roadmap.md) — prioritized fixes and planned features.
