@@ -441,6 +441,21 @@ export default async function HomePage({
   const pricedCoverage = ratioPercent(pricedCardCount + pricedSealedUnits, totalTrackedItems);
   const collectionRoi =
     data.overview.investment > 0 ? (data.overview.pnl / data.overview.investment) * 100 : null;
+  const costBasisCoveredValue =
+    data.cards.reduce(
+      (total, item) =>
+        total + (item.cost_basis_value != null ? item.current_value ?? 0 : 0),
+      0
+    ) +
+    data.sealed.reduce(
+      (total, item) =>
+        total +
+        (item.purchase_price_per_item != null
+          ? (item.current_value_per_item ?? 0) * item.quantity
+          : 0),
+      0
+    );
+  const costBasisCoverage = ratioPercent(costBasisCoveredValue, data.overview.currentValue);
   const averageTrackedValue =
     totalTrackedItems > 0 ? data.overview.currentValue / totalTrackedItems : null;
 
@@ -471,7 +486,10 @@ export default async function HomePage({
     {
       label: "Overall Spend",
       value: formatCollectionCurrency(data.overview.investment),
-      hint: formatCollectionCurrency(data.overview.investment),
+      hint:
+        costBasisCoverage == null
+          ? "No cost basis yet"
+          : `Cost basis on ${formatPlainPercent(costBasisCoverage)} of value`,
       Icon: WalletCards,
       tone: "amber",
     },

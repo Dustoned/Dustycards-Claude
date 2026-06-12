@@ -68,6 +68,11 @@ export interface CollectionValueDriverItem {
 
 export type CollectionValueDriversScope = "collection" | "all";
 
+export interface CollectionValueDriverSourceTotal {
+  source: string;
+  change: number;
+}
+
 export interface CollectionValueDriversData {
   latestDate: string | null;
   latestLabel: string | null;
@@ -76,6 +81,7 @@ export interface CollectionValueDriversData {
   totalChange: number | null;
   gainsTotal: number;
   dropsTotal: number;
+  sourceBreakdown: CollectionValueDriverSourceTotal[];
   gains: CollectionValueDriverItem[];
   drops: CollectionValueDriverItem[];
 }
@@ -498,12 +504,35 @@ const EMPTY_COLLECTION_VALUE_DRIVERS: CollectionValueDriversData = {
   totalChange: null,
   gainsTotal: 0,
   dropsTotal: 0,
+  sourceBreakdown: [],
   gains: [],
   drops: [],
 };
 
 function roundCurrency(value: number): number {
   return Number(value.toFixed(2));
+}
+
+export function buildValueDriverSourceBreakdown(
+  drivers: Array<Pick<CollectionValueDriverItem, "currentSource" | "change">>
+): CollectionValueDriverSourceTotal[] {
+  const totals = new Map<string, number>();
+  for (const item of drivers) {
+    totals.set(item.currentSource, (totals.get(item.currentSource) ?? 0) + item.change);
+  }
+
+  return [...totals.entries()]
+    .map(([source, change]) => ({ source, change: roundCurrency(change) }))
+    .filter((entry) => Math.abs(entry.change) >= 0.01)
+    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+}
+
+function mergeValueDriverSourceBreakdowns(
+  breakdowns: CollectionValueDriverSourceTotal[][]
+): CollectionValueDriverSourceTotal[] {
+  return buildValueDriverSourceBreakdown(
+    breakdowns.flat().map((entry) => ({ currentSource: entry.source, change: entry.change }))
+  );
 }
 
 function toHistoryDateKey(value: Date | string): string {
@@ -1478,6 +1507,7 @@ function buildCollectionValueDrivers({
     dropsTotal: roundCurrency(
       drivers.reduce((total, item) => total + (item.change < 0 ? item.change : 0), 0)
     ),
+    sourceBreakdown: buildValueDriverSourceBreakdown(drivers),
     gains,
     drops,
   };
@@ -1995,6 +2025,9 @@ function combineCollectionValueDriversData(
     totalChange: roundCurrency(drivers.reduce((total, item) => total + item.change, 0)),
     gainsTotal: roundCurrency(gains.reduce((total, item) => total + item.change, 0)),
     dropsTotal: roundCurrency(drops.reduce((total, item) => total + item.change, 0)),
+    sourceBreakdown: mergeValueDriverSourceBreakdowns(
+      results.map((result) => result.sourceBreakdown)
+    ),
     gains,
     drops,
   };
@@ -2311,6 +2344,7 @@ async function getAllCardValueDriversData(
     dropsTotal: roundCurrency(
       drivers.reduce((total, item) => total + (item.change < 0 ? item.change : 0), 0)
     ),
+    sourceBreakdown: buildValueDriverSourceBreakdown(drivers),
     gains,
     drops,
   };

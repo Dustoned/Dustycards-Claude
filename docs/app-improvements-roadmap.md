@@ -14,13 +14,14 @@ All shipped 2026-06-12 — see the Done section. Next priority is section 2/3 be
 
 ## 2. Next — features & UX (carried over, still wanted)
 
-### 2.1 Movers source attribution (small follow-up)
-Most of "deals & movers intelligence" turned out to already exist (delta vs base, deal tone, match confidence + reason, ignore/override, seller feedback) and the missing save/watch action shipped 2026-06-12. Remaining nice-to-have: mover reason chips show *what* moved ("+18% 7d") but not *which market* — add per-source attribution (e.g., "CardMarket +18% 7d").
+### 2.1 ~~Deals & movers intelligence~~ — done (2026-06-12)
+Most of it already existed (delta vs base, deal tone, match confidence + reason, ignore/override, seller feedback, and the UI walkthrough showed mover cards already carry a source badge). The two real gaps shipped the same day: the deal watch list, and per-source attribution of collection value changes (see 2.2).
 
-### 2.2 Portfolio depth — mostly exists already (verified via UI walkthrough 2026-06-12)
-Screenshot audit of the live app showed the overview already has: Collection Allocation (loose raw / binder raw / graded / sealed mix with %), Priced Items coverage (99%, 1,071/1,079), ROI, Overall Spend, completion, per-game tabs, per-binder paid cost + P&L, sold P&L, value drivers with stale flag, and movers with BUY/HOLD signals + source badges. Remaining real gaps:
-- **Cost-basis coverage stat** — show what % of collection value has a known purchase price; items without one currently inflate ROI/P&L silently.
-- **Value drivers source attribution** — one header line splitting the net change by market (CardMarket raw / eBay graded / sealed).
+### 2.2 ~~Portfolio depth~~ — done (2026-06-12)
+A screenshot walkthrough showed most of it already existed (Collection Allocation mix, Priced Items coverage, ROI/spend, per-binder P&L, buy signals). The two real gaps were built the same day:
+- Overall Spend tile now shows cost-basis coverage ("Cost basis on 99% of value") instead of a duplicated amount.
+- Value drivers header now splits the net change per source (Raw / Graded / eBay sold / Sealed), computed over all drivers before the top-N cap; hidden when there is no recent history.
+This also covers the movers source-attribution follow-up (2.1).
 
 ### 2.3 Search polish
 Ranking, fuzzy matching, game/product tabs, recent searches, filters reachable from results.
