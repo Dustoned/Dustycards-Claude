@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAndImportThePriceDexPullRates } from "@/lib/pull-rates";
+import { isAuthorizedSchedulerRequest } from "@/lib/scheduler-secret";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,7 @@ function readPositiveLimit(value: unknown): number | null {
 }
 
 export async function POST(req: NextRequest) {
-  const expectedSecret = process.env.DUSTYCARDS_SYNC_SCHEDULER_SECRET;
-  const providedSecret = req.headers.get("x-dustycards-scheduler-secret");
-
-  if (!expectedSecret || providedSecret !== expectedSecret) {
+  if (!isAuthorizedSchedulerRequest(req)) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 

@@ -217,6 +217,7 @@ export default function CollectionCardsView({
   const [showOnlyGraded, setShowOnlyGraded] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
+  const [openCardError, setOpenCardError] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
@@ -612,11 +613,15 @@ export default function CollectionCardsView({
     const openingKey = getOpeningItemKey(item, selectionKey);
     if (openingItemKey === openingKey) return;
     setOpeningItemKey(openingKey);
+    setOpenCardError(null);
     try {
       const response = await fetch(`/api/cards/${encodeURIComponent(item.card_id)}`, {
         cache: "no-store",
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        setOpenCardError(`Could not open ${item.name}. Try again.`);
+        return;
+      }
       const data: ModalCardData = await response.json();
       setSelectedCard({
         ...data,
@@ -643,7 +648,7 @@ export default function CollectionCardsView({
             : null,
       });
     } catch {
-      // ignore
+      setOpenCardError(`Could not open ${item.name}. Try again.`);
     } finally {
       setOpeningItemKey(null);
     }
@@ -1207,6 +1212,18 @@ export default function CollectionCardsView({
   ];
   return (
     <>
+      {openCardError && (
+        <div className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-rose-400/40 bg-zinc-900/95 px-4 py-2 text-sm text-rose-300 shadow-lg">
+          <span>{openCardError}</span>
+          <button
+            type="button"
+            onClick={() => setOpenCardError(null)}
+            className="text-xs uppercase tracking-wide text-rose-200/80 hover:text-rose-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {sectionTitle && (
         <SectionHeader
           title={sectionTitle}

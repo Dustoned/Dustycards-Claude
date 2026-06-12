@@ -24,6 +24,8 @@ export default async function LoginPage({
       ? "Invalid email or password"
       : error === "unverified"
         ? "Verify your email before logging in. We sent a new verification link."
+        : error === "throttled"
+          ? "Too many login attempts. Try again in a few minutes."
         : verify === "invalid"
           ? "Verification link is invalid or expired. Request a new email."
           : verify === "failed"

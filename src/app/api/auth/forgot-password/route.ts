@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateSessionToken, hashSessionToken, isValidEmail, normalizeEmail } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/mail";
+import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const RESET_TOKEN_TTL_MS = 1000 * 60 * 30;
+const RESET_RATE_WINDOW_MS = 1000 * 60 * 15;
+const RESET_RATE_LIMIT_PER_IP = 5;
+const RESET_RATE_LIMIT_PER_EMAIL = 3;
 
 function getPublicOrigin(req: NextRequest): string {
   const configuredUrl = process.env.APP_URL;
@@ -39,6 +43,22 @@ export async function POST(req: NextRequest) {
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
 
   if (!email || !isValidEmail(email)) {
+    return sentResponse(req, isFormPost);
+  }
+
+  // Silent throttle: respond as if sent so the limiter leaks nothing about
+  // account existence, but skip the token + email work.
+  const ipThrottled = consumeRateLimit(
+    `forgot:ip:${getClientIp(req)}`,
+    RESET_RATE_LIMIT_PER_IP,
+    RESET_RATE_WINDOW_MS
+  );
+  const emailThrottled = consumeRateLimit(
+    `forgot:email:${email}`,
+    RESET_RATE_LIMIT_PER_EMAIL,
+    RESET_RATE_WINDOW_MS
+  );
+  if (ipThrottled || emailThrottled) {
     return sentResponse(req, isFormPost);
   }
 

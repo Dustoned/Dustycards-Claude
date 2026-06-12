@@ -20,8 +20,12 @@ const AUTO_PRICE_REFRESH_JOB_CHAIN_DELAY_MS = 5_000;
 const AUTO_PRICE_REFRESH_JOB_STALE_MS = 1000 * 60 * 10;
 const AUTO_PRICE_REFRESH_JOB_START_COOLDOWN_MS = 1000 * 60 * 15;
 const AUTO_PRICE_REFRESH_JOB_MAX_BATCHES = 12;
+const AUTO_PRICE_REFRESH_JOB_MAX_RUNTIME_MS = 1000 * 60 * 45;
+const AUTO_PRICE_REFRESH_JOB_HEARTBEAT_INTERVAL_MS = 1000 * 60;
+const AUTO_PRICE_REFRESH_JOB_RESUME_COOLDOWN_MS = 1000 * 60;
 
 let activeJob: Promise<void> | null = null;
+let lastResumeAttemptAt = 0;
 
 type AutoPriceRefreshJobRecord = NonNullable<
   Awaited<ReturnType<typeof db.syncJob.findUnique>>
@@ -104,20 +108,51 @@ async function runPersistedAutoPriceRefreshJob(jobId: string) {
     },
   });
 
+  // Keep the heartbeat fresh during slow batches so the job is not mistaken
+  // for stale (and re-queued) while a batch is still making progress.
+  const heartbeatTimer = setInterval(() => {
+    void db.syncJob
+      .update({
+        where: { id: jobId },
+        data: { heartbeat_at: new Date() },
+      })
+      .catch(() => {});
+  }, AUTO_PRICE_REFRESH_JOB_HEARTBEAT_INTERVAL_MS);
+  heartbeatTimer.unref?.();
+
+  const deadline = Date.now() + AUTO_PRICE_REFRESH_JOB_MAX_RUNTIME_MS;
   let batchCount = 0;
   let lastResult: AutoPriceRefreshResult | null = null;
 
-  while (batchCount < AUTO_PRICE_REFRESH_JOB_MAX_BATCHES) {
-    const result = await runAutoPriceRefresh();
-    batchCount += 1;
-    lastResult = result;
-    await updateJobFromResult(jobId, result, batchCount);
+  try {
+    while (batchCount < AUTO_PRICE_REFRESH_JOB_MAX_BATCHES) {
+      const result = await runAutoPriceRefresh();
+      batchCount += 1;
+      lastResult = result;
+      await updateJobFromResult(jobId, result, batchCount);
 
-    if (result.quotaExceeded || result.skipped || !hasRemainingAutoPriceWork(result)) {
-      break;
+      if (result.quotaExceeded || result.skipped || !hasRemainingAutoPriceWork(result)) {
+        break;
+      }
+
+      if (Date.now() >= deadline) {
+        // Wall-clock limit reached with work remaining: park the job as
+        // queued so the next scheduler tick picks it up fresh.
+        await db.syncJob.update({
+          where: { id: jobId },
+          data: {
+            status: "queued",
+            finished_at: null,
+            heartbeat_at: new Date(),
+          },
+        });
+        break;
+      }
+
+      await waitForDelay(AUTO_PRICE_REFRESH_JOB_CHAIN_DELAY_MS);
     }
-
-    await waitForDelay(AUTO_PRICE_REFRESH_JOB_CHAIN_DELAY_MS);
+  } finally {
+    clearInterval(heartbeatTimer);
   }
 
   if (lastResult) {
@@ -218,6 +253,14 @@ async function resumeRecoverableAutoPriceRefreshJob(): Promise<void> {
     return;
   }
 
+  // This runs on every snapshot/scheduler tick; the cooldown stops a job that
+  // keeps conflicting or hanging from being relaunched in a tight loop.
+  const now = Date.now();
+  if (now - lastResumeAttemptAt < AUTO_PRICE_REFRESH_JOB_RESUME_COOLDOWN_MS) {
+    return;
+  }
+  lastResumeAttemptAt = now;
+
   const job = await db.syncJob.findUnique({
     where: { type: AUTO_PRICE_REFRESH_SYNC_TYPE },
   });
@@ -244,6 +287,7 @@ export async function startAutoPriceRefreshJob(): Promise<{
   pendingCards: number;
   dueCards: number;
   missingPriceCards: number;
+  submittedCardCandidates: number;
   nextBatchCards: number;
   nextBatchEpisodes: number;
   status: string | null;
@@ -257,7 +301,8 @@ export async function startAutoPriceRefreshJob(): Promise<{
     }),
     getAutoPriceRefreshSnapshot(),
   ]);
-  const pendingCards = snapshot.dueCards + snapshot.missingPriceCards;
+  const pendingCards =
+    snapshot.dueCards + snapshot.missingPriceCards + snapshot.submittedCardCandidates;
 
   if (activeJob || isFreshRunningJob(existing, now)) {
     return {
@@ -266,6 +311,7 @@ export async function startAutoPriceRefreshJob(): Promise<{
       pendingCards,
       dueCards: snapshot.dueCards,
       missingPriceCards: snapshot.missingPriceCards,
+      submittedCardCandidates: snapshot.submittedCardCandidates,
       nextBatchCards: snapshot.nextBatchCards,
       nextBatchEpisodes: snapshot.nextBatchEpisodes,
       status: existing?.status ?? "running",
@@ -281,6 +327,7 @@ export async function startAutoPriceRefreshJob(): Promise<{
       pendingCards,
       dueCards: snapshot.dueCards,
       missingPriceCards: snapshot.missingPriceCards,
+      submittedCardCandidates: snapshot.submittedCardCandidates,
       nextBatchCards: snapshot.nextBatchCards,
       nextBatchEpisodes: snapshot.nextBatchEpisodes,
       status: existing?.status ?? null,
@@ -314,6 +361,7 @@ export async function startAutoPriceRefreshJob(): Promise<{
     pendingCards,
     dueCards: snapshot.dueCards,
     missingPriceCards: snapshot.missingPriceCards,
+    submittedCardCandidates: snapshot.submittedCardCandidates,
     nextBatchCards: snapshot.nextBatchCards,
     nextBatchEpisodes: snapshot.nextBatchEpisodes,
     status: "queued",
@@ -327,6 +375,7 @@ export async function getAutoPriceRefreshJobSnapshot(): Promise<{
   pendingCards: number;
   dueCards: number;
   missingPriceCards: number;
+  submittedCardCandidates: number;
   nextBatchCards: number;
   nextBatchEpisodes: number;
   status: string | null;
@@ -356,9 +405,10 @@ export async function getAutoPriceRefreshJobSnapshot(): Promise<{
 
   return {
     running: Boolean(activeJob || activeLog || jobRunning),
-    pendingCards: snapshot.dueCards + snapshot.missingPriceCards,
+    pendingCards: snapshot.dueCards + snapshot.missingPriceCards + snapshot.submittedCardCandidates,
     dueCards: snapshot.dueCards,
     missingPriceCards: snapshot.missingPriceCards,
+    submittedCardCandidates: snapshot.submittedCardCandidates,
     nextBatchCards: snapshot.nextBatchCards,
     nextBatchEpisodes: snapshot.nextBatchEpisodes,
     status: job?.status ?? null,

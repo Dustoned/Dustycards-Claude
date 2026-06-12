@@ -510,7 +510,10 @@ export async function POST(
       );
     }
 
-    const message = error instanceof Error ? error.message : String(error);
-    return authErrorResponse(error) ?? NextResponse.json({ error: message }, { status: 500 });
+    const authResponse = authErrorResponse(error);
+    if (authResponse) return authResponse;
+
+    console.error("[cards/:id refresh]", error);
+    return NextResponse.json({ error: "Could not refresh card prices" }, { status: 500 });
   }
 }

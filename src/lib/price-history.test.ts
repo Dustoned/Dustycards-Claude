@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import {
   buildCardEbaySoldGradedPriceHistory,
   buildCardGradedPriceHistory,
@@ -272,6 +272,7 @@ describe("sane cardmarket current values", () => {
           cm_market_fr: 525,
           cm_market_es: 700,
           cm_market_it: 500,
+          cm_market_jp: null,
           tcp_market: null,
           cm_avg_7d: null,
           cm_avg_30d: null,
@@ -285,6 +286,7 @@ describe("sane cardmarket current values", () => {
           cm_market_fr: 525,
           cm_market_es: 700,
           cm_market_it: 500,
+          cm_market_jp: null,
           tcp_market: null,
           cm_avg_7d: null,
           cm_avg_30d: null,
@@ -298,6 +300,7 @@ describe("sane cardmarket current values", () => {
           cm_market_fr: 525,
           cm_market_es: 0.1,
           cm_market_it: 0.05,
+          cm_market_jp: null,
           tcp_market: null,
           cm_avg_7d: null,
           cm_avg_30d: null,
@@ -328,6 +331,7 @@ describe("sane cardmarket current values", () => {
           cm_market_fr: null,
           cm_market_es: null,
           cm_market_it: null,
+          cm_market_jp: null,
           tcp_market: null,
           cm_avg_7d: null,
           cm_avg_30d: null,

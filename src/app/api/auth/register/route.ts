@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { hashPassword, isValidEmail, normalizeEmail } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
+import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+const REGISTER_RATE_WINDOW_MS = 1000 * 60 * 60;
+const REGISTER_RATE_LIMIT_PER_IP = 10;
 
 function getPublicOrigin(req: NextRequest): string {
   const configuredUrl = process.env.APP_URL;
@@ -52,6 +56,20 @@ export async function POST(req: NextRequest) {
   if (password !== passwordConfirm) {
     if (isFormPost) return registerRedirect(req, "mismatch");
     return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
+  }
+
+  if (
+    consumeRateLimit(
+      `register:ip:${getClientIp(req)}`,
+      REGISTER_RATE_LIMIT_PER_IP,
+      REGISTER_RATE_WINDOW_MS
+    )
+  ) {
+    if (isFormPost) return registerRedirect(req, "throttled");
+    return NextResponse.json(
+      { error: "Too many registration attempts. Try again later." },
+      { status: 429 }
+    );
   }
 
   const existing = await db.user.findUnique({

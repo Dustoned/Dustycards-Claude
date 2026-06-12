@@ -9,6 +9,7 @@ const REGISTER_ERRORS: Record<string, string> = {
   exists: "An account with this email already exists",
   mismatch: "Passwords do not match",
   short: "Password must be at least 8 characters",
+  throttled: "Too many registration attempts. Try again later.",
 };
 
 export default async function RegisterPage({

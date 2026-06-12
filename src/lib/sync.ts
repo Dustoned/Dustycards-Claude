@@ -14,7 +14,11 @@ import {
 } from "@/lib/games";
 import { startPerformanceTimer, timeAsync } from "@/lib/performance-timing";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
-import { reconcileSubmittedCardsForOfficialEpisode } from "@/lib/card-submissions";
+import {
+  countDueSubmittedCardSubmissions,
+  reconcileSubmittedCardsForOfficialEpisode,
+  refreshDueSubmittedCardSubmissions,
+} from "@/lib/card-submissions";
 import {
   decodeSyncLogMessage,
   encodeSyncLogDetailsJson,
@@ -102,6 +106,8 @@ const AUTO_PRICE_BACKFILL_MAX_CARDS = 400;
 const KNOWN_UNAVAILABLE_PRICE_CHECK_MAX_EPISODES = 8;
 const KNOWN_UNAVAILABLE_PRICE_CHECK_MAX_CARDS = 240;
 const KNOWN_UNAVAILABLE_PRICE_CHECK_CONCURRENCY = 2;
+const AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24;
+const AUTO_SUBMITTED_CARD_REFRESH_MAX_SUBMISSIONS = 3;
 const AUTO_PRICE_PREEMPT_WAIT_TIMEOUT_MS = 1000 * 60 * 5;
 const AUTO_CATALOG_SYNC_MIN_INTERVAL_MS = 1000 * 60 * 60;
 const AUTO_CATALOG_SYNC_MAX_EPISODES = 6;
@@ -257,6 +263,10 @@ export interface AutoPriceRefreshResult {
   selectedCards: number;
   backfillCards: number;
   nativeHistoryItems: number;
+  submittedCardCandidates?: number;
+  submittedCardsSelected?: number;
+  submittedCardsRefreshed?: number;
+  submittedCardRefreshFailures?: number;
   remainingDueCards: number;
   newCards: number;
   updatedCards: number;
@@ -903,6 +913,16 @@ function summarizeAutoPriceRefresh(result: AutoPriceRefreshResult): string {
     summary.push(`${result.newCards} new cards`);
   }
 
+  if ((result.submittedCardsSelected ?? 0) > 0) {
+    summary.push(
+      `${result.submittedCardsRefreshed ?? 0}/${result.submittedCardsSelected ?? 0} submitted cards refreshed`
+    );
+  }
+
+  if ((result.submittedCardRefreshFailures ?? 0) > 0) {
+    summary.push(`${result.submittedCardRefreshFailures ?? 0} submitted refresh failures`);
+  }
+
   summary.push(
     `${result.updatedCards} updated cards`,
     `${result.newPrices} new price snapshots`,
@@ -1051,12 +1071,22 @@ function summarizeEbaySoldGradedPriceSync(result: EbaySoldGradedPriceSyncResult)
   return summary.join(" | ");
 }
 
+const AUTO_PRICE_REFRESH_FAILED_LOG_RETENTION_MS = 1000 * 60 * 60 * 24 * 14;
+
 async function pruneAutoPriceRefreshLogs(keepId: string) {
   await db.syncLog.deleteMany({
     where: {
       type: AUTO_PRICE_REFRESH_TYPE,
-      status: "success",
       id: { not: keepId },
+      OR: [
+        { status: "success" },
+        {
+          status: { in: ["failed", "cancelled"] },
+          started_at: {
+            lt: new Date(Date.now() - AUTO_PRICE_REFRESH_FAILED_LOG_RETENTION_MS),
+          },
+        },
+      ],
     },
   });
 }
@@ -2889,6 +2919,7 @@ export async function getAutoPriceRefreshSnapshot(options?: {
 }): Promise<{
   dueCards: number;
   missingPriceCards: number;
+  submittedCardCandidates: number;
   unavailableCooldownCards: number;
   nextUnavailableRetryAt: Date | null;
   nextBatchCards: number;
@@ -2899,6 +2930,11 @@ export async function getAutoPriceRefreshSnapshot(options?: {
   const timer = startPerformanceTimer("sync.auto-price-refresh.snapshot");
   const now = new Date();
   const dueBatch = await selectAutoRefreshBatch(now, { game: options?.game });
+  const submittedCardCandidates = await countDueSubmittedCardSubmissions({
+    now,
+    intervalMs: AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS,
+    game: options?.game,
+  });
   const backfillBatch = await selectMissingPriceBackfillBatch({
     maxCards: Math.min(
       AUTO_PRICE_BACKFILL_MAX_CARDS,
@@ -2923,6 +2959,7 @@ export async function getAutoPriceRefreshSnapshot(options?: {
   const result = {
     dueCards: dueBatch.dueCards,
     missingPriceCards: backfillBatch.missingPriceCards,
+    submittedCardCandidates,
     unavailableCooldownCards,
     nextUnavailableRetryAt: null,
     nextBatchCards: countSelectedCards(combinedBatch),
@@ -2934,6 +2971,7 @@ export async function getAutoPriceRefreshSnapshot(options?: {
   timer.finish({
     dueCards: result.dueCards,
     missingPriceCards: result.missingPriceCards,
+    submittedCardCandidates: result.submittedCardCandidates,
     cooldownCards: result.unavailableCooldownCards,
     nextBatchCards: result.nextBatchCards,
     nextBatchEpisodes: result.nextBatchEpisodes,
@@ -3861,12 +3899,17 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       Math.max(AUTO_PRICE_REFRESH_MAX_CARDS - previewDueBatch.selectedCards, 0)
     ),
   });
+  const previewSubmittedCardCandidates = await countDueSubmittedCardSubmissions({
+    now,
+    intervalMs: AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS,
+  });
   const previewNativeHistoryBatch = await selectNativeHistoryBackfillBatch();
 
   const hasAutoRefreshWork =
     catalogGamesToSync.length > 0 ||
     previewDueBatch.dueCards > 0 ||
     previewBackfillBatch.missingPriceCards > 0 ||
+    previewSubmittedCardCandidates > 0 ||
     previewNativeHistoryBatch.cardIds.length > 0 ||
     previewNativeHistoryBatch.products.length > 0;
 
@@ -3880,6 +3923,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       selectedCards: 0,
       backfillCards: 0,
       nativeHistoryItems: 0,
+      submittedCardCandidates: previewSubmittedCardCandidates,
+      submittedCardsSelected: 0,
+      submittedCardsRefreshed: 0,
+      submittedCardRefreshFailures: 0,
       remainingDueCards: 0,
       newCards: 0,
       updatedCards: 0,
@@ -3934,6 +3981,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       let refreshedPrices = 0;
       let refreshedCards = 0;
       let gradedPricesUpdated = 0;
+      let submittedCardCandidates = previewSubmittedCardCandidates;
+      let submittedCardsSelected = 0;
+      let submittedCardsRefreshed = 0;
+      let submittedCardRefreshFailures = 0;
       let quotaExceeded = false;
       const batchId = progress.batchId ?? progress.syncId;
       const previewCombinedBatch = mergeSelectedByEpisode(
@@ -3963,6 +4014,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
             selectedCards: activeSelectedCards,
             backfillCards: activeBackfillCards,
             nativeHistoryItems: 0,
+            submittedCardCandidates,
+            submittedCardsSelected,
+            submittedCardsRefreshed,
+            submittedCardRefreshFailures,
             remainingDueCards: activeRemainingDueCards,
             newEpisodes,
             newCards,
@@ -4058,6 +4113,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           Math.max(AUTO_PRICE_REFRESH_MAX_CARDS - dueBatch.selectedCards, 0)
         ),
       });
+      submittedCardCandidates = await countDueSubmittedCardSubmissions({
+        now: fetchedAt,
+        intervalMs: AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS,
+      });
       const nativeHistoryBatch = await selectNativeHistoryBackfillBatch();
       const combinedBatch = mergeSelectedByEpisode(
         dueBatch.selectedByEpisode,
@@ -4074,6 +4133,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         combinedBatch.size === 0 &&
         nativeHistoryBatch.cardIds.length === 0 &&
         nativeHistoryBatch.products.length === 0 &&
+        submittedCardCandidates === 0 &&
         catalogSyncedEpisodes === 0 &&
         newEpisodes === 0
       ) {
@@ -4086,6 +4146,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           selectedCards: 0,
           backfillCards: 0,
           nativeHistoryItems: 0,
+          submittedCardCandidates,
+          submittedCardsSelected: 0,
+          submittedCardsRefreshed: 0,
+          submittedCardRefreshFailures: 0,
           remainingDueCards: 0,
           newCards: 0,
           updatedCards: 0,
@@ -4229,6 +4293,45 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       const nativeHistoryCount = syncedCardHistoryItems + syncedSealedHistoryItems;
       activeRemainingDueCards = remainingDueCards;
 
+      if (submittedCardCandidates > 0) {
+        await progress.throwIfCancelled();
+        await updateAutoProgress(
+          `Refreshing ${Math.min(
+            submittedCardCandidates,
+            AUTO_SUBMITTED_CARD_REFRESH_MAX_SUBMISSIONS
+          )} submitted CardMarket cards`
+        );
+        const submittedResult = await refreshDueSubmittedCardSubmissions({
+          now: fetchedAt,
+          intervalMs: AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS,
+          maxSubmissions: AUTO_SUBMITTED_CARD_REFRESH_MAX_SUBMISSIONS,
+          throwIfCancelled: progress.throwIfCancelled,
+        });
+        submittedCardCandidates = submittedResult.candidateSubmissions;
+        submittedCardsSelected = submittedResult.selectedSubmissions;
+        submittedCardsRefreshed = submittedResult.refreshedSubmissions;
+        submittedCardRefreshFailures = submittedResult.failedSubmissions;
+        newPrices += submittedCardsRefreshed;
+        refreshedCards += submittedCardsRefreshed;
+      }
+
+      const messageParts = [
+        `Checked ${selectedCards} cards across ${combinedBatch.size} sets`,
+      ];
+      if (catalogSyncedEpisodes > 0 || newEpisodes > 0) {
+        messageParts.push(
+          `synced ${catalogSyncedEpisodes} catalog sets and discovered ${newEpisodes} new sets`
+        );
+      }
+      if (nativeHistoryCount > 0) {
+        messageParts.push(`backfilled history for ${nativeHistoryCount} items`);
+      }
+      if (submittedCardsSelected > 0) {
+        messageParts.push(
+          `refreshed ${submittedCardsRefreshed}/${submittedCardsSelected} submitted cards`
+        );
+      }
+
       return withAutoQuotaFields({
         checkedEpisodes: combinedBatch.size,
         catalogSyncedEpisodes,
@@ -4238,6 +4341,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         selectedCards,
         backfillCards: backfillBatch.selectedCards,
         nativeHistoryItems: nativeHistoryCount,
+        submittedCardCandidates,
+        submittedCardsSelected,
+        submittedCardsRefreshed,
+        submittedCardRefreshFailures,
         remainingDueCards,
         newCards,
         updatedCards,
@@ -4246,12 +4353,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         refreshedCards,
         gradedPricesUpdated,
         skipped: false,
-        message:
-          nativeHistoryCount > 0
-            ? `Checked ${selectedCards} cards across ${combinedBatch.size} sets, synced ${catalogSyncedEpisodes} catalog sets, and backfilled history for ${nativeHistoryCount} items.`
-            : catalogSyncedEpisodes > 0 || newEpisodes > 0
-              ? `Checked ${selectedCards} cards across ${combinedBatch.size} sets after syncing ${catalogSyncedEpisodes} catalog sets and discovering ${newEpisodes} new sets.`
-              : `Checked ${selectedCards} cards across ${combinedBatch.size} sets.`,
+        message: `${messageParts.join(", ")}.`,
       }, quotaExceeded);
     },
     {

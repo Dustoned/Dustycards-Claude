@@ -1,5 +1,9 @@
-import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  getConfiguredSchedulerSecret,
+  getRequestSchedulerSecret,
+  schedulerSecretsMatch,
+} from "@/lib/scheduler-secret";
 import { runSyncSchedulerTick } from "@/lib/sync/scheduler";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 import { getSyncErrorResponse } from "@/app/api/sync-error-response";
@@ -7,34 +11,12 @@ import { getSyncErrorResponse } from "@/app/api/sync-error-response";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function getConfiguredSecret(): string | null {
-  return process.env.DUSTYCARDS_SYNC_SCHEDULER_SECRET?.trim() || null;
-}
-
-function getRequestSecret(req: NextRequest): string | null {
-  const headerSecret = req.headers.get("x-dustycards-scheduler-secret")?.trim();
-  if (headerSecret) return headerSecret;
-
-  const authorization = req.headers.get("authorization")?.trim();
-  if (!authorization?.toLowerCase().startsWith("bearer ")) return null;
-
-  return authorization.slice("bearer ".length).trim() || null;
-}
-
-function secretsMatch(requestSecret: string, configuredSecret: string): boolean {
-  const requestBuffer = Buffer.from(requestSecret);
-  const configuredBuffer = Buffer.from(configuredSecret);
-  if (requestBuffer.length !== configuredBuffer.length) return false;
-
-  return timingSafeEqual(requestBuffer, configuredBuffer);
-}
-
 export async function POST(req: NextRequest) {
   const scraperDisabled = getScraperDisabledResponse(req);
   if (scraperDisabled) return scraperDisabled;
 
-  const configuredSecret = getConfiguredSecret();
-  const requestSecret = getRequestSecret(req);
+  const configuredSecret = getConfiguredSchedulerSecret();
+  const requestSecret = getRequestSchedulerSecret(req);
 
   if (!configuredSecret) {
     return NextResponse.json(
@@ -43,7 +25,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!requestSecret || !secretsMatch(requestSecret, configuredSecret)) {
+  if (!requestSecret || !schedulerSecretsMatch(requestSecret, configuredSecret)) {
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
 

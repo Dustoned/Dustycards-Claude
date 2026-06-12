@@ -1582,10 +1582,9 @@ export async function GET(req: NextRequest) {
       ...toDirectSearchResponse(directResults),
     });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    console.error("[search]", msg);
+    console.error("[search]", e);
     return NextResponse.json(
-      { singles: [], sealed: [], expansions: [], total: 0, error: msg },
+      { singles: [], sealed: [], expansions: [], total: 0, error: "Search failed" },
       { status: 500 }
     );
   }

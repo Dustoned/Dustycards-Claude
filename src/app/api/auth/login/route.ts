@@ -6,8 +6,13 @@ import {
 import { normalizeEmail, verifyPassword } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
+import { getClientIp, isRateLimited, recordRateLimitHit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+const LOGIN_RATE_WINDOW_MS = 1000 * 60 * 15;
+const LOGIN_RATE_LIMIT_PER_IP = 20;
+const LOGIN_RATE_LIMIT_PER_EMAIL = 8;
 
 function getPublicOrigin(req: NextRequest): string {
   const configuredUrl = process.env.APP_URL;
@@ -39,6 +44,25 @@ export async function POST(req: NextRequest) {
       : "/";
   const password = typeof body.password === "string" ? body.password : "";
 
+  const ipKey = `login:ip:${getClientIp(req)}`;
+  const emailKey = email ? `login:email:${email}` : null;
+  if (
+    isRateLimited(ipKey, LOGIN_RATE_LIMIT_PER_IP, LOGIN_RATE_WINDOW_MS) ||
+    (emailKey && isRateLimited(emailKey, LOGIN_RATE_LIMIT_PER_EMAIL, LOGIN_RATE_WINDOW_MS))
+  ) {
+    if (isFormPost) {
+      const redirectUrl = new URL("/login", getPublicOrigin(req));
+      redirectUrl.searchParams.set("error", "throttled");
+      redirectUrl.searchParams.set("next", next);
+      return NextResponse.redirect(redirectUrl, { status: 303 });
+    }
+
+    return NextResponse.json(
+      { error: "Too many login attempts. Try again in a few minutes." },
+      { status: 429 }
+    );
+  }
+
   const user = email
     ? await db.user.findUnique({
         where: { email },
@@ -54,6 +78,8 @@ export async function POST(req: NextRequest) {
     : null;
 
   if (!user || user.disabled || !(await verifyPassword(password, user.password_hash))) {
+    recordRateLimitHit(ipKey);
+    if (emailKey) recordRateLimitHit(emailKey);
     if (isFormPost) {
       const redirectUrl = new URL("/login", getPublicOrigin(req));
       redirectUrl.searchParams.set("error", "invalid");

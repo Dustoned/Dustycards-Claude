@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
+import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+const RESEND_RATE_WINDOW_MS = 1000 * 60 * 15;
+const RESEND_RATE_LIMIT_PER_IP = 5;
+const RESEND_RATE_LIMIT_PER_EMAIL = 3;
 
 function getPublicOrigin(req: NextRequest): string {
   const configuredUrl = process.env.APP_URL;
@@ -21,6 +26,21 @@ export async function POST(req: NextRequest) {
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
 
   if (!email || !isValidEmail(email)) {
+    return NextResponse.json({ ok: true });
+  }
+
+  // Silent throttle: identical response, just skip the email work.
+  const ipThrottled = consumeRateLimit(
+    `resend-verify:ip:${getClientIp(req)}`,
+    RESEND_RATE_LIMIT_PER_IP,
+    RESEND_RATE_WINDOW_MS
+  );
+  const emailThrottled = consumeRateLimit(
+    `resend-verify:email:${email}`,
+    RESEND_RATE_LIMIT_PER_EMAIL,
+    RESEND_RATE_WINDOW_MS
+  );
+  if (ipThrottled || emailThrottled) {
     return NextResponse.json({ ok: true });
   }
 
