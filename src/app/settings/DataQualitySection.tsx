@@ -1,3 +1,9 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import type { DataQualityItem } from "@/lib/data-quality";
+
 interface DataQualityMetric {
   key: string;
   label: string;
@@ -16,6 +22,8 @@ interface DataQualitySectionProps {
     missingPrices: number;
     missingRarity: number;
     duplicateCandidates: number;
+    stalePrices: number;
+    emptyHistory: number;
   };
   sealed: {
     total: number;
@@ -84,6 +92,14 @@ function priorityWeight(priority: DataQualityMetric["priority"]): number {
   return 1;
 }
 
+function getEpisodeHref(item: DataQualityItem): string {
+  const base =
+    item.game === "one-piece"
+      ? `/one-piece/expansions/${encodeURIComponent(item.episodeId)}`
+      : `/expansions/${encodeURIComponent(item.episodeId)}`;
+  return item.kind === "sealed" ? `${base}?tab=sealed` : base;
+}
+
 function SummaryTile({
   label,
   value,
@@ -115,13 +131,27 @@ function SummaryTile({
   );
 }
 
-function SignalPill({ metric }: { metric: DataQualityMetric }) {
+function SignalPill({
+  metric,
+  selected,
+  onSelect,
+}: {
+  metric: DataQualityMetric;
+  selected: boolean;
+  onSelect: (metric: DataQualityMetric) => void;
+}) {
   const rate = formatIssueRate(metric.value, metric.total);
 
   return (
-    <div
-      className="min-w-0 rounded-lg border border-black/6 px-2.5 py-2 dark:border-white/8"
-      title={`${metric.label}: ${formatCount(metric.value)}. ${metric.hint}`}
+    <button
+      type="button"
+      onClick={() => onSelect(metric)}
+      className={`min-w-0 rounded-lg border px-2.5 py-2 text-left transition-colors ${
+        selected
+          ? "border-sky-400/50 bg-sky-400/[0.08]"
+          : "border-black/6 hover:border-black/15 dark:border-white/8 dark:hover:border-white/20"
+      }`}
+      title={`${metric.label}: ${formatCount(metric.value)}. ${metric.hint} Click to inspect.`}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">
@@ -132,7 +162,7 @@ function SignalPill({ metric }: { metric: DataQualityMetric }) {
       <p className={`mt-1 whitespace-nowrap text-sm font-bold tabular-nums ${getSignalTone(metric)}`}>
         {formatCount(metric.value)}
       </p>
-    </div>
+    </button>
   );
 }
 
@@ -141,11 +171,17 @@ function QualityRow({
   total,
   coverage,
   metrics,
+  gridClass,
+  selectedKey,
+  onSelect,
 }: {
   label: string;
   total: number;
   coverage: number;
   metrics: DataQualityMetric[];
+  gridClass: string;
+  selectedKey: string | null;
+  onSelect: (metric: DataQualityMetric) => void;
 }) {
   const openSignals = metrics.reduce((sum, metric) => sum + metric.value, 0);
 
@@ -165,16 +201,132 @@ function QualityRow({
           <p className="text-[10px] uppercase tracking-[0.12em] text-gray-400">coverage</p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
+      <div className={`grid grid-cols-2 gap-2 sm:grid-cols-3 ${gridClass}`}>
         {metrics.map((metric) => (
-          <SignalPill key={metric.key} metric={metric} />
+          <SignalPill
+            key={metric.key}
+            metric={metric}
+            selected={selectedKey === metric.key}
+            onSelect={onSelect}
+          />
         ))}
       </div>
     </div>
   );
 }
 
+function IssueDetailPanel({
+  metric,
+  items,
+  loading,
+  error,
+  onClose,
+}: {
+  metric: DataQualityMetric;
+  items: DataQualityItem[];
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-sky-400/25 bg-sky-400/[0.04] p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{metric.label}</p>
+          <p className="text-[11px] text-gray-500 dark:text-white/45">{metric.hint}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-600 dark:hover:text-white"
+        >
+          Close
+        </button>
+      </div>
+
+      {loading && <p className="py-3 text-sm text-gray-400">Loading affected items...</p>}
+      {!loading && error && <p className="py-3 text-sm text-rose-500 dark:text-rose-300">{error}</p>}
+      {!loading && !error && items.length === 0 && (
+        <p className="py-3 text-sm text-emerald-700 dark:text-emerald-300">
+          No affected items. This signal is clean.
+        </p>
+      )}
+
+      {!loading && !error && items.length > 0 && (
+        <>
+          <ul className="max-h-72 divide-y divide-black/5 overflow-y-auto dark:divide-white/8">
+            {items.map((item) => (
+              <li key={`${item.kind}-${item.id}`} className="flex items-center justify-between gap-3 py-1.5">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-gray-900 dark:text-white">
+                    {item.name}
+                    {item.detail ? (
+                      <span className="ml-1.5 text-xs text-gray-400">{item.detail}</span>
+                    ) : null}
+                  </p>
+                  <p className="truncate text-[11px] text-gray-500 dark:text-white/45">
+                    {item.episodeName}
+                  </p>
+                </div>
+                <Link
+                  href={getEpisodeHref(item)}
+                  className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-sky-600 hover:text-sky-500 dark:text-sky-300 dark:hover:text-sky-200"
+                >
+                  Open set
+                </Link>
+              </li>
+            ))}
+          </ul>
+          {metric.value > items.length && (
+            <p className="mt-2 text-[11px] text-gray-400">
+              Showing first {formatCount(items.length)} of {formatCount(metric.value)} affected items.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function DataQualitySection({ cards, sealed }: DataQualitySectionProps) {
+  const [selectedMetric, setSelectedMetric] = useState<DataQualityMetric | null>(null);
+  const [detailItems, setDetailItems] = useState<DataQualityItem[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  async function selectMetric(metric: DataQualityMetric) {
+    if (selectedMetric?.key === metric.key) {
+      setSelectedMetric(null);
+      return;
+    }
+
+    setSelectedMetric(metric);
+    setDetailItems([]);
+    setDetailError(null);
+    setDetailLoading(true);
+    try {
+      const response = await fetch(
+        `/api/admin/data-quality?issue=${encodeURIComponent(metric.key)}`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        items?: DataQualityItem[];
+        error?: string;
+      };
+      if (!response.ok || !payload.ok || !payload.items) {
+        throw new Error(payload.error ?? "Could not load affected items");
+      }
+      setDetailItems(payload.items);
+    } catch (caught) {
+      setDetailError(
+        caught instanceof Error ? caught.message : "Could not load affected items"
+      );
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
   const cardMetrics: DataQualityMetric[] = [
     {
       key: "card-source",
@@ -193,6 +345,24 @@ export default function DataQualitySection({ cards, sealed }: DataQualitySection
       total: cards.total,
       hint: "Cards without any stored price snapshot.",
       priority: "high",
+    },
+    {
+      key: "card-stale-prices",
+      label: "Stale prices",
+      shortLabel: "Stale",
+      value: cards.stalePrices,
+      total: cards.total,
+      hint: "Cards whose price source has not been checked in 14+ days.",
+      priority: "medium",
+    },
+    {
+      key: "card-empty-history",
+      label: "Empty price history",
+      shortLabel: "History",
+      value: cards.emptyHistory,
+      total: cards.total,
+      hint: "Cards with only a single price snapshot, so no trend can be drawn.",
+      priority: "medium",
     },
     {
       key: "card-images",
@@ -272,7 +442,7 @@ export default function DataQualitySection({ cards, sealed }: DataQualitySection
             Data Quality Center
           </h2>
           <p className="mt-0.5 text-sm text-gray-400">
-            Compact coverage checks for source links, prices, media, and metadata.
+            Coverage checks for source links, prices, media, and metadata. Click a signal to see the affected items.
           </p>
         </div>
         <span
@@ -326,13 +496,28 @@ export default function DataQualitySection({ cards, sealed }: DataQualitySection
           total={cards.total}
           coverage={getCoverage(cardMetrics)}
           metrics={cardMetrics}
+          gridClass="xl:grid-cols-7"
+          selectedKey={selectedMetric?.key ?? null}
+          onSelect={selectMetric}
         />
         <QualityRow
           label="Sealed"
           total={sealed.total}
           coverage={getCoverage(sealedMetrics)}
           metrics={sealedMetrics}
+          gridClass="xl:grid-cols-5"
+          selectedKey={selectedMetric?.key ?? null}
+          onSelect={selectMetric}
         />
+        {selectedMetric && (
+          <IssueDetailPanel
+            metric={selectedMetric}
+            items={detailItems}
+            loading={detailLoading}
+            error={detailError}
+            onClose={() => setSelectedMetric(null)}
+          />
+        )}
       </div>
     </section>
   );

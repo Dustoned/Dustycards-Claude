@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import path from "node:path";
 import { PageHeroHeader } from "@/components/PageHeader";
 import { appBuildLabel, appVersion, buildVersion, getServerUptimeMs, serverStartedAtIso } from "@/lib/app-version";
 import { db } from "@/lib/db";
@@ -21,9 +20,12 @@ import { getAutoPriceRefreshJobSnapshot } from "@/lib/sync/auto-price-refresh-jo
 import { getCardHistorySyncJobSnapshot } from "@/lib/sync/card-history-job";
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
+import { listBackups, type BackupFileInfo } from "@/lib/backups";
+import { STALE_PRICE_AGE_MS } from "@/lib/data-quality";
 import { requirePageUser } from "@/lib/page-auth";
 import { getFirecrawlConfigSnapshot } from "@/lib/firecrawl";
 import AutomationSection from "./AutomationSection";
+import BackupsSection from "./BackupsSection";
 import DataQualitySection from "./DataQualitySection";
 import FirecrawlSection from "./FirecrawlSection";
 import HealthDashboardSection from "./HealthDashboardSection";
@@ -50,6 +52,7 @@ type SchedulerTickDetails = {
     pendingCards?: number;
     dueCards?: number;
     missingPriceCards?: number;
+    submittedCardCandidates?: number;
     nextBatchCards?: number;
     status?: string | null;
   };
@@ -67,10 +70,6 @@ type SchedulerTickDetails = {
 interface SystemFileHealth {
   databaseSizeBytes: number | null;
   databaseUpdatedAt: Date | null;
-  backupCount: number;
-  latestBackupName: string | null;
-  latestBackupSizeBytes: number | null;
-  latestBackupUpdatedAt: Date | null;
 }
 
 function parseSchedulerTickDetails(value: string | null | undefined): SchedulerTickDetails | null {
@@ -150,10 +149,6 @@ async function getSystemFileHealth(): Promise<SystemFileHealth> {
   const result: SystemFileHealth = {
     databaseSizeBytes: null,
     databaseUpdatedAt: null,
-    backupCount: 0,
-    latestBackupName: null,
-    latestBackupSizeBytes: null,
-    latestBackupUpdatedAt: null,
   };
 
   try {
@@ -161,46 +156,6 @@ async function getSystemFileHealth(): Promise<SystemFileHealth> {
     result.databaseSizeBytes = stat.size;
     result.databaseUpdatedAt = stat.mtime;
   } catch {}
-
-  const backupDirCandidates = [
-    process.env.DUSTYCARDS_BACKUP_DIR,
-    path.resolve(process.cwd(), "..", "backups"),
-    path.resolve(process.cwd(), "backups"),
-    "/opt/dustycards/backups",
-  ].filter((entry): entry is string => Boolean(entry));
-  const uniqueBackupDirs = [...new Set(backupDirCandidates)];
-
-  for (const backupDir of uniqueBackupDirs) {
-    try {
-      const entries = await fs.readdir(backupDir, { withFileTypes: true });
-      const backupFiles = await Promise.all(
-        entries
-          .filter((entry) => entry.isFile() && entry.name.endsWith(".db"))
-          .map(async (entry) => {
-            const filePath = path.join(backupDir, entry.name);
-            const stat = await fs.stat(filePath);
-            return {
-              name: entry.name,
-              size: stat.size,
-              updatedAt: stat.mtime,
-              updatedAtMs: stat.mtimeMs,
-            };
-          })
-      );
-
-      if (backupFiles.length === 0) {
-        continue;
-      }
-
-      backupFiles.sort((a, b) => b.updatedAtMs - a.updatedAtMs);
-      const latestBackup = backupFiles[0];
-      result.backupCount = backupFiles.length;
-      result.latestBackupName = latestBackup.name;
-      result.latestBackupSizeBytes = latestBackup.size;
-      result.latestBackupUpdatedAt = latestBackup.updatedAt;
-      break;
-    } catch {}
-  }
 
   return result;
 }
@@ -326,6 +281,8 @@ export default async function SettingsPage() {
     dataQualityCardsMissingPrices,
     dataQualityCardsMissingRarity,
     dataQualityCardDuplicateCandidates,
+    dataQualityCardsStalePrices,
+    dataQualityCardEmptyHistoryRows,
     dataQualitySealedTotal,
     dataQualitySealedMissingImages,
     dataQualitySealedMissingSourceUrls,
@@ -335,6 +292,7 @@ export default async function SettingsPage() {
     latestPullRateProfile,
     latestPriceSnapshot,
     systemFileHealth,
+    backupSnapshot,
   ] = await timeAsync("settings.summary-data", () => Promise.all([
     db.syncLog.findFirst({
       where: {
@@ -440,6 +398,18 @@ export default async function SettingsPage() {
         HAVING COUNT(*) > 1
       )
     `,
+    db.card.count({
+      where: {
+        tcggo_url: { not: null },
+        price_source_checked_at: { lt: new Date(new Date().getTime() - STALE_PRICE_AGE_MS) },
+      },
+    }),
+    db.$queryRaw<Array<{ empty_history: bigint | number }>>`
+      SELECT COUNT(*) AS empty_history
+      FROM (
+        SELECT card_id FROM "Price" GROUP BY card_id HAVING COUNT(*) = 1
+      )
+    `,
     db.sealedProduct.count(),
     db.sealedProduct.count({
       where: {
@@ -480,6 +450,7 @@ export default async function SettingsPage() {
       select: { fetched_at: true },
     }),
     getSystemFileHealth(),
+    listBackups().catch(() => ({ dir: null, backups: [] as BackupFileInfo[] })),
   ]));
 
   const relevantLogs = [
@@ -722,6 +693,7 @@ export default async function SettingsPage() {
       ...sharedAutoRefreshStatus,
       dueCards: autoRefreshSnapshot.dueCards,
       missingPriceCards: autoRefreshSnapshot.missingPriceCards,
+      submittedCardCandidates: autoRefreshSnapshot.submittedCardCandidates,
       unavailableCooldownCards: autoRefreshSnapshot.unavailableCooldownCards,
       nextUnavailableRetryLabel: formatDateTime(autoRefreshSnapshot.nextUnavailableRetryAt),
       nextBatchCards: autoRefreshSnapshot.nextBatchCards,
@@ -739,6 +711,7 @@ export default async function SettingsPage() {
       ...sharedAutoRefreshStatus,
       dueCards: pokemonAutoRefreshSnapshot.dueCards,
       missingPriceCards: pokemonAutoRefreshSnapshot.missingPriceCards,
+      submittedCardCandidates: pokemonAutoRefreshSnapshot.submittedCardCandidates,
       unavailableCooldownCards: pokemonAutoRefreshSnapshot.unavailableCooldownCards,
       nextUnavailableRetryLabel: formatDateTime(
         pokemonAutoRefreshSnapshot.nextUnavailableRetryAt
@@ -758,6 +731,7 @@ export default async function SettingsPage() {
       ...sharedAutoRefreshStatus,
       dueCards: onePieceAutoRefreshSnapshot.dueCards,
       missingPriceCards: onePieceAutoRefreshSnapshot.missingPriceCards,
+      submittedCardCandidates: onePieceAutoRefreshSnapshot.submittedCardCandidates,
       unavailableCooldownCards: onePieceAutoRefreshSnapshot.unavailableCooldownCards,
       nextUnavailableRetryLabel: formatDateTime(
         onePieceAutoRefreshSnapshot.nextUnavailableRetryAt
@@ -770,12 +744,14 @@ export default async function SettingsPage() {
   ] satisfies AutoRefreshStatus[];
   const duplicateCandidateRow = dataQualityCardDuplicateCandidates[0];
   const duplicateCandidateValue = Number(duplicateCandidateRow?.duplicates ?? 0);
+  const emptyHistoryValue = Number(dataQualityCardEmptyHistoryRows[0]?.empty_history ?? 0);
   const appStartedAt = parseDateTime(serverStartedAtIso);
   const appStartedLabel = formatDateTime(appStartedAt);
   const appUptimeLabel = formatDuration(getServerUptimeMs(settingsCheckedAt));
-  const latestBackupLabel =
-    formatDateTime(systemFileHealth.latestBackupUpdatedAt) ??
-    systemFileHealth.latestBackupName;
+  const latestBackup = backupSnapshot.backups[0] ?? null;
+  const latestBackupLabel = latestBackup
+    ? formatDateTime(parseDateTime(latestBackup.updatedAt)) ?? latestBackup.name
+    : null;
   const firecrawlConfig = getFirecrawlConfigSnapshot();
 
   return (
@@ -834,11 +810,13 @@ export default async function SettingsPage() {
                     updatedLabel: formatDateTime(systemFileHealth.databaseUpdatedAt),
                     latestBackupLabel,
                     latestBackupSizeLabel:
-                      systemFileHealth.latestBackupSizeBytes == null
-                        ? null
-                        : formatByteSize(systemFileHealth.latestBackupSizeBytes),
-                    backupCount: systemFileHealth.backupCount,
+                      latestBackup == null ? null : formatByteSize(latestBackup.sizeBytes),
+                    backupCount: backupSnapshot.backups.length,
                   }}
+                />
+                <BackupsSection
+                  initialDir={backupSnapshot.dir}
+                  initialBackups={backupSnapshot.backups}
                 />
                 <DataQualitySection
                   cards={{
@@ -848,6 +826,8 @@ export default async function SettingsPage() {
                     missingPrices: dataQualityCardsMissingPrices,
                     missingRarity: dataQualityCardsMissingRarity,
                     duplicateCandidates: duplicateCandidateValue,
+                    stalePrices: dataQualityCardsStalePrices,
+                    emptyHistory: emptyHistoryValue,
                   }}
                   sealed={{
                     total: dataQualitySealedTotal,
