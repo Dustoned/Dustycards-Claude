@@ -14,8 +14,8 @@ All shipped 2026-06-12 — see the Done section. Next priority is section 2/3 be
 
 ## 2. Next — features & UX (carried over, still wanted)
 
-### 2.1 Deals & movers intelligence
-Show *why* a deal/mover matters: delta vs market, confidence, seller/condition hints, source context, quick hide/save actions. Pairs with the existing eBay deals browser.
+### 2.1 Movers source attribution (small follow-up)
+Most of "deals & movers intelligence" turned out to already exist (delta vs base, deal tone, match confidence + reason, ignore/override, seller feedback) and the missing save/watch action shipped 2026-06-12. Remaining nice-to-have: mover reason chips show *what* moved ("+18% 7d") but not *which market* — add per-source attribution (e.g., "CardMarket +18% 7d").
 
 ### 2.2 Portfolio depth
 Clearer value mix, cost-basis coverage, unpriced holdings, graded/raw split, better explanations for value changes.
@@ -72,6 +72,7 @@ The tab is a server-component navigation; Next already prefetches the link, and 
 
 ## Done (removed from this roadmap)
 
+- Deal watch list (2026-06-12): Watch/Watched star on every eBay deal listing plus a collapsible "Watched listings" panel (price, % vs base, seller, Ended state, remove). Persisted per user in the new `EbayWatchedListing` table (migration `20260612143000`, applied manually + `migrate resolve` because the shadow-DB replay of old migrations is broken — note: `prisma migrate dev` cannot be used in this repo until that's repaired). New `/api/ebay/watched-listings` GET/POST/DELETE.
 - Backups visibility (2026-06-12): new Backups panel in Settings → System with restore-point list and a "Backup now" button. Backups are made with SQLite `VACUUM INTO` (validated on the live DB: ~295 MB in ~6 s), manual backups keep the newest 5. New `src/lib/backups.ts` + `/api/admin/backups`; the local `../dustycards-db-backups` folder is now auto-detected and `DUSTYCARDS_BACKUP_DIR` is documented in `.env.example`.
 - Data Quality Center v2 (2026-06-12): added stale-prices (14+ days unchecked) and empty-history (single price snapshot) metrics, and click-to-drill-down on every signal — new admin endpoint `/api/admin/data-quality?issue=<key>` lists the affected cards/sealed with links to their set. Validated against live DB (827 duplicate candidates, 1,560 empty-history cards found).
 - Failed/cancelled auto-price-refresh logs now pruned after 14 days (`pruneAutoPriceRefreshLogs`).

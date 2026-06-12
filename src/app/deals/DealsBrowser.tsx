@@ -14,9 +14,11 @@ import {
   Percent,
   RotateCcw,
   Search,
+  Star,
   Trophy,
   TrendingDown,
 } from "lucide-react";
+import type { WatchedListingPayload } from "@/app/api/ebay/watched-listings/route";
 import type { ModalCardData } from "@/components/CardModal";
 import { HeaderStatCard } from "@/components/PageHeader";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
@@ -417,17 +419,23 @@ function ResultSkeleton() {
 function ListingCard({
   listing,
   busy,
+  watched,
+  watchBusy,
   onConfirmMatch,
   onIgnoreMatch,
   onResetMatch,
   onOpenCard,
+  onToggleWatch,
 }: {
   listing: DealListing;
   busy: boolean;
+  watched: boolean;
+  watchBusy: boolean;
   onConfirmMatch: (listing: DealListing, cardId: string) => Promise<void>;
   onIgnoreMatch: (listing: DealListing) => Promise<void>;
   onResetMatch: (listing: DealListing) => Promise<void>;
   onOpenCard: (cardId: string) => void;
+  onToggleWatch: (listing: DealListing) => Promise<void>;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [cardQuery, setCardQuery] = useState(
@@ -664,6 +672,22 @@ function ListingCard({
                 <RotateCcw className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               </button>
             )}
+            <button
+              type="button"
+              disabled={watchBusy}
+              onClick={() => void onToggleWatch(listing)}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold transition-colors disabled:cursor-wait disabled:opacity-50 sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs ${
+                watched
+                  ? "border-amber-400/40 bg-amber-400/[0.12] text-amber-200 hover:bg-amber-400/[0.2]"
+                  : "border-white/8 text-white/68 hover:bg-white/[0.05]"
+              }`}
+              title={watched ? "Remove from watch list" : "Save to watch list"}
+            >
+              <Star
+                className={`h-3 w-3 sm:h-3.5 sm:w-3.5 ${watched ? "fill-amber-300 text-amber-300" : ""}`}
+              />
+              {watched ? "Watched" : "Watch"}
+            </button>
             <a
               href={listing.itemWebUrl}
               target="_blank"
@@ -775,6 +799,9 @@ export default function DealsBrowser() {
   const [rateLimitError, setRateLimitError] = useState<string | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [overrideBusyItemId, setOverrideBusyItemId] = useState<string | null>(null);
+  const [watchedListings, setWatchedListings] = useState<WatchedListingPayload[]>([]);
+  const [watchBusyItemId, setWatchBusyItemId] = useState<string | null>(null);
+  const [watchedOpen, setWatchedOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const hasSearch = Boolean(paramQuery.trim() || cardId || productId);
 
@@ -844,6 +871,30 @@ export default function DealsBrowser() {
       controller.abort();
     };
   }, [requestPath]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/ebay/watched-listings", {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          listings?: WatchedListingPayload[];
+        };
+        if (response.ok && payload.ok && payload.listings) {
+          setWatchedListings(payload.listings);
+        }
+      } catch {
+        // Watch list is non-critical; the deals view works without it.
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1025,6 +1076,92 @@ export default function DealsBrowser() {
       setError(caught instanceof Error ? caught.message : "Could not reset match");
     } finally {
       setOverrideBusyItemId(null);
+    }
+  }
+
+  function isListingWatched(listing: DealListing): boolean {
+    return watchedListings.some(
+      (watchedItem) =>
+        watchedItem.itemId === listing.itemId &&
+        watchedItem.marketplaceId === data.marketplaceId
+    );
+  }
+
+  async function removeWatchedListing(marketplaceId: string, itemId: string) {
+    setWatchBusyItemId(itemId);
+    try {
+      const response = await fetch("/api/ebay/watched-listings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marketplaceId, itemId }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Could not remove listing from watch list");
+      }
+      setWatchedListings((current) =>
+        current.filter(
+          (watchedItem) =>
+            !(watchedItem.itemId === itemId && watchedItem.marketplaceId === marketplaceId)
+        )
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not update watch list");
+    } finally {
+      setWatchBusyItemId(null);
+    }
+  }
+
+  async function toggleWatchListing(listing: DealListing) {
+    if (isListingWatched(listing)) {
+      await removeWatchedListing(data.marketplaceId, listing.itemId);
+      return;
+    }
+
+    setWatchBusyItemId(listing.itemId);
+    try {
+      const response = await fetch("/api/ebay/watched-listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          marketplaceId: data.marketplaceId,
+          itemId: listing.itemId,
+          title: listing.title,
+          itemWebUrl: listing.itemWebUrl,
+          imageUrl: listing.imageUrl,
+          cardId: listing.cardMatch.card?.id ?? null,
+          sealedProductId: data.mode === "sealed" ? data.sealedProduct?.id ?? null : null,
+          mode: data.mode,
+          priceEur: listing.total.valueEur,
+          referenceEur: listing.reference.valueEur,
+          discountPercent: listing.discountPercent,
+          sellerUsername: listing.seller.username,
+          itemEndDate: listing.itemEndDate,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        listing?: WatchedListingPayload;
+        error?: string;
+      };
+      if (!response.ok || !payload.ok || !payload.listing) {
+        throw new Error(payload.error ?? "Could not save listing to watch list");
+      }
+      const savedListing = payload.listing;
+      setWatchedListings((current) => [
+        savedListing,
+        ...current.filter(
+          (watchedItem) =>
+            !(
+              watchedItem.itemId === savedListing.itemId &&
+              watchedItem.marketplaceId === savedListing.marketplaceId
+            )
+        ),
+      ]);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not update watch list");
+    } finally {
+      setWatchBusyItemId(null);
     }
   }
 
@@ -1429,6 +1566,77 @@ export default function DealsBrowser() {
           </section>
         )}
 
+        {watchedListings.length > 0 && (
+          <section className="rounded-2xl border border-amber-400/15 bg-amber-400/[0.04] p-4">
+            <button
+              type="button"
+              onClick={() => setWatchedOpen((current) => !current)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+            >
+              <span className="inline-flex items-center gap-2 text-sm font-bold text-white">
+                <Star className="h-4 w-4 fill-amber-300 text-amber-300" />
+                Watched listings ({watchedListings.length})
+              </span>
+              <span className="text-xs font-semibold text-white/45">
+                {watchedOpen ? "Hide" : "Show"}
+              </span>
+            </button>
+            {watchedOpen && (
+              <ul className="mt-3 divide-y divide-white/8">
+                {watchedListings.map((watchedItem) => {
+                  const ended =
+                    watchedItem.itemEndDate != null &&
+                    new Date(watchedItem.itemEndDate).getTime() < new Date().getTime();
+
+                  return (
+                    <li
+                      key={`${watchedItem.marketplaceId}-${watchedItem.itemId}`}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <a
+                          href={watchedItem.itemWebUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="line-clamp-1 text-sm font-semibold text-white transition-colors hover:text-amber-200"
+                        >
+                          {watchedItem.title}
+                        </a>
+                        <p className="mt-0.5 text-[11px] font-medium text-white/42">
+                          {[
+                            watchedItem.priceEur != null
+                              ? formatCurrency(watchedItem.priceEur, "EUR")
+                              : null,
+                            watchedItem.discountPercent != null
+                              ? `${watchedItem.discountPercent > 0 ? "-" : "+"}${Math.abs(
+                                  watchedItem.discountPercent
+                                ).toFixed(1)}% vs base`
+                              : null,
+                            watchedItem.sellerUsername,
+                            ended ? "Ended" : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={watchBusyItemId === watchedItem.itemId}
+                        onClick={() =>
+                          void removeWatchedListing(watchedItem.marketplaceId, watchedItem.itemId)
+                        }
+                        className="shrink-0 rounded-lg border border-white/8 px-2 py-1 text-[11px] font-semibold text-white/68 transition-colors hover:bg-white/[0.05] disabled:cursor-wait disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        )}
+
         {visibleLoading ? (
           <ResultSkeleton />
         ) : visibleData.listings.length > 0 ? (
@@ -1466,6 +1674,9 @@ export default function DealsBrowser() {
                   }
                   onResetMatch={resetListingOverride}
                   onOpenCard={(targetCardId) => void openCardDetail(targetCardId)}
+                  watched={isListingWatched(listing)}
+                  watchBusy={watchBusyItemId === listing.itemId}
+                  onToggleWatch={toggleWatchListing}
                 />
               ))}
             </div>

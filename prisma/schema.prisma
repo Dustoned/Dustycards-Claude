@@ -63,6 +63,7 @@ model User {
   wants           CollectionWant[]
   sealedItems     CollectionSealed[]
   ebayListingCardOverrides EbayListingCardOverride[]
+  ebayWatchedListings EbayWatchedListing[]
   cardSubmissions CardSubmission[]
 
   @@index([role])
@@ -275,6 +276,7 @@ model Card {
   ebaySoldGradedPrices CardEbaySoldGradedPrice[]
   ebaySoldGradedPriceSnapshots CardEbaySoldGradedPriceSnapshot[]
   ebayListingOverrides EbayListingCardOverride[]
+  ebayWatchedListings EbayWatchedListing[]
   prices          Price[]
   cardSubmissions CardSubmission[] @relation("SubmissionCreatedCard")
   officialCardSubmissions CardSubmission[] @relation("SubmissionOfficialCard")
@@ -426,6 +428,32 @@ model EbayListingCardOverride {
   @@unique([user_id, marketplace_id, item_id])
   @@index([card_id])
   @@index([user_id, status])
+}
+
+model EbayWatchedListing {
+  id                String   @id @default(cuid())
+  user_id           String
+  marketplace_id    String
+  item_id           String
+  title             String
+  item_web_url      String
+  image_url         String?
+  card_id           String?
+  sealed_product_id String?
+  mode              String   @default("raw")
+  price_eur         Float?
+  reference_eur     Float?
+  discount_percent  Float?
+  seller_username   String?
+  item_end_date     DateTime?
+  created_at        DateTime @default(now())
+
+  user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  card              Card?    @relation(fields: [card_id], references: [id], onDelete: SetNull)
+
+  @@unique([user_id, marketplace_id, item_id])
+  @@index([user_id, created_at])
+  @@index([card_id])
 }
 
 model CollectionBinder {
