@@ -34,9 +34,13 @@ pages have the full filter bar) and ranking/fuzzy changes (works well).
   tile in the DOM. The complete-collection view holds 1,076 cards. Before
   adding any virtualization: measure scroll/jank on that view; only build
   windowing if it is actually slow.
-- **Smoke test depth.** One Playwright spec covers nav + viewports. Add a few
-  API-level checks for things unit tests cannot see end-to-end: login throttle
-  behaviour, collection mutation, search response shape, watch-list add/remove.
+- **Smoke test depth.** Largely covered 2026-06-12 by `npm run e2e:verify`
+  (scripts/e2e-verify.mjs): 21 live-app checks across login throttling,
+  forgot-password silent throttle, scheduler secrets, all data-quality
+  endpoints + drill-down UI, a real backup via Backup now, watch-list CRUD +
+  URL validation, and search (release_date payload, hostile-query safety,
+  404s). Requires a freshly started server. Remaining nice-to-have: a
+  collection-mutation check (add/remove a card).
 
 ---
 

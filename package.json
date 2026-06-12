@@ -11,6 +11,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "smoke": "playwright test",
+    "e2e:verify": "node scripts/e2e-verify.mjs",
     "ui:mobile-review": "node scripts/mobile-ui-review.mjs",
     "ui:screenshots": "node scripts/ui-screenshots.mjs",
     "ui:expansion-shot": "node scripts/desktop-expansion-shot.mjs",
