@@ -64,6 +64,10 @@ describe("auto price refresh client follow-up guards", () => {
     expect(hasVisibleRefreshChanges({ autoJobRunning: true })).toBe(true);
   });
 
+  it("refreshes the UI when submitted cards get CardMarket snapshots", () => {
+    expect(hasVisibleRefreshChanges({ submittedCardsRefreshed: 1 })).toBe(true);
+  });
+
   it("caps forced follow-up chains per browser session", () => {
     expect(
       shouldQueueAutoPriceRefreshFollowUp(

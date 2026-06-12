@@ -22,6 +22,10 @@ export interface AutoPriceRefreshLogDetails {
   selectedCards: number;
   backfillCards: number;
   nativeHistoryItems: number;
+  submittedCardCandidates?: number;
+  submittedCardsSelected?: number;
+  submittedCardsRefreshed?: number;
+  submittedCardRefreshFailures?: number;
   remainingDueCards: number;
   newEpisodes: number;
   newCards: number;

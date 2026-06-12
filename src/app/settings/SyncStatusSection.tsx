@@ -7,7 +7,7 @@ import SyncStatusTabs from "./SyncStatusTabs";
 
 function getPendingWork(status: AutoRefreshStatus | null): number {
   if (!status) return 0;
-  return status.dueCards + status.missingPriceCards;
+  return status.dueCards + status.missingPriceCards + status.submittedCardCandidates;
 }
 
 function getPanelStatus({

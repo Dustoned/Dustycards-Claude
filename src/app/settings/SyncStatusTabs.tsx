@@ -20,7 +20,7 @@ function formatCount(value: number | null | undefined): string {
 }
 
 function getQueueCount(status: AutoRefreshStatus): number {
-  return status.dueCards + status.missingPriceCards;
+  return status.dueCards + status.missingPriceCards + status.submittedCardCandidates;
 }
 
 function getRefreshStatus(status: AutoRefreshStatus): string {
@@ -176,7 +176,7 @@ export default function SyncStatusTabs({
             value={formatCount(queueCount)}
             hint={`${formatCount(selected.dueCards)} due / ${formatCount(
               selected.missingPriceCards
-            )} first-price`}
+            )} first-price / ${formatCount(selected.submittedCardCandidates)} submitted`}
             tone={getTone(queueCount)}
           />
           <MetricCell

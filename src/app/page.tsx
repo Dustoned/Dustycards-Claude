@@ -2,8 +2,6 @@ import nextDynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Activity,
-  ArrowDownRight,
-  ArrowUpRight,
   BarChart3,
   Box,
   CheckCircle2,
@@ -23,8 +21,6 @@ import {
   getCollectionOverviewData,
   type CollectionOverviewData,
   type CollectionPageTab,
-  type CollectionValueDriverItem,
-  type CollectionValueDriversData,
 } from "@/lib/collection-data";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
@@ -44,6 +40,7 @@ const CollectionOverviewSections = nextDynamic(() => import("@/components/Collec
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
 const BinderOverviewGrid = nextDynamic(() => import("@/components/BinderOverviewGrid"));
 const HomeFeaturedCardsPanel = nextDynamic(() => import("@/components/HomeFeaturedCardsPanel"));
+const HomeValueDriversPanel = nextDynamic(() => import("@/components/HomeValueDriversPanel"));
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"));
 
 export const dynamic = "force-dynamic";
@@ -350,208 +347,6 @@ function FeaturedCardsPanel({
   if (featured.length === 0) return null;
 
   return <HomeFeaturedCardsPanel cards={featured} viewAllHref={viewAllHref} />;
-}
-
-function getDriverDateDistanceDays(data: CollectionValueDriversData): number | null {
-  if (!data.previousDate || !data.latestDate) return null;
-
-  const previous = Date.parse(`${data.previousDate}T00:00:00.000Z`);
-  const latest = Date.parse(`${data.latestDate}T00:00:00.000Z`);
-  const days = Math.round((latest - previous) / 86_400_000);
-
-  return Number.isFinite(days) && days > 0 ? days : null;
-}
-
-function getDriverWindowLabel(data: CollectionValueDriversData): string {
-  const days = getDriverDateDistanceDays(data);
-
-  if (days == null) return "Latest movement";
-  if (days <= 2) return "Last 2 days";
-  return `Latest ${days} days`;
-}
-
-function getDriverRangeLabel(data: CollectionValueDriversData): string {
-  if (data.previousLabel && data.latestLabel) {
-    return `${data.previousLabel} - ${data.latestLabel}`;
-  }
-
-  return "Waiting for another snapshot";
-}
-
-function formatSignedPercent(value: number | null | undefined): string | null {
-  if (value == null || !Number.isFinite(value)) return null;
-
-  const absolute = Math.abs(value);
-  const decimals = absolute >= 10 || absolute === 0 ? 0 : 1;
-  return `${value > 0 ? "+" : ""}${value.toFixed(decimals)}%`;
-}
-
-function getDriverSourceLabel(item: CollectionValueDriverItem): string {
-  if (item.currentSource === item.previousSource) {
-    return item.currentSource;
-  }
-
-  return `${item.previousSource} -> ${item.currentSource}`;
-}
-
-function getDriverMetaLabel(item: CollectionValueDriverItem): string {
-  const episode = item.episodeCode ? item.episodeCode : item.episodeName;
-  const detail = item.detail || (item.cardNumber ? `#${item.cardNumber}` : null);
-  const quantity = item.quantity > 1 ? `x${item.quantity}` : null;
-
-  return [detail, episode, quantity].filter(Boolean).join(" / ");
-}
-
-function HomeValueDriverRow({
-  item,
-  tone,
-}: {
-  item: CollectionValueDriverItem;
-  tone: "gain" | "drop";
-}) {
-  const Icon = tone === "gain" ? ArrowUpRight : ArrowDownRight;
-  const toneTextClass = tone === "gain" ? "text-emerald-300" : "text-rose-300";
-  const toneSurfaceClass =
-    tone === "gain"
-      ? "border-emerald-400/14 bg-emerald-400/[0.07]"
-      : "border-rose-400/14 bg-rose-400/[0.07]";
-  const percent = formatSignedPercent(item.changePct);
-  const meta = getDriverMetaLabel(item);
-
-  return (
-    <Link
-      href={item.href}
-      prefetch={false}
-      className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
-    >
-      <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${toneSurfaceClass} ${toneTextClass}`}
-      >
-        <Icon className="h-3.5 w-3.5" />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-[13px] font-black leading-tight text-white/88 transition-colors group-hover:text-white">
-          {item.name}
-        </span>
-        <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10.5px] font-semibold leading-4 text-white/42">
-          {meta ? <span className="min-w-0 truncate">{meta}</span> : null}
-          <span className="shrink-0 text-white/28">/</span>
-          <span className="shrink-0">{getDriverSourceLabel(item)}</span>
-        </span>
-      </span>
-      <span className="min-w-[5.5rem] shrink-0 text-right">
-        <span className={`block text-[13px] font-black leading-tight tabular-nums ${toneTextClass}`}>
-          {formatSignedCurrency(item.change)}
-        </span>
-        {percent ? (
-          <span className="mt-0.5 block text-[10.5px] font-bold tabular-nums text-white/42">
-            {percent}
-          </span>
-        ) : null}
-      </span>
-    </Link>
-  );
-}
-
-function HomeValueDriverLane({
-  title,
-  items,
-  tone,
-  emptyLabel,
-}: {
-  title: string;
-  items: CollectionValueDriverItem[];
-  tone: "gain" | "drop";
-  emptyLabel: string;
-}) {
-  return (
-    <div className="min-w-0">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
-          {title}
-        </p>
-        <span className="text-[10.5px] font-semibold text-white/34">
-          {items.length.toLocaleString("en-US")}
-        </span>
-      </div>
-      {items.length > 0 ? (
-        <div className="min-w-0">
-          {items.map((item) => (
-            <HomeValueDriverRow key={item.id} item={item} tone={tone} />
-          ))}
-        </div>
-      ) : (
-        <div className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/34">
-          {emptyLabel}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HomeValueDriversPanel({
-  data,
-  viewAllHref,
-}: {
-  data: CollectionValueDriversData;
-  viewAllHref: string;
-}) {
-  const gains = data.gains.slice(0, 4);
-  const drops = data.drops.slice(0, 4);
-  const hasDrivers = gains.length > 0 || drops.length > 0;
-  const netChange = data.totalChange ?? 0;
-  const netToneClass = netChange >= 0 ? "text-emerald-300" : "text-rose-300";
-
-  return (
-    <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
-      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/34">
-            {getDriverWindowLabel(data)}
-          </p>
-          <h2 className="mt-0.5 text-base font-black tracking-tight text-white">
-            Collection Value Drivers
-          </h2>
-          <p className="mt-0.5 text-[12px] font-semibold text-white/42">
-            {getDriverRangeLabel(data)}
-          </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-          <span className="inline-flex h-8 items-center rounded-full border border-white/8 bg-black/18 px-2.5 text-[12px] font-black tabular-nums text-white">
-            Net <span className={`ml-1.5 ${netToneClass}`}>{formatSignedCurrency(data.totalChange)}</span>
-          </span>
-          <Link
-            href={viewAllHref}
-            prefetch={false}
-            className="inline-flex h-8 items-center rounded-full border border-white/8 bg-white/[0.045] px-2.5 text-[12px] font-bold text-violet-200 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
-          >
-            View all
-          </Link>
-        </div>
-      </div>
-
-      {hasDrivers ? (
-        <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">
-          <HomeValueDriverLane
-            title="Biggest gains"
-            items={gains}
-            tone="gain"
-            emptyLabel="No gains in this window"
-          />
-          <HomeValueDriverLane
-            title="Biggest drops"
-            items={drops}
-            tone="drop"
-            emptyLabel="No drops in this window"
-          />
-        </div>
-      ) : (
-        <div className="mt-3 border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
-          Not enough recent collection history yet.
-        </div>
-      )}
-    </section>
-  );
 }
 
 function HomeCollectionLinks({

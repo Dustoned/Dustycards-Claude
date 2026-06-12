@@ -62,6 +62,8 @@ export interface CollectionValueDriverItem {
   changePct: number | null;
   currentSource: string;
   previousSource: string;
+  latestSnapshotDate: string | null;
+  stale: boolean;
 }
 
 export type CollectionValueDriversScope = "collection" | "all";
@@ -487,6 +489,7 @@ const SQLITE_SAFE_CHUNK_SIZE = 250;
 const COLLECTION_OVERVIEW_CHART_DAYS = 120;
 const COLLECTION_VALUE_DRIVER_LIMIT = 24;
 const COLLECTION_VALUE_DRIVER_WINDOW_DAYS = 2;
+const COLLECTION_VALUE_DRIVER_STALE_DAYS = COLLECTION_VALUE_DRIVER_WINDOW_DAYS;
 const EMPTY_COLLECTION_VALUE_DRIVERS: CollectionValueDriversData = {
   latestDate: null,
   latestLabel: null,
@@ -515,6 +518,17 @@ function shiftHistoryDateKey(dateKey: string, days: number): string {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function getValueDriverStaleBeforeDate(maxAgeDays = COLLECTION_VALUE_DRIVER_STALE_DAYS): string {
+  return shiftHistoryDateKey(toHistoryDateKey(new Date()), -Math.max(maxAgeDays, 0));
+}
+
+function isValueDriverSnapshotStale(
+  latestSnapshotDate: string | null | undefined,
+  staleBeforeDate: string
+): boolean {
+  return !latestSnapshotDate || latestSnapshotDate < staleBeforeDate;
 }
 
 function toValueDriverDateLabel(dateKey: string): string {
@@ -1202,6 +1216,40 @@ function buildSealedBaselineValueMap(
   return values;
 }
 
+function buildLatestCardSnapshotDateMap(
+  rows: EpisodePriceHistorySnapshot[]
+): Map<string, string> {
+  const values = new Map<string, string>();
+
+  for (const row of rows) {
+    if (getCardMarketValue(row) == null) continue;
+    const dateKey = toHistoryDateKey(row.fetched_at);
+    const existing = values.get(row.card_id);
+    if (!existing || dateKey > existing) {
+      values.set(row.card_id, dateKey);
+    }
+  }
+
+  return values;
+}
+
+function buildLatestSealedSnapshotDateMap(
+  rows: EpisodeSealedPriceHistorySnapshot[]
+): Map<string, string> {
+  const values = new Map<string, string>();
+
+  for (const row of rows) {
+    if (getSealedCardMarketValue(row) == null) continue;
+    const dateKey = toHistoryDateKey(row.fetched_at);
+    const existing = values.get(row.product_id);
+    if (!existing || dateKey > existing) {
+      values.set(row.product_id, dateKey);
+    }
+  }
+
+  return values;
+}
+
 function calculateChangePct(change: number, previousValue: number): number | null {
   if (previousValue <= 0) {
     return null;
@@ -1266,6 +1314,13 @@ function addCollectionValueDriverDraft(
   existing.quantity += draft.quantity;
   existing.previousValue += draft.previousValue;
   existing.currentValue += draft.currentValue;
+  if (
+    draft.latestSnapshotDate &&
+    (!existing.latestSnapshotDate || draft.latestSnapshotDate > existing.latestSnapshotDate)
+  ) {
+    existing.latestSnapshotDate = draft.latestSnapshotDate;
+  }
+  existing.stale = existing.stale && draft.stale;
 }
 
 function finalizeCollectionValueDriver(
@@ -1331,11 +1386,17 @@ function buildCollectionValueDrivers({
 
   const cardBaselineValues = buildCardBaselineValueMap(cardHistory, previousPoint.date);
   const sealedBaselineValues = buildSealedBaselineValueMap(sealedHistory, previousPoint.date);
+  const cardLatestSnapshotDates = buildLatestCardSnapshotDateMap(cardHistory);
+  const sealedLatestSnapshotDates = buildLatestSealedSnapshotDateMap(sealedHistory);
+  const staleBeforeDate = getValueDriverStaleBeforeDate();
   const drafts = new Map<string, CollectionValueDriverDraft>();
 
   for (const item of cards) {
     const currentItemValue = item.current_value ?? 0;
     const previousItemValue = cardBaselineValues.get(item.card_id) ?? 0;
+    const latestSnapshotDate = cardLatestSnapshotDates.get(item.card_id) ?? null;
+    const stale = isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate);
+    if (stale) continue;
     const currentSource = getCollectionValueDriverCardSource(item);
     const previousSource = item.current_value_label ? "Raw" : "Raw";
     const key = `card:${item.card_id}:${currentSource}`;
@@ -1358,12 +1419,17 @@ function buildCollectionValueDrivers({
       currentValue: currentItemValue,
       currentSource,
       previousSource,
+      latestSnapshotDate,
+      stale,
     });
   }
 
   for (const item of sealed) {
     const currentItemValue = (item.current_value_per_item ?? 0) * item.quantity;
     const previousItemValue = (sealedBaselineValues.get(item.product_id) ?? 0) * item.quantity;
+    const latestSnapshotDate = sealedLatestSnapshotDates.get(item.product_id) ?? null;
+    const stale = isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate);
+    if (stale) continue;
 
     addCollectionValueDriverDraft(drafts, {
       id: `sealed:${item.product_id}`,
@@ -1383,6 +1449,8 @@ function buildCollectionValueDrivers({
       currentValue: currentItemValue,
       currentSource: "Sealed",
       previousSource: "Sealed",
+      latestSnapshotDate,
+      stale,
     });
   }
 
@@ -1868,6 +1936,7 @@ interface AllCardValueDriverRow {
   episodeId: string;
   episodeName: string;
   episodeCode: string | null;
+  currentFetchedAt: Date | string | null;
   currentCmEnLowestNm: number | null;
   currentCmDeLowestNm: number | null;
   currentCmFrLowestNm: number | null;
@@ -1979,6 +2048,7 @@ async function getAllCardValueDriversData(
       FROM (
         SELECT
           p.card_id,
+          p.fetched_at,
           p.cm_en_lowest_nm,
           p.cm_de_lowest_nm,
           p.cm_fr_lowest_nm,
@@ -2111,6 +2181,7 @@ async function getAllCardValueDriversData(
       e.id AS "episodeId",
       e.name AS "episodeName",
       e.code AS "episodeCode",
+      cp.fetched_at AS "currentFetchedAt",
       cp.cm_en_lowest_nm AS "currentCmEnLowestNm",
       cp.cm_de_lowest_nm AS "currentCmDeLowestNm",
       cp.cm_fr_lowest_nm AS "currentCmFrLowestNm",
@@ -2137,8 +2208,13 @@ async function getAllCardValueDriversData(
   `;
 
   const drafts = new Map<string, CollectionValueDriverDraft>();
+  const staleBeforeDate = getValueDriverStaleBeforeDate();
 
   for (const row of rows) {
+    const latestSnapshotDate = row.currentFetchedAt ? toHistoryDateKey(row.currentFetchedAt) : null;
+    const stale = isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate);
+    if (stale) continue;
+
     const currentValue = getSaneAllCardRawValue(
       getCardMarketValue({
         cm_en_lowest_nm: row.currentCmEnLowestNm,
@@ -2208,6 +2284,8 @@ async function getAllCardValueDriversData(
       currentValue,
       currentSource: "Raw",
       previousSource: "Raw",
+      latestSnapshotDate,
+      stale,
     });
   }
 

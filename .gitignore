@@ -16,9 +16,12 @@
 /audit-viewports-*/
 /polish-*-screenshots/
 /polish-screenshots-*/
+/.codex-screenshots/
+/playwright-report/
 /screenshots-ui/
 /test-results/
 /.firecrawl/
+/*.png
 
 # next.js
 /.next/

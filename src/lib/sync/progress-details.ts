@@ -17,6 +17,10 @@ interface AutoPriceRefreshResultForDetails {
   selectedCards: number;
   backfillCards: number;
   nativeHistoryItems: number;
+  submittedCardCandidates?: number;
+  submittedCardsSelected?: number;
+  submittedCardsRefreshed?: number;
+  submittedCardRefreshFailures?: number;
   remainingDueCards: number;
   newEpisodes: number;
   newCards: number;
@@ -140,6 +144,10 @@ export function createAutoPriceRefreshLogDetails(
     selectedCards: input.selectedCards ?? 0,
     backfillCards: input.backfillCards ?? 0,
     nativeHistoryItems: input.nativeHistoryItems ?? 0,
+    submittedCardCandidates: input.submittedCardCandidates ?? 0,
+    submittedCardsSelected: input.submittedCardsSelected ?? 0,
+    submittedCardsRefreshed: input.submittedCardsRefreshed ?? 0,
+    submittedCardRefreshFailures: input.submittedCardRefreshFailures ?? 0,
     remainingDueCards: input.remainingDueCards ?? 0,
     newEpisodes: input.newEpisodes ?? 0,
     newCards: input.newCards ?? 0,
@@ -168,6 +176,10 @@ export function createAutoPriceRefreshResultDetails(
     selectedCards: result.selectedCards,
     backfillCards: result.backfillCards,
     nativeHistoryItems: result.nativeHistoryItems,
+    submittedCardCandidates: result.submittedCardCandidates ?? 0,
+    submittedCardsSelected: result.submittedCardsSelected ?? 0,
+    submittedCardsRefreshed: result.submittedCardsRefreshed ?? 0,
+    submittedCardRefreshFailures: result.submittedCardRefreshFailures ?? 0,
     remainingDueCards: result.remainingDueCards,
     newEpisodes: result.newEpisodes,
     newCards: result.newCards,

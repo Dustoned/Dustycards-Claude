@@ -2429,7 +2429,7 @@ export default function CardThreeViewer({
           aria-label={`3D view of ${card.name}`}
         />
 
-        <div className="pointer-events-none absolute inset-0 z-20 px-3 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6 sm:py-6">
+        <div className="pointer-events-none absolute inset-0 z-40 px-3 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6 sm:py-6">
           <div className="relative mx-auto h-full max-w-[84rem] lg:max-w-[88rem]">
             <div className="pointer-events-none relative flex h-full flex-col justify-end md:grid md:grid-cols-[minmax(19rem,22rem)_minmax(0,1fr)] md:items-center md:gap-5 lg:grid-cols-[minmax(20rem,23rem)_minmax(0,1fr)] lg:gap-6">
               <div className="pointer-events-none mt-4 md:mt-0 md:flex md:items-center">

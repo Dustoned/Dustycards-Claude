@@ -8,6 +8,7 @@ import { Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
+import type { BuySignalLabel } from "@/lib/buy-signal";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/movers";
 import {
@@ -68,8 +69,17 @@ interface Props {
 }
 
 type FocusFilter = "all" | "cheap" | "older_value" | "high_rarity" | "owned" | "grading_upside";
+type BuySignalFilter = "all" | BuySignalLabel;
 
 const SELECT_OPTION_CLASS = "bg-gray-950 text-white";
+const BUY_SIGNAL_FILTER_OPTIONS: Array<{ value: BuySignalFilter; label: string }> = [
+  { value: "all", label: "Every Buy Signal" },
+  { value: "strong_buy", label: "STRONG BUY" },
+  { value: "buy", label: "BUY" },
+  { value: "hold", label: "HOLD" },
+  { value: "sell", label: "SELL" },
+  { value: "strong_sell", label: "STRONG SELL" },
+];
 
 function isGradeTenLabel(label: string | null | undefined): boolean {
   if (!label) return false;
@@ -113,6 +123,7 @@ export default function MoversBrowser({
   );
   const [direction, setDirection] = useState<DirectionFilter>(initialDirection);
   const [focusFilter, setFocusFilter] = useState<FocusFilter>("all");
+  const [buySignalFilter, setBuySignalFilter] = useState<BuySignalFilter>("all");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
@@ -127,8 +138,31 @@ export default function MoversBrowser({
     displaySettings.cardSize,
     displaySettings.widescreen
   );
-  const visiblePreviewCards = previewCards.filter((card) => card.items.length > 0);
-  const visibleSpotlights = spotlights.filter((spotlight) => spotlight.item);
+  const matchesBuySignalFilter = useCallback(
+    (item: CollectionMoverItem | null | undefined) =>
+      Boolean(
+        item &&
+          (buySignalFilter === "all" || item.buySignal?.label === buySignalFilter)
+      ),
+    [buySignalFilter]
+  );
+  const visiblePreviewCards = useMemo(
+    () =>
+      previewCards
+        .map((card) => ({
+          ...card,
+          items:
+            buySignalFilter === "all"
+              ? card.items
+              : card.items.filter((item) => matchesBuySignalFilter(item)),
+        }))
+        .filter((card) => card.items.length > 0),
+    [buySignalFilter, matchesBuySignalFilter, previewCards]
+  );
+  const visibleSpotlights = useMemo(
+    () => spotlights.filter((spotlight) => matchesBuySignalFilter(spotlight.item)),
+    [matchesBuySignalFilter, spotlights]
+  );
   const scopeHref = useMemo(() => {
     return (itemScope: MoversItemScope) => {
       const params = new URLSearchParams(searchParams.toString());
@@ -179,6 +213,10 @@ export default function MoversBrowser({
   const visibleMovers = useMemo(() => {
     const filtered = movers.filter((item) => {
       if (!isGradingScope && direction !== "all" && !matchesDirection(item, direction)) {
+        return false;
+      }
+
+      if (buySignalFilter !== "all" && item.buySignal?.label !== buySignalFilter) {
         return false;
       }
 
@@ -235,6 +273,7 @@ export default function MoversBrowser({
     return [...filtered].sort((a, b) => compareMoverItems(a, b, sortKey, direction));
   }, [
     movers,
+    buySignalFilter,
     direction,
     focusFilter,
     isGradingScope,
@@ -244,7 +283,7 @@ export default function MoversBrowser({
   const [renderState, setRenderState] = useState({ key: "", limit: INITIAL_MOVER_RENDER_COUNT });
   const renderKey = `${visibleMovers.length}:${visibleMovers[0]?.cardId ?? ""}:${
     visibleMovers[visibleMovers.length - 1]?.cardId ?? ""
-  }:${sortKey}:${direction}`;
+  }:${sortKey}:${direction}:${focusFilter}:${buySignalFilter}:${normalizedSearch}`;
   const renderLimit = renderState.key === renderKey ? renderState.limit : INITIAL_MOVER_RENDER_COUNT;
   const renderedMovers = useMemo(
     () => visibleMovers.slice(0, renderLimit),
@@ -301,11 +340,13 @@ export default function MoversBrowser({
     search.trim().length > 0 ||
     hasDirectionFilter ||
     focusFilter !== "all" ||
+    buySignalFilter !== "all" ||
     sortKey !== (isGradingScope ? "grade_score" : "move");
 
   function clearAllFilters() {
     setDirection("all");
     setFocusFilter("all");
+    setBuySignalFilter("all");
     setSortKey(isGradingScope ? "grade_score" : "move");
     setSearch("");
   }
@@ -382,7 +423,7 @@ export default function MoversBrowser({
         ) : null}
 
         <div className="binder-panel mb-4 rounded-2xl px-3 py-3 sm:px-4 sm:py-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(9rem,12rem))_auto] lg:items-end">
+          <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(4,minmax(9rem,12rem))_auto] lg:items-end">
             <label className="block">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
                 Search
@@ -407,6 +448,23 @@ export default function MoversBrowser({
                   </button>
                 ) : null}
               </span>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+                Buy Signal
+              </span>
+              <select
+                value={buySignalFilter}
+                onChange={(event) => setBuySignalFilter(event.target.value as BuySignalFilter)}
+                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
+              >
+                {BUY_SIGNAL_FILTER_OPTIONS.map((option) => (
+                  <option className={SELECT_OPTION_CLASS} key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
 
             {!isGradingScope ? (

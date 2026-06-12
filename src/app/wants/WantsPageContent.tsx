@@ -3,6 +3,7 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Search, X } from "lucide-react";
+import CardLayoutSizeControl from "@/components/CardLayoutSizeControl";
 import { cardMatchesSearchQuery } from "@/lib/card-search";
 import type { WantPlannerGroup } from "@/lib/collection-data";
 import type { TradingCardGameFilter } from "@/lib/games";
@@ -135,11 +136,14 @@ export default function WantsPageContent({
               </button>
             ) : null}
           </div>
-          <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-3 text-xs font-bold tabular-nums text-white/48">
-            {hasSearch
-              ? `${totalMatches.toLocaleString("en-US")} / ${totalWants.toLocaleString("en-US")}`
-              : `${totalWants.toLocaleString("en-US")} wants`}
-          </span>
+          <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+            <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-3 text-xs font-bold tabular-nums text-white/48">
+              {hasSearch
+                ? `${totalMatches.toLocaleString("en-US")} / ${totalWants.toLocaleString("en-US")}`
+                : `${totalWants.toLocaleString("en-US")} wants`}
+            </span>
+            <CardLayoutSizeControl dense />
+          </div>
         </div>
       </section>
 

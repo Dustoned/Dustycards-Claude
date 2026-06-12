@@ -332,6 +332,81 @@ describe("buy signal", () => {
     expect(signal.metrics.long_term_score).toBeGreaterThanOrEqual(90);
   });
 
+  it("treats a mature flat rare ultra as a buy instead of a sell", () => {
+    const signal = buildBuySignal(
+      rawInput({
+        rarity: "Rare Ultra",
+        episode_name: "Ancient Origins",
+        episode_code: "AOR",
+        episode_release_date: "2015-08-12",
+        price: {
+          cm_en_lowest_nm: 181.06,
+          cm_de_lowest_nm: null,
+          cm_fr_lowest_nm: null,
+          cm_es_lowest_nm: null,
+          cm_it_lowest_nm: null,
+          cm_jp_lowest_nm: null,
+          tcp_market: null,
+          tcp_mid: null,
+          tcp_low: null,
+          cm_en_avg_7d: 180.25,
+          cm_en_avg_30d: 160.86,
+        },
+        price_fetched_at: "2026-05-29T10:00:00.000Z",
+        price_history: [
+          historyPoint("2026-02-28", 180),
+          historyPoint("2026-03-30", 180),
+          historyPoint("2026-04-29", 181),
+          historyPoint("2026-05-25", 181.48),
+          historyPoint("2026-05-29", 181.06),
+        ],
+        now: "2026-05-30T10:00:00.000Z",
+      })
+    );
+
+    expect(signal.label).toBe("buy");
+    expect(signal.reasons).toContain("Mature stable collectible");
+    expect(signal.reasons).not.toContain("Above 30d average");
+    expect(signal.metrics.long_term_score).toBeGreaterThanOrEqual(55);
+    expect(signal.metrics.history_range_change_pct).toBe(0.6);
+  });
+
+  it("still avoids buy when an old rare card is genuinely overheated", () => {
+    const signal = buildBuySignal(
+      rawInput({
+        rarity: "Rare Ultra",
+        episode_name: "Ancient Origins",
+        episode_code: "AOR",
+        episode_release_date: "2015-08-12",
+        price: {
+          cm_en_lowest_nm: 260,
+          cm_de_lowest_nm: null,
+          cm_fr_lowest_nm: null,
+          cm_es_lowest_nm: null,
+          cm_it_lowest_nm: null,
+          cm_jp_lowest_nm: null,
+          tcp_market: null,
+          tcp_mid: null,
+          tcp_low: null,
+          cm_en_avg_7d: 245,
+          cm_en_avg_30d: 170,
+        },
+        price_history: [
+          historyPoint("2026-02-28", 130),
+          historyPoint("2026-03-30", 150),
+          historyPoint("2026-04-29", 200),
+          historyPoint("2026-05-25", 245),
+          historyPoint("2026-05-29", 260),
+        ],
+        now: "2026-05-30T10:00:00.000Z",
+      })
+    );
+
+    expect(["strong_sell", "sell", "hold"]).toContain(signal.label);
+    expect(signal.reasons).toContain("Above 30d average");
+    expect(signal.reasons).not.toContain("Mature stable collectible");
+  });
+
   it("falls back to hold with low confidence when there is no usable market value", () => {
     const signal = buildBuySignal(
       rawInput({

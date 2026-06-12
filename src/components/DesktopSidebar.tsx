@@ -21,6 +21,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
+import { useSettings } from "@/components/SettingsProvider";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import { GAME_SEARCH_PARAM } from "@/lib/games";
 
@@ -137,6 +138,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { settings } = useSettings();
   const tab = useLiveCollectionTab();
   const [accountOpen, setAccountOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -210,6 +212,10 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                 {section.label}
               </p>
               {section.items.map((item) => {
+                if (item.key === "one-piece" && !settings.onePieceLibraryEnabled) {
+                  return null;
+                }
+
                 const active = isActive(pathname, tab, item.key, moverScope);
                 const Icon = item.icon;
                 const badge = navBadge(summary, item.badge);

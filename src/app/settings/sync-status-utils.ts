@@ -37,6 +37,7 @@ export interface AutoRefreshStatus {
   latestPriceLabel?: string | null;
   dueCards: number;
   missingPriceCards: number;
+  submittedCardCandidates: number;
   unavailableCooldownCards: number;
   nextUnavailableRetryLabel: string | null;
   nextBatchCards: number;

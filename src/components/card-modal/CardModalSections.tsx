@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Award,
   BadgeEuro,
+  CalendarDays,
   ChevronDown,
   ChevronRight,
   ExternalLink,
@@ -88,6 +89,11 @@ const SHORT_STATUS_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
 });
+const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
 
 function parseDateMillis(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -99,6 +105,17 @@ function formatShortStatusDate(value: string | null | undefined): string | null 
   const timestamp = parseDateMillis(value);
   if (timestamp == null) return null;
   return SHORT_STATUS_DATE_FORMATTER.format(timestamp);
+}
+
+function formatReleaseDate(value: string | null | undefined): { date: string; year: string } | null {
+  const timestamp = parseDateMillis(value);
+  if (timestamp == null) return null;
+  const date = new Date(timestamp);
+
+  return {
+    date: RELEASE_DATE_FORMATTER.format(date),
+    year: String(date.getUTCFullYear()),
+  };
 }
 
 function formatRelativeStatusAge(value: string | null | undefined, now: number): string | null {
@@ -441,10 +458,10 @@ const BUY_SIGNAL_STEPS = [
 
 function getBuySignalConfidenceClass(confidence: string): string {
   if (confidence === "high") {
-    return "border-emerald-300/24 bg-emerald-400/12 text-emerald-200";
+    return "border-emerald-200/18 bg-emerald-300/[0.075] text-emerald-100/84";
   }
   if (confidence === "medium") {
-    return "border-amber-300/24 bg-amber-400/12 text-amber-200";
+    return "border-amber-200/18 bg-amber-300/[0.075] text-amber-100/84";
   }
   return "border-white/12 bg-white/[0.06] text-white/58";
 }
@@ -458,12 +475,35 @@ function getBuySignalEvidenceClass(tone: string): string {
 
 function getBuySignalMarkerClass(label: string): string {
   if (label === "strong_sell" || label === "sell") {
-    return "border-red-300 bg-red-500 shadow-[0_0_0_5px_rgba(239,68,68,0.16),0_0_22px_rgba(239,68,68,0.32)]";
+    return "border-rose-100/90 bg-rose-400 shadow-[0_0_0_4px_rgba(251,113,133,0.12),0_0_16px_rgba(251,113,133,0.22)]";
   }
   if (label === "buy" || label === "strong_buy") {
-    return "border-emerald-200 bg-emerald-500 shadow-[0_0_0_5px_rgba(34,197,94,0.15),0_0_22px_rgba(34,197,94,0.28)]";
+    return "border-emerald-100/90 bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.11),0_0_16px_rgba(52,211,153,0.20)]";
   }
-  return "border-violet-200 bg-violet-500 shadow-[0_0_0_5px_rgba(124,92,255,0.14),0_0_22px_rgba(124,92,255,0.24)]";
+  return "border-violet-100/90 bg-violet-400 shadow-[0_0_0_4px_rgba(124,92,255,0.12),0_0_16px_rgba(124,92,255,0.20)]";
+}
+
+function getBuySignalTrackClass(compact: boolean): string {
+  const height = compact ? "h-2" : "h-2.5";
+  return `${height} relative overflow-visible rounded-full border border-white/[0.065] bg-[linear-gradient(90deg,rgba(251,113,133,0.30)_0%,rgba(255,255,255,0.075)_34%,rgba(124,92,255,0.18)_50%,rgba(255,255,255,0.075)_66%,rgba(52,211,153,0.28)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_16px_rgba(124,92,255,0.08)]`;
+}
+
+function getBuySignalReasonItems(
+  signal: NonNullable<ModalCardData["buy_signal"]>,
+  limit: number
+) {
+  const reasons = signal.reasons.map((reason) => ({
+    key: `reason:${reason}`,
+    label: reason,
+    className: "border-white/8 bg-white/[0.04] text-white/68",
+  }));
+  const warnings = signal.warnings.map((warning) => ({
+    key: `warning:${warning}`,
+    label: warning,
+    className: "border-amber-200/14 bg-amber-300/[0.055] text-amber-100/76",
+  }));
+
+  return [...reasons, ...warnings].slice(0, limit);
 }
 
 export function CardModalBuySignalPanel({
@@ -478,12 +518,14 @@ export function CardModalBuySignalPanel({
   const markerPercent = Math.min(Math.max(signal.marker_percent ?? signal.score, 2), 98);
   const evidence = signal.evidence.slice(0, 6);
   const warnings = signal.warnings.slice(0, 2);
+  const compactReasonItems = getBuySignalReasonItems(signal, 3);
+  const reasonItems = getBuySignalReasonItems(signal, 5);
 
   if (compact) {
     return (
       <section
         data-buy-signal-panel
-        className="min-w-0 rounded-2xl border border-white/10 bg-[#08080a] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.05)]"
+        className="min-w-0 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.024))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.06)]"
       >
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -511,11 +553,11 @@ export function CardModalBuySignalPanel({
         </div>
 
         <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-          <span className="text-[9px] font-black uppercase tracking-[0.08em] text-rose-200/52">
+          <span className="text-[9px] font-black uppercase tracking-[0.08em] text-white/38">
             Sell
           </span>
-          <div className="relative h-2 overflow-visible rounded-full bg-[linear-gradient(90deg,#EF4444_0%,#EF4444_18%,#1D2130_38%,#252A38_50%,#1D2130_62%,#22C55E_82%,#7C5CFF_100%)] shadow-[0_0_18px_rgba(124,92,255,0.12)]">
-            <span className="pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.18),rgba(255,255,255,0))]" />
+          <div className={getBuySignalTrackClass(true)}>
+            <span className="pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0))]" />
             <span
               className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${getBuySignalMarkerClass(
                 signal.label
@@ -523,9 +565,24 @@ export function CardModalBuySignalPanel({
               style={{ left: `${markerPercent}%` }}
             />
           </div>
-          <span className="text-[9px] font-black uppercase tracking-[0.08em] text-emerald-200/58">
+          <span className="text-[9px] font-black uppercase tracking-[0.08em] text-white/38">
             Buy
           </span>
+        </div>
+
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5 border-t border-white/[0.065] pt-2">
+          <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-white/34">
+            Why
+          </span>
+          {compactReasonItems.map((item) => (
+            <span
+              key={item.key}
+              className={`max-w-full truncate rounded-full border px-2 py-0.5 text-[10px] font-semibold leading-snug ${item.className}`}
+              title={item.label}
+            >
+              {item.label}
+            </span>
+          ))}
         </div>
       </section>
     );
@@ -534,7 +591,7 @@ export function CardModalBuySignalPanel({
   return (
     <section
       data-buy-signal-panel
-      className={`min-w-0 rounded-[20px] border border-white/10 bg-[#08080a] shadow-[inset_0_1px_0_rgba(179,155,255,0.05)] ${
+      className={`min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.024))] shadow-[inset_0_1px_0_rgba(179,155,255,0.06)] ${
         compact ? "p-3.5" : "p-4"
       }`}
     >
@@ -559,8 +616,8 @@ export function CardModalBuySignalPanel({
       </div>
 
       <div className={compact ? "mt-3" : "mt-4"}>
-        <div className="relative h-2.5 overflow-hidden rounded-full bg-[linear-gradient(90deg,#EF4444_0%,#EF4444_19%,#1D2130_39%,#252A38_50%,#1D2130_61%,#22C55E_81%,#7C5CFF_100%)] shadow-[0_0_24px_rgba(124,92,255,0.14)]">
-          <span className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0))]" />
+        <div className={getBuySignalTrackClass(false)}>
+          <span className="pointer-events-none absolute inset-0 rounded-full bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0))]" />
           <span
             className={`absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 ${getBuySignalMarkerClass(
               signal.label
@@ -579,6 +636,21 @@ export function CardModalBuySignalPanel({
             </span>
           ))}
         </div>
+      </div>
+
+      <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 border-t border-white/[0.065] pt-3">
+        <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.13em] text-white/34">
+          Why
+        </span>
+        {reasonItems.map((item) => (
+          <span
+            key={item.key}
+            className={`max-w-full truncate rounded-full border px-2.5 py-1 text-[11px] font-semibold ${item.className}`}
+            title={item.label}
+          >
+            {item.label}
+          </span>
+        ))}
       </div>
 
       <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5">
@@ -1489,13 +1561,20 @@ function MobileInfoRow({
   icon,
   label,
   value,
+  wide = false,
 }: {
   icon: ReactNode;
   label: string;
   value: ReactNode;
+  wide?: boolean;
 }) {
   return (
-    <div data-mobile-info-row className="flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-white/10 bg-[#0b0b0d] p-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.04)]">
+    <div
+      data-mobile-info-row
+      className={`flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-white/10 bg-[#0b0b0d] p-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.04)] ${
+        wide ? "col-span-2" : ""
+      }`}
+    >
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white/68">
         {icon}
       </span>
@@ -1586,6 +1665,7 @@ export function CardModalMobileShowcase({
     getRecentHistoryAverage(cardMarketHistory, 7) ?? card.price?.cm_en_avg_7d ?? null;
   const average30d =
     getRecentHistoryAverage(cardMarketHistory, 30) ?? card.price?.cm_en_avg_30d ?? null;
+  const releaseDate = formatReleaseDate(card.episode_release_date);
   const firstHistoryValue = getFirstHistoryValue(cardMarketHistory);
   const priceDeltaPercent =
     activeCardMarketCurrentValue != null &&
@@ -1887,7 +1967,8 @@ export function CardModalMobileShowcase({
             <div className="grid grid-cols-2 gap-2">
               <MobileInfoRow
                 icon={<Sparkles className="h-4 w-4" />}
-                label="Set"
+                label="Expansion"
+                wide
                 value={
                   <Link
                     href={getExpansionHref(card.episode_id)}
@@ -1902,7 +1983,8 @@ export function CardModalMobileShowcase({
               />
               <MobileInfoRow
                 icon={<UserRound className="h-4 w-4" />}
-                label="Artist"
+                label="Illustrator"
+                wide
                 value={
                   card.artist ? (
                     <Link
@@ -1938,6 +2020,21 @@ export function CardModalMobileShowcase({
                 icon={<Globe2 className="h-4 w-4" />}
                 label="Language"
                 value={language}
+              />
+              <MobileInfoRow
+                icon={<CalendarDays className="h-4 w-4" />}
+                label="Release"
+                wide
+                value={
+                  releaseDate ? (
+                    <span>
+                      {releaseDate.date}
+                      <span className="ml-1.5 text-white/42">Set year {releaseDate.year}</span>
+                    </span>
+                  ) : (
+                    "--"
+                  )
+                }
               />
             </div>
           </div>
@@ -1999,6 +2096,12 @@ export function CardModalMobileShowcase({
         )}
       </div>
 
+      {card.buy_signal && (
+        <div className="relative z-10 mt-4">
+          <CardModalBuySignalPanel signal={card.buy_signal} compact />
+        </div>
+      )}
+
       <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(179,155,255,0.05)]">
         <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
           <CollectionAddCardButton
@@ -2040,12 +2143,6 @@ export function CardModalMobileShowcase({
           )}
         </div>
       </div>
-
-      {card.buy_signal && (
-        <div className="relative z-10 mt-4">
-          <CardModalBuySignalPanel signal={card.buy_signal} compact />
-        </div>
-      )}
     </div>
   );
 }
@@ -2092,6 +2189,21 @@ export function CardModalHeroSection({
     card.card_number ? `#${card.card_number}` : null,
   ].filter(Boolean);
   const headerMetaLabel = headerMeta.length > 0 ? headerMeta.join(" ") : null;
+  const releaseDate = formatReleaseDate(card.episode_release_date);
+  const releaseDetailStat = {
+    label: "Release",
+    value: releaseDate ? (
+      <div className="space-y-0.5">
+        <p>{releaseDate.date}</p>
+        <p className="text-sm font-medium text-white/42 max-[640px]:text-[11px]">
+          Set year {releaseDate.year}
+        </p>
+      </div>
+    ) : (
+      "--"
+    ),
+    wideMobile: true,
+  };
   const heroDetailStats = [
     {
       label: "Type",
@@ -2099,7 +2211,7 @@ export function CardModalHeroSection({
       wideMobile: false,
     },
     {
-      label: "Set",
+      label: "Expansion",
       value: (
         <CompactDetailLink href={getExpansionHref(card.episode_id)} onClick={onClose}>
           {card.episode_name}
@@ -2108,7 +2220,7 @@ export function CardModalHeroSection({
       wideMobile: true,
     },
     {
-      label: "Artist",
+      label: "Illustrator",
       value: card.artist ? (
         <CompactDetailLink
           href={`/illustrators/${encodeURIComponent(card.artist)}`}
@@ -2181,11 +2293,10 @@ export function CardModalHeroSection({
         ...visibleCollectionStats.filter((stat) => stat.label !== "Condition"),
         ...heroDetailStats.filter((stat) => stat.label === "Type"),
         ...visibleCollectionStats.filter((stat) => stat.label === "Condition"),
+        releaseDetailStat,
       ]
-    : heroDetailStats;
-  const desktopDetailStats = headerDetailStats.filter(
-    (stat) => stat.label !== "Set" && stat.label !== "Artist"
-  );
+    : [...heroDetailStats, releaseDetailStat];
+  const desktopDetailStats = headerDetailStats;
   const showCollectionExtras = Boolean(
     collectionItem && (collectionTags.length > 0 || collectionItem.notes)
   );
@@ -2283,19 +2394,6 @@ export function CardModalHeroSection({
             )}
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <CompactDetailLink href={getExpansionHref(card.episode_id)} onClick={onClose}>
-              {card.episode_name}
-            </CompactDetailLink>
-            {card.artist && (
-              <CompactDetailLink
-                href={`/illustrators/${encodeURIComponent(card.artist)}`}
-                onClick={onClose}
-              >
-                {card.artist}
-              </CompactDetailLink>
-            )}
-          </div>
         </div>
 
       </div>

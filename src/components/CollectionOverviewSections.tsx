@@ -1,10 +1,11 @@
 ﻿"use client";
 
 import dynamic from "next/dynamic";
-import { ArrowDown, ArrowUp } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, Search, X } from "lucide-react";
+import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
+import CardLayoutSizeControl from "@/components/CardLayoutSizeControl";
 import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
-import { useSettings, type CardSize } from "@/components/SettingsProvider";
+import { cardMatchesSearchQuery } from "@/lib/card-search";
 import {
   buildOverviewSectionOrderCookie,
   DEFAULT_OVERVIEW_SECTION_ORDER,
@@ -70,28 +71,6 @@ interface OverviewSection {
   render: (sectionControls: ReactNode) => ReactNode;
 }
 
-const MOBILE_CARD_LAYOUT_OPTIONS: Array<{
-  value: CardSize;
-  label: string;
-  title: string;
-}> = [
-  { value: "large", label: "L", title: "Largest phone card tiles" },
-  { value: "medium", label: "M", title: "Medium phone card tiles" },
-  { value: "small", label: "S", title: "Small phone card tiles" },
-  { value: "xsmall", label: "XS", title: "Compact phone card tiles" },
-];
-
-const DESKTOP_CARD_LAYOUT_OPTIONS: Array<{
-  value: CardSize;
-  label: string;
-  title: string;
-}> = [
-  { value: "large", label: "L", title: "Largest card tiles" },
-  { value: "medium", label: "M", title: "Medium card tiles" },
-  { value: "small", label: "S", title: "Small card tiles" },
-  { value: "xsmall", label: "XS", title: "Densest card tiles" },
-];
-
 function moveVisibleSection(
   order: OverviewSectionKey[],
   visibleOrder: OverviewSectionKey[],
@@ -121,6 +100,45 @@ function moveVisibleSection(
     visibleIndex += 1;
     return nextKey;
   });
+}
+
+function cardItemMatchesSearch(item: CollectionCardViewItem, query: string): boolean {
+  return cardMatchesSearchQuery(
+    {
+      name: item.name,
+      cardNumber: item.card_number,
+      episodeName: item.episode_name,
+      episodeCode: item.episode_code,
+      rarity: item.rarity,
+    },
+    query
+  );
+}
+
+function sealedItemMatchesSearch(item: CollectionSealedViewItem, query: string): boolean {
+  return cardMatchesSearchQuery(
+    {
+      name: item.name,
+      cardNumber: null,
+      episodeName: item.episode_name,
+      episodeCode: item.episode_code,
+      rarity: null,
+    },
+    query
+  );
+}
+
+function binderMatchesSearch(item: BinderOverviewItem, query: string): boolean {
+  return cardMatchesSearchQuery(
+    {
+      name: item.name,
+      cardNumber: null,
+      episodeName: item.subtitle,
+      episodeCode: null,
+      rarity: item.progressLabel,
+    },
+    query
+  );
 }
 
 function SectionHeader({
@@ -191,14 +209,59 @@ export default function CollectionOverviewSections({
   binders,
   initialSectionOrder = null,
 }: Props) {
-  const { displaySettings, isMobileViewport, setDisplay } = useSettings();
-  const layoutOptions = isMobileViewport ? MOBILE_CARD_LAYOUT_OPTIONS : DESKTOP_CARD_LAYOUT_OPTIONS;
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const normalizedSearch = deferredSearch.trim();
+  const hasSearch = normalizedSearch.length > 0;
   const [sectionOrder, setSectionOrder] = useState<OverviewSectionKey[]>(
     initialSectionOrder ?? DEFAULT_OVERVIEW_SECTION_ORDER
   );
   const [hasResolvedSectionOrder, setHasResolvedSectionOrder] = useState(
     Boolean(initialSectionOrder)
   );
+  const filteredGradedLooseSingles = useMemo(
+    () =>
+      hasSearch
+        ? gradedLooseSingles.filter((item) => cardItemMatchesSearch(item, normalizedSearch))
+        : gradedLooseSingles,
+    [gradedLooseSingles, hasSearch, normalizedSearch]
+  );
+  const filteredRawLooseSingles = useMemo(
+    () =>
+      hasSearch
+        ? rawLooseSingles.filter((item) => cardItemMatchesSearch(item, normalizedSearch))
+        : rawLooseSingles,
+    [rawLooseSingles, hasSearch, normalizedSearch]
+  );
+  const filteredBinderCards = useMemo(
+    () =>
+      hasSearch
+        ? binderCards.filter((item) => cardItemMatchesSearch(item, normalizedSearch))
+        : binderCards,
+    [binderCards, hasSearch, normalizedSearch]
+  );
+  const filteredSealed = useMemo(
+    () =>
+      hasSearch
+        ? sealed.filter((item) => sealedItemMatchesSearch(item, normalizedSearch))
+        : sealed,
+    [sealed, hasSearch, normalizedSearch]
+  );
+  const filteredBinders = useMemo(
+    () =>
+      hasSearch
+        ? binders.filter((item) => binderMatchesSearch(item, normalizedSearch))
+        : binders,
+    [binders, hasSearch, normalizedSearch]
+  );
+  const totalSearchableItems =
+    gradedLooseSingles.length + rawLooseSingles.length + binderCards.length + sealed.length + binders.length;
+  const matchingSearchableItems =
+    filteredGradedLooseSingles.length +
+    filteredRawLooseSingles.length +
+    filteredBinderCards.length +
+    filteredSealed.length +
+    filteredBinders.length;
 
   useEffect(() => {
     if (hasResolvedSectionOrder) {
@@ -241,16 +304,20 @@ export default function CollectionOverviewSections({
       {
         key: "graded",
         label: "Graded Cards",
-        show: gradedLooseSingles.length > 0,
+        show: filteredGradedLooseSingles.length > 0,
         render: (sectionControls) => (
           <CollectionCardsView
-            items={gradedLooseSingles}
+            items={filteredGradedLooseSingles}
             allowCollectionRemoval
             showGradedSlabPreview
-            emptyTitle="No graded cards yet"
-            emptyText="Graded cards saved without a binder appear here."
+            emptyTitle={hasSearch ? "No matching graded cards" : "No graded cards yet"}
+            emptyText={
+              hasSearch
+                ? "No graded cards match this search."
+                : "Graded cards saved without a binder appear here."
+            }
             sectionTitle="Graded Cards"
-            sectionCount={gradedLooseSingles.length}
+            sectionCount={filteredGradedLooseSingles.length}
             forcedSortBy="cm_en"
             forcedSortDir="desc"
             sectionTrailing={sectionControls}
@@ -260,16 +327,20 @@ export default function CollectionOverviewSections({
       {
         key: "raw",
         label: "Loose Singles",
-        show: showRawLooseSinglesSection,
+        show: showRawLooseSinglesSection && filteredRawLooseSingles.length > 0,
         render: (sectionControls) => (
           <CollectionCardsView
-            items={rawLooseSingles}
+            items={filteredRawLooseSingles}
             allowCollectionRemoval
             showGradedSlabPreview
-            emptyTitle="No loose singles yet"
-            emptyText="Cards saved without a binder appear here."
+            emptyTitle={hasSearch ? "No matching loose singles" : "No loose singles yet"}
+            emptyText={
+              hasSearch
+                ? "No loose singles match this search."
+                : "Cards saved without a binder appear here."
+            }
             sectionTitle="Loose Singles"
-            sectionCount={rawLooseSingles.length}
+            sectionCount={filteredRawLooseSingles.length}
             forcedSortBy="cm_en"
             forcedSortDir="desc"
             sectionTrailing={sectionControls}
@@ -279,10 +350,10 @@ export default function CollectionOverviewSections({
       {
         key: "binderWatch",
         label: "Binder Watch",
-        show: binders.length > 0 && binderCards.length > 0,
+        show: binders.length > 0 && filteredBinderCards.length > 0,
         render: (sectionControls) => (
           <BinderWatchSection
-            items={binderCards}
+            items={filteredBinderCards}
             showGradedSlabPreview
             sectionTrailing={sectionControls}
           />
@@ -291,14 +362,18 @@ export default function CollectionOverviewSections({
       {
         key: "sealed",
         label: "Sealed",
-        show: true,
+        show: !hasSearch || filteredSealed.length > 0,
         render: (sectionControls) => (
           <CollectionSealedView
-            items={sealed}
-            emptyTitle="No sealed saved yet"
-            emptyText="Sealed products you add from search or expansion pages will appear here."
+            items={filteredSealed}
+            emptyTitle={hasSearch ? "No matching sealed" : "No sealed saved yet"}
+            emptyText={
+              hasSearch
+                ? "No sealed products match this search."
+                : "Sealed products you add from search or expansion pages will appear here."
+            }
             sectionTitle="Sealed"
-            sectionCount={sealed.length}
+            sectionCount={filteredSealed.length}
             sectionTrailing={sectionControls}
           />
         ),
@@ -306,12 +381,12 @@ export default function CollectionOverviewSections({
       {
         key: "binders",
         label: "Binders",
-        show: true,
+        show: !hasSearch || filteredBinders.length > 0,
         render: (sectionControls) => (
           <section>
             <SectionHeader
               label="Binders"
-              count={binders.length}
+              count={filteredBinders.length}
               trailing={
                 <div className="flex flex-wrap items-center gap-1.5">
                   <CreateBinderButton compact />
@@ -320,15 +395,19 @@ export default function CollectionOverviewSections({
               }
             />
 
-            {binders.length === 0 ? (
+            {filteredBinders.length === 0 ? (
               <div className="binder-panel rounded-2xl px-5 py-7 text-center sm:rounded-3xl sm:px-8 sm:py-9">
-                <p className="mb-1 font-medium text-white/76">No binders yet</p>
+                <p className="mb-1 font-medium text-white/76">
+                  {hasSearch ? "No matching binders" : "No binders yet"}
+                </p>
                 <p className="text-sm text-white/42">
-                  Type a set name for an automatic set binder, or create a custom binder.
+                  {hasSearch
+                    ? "No binders match this search."
+                    : "Type a set name for an automatic set binder, or create a custom binder."}
                 </p>
               </div>
             ) : (
-              <BinderOverviewGrid binders={binders} />
+              <BinderOverviewGrid binders={filteredBinders} />
             )}
           </section>
         ),
@@ -337,11 +416,13 @@ export default function CollectionOverviewSections({
 
     return new Map(sections.map((section) => [section.key, section] as const));
   }, [
-    binderCards,
     binders,
-    gradedLooseSingles,
-    rawLooseSingles,
-    sealed,
+    filteredBinderCards,
+    filteredBinders,
+    filteredGradedLooseSingles,
+    filteredRawLooseSingles,
+    filteredSealed,
+    hasSearch,
     showRawLooseSinglesSection,
   ]);
 
@@ -369,55 +450,56 @@ export default function CollectionOverviewSections({
 
   return (
     <div className={hasResolvedSectionOrder ? "space-y-5 sm:space-y-6" : "invisible space-y-5 sm:space-y-6"}>
-      <div className="binder-subpanel flex min-w-0 items-center justify-between gap-3 rounded-[var(--ui-page-header-radius)] p-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
-            Card layout
-          </p>
-          <p className="mt-0.5 hidden text-xs font-medium text-white/45 sm:block">
-            Density for this categorized collection view.
-          </p>
+      <div className="binder-subpanel flex min-w-0 flex-col gap-2 rounded-[var(--ui-page-header-radius)] p-2.5 sm:flex-row sm:items-center sm:p-3">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search complete collection..."
+            className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.055] pl-10 pr-10 text-sm font-semibold text-white outline-none transition-colors placeholder:font-medium placeholder:text-white/30 focus:border-white/16"
+          />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white"
+              aria-label="Clear complete collection search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
-        <div
-          className="grid min-w-0 shrink-0 gap-1 rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20"
-          style={{ gridTemplateColumns: `repeat(${layoutOptions.length}, minmax(0, 1fr))` }}
-        >
-          {layoutOptions.map((option) => {
-            const active = displaySettings.cardSize === option.value;
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                title={option.title}
-                aria-pressed={active}
-                onClick={() => setDisplay("cardSize", option.value)}
-                className={`min-h-8 min-w-[2.8rem] rounded-full px-2 text-[11px] font-black leading-none transition-colors sm:min-w-[4rem] sm:text-xs ${
-                  active
-                    ? "border border-violet-400/40 bg-violet-600 text-white"
-                    : "text-white/56 hover:bg-white/[0.07] hover:text-white"
-                }`}
-              >
-                {option.label}
-              </button>
-            );
-          })}
+        <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+          <span className="hidden h-9 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-3 text-xs font-bold tabular-nums text-white/48 md:inline-flex">
+            {hasSearch
+              ? `${matchingSearchableItems.toLocaleString("en-US")} / ${totalSearchableItems.toLocaleString("en-US")}`
+              : `${totalSearchableItems.toLocaleString("en-US")} items`}
+          </span>
+          <CardLayoutSizeControl dense />
         </div>
       </div>
 
-      {orderedVisibleSections.map((section, index) => {
-        const sectionControls = (
-          <SectionReorderControls
-            label={section.label}
-            canMoveUp={index > 0}
-            canMoveDown={index < orderedVisibleSections.length - 1}
-            onMoveUp={() => handleMoveSection(section.key, -1)}
-            onMoveDown={() => handleMoveSection(section.key, 1)}
-          />
-        );
+      {orderedVisibleSections.length > 0 ? (
+        orderedVisibleSections.map((section, index) => {
+          const sectionControls = (
+            <SectionReorderControls
+              label={section.label}
+              canMoveUp={index > 0}
+              canMoveDown={index < orderedVisibleSections.length - 1}
+              onMoveUp={() => handleMoveSection(section.key, -1)}
+              onMoveDown={() => handleMoveSection(section.key, 1)}
+            />
+          );
 
-        return <div key={section.key}>{section.render(sectionControls)}</div>;
-      })}
+          return <div key={section.key}>{section.render(sectionControls)}</div>;
+        })
+      ) : (
+        <section className="rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/48 shadow-sm shadow-black/20">
+          {hasSearch ? "No complete collection matches this search." : "No collection sections yet."}
+        </section>
+      )}
     </div>
   );
 }

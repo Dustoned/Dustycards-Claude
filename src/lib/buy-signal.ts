@@ -45,6 +45,8 @@ export interface BuySignalResult {
     release_age_years: number | null;
     long_term_score: number;
     promo_scarcity_score: number;
+    history_range_change_pct: number | null;
+    history_range_covered_days: number | null;
     raw_active_listing_outlier: boolean;
   };
 }
@@ -477,6 +479,23 @@ function getWindowChange(points: SignalValuePoint[], days: number): WindowChange
   };
 }
 
+function getHistoryRangeChange(points: SignalValuePoint[]): WindowChange | null {
+  const valid = getValidPoints(points);
+  if (valid.length < 2) return null;
+
+  const baseline = valid[0];
+  const latest = valid[valid.length - 1];
+  const coveredDays = Math.max(1, Math.round((latest.timestamp - baseline.timestamp) / DAY_MS));
+  const change = latest.value - baseline.value;
+  const changePct = baseline.value > 0 ? (change / baseline.value) * 100 : null;
+
+  return {
+    change: round(change, 2),
+    change_pct: changePct == null ? null : round(changePct, 1),
+    covered_days: coveredDays,
+  };
+}
+
 function getRecentAverage(points: SignalValuePoint[], days: number): number | null {
   const valid = getValidPoints(points);
   if (valid.length === 0) return null;
@@ -560,14 +579,14 @@ function getLongTermScore(input: {
   const ageComponent =
     input.releaseAgeYears == null
       ? 0
-      : clamp((input.releaseAgeYears - 2) / 10, 0, 1) * 32;
+      : clamp((input.releaseAgeYears - 1.5) / 8.5, 0, 1) * 42;
   const pullOddsComponent =
     input.pullRateInfo?.specific_pull_odds || input.pullRateInfo?.pull_rate_odds ? 10 : 0;
   const gemPct = input.pullRateInfo?.psa_avg_gem_pct;
   const gemComponent =
     gemPct == null ? 0 : gemPct <= 0.3 ? 12 : gemPct <= 0.5 ? 8 : gemPct <= 0.7 ? 4 : 0;
 
-  return round(
+  const baseScore =
     clamp(
       rarityComponent +
         ageComponent +
@@ -576,8 +595,17 @@ function getLongTermScore(input: {
         input.promoScarcityScore,
       0,
       100
-    )
-  );
+    );
+  const matureRarityFloor =
+    input.releaseAgeYears != null &&
+    input.releaseAgeYears >= 7 &&
+    input.rarityWeight >= 1.08
+      ? input.releaseAgeYears >= 9 || input.rarityWeight >= 1.15
+        ? 58
+        : 52
+      : 0;
+
+  return round(Math.max(baseScore, matureRarityFloor));
 }
 
 function getLongTermLabel(score: number): string {
@@ -689,6 +717,7 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
   const validHistory = getValidPoints(selection.history_points);
   const change7d = getWindowChange(selection.history_points, 7);
   const change30d = getWindowChange(selection.history_points, 30);
+  const historyRangeChange = getHistoryRangeChange(selection.history_points);
   const avg30d = selection.average_30d ?? getRecentAverage(selection.history_points, 30);
   const vs30dAvgPct =
     currentValue != null && avg30d != null && avg30d > 0
@@ -718,6 +747,33 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
   const warnings: string[] = [];
   const reasons: string[] = [];
   const hasLongTermHoldValue = longTermScore >= 55;
+  const isMatureCollectible =
+    releaseAgeYears != null &&
+    releaseAgeYears >= 6 &&
+    (rarityWeight >= 1.08 || isPromo || longTermScore >= 55);
+  const historyRangeIsStable =
+    historyRangeChange?.change_pct != null &&
+    historyRangeChange.covered_days >= 45 &&
+    Math.abs(historyRangeChange.change_pct) <= 8;
+  const recentTrendPct = change7d?.change_pct ?? change30d?.change_pct ?? 0;
+  const recentTrendIsStable = Math.abs(recentTrendPct) <= 8;
+  const averagePremiumPct = vs30dAvgPct == null ? null : -vs30dAvgPct;
+  const shortTermPump =
+    (change7d?.change_pct != null && change7d.change_pct >= 12) ||
+    (change30d?.change_pct != null && change30d.change_pct >= 18 && !historyRangeIsStable);
+  const matureAverageDampens =
+    isMatureCollectible &&
+    averagePremiumPct != null &&
+    averagePremiumPct > 0 &&
+    averagePremiumPct < 28 &&
+    (historyRangeIsStable || recentTrendIsStable) &&
+    !shortTermPump;
+  const matureStableCollectible =
+    isMatureCollectible &&
+    !selection.raw_active_listing_outlier &&
+    (historyRangeIsStable || (historyRangeChange == null && recentTrendIsStable)) &&
+    !shortTermPump &&
+    (averagePremiumPct == null || averagePremiumPct < 28);
 
   if (currentValue == null) {
     warnings.push("No current market value");
@@ -744,9 +800,10 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
     score = 50;
   } else {
     if (vs30dAvgPct != null) {
-      score += clamp(vs30dAvgPct * 0.85, -20, 20);
+      const averageWeight = matureAverageDampens && vs30dAvgPct < 0 ? 0.32 : 1;
+      score += clamp(vs30dAvgPct * 0.85 * averageWeight, -20, 20);
       if (vs30dAvgPct >= 8) reasons.push("Below 30d average");
-      if (vs30dAvgPct <= -8) reasons.push("Above 30d average");
+      if (vs30dAvgPct <= -8 && !matureAverageDampens) reasons.push("Above 30d average");
     }
 
     if (selection.average_7d != null && selection.average_7d > 0) {
@@ -823,6 +880,18 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
       score = clamp(score, 40, 60);
       reasons.push("Active listing outlier");
     }
+
+    if (matureStableCollectible) {
+      if (input.collection_item) {
+        score = Math.max(score, 48);
+      } else {
+        score = Math.max(score, 62);
+        score += clamp((longTermScore - 55) * 0.08, 0, 3);
+      }
+      reasons.push(
+        historyRangeIsStable ? "Mature stable collectible" : "Older collectible, no strong pump"
+      );
+    }
   }
 
   const confidence = calculateConfidence({
@@ -880,6 +949,17 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
       tone: getTrendTone(change30d?.change_pct ?? null),
     },
   ];
+
+  if (historyRangeChange?.change_pct != null && historyRangeChange.covered_days >= 45) {
+    evidence.push({
+      label: `${Math.round(historyRangeChange.covered_days)}d range`,
+      value: formatPercent(historyRangeChange.change_pct),
+      tone:
+        Math.abs(historyRangeChange.change_pct) <= 8
+          ? "positive"
+          : getTrendTone(historyRangeChange.change_pct),
+    });
+  }
 
   if (selection.market_mode === "graded") {
     evidence.push({
@@ -951,6 +1031,9 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
       release_age_years: releaseAgeYears,
       long_term_score: longTermScore,
       promo_scarcity_score: promoScarcityScore,
+      history_range_change_pct:
+        historyRangeChange?.change_pct == null ? null : round(historyRangeChange.change_pct, 1),
+      history_range_covered_days: historyRangeChange?.covered_days ?? null,
       raw_active_listing_outlier: selection.raw_active_listing_outlier,
     },
   };

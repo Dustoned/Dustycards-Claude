@@ -10,6 +10,10 @@ export interface AutoPriceRefreshClientResponse {
   missingPriceCards?: number;
   selectedCards?: number;
   backfillCards?: number;
+  submittedCardCandidates?: number;
+  submittedCardsSelected?: number;
+  submittedCardsRefreshed?: number;
+  submittedCardRefreshFailures?: number;
   remainingDueCards?: number;
   catalogSyncedEpisodes?: number;
   nativeHistoryItems?: number;
@@ -40,6 +44,7 @@ export function hasVisibleRefreshChanges(data: AutoPriceRefreshClientResponse): 
     (data.refreshedPrices ?? 0) > 0 ||
     (data.refreshedCards ?? 0) > 0 ||
     (data.gradedPricesUpdated ?? 0) > 0 ||
+    (data.submittedCardsRefreshed ?? 0) > 0 ||
     data.autoJobStarted === true ||
     data.autoJobRunning === true ||
     data.cardHistoryJobStarted === true ||

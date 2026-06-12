@@ -23,6 +23,11 @@ import {
   chooseRawMoverSource,
   type MoverPriceQuality,
 } from "@/lib/mover-scoring";
+import {
+  buildBuySignal,
+  type BuySignalConfidence,
+  type BuySignalLabel,
+} from "@/lib/buy-signal";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { PriceSource } from "@/lib/user-settings";
 import {
@@ -128,6 +133,7 @@ interface MoverCandidateCardRow {
   cm_fr_lowest_nm: number | null;
   cm_es_lowest_nm: number | null;
   cm_it_lowest_nm: number | null;
+  cm_jp_lowest_nm: number | null;
   tcp_market: number | null;
   cm_en_avg_7d: number | null;
   cm_en_avg_30d: number | null;
@@ -153,6 +159,7 @@ interface RecentHistoryRow {
   cm_fr_lowest_nm: number | null;
   cm_es_lowest_nm: number | null;
   cm_it_lowest_nm: number | null;
+  cm_jp_lowest_nm: number | null;
   tcp_market: number | null;
   cm_en_avg_7d: number | null;
   cm_en_avg_30d: number | null;
@@ -225,6 +232,7 @@ interface GradedMoverCandidateRow {
   cm_fr_lowest_nm: number | null;
   cm_es_lowest_nm: number | null;
   cm_it_lowest_nm: number | null;
+  cm_jp_lowest_nm: number | null;
   tcp_market: number | null;
   cm_en_avg_7d: number | null;
   cm_en_avg_30d: number | null;
@@ -335,6 +343,14 @@ export interface MoverGradingInsight {
   score: number;
 }
 
+export interface MoverBuySignal {
+  label: BuySignalLabel;
+  labelText: string;
+  score: number;
+  markerPercent: number;
+  confidence: BuySignalConfidence;
+}
+
 export interface CollectionMoverItem {
   cardId: string;
   name: string;
@@ -397,6 +413,7 @@ export interface CollectionMoverItem {
   opportunityScore: number;
   rankingScore: number;
   priceQuality: MoverPriceQuality;
+  buySignal: MoverBuySignal | null;
   moverScore: number;
 }
 
@@ -506,6 +523,57 @@ function toIsoOrNull(value: Date | string | null | undefined): string | null {
   }
 
   return new Date(value).toISOString();
+}
+
+function buildMoverBuySignal(input: {
+  rarity: string | null;
+  episodeName: string;
+  episodeCode: string | null;
+  episodeReleaseDate: string | null;
+  latestPrice: LatestPriceSnapshot | null;
+  priceHistory: CardPriceHistoryPoint[];
+  pullRateInfo: PullRateInfo | null;
+}): MoverBuySignal | null {
+  const signal = buildBuySignal({
+    rarity: input.rarity,
+    episode_name: input.episodeName,
+    episode_code: input.episodeCode,
+    episode_release_date: input.episodeReleaseDate,
+    price: input.latestPrice
+      ? {
+          cm_en_lowest_nm: input.latestPrice.cm_en_lowest_nm,
+          cm_de_lowest_nm: input.latestPrice.cm_de_lowest_nm,
+          cm_fr_lowest_nm: input.latestPrice.cm_fr_lowest_nm,
+          cm_es_lowest_nm: input.latestPrice.cm_es_lowest_nm,
+          cm_it_lowest_nm: input.latestPrice.cm_it_lowest_nm,
+          cm_jp_lowest_nm: input.latestPrice.cm_jp_lowest_nm ?? null,
+          tcp_market: input.latestPrice.tcp_market,
+          tcp_mid: null,
+          tcp_low: null,
+          cm_en_avg_7d: input.latestPrice.cm_en_avg_7d,
+          cm_en_avg_30d: input.latestPrice.cm_en_avg_30d,
+        }
+      : null,
+    price_fetched_at: toIsoOrNull(input.latestPrice?.fetched_at),
+    price_history: input.priceHistory,
+    pull_rate_info: input.pullRateInfo
+      ? {
+          rarity_name: input.pullRateInfo.rarityName,
+          pull_rate_odds: input.pullRateInfo.pullRateOdds,
+          specific_pull_odds: input.pullRateInfo.specificPullOdds,
+          pull_rate_weight: input.pullRateInfo.pullRateWeight,
+          psa_avg_gem_pct: input.pullRateInfo.psaAvgGemPct,
+        }
+      : null,
+  });
+
+  return {
+    label: signal.label,
+    labelText: signal.label_text,
+    score: signal.score,
+    markerPercent: signal.marker_percent,
+    confidence: signal.confidence,
+  };
 }
 
 function hasTcggoScoreData(score: TcggoMoverScore): boolean {
@@ -1278,6 +1346,7 @@ async function fetchMoverCandidateCards(
       lp.cm_fr_lowest_nm,
       lp.cm_es_lowest_nm,
       lp.cm_it_lowest_nm,
+      lp.cm_jp_lowest_nm,
       lp.tcp_market,
       lp.cm_en_avg_7d,
       lp.cm_en_avg_30d
@@ -1319,6 +1388,7 @@ async function fetchMoverCandidateCards(
             cm_fr_lowest_nm: row.cm_fr_lowest_nm,
             cm_es_lowest_nm: row.cm_es_lowest_nm,
             cm_it_lowest_nm: row.cm_it_lowest_nm,
+            cm_jp_lowest_nm: row.cm_jp_lowest_nm,
             tcp_market: row.tcp_market,
             cm_en_avg_7d: row.cm_en_avg_7d,
             cm_en_avg_30d: row.cm_en_avg_30d,
@@ -1363,6 +1433,7 @@ function buildLatestRawPriceFromGradedRow(
     cm_fr_lowest_nm: row.cm_fr_lowest_nm,
     cm_es_lowest_nm: row.cm_es_lowest_nm,
     cm_it_lowest_nm: row.cm_it_lowest_nm,
+    cm_jp_lowest_nm: row.cm_jp_lowest_nm,
     tcp_market: row.tcp_market,
     cm_en_avg_7d: row.cm_en_avg_7d,
     cm_en_avg_30d: row.cm_en_avg_30d,
@@ -1450,6 +1521,7 @@ async function buildGradedMoversData(
           lp.cm_fr_lowest_nm,
           lp.cm_es_lowest_nm,
           lp.cm_it_lowest_nm,
+          lp.cm_jp_lowest_nm,
           lp.tcp_market,
           lp.cm_en_avg_7d,
           lp.cm_en_avg_30d,
@@ -1459,7 +1531,8 @@ async function buildGradedMoversData(
               p3.cm_de_lowest_nm,
               p3.cm_fr_lowest_nm,
               p3.cm_es_lowest_nm,
-              p3.cm_it_lowest_nm
+              p3.cm_it_lowest_nm,
+              p3.cm_jp_lowest_nm
             )
             FROM "Price" p3
             WHERE p3.card_id = c.id
@@ -1468,7 +1541,8 @@ async function buildGradedMoversData(
                 p3.cm_de_lowest_nm,
                 p3.cm_fr_lowest_nm,
                 p3.cm_es_lowest_nm,
-                p3.cm_it_lowest_nm
+                p3.cm_it_lowest_nm,
+                p3.cm_jp_lowest_nm
               ) >= 1
             ORDER BY p3.fetched_at DESC, p3.id DESC
             LIMIT 1
@@ -1700,12 +1774,22 @@ async function buildGradedMoversData(
         ? pullRateBySetAndRarity.get(`${row.episode_code.toUpperCase()}::${normalizedRarity}`) ??
           null
         : null;
+    const isGradeTen = isGradeTenLabel(row.graded_label);
+    const rawLatestPrice = buildLatestRawPriceFromGradedRow(row);
+    const rawPriceHistory = rawLatestPrice ? buildCardPriceHistory([rawLatestPrice]) : [];
+    const buySignal = buildMoverBuySignal({
+      rarity: row.rarity,
+      episodeName: row.episode_name,
+      episodeCode: row.episode_code,
+      episodeReleaseDate: row.episode_release_date,
+      latestPrice: rawLatestPrice,
+      priceHistory: rawPriceHistory,
+      pullRateInfo,
+    });
     const rarityWeight = resolveMoverRarityWeight(row.rarity, pullRateInfo?.pullRateWeight);
     const cheapnessWeight = getCheapnessWeight(currentPrice);
     const releaseAgeYears = getReleaseAgeYears(row.episode_release_date);
     const ageWeight = getAgeWeight(releaseAgeYears);
-    const isGradeTen = isGradeTenLabel(row.graded_label);
-    const rawLatestPrice = buildLatestRawPriceFromGradedRow(row);
     const cardmarketPrice = getCurrentSourceValue(
       rawLatestPrice,
       "cardmarket",
@@ -1809,6 +1893,7 @@ async function buildGradedMoversData(
       opportunityScore: scores.opportunityScore,
       rankingScore,
       priceQuality: scores.priceQuality,
+      buySignal,
       moverScore,
     });
   }
@@ -2005,6 +2090,7 @@ export async function getMovers(
         cm_fr_lowest_nm,
         cm_es_lowest_nm,
         cm_it_lowest_nm,
+        cm_jp_lowest_nm,
         tcp_market,
         cm_en_avg_7d,
         cm_en_avg_30d
@@ -2017,6 +2103,7 @@ export async function getMovers(
           p.cm_fr_lowest_nm,
           p.cm_es_lowest_nm,
           p.cm_it_lowest_nm,
+          p.cm_jp_lowest_nm,
           p.tcp_market,
           p.cm_en_avg_7d,
           p.cm_en_avg_30d,
@@ -2048,14 +2135,16 @@ export async function getMovers(
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
+            p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm
           )) AS cm_low_value,
           MAX(COALESCE(
             p.cm_en_lowest_nm,
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
+            p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm
           )) AS cm_high_value
         FROM "Price" p
         INNER JOIN candidate_cards cc ON cc.card_id = p.card_id
@@ -2064,7 +2153,8 @@ export async function getMovers(
           p.cm_de_lowest_nm,
           p.cm_fr_lowest_nm,
           p.cm_es_lowest_nm,
-          p.cm_it_lowest_nm
+          p.cm_it_lowest_nm,
+          p.cm_jp_lowest_nm
         ) IS NOT NULL
         GROUP BY p.card_id
       ),
@@ -2090,7 +2180,8 @@ export async function getMovers(
               p.cm_de_lowest_nm,
               p.cm_fr_lowest_nm,
               p.cm_es_lowest_nm,
-              p.cm_it_lowest_nm
+              p.cm_it_lowest_nm,
+              p.cm_jp_lowest_nm
             ) IS NOT NULL
           ORDER BY p.fetched_at ASC, p.id ASC
           LIMIT 1
@@ -2101,7 +2192,8 @@ export async function getMovers(
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
+            p.cm_it_lowest_nm,
+            p.cm_jp_lowest_nm
           )
           FROM "Price" p
           WHERE p.card_id = cc.card_id
@@ -2110,7 +2202,8 @@ export async function getMovers(
               p.cm_de_lowest_nm,
               p.cm_fr_lowest_nm,
               p.cm_es_lowest_nm,
-              p.cm_it_lowest_nm
+              p.cm_it_lowest_nm,
+              p.cm_jp_lowest_nm
             ) IS NOT NULL
           ORDER BY p.fetched_at ASC, p.id ASC
           LIMIT 1
@@ -2124,7 +2217,8 @@ export async function getMovers(
               p.cm_de_lowest_nm,
               p.cm_fr_lowest_nm,
               p.cm_es_lowest_nm,
-              p.cm_it_lowest_nm
+              p.cm_it_lowest_nm,
+              p.cm_jp_lowest_nm
             ) IS NOT NULL
           ORDER BY
             COALESCE(
@@ -2132,7 +2226,8 @@ export async function getMovers(
               p.cm_de_lowest_nm,
               p.cm_fr_lowest_nm,
               p.cm_es_lowest_nm,
-              p.cm_it_lowest_nm
+              p.cm_it_lowest_nm,
+              p.cm_jp_lowest_nm
             ) ASC,
             p.fetched_at ASC,
             p.id ASC
@@ -2148,7 +2243,8 @@ export async function getMovers(
               p.cm_de_lowest_nm,
               p.cm_fr_lowest_nm,
               p.cm_es_lowest_nm,
-              p.cm_it_lowest_nm
+              p.cm_it_lowest_nm,
+              p.cm_jp_lowest_nm
             ) IS NOT NULL
           ORDER BY
             COALESCE(
@@ -2156,7 +2252,8 @@ export async function getMovers(
               p.cm_de_lowest_nm,
               p.cm_fr_lowest_nm,
               p.cm_es_lowest_nm,
-              p.cm_it_lowest_nm
+              p.cm_it_lowest_nm,
+              p.cm_jp_lowest_nm
             ) DESC,
             p.fetched_at ASC,
             p.id ASC
@@ -2381,6 +2478,15 @@ export async function getMovers(
         ? pullRateBySetAndRarity.get(`${card.episode.code.toUpperCase()}::${normalizedRarity}`) ??
           null
         : null;
+    const buySignal = buildMoverBuySignal({
+      rarity: card.rarity,
+      episodeName: card.episode.name,
+      episodeCode: card.episode.code,
+      episodeReleaseDate: card.episode.release_date,
+      latestPrice,
+      priceHistory: historyPoints,
+      pullRateInfo,
+    });
     const rarityWeight = resolveRawMoverRarityWeight(card.rarity, pullRateInfo?.pullRateWeight);
     const cheapnessWeight = getCheapnessWeight(currentPrice);
     const releaseAgeYears = getReleaseAgeYears(card.episode.release_date);
@@ -2485,6 +2591,7 @@ export async function getMovers(
       opportunityScore: scores.opportunityScore,
       rankingScore: scores.rankingScore,
       priceQuality: scores.priceQuality,
+      buySignal,
       moverScore,
     });
   }

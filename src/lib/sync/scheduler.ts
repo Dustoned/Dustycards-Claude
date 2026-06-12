@@ -25,6 +25,7 @@ export interface SyncSchedulerTickResult {
     pendingCards: number;
     dueCards: number;
     missingPriceCards: number;
+    submittedCardCandidates: number;
     nextBatchCards: number;
     nextBatchEpisodes: number;
     status: string | null;
@@ -81,7 +82,8 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     getAutoPriceRefreshJobSnapshot(),
     getTcggoUsageSnapshot(),
   ]);
-  const pricePendingCards = priceSnapshot.dueCards + priceSnapshot.missingPriceCards;
+  const pricePendingCards =
+    priceSnapshot.dueCards + priceSnapshot.missingPriceCards + priceSnapshot.submittedCardCandidates;
   const priceRefresh =
     !scraperDisabled && pricePendingCards > 0
       ? await startAutoPriceRefreshJob()
@@ -91,6 +93,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
           pendingCards: pricePendingCards,
           dueCards: priceSnapshot.dueCards,
           missingPriceCards: priceSnapshot.missingPriceCards,
+          submittedCardCandidates: priceSnapshot.submittedCardCandidates,
           nextBatchCards: priceSnapshot.nextBatchCards,
           nextBatchEpisodes: priceSnapshot.nextBatchEpisodes,
           status: existingPriceJob.status,
@@ -124,6 +127,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
       pendingCards: priceRefresh.pendingCards,
       dueCards: priceRefresh.dueCards,
       missingPriceCards: priceRefresh.missingPriceCards,
+      submittedCardCandidates: priceRefresh.submittedCardCandidates,
       nextBatchCards: priceRefresh.nextBatchCards,
       nextBatchEpisodes: priceRefresh.nextBatchEpisodes,
       status: priceRefresh.status,

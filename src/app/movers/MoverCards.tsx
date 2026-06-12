@@ -175,6 +175,43 @@ function reasonChipClass(tone: MoverReasonTone): string {
   }
 }
 
+function buySignalChipClass(
+  label: NonNullable<CollectionMoverItem["buySignal"]>["label"]
+): string {
+  if (label === "strong_buy") {
+    return "border-emerald-300/30 bg-emerald-400/[0.14] text-emerald-100";
+  }
+  if (label === "buy") {
+    return "border-emerald-300/18 bg-emerald-400/[0.08] text-emerald-200";
+  }
+  if (label === "strong_sell") {
+    return "border-rose-300/30 bg-rose-400/[0.14] text-rose-100";
+  }
+  if (label === "sell") {
+    return "border-rose-300/18 bg-rose-400/[0.08] text-rose-200";
+  }
+  return "border-violet-300/18 bg-violet-400/[0.08] text-violet-100";
+}
+
+function MoverBuySignalChip({
+  signal,
+}: {
+  signal: CollectionMoverItem["buySignal"];
+}) {
+  if (!signal) return null;
+
+  return (
+    <span
+      className={`inline-flex max-w-full rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tabular-nums ${buySignalChipClass(
+        signal.label
+      )}`}
+      title={`Buy Signal: ${signal.labelText} (${signal.score}/100, ${signal.confidence} confidence)`}
+    >
+      {signal.labelText}
+    </span>
+  );
+}
+
 /**
  * Picks 0-2 short, human-readable reasons explaining why a card is on the list.
  * Pure: only reads existing fields on the mover item.
@@ -515,6 +552,7 @@ const MoverTile = memo(function MoverTile({
                 {item.normalizedRarity}
               </span>
             ) : null}
+            <MoverBuySignalChip signal={item.buySignal} />
             <MoverReasonChips item={item} mode={mode} />
             {mode === "target" ? (
               <span className="inline-flex rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/45">
@@ -642,6 +680,7 @@ function MoverSpotlightCard({
                   {item.normalizedRarity}
                 </span>
               ) : null}
+              <MoverBuySignalChip signal={item.buySignal} />
               <span className="inline-flex rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/50">
                 {item.sourceLabel}
               </span>

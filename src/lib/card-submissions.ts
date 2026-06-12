@@ -139,6 +139,13 @@ export interface AdminCardSubmissionItem extends CardSubmissionPreview {
   officialCardId: string | null;
 }
 
+export interface SubmittedCardAutoRefreshResult {
+  candidateSubmissions: number;
+  selectedSubmissions: number;
+  refreshedSubmissions: number;
+  failedSubmissions: number;
+}
+
 export interface UserSubmittedCardItem {
   id: string;
   game: TradingCardGame;
@@ -3115,6 +3122,140 @@ export async function refreshAdminCardSubmission(submissionId: string): Promise<
     updatedAt: updated.updated_at.toISOString(),
     migratedAt: updated.migrated_at?.toISOString() ?? null,
     officialCardId: updated.official_card_id,
+  };
+}
+
+export async function countDueSubmittedCardSubmissions(options?: {
+  now?: Date;
+  intervalMs?: number;
+  game?: TradingCardGame;
+}): Promise<number> {
+  const now = options?.now ?? new Date();
+  const intervalMs = Math.max(options?.intervalMs ?? 0, 0);
+  const dueBefore = new Date(now.getTime() - intervalMs);
+  const rows = await db.$queryRaw<Array<{ count: number | bigint }>>`
+    WITH latest_prices AS (
+      SELECT card_id, MAX(fetched_at) AS latest_fetched_at
+      FROM "Price"
+      GROUP BY card_id
+    )
+    SELECT COUNT(*) AS count
+    FROM "CardSubmission" s
+    INNER JOIN "Card" c ON c.id = s.card_id
+    LEFT JOIN latest_prices lp ON lp.card_id = s.card_id
+    WHERE s.status = 'added'
+      AND s.card_id IS NOT NULL
+      AND s.cardmarket_url IS NOT NULL
+      AND c.is_user_submitted = 1
+      AND (${options?.game ?? null} IS NULL OR c.game = ${options?.game ?? null})
+      AND MAX(
+        COALESCE(lp.latest_fetched_at, '1970-01-01T00:00:00.000Z'),
+        COALESCE(s.last_scraped_at, '1970-01-01T00:00:00.000Z'),
+        s.updated_at,
+        s.created_at
+      ) < ${dueBefore}
+  `;
+
+  const count = rows[0]?.count ?? 0;
+  return typeof count === "bigint" ? Number(count) : Number(count);
+}
+
+export async function refreshDueSubmittedCardSubmissions(options?: {
+  now?: Date;
+  intervalMs?: number;
+  maxSubmissions?: number;
+  game?: TradingCardGame;
+  throwIfCancelled?: () => Promise<void>;
+}): Promise<SubmittedCardAutoRefreshResult> {
+  const now = options?.now ?? new Date();
+  const intervalMs = Math.max(options?.intervalMs ?? 0, 0);
+  const dueBefore = new Date(now.getTime() - intervalMs);
+  const maxSubmissions = Math.max(options?.maxSubmissions ?? 0, 0);
+  const candidateSubmissions = await countDueSubmittedCardSubmissions({
+    now,
+    intervalMs,
+    game: options?.game,
+  });
+
+  if (candidateSubmissions === 0 || maxSubmissions === 0) {
+    return {
+      candidateSubmissions,
+      selectedSubmissions: 0,
+      refreshedSubmissions: 0,
+      failedSubmissions: 0,
+    };
+  }
+
+  const submissions = await db.$queryRaw<
+    Array<{
+      id: string;
+      cardId: string;
+      latestFetchedAt: Date | string | null;
+    }>
+  >`
+    WITH latest_prices AS (
+      SELECT card_id, MAX(fetched_at) AS latest_fetched_at
+      FROM "Price"
+      GROUP BY card_id
+    )
+    SELECT
+      s.id,
+      s.card_id AS "cardId",
+      lp.latest_fetched_at AS "latestFetchedAt"
+    FROM "CardSubmission" s
+    INNER JOIN "Card" c ON c.id = s.card_id
+    LEFT JOIN latest_prices lp ON lp.card_id = s.card_id
+    WHERE s.status = 'added'
+      AND s.card_id IS NOT NULL
+      AND s.cardmarket_url IS NOT NULL
+      AND c.is_user_submitted = 1
+      AND (${options?.game ?? null} IS NULL OR c.game = ${options?.game ?? null})
+      AND MAX(
+        COALESCE(lp.latest_fetched_at, '1970-01-01T00:00:00.000Z'),
+        COALESCE(s.last_scraped_at, '1970-01-01T00:00:00.000Z'),
+        s.updated_at,
+        s.created_at
+      ) < ${dueBefore}
+    ORDER BY MAX(
+      COALESCE(lp.latest_fetched_at, '1970-01-01T00:00:00.000Z'),
+      COALESCE(s.last_scraped_at, '1970-01-01T00:00:00.000Z'),
+      s.updated_at,
+      s.created_at
+    ) ASC
+    LIMIT ${maxSubmissions}
+  `;
+
+  let refreshedSubmissions = 0;
+  let failedSubmissions = 0;
+
+  for (const submission of submissions) {
+    await options?.throwIfCancelled?.();
+
+    try {
+      await refreshAdminCardSubmission(submission.id);
+      refreshedSubmissions += 1;
+    } catch (error) {
+      if (error instanceof CardSubmissionError && error.status === 429) {
+        break;
+      }
+
+      failedSubmissions += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      await db.cardSubmission.update({
+        where: { id: submission.id },
+        data: {
+          warnings_json: serializeJson([`Auto refresh skipped: ${message}`]),
+          last_scraped_at: now,
+        },
+      });
+    }
+  }
+
+  return {
+    candidateSubmissions,
+    selectedSubmissions: submissions.length,
+    refreshedSubmissions,
+    failedSubmissions,
   };
 }
 
