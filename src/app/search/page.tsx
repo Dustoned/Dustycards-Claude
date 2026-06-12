@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Package } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
@@ -34,6 +34,11 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import {
+  clearRecentSearches,
+  readRecentSearches,
+  rememberRecentSearch,
+} from "@/lib/recent-searches";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
@@ -58,6 +63,7 @@ interface SingleResult {
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
+  episode_release_date?: string | null;
   cm_en_lowest_nm: number | null;
   tcp_market: number | null;
   want_item?: {
@@ -74,7 +80,7 @@ interface SealedResult {
   cm_lowest: number | null;
   cm_avg_7d: number | null;
   cm_avg_30d: number | null;
-  episode: { id: string; name: string; code: string | null };
+  episode: { id: string; name: string; code: string | null; release_date?: string | null };
 }
 
 interface ExpansionResult {
@@ -97,6 +103,22 @@ interface SearchResults {
 const MIN_SEARCH_LENGTH = 1;
 const SEARCH_CACHE_MAX_ENTRIES = 50;
 const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
+const REMEMBER_SEARCH_AFTER_MS = 2500;
+const MIN_REMEMBER_QUERY_LENGTH = 2;
+
+type SearchSection = "all" | "singles" | "sealed" | "expansions";
+type SearchSortMode = "relevance" | "price_desc" | "price_asc" | "newest";
+
+function compareNullablePrice(a: number | null, b: number | null, direction: 1 | -1): number {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  return (a - b) * direction;
+}
+
+function compareNewestRelease(a: string | null | undefined, b: string | null | undefined): number {
+  return (b ?? "").localeCompare(a ?? "");
+}
 
 function formatEur(value: number | null | undefined): string {
   return value == null ? "-" : formatCurrency(value, "EUR");
@@ -128,6 +150,9 @@ function SearchPageContent({
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
   const [openingCardId, setOpeningCardId] = useState<string | null>(null);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [activeSection, setActiveSection] = useState<SearchSection>("all");
+  const [sortMode, setSortMode] = useState<SearchSortMode>("relevance");
   const abortRef = useRef<AbortController | null>(null);
   const resultsCacheRef = useRef(new Map<string, SearchResults>());
   const trimmedQuery = initialQuery.trim();
@@ -157,6 +182,29 @@ function SearchPageContent({
     active: displayGame === game,
     label: getGameFilterLabel(game),
   }));
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setRecentSearches(readRecentSearches()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setActiveSection("all"), 0);
+    return () => window.clearTimeout(timer);
+  }, [trimmedQuery]);
+
+  // Remember a query once it has been stable for a moment and produced
+  // results, so search-as-you-type prefixes do not pollute the recents.
+  useEffect(() => {
+    if (trimmedQuery.length < MIN_REMEMBER_QUERY_LENGTH) return;
+    if (!results || results.total === 0) return;
+
+    const timer = window.setTimeout(() => {
+      setRecentSearches(rememberRecentSearch(trimmedQuery));
+    }, REMEMBER_SEARCH_AFTER_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [results, trimmedQuery]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -250,6 +298,9 @@ function SearchPageContent({
 
   async function openCard(card: SingleResult) {
     if (openingCardId === card.id) return;
+    if (trimmedQuery.length >= MIN_REMEMBER_QUERY_LENGTH) {
+      setRecentSearches(rememberRecentSearch(trimmedQuery));
+    }
     setOpeningCardId(card.id);
     try {
       const res = await fetch(`/api/cards/${encodeURIComponent(card.id)}`);
@@ -264,6 +315,9 @@ function SearchPageContent({
   }
 
   function openSealed(product: SealedResult) {
+    if (trimmedQuery.length >= MIN_REMEMBER_QUERY_LENGTH) {
+      setRecentSearches(rememberRecentSearch(trimmedQuery));
+    }
     setSelectedSealed({
       id: product.id,
       name: product.name,
@@ -287,14 +341,68 @@ function SearchPageContent({
     !loading && results !== null && results.total === 0 && trimmedQuery.length >= MIN_SEARCH_LENGTH;
 
   const allExpansions: ExpansionResult[] = results?.expansions ?? [];
-  const resultSummary =
-    results && trimmedQuery.length >= MIN_SEARCH_LENGTH
-      ? [
-          `${results.singles.length.toLocaleString("en-US")} singles`,
-          `${results.sealed.length.toLocaleString("en-US")} sealed`,
-          `${allExpansions.length.toLocaleString("en-US")} expansions`,
-        ].join(" / ")
-      : null;
+
+  const sortedSingles = useMemo(() => {
+    const singles = results?.singles ?? [];
+    if (sortMode === "relevance") return singles;
+
+    const copy = [...singles];
+    if (sortMode === "newest") {
+      copy.sort((a, b) => compareNewestRelease(a.episode_release_date, b.episode_release_date));
+    } else {
+      const direction = sortMode === "price_asc" ? 1 : -1;
+      copy.sort((a, b) =>
+        compareNullablePrice(
+          a.cm_en_lowest_nm ?? a.tcp_market,
+          b.cm_en_lowest_nm ?? b.tcp_market,
+          direction
+        )
+      );
+    }
+    return copy;
+  }, [results, sortMode]);
+
+  const sortedSealed = useMemo(() => {
+    const sealed = results?.sealed ?? [];
+    if (sortMode === "relevance") return sealed;
+
+    const copy = [...sealed];
+    if (sortMode === "newest") {
+      copy.sort((a, b) =>
+        compareNewestRelease(a.episode.release_date, b.episode.release_date)
+      );
+    } else {
+      const direction = sortMode === "price_asc" ? 1 : -1;
+      copy.sort((a, b) => compareNullablePrice(a.cm_lowest, b.cm_lowest, direction));
+    }
+    return copy;
+  }, [results, sortMode]);
+
+  const hasResults = Boolean(results && trimmedQuery.length >= MIN_SEARCH_LENGTH);
+  const sectionChips = hasResults
+    ? ([
+        {
+          key: "all",
+          label: "All",
+          count:
+            (results?.singles.length ?? 0) + (results?.sealed.length ?? 0) + allExpansions.length,
+        },
+        { key: "singles", label: "Singles", count: results?.singles.length ?? 0 },
+        { key: "sealed", label: "Sealed", count: results?.sealed.length ?? 0 },
+        { key: "expansions", label: "Sets", count: allExpansions.length },
+      ] satisfies Array<{ key: SearchSection; label: string; count: number }>)
+    : null;
+  const showSection = (section: Exclude<SearchSection, "all">) =>
+    activeSection === "all" || activeSection === section;
+
+  function buildRecentSearchHref(query: string): string {
+    const params = new URLSearchParams({ q: query });
+    const gameValue = getGameFilterSearchParamValue(activeGame);
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+    return `/search?${params.toString()}`;
+  }
 
   const minWidth = getCardGridImageSizes(
     displaySettings.cardSize,
@@ -346,11 +454,42 @@ function SearchPageContent({
             </div>
           ) : null}
         </div>
-        {resultSummary ? (
-          <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
-            <p className="text-sm font-medium text-white/45">
-              {resultSummary}
-            </p>
+        {sectionChips ? (
+          <div className="flex shrink-0 flex-wrap items-center justify-start gap-1.5 sm:justify-end">
+            {sectionChips.map((chip) => {
+              const active = activeSection === chip.key;
+              const disabled = chip.key !== "all" && chip.count === 0;
+
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setActiveSection(active ? "all" : chip.key)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                    active
+                      ? "border-violet-300/40 bg-violet-500/25 text-white"
+                      : "border-white/10 bg-white/[0.04] text-white/60 hover:border-white/20 hover:text-white"
+                  }`}
+                >
+                  {chip.label}
+                  <span className="tabular-nums text-[11px] opacity-70">
+                    {chip.count.toLocaleString("en-US")}
+                  </span>
+                </button>
+              );
+            })}
+            <select
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as SearchSortMode)}
+              aria-label="Sort results"
+              className="h-[26px] rounded-full border border-white/10 bg-white/[0.04] px-2.5 text-xs font-semibold text-white/60 outline-none transition-colors hover:border-white/20 hover:text-white [&>option]:bg-zinc-900"
+            >
+              <option value="relevance">Best match</option>
+              <option value="price_desc">Price: high to low</option>
+              <option value="price_asc">Price: low to high</option>
+              <option value="newest">Newest set</option>
+            </select>
           </div>
         ) : null}
       </div>
@@ -363,11 +502,40 @@ function SearchPageContent({
         </div>
       )}
 
-      {!loading && trimmedQuery.length < MIN_SEARCH_LENGTH && (
-        <div className="rounded-3xl border border-dashed border-white/12 bg-white/[0.035] p-5 text-sm text-white/45">
-          Use the header search to find cards, sealed products, or expansions.
-        </div>
-      )}
+      {!loading &&
+        trimmedQuery.length < MIN_SEARCH_LENGTH &&
+        (recentSearches.length > 0 ? (
+          <div className="rounded-3xl border border-white/8 bg-white/[0.035] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
+                Recent searches
+              </p>
+              <button
+                type="button"
+                onClick={() => setRecentSearches(clearRecentSearches())}
+                className="text-[11px] font-semibold uppercase tracking-wide text-white/35 transition-colors hover:text-white/70"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {recentSearches.map((recentQuery) => (
+                <Link
+                  key={recentQuery}
+                  href={buildRecentSearchHref(recentQuery)}
+                  prefetch={false}
+                  className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm font-semibold text-white/70 transition-colors hover:border-white/22 hover:text-white"
+                >
+                  {recentQuery}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-dashed border-white/12 bg-white/[0.035] p-5 text-sm text-white/45">
+            Use the header search to find cards, sealed products, or expansions.
+          </div>
+        ))}
 
       {/* No results */}
       {showEmpty && (
@@ -387,7 +555,7 @@ function SearchPageContent({
       {results && (results.total > 0 || allExpansions.length > 0) && (
         <div className="space-y-5">
           {/* Expansions grid */}
-          {allExpansions.length > 0 && (
+          {showSection("expansions") && allExpansions.length > 0 && (
             <section>
               <SectionHeader title="Expansions" count={allExpansions.length} compact className="mb-4" />
 
@@ -403,6 +571,11 @@ function SearchPageContent({
                     key={ep.id}
                     href={getExpansionHref(ep.id)}
                     prefetch={false}
+                    onClick={() => {
+                      if (trimmedQuery.length >= MIN_REMEMBER_QUERY_LENGTH) {
+                        rememberRecentSearch(trimmedQuery);
+                      }
+                    }}
                     className={`group binder-panel flex flex-col items-center transition-all duration-200 hover:scale-[1.03] hover:bg-white/[0.07] active:scale-[0.98] ${expansionScale.tileClass}`}
                   >
                     {ep.logo_url ? (
@@ -440,9 +613,9 @@ function SearchPageContent({
           )}
 
           {/* Singles grid */}
-          {results.singles.length > 0 && (
+          {showSection("singles") && sortedSingles.length > 0 && (
             <section>
-              <SectionHeader title="Singles" count={results.singles.length} compact className="mb-4" />
+              <SectionHeader title="Singles" count={sortedSingles.length} compact className="mb-4" />
 
               <div
                 className={`grid ${singlesGridGapClass}`}
@@ -451,7 +624,7 @@ function SearchPageContent({
                   justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
-                {results.singles.map((card, index) => (
+                {sortedSingles.map((card, index) => (
                     <div
                       key={card.id}
                       role="button"
@@ -587,9 +760,9 @@ function SearchPageContent({
           )}
 
           {/* Sealed grid */}
-          {results.sealed.length > 0 && (
+          {showSection("sealed") && sortedSealed.length > 0 && (
             <section>
-              <SectionHeader title="Sealed" count={results.sealed.length} compact className="mb-4" />
+              <SectionHeader title="Sealed" count={sortedSealed.length} compact className="mb-4" />
 
               <div
                 className="grid gap-2"
@@ -598,7 +771,7 @@ function SearchPageContent({
                   justifyContent: isMobileViewport ? "stretch" : "start",
                 }}
               >
-                {results.sealed.map((product, index) => (
+                {sortedSealed.map((product, index) => (
                   <div
                     key={product.id}
                     role="button"

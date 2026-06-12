@@ -13,26 +13,17 @@ production build green, working tree committed.
 
 ---
 
-## Now — Search polish
+## Now — Search polish — shipped 2026-06-12
 
-Measured 2026-06-12: ranking, fuzzy matching (Damerau-Levenshtein), game tabs,
-live search-as-you-type, and sectioned results all already exist and work well.
-The three real gaps:
+All three gaps built and verified on the running app (screenshots
+`verify-search-*.png`): recent searches (last 8 in localStorage, shown on the
+empty search page, stable-query + result-click heuristics so type-ahead
+prefixes are not stored), section count chips that narrow the results view,
+and a sort menu (Best match / Price high→low / Price low→high / Newest set —
+release date added to the search API payload for that).
 
-1. **Recent searches** — nothing is remembered. Store the last ~8 queries in
-   localStorage and show them on the (currently empty) `/search` page when no
-   query is set; one tap re-runs the search.
-2. **Section navigation on results** — a "charizard" search renders a 7,800px
-   page: 100 singles with 29 sealed and 3 sets buried below. Add clickable
-   count chips ("Singles 100 · Sealed 29 · Sets 3") that narrow the view to one
-   section.
-3. **Sort control on results** — results are fixed to relevance. Add a compact
-   sort menu: Relevance (default) / Price high→low / Price low→high / Newest
-   set. Client-side resort of already-loaded results.
-
-Not doing: rarity/set filters on search results (the expansion pages already
-have a full filter bar and every result links there) and changes to the
-ranking/fuzzy logic itself (works well, no complaints).
+Still intentionally not doing: rarity/set filters on search results (expansion
+pages have the full filter bar) and ranking/fuzzy changes (works well).
 
 ---
 

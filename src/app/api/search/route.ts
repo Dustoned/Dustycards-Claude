@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
@@ -50,6 +50,7 @@ interface SearchCardRecord {
     id: string;
     name: string;
     code: string | null;
+    release_date: string | null;
   };
   prices: Array<{
     cm_en_lowest_nm: number | null;
@@ -74,6 +75,7 @@ interface SearchSealedRecord {
     id: string;
     name: string;
     code: string | null;
+    release_date: string | null;
   };
 }
 
@@ -966,6 +968,7 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
         episode_id: card.episode.id,
         episode_name: card.episode.name,
         episode_code: card.episode.code,
+        episode_release_date: card.episode.release_date,
         cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? card.prices[0]?.cm_jp_lowest_nm ?? null,
         tcp_market: card.prices[0]?.tcp_market ?? null,
         want_item: wantItem
@@ -1074,6 +1077,7 @@ async function runFuzzyFallback(
             id: true,
             name: true,
             code: true,
+            release_date: true,
           },
         },
       },
@@ -1094,7 +1098,7 @@ async function runFuzzyFallback(
         cm_lowest: true,
         cm_avg_7d: true,
         cm_avg_30d: true,
-        episode: { select: { id: true, name: true, code: true } },
+        episode: { select: { id: true, name: true, code: true, release_date: true } },
       },
     }),
     db.episode.findMany({
@@ -1130,6 +1134,7 @@ async function runFuzzyFallback(
               id: true,
               name: true,
               code: true,
+              release_date: true,
             },
           },
         },
@@ -1167,6 +1172,7 @@ async function runFuzzyFallback(
               id: true,
               name: true,
               code: true,
+              release_date: true,
             },
           },
           prices: {
@@ -1333,6 +1339,7 @@ async function runDirectSearch(
             id: true,
             name: true,
             code: true,
+            release_date: true,
           },
         },
         prices: {
@@ -1361,7 +1368,7 @@ async function runDirectSearch(
             cm_lowest: true,
             cm_avg_7d: true,
             cm_avg_30d: true,
-            episode: { select: { id: true, name: true, code: true } },
+            episode: { select: { id: true, name: true, code: true, release_date: true } },
           },
           orderBy: { episode: { release_date: "desc" } },
         })
