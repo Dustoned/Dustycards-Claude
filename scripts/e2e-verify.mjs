@@ -273,6 +273,53 @@ const authJsonHeaders = { ...authHeaders, "Content-Type": "application/json" };
   check("watch list: DELETE removes listing", removed.status === 200 && !stillThere);
 }
 
+// ---------- 6b. Collection mutation (add then remove) ----------
+{
+  const lookup = new Database("dustycards.db", { readonly: true });
+  const candidate = lookup
+    .prepare(
+      `SELECT id, name FROM Card
+       WHERE id NOT IN (SELECT card_id FROM CollectionCard)
+       ORDER BY id LIMIT 1`
+    )
+    .get();
+  lookup.close();
+
+  if (!candidate) {
+    check("collection: add/remove cycle", false, "no un-owned card found to test with");
+  } else {
+    const added = await jsonFetch(`${BASE_URL}/api/collection/cards`, {
+      method: "POST",
+      headers: authJsonHeaders,
+      body: JSON.stringify({ cardId: candidate.id }),
+    });
+    const itemId = added.body?.item?.id ?? null;
+    check(
+      "collection: add card creates an item",
+      added.status === 200 && Boolean(itemId),
+      `card=${candidate.name} item=${itemId}`
+    );
+
+    if (itemId) {
+      const removed = await jsonFetch(`${BASE_URL}/api/collection/cards`, {
+        method: "DELETE",
+        headers: authJsonHeaders,
+        body: JSON.stringify({ itemId }),
+      });
+      const verifyDb = new Database("dustycards.db", { readonly: true });
+      const stillThere = verifyDb
+        .prepare("SELECT COUNT(*) AS c FROM CollectionCard WHERE id = ?")
+        .get(itemId).c;
+      verifyDb.close();
+      check(
+        "collection: remove card deletes the item",
+        removed.status === 200 && stillThere === 0,
+        `status=${removed.status} remaining=${stillThere}`
+      );
+    }
+  }
+}
+
 // ---------- 7. Search API ----------
 {
   const search = await jsonFetch(`${BASE_URL}/api/search?q=charizard`, { headers: authHeaders });

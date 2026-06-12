@@ -29,18 +29,21 @@ pages have the full filter bar) and ranking/fuzzy changes (works well).
 
 ## Next — verify first, then build
 
-- **Grid performance at collection scale.** CollectionCardsView and
-  ExpansionView batch-render via IntersectionObserver but keep every rendered
-  tile in the DOM. The complete-collection view holds 1,076 cards. Before
-  adding any virtualization: measure scroll/jank on that view; only build
-  windowing if it is actually slow.
-- **Smoke test depth.** Largely covered 2026-06-12 by `npm run e2e:verify`
-  (scripts/e2e-verify.mjs): 21 live-app checks across login throttling,
+- ~~**Grid performance at collection scale.**~~ Measured 2026-06-12 on the
+  production build: the fully mounted 309-card expansion grid (6,364 DOM
+  nodes, 310 images) scrolled with **zero long tasks, 17ms worst frame
+  (60fps), 10–15MB JS heap**; the collection view keeps the DOM at ~1.4k nodes
+  via incremental batching. Virtualization is not needed — verified fine, do
+  not rebuild this.
+- ~~**Smoke test depth.**~~ Covered by `npm run e2e:verify`
+  (scripts/e2e-verify.mjs): 24 live-app checks across login throttling,
   forgot-password silent throttle, scheduler secrets, all data-quality
-  endpoints + drill-down UI, a real backup via Backup now, watch-list CRUD +
-  URL validation, and search (release_date payload, hostile-query safety,
-  404s). Requires a freshly started server. Remaining nice-to-have: a
-  collection-mutation check (add/remove a card).
+  endpoints + drill-down UI (incl. the clean-dupes state), a real backup via
+  Backup now, watch-list CRUD + URL validation, a collection add/remove
+  mutation cycle, and search behaviour. Requires a freshly started server.
+
+Nothing is currently queued here. New items must come from a verified
+walkthrough or a real complaint — not from code reading.
 
 ---
 
