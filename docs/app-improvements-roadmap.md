@@ -1,92 +1,111 @@
 # DustyCards roadmap
 
-Rebuilt 2026-06-12 from a full-codebase audit (sync engine, API/auth, frontend, repo hygiene).
-Completed items were removed; everything below is real, verified work. Baseline at audit time:
-typecheck clean, lint clean, 289/289 unit tests passing.
+Rebuilt from scratch on 2026-06-12 after a full desktop + mobile walkthrough of the
+running app (screenshots in `screenshots-ui/audit-desktop` and `audit-mobile`).
+
+**Rule for this file:** an item only lands here after it is verified against the
+*running app* — not from reading code or from an AI audit. When something ships,
+it gets one line under "Shipped" and the details live in git history. No status
+soup, no completed items lingering at the top.
+
+Baseline at rebuild: typecheck clean, lint clean, 297 unit tests green,
+production build green, working tree committed.
 
 ---
 
-## 1. Now — security & correctness fixes
+## Now — Search polish
 
-All shipped 2026-06-12 — see the Done section. Next priority is section 2/3 below.
+Measured 2026-06-12: ranking, fuzzy matching (Damerau-Levenshtein), game tabs,
+live search-as-you-type, and sectioned results all already exist and work well.
+The three real gaps:
 
----
+1. **Recent searches** — nothing is remembered. Store the last ~8 queries in
+   localStorage and show them on the (currently empty) `/search` page when no
+   query is set; one tap re-runs the search.
+2. **Section navigation on results** — a "charizard" search renders a 7,800px
+   page: 100 singles with 29 sealed and 3 sets buried below. Add clickable
+   count chips ("Singles 100 · Sealed 29 · Sets 3") that narrow the view to one
+   section.
+3. **Sort control on results** — results are fixed to relevance. Add a compact
+   sort menu: Relevance (default) / Price high→low / Price low→high / Newest
+   set. Client-side resort of already-loaded results.
 
-## 2. Next — features & UX (carried over, still wanted)
-
-### 2.1 ~~Deals & movers intelligence~~ — done (2026-06-12)
-Most of it already existed (delta vs base, deal tone, match confidence + reason, ignore/override, seller feedback, and the UI walkthrough showed mover cards already carry a source badge). The two real gaps shipped the same day: the deal watch list, and per-source attribution of collection value changes (see 2.2).
-
-### 2.2 ~~Portfolio depth~~ — done (2026-06-12)
-A screenshot walkthrough showed most of it already existed (Collection Allocation mix, Priced Items coverage, ROI/spend, per-binder P&L, buy signals). The two real gaps were built the same day:
-- Overall Spend tile now shows cost-basis coverage ("Cost basis on 99% of value") instead of a duplicated amount.
-- Value drivers header now splits the net change per source (Raw / Graded / eBay sold / Sealed), computed over all drivers before the top-N cap; hidden when there is no recent history.
-This also covers the movers source-attribution follow-up (2.1).
-
-### 2.3 Search polish
-Ranking, fuzzy matching, game/product tabs, recent searches, filters reachable from results.
-
-### 2.4 Mobile UX polish
-Mobile navigation, sticky search, compact card actions, settings density.
+Not doing: rarity/set filters on search results (the expansion pages already
+have a full filter bar and every result links there) and changes to the
+ranking/fuzzy logic itself (works well, no complaints).
 
 ---
 
-## 3. Next — performance
+## Next — verify first, then build
 
-### 3.1 Virtualize large grids
-`CollectionCardsView.tsx` (2.7k lines) batch-renders via IntersectionObserver but still keeps every tile in the DOM; 500+ card collections will jank on mid-range devices. Same pattern in `ExpansionView.tsx` for 300+ card sets. Add real windowing (or measure first, then decide).
-
-### 3.2 ~~Parallelize client fetch waterfalls~~ — verified, no fix needed (2026-06-12)
-SubmitCardClient already fires both initial fetches in parallel (fire-and-forget, no await between them); DealsBrowser effects run concurrently on mount. The audit claim was wrong.
-
-### 3.3 Prefetch the sealed tab on expansion detail — deprioritized (2026-06-12)
-The tab is a server-component navigation; Next already prefetches the link, and always loading both tabs would double DB work for a tab that often stays closed. Only revisit if tab switches feel slow in practice.
-
----
-
-## 4. Later — refactors & tech debt
-
-### 4.1 Split the god-files
-- `src/components/card-modal/CardModalSections.tsx` — 2,966 lines (pricing, history, listings, metadata all in one file).
-- `src/lib/sync.ts` — 5,068 lines; extract per-job helpers into `src/lib/sync/` modules (the folder already exists).
-
-### 4.2 De-duplicate modal families
-`card-modal`, `sealed-modal`, and `collection-sealed` each define their own `SectionShell` / `MetricTile` / format utils. Extract one shared module to stop style drift.
-
-### 4.3 De-duplicate Pokémon vs One Piece pages
-`src/app/expansions/**` and `src/app/one-piece/expansions/**` repeat grouping, price-snapshot, and tile logic. Extract a shared expansion list/detail layer with a game parameter.
-
-### 4.4 ~~Sync engine small leaks~~ — done (2026-06-12)
-- Image-warmer map: verified no leak — entries are deleted in `.finally()`. Audit claim was wrong.
-- Failed/cancelled auto-refresh logs are now pruned after 14 days (recent ones kept for diagnostics).
+- **Grid performance at collection scale.** CollectionCardsView and
+  ExpansionView batch-render via IntersectionObserver but keep every rendered
+  tile in the DOM. The complete-collection view holds 1,076 cards. Before
+  adding any virtualization: measure scroll/jank on that view; only build
+  windowing if it is actually slow.
+- **Smoke test depth.** One Playwright spec covers nav + viewports. Add a few
+  API-level checks for things unit tests cannot see end-to-end: login throttle
+  behaviour, collection mutation, search response shape, watch-list add/remove.
 
 ---
 
-## 5. Repo hygiene
+## Tech debt — do when touching that area, not as standalone projects
 
-- ~~`scripts/deploy-production.ps1` hardcoded server IP~~ — done (2026-06-12): host now resolves from `-HostName` param → `DUSTYCARDS_DEPLOY_HOST` env var → `.env` entry; the IP lives in the untracked `.env` (note: it remains in old git history).
-- ~~Undocumented one-off scripts~~ — done (2026-06-12): `backfill:ebay-sold-graded`, `ui:screenshots`, `ui:expansion-shot` added to package.json.
-- ~~`package.json` overrides~~ — verified (2026-06-12): both pins are active transitive deps (`@hono/node-server` via `prisma → @prisma/dev`; `postcss` via tailwind/next/vite). Keep them.
-- `data/dustycards.app.db` (39 MB) is tracked in git and grows history on every snapshot refresh — decide: keep (convenient) vs external artifact. If kept, snapshot less often.
-- Commit the pending working-tree changes (30+ modified files incl. deleted create-next-app SVGs) in logical chunks.
-- Playwright smoke coverage is a single spec (`tests/smoke/app.spec.ts`); add a couple of API-level smoke checks (login, collection mutate, search).
+- `src/components/card-modal/CardModalSections.tsx` (~3,000 lines) and
+  `src/lib/sync.ts` (~5,000 lines) — split into modules the next time a feature
+  lands there.
+- The three modal families (card-modal / sealed-modal / collection-sealed) each
+  define their own SectionShell/MetricTile/format utils — extract shared
+  primitives on the next modal change.
+- Pokémon vs One Piece expansion pages duplicate grouping/snapshot/tile logic —
+  extract a shared layer the next time either side changes.
 
 ---
 
-## Done (removed from this roadmap)
+## Decisions needed (Dustin)
 
-- Deal watch list (2026-06-12): Watch/Watched star on every eBay deal listing plus a collapsible "Watched listings" panel (price, % vs base, seller, Ended state, remove). Persisted per user in the new `EbayWatchedListing` table (migration `20260612143000`, applied manually + `migrate resolve` because the shadow-DB replay of old migrations is broken — note: `prisma migrate dev` cannot be used in this repo until that's repaired). New `/api/ebay/watched-listings` GET/POST/DELETE.
-- Backups visibility (2026-06-12): new Backups panel in Settings → System with restore-point list and a "Backup now" button. Backups are made with SQLite `VACUUM INTO` (validated on the live DB: ~295 MB in ~6 s), manual backups keep the newest 5. New `src/lib/backups.ts` + `/api/admin/backups`; the local `../dustycards-db-backups` folder is now auto-detected and `DUSTYCARDS_BACKUP_DIR` is documented in `.env.example`.
-- Data Quality Center v2 (2026-06-12): added stale-prices (14+ days unchecked) and empty-history (single price snapshot) metrics, and click-to-drill-down on every signal — new admin endpoint `/api/admin/data-quality?issue=<key>` lists the affected cards/sealed with links to their set. Validated against live DB (827 duplicate candidates, 1,560 empty-history cards found).
-- Failed/cancelled auto-price-refresh logs now pruned after 14 days (`pruneAutoPriceRefreshLogs`).
-- Security & correctness pass (2026-06-12):
-  - Rate limiting on login (per-IP + per-email, failures only), register, forgot-password and resend-verification (silent throttle, no enumeration leak). New `src/lib/rate-limit.ts` + tests.
-  - Auto price refresh job: 45-min wall-clock deadline, 60s heartbeat timer during slow batches, 60s cooldown on the resume loop.
-  - Timing-safe scheduler-secret comparison shared via `src/lib/scheduler-secret.ts`; fixed `sync-pricedex-pull-rates`, de-duplicated `sync-scheduler`.
-  - Internal error messages no longer returned to clients (cards refresh + search routes).
-  - `CollectionCardsView` now shows a dismissible error when opening a card fails (was a silent no-op).
-  - Verified, no fix needed: DealsBrowser already surfaces card-open errors; "at least one active admin" already holds (self-demote/self-disable are blocked and disabled admins lose their session).
-- Card detail clarity — source freshness, market/language, eBay sold context, stale-price handling shipped.
-- Health dashboard MVP — version, uptime, scheduler health, quota, DB size, latest backup in Settings.
-- README rewritten from create-next-app boilerplate (2026-06-12).
-- Typecheck fixed: `price-history.test.ts` fixtures missing `cm_market_jp` (2026-06-12).
+- **`data/dustycards.app.db` (39 MB) is tracked in git** and bloats history on
+  every snapshot refresh. Keep (convenient clone-and-run) or move to an
+  external artifact? If kept: refresh the snapshot less often.
+- **`prisma migrate dev` is broken** in this repo (shadow-DB replay fails on an
+  old migration that assumed a `db push`-created table). Current workflow:
+  hand-write `migration.sql`, apply with `prisma db execute`, then
+  `prisma migrate resolve --applied`. Either keep that documented workflow or
+  invest in repairing/squashing the migration history.
+
+---
+
+## Verified fine — do not re-audit these
+
+From the 2026-06-12 walkthrough, these old roadmap ideas turned out to already
+exist and need nothing:
+
+- Portfolio: Collection Allocation mix (raw/binder/graded/sealed), Priced Items
+  coverage, ROI/spend tiles, per-binder paid cost + P&L, sold P&L, per-game tabs.
+- Deals: delta vs base, deal tone, match confidence + reason, ignore/override,
+  seller feedback, live filters (type/buying/condition/sort).
+- Movers: BUY/HOLD signals, source badges, riser/dropper explanations.
+- Mobile UX: bottom nav, compact tiles, settings tabs, wants/movers layout —
+  all polished; the old "mobile UX polish" item is dropped.
+- Search: relevance ranking, fuzzy matching, game tabs, sectioned results.
+
+Note on local data: price snapshots/local sync are intentionally disabled on
+this machine, so value drivers/movers show stale windows locally. That is
+expected, not a bug.
+
+---
+
+## Shipped (2026-06-12 rebuild day)
+
+- Security pass: rate limiting on all auth endpoints, timing-safe scheduler
+  secrets, error-leak fixes, silent-failure fix in collection card opens.
+- Auto price refresh job: wall-clock deadline, heartbeat during slow batches,
+  resume cooldown; failed-log pruning.
+- Data Quality Center v2: stale-prices + empty-history signals, click-through
+  drill-down per signal (`/api/admin/data-quality`).
+- Backups panel: restore points + Backup now via `VACUUM INTO`
+  (`/api/admin/backups`).
+- eBay deal watch list (`EbayWatchedListing` + `/api/ebay/watched-listings`).
+- Portfolio: cost-basis coverage on the Overall Spend tile; value-driver source
+  breakdown (Raw/Graded/eBay sold/Sealed) in the drivers header.
+- README rewritten; deploy host moved out of the repo into `.env`.
