@@ -17,8 +17,10 @@ All shipped 2026-06-12 — see the Done section. Next priority is section 2/3 be
 ### 2.1 Movers source attribution (small follow-up)
 Most of "deals & movers intelligence" turned out to already exist (delta vs base, deal tone, match confidence + reason, ignore/override, seller feedback) and the missing save/watch action shipped 2026-06-12. Remaining nice-to-have: mover reason chips show *what* moved ("+18% 7d") but not *which market* — add per-source attribution (e.g., "CardMarket +18% 7d").
 
-### 2.2 Portfolio depth
-Clearer value mix, cost-basis coverage, unpriced holdings, graded/raw split, better explanations for value changes.
+### 2.2 Portfolio depth — mostly exists already (verified via UI walkthrough 2026-06-12)
+Screenshot audit of the live app showed the overview already has: Collection Allocation (loose raw / binder raw / graded / sealed mix with %), Priced Items coverage (99%, 1,071/1,079), ROI, Overall Spend, completion, per-game tabs, per-binder paid cost + P&L, sold P&L, value drivers with stale flag, and movers with BUY/HOLD signals + source badges. Remaining real gaps:
+- **Cost-basis coverage stat** — show what % of collection value has a known purchase price; items without one currently inflate ROI/P&L silently.
+- **Value drivers source attribution** — one header line splitting the net change by market (CardMarket raw / eBay graded / sealed).
 
 ### 2.3 Search polish
 Ranking, fuzzy matching, game/product tabs, recent searches, filters reachable from results.
