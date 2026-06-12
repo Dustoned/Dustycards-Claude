@@ -21,7 +21,7 @@ import { getCardHistorySyncJobSnapshot } from "@/lib/sync/card-history-job";
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { listBackups, type BackupFileInfo } from "@/lib/backups";
-import { STALE_PRICE_AGE_MS } from "@/lib/data-quality";
+import { KNOWN_UNAVAILABLE_PRICE_STATUS, STALE_PRICE_AGE_MS } from "@/lib/data-quality";
 import { requirePageUser } from "@/lib/page-auth";
 import { getFirecrawlConfigSnapshot } from "@/lib/firecrawl";
 import AutomationSection from "./AutomationSection";
@@ -279,6 +279,7 @@ export default async function SettingsPage() {
     dataQualityCardsMissingImages,
     dataQualityCardsMissingSourceUrls,
     dataQualityCardsMissingPrices,
+    dataQualityCardsKnownUnavailable,
     dataQualityCardsMissingRarity,
     dataQualityCardDuplicateCandidates,
     dataQualityCardsStalePrices,
@@ -378,6 +379,16 @@ export default async function SettingsPage() {
     db.card.count({
       where: {
         prices: { none: {} },
+        OR: [
+          { price_source_status: null },
+          { price_source_status: { not: KNOWN_UNAVAILABLE_PRICE_STATUS } },
+        ],
+      },
+    }),
+    db.card.count({
+      where: {
+        prices: { none: {} },
+        price_source_status: KNOWN_UNAVAILABLE_PRICE_STATUS,
       },
     }),
     db.card.count({
@@ -394,7 +405,7 @@ export default async function SettingsPage() {
           AND card_number <> ''
           AND name IS NOT NULL
           AND name <> ''
-        GROUP BY game, episode_id, card_number, name
+        GROUP BY game, episode_id, card_number, name, COALESCE(tcggo_url, '')
         HAVING COUNT(*) > 1
       )
     `,
@@ -402,6 +413,10 @@ export default async function SettingsPage() {
       where: {
         tcggo_url: { not: null },
         price_source_checked_at: { lt: new Date(new Date().getTime() - STALE_PRICE_AGE_MS) },
+        OR: [
+          { price_source_status: null },
+          { price_source_status: { not: KNOWN_UNAVAILABLE_PRICE_STATUS } },
+        ],
       },
     }),
     db.$queryRaw<Array<{ empty_history: bigint | number }>>`
@@ -824,6 +839,7 @@ export default async function SettingsPage() {
                     missingImages: dataQualityCardsMissingImages,
                     missingSourceUrls: dataQualityCardsMissingSourceUrls,
                     missingPrices: dataQualityCardsMissingPrices,
+                    knownUnavailable: dataQualityCardsKnownUnavailable,
                     missingRarity: dataQualityCardsMissingRarity,
                     duplicateCandidates: duplicateCandidateValue,
                     stalePrices: dataQualityCardsStalePrices,

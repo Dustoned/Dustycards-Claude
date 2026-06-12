@@ -168,6 +168,7 @@ const authJsonHeaders = { ...authHeaders, "Content-Type": "application/json" };
     "card-images",
     "card-source",
     "card-prices",
+    "card-price-unavailable",
     "card-rarity",
     "card-duplicates",
     "card-empty-history",
@@ -186,7 +187,7 @@ const authJsonHeaders = { ...authHeaders, "Content-Type": "application/json" };
     if (r.status !== 200 || !Array.isArray(r.body?.items)) allOk = false;
   }
   check(
-    "data-quality: all 10 issue endpoints return item lists",
+    "data-quality: all 11 issue endpoints return item lists",
     allOk,
     Object.entries(counts).map(([k, v]) => `${k}=${v}`).join(" ")
   );
@@ -314,17 +315,26 @@ const authJsonHeaders = { ...authHeaders, "Content-Type": "application/json" };
   ]);
   const page = await context.newPage();
 
-  // Data Quality drill-down: click the Dupes signal, expect detail panel with items.
+  // Data Quality drill-down: a signal with items lists them; the (clean)
+  // Dupes signal reports a clean state instead.
   await page.goto(`${BASE_URL}/settings`, { waitUntil: "networkidle", timeout: 45000 });
   await page.getByRole("tab", { name: "System" }).click().catch(async () => {
     await page.getByText("System", { exact: true }).first().click();
   });
   await page.waitForTimeout(600);
-  await page.getByRole("button", { name: /Dupes/ }).first().click();
+  await page.getByRole("button", { name: /Rarity/ }).first().click();
   await page.waitForTimeout(1500);
   const openSetLinks = await page.getByRole("link", { name: "Open set" }).count();
-  check("UI data-quality: Dupes drill-down lists items with set links", openSetLinks > 0, `links=${openSetLinks}`);
+  check("UI data-quality: Rarity drill-down lists items with set links", openSetLinks > 0, `links=${openSetLinks}`);
   await page.screenshot({ path: path.join(OUT_DIR, "verify-dq-drilldown.png"), fullPage: false });
+
+  await page.getByRole("button", { name: /Dupes/ }).first().click();
+  await page.waitForTimeout(1200);
+  const dupesClean = await page
+    .getByText("No affected items. This signal is clean.")
+    .isVisible()
+    .catch(() => false);
+  check("UI data-quality: Dupes signal is clean (variants excluded)", dupesClean);
 
   // Backups panel shows the new manual backup.
   const manualVisible = await page.getByText(/dustycards-manual-/).first().isVisible().catch(() => false);

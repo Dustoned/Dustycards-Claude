@@ -92,6 +92,15 @@ expected, not a bug.
 
 ## Shipped (2026-06-12 rebuild day)
 
+- Data Quality Center upstream-aware signals: investigated against the live DB
+  — all 862 no-price cards are `price_source_status = unavailable` (TCGgo has
+  no price) and all 827 "duplicates" were variants (distinct source URLs /
+  images / rarities; true dupes: 0). No-price and stale now exclude
+  known-unavailable cards, dupes require an identical source URL, and the
+  source-unpriced cards moved to an informational footnote with its own
+  drill-down. Open signals dropped 13,264 → 10,650 (remainder is mostly
+  stale-prices, which is the local sync-off situation).
+
 - Security pass: rate limiting on all auth endpoints, timing-safe scheduler
   secrets, error-leak fixes, silent-failure fix in collection card opens.
 - Auto price refresh job: wall-clock deadline, heartbeat during slow batches,

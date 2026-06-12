@@ -20,6 +20,7 @@ interface DataQualitySectionProps {
     missingImages: number;
     missingSourceUrls: number;
     missingPrices: number;
+    knownUnavailable: number;
     missingRarity: number;
     duplicateCandidates: number;
     stalePrices: number;
@@ -343,7 +344,7 @@ export default function DataQualitySection({ cards, sealed }: DataQualitySection
       shortLabel: "No price",
       value: cards.missingPrices,
       total: cards.total,
-      hint: "Cards without any stored price snapshot.",
+      hint: "Cards without a price that the source should be able to price. Known source-unpriced cards are excluded.",
       priority: "high",
     },
     {
@@ -384,13 +385,21 @@ export default function DataQualitySection({ cards, sealed }: DataQualitySection
     },
     {
       key: "card-duplicates",
-      label: "Duplicate candidates",
+      label: "True duplicates",
       shortLabel: "Dupes",
       value: cards.duplicateCandidates,
-      hint: "Extra rows sharing game, set, number, and name.",
+      hint: "Extra rows sharing game, set, number, name AND source URL. Variants (alt arts, parallels) are not counted.",
       priority: "low",
     },
   ];
+  const knownUnavailableMetric: DataQualityMetric = {
+    key: "card-price-unavailable",
+    label: "Source unpriced (TCGgo)",
+    shortLabel: "Unpriced @ source",
+    value: cards.knownUnavailable,
+    hint: "TCGgo has no price for these cards. Upstream limitation; excluded from the quality score.",
+    priority: "low",
+  };
   const sealedMetrics: DataQualityMetric[] = [
     {
       key: "sealed-source",
@@ -500,6 +509,19 @@ export default function DataQualitySection({ cards, sealed }: DataQualitySection
           selectedKey={selectedMetric?.key ?? null}
           onSelect={selectMetric}
         />
+        {cards.knownUnavailable > 0 && (
+          <p className="px-1 text-[11px] text-gray-500 dark:text-white/40">
+            {formatCount(cards.knownUnavailable)} cards have no price at the source (TCGgo) —
+            upstream limitation, excluded from the signals above.{" "}
+            <button
+              type="button"
+              onClick={() => selectMetric(knownUnavailableMetric)}
+              className="font-semibold text-sky-600 hover:text-sky-500 dark:text-sky-300 dark:hover:text-sky-200"
+            >
+              {selectedMetric?.key === knownUnavailableMetric.key ? "Hide list" : "View list"}
+            </button>
+          </p>
+        )}
         <QualityRow
           label="Sealed"
           total={sealed.total}

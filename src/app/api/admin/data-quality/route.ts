@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
-import { STALE_PRICE_AGE_MS, type DataQualityItem } from "@/lib/data-quality";
+import {
+  KNOWN_UNAVAILABLE_PRICE_STATUS,
+  STALE_PRICE_AGE_MS,
+  type DataQualityItem,
+} from "@/lib/data-quality";
 import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -9,10 +13,21 @@ export const dynamic = "force-dynamic";
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
 
+const NOT_KNOWN_UNAVAILABLE = {
+  OR: [
+    { price_source_status: null },
+    { price_source_status: { not: KNOWN_UNAVAILABLE_PRICE_STATUS } },
+  ],
+};
+
 const CARD_ISSUE_WHERE: Record<string, object> = {
   "card-images": { OR: [{ image_url: null }, { image_url: "" }] },
   "card-source": { OR: [{ tcggo_url: null }, { tcggo_url: "" }] },
-  "card-prices": { prices: { none: {} } },
+  "card-prices": { prices: { none: {} }, ...NOT_KNOWN_UNAVAILABLE },
+  "card-price-unavailable": {
+    prices: { none: {} },
+    price_source_status: KNOWN_UNAVAILABLE_PRICE_STATUS,
+  },
   "card-rarity": { OR: [{ rarity: null }, { rarity: "" }] },
 };
 
@@ -102,21 +117,24 @@ function toCardItems(rows: RawCardRow[]): DataQualityItem[] {
 }
 
 async function listDuplicateCards(limit: number): Promise<DataQualityItem[]> {
+  // Variants legitimately share set/number/name (alt arts, parallels) but have
+  // their own source URL; only rows that also share the source URL are dupes.
   const rows = await db.$queryRaw<RawCardRow[]>`
     SELECT c.id, c.name, c.card_number, c.game, c.episode_id, e.name AS episode_name
     FROM "Card" c
     JOIN (
-      SELECT game, episode_id, card_number, name
+      SELECT game, episode_id, card_number, name, COALESCE(tcggo_url, '') AS source_url
       FROM "Card"
       WHERE card_number IS NOT NULL AND card_number <> ''
         AND name IS NOT NULL AND name <> ''
-      GROUP BY game, episode_id, card_number, name
+      GROUP BY game, episode_id, card_number, name, COALESCE(tcggo_url, '')
       HAVING COUNT(*) > 1
     ) d
       ON c.game = d.game
       AND c.episode_id = d.episode_id
       AND c.card_number = d.card_number
       AND c.name = d.name
+      AND COALESCE(c.tcggo_url, '') = d.source_url
     JOIN "Episode" e ON e.id = c.episode_id
     ORDER BY c.episode_id, c.card_number, c.id
     LIMIT ${limit}
@@ -146,6 +164,7 @@ async function listStalePriceCards(limit: number): Promise<DataQualityItem[]> {
     where: {
       tcggo_url: { not: null },
       price_source_checked_at: { lt: cutoff },
+      ...NOT_KNOWN_UNAVAILABLE,
     },
     take: limit,
     orderBy: { price_source_checked_at: "asc" },
