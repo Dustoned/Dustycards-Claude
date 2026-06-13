@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.0",
+    releasedAt: "June 13, 2026",
+    title: "Search, deal watch list, and admin tools",
+    summary:
+      "DustyCards 3.3.0 adds search recents, section filters and sorting, a saveable eBay deal watch list, and stronger account and admin tooling.",
+    tone: "new",
+    highlights: [
+      "Search now remembers your recent queries, lets you jump to just Singles, Sealed, or Sets, and sorts results by best match, price, or newest set.",
+      "eBay deals can be saved to a personal watch list, shown in a collapsible panel with price, discount versus market, seller, and ended state.",
+      "Settings gains a Backups panel with a one-click Backup now action, and the Data Quality Center now drills down to the affected cards and ignores prices the source simply does not carry.",
+      "Collection overview shows cost-basis coverage on Overall Spend, and value drivers break the change down per market (raw, graded, sealed).",
+      "Login, registration, and password-reset endpoints are now rate limited, and the background price-refresh job is more resilient against stalls.",
+    ],
+  },
+  {
     version: "3.2.29",
     releasedAt: "May 28, 2026",
     title: "Card detail interface polish",
