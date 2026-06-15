@@ -30,6 +30,8 @@
 # production
 /build
 dustycards.db
+dustycards.db-wal
+dustycards.db-shm
 /data/image-cache/
 
 # misc

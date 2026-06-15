@@ -1,9 +1,36 @@
+import BetterSqlite3 from "better-sqlite3";
 import { PrismaClient } from "@/generated/prisma";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { ensureLiveDbFile, LIVE_DB_PATH } from "@/lib/db-paths";
 
+// SQLite defaults to the rollback journal ("delete"), where any writer blocks
+// all readers. With a background price-refresh job writing thousands of rows in
+// batches, that made page loads stall for up to busy_timeout (5s) during a
+// refresh. WAL lets readers and writers run concurrently. journal_mode=WAL
+// persists in the database file header, so flipping it once on the file is
+// enough for every later Prisma connection; we set it on each boot so freshly
+// provisioned databases (copied from the snapshot) get it too.
+function enableWalMode() {
+  try {
+    const handle = new BetterSqlite3(LIVE_DB_PATH);
+    try {
+      handle.pragma("journal_mode = WAL");
+      handle.pragma("synchronous = NORMAL");
+      handle.pragma("busy_timeout = 5000");
+    } finally {
+      handle.close();
+    }
+  } catch (error) {
+    console.warn(
+      "[db] could not enable WAL mode:",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
+
 function createClient() {
   ensureLiveDbFile();
+  enableWalMode();
   const adapter = new PrismaBetterSqlite3({ url: LIVE_DB_PATH });
   return new PrismaClient({ adapter } as never);
 }

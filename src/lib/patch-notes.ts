@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.1",
+    releasedAt: "June 15, 2026",
+    title: "Faster pages during background updates",
+    summary:
+      "DustyCards 3.3.1 switches the database to WAL mode so pages stay fast while the background price refresh is running.",
+    tone: "fixed",
+    highlights: [
+      "The database now uses write-ahead logging, so reads no longer wait behind the background price-refresh writes.",
+      "Pages that used to stall for a few seconds while prices were updating now load at their normal speed.",
+    ],
+  },
+  {
     version: "3.3.0",
     releasedAt: "June 13, 2026",
     title: "Search, deal watch list, and admin tools",
