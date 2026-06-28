@@ -47,7 +47,7 @@ function BinderWatchThresholdInput() {
 
   return (
     <label
-      className="inline-flex h-8 select-none items-center gap-0.5 rounded-full border border-black/8 bg-black/[0.03] px-2 text-xs font-semibold text-gray-800 transition-colors focus-within:border-black/18 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/78 dark:focus-within:border-white/18"
+      className="inline-flex h-8 select-none items-center gap-0.5 rounded-full border border-black/8 bg-black/[0.03] px-2 text-xs font-semibold text-gray-600 transition-colors focus-within:border-black/18 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/78 dark:focus-within:border-white/18"
       title="Binder Watch minimum"
     >
       <span className="text-gray-500 dark:text-white/45">€</span>

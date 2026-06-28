@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.9",
+    releasedAt: "June 28, 2026",
+    title: "Cleaner Value Changes list and inputs",
+    summary:
+      "DustyCards 3.3.9 removes the stray purple tint on search/filter inputs and slims down the value-change cards.",
+    tone: "fixed",
+    highlights: [
+      "Removed the accidental purple tint on the Value Changes search box, the All/Gains/Drops filter buttons, and the Binder Watch price field — they are clean neutral controls again.",
+      "Value-change cards are more compact: the duplicate Before/Now price boxes are gone, since the change line already shows the before → after prices.",
+    ],
+  },
+  {
     version: "3.3.8",
     releasedAt: "June 28, 2026",
     title: "Value-driver Net matches the list, fuller pull-to-refresh",

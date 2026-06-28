@@ -44,11 +44,15 @@ type ValueDriverFilter = "all" | DriverLaneKey;
 const INITIAL_VALUE_DRIVER_RENDER_COUNT = 24;
 const VALUE_DRIVER_RENDER_BATCH_SIZE = 36;
 
+// Note: the global theme (globals.css) repaints any element that combines a
+// `bg-white*` class with a `text-gray-{800,900,950}` class into the violet
+// primary gradient. The active/inactive states below deliberately avoid that
+// combo so these stay neutral segmented-control pills instead of purple CTAs.
 function valueFilterButtonClass(active: boolean): string {
   return `inline-flex h-9 items-center justify-center rounded-lg px-3 text-xs font-semibold transition-colors ${
     active
-      ? "bg-gray-950 text-white shadow-sm shadow-black/10 dark:bg-white dark:text-gray-950"
-      : "text-gray-500 hover:bg-black/[0.05] hover:text-gray-900 dark:text-white/58 dark:hover:bg-white/[0.07] dark:hover:text-white"
+      ? "bg-gray-900 text-white shadow-sm shadow-black/10 dark:bg-white/[0.16] dark:text-white"
+      : "text-gray-500 hover:text-gray-700 dark:text-white/55 dark:hover:text-white"
   }`;
 }
 
@@ -251,57 +255,25 @@ function DriverRow({
           </span>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${tonePanelClass(tone)} ${toneTextClass(tone)}`}>
-            {percent ?? "Latest"}
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+          <span
+            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-sm font-bold tabular-nums ${tonePanelClass(
+              tone
+            )} ${toneTextClass(tone)}`}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            {signedCurrency(item.change)}
           </span>
-          <span className="inline-flex rounded-full border border-black/8 bg-black/[0.035] px-2.5 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.035] dark:text-white/42">
-            Latest change
+          {percent ? (
+            <span className={`text-xs font-semibold tabular-nums ${toneTextClass(tone)}`}>
+              {percent}
+            </span>
+          ) : null}
+          <span className="text-xs font-medium tabular-nums text-gray-500 dark:text-white/45">
+            {formatCollectionCurrency(item.previousValue)}
+            {" -> "}
+            {formatCollectionCurrency(item.currentValue)}
           </span>
-        </div>
-
-        <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
-          <div className={`relative rounded-2xl border px-3 py-3 ${tonePanelClass(tone)}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500/80 dark:text-white/42">
-                  Change
-                </p>
-                <p
-                  className={`mt-2 flex max-w-full items-center gap-1 whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl ${toneTextClass(
-                    tone
-                  )}`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="min-w-0">{signedCurrency(item.change)}</span>
-                </p>
-              </div>
-            </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-white/45">
-              {formatCollectionCurrency(item.previousValue)}
-              {" -> "}
-              {formatCollectionCurrency(item.currentValue)}
-            </p>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-3 py-3 dark:border-white/8 dark:bg-white/[0.035]">
-              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
-                Before
-              </span>
-              <span className="mt-1 block break-words text-sm font-bold tabular-nums text-gray-700 dark:text-white/72">
-                {formatCollectionCurrency(item.previousValue)}
-              </span>
-            </span>
-            <span className="min-w-0 rounded-xl border border-black/8 bg-black/[0.025] px-3 py-3 dark:border-white/8 dark:bg-white/[0.035]">
-              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 dark:text-white/34">
-                Now
-              </span>
-              <span className="mt-1 block break-words text-sm font-bold tabular-nums text-gray-900 dark:text-white">
-                {formatCollectionCurrency(item.currentValue)}
-              </span>
-            </span>
-          </div>
         </div>
       </div>
     </div>
@@ -581,7 +553,7 @@ export default function CollectionValueDrivers({
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
                     placeholder="Card, set, number"
-                    className="h-11 w-full rounded-xl border border-black/8 bg-black/[0.035] pl-9 pr-3 text-sm font-medium text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-400/60 focus:bg-white dark:border-white/8 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-white/32 dark:focus:border-emerald-300/50 dark:focus:bg-white/[0.06]"
+                    className="h-11 w-full rounded-xl border border-black/8 bg-black/[0.035] pl-9 pr-3 text-sm font-medium outline-none transition placeholder:text-gray-400 focus:border-emerald-400/60 dark:border-white/8 dark:bg-white/[0.04] dark:placeholder:text-white/32 dark:focus:border-emerald-300/50"
                   />
                 </div>
               </div>
