@@ -269,69 +269,79 @@ export function drawBgsSlabFront(
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  const gradient = context.createLinearGradient(0, 0, 0, H);
+  // Beckett logo — drawn on the transparent left zone so it reads as sitting on
+  // the clear slab, separate from the coloured grade label (matches the 2D).
+  context.save();
+  context.fillStyle = "#e7e4dc";
+  context.shadowColor = "rgba(0,0,0,0.55)";
+  context.shadowBlur = s(6);
+  context.shadowOffsetY = s(3);
+  context.textAlign = "center";
+  context.textBaseline = "alphabetic";
+  context.font = `900 ${s(80)}px Georgia, 'Times New Roman', serif`;
+  context.fillText("(B)", s(104), s(198));
+  context.font = `800 ${s(28)}px Arial, sans-serif`;
+  context.fillText("BECKETT®", s(104), s(250));
+  context.restore();
+
+  // Coloured grade label strip (to the right of the logo).
+  const stripX = s(206);
+  const stripW = W - stripX - s(10);
+  const gradient = context.createLinearGradient(stripX, 0, stripX, H);
   gradient.addColorStop(0, theme.bg0);
   gradient.addColorStop(1, theme.bg1);
+  context.beginPath();
+  context.roundRect(stripX, s(10), stripW, H - s(20), s(20));
   context.fillStyle = gradient;
-  context.fillRect(s(8), s(8), W - s(16), H - s(16));
-
+  context.fill();
+  context.lineWidth = s(9);
   context.strokeStyle = theme.border;
-  context.lineWidth = s(11);
-  context.strokeRect(s(15), s(15), W - s(30), H - s(30));
+  context.stroke();
 
+  const gradeDividerX = s(1086);
   context.strokeStyle = theme.divider;
   context.lineWidth = s(2);
   context.beginPath();
-  context.moveTo(s(244), s(30));
-  context.lineTo(s(244), H - s(30));
-  context.moveTo(s(1086), s(30));
-  context.lineTo(s(1086), H - s(30));
+  context.moveTo(gradeDividerX, s(36));
+  context.lineTo(gradeDividerX, H - s(36));
   context.stroke();
 
-  // Left — Beckett mark
-  context.fillStyle = theme.logo;
-  context.textAlign = "center";
-  context.textBaseline = "alphabetic";
-  context.font = `900 ${s(74)}px Georgia, 'Times New Roman', serif`;
-  context.fillText("(B)", s(126), s(196));
-  context.font = `800 ${s(30)}px Arial, sans-serif`;
-  context.fillText("BECKETT®", s(126), s(252));
-
-  // Middle — header / name / 2x2 subgrades
+  // Info — header / name / 2x2 subgrades
   context.textAlign = "left";
+  context.textBaseline = "alphabetic";
   context.fillStyle = theme.ink;
   context.font = `700 ${s(33)}px Arial, sans-serif`;
-  context.fillText(opts.headerLine, s(272), s(106), s(780));
-  context.font = `900 ${s(50)}px Arial Black, Arial, sans-serif`;
-  context.fillText(opts.nameLine, s(272), s(166), s(792));
+  context.fillText(opts.headerLine, s(262), s(108), s(760));
+  context.font = `900 ${s(52)}px Arial Black, Arial, sans-serif`;
+  context.fillText(opts.nameLine, s(262), s(170), s(772));
 
-  const cols = [s(272), s(700)];
-  const rows = [s(258), s(330)];
+  const cols = [s(262), s(690)];
+  const rows = [s(262), s(336)];
   opts.subgrades.slice(0, 4).forEach((sg, index) => {
     const x = cols[index % 2];
     const y = rows[Math.floor(index / 2)];
     const label = sg.name.toUpperCase();
-    context.font = `700 ${s(28)}px Arial, sans-serif`;
+    context.font = `700 ${s(29)}px Arial, sans-serif`;
     context.fillStyle = theme.inkSoft;
     context.fillText(label, x, y);
     const labelWidth = context.measureText(label).width;
-    context.font = `900 ${s(32)}px Arial Black, Arial, sans-serif`;
+    context.font = `900 ${s(34)}px Arial Black, Arial, sans-serif`;
     context.fillStyle = theme.ink;
     context.fillText(sg.value, x + labelWidth + s(16), y);
   });
 
-  // Right — grade / descriptor / cert
-  context.textAlign = "right";
-  const rx = W - s(40);
+  // Grade / descriptor / cert (centred in the right column)
+  context.textAlign = "center";
+  const gradeCenterX = (gradeDividerX + (W - s(10))) / 2;
   context.fillStyle = theme.gradeText;
-  context.font = `900 ${s(116)}px Arial Black, Arial, sans-serif`;
-  context.fillText(opts.grade, rx, s(198));
+  context.font = `900 ${s(120)}px Arial Black, Arial, sans-serif`;
+  context.fillText(opts.grade, gradeCenterX, s(204));
   context.fillStyle = theme.ink;
-  context.font = `900 ${s(31)}px Arial, sans-serif`;
-  context.fillText(opts.descriptor, rx, s(252));
+  context.font = `900 ${s(30)}px Arial, sans-serif`;
+  context.fillText(opts.descriptor, gradeCenterX, s(256));
   context.fillStyle = theme.inkSoft;
-  context.font = `700 ${s(25)}px Arial, sans-serif`;
-  context.fillText(opts.certNumber, rx, s(298));
+  context.font = `700 ${s(24)}px Arial, sans-serif`;
+  context.fillText(opts.certNumber, gradeCenterX, s(300));
   context.textAlign = "left";
 }
 

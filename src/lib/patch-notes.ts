@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.8",
+    releasedAt: "June 28, 2026",
+    title: "3D Beckett label matches: logo on the slab",
+    summary:
+      "DustyCards 3.4.8 brings the same Beckett layout to the 3D viewer — logo on the slab, separate coloured grade label.",
+    tone: "improved",
+    highlights: [
+      "In the 3D viewer the (B) BECKETT logo now sits on the clear slab next to the coloured grade label, matching the 2D label, instead of being inside the coloured strip.",
+      "The 3D Beckett label text is larger too.",
+    ],
+  },
+  {
     version: "3.4.7",
     releasedAt: "June 28, 2026",
     title: "Beckett label: separate logo, bigger text",
