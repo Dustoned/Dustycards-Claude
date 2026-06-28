@@ -92,6 +92,24 @@ export function parseBgsSubgrades(value: string | null | undefined): BgsSubgrade
   }
 }
 
+// Deterministic faux cert number shared by every label renderer (2D preview and
+// the 3D canvas texture), so the same card shows the same number in all views.
+export function createSlabCertNumber(
+  company: string,
+  name: string,
+  cardNumber: string | null,
+  grade: string
+): string {
+  const input = `${company}|${name}|${cardNumber ?? ""}|${grade}`;
+  let hash = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+
+  return String(10000000 + (hash % 90000000));
+}
+
 export function formatBgsSubgradeName(key: BgsSubgradeKey): string {
   if (key === "centering") return "Centering";
   if (key === "corners") return "Corners";

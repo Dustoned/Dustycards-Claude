@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.0",
+    releasedAt: "June 28, 2026",
+    title: "Graded slab labels — consistent and sharp at every size",
+    summary:
+      "DustyCards 3.4.0 reworks the PSA / Beckett / CGC grading labels so they look the same in every view and stay crisp at any size.",
+    tone: "improved",
+    highlights: [
+      "Grading labels now render identically across the whole app — collection grid, featured cards, the card modal, and the 3D viewer — instead of differing between the normal and 3D views.",
+      "Labels are fully scale-invariant: small thumbnails no longer look cramped or garbled, and the layout stays crisp from the tiniest tile up to the large detail slab.",
+      "The faux cert number on each slab is now identical in every view.",
+    ],
+  },
+  {
     version: "3.3.9",
     releasedAt: "June 28, 2026",
     title: "Cleaner Value Changes list and inputs",

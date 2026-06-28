@@ -15,6 +15,7 @@ import {
   BGS_SUBGRADE_KEYS,
   PSA_SLAB_MODEL_DIMENSIONS,
   RAW_TCG_CARD_DIMENSIONS,
+  createSlabCertNumber,
   formatBgsSubgradeName,
   formatPsaNameLine,
   formatPsaSetLine,
@@ -752,7 +753,7 @@ function createPsaLabelTexture(
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  const certNumber = createPsaCertNumber(cardName, cardNumber, grade);
+  const certNumber = createSlabCertNumber("PSA", cardName, cardNumber, grade);
 
   context.fillStyle = "#fbfbf8";
   context.fillRect(s(8), s(8), canvas.width - s(16), canvas.height - s(16));
@@ -825,17 +826,6 @@ function createPsaLabelTexture(
   return texture;
 }
 
-function createPsaCertNumber(cardName: string, cardNumber: string | null, grade: string) {
-  const input = `${cardName}|${cardNumber ?? ""}|${grade}`;
-  let hash = 0;
-
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
-  }
-
-  return String(10000000 + (hash % 90000000));
-}
-
 function createPsaLabelBackTexture(
   THREE: typeof import("three"),
   cardName: string,
@@ -851,7 +841,7 @@ function createPsaLabelBackTexture(
   const context = canvas.getContext("2d");
   if (!context) return null;
 
-  const certNumber = createPsaCertNumber(cardName, cardNumber, grade);
+  const certNumber = createSlabCertNumber("PSA", cardName, cardNumber, grade);
 
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.imageSmoothingEnabled = true;
@@ -957,7 +947,7 @@ function createBgsLabelTexture(
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  const certNumber = createPsaCertNumber(`BGS ${cardName}`, cardNumber, grade);
+  const certNumber = createSlabCertNumber("BGS", cardName, cardNumber, grade);
   const goldGradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
   goldGradient.addColorStop(0, "#fff1bd");
   goldGradient.addColorStop(0.38, "#dbc070");

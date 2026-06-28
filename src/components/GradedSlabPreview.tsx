@@ -1,9 +1,10 @@
 "use client";
 
-import { memo, useEffect, useRef, useState } from "react";
+import { memo } from "react";
 import Image from "next/image";
 import {
   BGS_SUBGRADE_KEYS,
+  createSlabCertNumber,
   formatBgsSubgradeName,
   formatPsaHeaderLine,
   formatPsaNameLine,
@@ -33,6 +34,9 @@ interface Props {
   sizes?: string;
   loading?: "lazy" | "eager";
   priority?: boolean;
+  // Accepted for API compatibility. The label is now fully scale-invariant
+  // (container-query units), so it renders identically at every size and these
+  // no longer change the layout.
   variant?: "tile" | "detail";
   tileSize?: GradedPreviewTileSize;
   bgsSubgrades?: BgsSubgrades | null;
@@ -71,34 +75,21 @@ function BeckettLogoMark({ className = "" }: { className?: string }) {
   );
 }
 
-function createLabelCertNumber(
-  company: string,
-  name: string,
-  cardNumber: string | null,
-  grade: string
-) {
-  const input = `${company}|${name}|${cardNumber ?? ""}|${grade}`;
-  let hash = 0;
-
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
-  }
-
-  return String(10000000 + (hash % 90000000));
-}
-
 function BarcodeStrip({ value, className = "" }: { value: string; className?: string }) {
   return (
-    <span aria-hidden="true" className={`flex h-full items-end gap-px overflow-hidden ${className}`}>
+    <span
+      aria-hidden="true"
+      className={`flex h-full items-end gap-[0.14cqw] overflow-hidden ${className}`}
+    >
       {Array.from({ length: 28 }, (_, index) => {
         const digit = Number(value[index % value.length] ?? 1);
-        const width = 1 + (digit % 3);
+        const width = (1 + (digit % 3)) * 0.24;
         const height = 44 + ((digit + index) % 5) * 12;
         return (
           <span
             key={`${value}-${index}`}
             className="block bg-[#111827]"
-            style={{ width: `${width}px`, height: `${height}%` }}
+            style={{ width: `${width}cqw`, height: `${height}%` }}
           />
         );
       })}
@@ -114,7 +105,7 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
           "border-white/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.045)_36%,rgba(255,255,255,0.012)_100%)]",
         inner:
           "border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.022)_40%,rgba(255,255,255,0.01)_100%)]",
-        labelOuter: "border border-[#df1f2d] bg-[#fbfbf8]",
+        labelOuter: "border-[0.22cqw] border-[#df1f2d] bg-[#fbfbf8]",
         labelInner:
           "bg-[linear-gradient(180deg,rgba(255,255,255,0.998),rgba(245,246,247,0.982))]",
         labelDivider: "bg-black/14",
@@ -129,7 +120,7 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
         inner:
           "border-white/12 bg-[linear-gradient(180deg,rgba(255,244,214,0.08),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.015)_100%)]",
         labelOuter:
-          "border border-[#2b2114]/80 bg-[linear-gradient(180deg,#f9eac0_0%,#d7bd75_45%,#b89038_100%)]",
+          "border-[0.22cqw] border-[#2b2114]/80 bg-[linear-gradient(180deg,#f9eac0_0%,#d7bd75_45%,#b89038_100%)]",
         labelInner: "bg-[linear-gradient(180deg,rgba(255,250,225,0.9),rgba(184,132,45,0.28))]",
         labelDivider: "bg-black/35",
         gradeDivider: "border-l border-black/28",
@@ -142,7 +133,8 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
           "border-white/28 bg-[linear-gradient(180deg,rgba(197,230,255,0.19),rgba(197,230,255,0.07)_35%,rgba(255,255,255,0.03)_100%)]",
         inner:
           "border-white/12 bg-[linear-gradient(180deg,rgba(197,230,255,0.09),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.015)_100%)]",
-        labelOuter: "border border-sky-300/55 bg-[linear-gradient(180deg,rgba(239,247,255,0.97),rgba(208,233,255,0.9))]",
+        labelOuter:
+          "border-[0.22cqw] border-sky-300/55 bg-[linear-gradient(180deg,rgba(239,247,255,0.97),rgba(208,233,255,0.9))]",
         labelInner: "bg-transparent",
         labelDivider: "bg-sky-500/20",
         gradeDivider: "border-l border-sky-400/30",
@@ -156,7 +148,7 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
         inner:
           "border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.065),rgba(255,255,255,0.025)_38%,rgba(255,255,255,0.012)_100%)]",
         labelOuter:
-          "border border-white/50 bg-[linear-gradient(180deg,rgba(12,12,14,0.98),rgba(2,2,3,0.96))]",
+          "border-[0.22cqw] border-white/50 bg-[linear-gradient(180deg,rgba(12,12,14,0.98),rgba(2,2,3,0.96))]",
         labelInner: "bg-transparent",
         labelDivider: "bg-white/38",
         gradeDivider: "border-l border-white/22",
@@ -170,7 +162,7 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
         inner:
           "border-white/12 bg-[linear-gradient(180deg,rgba(229,210,255,0.09),rgba(255,255,255,0.03)_38%,rgba(255,255,255,0.015)_100%)]",
         labelOuter:
-          "border border-violet-300/50 bg-[linear-gradient(135deg,rgba(75,47,133,0.95),rgba(25,111,132,0.9))]",
+          "border-[0.22cqw] border-violet-300/50 bg-[linear-gradient(135deg,rgba(75,47,133,0.95),rgba(25,111,132,0.9))]",
         labelInner: "bg-transparent",
         labelDivider: "bg-cyan-200/28",
         gradeDivider: "border-l border-cyan-200/24",
@@ -184,7 +176,7 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
         inner:
           "border-white/12 bg-[linear-gradient(180deg,rgba(204,255,234,0.075),rgba(255,255,255,0.028)_38%,rgba(255,255,255,0.014)_100%)]",
         labelOuter:
-          "border border-emerald-200/45 bg-[linear-gradient(180deg,rgba(9,46,42,0.96),rgba(6,25,31,0.94))]",
+          "border-[0.22cqw] border-emerald-200/45 bg-[linear-gradient(180deg,rgba(9,46,42,0.96),rgba(6,25,31,0.94))]",
         labelInner: "bg-transparent",
         labelDivider: "bg-emerald-200/30",
         gradeDivider: "border-l border-emerald-200/24",
@@ -194,102 +186,53 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
   }
 }
 
-const TILE_METRICS = {
-  shellRadius: "rounded-[12px]",
-  innerInset: "inset-[1.3%] rounded-[10px]",
-  psaLabel:
-    "inset-x-[4%] top-[2.8%] h-[12.7%] min-h-[30px] rounded-[4px] p-[2.4px]",
-  psaLeft: "left-[7px] right-[31%] top-[4px]",
-  psaEyebrow: "text-[4.8px]",
-  psaName: "mt-[2.4px] text-[8.2px]",
-  psaSet: "mt-[1.7px] text-[5.7px]",
-  psaRight: "right-[6px] top-[5px] w-[22%]",
-  psaRightMeta: "text-[7px]",
-  psaDescriptor: "mt-[1px]",
-  psaGrade: "mt-0 text-[13px]",
-  psaLogoWrap:
-    "left-1/2 bottom-[8px] h-[10px] w-[23%] -translate-x-1/2 rounded-[2px] p-[1px]",
-  psaLogoInner: "rounded-[1px]",
-  psaLogo: "text-[9px]",
-  psaCertArea: "left-[7px] right-[7px] bottom-[2px] h-[8px] gap-[3px]",
-  psaCertText: "text-[4.5px]",
-  genericLabel:
-    "inset-x-[3.7%] top-[3.2%] h-[13%] min-h-[30px] rounded-[4px] px-[2px]",
-  genericContent: "px-[8px] py-[6px]",
-  genericEyebrow: "text-[5px]",
-  genericName: "mt-[4px] text-[8px]",
-  genericSet: "mt-[2px] text-[6px]",
-  genericGradeColumn: "min-w-[31%] px-2",
-  genericGradeLabel: "text-[5px]",
-  genericGrade: "mt-[1px] text-[14px]",
-  bgsSubgradeName: "text-[4.4px]",
-  bgsSubgradeValue: "text-[7px]",
-  cardWindow:
-    "left-1/2 top-[18.9%] h-[76.1%] aspect-[63/88] -translate-x-1/2 rounded-[4px]",
-  cardBorderOuter: "-inset-x-[1px] inset-y-[3px] rounded-[3px]",
-  cardBorderInner: "inset-x-0 inset-y-[4px] rounded-[2px]",
-  cardImageInset: "inset-x-[2px] inset-y-[1px] rounded-[2px]",
-  glare: "inset-x-[17%] top-[4%] h-[5%]",
-} as const;
-
-const DETAIL_METRICS = {
-  shellRadius: "rounded-[18px]",
-  innerInset: "inset-[1.05%] rounded-[15px]",
-  psaLabel:
-    "inset-x-[4%] top-[2.8%] h-[12.7%] min-h-[42px] rounded-[7px] p-[3px] max-[640px]:min-h-[32px]",
-  psaLeft: "left-[14px] right-[31%] top-[7px]",
-  psaEyebrow: "text-[7.6px]",
-  psaName: "mt-[3.5px] text-[16px]",
-  psaSet: "mt-[3px] text-[10.7px]",
-  psaRight: "right-[12px] top-[5px] w-[22%]",
-  psaRightMeta: "text-[13px]",
-  psaDescriptor: "mt-[2px]",
-  psaGrade: "mt-0 text-[28px]",
-  psaLogoWrap:
-    "left-1/2 bottom-[17px] h-[19px] w-[23%] -translate-x-1/2 rounded-[3px] p-[1.5px]",
-  psaLogoInner: "rounded-[2px]",
-  psaLogo: "text-[17px]",
-  psaCertArea: "left-[13px] right-[12px] bottom-[4px] h-[13px] gap-[6px]",
-  psaCertText: "text-[8px]",
-  genericLabel:
-    "inset-x-[3.6%] top-[3%] h-[13.2%] min-h-[38px] rounded-[7px] px-[3px] max-[640px]:min-h-[30px]",
-  genericContent: "px-[12px] py-[9px]",
-  genericEyebrow: "text-[8.5px]",
-  genericName: "mt-[6px] text-[18px]",
-  genericSet: "mt-[4px] text-[12px]",
-  genericGradeColumn: "min-w-[30%] px-3",
-  genericGradeLabel: "text-[8.5px]",
-  genericGrade: "mt-[3px] text-[33px]",
-  bgsSubgradeName: "text-[7px]",
-  bgsSubgradeValue: "text-[12px]",
-  cardWindow:
-    "left-1/2 top-[18.5%] h-[77.2%] aspect-[63/88] -translate-x-1/2 rounded-[8px]",
-  cardBorderOuter: "inset-x-0 inset-y-[4px] rounded-[6px]",
-  cardBorderInner: "inset-x-[1px] inset-y-[5px] rounded-[5px]",
-  cardImageInset: "inset-x-[3px] inset-y-[2px] rounded-[4px]",
+// A single, fully scale-invariant metric set. Every size is expressed as a
+// percentage of the slab box (layout) or in `cqw` — container-query width units
+// where 1cqw = 1% of the slab's width. Because the slab keeps a fixed aspect
+// ratio, this renders the label identically at any size: featured thumbnail,
+// grid tile, modal, or detail. No JS measuring, no per-variant tuning.
+const M = {
+  shellRadius: "rounded-[4cqw]",
+  innerInset: "inset-[1.1%] rounded-[3.4cqw]",
+  // PSA
+  psaLabel: "inset-x-[4%] top-[2.8%] h-[12.7%] rounded-[1.7cqw]",
+  psaInnerBorder: "inset-[0.5cqw] rounded-[1cqw] border-[0.4cqw] border-[#df1f2d]",
+  psaMidDivider: "inset-x-[3.4%] bottom-[22%] h-[0.18cqw]",
+  psaLeft: "left-[3.3cqw] right-[31%] top-[1.7cqw]",
+  psaEyebrow: "text-[1.82cqw]",
+  psaName: "mt-[0.8cqw] text-[3.85cqw]",
+  psaSet: "mt-[0.7cqw] text-[2.55cqw]",
+  psaRight: "right-[2.9cqw] top-[1.2cqw] w-[24%]",
+  psaRightMeta: "text-[3.1cqw]",
+  psaDescriptor: "mt-[0.5cqw]",
+  psaGrade: "text-[6.7cqw]",
+  psaLogoWrap: "left-1/2 bottom-[4cqw] h-[4.55cqw] w-[23%] rounded-[0.7cqw] p-[0.36cqw]",
+  psaLogoInner: "rounded-[0.5cqw]",
+  psaLogo: "text-[4cqw]",
+  psaCertArea: "left-[3.1cqw] right-[2.9cqw] bottom-[0.95cqw] h-[3.1cqw] gap-[1.4cqw]",
+  psaCertText: "text-[1.9cqw]",
+  // BGS / generic
+  genericLabel: "inset-x-[3.6%] top-[3%] h-[13.2%] rounded-[1.7cqw]",
+  genericTopDivider: "h-[0.7cqw]",
+  genericContent: "px-[2.86cqw] py-[2.14cqw]",
+  genericEyebrow: "text-[2cqw]",
+  genericName: "mt-[1.4cqw] text-[4.3cqw]",
+  genericSet: "mt-[0.95cqw] text-[2.86cqw]",
+  genericGradeColumn: "min-w-[30%] px-[1.6cqw]",
+  genericGradeLabel: "text-[2cqw]",
+  genericGrade: "mt-[0.7cqw] text-[7.85cqw]",
+  bgsSubgradeName: "text-[1.66cqw]",
+  bgsSubgradeValue: "text-[2.86cqw]",
+  bgsSubgradeGrid: "mt-[0.7cqw] rounded-[0.5cqw] border-[0.22cqw]",
+  bgsSubgradeCell: "border-r-[0.22cqw] px-[0.5cqw] py-[0.24cqw]",
+  bgsCert: "mt-[0.5cqw]",
+  // Card window
+  cardWindow: "left-1/2 top-[18.6%] h-[77.1%] aspect-[63/88] -translate-x-1/2 rounded-[1.9cqw]",
+  cardBorderOuter: "inset-x-0 inset-y-[0.95cqw] rounded-[1.4cqw]",
+  cardBorderInner: "inset-x-[0.24cqw] inset-y-[1.2cqw] rounded-[1.2cqw]",
+  cardImageInset: "inset-x-[0.7cqw] inset-y-[0.48cqw] rounded-[0.95cqw]",
   glare: "inset-x-[15%] top-[4%] h-[4.7%]",
 } as const;
-
-const TILE_LABEL_BASE_WIDTH = 176;
-const DETAIL_LABEL_BASE_WIDTH = 420;
-
-function getTileLabelMinScale(tileSize: GradedPreviewTileSize): number {
-  if (tileSize === "xsmall") return 0.42;
-  if (tileSize === "small") return 0.46;
-  if (tileSize === "medium") return 0.52;
-  return 0.58;
-}
-
-function getTileLabelFallbackScale(tileSize: GradedPreviewTileSize): number {
-  if (tileSize === "xsmall") return 0.46;
-  if (tileSize === "small") return 0.52;
-  if (tileSize === "large") return 1.6;
-  return 1;
-}
-
-function clampScale(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
 
 function GradedSlabPreview({
   company,
@@ -307,63 +250,12 @@ function GradedSlabPreview({
   sizes = "320px",
   loading,
   priority = false,
-  variant = "tile",
-  tileSize = "medium",
   bgsSubgrades = null,
 }: Props) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [slabWidth, setSlabWidth] = useState(0);
-
-  useEffect(() => {
-    const element = rootRef.current;
-    if (!element) {
-      return;
-    }
-
-    const updateWidth = (nextWidth: number) => {
-      const normalizedWidth = Math.round(nextWidth);
-      setSlabWidth((currentWidth) =>
-        currentWidth === normalizedWidth ? currentWidth : normalizedWidth
-      );
-    };
-
-    updateWidth(element.getBoundingClientRect().width);
-
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) return;
-      updateWidth(entry.contentRect.width);
-    });
-
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [variant]);
-
   const theme = getGradedSlabTheme(company);
   const isPsa = company === "PSA";
   const isBgs = company === "BGS";
-  const metrics = variant === "detail" ? DETAIL_METRICS : TILE_METRICS;
-  const detailLabelScale =
-    slabWidth > 0 ? clampScale(slabWidth / DETAIL_LABEL_BASE_WIDTH, 0.36, 1.12) : 0.46;
-  const tileLabelScale =
-    slabWidth > 0
-      ? clampScale(slabWidth / TILE_LABEL_BASE_WIDTH, getTileLabelMinScale(tileSize), 2.05)
-      : getTileLabelFallbackScale(tileSize);
-  const labelScale = variant === "detail" ? detailLabelScale : tileLabelScale;
-  const scaledLabelContentStyle =
-    labelScale === 1
-      ? undefined
-      : {
-          width: `${100 / labelScale}%`,
-          height: `${100 / labelScale}%`,
-          transform: `scale(${labelScale})`,
-          transformOrigin: "top left",
-        };
+
   const psaDescriptor = isPsa ? getPsaGradeDescriptor(grade) : null;
   const psaHeaderLine = isPsa
     ? formatPsaHeaderLine({ episodeSeries, episodeReleaseDate })
@@ -374,212 +266,193 @@ function GradedSlabPreview({
   const slabSubtitle = [episodeCode ?? episodeName, cardNumber ? `#${cardNumber}` : null]
     .filter(Boolean)
     .join(" ");
-  const certNumber = createLabelCertNumber(company, name, cardNumber ?? null, grade);
+  const certNumber = createSlabCertNumber(company, name, cardNumber ?? null, grade);
 
   return (
     <div
-      ref={rootRef}
       data-graded-slab-preview="true"
-      className={`relative h-full w-full text-left ${className}`}
+      className={`relative h-full w-full text-left [container-type:inline-size] ${className}`}
     >
       <div
-        className={`relative h-full w-full overflow-hidden border shadow-[0_14px_30px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.18)] ${metrics.shellRadius} ${theme.shell}`}
+        className={`relative h-full w-full overflow-hidden border shadow-[0_14px_30px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.18)] ${M.shellRadius} ${theme.shell}`}
       >
         <div
-          className={`absolute border shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] ${metrics.innerInset} ${theme.inner}`}
+          className={`absolute border shadow-[inset_0_1px_0_rgba(255,255,255,0.22)] ${M.innerInset} ${theme.inner}`}
         />
 
         {isPsa ? (
           <div
-            className={`absolute z-[2] shadow-sm shadow-black/15 ${metrics.psaLabel} ${theme.labelOuter}`}
+            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/15 ${M.psaLabel} ${theme.labelOuter}`}
           >
-            <div className="relative h-full w-full" style={scaledLabelContentStyle}>
-              <div className={`relative h-full w-full overflow-hidden rounded-[2px] ${theme.labelInner}`}>
-                <div className="absolute inset-[2px] rounded-[1px] border-2 border-[#df1f2d]" />
-                <div className="absolute inset-x-[4px] bottom-[22%] h-px bg-black/14" />
-                <div
-                  className={`absolute flex flex-col items-start text-left leading-none text-[#111111] ${metrics.psaLeft}`}
+            <div className={`relative h-full w-full overflow-hidden ${theme.labelInner}`}>
+              <div className={`absolute ${M.psaInnerBorder}`} />
+              <div className={`absolute bg-black/14 ${M.psaMidDivider}`} />
+              <div
+                className={`absolute flex flex-col items-start text-left leading-none text-[#111111] ${M.psaLeft}`}
+              >
+                <p
+                  className={`truncate font-bold uppercase leading-none tracking-[0.1em] ${M.psaEyebrow}`}
                 >
-                  <p
-                    className={`truncate font-bold uppercase leading-none tracking-[0.13em] ${metrics.psaEyebrow}`}
-                  >
-                    {psaHeaderLine}
-                  </p>
-                  <p
-                    className={`truncate font-black uppercase leading-none tracking-[0.035em] ${metrics.psaName}`}
-                  >
-                    {psaNameLine}
-                  </p>
-                  <p
-                    className={`truncate font-extrabold uppercase leading-none tracking-[0.11em] opacity-80 ${metrics.psaSet}`}
-                  >
-                    {psaSetLine}
-                  </p>
-                </div>
+                  {psaHeaderLine}
+                </p>
+                <p
+                  className={`truncate font-black uppercase leading-none tracking-[0.02em] ${M.psaName}`}
+                >
+                  {psaNameLine}
+                </p>
+                <p
+                  className={`truncate font-extrabold uppercase leading-none tracking-[0.08em] opacity-80 ${M.psaSet}`}
+                >
+                  {psaSetLine}
+                </p>
+              </div>
 
-                <div
-                  className={`absolute flex flex-col items-end text-right text-[#111111] ${metrics.psaRight}`}
+              <div
+                className={`absolute flex flex-col items-end text-right text-[#111111] ${M.psaRight}`}
+              >
+                <p className={`truncate font-bold leading-none tracking-[0.02em] ${M.psaRightMeta}`}>
+                  {cardNumber ? `#${cardNumber}` : ""}
+                </p>
+                <p
+                  className={`truncate font-bold leading-none tracking-[0.06em] ${M.psaDescriptor} ${M.psaRightMeta}`}
                 >
-                  <p
-                    className={`truncate font-bold leading-none tracking-[0.02em] ${metrics.psaRightMeta}`}
-                  >
-                    {cardNumber ? `#${cardNumber}` : ""}
-                  </p>
-                  <p
-                    className={`truncate font-bold leading-none tracking-[0.08em] ${metrics.psaDescriptor} ${metrics.psaRightMeta}`}
-                  >
-                    {psaDescriptor ?? "GRADE"}
-                  </p>
-                  <p className={`font-black leading-none ${metrics.psaGrade}`}>{grade}</p>
-                </div>
+                  {psaDescriptor ?? "GRADE"}
+                </p>
+                <p className={`font-black leading-none ${M.psaGrade}`}>{grade}</p>
+              </div>
 
+              <div
+                className={`absolute border border-black/10 bg-white shadow-[0_1px_0_rgba(255,255,255,0.7)] ${M.psaLogoWrap}`}
+              >
                 <div
-                  className={`absolute border border-black/10 bg-white shadow-[0_1px_0_rgba(255,255,255,0.7)] ${metrics.psaLogoWrap}`}
+                  className={`flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,#ffffff,#eef3fb_48%,#ffffff)] ${M.psaLogoInner}`}
                 >
-                  <div
-                    className={`flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,#ffffff,#eef3fb_48%,#ffffff)] ${metrics.psaLogoInner}`}
-                  >
-                    <PsaLogoMark className={metrics.psaLogo} />
-                  </div>
+                  <PsaLogoMark className={M.psaLogo} />
                 </div>
+              </div>
 
-                <div
-                  className={`absolute flex items-end pt-[1px] ${metrics.psaCertArea}`}
+              <div className={`absolute flex items-end ${M.psaCertArea}`}>
+                <BarcodeStrip value={certNumber} className="min-w-0 flex-1 opacity-90" />
+                <span
+                  className={`shrink-0 font-black leading-none tracking-[0.05em] text-[#111827] ${M.psaCertText}`}
                 >
-                  <BarcodeStrip value={certNumber} className="min-w-0 flex-1 opacity-90" />
-                  <span
-                    className={`shrink-0 font-black leading-none tracking-[0.05em] text-[#111827] ${metrics.psaCertText}`}
-                  >
-                    {certNumber}
-                  </span>
-                </div>
+                  {certNumber}
+                </span>
               </div>
             </div>
           </div>
         ) : isBgs ? (
           <div
-            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/20 ${metrics.genericLabel} ${theme.labelOuter}`}
+            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/20 ${M.genericLabel} ${theme.labelOuter}`}
           >
-            <div className="relative h-full w-full" style={scaledLabelContentStyle}>
+            <div
+              className={`relative grid h-full w-full grid-cols-[20%_minmax(0,1fr)_25%] overflow-hidden ${theme.labelInner}`}
+            >
+              <div className={`absolute inset-x-0 top-0 ${M.genericTopDivider} ${theme.labelDivider}`} />
+              <div className="absolute inset-x-0 bottom-0 h-px bg-white/35" />
+              <div className="relative z-[1] flex flex-col items-center justify-center border-r border-black/35 bg-[linear-gradient(180deg,#777,#2d2d2d_45%,#111)] text-white">
+                <BeckettLogoMark className={M.genericName} />
+                <span
+                  className={`mt-[0.5cqw] font-black uppercase leading-none tracking-[0.06em] ${M.genericEyebrow}`}
+                >
+                  BECKETT
+                </span>
+              </div>
               <div
-                className={`relative grid h-full w-full grid-cols-[20%_minmax(0,1fr)_25%] overflow-hidden ${theme.labelInner}`}
+                className={`relative z-[1] min-w-0 text-left leading-none text-[#17110a] ${M.genericContent}`}
               >
-                <div className={`absolute inset-x-0 top-0 h-[3px] ${theme.labelDivider}`} />
-                <div className="absolute inset-x-0 bottom-0 h-px bg-white/35" />
-                <div className="relative z-[1] flex flex-col items-center justify-center border-r border-black/35 bg-[linear-gradient(180deg,#777,#2d2d2d_45%,#111)] text-white">
-                  <BeckettLogoMark className={metrics.genericName} />
-                  <span
-                    className={`mt-[2px] font-black uppercase leading-none tracking-[0.08em] ${metrics.genericEyebrow}`}
-                  >
-                    BECKETT
-                  </span>
-                </div>
-                <div
-                  className={`relative z-[1] min-w-0 text-left leading-none text-[#17110a] ${metrics.genericContent}`}
+                <p className={`truncate font-black uppercase tracking-[0.05em] ${M.genericName}`}>
+                  {name}
+                </p>
+                <p
+                  className={`truncate font-bold uppercase tracking-[0.1em] text-[#33230b]/78 ${M.genericSet}`}
                 >
-                  <p
-                    className={`truncate font-black uppercase tracking-[0.07em] ${metrics.genericName}`}
-                  >
-                    {name}
-                  </p>
-                  <p
-                    className={`truncate font-bold uppercase tracking-[0.12em] text-[#33230b]/78 ${metrics.genericSet}`}
-                  >
-                    {slabSubtitle}
-                  </p>
-                  <div className="mt-[3px] grid grid-cols-4 overflow-hidden rounded-[2px] border border-black/28 bg-[#fff4c7]/60">
-                    {BGS_SUBGRADE_KEYS.map((key) => (
-                      <div
-                        key={key}
-                        className="min-w-0 border-r border-black/18 px-[2px] py-[1px] last:border-r-0"
+                  {slabSubtitle}
+                </p>
+                <div
+                  className={`grid grid-cols-4 overflow-hidden border-black/28 bg-[#fff4c7]/60 ${M.bgsSubgradeGrid}`}
+                >
+                  {BGS_SUBGRADE_KEYS.map((key) => (
+                    <div
+                      key={key}
+                      className={`min-w-0 border-black/18 last:border-r-0 ${M.bgsSubgradeCell}`}
+                    >
+                      <span
+                        className={`block truncate font-black uppercase leading-none tracking-[0.04em] opacity-70 ${M.bgsSubgradeName}`}
                       >
-                        <span
-                          className={`block truncate font-black uppercase leading-none tracking-[0.06em] opacity-70 ${metrics.bgsSubgradeName}`}
-                        >
-                          {formatBgsSubgradeName(key)}
-                        </span>
-                        <span
-                          className={`mt-[1px] block font-black leading-none ${metrics.bgsSubgradeValue}`}
-                        >
-                          {bgsSubgrades?.[key] ?? "-"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                  <p
-                    className={`mt-[2px] truncate font-bold uppercase tracking-[0.06em] text-[#31210d]/70 ${metrics.genericEyebrow}`}
-                  >
-                    {certNumber}
-                  </p>
+                        {formatBgsSubgradeName(key)}
+                      </span>
+                      <span
+                        className={`mt-[0.24cqw] block font-black leading-none ${M.bgsSubgradeValue}`}
+                      >
+                        {bgsSubgrades?.[key] ?? "-"}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div
-                  className={`relative z-[1] flex flex-col items-center justify-center bg-[linear-gradient(180deg,rgba(35,23,9,0.98),rgba(8,7,6,0.98))] text-[#f6d778] ${metrics.genericGradeColumn} ${theme.gradeDivider}`}
+                <p
+                  className={`truncate font-bold uppercase tracking-[0.05em] text-[#31210d]/70 ${M.bgsCert} ${M.genericEyebrow}`}
                 >
-                  <span
-                    className={`font-black uppercase tracking-[0.16em] text-[#f7e7ad] ${metrics.genericGradeLabel}`}
-                  >
-                    {getBgsGradeDescriptor(grade)}
-                  </span>
-                  <span className={`font-black leading-none tracking-[0] text-white ${metrics.genericGrade}`}>
-                    {grade}
-                  </span>
-                </div>
+                  {certNumber}
+                </p>
+              </div>
+              <div
+                className={`relative z-[1] flex flex-col items-center justify-center bg-[linear-gradient(180deg,rgba(35,23,9,0.98),rgba(8,7,6,0.98))] text-[#f6d778] ${M.genericGradeColumn} ${theme.gradeDivider}`}
+              >
+                <span
+                  className={`font-black uppercase tracking-[0.12em] text-[#f7e7ad] ${M.genericGradeLabel}`}
+                >
+                  {getBgsGradeDescriptor(grade)}
+                </span>
+                <span className={`font-black leading-none tracking-[0] text-white ${M.genericGrade}`}>
+                  {grade}
+                </span>
               </div>
             </div>
           </div>
         ) : (
           <div
-            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/8 ${metrics.genericLabel} ${theme.labelOuter}`}
+            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/8 ${M.genericLabel} ${theme.labelOuter}`}
           >
-            <div className="relative h-full w-full" style={scaledLabelContentStyle}>
-              <div className={`relative flex h-full w-full overflow-hidden`}>
-                <div className={`absolute inset-x-0 top-0 h-[3px] ${theme.labelDivider}`} />
-                <div
-                  className={`relative min-w-0 flex-1 text-left leading-none text-white ${metrics.genericContent}`}
+            <div className="relative flex h-full w-full overflow-hidden">
+              <div className={`absolute inset-x-0 top-0 ${M.genericTopDivider} ${theme.labelDivider}`} />
+              <div
+                className={`relative min-w-0 flex-1 text-left leading-none text-white ${M.genericContent}`}
+              >
+                <span className={`font-black uppercase tracking-[0.2em] ${M.genericEyebrow}`}>
+                  {company}
+                </span>
+                <p className={`truncate font-semibold uppercase tracking-[0.06em] ${M.genericName}`}>
+                  {name}
+                </p>
+                <p
+                  className={`truncate font-medium uppercase tracking-[0.1em] opacity-75 ${M.genericSet}`}
                 >
-                  <span
-                    className={`font-black uppercase tracking-[0.22em] ${metrics.genericEyebrow}`}
-                  >
-                    {company}
-                  </span>
-                  <p
-                    className={`truncate font-semibold uppercase tracking-[0.08em] ${metrics.genericName}`}
-                  >
-                    {name}
-                  </p>
-                  <p
-                    className={`truncate font-medium uppercase tracking-[0.12em] opacity-75 ${metrics.genericSet}`}
-                  >
-                    {slabSubtitle}
-                  </p>
-                </div>
-                <div
-                  className={`relative flex flex-col items-center justify-center text-white ${metrics.genericGradeColumn} ${theme.gradeDivider}`}
+                  {slabSubtitle}
+                </p>
+              </div>
+              <div
+                className={`relative flex flex-col items-center justify-center text-white ${M.genericGradeColumn} ${theme.gradeDivider}`}
+              >
+                <span
+                  className={`font-bold uppercase tracking-[0.16em] opacity-70 ${M.genericGradeLabel}`}
                 >
-                  <span
-                    className={`font-bold uppercase tracking-[0.18em] opacity-70 ${metrics.genericGradeLabel}`}
-                  >
-                    Grade
-                  </span>
-                  <span className={`font-black leading-none tracking-[0] ${metrics.genericGrade}`}>
-                    {grade}
-                  </span>
-                </div>
+                  Grade
+                </span>
+                <span className={`font-black leading-none tracking-[0] ${M.genericGrade}`}>
+                  {grade}
+                </span>
               </div>
             </div>
           </div>
         )}
 
         <div
-          className={`absolute overflow-hidden border shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] ${metrics.cardWindow} ${theme.window}`}
+          className={`absolute overflow-hidden border shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)] ${M.cardWindow} ${theme.window}`}
         >
-          <div
-            className={`absolute border border-black/42 dark:border-white/20 ${metrics.cardBorderOuter}`}
-          />
-          <div
-            className={`absolute border border-white/14 dark:border-black/20 ${metrics.cardBorderInner}`}
-          />
-          <div className={`absolute overflow-hidden ${metrics.cardImageInset}`}>
+          <div className={`absolute border border-black/42 dark:border-white/20 ${M.cardBorderOuter}`} />
+          <div className={`absolute border border-white/14 dark:border-black/20 ${M.cardBorderInner}`} />
+          <div className={`absolute overflow-hidden ${M.cardImageInset}`}>
             {cachedImageUrl ? (
               <Image
                 src={cachedImageUrl}
@@ -600,7 +473,7 @@ function GradedSlabPreview({
         </div>
 
         <div
-          className={`pointer-events-none absolute rounded-full bg-white/12 blur-md ${metrics.glare}`}
+          className={`pointer-events-none absolute rounded-full bg-white/12 blur-md ${M.glare}`}
         />
       </div>
     </div>
