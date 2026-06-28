@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.5",
+    releasedAt: "June 28, 2026",
+    title: "Graded cards no longer stick in value drivers",
+    summary:
+      "DustyCards 3.3.5 stops graded and eBay-sold cards from showing a permanent gain in the 2-day Collection Value Drivers.",
+    tone: "fixed",
+    highlights: [
+      "A graded card's value driver compared its graded price against its raw price history, so the graded premium showed as a 'gain' that never aged out. Such cards are now left out of the 2-day drivers, which only measure raw market movement.",
+      "Value drivers now reflect genuine 2-day price moves and clear once a card stops moving.",
+    ],
+  },
+  {
     version: "3.3.4",
     releasedAt: "June 28, 2026",
     title: "Every card stays on its refresh schedule",

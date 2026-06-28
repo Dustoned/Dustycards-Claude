@@ -1454,10 +1454,17 @@ function buildCollectionValueDrivers({
     // Without a fresh baseline snapshot we cannot attribute the change to this
     // 2-day window, so the card is left out (and old moves drop off in time).
     if (!baseline || isValueDriverBaselineTooOld(baseline.date, minBaselineDate)) continue;
+    // The baseline comes from raw price history. If a card's current value is
+    // graded / eBay-sold rather than raw, the "change" would be the graded
+    // premium versus raw — a constant offset that never ages out, not a 2-day
+    // market move. We can't measure a graded card's 2-day change from raw
+    // history, so it is left out of the drivers (this is the "Raw -> Graded"
+    // entry that used to stay pinned to the panel for weeks).
+    const currentSource = getCollectionValueDriverCardSource(item);
+    if (currentSource !== "Raw") continue;
     const currentItemValue = item.current_value ?? 0;
     const previousItemValue = baseline.value;
-    const currentSource = getCollectionValueDriverCardSource(item);
-    const previousSource = item.current_value_label ? "Raw" : "Raw";
+    const previousSource = "Raw";
     const key = `card:${item.card_id}:${currentSource}`;
 
     addCollectionValueDriverDraft(drafts, {
