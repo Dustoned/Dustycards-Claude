@@ -174,7 +174,36 @@ if ! grep -q '^DUSTYCARDS_SYNC_SCHEDULER_SECRET=' .env; then
 fi
 
 npm install
-npx prisma migrate deploy
+
+# Only run `prisma migrate deploy` when there is actually an unapplied
+# migration. The migrate engine opens its own connection with no busy timeout,
+# so against the live WAL database it fails with "database is locked" on
+# code-only deploys (which are the common case). A read-only better-sqlite3
+# check never blocks in WAL mode; if it cannot determine the state it falls
+# back to running migrate deploy.
+PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
+  const Database = require("better-sqlite3");
+  const fs = require("fs");
+  let applied = new Set();
+  const db = new Database(process.cwd() + "/dustycards.db", { readonly: true });
+  try {
+    applied = new Set(
+      db.prepare("SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL")
+        .all().map((r) => r.migration_name)
+    );
+  } finally { db.close(); }
+  const dirs = fs.readdirSync("prisma/migrations", { withFileTypes: true })
+    .filter((d) => d.isDirectory()).map((d) => d.name);
+  console.log(dirs.filter((d) => !applied.has(d)).length);
+' 2>/dev/null) || PENDING_MIGRATIONS="unknown"
+
+if [ "$PENDING_MIGRATIONS" = "0" ]; then
+  echo "No pending migrations; skipping prisma migrate deploy."
+else
+  echo "Pending migrations: $PENDING_MIGRATIONS — running prisma migrate deploy."
+  npx prisma migrate deploy
+fi
+
 npm run build
 cleanup_remote_junk
 systemctl restart dustycards
