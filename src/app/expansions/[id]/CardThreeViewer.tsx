@@ -26,6 +26,7 @@ import {
   type BgsSubgrades,
 } from "@/lib/graded-slabs";
 import {
+  drawBgsSlabBack,
   drawLabelBarcode,
   drawPsaLogoMark,
   drawPsaSlabBack,
@@ -792,6 +793,25 @@ function createPsaLabelBackTexture(
 
   const certNumber = createSlabCertNumber("PSA", cardName, cardNumber, grade);
   drawPsaSlabBack(context, s, { certNumber });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createBgsLabelBackTexture(THREE: typeof import("three")) {
+  const scale = 2;
+  const s = (value: number) => value * scale;
+  const canvas = document.createElement("canvas");
+  canvas.width = s(1400);
+  canvas.height = s(420);
+
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+
+  drawBgsSlabBack(context, s);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -1757,9 +1777,12 @@ export default function CardThreeViewer({
           );
 
           if (labelTexture) {
+            const bgsBackTexture = createBgsLabelBackTexture(THREE);
             labelBackMaterial = new THREE.MeshBasicMaterial({
-              color: "#d8b45f",
+              map: bgsBackTexture ?? undefined,
+              color: bgsBackTexture ? "#ffffff" : "#d8b45f",
               side: THREE.DoubleSide,
+              toneMapped: false,
             });
             const labelBackMesh = new THREE.Mesh(labelFaceGeometry, labelBackMaterial);
             labelBackMesh.position.set(0, PSA_LABEL_Y, PSA_SLAB_DEPTH * 0.42);

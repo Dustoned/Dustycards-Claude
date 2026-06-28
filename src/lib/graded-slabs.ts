@@ -119,7 +119,7 @@ export function formatBgsSubgradeName(key: BgsSubgradeKey): string {
 
 export function getBgsGradeDescriptor(grade: string): string {
   const normalized = grade.trim().toUpperCase();
-  if (normalized.includes("BLACK")) return "BLACK LABEL";
+  if (normalized.includes("BLACK")) return "PRISTINE";
 
   const numericGrade = Number(normalized.replace(/[^\d.]/g, ""));
   if (!Number.isFinite(numericGrade)) return "GRADE";
@@ -128,11 +128,30 @@ export function getBgsGradeDescriptor(grade: string): string {
   if (numericGrade >= 9) return "MINT";
   if (numericGrade >= 8.5) return "NM-MT+";
   if (numericGrade >= 8) return "NM-MT";
-  if (numericGrade >= 7) return "NM";
+  if (numericGrade >= 7.5) return "NEAR MINT+";
+  if (numericGrade >= 7) return "NEAR MINT";
+  if (numericGrade >= 6.5) return "EX-MT+";
   if (numericGrade >= 6) return "EX-MT";
   if (numericGrade >= 5) return "EX";
+  if (numericGrade >= 4) return "VG-EX";
+  if (numericGrade >= 3) return "VG";
+  if (numericGrade >= 2) return "GOOD";
 
-  return "GRADE";
+  return "POOR";
+}
+
+// Whether a BGS grade is a Pristine 10 Black Label. By Beckett's rule that
+// requires an overall 10 with all four subgrades at 10; an explicit override
+// (chosen at add-time) wins when provided.
+export function isBgsBlackLabel(
+  grade: string | null | undefined,
+  subgrades: BgsSubgrades | null | undefined,
+  override?: boolean | null
+): boolean {
+  if (typeof override === "boolean") return override;
+  const numericGrade = Number((grade ?? "").replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(numericGrade) || numericGrade < 10) return false;
+  return !!subgrades && BGS_SUBGRADE_KEYS.every((key) => subgrades[key] === "10");
 }
 
 export function getPsaGradeDescriptor(grade: string | null): string | null {

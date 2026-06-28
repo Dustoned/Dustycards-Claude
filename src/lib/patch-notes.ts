@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.4",
+    releasedAt: "June 28, 2026",
+    title: "Beckett (BGS) labels matched to the real thing",
+    summary:
+      "DustyCards 3.4.4 reworks the Beckett slab label to match real BGS labels, including the grade-based colour.",
+    tone: "improved",
+    highlights: [
+      "BGS labels now change colour by grade: a 10 with all-10 subgrades is a black label with gold text, a 9.5 (and a non-perfect 10) is gold with black text, and anything below 9.5 is silver.",
+      "Re-laid out to match a real Beckett label: Beckett logo, set/name lines, a 2×2 subgrade grid, and the grade + descriptor + cert on the right.",
+      "Flipping a Beckett slab in the 3D viewer now shows the gold 'World's most trusted source in collecting' back.",
+    ],
+  },
+  {
     version: "3.4.3",
     releasedAt: "June 28, 2026",
     title: "Realistic PSA slab back",

@@ -11,6 +11,7 @@ import {
   formatPsaSetLine,
   getBgsGradeDescriptor,
   getPsaGradeDescriptor,
+  isBgsBlackLabel,
   type BgsSubgrades,
   type SupportedGradedSlabCompany,
 } from "@/lib/graded-slabs";
@@ -40,6 +41,56 @@ interface Props {
   variant?: "tile" | "detail";
   tileSize?: GradedPreviewTileSize;
   bgsSubgrades?: BgsSubgrades | null;
+  // Explicit BGS 10 label choice; when omitted it is derived (all-10 subgrades).
+  bgsBlackLabel?: boolean | null;
+}
+
+type BgsLabelKind = "black" | "gold" | "silver";
+
+function getBgsLabelKind(
+  grade: string,
+  subgrades: BgsSubgrades | null,
+  blackLabel: boolean | null | undefined
+): BgsLabelKind {
+  const numeric = Number(grade.replace(/[^\d.]/g, ""));
+  if (Number.isFinite(numeric) && numeric >= 10) {
+    return isBgsBlackLabel(grade, subgrades, blackLabel) ? "black" : "gold";
+  }
+  if (Number.isFinite(numeric) && numeric >= 9.5) return "gold";
+  return "silver";
+}
+
+function getBgsTheme(kind: BgsLabelKind) {
+  switch (kind) {
+    case "black":
+      return {
+        labelOuter: "border-[0.5cqw] border-[#9c7a2e] bg-[linear-gradient(180deg,#2c2922,#100d09)]",
+        ink: "text-[#e9cb78]",
+        inkSoft: "text-[#c6a64c]",
+        gradeText: "text-white",
+        logoText: "text-[#f1e7c9]",
+        colDivider: "border-[#9c7a2e]/45",
+      };
+    case "gold":
+      return {
+        labelOuter: "border-[0.5cqw] border-[#7d5e18] bg-[linear-gradient(180deg,#f2dd95,#c79a37)]",
+        ink: "text-[#231703]",
+        inkSoft: "text-[#231703]/75",
+        gradeText: "text-[#1b1202]",
+        logoText: "text-[#1b1202]",
+        colDivider: "border-[#5e470f]/35",
+      };
+    case "silver":
+    default:
+      return {
+        labelOuter: "border-[0.5cqw] border-[#8b919b] bg-[linear-gradient(180deg,#edeff2,#b4b9c1)]",
+        ink: "text-[#191c21]",
+        inkSoft: "text-[#191c21]/72",
+        gradeText: "text-[#141619]",
+        logoText: "text-[#141619]",
+        colDivider: "border-[#666b73]/35",
+      };
+  }
 }
 
 function PsaLogoMark({ className = "" }: { className?: string }) {
@@ -68,7 +119,7 @@ function BeckettLogoMark({ className = "" }: { className?: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex items-center justify-center font-black uppercase leading-none tracking-[0] text-white [text-shadow:0_1px_0_rgba(0,0,0,0.35)] ${className}`}
+      className={`inline-flex items-center justify-center font-black uppercase leading-none tracking-[0] ${className}`}
     >
       (B)
     </span>
@@ -227,6 +278,17 @@ const M = {
   bgsSubgradeGrid: "mt-[0.7cqw] rounded-[0.5cqw] border-[0.22cqw]",
   bgsSubgradeCell: "border-r-[0.22cqw] px-[0.5cqw] py-[0.24cqw]",
   bgsCert: "mt-[0.5cqw]",
+  // BGS — Beckett-accurate layout (logo | header+name+subgrades | grade)
+  bgsLabel: "inset-x-[3.6%] top-[2.8%] h-[15.4%] rounded-[1.5cqw]",
+  bgsLogoMark: "text-[4.6cqw]",
+  bgsBeckett: "text-[1.7cqw]",
+  bgsHeader: "text-[2.3cqw]",
+  bgsName: "text-[3cqw]",
+  bgsSubLabel: "text-[1.8cqw]",
+  bgsSubValue: "text-[2cqw]",
+  bgsGrade: "text-[7.4cqw]",
+  bgsDescriptor: "text-[1.95cqw]",
+  bgsCertRight: "text-[1.66cqw]",
   // Card window
   cardWindow: "left-1/2 top-[18.6%] h-[77.1%] aspect-[63/88] -translate-x-1/2 rounded-[1.9cqw]",
   cardBorderOuter: "inset-x-0 inset-y-[0.95cqw] rounded-[1.4cqw]",
@@ -252,10 +314,18 @@ function GradedSlabPreview({
   loading,
   priority = false,
   bgsSubgrades = null,
+  bgsBlackLabel = null,
 }: Props) {
   const theme = getGradedSlabTheme(company);
   const isPsa = company === "PSA";
   const isBgs = company === "BGS";
+
+  const bgsKind = getBgsLabelKind(grade, bgsSubgrades, bgsBlackLabel);
+  const bgsTheme = getBgsTheme(bgsKind);
+  const bgsYear = episodeReleaseDate?.match(/^(\d{4})/)?.[1] ?? "";
+  const bgsHeaderLine = [bgsYear, (episodeName ?? "").toUpperCase()].filter(Boolean).join(" ");
+  const bgsNameLine = (cardNumber ? `#${cardNumber} ${name}` : name).toUpperCase();
+  const bgsDescriptor = getBgsGradeDescriptor(grade);
 
   const psaDescriptor = isPsa ? getPsaGradeDescriptor(grade) : null;
   const psaHeaderLine = isPsa
@@ -352,69 +422,68 @@ function GradedSlabPreview({
           </div>
         ) : isBgs ? (
           <div
-            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/20 ${M.genericLabel} ${theme.labelOuter}`}
+            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/25 ${M.bgsLabel} ${bgsTheme.labelOuter}`}
           >
-            <div
-              className={`relative grid h-full w-full grid-cols-[20%_minmax(0,1fr)_25%] overflow-hidden ${theme.labelInner}`}
-            >
-              <div className={`absolute inset-x-0 top-0 ${M.genericTopDivider} ${theme.labelDivider}`} />
-              <div className="absolute inset-x-0 bottom-0 h-px bg-white/35" />
-              <div className="relative z-[1] flex flex-col items-center justify-center border-r border-black/35 bg-[linear-gradient(180deg,#777,#2d2d2d_45%,#111)] text-white">
-                <BeckettLogoMark className={M.genericName} />
+            <div className="relative grid h-full w-full grid-cols-[17%_minmax(0,1fr)_23%] overflow-hidden">
+              {/* Left — Beckett logo */}
+              <div
+                className={`relative z-[1] flex flex-col items-center justify-center border-r-[0.16cqw] ${bgsTheme.colDivider} ${bgsTheme.logoText}`}
+              >
+                <BeckettLogoMark className={M.bgsLogoMark} />
                 <span
-                  className={`mt-[0.5cqw] font-black uppercase leading-none tracking-[0.06em] ${M.genericEyebrow}`}
+                  className={`mt-[0.4cqw] font-black uppercase leading-none tracking-[0.06em] ${M.bgsBeckett}`}
                 >
-                  BECKETT
+                  BECKETT®
                 </span>
               </div>
+
+              {/* Middle — header, name, 2x2 subgrades */}
               <div
-                className={`relative z-[1] min-w-0 text-left leading-none text-[#17110a] ${M.genericContent}`}
+                className={`relative z-[1] flex min-w-0 flex-col justify-center px-[2.6cqw] text-left leading-none ${bgsTheme.ink}`}
               >
-                <p className={`truncate font-black uppercase tracking-[0.05em] ${M.genericName}`}>
-                  {name}
+                <p className={`truncate font-bold uppercase tracking-[0.05em] ${M.bgsHeader}`}>
+                  {bgsHeaderLine}
                 </p>
                 <p
-                  className={`truncate font-bold uppercase tracking-[0.1em] text-[#33230b]/78 ${M.genericSet}`}
+                  className={`mt-[0.5cqw] truncate font-black uppercase tracking-[0.02em] ${M.bgsName}`}
                 >
-                  {slabSubtitle}
+                  {bgsNameLine}
                 </p>
-                <div
-                  className={`grid grid-cols-4 overflow-hidden border-black/28 bg-[#fff4c7]/60 ${M.bgsSubgradeGrid}`}
-                >
+                <div className="mt-[1.1cqw] grid grid-cols-2 gap-x-[3cqw] gap-y-[0.55cqw]">
                   {BGS_SUBGRADE_KEYS.map((key) => (
                     <div
                       key={key}
-                      className={`min-w-0 border-black/18 last:border-r-0 ${M.bgsSubgradeCell}`}
+                      className="flex min-w-0 items-baseline justify-between gap-[1cqw]"
                     >
                       <span
-                        className={`block truncate font-black uppercase leading-none tracking-[0.04em] opacity-70 ${M.bgsSubgradeName}`}
+                        className={`truncate font-bold uppercase tracking-[0.04em] ${bgsTheme.inkSoft} ${M.bgsSubLabel}`}
                       >
                         {formatBgsSubgradeName(key)}
                       </span>
-                      <span
-                        className={`mt-[0.24cqw] block font-black leading-none ${M.bgsSubgradeValue}`}
-                      >
+                      <span className={`shrink-0 font-black leading-none ${M.bgsSubValue}`}>
                         {bgsSubgrades?.[key] ?? "-"}
                       </span>
                     </div>
                   ))}
                 </div>
-                <p
-                  className={`truncate font-bold uppercase tracking-[0.05em] text-[#31210d]/70 ${M.bgsCert} ${M.genericEyebrow}`}
+              </div>
+
+              {/* Right — grade, descriptor, cert */}
+              <div
+                className={`relative z-[1] flex flex-col items-end justify-center border-l-[0.16cqw] px-[1.6cqw] text-right ${bgsTheme.colDivider} ${bgsTheme.ink}`}
+              >
+                <span className={`font-black leading-none tracking-[0] ${bgsTheme.gradeText} ${M.bgsGrade}`}>
+                  {grade}
+                </span>
+                <span
+                  className={`mt-[0.45cqw] font-black uppercase leading-none tracking-[0.06em] ${M.bgsDescriptor}`}
+                >
+                  {bgsDescriptor}
+                </span>
+                <span
+                  className={`mt-[0.5cqw] font-bold leading-none tracking-[0.02em] ${bgsTheme.inkSoft} ${M.bgsCertRight}`}
                 >
                   {certNumber}
-                </p>
-              </div>
-              <div
-                className={`relative z-[1] flex flex-col items-center justify-center bg-[linear-gradient(180deg,rgba(35,23,9,0.98),rgba(8,7,6,0.98))] text-[#f6d778] ${M.genericGradeColumn} ${theme.gradeDivider}`}
-              >
-                <span
-                  className={`font-black uppercase tracking-[0.12em] text-[#f7e7ad] ${M.genericGradeLabel}`}
-                >
-                  {getBgsGradeDescriptor(grade)}
-                </span>
-                <span className={`font-black leading-none tracking-[0] text-white ${M.genericGrade}`}>
-                  {grade}
                 </span>
               </div>
             </div>

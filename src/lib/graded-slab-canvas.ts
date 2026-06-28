@@ -198,3 +198,42 @@ export function drawPsaSlabBack(
   context.font = `900 ${s(34)}px Arial Black, Arial, sans-serif`;
   context.fillText(opts.certNumber, W - s(60), s(372));
 }
+
+// Back of a Beckett slab: the gold "World's most trusted source in collecting"
+// branding sticker. Canvas expected to be 1400x420 (before scale).
+export function drawBgsSlabBack(context: CanvasRenderingContext2D, s: Scale) {
+  const W = s(1400);
+  const H = s(420);
+
+  context.clearRect(0, 0, W, H);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+
+  const gradient = context.createLinearGradient(0, 0, 0, H);
+  gradient.addColorStop(0, "#f4e09a");
+  gradient.addColorStop(0.5, "#d9b358");
+  gradient.addColorStop(1, "#c2933a");
+  context.fillStyle = gradient;
+  context.fillRect(s(8), s(8), W - s(16), H - s(16));
+
+  // Subtle sheen band + dark frame.
+  context.fillStyle = "rgba(255,255,255,0.12)";
+  context.fillRect(s(16), s(40), W - s(32), s(36));
+  context.strokeStyle = "rgba(58,40,10,0.75)";
+  context.lineWidth = s(5);
+  context.strokeRect(s(18), s(18), W - s(36), H - s(36));
+  context.strokeStyle = "rgba(58,40,10,0.4)";
+  context.lineWidth = s(2);
+  context.strokeRect(s(34), s(34), W - s(68), H - s(68));
+
+  context.fillStyle = "#2a1d05";
+  context.textAlign = "center";
+  context.textBaseline = "alphabetic";
+  context.font = `700 ${s(70)}px Georgia, 'Times New Roman', serif`;
+  context.fillText("THE WORLD'S MOST TRUSTED", W / 2, s(150));
+  context.fillText("SOURCE IN COLLECTING™", W / 2, s(232));
+
+  context.font = `800 ${s(46)}px Georgia, 'Times New Roman', serif`;
+  context.fillText("(B)  BECKETT GRADING SERVICES", W / 2, s(340));
+  context.textAlign = "left";
+}
