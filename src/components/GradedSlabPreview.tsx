@@ -105,9 +105,9 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
           "border-white/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.045)_36%,rgba(255,255,255,0.012)_100%)]",
         inner:
           "border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.022)_40%,rgba(255,255,255,0.01)_100%)]",
-        labelOuter: "border-[0.5cqw] border-[#c70a1e] bg-[#fbfbf8]",
+        labelOuter: "border-[0.85cqw] border-[#e01124] bg-[#fbfbf8]",
         labelInner:
-          "bg-[linear-gradient(180deg,rgba(255,255,255,0.998),rgba(245,246,247,0.982))]",
+          "bg-[linear-gradient(180deg,rgba(255,255,255,0.998),rgba(244,246,248,0.985))]",
         labelDivider: "bg-black/14",
         gradeDivider: "border-l border-black/10",
         window:
@@ -286,8 +286,15 @@ function GradedSlabPreview({
             className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/15 ${M.psaLabel} ${theme.labelOuter}`}
           >
             <div className={`relative h-full w-full overflow-hidden ${theme.labelInner}`}>
-              <div className={`absolute ${M.psaInnerBorder}`} />
-              <div className={`absolute bg-black/14 ${M.psaMidDivider}`} />
+              {/* Fugitive-ink security hatch — the faint diagonal pattern on a real PSA label. */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage:
+                    "repeating-linear-gradient(125deg, rgba(34,64,118,0.06) 0, rgba(34,64,118,0.06) 1px, transparent 1px, transparent 5px)",
+                }}
+              />
               <div
                 className={`absolute flex flex-col items-start text-left leading-none text-[#111111] ${M.psaLeft}`}
               >
@@ -323,10 +330,11 @@ function GradedSlabPreview({
               </div>
 
               <div
-                className={`absolute border border-black/10 bg-white shadow-[0_1px_0_rgba(255,255,255,0.7)] ${M.psaLogoWrap}`}
+                className={`absolute border border-black/15 shadow-[0_1px_0_rgba(255,255,255,0.7)] ${M.psaLogoWrap}`}
               >
+                {/* Holographic 'lighthouse' foil look. */}
                 <div
-                  className={`flex h-full w-full items-center justify-center bg-[linear-gradient(180deg,#ffffff,#eef3fb_48%,#ffffff)] ${M.psaLogoInner}`}
+                  className={`flex h-full w-full items-center justify-center bg-[linear-gradient(120deg,#eaeef6_0%,#cfd8ea_34%,#f4f7fc_56%,#d2dcee_78%,#eef2f9_100%)] ${M.psaLogoInner}`}
                 >
                   <PsaLogoMark className={M.psaLogo} />
                 </div>

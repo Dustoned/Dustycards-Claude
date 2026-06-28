@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.2",
+    releasedAt: "June 28, 2026",
+    title: "More authentic PSA slab label",
+    summary:
+      "DustyCards 3.4.2 makes the PSA label look closer to a real PSA slab, based on the actual label design.",
+    tone: "improved",
+    highlights: [
+      "Single bold red 'PSA trim' border instead of the thinner double line.",
+      "Added the faint diagonal fugitive-ink security pattern across the white label.",
+      "The centered PSA logo now has a holographic foil look.",
+    ],
+  },
+  {
     version: "3.4.1",
     releasedAt: "June 28, 2026",
     title: "Sharper PSA slab label",
