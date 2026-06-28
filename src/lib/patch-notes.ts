@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.3",
+    releasedAt: "June 28, 2026",
+    title: "Realistic PSA slab back",
+    summary:
+      "DustyCards 3.4.3 redraws the back of the PSA slab in the 3D viewer to match a real PSA label.",
+    tone: "improved",
+    highlights: [
+      "Flipping a PSA slab in the 3D viewer now shows a realistic back: red trim, faded lighthouse-logo watermark, a blue PSA shield, a QR code, and the barcode + cert number — over the same fugitive-ink pattern as the front.",
+    ],
+  },
+  {
     version: "3.4.2",
     releasedAt: "June 28, 2026",
     title: "More authentic PSA slab label",

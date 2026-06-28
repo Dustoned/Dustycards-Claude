@@ -25,6 +25,11 @@ import {
   normalizeGradingGradeLabel,
   type BgsSubgrades,
 } from "@/lib/graded-slabs";
+import {
+  drawLabelBarcode,
+  drawPsaLogoMark,
+  drawPsaSlabBack,
+} from "@/lib/graded-slab-canvas";
 import { getCachedImageUrl, isTcggoStorageImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
@@ -658,41 +663,6 @@ function drawRoundedRect(
   context.closePath();
 }
 
-function drawPsaLogoMark(
-  context: CanvasRenderingContext2D,
-  centerX: number,
-  baselineY: number,
-  fontSize: number
-) {
-  const drawLetter = (
-    letter: string,
-    x: number,
-    color: string,
-    scale = 1
-  ) => {
-    context.save();
-    context.translate(x, baselineY);
-    context.scale(scale, scale);
-    context.font = `900 ${fontSize}px Arial Black, Arial, sans-serif`;
-    context.textAlign = "left";
-    context.textBaseline = "alphabetic";
-    context.lineJoin = "round";
-    context.lineWidth = fontSize * 0.08;
-    context.strokeStyle = "rgba(17,17,17,0.78)";
-    context.shadowColor = "rgba(255,255,255,0.92)";
-    context.shadowBlur = fontSize * 0.05;
-    context.shadowOffsetY = fontSize * 0.025;
-    context.strokeText(letter, 0, 0);
-    context.fillStyle = color;
-    context.fillText(letter, 0, 0);
-    context.restore();
-  };
-
-  drawLetter("P", centerX - fontSize * 0.92, "#1f57ab", 1.02);
-  drawLetter("S", centerX - fontSize * 0.27, "#f53933", 1.17);
-  drawLetter("A", centerX + fontSize * 0.41, "#1f57ab", 1.02);
-}
-
 function drawBeckettLogoMark(
   context: CanvasRenderingContext2D,
   centerX: number,
@@ -710,27 +680,6 @@ function drawBeckettLogoMark(
   context.strokeText("(B)", centerX, centerY);
   context.fillText("(B)", centerX, centerY);
   context.restore();
-}
-
-function drawLabelBarcode(
-  context: CanvasRenderingContext2D,
-  value: string,
-  x: number,
-  y: number,
-  height: number,
-  maxWidth: number
-) {
-  let cursorX = x;
-  const limitX = x + maxWidth;
-  const unit = Math.max(2, Math.round(height * 0.045));
-
-  for (let index = 0; index < 74 && cursorX < limitX; index += 1) {
-    const digit = Number(value[index % value.length] ?? 1);
-    const width = unit + (digit % 4) * unit;
-    context.fillStyle = digit % 2 === 0 ? "#101828" : "#344054";
-    context.fillRect(cursorX, y, width, height);
-    cursorX += width + unit + (digit % 3) * unit;
-  }
 }
 
 function createPsaLabelTexture(
@@ -842,82 +791,7 @@ function createPsaLabelBackTexture(
   if (!context) return null;
 
   const certNumber = createSlabCertNumber("PSA", cardName, cardNumber, grade);
-
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-
-  context.fillStyle = "#f7f7f2";
-  context.fillRect(s(8), s(8), canvas.width - s(16), canvas.height - s(16));
-  context.strokeStyle = "#e31f2d";
-  context.lineWidth = s(8);
-  context.strokeRect(s(16), s(16), canvas.width - s(32), canvas.height - s(32));
-
-  const panelX = s(56);
-  const panelY = s(60);
-  const panelW = s(520);
-  const panelH = s(154);
-  const panelGradient = context.createLinearGradient(panelX, panelY, panelX + panelW, panelY + panelH);
-  panelGradient.addColorStop(0, "#111827");
-  panelGradient.addColorStop(0.5, "#1e2d52");
-  panelGradient.addColorStop(1, "#0b1221");
-  context.fillStyle = panelGradient;
-  context.fillRect(panelX, panelY, panelW, panelH);
-  context.fillStyle = "rgba(255,255,255,0.08)";
-  context.fillRect(panelX + s(22), panelY + s(20), panelW - s(44), s(34));
-  context.fillStyle = "rgba(223,31,45,0.86)";
-  context.beginPath();
-  context.arc(panelX + panelW * 0.62, panelY + panelH * 0.56, s(34), 0, Math.PI * 2);
-  context.fill();
-  drawPsaLogoMark(context, panelX + panelW * 0.41, panelY + s(100), s(100));
-  context.fillStyle = "rgba(255,255,255,0.8)";
-  context.font = `800 ${s(22)}px Arial, sans-serif`;
-  context.fillText("PSA Lighthouse", panelX + s(28), panelY + s(128));
-
-  const qrSize = s(182);
-  const qrX = canvas.width - s(252);
-  const qrY = s(54);
-  context.fillStyle = "#f9fafb";
-  context.fillRect(qrX - s(14), qrY - s(14), qrSize + s(28), qrSize + s(28));
-  context.strokeStyle = "rgba(17,24,39,0.18)";
-  context.lineWidth = s(3);
-  context.strokeRect(qrX - s(14), qrY - s(14), qrSize + s(28), qrSize + s(28));
-
-  context.fillStyle = "#111827";
-  const cell = qrSize / 9;
-  for (let row = 0; row < 9; row += 1) {
-    for (let col = 0; col < 9; col += 1) {
-      const seed = certNumber[(row + col * 3) % certNumber.length].charCodeAt(0);
-      const finder =
-        (row < 3 && col < 3) ||
-        (row < 3 && col > 5) ||
-        (row > 5 && col < 3);
-      if (finder || (seed + row + col) % 3 === 0) {
-        context.fillRect(qrX + col * cell, qrY + row * cell, cell * 0.72, cell * 0.72);
-      }
-    }
-  }
-
-  context.fillStyle = "rgba(17,24,39,0.14)";
-  context.fillRect(s(56), s(244), canvas.width - s(112), s(2));
-  drawLabelBarcode(context, certNumber, s(66), s(282), s(62), s(745));
-  context.fillStyle = "#101828";
-  context.font = `900 ${s(34)}px Arial Black, Arial, sans-serif`;
-  context.fillText(certNumber, s(66), s(264));
-  context.font = `800 ${s(22)}px Arial, sans-serif`;
-  context.fillStyle = "rgba(16,24,40,0.62)";
-  context.fillText(`CERT ${certNumber}`, s(66), s(376));
-  context.fillText(`GRADE ${grade}`, s(312), s(376));
-
-  context.textAlign = "right";
-  context.fillStyle = "#111827";
-  context.font = `900 ${s(30)}px Arial Black, Arial, sans-serif`;
-  context.fillText(certNumber, canvas.width - s(66), s(282));
-  context.font = `700 ${s(22)}px Arial, sans-serif`;
-  context.fillStyle = "rgba(17,24,39,0.64)";
-  context.fillText("SCAN TO VERIFY", canvas.width - s(66), s(326));
-  context.fillText("PSAcard.com/cert", canvas.width - s(66), s(364));
-  context.textAlign = "left";
+  drawPsaSlabBack(context, s, { certNumber });
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
