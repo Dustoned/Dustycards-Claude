@@ -279,16 +279,17 @@ const M = {
   bgsSubgradeCell: "border-r-[0.22cqw] px-[0.5cqw] py-[0.24cqw]",
   bgsCert: "mt-[0.5cqw]",
   // BGS — Beckett-accurate layout (logo | header+name+subgrades | grade)
-  bgsLabel: "inset-x-[3.6%] top-[2.8%] h-[15.4%] rounded-[1.5cqw]",
-  bgsLogoMark: "text-[4.6cqw]",
-  bgsBeckett: "text-[1.7cqw]",
-  bgsHeader: "text-[2.3cqw]",
-  bgsName: "text-[3cqw]",
-  bgsSubLabel: "text-[1.8cqw]",
-  bgsSubValue: "text-[2cqw]",
-  bgsGrade: "text-[7.4cqw]",
-  bgsDescriptor: "text-[1.95cqw]",
-  bgsCertRight: "text-[1.66cqw]",
+  bgsLabel: "left-[16%] right-[3.4%] top-[3%] h-[14.6%] rounded-[1.4cqw]",
+  bgsLogoArea: "left-[2.5%] top-[3%] h-[14.6%] w-[13%]",
+  bgsLogoMark: "text-[6cqw]",
+  bgsBeckett: "text-[2cqw]",
+  bgsHeader: "text-[2.75cqw]",
+  bgsName: "text-[3.8cqw]",
+  bgsSubLabel: "text-[2.2cqw]",
+  bgsSubValue: "text-[2.6cqw]",
+  bgsGrade: "text-[8.8cqw]",
+  bgsDescriptor: "text-[2.4cqw]",
+  bgsCertRight: "text-[1.95cqw]",
   // Card window
   cardWindow: "left-1/2 top-[18.6%] h-[77.1%] aspect-[63/88] -translate-x-1/2 rounded-[1.9cqw]",
   cardBorderOuter: "inset-x-0 inset-y-[0.95cqw] rounded-[1.4cqw]",
@@ -421,73 +422,78 @@ function GradedSlabPreview({
             </div>
           </div>
         ) : isBgs ? (
-          <div
-            className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/25 ${M.bgsLabel} ${bgsTheme.labelOuter}`}
-          >
-            <div className="relative grid h-full w-full grid-cols-[17%_minmax(0,1fr)_23%] overflow-hidden">
-              {/* Left — Beckett logo */}
-              <div
-                className={`relative z-[1] flex flex-col items-center justify-center border-r-[0.16cqw] ${bgsTheme.colDivider} ${bgsTheme.logoText}`}
+          <>
+            {/* Beckett logo — separate, on the clear slab to the left of the label */}
+            <div
+              className={`absolute z-[3] flex flex-col items-center justify-center text-[#e7e4dc] [text-shadow:0_0.15cqw_0.3cqw_rgba(0,0,0,0.55)] ${M.bgsLogoArea}`}
+            >
+              <BeckettLogoMark className={M.bgsLogoMark} />
+              <span
+                className={`mt-[0.2cqw] font-black uppercase leading-none tracking-[0.04em] ${M.bgsBeckett}`}
               >
-                <BeckettLogoMark className={M.bgsLogoMark} />
-                <span
-                  className={`mt-[0.4cqw] font-black uppercase leading-none tracking-[0.06em] ${M.bgsBeckett}`}
-                >
-                  BECKETT®
-                </span>
-              </div>
+                BECKETT®
+              </span>
+            </div>
 
-              {/* Middle — header, name, 2x2 subgrades */}
-              <div
-                className={`relative z-[1] flex min-w-0 flex-col justify-center px-[2.6cqw] text-left leading-none ${bgsTheme.ink}`}
-              >
-                <p className={`truncate font-bold uppercase tracking-[0.05em] ${M.bgsHeader}`}>
-                  {bgsHeaderLine}
-                </p>
-                <p
-                  className={`mt-[0.5cqw] truncate font-black uppercase tracking-[0.02em] ${M.bgsName}`}
+            {/* Colored grade label — info + grade only */}
+            <div
+              className={`absolute z-[2] overflow-hidden shadow-[0_1.2cqw_2.4cqw_rgba(0,0,0,0.3)] ${M.bgsLabel} ${bgsTheme.labelOuter}`}
+            >
+              <div className="relative grid h-full w-full grid-cols-[minmax(0,1fr)_22%] overflow-hidden">
+                {/* Info — header, name, 2x2 subgrades */}
+                <div
+                  className={`relative z-[1] flex min-w-0 flex-col justify-center px-[2.8cqw] text-left leading-none ${bgsTheme.ink}`}
                 >
-                  {bgsNameLine}
-                </p>
-                <div className="mt-[1.1cqw] grid grid-cols-2 gap-x-[3cqw] gap-y-[0.55cqw]">
-                  {BGS_SUBGRADE_KEYS.map((key) => (
-                    <div
-                      key={key}
-                      className="flex min-w-0 items-baseline justify-between gap-[1cqw]"
-                    >
-                      <span
-                        className={`truncate font-bold uppercase tracking-[0.04em] ${bgsTheme.inkSoft} ${M.bgsSubLabel}`}
+                  <p className={`truncate font-bold uppercase tracking-[0.05em] ${M.bgsHeader}`}>
+                    {bgsHeaderLine}
+                  </p>
+                  <p
+                    className={`mt-[0.6cqw] truncate font-black uppercase tracking-[0.02em] ${M.bgsName}`}
+                  >
+                    {bgsNameLine}
+                  </p>
+                  <div className="mt-[1.3cqw] grid grid-cols-2 gap-x-[3.4cqw] gap-y-[0.8cqw]">
+                    {BGS_SUBGRADE_KEYS.map((key) => (
+                      <div
+                        key={key}
+                        className="flex min-w-0 items-baseline justify-between gap-[1cqw]"
                       >
-                        {formatBgsSubgradeName(key)}
-                      </span>
-                      <span className={`shrink-0 font-black leading-none ${M.bgsSubValue}`}>
-                        {bgsSubgrades?.[key] ?? "-"}
-                      </span>
-                    </div>
-                  ))}
+                        <span
+                          className={`truncate font-bold uppercase tracking-[0.04em] ${bgsTheme.inkSoft} ${M.bgsSubLabel}`}
+                        >
+                          {formatBgsSubgradeName(key)}
+                        </span>
+                        <span className={`shrink-0 font-black leading-none ${M.bgsSubValue}`}>
+                          {bgsSubgrades?.[key] ?? "-"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Grade, descriptor, cert */}
+                <div
+                  className={`relative z-[1] flex flex-col items-center justify-center border-l-[0.16cqw] px-[0.8cqw] text-center ${bgsTheme.colDivider} ${bgsTheme.ink}`}
+                >
+                  <span
+                    className={`font-black leading-none tracking-[0] ${bgsTheme.gradeText} ${M.bgsGrade}`}
+                  >
+                    {grade}
+                  </span>
+                  <span
+                    className={`mt-[0.5cqw] font-black uppercase leading-none tracking-[0.06em] ${M.bgsDescriptor}`}
+                  >
+                    {bgsDescriptor}
+                  </span>
+                  <span
+                    className={`mt-[0.5cqw] font-bold leading-none tracking-[0.02em] ${bgsTheme.inkSoft} ${M.bgsCertRight}`}
+                  >
+                    {certNumber}
+                  </span>
                 </div>
               </div>
-
-              {/* Right — grade, descriptor, cert */}
-              <div
-                className={`relative z-[1] flex flex-col items-end justify-center border-l-[0.16cqw] px-[1.6cqw] text-right ${bgsTheme.colDivider} ${bgsTheme.ink}`}
-              >
-                <span className={`font-black leading-none tracking-[0] ${bgsTheme.gradeText} ${M.bgsGrade}`}>
-                  {grade}
-                </span>
-                <span
-                  className={`mt-[0.45cqw] font-black uppercase leading-none tracking-[0.06em] ${M.bgsDescriptor}`}
-                >
-                  {bgsDescriptor}
-                </span>
-                <span
-                  className={`mt-[0.5cqw] font-bold leading-none tracking-[0.02em] ${bgsTheme.inkSoft} ${M.bgsCertRight}`}
-                >
-                  {certNumber}
-                </span>
-              </div>
             </div>
-          </div>
+          </>
         ) : (
           <div
             className={`absolute z-[2] overflow-hidden shadow-sm shadow-black/8 ${M.genericLabel} ${theme.labelOuter}`}

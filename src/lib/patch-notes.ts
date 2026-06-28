@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.7",
+    releasedAt: "June 28, 2026",
+    title: "Beckett label: separate logo, bigger text",
+    summary:
+      "DustyCards 3.4.7 moves the Beckett logo onto the slab (next to the label) and enlarges the BGS label text.",
+    tone: "improved",
+    highlights: [
+      "The (B) BECKETT logo now sits on the clear slab to the left of the coloured label, like a real Beckett slab, instead of inside the label strip.",
+      "The BGS label text is larger and fills the label better, so it stays readable at small sizes.",
+    ],
+  },
+  {
     version: "3.4.6",
     releasedAt: "June 28, 2026",
     title: "3D Beckett label now colour-matches the grade",
