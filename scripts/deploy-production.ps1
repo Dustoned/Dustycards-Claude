@@ -95,17 +95,21 @@ cleanup_remote_junk() {
     *) echo "Refusing cleanup outside /opt/dustycards: $RemoteAppPath" >&2; exit 1 ;;
   esac
 
+  # Note: data/image-cache is intentionally NOT cleaned here. It is the live
+  # image cache the running app writes to continuously; removing it on deploy
+  # both wastes bandwidth (forces a full re-warm) and races with the warmer
+  # ("rm: Directory not empty"), which previously aborted the deploy before the
+  # restart. The rm's are made non-fatal as a belt-and-suspenders.
   for path in \
     .codex-screenshots \
     .firecrawl \
     screenshots-ui \
     test-results \
-    playwright-report \
-    data/image-cache
+    playwright-report
   do
     target="$RemoteAppPath/$path"
     if [ -e "$target" ]; then
-      rm -rf -- "$target"
+      rm -rf -- "$target" 2>/dev/null || true
     fi
   done
 
