@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.3",
+    releasedAt: "June 28, 2026",
+    title: "Background sync no longer wedges after a restart",
+    summary:
+      "DustyCards 3.3.3 fixes a bug where a restart or deploy during a price refresh could leave the background sync stuck for up to two hours.",
+    tone: "fixed",
+    highlights: [
+      "An orphaned in-progress sync left behind by a restart used to block every new price refresh via the conflict guard until a 2-hour timeout. The app now clears those orphans on startup so the sync resumes immediately.",
+      "Deploys and restarts during an active refresh are now self-healing instead of parking the queue.",
+    ],
+  },
+  {
     version: "3.3.2",
     releasedAt: "June 28, 2026",
     title: "Accurate 2-day value drivers",
