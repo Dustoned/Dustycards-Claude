@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.4",
+    releasedAt: "June 28, 2026",
+    title: "Every card stays on its refresh schedule",
+    summary:
+      "DustyCards 3.3.4 makes the background price refresh fair, so no set falls weeks behind, and brings Common/Uncommon cards onto an automatic 2-week refresh.",
+    tone: "improved",
+    highlights: [
+      "The refresh now prioritizes the cards furthest behind their own refresh interval, so ordinary mid-catalog sets no longer get starved by the hottest high-rarity sets.",
+      "Common and Uncommon cards, previously refreshed only once, now update automatically about every two weeks.",
+      "Higher-value cards still refresh on their faster 12h/daily cadence — value now only breaks ties between equally-overdue sets.",
+    ],
+  },
+  {
     version: "3.3.3",
     releasedAt: "June 28, 2026",
     title: "Background sync no longer wedges after a restart",

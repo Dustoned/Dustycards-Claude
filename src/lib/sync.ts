@@ -180,6 +180,10 @@ interface DueCardCandidate {
   priceSourceStatus: string | null;
   priceSourceCheckedAt: Date | string | null;
   tier: PriceRefreshTier;
+  // How far past its own refresh interval this card is, in multiples of that
+  // interval. Higher = more overdue relative to its cadence. Used so the batch
+  // selection serves whoever is most behind their timer first (no starvation).
+  overdueScore: number;
 }
 
 interface AutoEpisodePriceRefreshResult {
@@ -2471,6 +2475,12 @@ async function selectAutoRefreshBatch(
     if (!refreshInfo.autoRefreshEnabled) continue;
     if (!refreshInfo.due) continue;
 
+    const fetchedMs = new Date(latestFetchedAt).getTime();
+    const overdueScore =
+      Number.isFinite(refreshInfo.intervalMs) && refreshInfo.intervalMs > 0 && !Number.isNaN(fetchedMs)
+        ? (now.getTime() - fetchedMs) / refreshInfo.intervalMs
+        : 1;
+
     dueCandidates.push({
       id: candidate.id,
       game: candidate.game,
@@ -2480,6 +2490,7 @@ async function selectAutoRefreshBatch(
       priceSourceStatus: candidate.price_source_status,
       priceSourceCheckedAt: candidate.price_source_checked_at,
       tier: refreshInfo.tier,
+      overdueScore,
     });
   }
 
@@ -2503,7 +2514,11 @@ async function selectAutoRefreshBatch(
 
   const rankedEpisodes = [...byEpisode.entries()]
     .map(([episodeId, cards]) => {
+      // Within an episode, refresh the most-overdue cards first; value
+      // (tier weight) and oldest data only break ties.
       const rankedCards = [...cards].sort((a, b) => {
+        const overdueDiff = b.overdueScore - a.overdueScore;
+        if (overdueDiff !== 0) return overdueDiff;
         const tierDiff = getTierWeight(b.tier) - getTierWeight(a.tier);
         if (tierDiff !== 0) return tierDiff;
         return a.latestFetchedAt.localeCompare(b.latestFetchedAt);
@@ -2512,17 +2527,24 @@ async function selectAutoRefreshBatch(
       return {
         episodeId,
         cards: rankedCards,
+        maxOverdueScore: Math.max(...rankedCards.map((card) => card.overdueScore)),
         highestTierWeight: Math.max(...rankedCards.map((card) => getTierWeight(card.tier))),
-        score: rankedCards.reduce((total, card) => total + getTierWeight(card.tier), 0),
-        oldestFetchedAt: rankedCards[0]?.latestFetchedAt ?? "",
+        oldestFetchedAt: rankedCards.reduce(
+          (oldest, card) => (card.latestFetchedAt < oldest ? card.latestFetchedAt : oldest),
+          rankedCards[0]?.latestFetchedAt ?? ""
+        ),
       };
     })
     .sort((a, b) => {
+      // Primary: serve the episode whose most-overdue card is furthest past its
+      // own refresh cadence. This guarantees no set starves regardless of
+      // rarity — exactly what the per-tier refresh timers promise.
+      const overdueDiff = b.maxOverdueScore - a.maxOverdueScore;
+      if (overdueDiff !== 0) return overdueDiff;
+
+      // Ties: prefer higher-value sets, then the oldest data, then bigger sets.
       const highestTierDiff = b.highestTierWeight - a.highestTierWeight;
       if (highestTierDiff !== 0) return highestTierDiff;
-
-      const scoreDiff = b.score - a.score;
-      if (scoreDiff !== 0) return scoreDiff;
 
       const oldestDiff = a.oldestFetchedAt.localeCompare(b.oldestFetchedAt);
       if (oldestDiff !== 0) return oldestDiff;

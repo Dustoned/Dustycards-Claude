@@ -23,9 +23,9 @@ const PRICE_REFRESH_POLICIES: Record<PriceRefreshTier, PriceRefreshPolicy> = {
   base: {
     tier: "base",
     tierLabel: "Base price",
-    cadenceLabel: "First sync, then manual only",
-    intervalMs: Number.POSITIVE_INFINITY,
-    autoRefreshEnabled: false,
+    cadenceLabel: "Shared 2-week refresh",
+    intervalMs: 14 * 24 * HOUR_MS,
+    autoRefreshEnabled: true,
   },
   low: {
     tier: "low",

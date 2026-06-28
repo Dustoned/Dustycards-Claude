@@ -20,11 +20,15 @@ describe("price refresh tiers", () => {
     expect(getPriceRefreshTier("SR")).toBe("high");
   });
 
-  it("does not schedule a repeat refresh for base-price-only cards", () => {
-    const info = getPriceRefreshInfo("UC", "2026-05-01T00:00:00.000Z", Date.UTC(2026, 4, 14));
+  it("auto-refreshes base-price cards on a roughly 2-week cadence", () => {
+    const fetchedAt = "2026-05-01T00:00:00.000Z";
 
-    expect(info.autoRefreshEnabled).toBe(false);
-    expect(info.due).toBe(false);
+    const fresh = getPriceRefreshInfo("UC", fetchedAt, Date.UTC(2026, 4, 2));
+    expect(fresh.autoRefreshEnabled).toBe(true);
+    expect(fresh.due).toBe(false);
+
+    const stale = getPriceRefreshInfo("UC", fetchedAt, Date.UTC(2026, 5, 1));
+    expect(stale.due).toBe(true);
   });
 
   it("keeps high-refresh cards on the shared 12h class cadence", () => {
