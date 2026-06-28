@@ -1407,7 +1407,6 @@ function buildCollectionValueDrivers({
   cardHistory,
   sealedHistory,
   chart,
-  currentValue,
   limit = COLLECTION_VALUE_DRIVER_LIMIT,
   windowDays = COLLECTION_VALUE_DRIVER_WINDOW_DAYS,
 }: {
@@ -1416,7 +1415,8 @@ function buildCollectionValueDrivers({
   cardHistory: EpisodePriceHistorySnapshot[];
   sealedHistory: EpisodeSealedPriceHistorySnapshot[];
   chart: Array<{ date: string; label: string; value: number | null }>;
-  currentValue: number;
+  // currentValue is intentionally not used for the Net: see the return below.
+  currentValue?: number;
   limit?: number | null;
   windowDays?: number | null;
 }): CollectionValueDriversData {
@@ -1533,18 +1533,25 @@ function buildCollectionValueDrivers({
   const gains = limit == null ? rankedGains : rankedGains.slice(0, limit);
   const drops = limit == null ? rankedDrops : rankedDrops.slice(0, limit);
 
+  const gainsTotal = roundCurrency(
+    drivers.reduce((total, item) => total + (item.change > 0 ? item.change : 0), 0)
+  );
+  const dropsTotal = roundCurrency(
+    drivers.reduce((total, item) => total + (item.change < 0 ? item.change : 0), 0)
+  );
+
   return {
     latestDate: latestPoint.date,
     latestLabel: latestPoint.label,
     previousDate: previousPoint.date,
     previousLabel: previousPoint.label,
-    totalChange: roundCurrency(currentValue - previousPoint.value),
-    gainsTotal: roundCurrency(
-      drivers.reduce((total, item) => total + (item.change > 0 ? item.change : 0), 0)
-    ),
-    dropsTotal: roundCurrency(
-      drivers.reduce((total, item) => total + (item.change < 0 ? item.change : 0), 0)
-    ),
+    // Net must equal the drivers we actually show. Using the collection chart
+    // delta (current total vs 2 days ago) leaked the graded premium back in —
+    // current value uses graded prices while the drivers are raw-only — so the
+    // badge disagreed with the list and the source breakdown.
+    totalChange: roundCurrency(gainsTotal + dropsTotal),
+    gainsTotal,
+    dropsTotal,
     sourceBreakdown: buildValueDriverSourceBreakdown(drivers),
     gains,
     drops,

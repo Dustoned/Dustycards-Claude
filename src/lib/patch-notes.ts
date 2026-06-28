@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.8",
+    releasedAt: "June 28, 2026",
+    title: "Value-driver Net matches the list, fuller pull-to-refresh",
+    summary:
+      "DustyCards 3.3.8 makes the Collection Value Drivers Net add up to the cards shown, and pull-to-refresh now works when you scroll up to the top and keep pulling.",
+    tone: "fixed",
+    highlights: [
+      "The Net total on Collection Value Drivers now equals the gains and drops actually listed — it no longer leaks a graded card's premium that the list excludes.",
+      "Pull-to-refresh now also triggers when you scroll all the way up to the top and keep pulling down, not only when the pull starts at the top.",
+    ],
+  },
+  {
     version: "3.3.7",
     releasedAt: "June 28, 2026",
     title: "Price history takes priority over commons",

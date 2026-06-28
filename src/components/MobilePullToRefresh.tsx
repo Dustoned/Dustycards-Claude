@@ -37,7 +37,7 @@ export default function MobilePullToRefresh() {
   const refreshingRef = useRef(false);
   const trackingRef = useRef(false);
   const activeRef = useRef(false);
-  const startYRef = useRef(0);
+  const anchorYRef = useRef<number | null>(null);
 
   useEffect(() => {
     pullRef.current = pull;
@@ -50,6 +50,7 @@ export default function MobilePullToRefresh() {
     function reset() {
       trackingRef.current = false;
       activeRef.current = false;
+      anchorYRef.current = null;
       setDragging(false);
       if (!refreshingRef.current) setPull(0);
     }
@@ -58,12 +59,14 @@ export default function MobilePullToRefresh() {
       if (refreshingRef.current) return;
       if (!isMobileViewport()) return;
       if (event.touches.length !== 1) return;
-      if (!isAtTop()) return;
       if (isInsideOverlay(event.target)) return;
 
+      // Track every gesture, not only ones that start at the top. The pull only
+      // arms once we are actually at the top, so a continuous scroll up to the
+      // top can flow straight into a refresh pull.
       trackingRef.current = true;
       activeRef.current = false;
-      startYRef.current = event.touches[0]?.clientY ?? 0;
+      anchorYRef.current = isAtTop() ? event.touches[0]?.clientY ?? 0 : null;
     }
 
     function onMove(event: TouchEvent) {
@@ -71,21 +74,30 @@ export default function MobilePullToRefresh() {
       const touch = event.touches[0];
       if (!touch) return;
 
-      const dy = touch.clientY - startYRef.current;
-      if (dy <= 0) {
-        // Pulling up / normal scroll — let the page handle it.
-        if (!activeRef.current) trackingRef.current = false;
+      if (!isAtTop()) {
+        // Still scrolled: let the page scroll, and re-anchor when we reach the
+        // top so the pull distance is measured from there.
+        anchorYRef.current = null;
+        if (activeRef.current) {
+          activeRef.current = false;
+          setDragging(false);
+          setPull(0);
+        }
         return;
       }
-      if (!isAtTop()) {
-        reset();
+
+      if (anchorYRef.current == null) {
+        anchorYRef.current = touch.clientY;
+      }
+      const dy = touch.clientY - anchorYRef.current;
+      if (dy <= 0) {
+        if (activeRef.current) setPull(0);
         return;
       }
 
       activeRef.current = true;
       setDragging(true);
-      const distance = Math.min(MAX_PULL_PX, dy / RESISTANCE);
-      setPull(distance);
+      setPull(Math.min(MAX_PULL_PX, dy / RESISTANCE));
       // Suppress the browser's native overscroll bounce while we handle it.
       if (event.cancelable) event.preventDefault();
     }
