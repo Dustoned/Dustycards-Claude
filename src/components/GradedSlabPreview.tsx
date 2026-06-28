@@ -105,7 +105,7 @@ function getGradedSlabTheme(company: SupportedGradedSlabCompany) {
           "border-white/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.045)_36%,rgba(255,255,255,0.012)_100%)]",
         inner:
           "border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.022)_40%,rgba(255,255,255,0.01)_100%)]",
-        labelOuter: "border-[0.22cqw] border-[#df1f2d] bg-[#fbfbf8]",
+        labelOuter: "border-[0.5cqw] border-[#c70a1e] bg-[#fbfbf8]",
         labelInner:
           "bg-[linear-gradient(180deg,rgba(255,255,255,0.998),rgba(245,246,247,0.982))]",
         labelDivider: "bg-black/14",
@@ -195,8 +195,8 @@ const M = {
   shellRadius: "rounded-[4cqw]",
   innerInset: "inset-[1.1%] rounded-[3.4cqw]",
   // PSA
-  psaLabel: "inset-x-[4%] top-[2.8%] h-[12.7%] rounded-[1.7cqw]",
-  psaInnerBorder: "inset-[0.5cqw] rounded-[1cqw] border-[0.4cqw] border-[#df1f2d]",
+  psaLabel: "inset-x-[4%] top-[2.8%] h-[12.7%] rounded-[1.1cqw]",
+  psaInnerBorder: "inset-[0.85cqw] rounded-[0.5cqw] border-[0.22cqw] border-[#c70a1e]",
   psaMidDivider: "inset-x-[3.4%] bottom-[22%] h-[0.18cqw]",
   psaLeft: "left-[3.3cqw] right-[31%] top-[1.7cqw]",
   psaEyebrow: "text-[1.82cqw]",
@@ -206,7 +206,8 @@ const M = {
   psaRightMeta: "text-[3.1cqw]",
   psaDescriptor: "mt-[0.5cqw]",
   psaGrade: "text-[6.7cqw]",
-  psaLogoWrap: "left-1/2 bottom-[4cqw] h-[4.55cqw] w-[23%] rounded-[0.7cqw] p-[0.36cqw]",
+  psaLogoWrap:
+    "left-1/2 bottom-[4cqw] h-[4.55cqw] w-[23%] -translate-x-1/2 rounded-[0.7cqw] p-[0.36cqw]",
   psaLogoInner: "rounded-[0.5cqw]",
   psaLogo: "text-[4cqw]",
   psaCertArea: "left-[3.1cqw] right-[2.9cqw] bottom-[0.95cqw] h-[3.1cqw] gap-[1.4cqw]",

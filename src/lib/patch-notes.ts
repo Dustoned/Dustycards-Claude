@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.1",
+    releasedAt: "June 28, 2026",
+    title: "Sharper PSA slab label",
+    summary:
+      "DustyCards 3.4.1 fixes the PSA grading label so its logo is centered and its red border looks like a real PSA slab.",
+    tone: "fixed",
+    highlights: [
+      "The PSA logo is centered again instead of sitting off to the side.",
+      "The PSA label now has a proper clean double-line red border with crisper corners, matching a real PSA slab.",
+    ],
+  },
+  {
     version: "3.4.0",
     releasedAt: "June 28, 2026",
     title: "Graded slab labels — consistent and sharp at every size",
