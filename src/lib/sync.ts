@@ -2936,9 +2936,7 @@ async function selectKnownUnavailablePriceCheckBatch(options?: {
   };
 }
 
-export async function getAutoPriceRefreshSnapshot(options?: {
-  game?: TradingCardGame;
-}): Promise<{
+interface AutoPriceRefreshSnapshotResult {
   dueCards: number;
   missingPriceCards: number;
   submittedCardCandidates: number;
@@ -2948,7 +2946,30 @@ export async function getAutoPriceRefreshSnapshot(options?: {
   nextBatchEpisodes: number;
   nextBatchEpisodeIds: string[];
   nextBatchCardIds: string[];
-}> {
+}
+
+// selectAutoRefreshBatch scans the whole catalog in JS. This snapshot is hit on
+// every scheduler tick and three times per Settings render, so without a cache
+// those repeated full scans pile onto the single Node event loop and make the
+// whole site crawl while a refresh is running. A short TTL is safe: the job
+// re-selects its batch from fresh data when it actually runs; this only feeds
+// status counts and the next-batch preview.
+const AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS = 15_000;
+const autoPriceSnapshotCache = new Map<
+  string,
+  { at: number; value: AutoPriceRefreshSnapshotResult }
+>();
+
+export async function getAutoPriceRefreshSnapshot(options?: {
+  game?: TradingCardGame;
+}): Promise<AutoPriceRefreshSnapshotResult> {
+  const cacheKey = options?.game ?? "all";
+  const cachedSnapshot = autoPriceSnapshotCache.get(cacheKey);
+  const cacheNowMs = Date.now();
+  if (cachedSnapshot && cacheNowMs - cachedSnapshot.at < AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS) {
+    return cachedSnapshot.value;
+  }
+
   const timer = startPerformanceTimer("sync.auto-price-refresh.snapshot");
   const now = new Date();
   const dueBatch = await selectAutoRefreshBatch(now, { game: options?.game });
@@ -2989,6 +3010,8 @@ export async function getAutoPriceRefreshSnapshot(options?: {
     nextBatchEpisodeIds: [...combinedBatch.keys()].slice(0, 6),
     nextBatchCardIds: [...new Set([...combinedBatch.values()].flat())].slice(0, 8),
   };
+
+  autoPriceSnapshotCache.set(cacheKey, { at: cacheNowMs, value: result });
 
   timer.finish({
     dueCards: result.dueCards,

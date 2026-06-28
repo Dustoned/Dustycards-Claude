@@ -255,7 +255,19 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($remoteScriptFile, $remoteScript, $utf8NoBom)
 
 scp -o BatchMode=yes -o StrictHostKeyChecking=no $remoteScriptFile "${HostName}:/tmp/dustycards-deploy.sh"
+
+# The remote build writes progress AND warnings (e.g. "Turbopack build
+# encountered N warnings") to stderr. Under ErrorActionPreference=Stop, that
+# stderr was treated as a terminating error and aborted the deploy even though
+# the remote build+restart succeeded. Only the remote exit code tells us if the
+# deploy actually failed, so check that instead of the error stream.
+$ErrorActionPreference = "Continue"
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no $HostName "bash /tmp/dustycards-deploy.sh"
+$deployExitCode = $LASTEXITCODE
+$ErrorActionPreference = "Stop"
+if ($deployExitCode -ne 0) {
+  throw "Remote deploy failed with exit code $deployExitCode"
+}
 
 Remove-Item -LiteralPath $remoteScriptFile -Force
 Remove-Item -LiteralPath $archive -Force

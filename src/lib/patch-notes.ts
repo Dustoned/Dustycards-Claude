@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.6",
+    releasedAt: "June 28, 2026",
+    title: "Pull to refresh, smoother sync, card-history catch-up",
+    summary:
+      "DustyCards 3.3.6 adds mobile pull-to-refresh, keeps the site responsive while a price refresh runs, and lets card history sync during the day.",
+    tone: "improved",
+    highlights: [
+      "On mobile, pull down from the top of any page to refresh it.",
+      "The Settings page and the rest of the site stay fast while a background price refresh is running — the heavy sync snapshot is now cached briefly instead of recomputed on every check.",
+      "Card history now also syncs during the day whenever there is spare quota, instead of only in the window before the nightly reset, so it no longer falls behind.",
+    ],
+  },
+  {
     version: "3.3.5",
     releasedAt: "June 28, 2026",
     title: "Graded cards no longer stick in value drivers",

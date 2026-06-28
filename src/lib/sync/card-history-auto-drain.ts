@@ -7,6 +7,11 @@ import { startCardHistorySyncJob } from "@/lib/sync/card-history-job";
 
 const AUTO_CARD_HISTORY_QUOTA_DRAIN_WINDOW_MS = 1000 * 60 * 60 * 2;
 const AUTO_CARD_HISTORY_QUOTA_DRAIN_MIN_REMAINING_REQUESTS = 1;
+// When the daily quota is mostly untouched, card history can drain during the
+// day too (price refresh is cheap — a full catalog pass is ~300 of 3000/day),
+// instead of only in the 2h wind-down before the reset. This keeps card history
+// from lagging behind when new cards/sets appear.
+const AUTO_CARD_HISTORY_AMPLE_QUOTA_REQUESTS = 800;
 
 export function isCardHistoryQuotaDrainWindow(
   usage: Pick<
@@ -24,6 +29,14 @@ export function isCardHistoryQuotaDrainWindow(
     usage.requestsRemaining < AUTO_CARD_HISTORY_QUOTA_DRAIN_MIN_REMAINING_REQUESTS
   ) {
     return false;
+  }
+
+  // Plenty of quota to spare: drain now rather than waiting for the reset window.
+  if (
+    usage.requestsRemaining != null &&
+    usage.requestsRemaining >= AUTO_CARD_HISTORY_AMPLE_QUOTA_REQUESTS
+  ) {
+    return true;
   }
 
   const msUntilReset = usage.quotaResetsAt.getTime() - now.getTime();

@@ -9,6 +9,7 @@ import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/Desktop
 import MobileBottomNav from "@/components/MobileBottomNav";
 import MobileEdgeBackGesture from "@/components/MobileEdgeBackGesture";
 import MobileHoverTooltip from "@/components/MobileHoverTooltip";
+import MobilePullToRefresh from "@/components/MobilePullToRefresh";
 import NavigationStateController from "@/components/NavigationStateController";
 import OfflineCacheRegistration from "@/components/OfflineCacheRegistration";
 import SettingsProvider from "@/components/SettingsProvider";
@@ -208,6 +209,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {currentUser ? <NavigationStateController /> : null}
           <MobileHoverTooltip />
           {currentUser ? <MobileEdgeBackGesture /> : null}
+          {currentUser ? <MobilePullToRefresh /> : null}
           {currentUser && <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} />}
           {currentUser && sidebarSummary ? <DesktopSidebar summary={sidebarSummary} /> : null}
           <header
