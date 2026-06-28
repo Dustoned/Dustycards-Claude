@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.6",
+    releasedAt: "June 28, 2026",
+    title: "3D Beckett label now colour-matches the grade",
+    summary:
+      "DustyCards 3.4.6 makes the Beckett label in the 3D viewer change colour by grade, matching the 2D label.",
+    tone: "improved",
+    highlights: [
+      "The front of a Beckett slab in the 3D viewer is now black (10 all-10), gold (9.5 / non-perfect 10), or silver (<9.5) — the same as everywhere else — instead of always gold.",
+      "Re-laid to match: Beckett logo, set/name lines, 2×2 subgrade grid, and grade + descriptor + cert.",
+    ],
+  },
+  {
     version: "3.4.5",
     releasedAt: "June 28, 2026",
     title: "Black Label / Gold Label choice for BGS 10s",

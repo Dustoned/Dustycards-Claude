@@ -199,6 +199,142 @@ export function drawPsaSlabBack(
   context.fillText(opts.certNumber, W - s(60), s(372));
 }
 
+export type BgsCanvasKind = "black" | "gold" | "silver";
+
+const BGS_CANVAS_THEMES: Record<
+  BgsCanvasKind,
+  {
+    bg0: string;
+    bg1: string;
+    border: string;
+    ink: string;
+    inkSoft: string;
+    gradeText: string;
+    logo: string;
+    divider: string;
+  }
+> = {
+  black: {
+    bg0: "#2c2922",
+    bg1: "#100d09",
+    border: "#9c7a2e",
+    ink: "#e9cb78",
+    inkSoft: "#c6a64c",
+    gradeText: "#ffffff",
+    logo: "#f1e7c9",
+    divider: "rgba(156,122,46,0.5)",
+  },
+  gold: {
+    bg0: "#f2dd95",
+    bg1: "#c79a37",
+    border: "#7d5e18",
+    ink: "#231703",
+    inkSoft: "rgba(35,23,3,0.72)",
+    gradeText: "#1b1202",
+    logo: "#1b1202",
+    divider: "rgba(94,71,15,0.42)",
+  },
+  silver: {
+    bg0: "#edeff2",
+    bg1: "#b4b9c1",
+    border: "#8b919b",
+    ink: "#191c21",
+    inkSoft: "rgba(25,28,33,0.7)",
+    gradeText: "#141619",
+    logo: "#141619",
+    divider: "rgba(102,107,115,0.4)",
+  },
+};
+
+// Front of a Beckett slab label, colour-themed by grade kind to match the 2D
+// preview. Canvas expected to be 1400x420 (before scale).
+export function drawBgsSlabFront(
+  context: CanvasRenderingContext2D,
+  s: Scale,
+  opts: {
+    kind: BgsCanvasKind;
+    headerLine: string;
+    nameLine: string;
+    subgrades: Array<{ name: string; value: string }>;
+    grade: string;
+    descriptor: string;
+    certNumber: string;
+  }
+) {
+  const W = s(1400);
+  const H = s(420);
+  const theme = BGS_CANVAS_THEMES[opts.kind];
+
+  context.clearRect(0, 0, W, H);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+
+  const gradient = context.createLinearGradient(0, 0, 0, H);
+  gradient.addColorStop(0, theme.bg0);
+  gradient.addColorStop(1, theme.bg1);
+  context.fillStyle = gradient;
+  context.fillRect(s(8), s(8), W - s(16), H - s(16));
+
+  context.strokeStyle = theme.border;
+  context.lineWidth = s(11);
+  context.strokeRect(s(15), s(15), W - s(30), H - s(30));
+
+  context.strokeStyle = theme.divider;
+  context.lineWidth = s(2);
+  context.beginPath();
+  context.moveTo(s(244), s(30));
+  context.lineTo(s(244), H - s(30));
+  context.moveTo(s(1086), s(30));
+  context.lineTo(s(1086), H - s(30));
+  context.stroke();
+
+  // Left — Beckett mark
+  context.fillStyle = theme.logo;
+  context.textAlign = "center";
+  context.textBaseline = "alphabetic";
+  context.font = `900 ${s(74)}px Georgia, 'Times New Roman', serif`;
+  context.fillText("(B)", s(126), s(196));
+  context.font = `800 ${s(30)}px Arial, sans-serif`;
+  context.fillText("BECKETT®", s(126), s(252));
+
+  // Middle — header / name / 2x2 subgrades
+  context.textAlign = "left";
+  context.fillStyle = theme.ink;
+  context.font = `700 ${s(33)}px Arial, sans-serif`;
+  context.fillText(opts.headerLine, s(272), s(106), s(780));
+  context.font = `900 ${s(50)}px Arial Black, Arial, sans-serif`;
+  context.fillText(opts.nameLine, s(272), s(166), s(792));
+
+  const cols = [s(272), s(700)];
+  const rows = [s(258), s(330)];
+  opts.subgrades.slice(0, 4).forEach((sg, index) => {
+    const x = cols[index % 2];
+    const y = rows[Math.floor(index / 2)];
+    const label = sg.name.toUpperCase();
+    context.font = `700 ${s(28)}px Arial, sans-serif`;
+    context.fillStyle = theme.inkSoft;
+    context.fillText(label, x, y);
+    const labelWidth = context.measureText(label).width;
+    context.font = `900 ${s(32)}px Arial Black, Arial, sans-serif`;
+    context.fillStyle = theme.ink;
+    context.fillText(sg.value, x + labelWidth + s(16), y);
+  });
+
+  // Right — grade / descriptor / cert
+  context.textAlign = "right";
+  const rx = W - s(40);
+  context.fillStyle = theme.gradeText;
+  context.font = `900 ${s(116)}px Arial Black, Arial, sans-serif`;
+  context.fillText(opts.grade, rx, s(198));
+  context.fillStyle = theme.ink;
+  context.font = `900 ${s(31)}px Arial, sans-serif`;
+  context.fillText(opts.descriptor, rx, s(252));
+  context.fillStyle = theme.inkSoft;
+  context.font = `700 ${s(25)}px Arial, sans-serif`;
+  context.fillText(opts.certNumber, rx, s(298));
+  context.textAlign = "left";
+}
+
 // Back of a Beckett slab: the gold "World's most trusted source in collecting"
 // branding sticker. Canvas expected to be 1400x420 (before scale).
 export function drawBgsSlabBack(context: CanvasRenderingContext2D, s: Scale) {

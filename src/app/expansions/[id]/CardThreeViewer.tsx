@@ -21,15 +21,18 @@ import {
   formatPsaSetLine,
   getBgsGradeDescriptor,
   getPsaGradeDescriptor,
+  isBgsBlackLabel,
   normalizeGradingCompanyLabel,
   normalizeGradingGradeLabel,
   type BgsSubgrades,
 } from "@/lib/graded-slabs";
 import {
   drawBgsSlabBack,
+  drawBgsSlabFront,
   drawLabelBarcode,
   drawPsaLogoMark,
   drawPsaSlabBack,
+  type BgsCanvasKind,
 } from "@/lib/graded-slab-canvas";
 import { getCachedImageUrl, isTcggoStorageImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
@@ -642,47 +645,6 @@ function appendRoundedRectPath(
   target.quadraticCurveTo(x, y, x + r, y);
 }
 
-function drawRoundedRect(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number
-) {
-  const clampedRadius = Math.min(radius, width / 2, height / 2);
-  context.beginPath();
-  context.moveTo(x + clampedRadius, y);
-  context.lineTo(x + width - clampedRadius, y);
-  context.quadraticCurveTo(x + width, y, x + width, y + clampedRadius);
-  context.lineTo(x + width, y + height - clampedRadius);
-  context.quadraticCurveTo(x + width, y + height, x + width - clampedRadius, y + height);
-  context.lineTo(x + clampedRadius, y + height);
-  context.quadraticCurveTo(x, y + height, x, y + height - clampedRadius);
-  context.lineTo(x, y + clampedRadius);
-  context.quadraticCurveTo(x, y, x + clampedRadius, y);
-  context.closePath();
-}
-
-function drawBeckettLogoMark(
-  context: CanvasRenderingContext2D,
-  centerX: number,
-  centerY: number,
-  fontSize: number
-) {
-  context.save();
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.font = `900 ${fontSize}px Georgia, 'Times New Roman', serif`;
-  context.lineJoin = "round";
-  context.lineWidth = fontSize * 0.045;
-  context.strokeStyle = "rgba(0,0,0,0.34)";
-  context.fillStyle = "#ffffff";
-  context.strokeText("(B)", centerX, centerY);
-  context.fillText("(B)", centerX, centerY);
-  context.restore();
-}
-
 function createPsaLabelTexture(
   THREE: typeof import("three"),
   cardName: string,
@@ -831,127 +793,35 @@ function createBgsLabelTexture(
   const scale = 2;
   const s = (value: number) => value * scale;
   const canvas = document.createElement("canvas");
-  canvas.width = s(1500);
+  canvas.width = s(1400);
   canvas.height = s(420);
 
   const context = canvas.getContext("2d");
   if (!context) return null;
 
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-
   const certNumber = createSlabCertNumber("BGS", cardName, cardNumber, grade);
-  const goldGradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-  goldGradient.addColorStop(0, "#fff1bd");
-  goldGradient.addColorStop(0.38, "#dbc070");
-  goldGradient.addColorStop(0.72, "#b38a35");
-  goldGradient.addColorStop(1, "#f6e2a6");
-  context.fillStyle = goldGradient;
-  drawRoundedRect(context, s(6), s(6), canvas.width - s(12), canvas.height - s(12), s(18));
-  context.fill();
+  const numeric = Number((grade ?? "").replace(/[^\d.]/g, ""));
+  const kind: BgsCanvasKind =
+    Number.isFinite(numeric) && numeric >= 10
+      ? isBgsBlackLabel(grade, subgrades)
+        ? "black"
+        : "gold"
+      : Number.isFinite(numeric) && numeric >= 9.5
+        ? "gold"
+        : "silver";
 
-  context.strokeStyle = "rgba(24,17,9,0.86)";
-  context.lineWidth = s(8);
-  context.stroke();
-
-  context.fillStyle = "rgba(255,255,255,0.35)";
-  context.fillRect(s(24), s(22), canvas.width - s(48), s(54));
-
-  const logoX = s(34);
-  const logoY = s(34);
-  const logoW = s(252);
-  const logoH = canvas.height - s(68);
-  const logoGradient = context.createLinearGradient(logoX, logoY, logoX + logoW, logoY + logoH);
-  logoGradient.addColorStop(0, "#8b8b83");
-  logoGradient.addColorStop(0.5, "#333331");
-  logoGradient.addColorStop(1, "#111111");
-  context.fillStyle = logoGradient;
-  drawRoundedRect(context, logoX, logoY, logoW, logoH, s(12));
-  context.fill();
-  context.strokeStyle = "rgba(255,255,255,0.3)";
-  context.lineWidth = s(2);
-  context.stroke();
-  drawBeckettLogoMark(context, logoX + logoW / 2, logoY + s(116), s(84));
-  context.textAlign = "center";
-  context.fillStyle = "#ffffff";
-  context.font = `900 ${s(30)}px Arial Black, Arial, sans-serif`;
-  context.fillText("BECKETT", logoX + logoW / 2, logoY + s(194));
-  context.font = `800 ${s(22)}px Arial, sans-serif`;
-  context.fillText("BGS", logoX + logoW / 2, logoY + s(236));
-  context.textAlign = "left";
-
-  const detailsX = logoX + logoW + s(34);
-  const detailsRight = canvas.width - s(324);
-  context.fillStyle = "#17110a";
-  context.font = `900 ${s(38)}px Arial Black, Arial, sans-serif`;
-  context.fillText(formatPsaNameLine(cardName), detailsX, s(76), detailsRight - detailsX);
-  context.font = `900 ${s(34)}px Arial Black, Arial, sans-serif`;
-  context.fillText(formatPsaSetLine(episodeName ?? cardName, cardNumber), detailsX, s(124), detailsRight - detailsX);
-  context.globalAlpha = 0.78;
-  context.font = `800 ${s(24)}px Arial, sans-serif`;
-  context.fillText("BECKETT GRADING SERVICES", detailsX, s(164), detailsRight - detailsX);
-  context.globalAlpha = 1;
-
-  const subgradeX = detailsX;
-  const subgradeY = s(208);
-  const subgradeW = detailsRight - detailsX - s(22);
-  const subgradeH = s(102);
-  context.fillStyle = "rgba(255,249,222,0.64)";
-  drawRoundedRect(context, subgradeX, subgradeY, subgradeW, subgradeH, s(8));
-  context.fill();
-  context.strokeStyle = "rgba(37,24,9,0.5)";
-  context.lineWidth = s(2);
-  context.stroke();
-
-  const cellW = subgradeW / 4;
-  BGS_SUBGRADE_KEYS.forEach((key, index) => {
-    const x = subgradeX + index * cellW;
-    context.strokeStyle = "rgba(37,24,9,0.28)";
-    context.lineWidth = s(2);
-    if (index > 0) {
-      context.beginPath();
-      context.moveTo(x, subgradeY);
-      context.lineTo(x, subgradeY + subgradeH);
-      context.stroke();
-    }
-
-    context.fillStyle = "#33230b";
-    context.font = `900 ${s(22)}px Arial, sans-serif`;
-    context.fillText(formatBgsSubgradeName(key).toUpperCase(), x + s(14), subgradeY + s(36));
-    context.fillStyle = "#111111";
-    context.font = `900 ${s(44)}px Arial Black, Arial, sans-serif`;
-    context.fillText(subgrades?.[key] ?? "-", x + s(14), subgradeY + s(84));
+  drawBgsSlabFront(context, s, {
+    kind,
+    headerLine: (episodeName ?? "").toUpperCase(),
+    nameLine: (cardNumber ? `#${cardNumber} ${cardName}` : cardName).toUpperCase(),
+    subgrades: BGS_SUBGRADE_KEYS.map((key) => ({
+      name: formatBgsSubgradeName(key),
+      value: subgrades?.[key] ?? "-",
+    })),
+    grade,
+    descriptor: getBgsGradeDescriptor(grade),
+    certNumber,
   });
-
-  context.fillStyle = "rgba(49,33,13,0.7)";
-  context.font = `800 ${s(24)}px Arial, sans-serif`;
-  context.fillText(certNumber, detailsX, s(362));
-
-  const gradeX = canvas.width - s(292);
-  const gradeY = s(34);
-  const gradeW = s(258);
-  const gradeH = canvas.height - s(68);
-  const gradeGradient = context.createLinearGradient(gradeX, gradeY, gradeX, gradeY + gradeH);
-  gradeGradient.addColorStop(0, "#2b1c09");
-  gradeGradient.addColorStop(1, "#050403");
-  context.fillStyle = gradeGradient;
-  drawRoundedRect(context, gradeX, gradeY, gradeW, gradeH, s(16));
-  context.fill();
-  context.strokeStyle = "rgba(255,229,151,0.44)";
-  context.lineWidth = s(4);
-  context.stroke();
-  context.textAlign = "center";
-  context.fillStyle = "#f9df83";
-  context.font = `900 ${s(30)}px Arial Black, Arial, sans-serif`;
-  context.fillText(getBgsGradeDescriptor(grade), gradeX + gradeW / 2, gradeY + s(62));
-  context.fillStyle = "#ffffff";
-  context.font = `900 ${s(150)}px Arial Black, Arial, sans-serif`;
-  context.fillText(grade, gradeX + gradeW / 2, gradeY + s(218));
-  context.fillStyle = "rgba(255,245,206,0.78)";
-  context.font = `800 ${s(24)}px Arial, sans-serif`;
-  context.fillText(certNumber, gradeX + gradeW / 2, gradeY + s(304));
-  context.textAlign = "left";
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
