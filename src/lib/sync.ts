@@ -171,7 +171,7 @@ function warmEpisodeImagesInBackground(episodeId: string) {
     });
 }
 
-interface DueCardCandidate {
+export interface DueCardCandidate {
   id: string;
   game: string;
   episodeId: string;
@@ -272,6 +272,9 @@ export interface AutoPriceRefreshResult {
   submittedCardsRefreshed?: number;
   submittedCardRefreshFailures?: number;
   remainingDueCards: number;
+  // Remaining due cards that are above Common/Uncommon. Card-history sync waits
+  // only on these (not on commons), so price history keeps priority over base.
+  remainingNonBaseDueCards?: number;
   newCards: number;
   updatedCards: number;
   newPrices: number;
@@ -2414,12 +2417,106 @@ async function syncEpisodeCards(
   return result;
 }
 
+export interface AutoRefreshSelectionResult {
+  selectedByEpisode: Map<string, string[]>;
+  selectedCards: number;
+  selectedNonBaseCards: number;
+}
+
+function isNonBaseCandidate(candidate: DueCardCandidate): boolean {
+  return candidate.tier !== "base";
+}
+
+// Ranks due cards and fills one batch under the episode/card caps. Non-base
+// cards (anything above Common/Uncommon) always rank ahead of base cards, so
+// high-value refreshes — and, via the card-history gate, price-history sync —
+// take priority over commons. Within each group the most-overdue cards
+// (relative to their own cadence) come first, so nothing starves.
+export function rankAndSelectAutoRefreshCandidates(
+  candidates: DueCardCandidate[],
+  maxEpisodes: number,
+  maxCards: number
+): AutoRefreshSelectionResult {
+  const selectedByEpisode = new Map<string, string[]>();
+  if (candidates.length === 0 || maxEpisodes <= 0 || maxCards <= 0) {
+    return { selectedByEpisode, selectedCards: 0, selectedNonBaseCards: 0 };
+  }
+
+  const byEpisode = new Map<string, DueCardCandidate[]>();
+  for (const candidate of candidates) {
+    const existing = byEpisode.get(candidate.episodeId);
+    if (existing) existing.push(candidate);
+    else byEpisode.set(candidate.episodeId, [candidate]);
+  }
+
+  const rankedEpisodes = [...byEpisode.entries()]
+    .map(([episodeId, cards]) => {
+      const rankedCards = [...cards].sort((a, b) => {
+        // Non-base before base, then most-overdue, then value, then oldest.
+        const baseDiff = Number(isNonBaseCandidate(b)) - Number(isNonBaseCandidate(a));
+        if (baseDiff !== 0) return baseDiff;
+        const overdueDiff = b.overdueScore - a.overdueScore;
+        if (overdueDiff !== 0) return overdueDiff;
+        const tierDiff = getTierWeight(b.tier) - getTierWeight(a.tier);
+        if (tierDiff !== 0) return tierDiff;
+        return a.latestFetchedAt.localeCompare(b.latestFetchedAt);
+      });
+      const nonBaseCards = rankedCards.filter(isNonBaseCandidate);
+      const hasNonBase = nonBaseCards.length > 0;
+      return {
+        episodeId,
+        cards: rankedCards,
+        hasNonBase,
+        rankOverdueScore: hasNonBase
+          ? Math.max(...nonBaseCards.map((card) => card.overdueScore))
+          : Math.max(...rankedCards.map((card) => card.overdueScore)),
+        highestTierWeight: Math.max(...rankedCards.map((card) => getTierWeight(card.tier))),
+        oldestFetchedAt: rankedCards.reduce(
+          (oldest, card) => (card.latestFetchedAt < oldest ? card.latestFetchedAt : oldest),
+          rankedCards[0]?.latestFetchedAt ?? ""
+        ),
+      };
+    })
+    .sort((a, b) => {
+      // Episodes with non-base (high-value / history) work first, commons last.
+      const nonBaseDiff = Number(b.hasNonBase) - Number(a.hasNonBase);
+      if (nonBaseDiff !== 0) return nonBaseDiff;
+      // Then the most-overdue set relative to its own cadence (no starvation).
+      const overdueDiff = b.rankOverdueScore - a.rankOverdueScore;
+      if (overdueDiff !== 0) return overdueDiff;
+      const highestTierDiff = b.highestTierWeight - a.highestTierWeight;
+      if (highestTierDiff !== 0) return highestTierDiff;
+      const oldestDiff = a.oldestFetchedAt.localeCompare(b.oldestFetchedAt);
+      if (oldestDiff !== 0) return oldestDiff;
+      return b.cards.length - a.cards.length;
+    });
+
+  let selectedCards = 0;
+  let selectedNonBaseCards = 0;
+  for (const episode of rankedEpisodes) {
+    if (selectedByEpisode.size >= maxEpisodes || selectedCards >= maxCards) break;
+    const remainingSlots = maxCards - selectedCards;
+    const picked = episode.cards.slice(0, remainingSlots);
+    if (picked.length === 0) continue;
+    selectedByEpisode.set(
+      episode.episodeId,
+      picked.map((card) => card.id)
+    );
+    selectedCards += picked.length;
+    selectedNonBaseCards += picked.filter(isNonBaseCandidate).length;
+  }
+
+  return { selectedByEpisode, selectedCards, selectedNonBaseCards };
+}
+
 async function selectAutoRefreshBatch(
   now: Date,
   options?: { game?: TradingCardGame }
 ): Promise<{
   dueCards: number;
+  nonBaseDueCards: number;
   selectedCards: number;
+  selectedNonBaseCards: number;
   selectedByEpisode: Map<string, string[]>;
 }> {
   const retryBefore = new Date(now.getTime() - PRICE_SOURCE_UNAVAILABLE_RETRY_MS);
@@ -2497,84 +2594,29 @@ async function selectAutoRefreshBatch(
   if (dueCandidates.length === 0) {
     return {
       dueCards: 0,
+      nonBaseDueCards: 0,
       selectedCards: 0,
+      selectedNonBaseCards: 0,
       selectedByEpisode: new Map(),
     };
   }
 
-  const byEpisode = new Map<string, DueCardCandidate[]>();
-  for (const candidate of dueCandidates) {
-    const existing = byEpisode.get(candidate.episodeId);
-    if (existing) {
-      existing.push(candidate);
-    } else {
-      byEpisode.set(candidate.episodeId, [candidate]);
-    }
-  }
-
-  const rankedEpisodes = [...byEpisode.entries()]
-    .map(([episodeId, cards]) => {
-      // Within an episode, refresh the most-overdue cards first; value
-      // (tier weight) and oldest data only break ties.
-      const rankedCards = [...cards].sort((a, b) => {
-        const overdueDiff = b.overdueScore - a.overdueScore;
-        if (overdueDiff !== 0) return overdueDiff;
-        const tierDiff = getTierWeight(b.tier) - getTierWeight(a.tier);
-        if (tierDiff !== 0) return tierDiff;
-        return a.latestFetchedAt.localeCompare(b.latestFetchedAt);
-      });
-
-      return {
-        episodeId,
-        cards: rankedCards,
-        maxOverdueScore: Math.max(...rankedCards.map((card) => card.overdueScore)),
-        highestTierWeight: Math.max(...rankedCards.map((card) => getTierWeight(card.tier))),
-        oldestFetchedAt: rankedCards.reduce(
-          (oldest, card) => (card.latestFetchedAt < oldest ? card.latestFetchedAt : oldest),
-          rankedCards[0]?.latestFetchedAt ?? ""
-        ),
-      };
-    })
-    .sort((a, b) => {
-      // Primary: serve the episode whose most-overdue card is furthest past its
-      // own refresh cadence. This guarantees no set starves regardless of
-      // rarity — exactly what the per-tier refresh timers promise.
-      const overdueDiff = b.maxOverdueScore - a.maxOverdueScore;
-      if (overdueDiff !== 0) return overdueDiff;
-
-      // Ties: prefer higher-value sets, then the oldest data, then bigger sets.
-      const highestTierDiff = b.highestTierWeight - a.highestTierWeight;
-      if (highestTierDiff !== 0) return highestTierDiff;
-
-      const oldestDiff = a.oldestFetchedAt.localeCompare(b.oldestFetchedAt);
-      if (oldestDiff !== 0) return oldestDiff;
-
-      return b.cards.length - a.cards.length;
-    });
-
-  const selectedByEpisode = new Map<string, string[]>();
-  let selectedCards = 0;
-
-  for (const episode of rankedEpisodes) {
-    if (
-      selectedByEpisode.size >= AUTO_PRICE_REFRESH_MAX_EPISODES ||
-      selectedCards >= AUTO_PRICE_REFRESH_MAX_CARDS
-    ) {
-      break;
-    }
-
-    const remainingSlots = AUTO_PRICE_REFRESH_MAX_CARDS - selectedCards;
-    const pickedCards = episode.cards.slice(0, remainingSlots).map((card) => card.id);
-    if (pickedCards.length === 0) continue;
-
-    selectedByEpisode.set(episode.episodeId, pickedCards);
-    selectedCards += pickedCards.length;
-  }
+  const nonBaseDueCards = dueCandidates.reduce(
+    (count, candidate) => count + (isNonBaseCandidate(candidate) ? 1 : 0),
+    0
+  );
+  const selection = rankAndSelectAutoRefreshCandidates(
+    dueCandidates,
+    AUTO_PRICE_REFRESH_MAX_EPISODES,
+    AUTO_PRICE_REFRESH_MAX_CARDS
+  );
 
   return {
     dueCards: dueCandidates.length,
-    selectedCards,
-    selectedByEpisode,
+    nonBaseDueCards,
+    selectedCards: selection.selectedCards,
+    selectedNonBaseCards: selection.selectedNonBaseCards,
+    selectedByEpisode: selection.selectedByEpisode,
   };
 }
 
@@ -4335,6 +4377,10 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       }
 
       const remainingDueCards = Math.max(dueBatch.dueCards - dueBatch.selectedCards, 0);
+      const remainingNonBaseDueCards = Math.max(
+        dueBatch.nonBaseDueCards - dueBatch.selectedNonBaseCards,
+        0
+      );
       const nativeHistoryCount = syncedCardHistoryItems + syncedSealedHistoryItems;
       activeRemainingDueCards = remainingDueCards;
 
@@ -4391,6 +4437,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         submittedCardsRefreshed,
         submittedCardRefreshFailures,
         remainingDueCards,
+        remainingNonBaseDueCards,
         newCards,
         updatedCards,
         newPrices,

@@ -47,10 +47,16 @@ function shouldSkipCardHistoryQuotaDrain(result: AutoPriceRefreshResult): boolea
   const pausedAfterManualStop =
     result.skipped && result.message.toLowerCase().includes("paused");
 
+  // Card history takes priority over Common/Uncommon refreshes: only remaining
+  // non-base (high-value) price work blocks it. If the result predates this
+  // field, fall back to the old "any remaining due" behaviour.
+  const remainingHighValueDue =
+    result.remainingNonBaseDueCards ?? result.remainingDueCards;
+
   return (
     result.quotaExceeded ||
     pausedAfterManualStop ||
-    result.remainingDueCards > 0 ||
+    remainingHighValueDue > 0 ||
     getRemainingMissingPriceCards(result) > 0
   );
 }

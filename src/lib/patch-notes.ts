@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.7",
+    releasedAt: "June 28, 2026",
+    title: "Price history takes priority over commons",
+    summary:
+      "DustyCards 3.3.7 makes the background sync refresh higher-value cards and price history before Common/Uncommon cards.",
+    tone: "improved",
+    highlights: [
+      "Each refresh batch now serves non-Common/Uncommon cards first, so valuable prices and price history never wait behind penny commons.",
+      "Card-history sync now only waits on remaining higher-value price work — it no longer gets stuck behind the slow commons refresh.",
+      "Commons are still refreshed (about every two weeks), just last, whenever there is spare capacity.",
+    ],
+  },
+  {
     version: "3.3.6",
     releasedAt: "June 28, 2026",
     title: "Pull to refresh, smoother sync, card-history catch-up",
