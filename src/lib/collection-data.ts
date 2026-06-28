@@ -496,6 +496,9 @@ const COLLECTION_OVERVIEW_CHART_DAYS = 120;
 const COLLECTION_VALUE_DRIVER_LIMIT = 24;
 const COLLECTION_VALUE_DRIVER_WINDOW_DAYS = 2;
 const COLLECTION_VALUE_DRIVER_STALE_DAYS = COLLECTION_VALUE_DRIVER_WINDOW_DAYS;
+// How far before the baseline date a card's baseline snapshot may sit and still
+// count as a genuine window-length move (see isValueDriverBaselineTooOld).
+const COLLECTION_VALUE_DRIVER_BASELINE_MAX_AGE_DAYS = COLLECTION_VALUE_DRIVER_WINDOW_DAYS;
 const EMPTY_COLLECTION_VALUE_DRIVERS: CollectionValueDriversData = {
   latestDate: null,
   latestLabel: null,
@@ -558,6 +561,19 @@ function isValueDriverSnapshotStale(
   staleBeforeDate: string
 ): boolean {
   return !latestSnapshotDate || latestSnapshotDate < staleBeforeDate;
+}
+
+// A card only counts as a window-length mover when we actually have a baseline
+// snapshot near the window start. If the newest snapshot at or before the
+// baseline date is older than this, the "change" really spans a longer, unknown
+// period (the card simply was not refreshed in between), so we exclude it — that
+// is what kept stale moves pinned to the panel for days instead of dropping off
+// after the window passed.
+export function isValueDriverBaselineTooOld(
+  baselineDate: string | null | undefined,
+  minBaselineDate: string
+): boolean {
+  return !baselineDate || baselineDate < minBaselineDate;
 }
 
 function toValueDriverDateLabel(dateKey: string): string {
@@ -1199,15 +1215,21 @@ function buildSealedViewItem(record: CollectionSealedRecord): CollectionSealedVi
   };
 }
 
+interface ValueDriverBaseline {
+  value: number;
+  date: string;
+}
+
 function buildCardBaselineValueMap(
   rows: EpisodePriceHistorySnapshot[],
   baselineDate: string
-): Map<string, number> {
-  const values = new Map<string, number>();
+): Map<string, ValueDriverBaseline> {
+  const values = new Map<string, ValueDriverBaseline>();
   const sorted = [...rows].sort((a, b) => toHistoryMillis(a.fetched_at) - toHistoryMillis(b.fetched_at));
 
   for (const row of sorted) {
-    if (toHistoryDateKey(row.fetched_at) > baselineDate) {
+    const dateKey = toHistoryDateKey(row.fetched_at);
+    if (dateKey > baselineDate) {
       continue;
     }
 
@@ -1215,7 +1237,7 @@ function buildCardBaselineValueMap(
     if (value == null) {
       values.delete(row.card_id);
     } else {
-      values.set(row.card_id, value);
+      values.set(row.card_id, { value, date: dateKey });
     }
   }
 
@@ -1225,12 +1247,13 @@ function buildCardBaselineValueMap(
 function buildSealedBaselineValueMap(
   rows: EpisodeSealedPriceHistorySnapshot[],
   baselineDate: string
-): Map<string, number> {
-  const values = new Map<string, number>();
+): Map<string, ValueDriverBaseline> {
+  const values = new Map<string, ValueDriverBaseline>();
   const sorted = [...rows].sort((a, b) => toHistoryMillis(a.fetched_at) - toHistoryMillis(b.fetched_at));
 
   for (const row of sorted) {
-    if (toHistoryDateKey(row.fetched_at) > baselineDate) {
+    const dateKey = toHistoryDateKey(row.fetched_at);
+    if (dateKey > baselineDate) {
       continue;
     }
 
@@ -1238,7 +1261,7 @@ function buildSealedBaselineValueMap(
     if (value == null) {
       values.delete(row.product_id);
     } else {
-      values.set(row.product_id, value);
+      values.set(row.product_id, { value, date: dateKey });
     }
   }
 
@@ -1418,14 +1441,21 @@ function buildCollectionValueDrivers({
   const cardLatestSnapshotDates = buildLatestCardSnapshotDateMap(cardHistory);
   const sealedLatestSnapshotDates = buildLatestSealedSnapshotDateMap(sealedHistory);
   const staleBeforeDate = getValueDriverStaleBeforeDate();
+  const minBaselineDate = shiftHistoryDateKey(
+    previousPoint.date,
+    -COLLECTION_VALUE_DRIVER_BASELINE_MAX_AGE_DAYS
+  );
   const drafts = new Map<string, CollectionValueDriverDraft>();
 
   for (const item of cards) {
-    const currentItemValue = item.current_value ?? 0;
-    const previousItemValue = cardBaselineValues.get(item.card_id) ?? 0;
     const latestSnapshotDate = cardLatestSnapshotDates.get(item.card_id) ?? null;
-    const stale = isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate);
-    if (stale) continue;
+    if (isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate)) continue;
+    const baseline = cardBaselineValues.get(item.card_id);
+    // Without a fresh baseline snapshot we cannot attribute the change to this
+    // 2-day window, so the card is left out (and old moves drop off in time).
+    if (!baseline || isValueDriverBaselineTooOld(baseline.date, minBaselineDate)) continue;
+    const currentItemValue = item.current_value ?? 0;
+    const previousItemValue = baseline.value;
     const currentSource = getCollectionValueDriverCardSource(item);
     const previousSource = item.current_value_label ? "Raw" : "Raw";
     const key = `card:${item.card_id}:${currentSource}`;
@@ -1449,16 +1479,17 @@ function buildCollectionValueDrivers({
       currentSource,
       previousSource,
       latestSnapshotDate,
-      stale,
+      stale: false,
     });
   }
 
   for (const item of sealed) {
-    const currentItemValue = (item.current_value_per_item ?? 0) * item.quantity;
-    const previousItemValue = (sealedBaselineValues.get(item.product_id) ?? 0) * item.quantity;
     const latestSnapshotDate = sealedLatestSnapshotDates.get(item.product_id) ?? null;
-    const stale = isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate);
-    if (stale) continue;
+    if (isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate)) continue;
+    const baseline = sealedBaselineValues.get(item.product_id);
+    if (!baseline || isValueDriverBaselineTooOld(baseline.date, minBaselineDate)) continue;
+    const currentItemValue = (item.current_value_per_item ?? 0) * item.quantity;
+    const previousItemValue = baseline.value * item.quantity;
 
     addCollectionValueDriverDraft(drafts, {
       id: `sealed:${item.product_id}`,
@@ -1479,7 +1510,7 @@ function buildCollectionValueDrivers({
       currentSource: "Sealed",
       previousSource: "Sealed",
       latestSnapshotDate,
-      stale,
+      stale: false,
     });
   }
 

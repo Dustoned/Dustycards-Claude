@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.3.2",
+    releasedAt: "June 28, 2026",
+    title: "Accurate 2-day value drivers",
+    summary:
+      "DustyCards 3.3.2 makes Collection Value Drivers a true 2-day window so old, flat moves drop off instead of lingering.",
+    tone: "fixed",
+    highlights: [
+      "A card now only appears as a value driver when it has a price snapshot near the window start, so the change reflects the last 2 days and not an older move.",
+      "Cards whose price moved more than 2 days ago and have since stayed flat no longer stay pinned to the panel.",
+    ],
+  },
+  {
     version: "3.3.1",
     releasedAt: "June 15, 2026",
     title: "Faster pages during background updates",
