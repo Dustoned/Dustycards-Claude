@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.4.5",
+    releasedAt: "June 28, 2026",
+    title: "Black Label / Gold Label choice for BGS 10s",
+    summary:
+      "DustyCards 3.4.5 lets you pick Black Label or Gold Label when you add or edit a BGS 10 graded card.",
+    tone: "new",
+    highlights: [
+      "When the grading company is BGS and the grade is 10, a Black Label / Gold Label toggle appears.",
+      "Black Label sets all four subgrades to 10 and renders the black-and-gold label; Gold Label renders the gold label.",
+    ],
+  },
+  {
     version: "3.4.4",
     releasedAt: "June 28, 2026",
     title: "Beckett (BGS) labels matched to the real thing",

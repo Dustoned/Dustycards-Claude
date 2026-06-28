@@ -486,6 +486,49 @@ export default function CollectionEditCardButton({
 
                       {gradingCompany === "BGS" && (
                         <div className="col-span-2 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] p-3 max-[640px]:rounded-xl max-[640px]:p-2.5">
+                          {Number(gradingGrade) === 10 && (
+                            <div className="mb-3">
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-100/65 max-[640px]:text-[10px]">
+                                BGS 10 label
+                              </p>
+                              <div className="mt-1.5 inline-flex rounded-xl border border-white/10 bg-white/[0.04] p-1">
+                                {(["black", "gold"] as const).map((kind) => {
+                                  const allTen = BGS_SUBGRADE_KEYS.every(
+                                    (key) => bgsSubgrades[key] === "10"
+                                  );
+                                  const active = kind === "black" ? allTen : !allTen;
+                                  return (
+                                    <button
+                                      key={kind}
+                                      type="button"
+                                      onClick={() => {
+                                        if (kind === "black") {
+                                          setBgsSubgrades({
+                                            centering: "10",
+                                            corners: "10",
+                                            edges: "10",
+                                            surface: "10",
+                                          });
+                                        } else if (allTen) {
+                                          setBgsSubgrades({});
+                                        }
+                                      }}
+                                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                        active
+                                          ? "bg-white text-gray-950"
+                                          : "text-white/55 hover:text-white"
+                                      }`}
+                                    >
+                                      {kind === "black" ? "Black Label" : "Gold Label"}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <p className="mt-1 text-[11px] text-white/40 max-[640px]:text-[10px]">
+                                Black Label = all four subgrades 10 (usually worth more).
+                              </p>
+                            </div>
+                          )}
                           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-100/65 max-[640px]:text-[10px]">
                             BGS subgrades
                           </p>
