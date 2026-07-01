@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { createSwrCache } from "@/lib/server-swr-cache";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const OVERVIEW_HISTORY_DAYS = 365;
@@ -170,13 +171,23 @@ export async function getExpansionsOverviewHistory(episodeIds: string[]) {
   );
 }
 
+// Current set totals per expansion — a heavy latest-price scan over every card
+// in the visible sets, identical for all users (catalog data), so it is cached
+// keyed by the exact set of episode ids. Fresh 5 min, stale up to 30 min.
+const expansionCurrentValuesCache = createSwrCache<ExpansionCurrentValueRow[]>(
+  5 * 60_000,
+  30 * 60_000
+);
+
 export async function getExpansionCurrentValues(episodeIds: string[]) {
   if (episodeIds.length === 0) {
     return [];
   }
 
-  return db.$queryRawUnsafe<ExpansionCurrentValueRow[]>(
-    `
+  const key = [...episodeIds].sort().join(",");
+  return expansionCurrentValuesCache.get(key, () =>
+    db.$queryRawUnsafe<ExpansionCurrentValueRow[]>(
+      `
     WITH latest_card_prices AS (
       SELECT
         c.episode_id,
@@ -206,7 +217,8 @@ export async function getExpansionCurrentValues(episodeIds: string[]) {
     WHERE cm_market IS NOT NULL
     GROUP BY episode_id
   `,
-    ...episodeIds
+      ...episodeIds
+    )
   );
 }
 

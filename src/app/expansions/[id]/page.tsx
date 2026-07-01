@@ -9,6 +9,7 @@ import {
 } from "@/components/PageHeader";
 import BackNavigationLink from "@/components/BackNavigationLink";
 import { db } from "@/lib/db";
+import { getEpisodeSetPriceSnapshotRows } from "@/lib/episode-set-prices";
 import { isHiddenExpansion } from "@/lib/episodes";
 import { POKEMON_GAME } from "@/lib/games";
 import {
@@ -215,48 +216,7 @@ export default async function ExpansionDetailPage({
   let headerCountValue = cardCountDenominator;
   if (activeTab === "cards") {
     const [rawSetPriceSnapshots, dbCards] = await Promise.all([
-      db.$queryRaw<
-        Array<{
-          card_id: string;
-          fetched_at: Date | string;
-          cm_en_lowest_nm: number | null;
-          cm_de_lowest_nm: number | null;
-          cm_fr_lowest_nm: number | null;
-          cm_es_lowest_nm: number | null;
-          cm_it_lowest_nm: number | null;
-          cm_jp_lowest_nm: number | null;
-        }>
-      >`
-        SELECT
-          card_id,
-          fetched_at,
-          cm_en_lowest_nm,
-          cm_de_lowest_nm,
-          cm_fr_lowest_nm,
-          cm_es_lowest_nm,
-          cm_it_lowest_nm,
-          cm_jp_lowest_nm
-        FROM (
-          SELECT
-            p.card_id,
-            p.fetched_at,
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm,
-            p.cm_jp_lowest_nm,
-            ROW_NUMBER() OVER (
-              PARTITION BY p.card_id, DATE(p.fetched_at)
-              ORDER BY p.fetched_at DESC, p.id DESC
-            ) AS row_num
-          FROM "Price" p
-          INNER JOIN "Card" c ON c.id = p.card_id
-          WHERE c.episode_id = ${id}
-        )
-        WHERE row_num = 1
-        ORDER BY fetched_at ASC, card_id ASC
-      `,
+      getEpisodeSetPriceSnapshotRows(id),
       db.card.findMany({
         where: { episode_id: id },
         orderBy: [{ card_number: "asc" }, { name: "asc" }],

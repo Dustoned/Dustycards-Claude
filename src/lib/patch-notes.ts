@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.5.1",
+    releasedAt: "July 1, 2026",
+    title: "Faster expansion pages",
+    summary:
+      "DustyCards 3.5.1 caches the heavy set-value and set price-history calculations, so expansion pages open much faster.",
+    tone: "improved",
+    highlights: [
+      "Opening a set now reuses the heavy set price-history and set-total calculations for a few minutes (they only change when prices sync) instead of recomputing them every visit — so repeat visits are near-instant.",
+      "Same speed-up for One Piece sets and the expansions overview.",
+    ],
+  },
+  {
     version: "3.5.0",
     releasedAt: "June 28, 2026",
     title: "Navigation feels faster and shows it's loading",
