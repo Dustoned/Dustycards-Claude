@@ -201,11 +201,18 @@ PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
   console.log(dirs.filter((d) => !applied.has(d)).length);
 ' 2>/dev/null) || PENDING_MIGRATIONS="unknown"
 
-if [ "$PENDING_MIGRATIONS" = "0" ]; then
-  echo "No pending migrations; skipping prisma migrate deploy."
-else
+# Only run migrate when the check found a DEFINITE positive count of pending
+# migrations. A read-only better-sqlite3 open of the live WAL database can fail
+# with "database disk image is malformed" (it cannot read the pending WAL),
+# which made the check return "unknown" and previously forced a `prisma migrate
+# deploy` that then died on "database is locked" and aborted the whole deploy.
+# When the count is 0 or undeterminable, skip: migrations are hand-applied for
+# this project, so running migrate against the live WAL db only causes locks.
+if [ "$PENDING_MIGRATIONS" -gt 0 ] 2>/dev/null; then
   echo "Pending migrations: $PENDING_MIGRATIONS — running prisma migrate deploy."
   npx prisma migrate deploy
+else
+  echo "No definite pending migrations ($PENDING_MIGRATIONS); skipping prisma migrate deploy."
 fi
 
 npm run build
