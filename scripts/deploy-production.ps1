@@ -252,7 +252,10 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now dustycards-sync-scheduler.timer
-systemctl start dustycards-sync-scheduler.service
+# Kick off one sync immediately, but do not fail the deploy if it does: the app
+# has only just restarted and may not be ready to serve the sync endpoint in
+# this exact instant. The timer (enabled above) runs it every 5 min regardless.
+systemctl start dustycards-sync-scheduler.service || true
 systemctl is-active dustycards-sync-scheduler.timer
 '@
 
