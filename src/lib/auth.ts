@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "@/lib/auth-constants";
@@ -98,7 +99,9 @@ export async function destroyCurrentSession(): Promise<void> {
   await clearSessionCookie();
 }
 
-export async function getCurrentUser(): Promise<AuthUser | null> {
+// Memoized per request (React cache): the layout and requirePageUser both need
+// the current user, so this collapses the repeated session lookup into one.
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<AuthUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
@@ -130,7 +133,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   }
 
   return toAuthUser(session.user);
-}
+});
 
 export async function requireUser(): Promise<AuthUser> {
   const user = await getCurrentUser();

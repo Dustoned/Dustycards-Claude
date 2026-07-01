@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.5.0",
+    releasedAt: "June 28, 2026",
+    title: "Navigation feels faster and shows it's loading",
+    summary:
+      "DustyCards 3.5.0 adds instant loading feedback when you open a page and trims repeated work per request.",
+    tone: "improved",
+    highlights: [
+      "A slim progress bar now appears the moment you tap a link (Movers, Expansions, etc.), so you get immediate feedback instead of the screen looking frozen while the page loads.",
+      "Loading skeletons are a bit more visible.",
+      "The signed-in user and settings are now looked up once per page render instead of several times, shaving a little off every page load.",
+    ],
+  },
+  {
     version: "3.4.8",
     releasedAt: "June 28, 2026",
     title: "3D Beckett label matches: logo on the slab",

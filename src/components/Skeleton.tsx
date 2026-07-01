@@ -19,7 +19,7 @@ export function Skeleton({ className = "", style, rounded = "md" }: SkeletonProp
     <div
       aria-hidden="true"
       style={style}
-      className={`animate-pulse bg-white/[0.065] ${ROUNDED[rounded]} ${className}`}
+      className={`animate-pulse bg-white/[0.09] ${ROUNDED[rounded]} ${className}`}
     />
   );
 }

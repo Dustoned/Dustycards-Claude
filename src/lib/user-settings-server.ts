@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import {
@@ -18,7 +19,12 @@ async function getCookieSettings(): Promise<UserSettings | null> {
   }
 }
 
-export async function getServerUserSettings(userId: string | null | undefined): Promise<UserSettings> {
+// Memoized per request (React cache): a single page render calls this from the
+// layout, the page, and its data loaders — this collapses those into one cookie
+// + DB read instead of repeating them.
+export const getServerUserSettings = cache(async function getServerUserSettings(
+  userId: string | null | undefined
+): Promise<UserSettings> {
   const cookieSettings = await getCookieSettings();
 
   if (!userId) {
@@ -36,4 +42,4 @@ export async function getServerUserSettings(userId: string | null | undefined): 
   const accountSettings = parseStoredSettings(user?.settings_json);
 
   return mergeSettings(accountSettings ?? cookieSettings ?? DEFAULT_SETTINGS);
-}
+});

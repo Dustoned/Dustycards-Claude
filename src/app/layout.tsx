@@ -12,6 +12,7 @@ import MobileHoverTooltip from "@/components/MobileHoverTooltip";
 import MobilePullToRefresh from "@/components/MobilePullToRefresh";
 import NavigationStateController from "@/components/NavigationStateController";
 import OfflineCacheRegistration from "@/components/OfflineCacheRegistration";
+import RouteProgressBar from "@/components/RouteProgressBar";
 import SettingsProvider from "@/components/SettingsProvider";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -205,6 +206,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           currentUserRole={currentUser?.role ?? null}
         >
           <AppVersionWatcher />
+          {currentUser ? <RouteProgressBar /> : null}
           {currentUser ? <OfflineCacheRegistration /> : null}
           {currentUser ? <NavigationStateController /> : null}
           <MobileHoverTooltip />
