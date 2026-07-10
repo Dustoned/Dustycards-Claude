@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.9",
+    releasedAt: "July 10, 2026",
+    title: "Live drops while prices refresh",
+    summary:
+      "DustyCards 3.6.9 keeps the Sudden Price Drops page in sync while the daily price scan is still running.",
+    tone: "fixed",
+    highlights: [
+      "The page now refreshes itself every few seconds during an active price scan, so newly detected €50 drops appear without a manual reload.",
+      "The refresh badge clearly says when the scan is still running and the results are updating.",
+    ],
+  },
+  {
     version: "3.6.8",
     releasedAt: "July 10, 2026",
     title: "Only genuinely new price drops",

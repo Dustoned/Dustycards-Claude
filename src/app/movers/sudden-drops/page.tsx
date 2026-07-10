@@ -40,6 +40,7 @@ import {
 import { formatCurrency, type CurrencyCode } from "@/lib/format";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import SuddenDropsAutoRefresh from "@/app/movers/sudden-drops/SuddenDropsAutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +97,7 @@ export default async function SuddenDropsPage({
     (item) => item.rankingScore >= 8 || item.opportunityScore >= 8
   ).length;
   const averageDrop = average(dropAmounts);
+  const refreshIsRunning = data.refresh?.status.toLowerCase() === "running";
   const headerStats = [
     {
       label: "Cards",
@@ -146,6 +148,7 @@ export default async function SuddenDropsPage({
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <SuddenDropsAutoRefresh enabled={refreshIsRunning} />
       <div className="flex w-full flex-col gap-8">
         <PageHeroHeader
           eyebrow="Sudden Drops"
@@ -212,7 +215,9 @@ export default async function SuddenDropsPage({
                 <HeaderPill tone="rose">
                   Latest refresh drop: {formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+
                 </HeaderPill>
-                <HeaderPill tone="amber">Refresh: {refreshLabel}</HeaderPill>
+                <HeaderPill tone="amber">
+                  Refresh: {refreshLabel}{refreshIsRunning ? " · scanning, auto-updating" : ""}
+                </HeaderPill>
                 <HeaderPill tone="violet">Top {FAST_SUDDEN_DROP_FEED_LIMIT}</HeaderPill>
                 <HeaderPill>
                   Ranking source: {activePriceSource === "tcp" ? "TCGPlayer first" : "CardMarket first"}
