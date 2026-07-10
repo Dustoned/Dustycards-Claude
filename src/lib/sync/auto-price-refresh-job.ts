@@ -108,7 +108,6 @@ async function runPersistedAutoPriceRefreshJob(jobId: string) {
     where: { id: jobId },
     data: {
       status: "running",
-      started_at: new Date(),
       finished_at: null,
       heartbeat_at: new Date(),
     },
@@ -347,6 +346,7 @@ export async function startAutoPriceRefreshJob(): Promise<{
         where: { id: existing.id },
         data: {
           status: "queued",
+          started_at: now,
           finished_at: null,
           heartbeat_at: now,
         },
@@ -355,6 +355,7 @@ export async function startAutoPriceRefreshJob(): Promise<{
         data: {
           type: AUTO_PRICE_REFRESH_SYNC_TYPE,
           status: "queued",
+          started_at: now,
           heartbeat_at: now,
         },
       });

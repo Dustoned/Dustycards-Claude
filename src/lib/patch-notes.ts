@@ -26,6 +26,7 @@ export const patchNotes: PatchNoteEntry[] = [
     highlights: [
       "The page now refreshes itself every few seconds during an active price scan, so newly detected €50 drops appear without a manual reload.",
       "The refresh badge clearly says when the scan is still running and the results are updating.",
+      "A deploy or restart now preserves the active scan window, so already detected drops do not disappear while the job resumes.",
     ],
   },
   {
