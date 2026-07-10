@@ -205,6 +205,10 @@ describe("getFastSuddenDropsData", () => {
       `INSERT INTO "Card" (id, name, card_number, rarity, episode_id, game)
        VALUES (?, ?, ?, ?, ?, ?)`
     ).run("uta", "Uta", "EB03-061", "Manga Rare", "eb03", "one-piece");
+    sqlite.prepare(
+      `INSERT INTO "Card" (id, name, card_number, rarity, episode_id, game)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run("gliscor", "Gliscor", "DP36", "Promo", "eb03", "one-piece");
     const insertPrice = sqlite.prepare(
       `INSERT INTO "Price" (
         id, card_id, fetched_at, changed_at, cm_en_lowest_nm,
@@ -231,6 +235,26 @@ describe("getFastSuddenDropsData", () => {
       37.12,
       41.35
     );
+    insertPrice.run(
+      "gliscor-before",
+      "gliscor",
+      previousSnapshotAt,
+      previousSnapshotAt,
+      1500,
+      2.5,
+      3.13,
+      3.26
+    );
+    insertPrice.run(
+      "gliscor-after",
+      "gliscor",
+      currentSnapshotAt,
+      currentSnapshotAt,
+      7,
+      2.5,
+      2.46,
+      3.21
+    );
 
     dbMock.syncJob.findUnique.mockResolvedValue({
       status: "success",
@@ -248,6 +272,7 @@ describe("getFastSuddenDropsData", () => {
       expect(result.items[0]?.cardId).toBe("uta");
       expect(result.items[0]?.currentPrice).toBe(815);
       expect(result.items[0]?.change7d).toBe(-135);
+      expect(result.items.some((item) => item.cardId === "gliscor")).toBe(false);
     } finally {
       sqlite.close();
     }

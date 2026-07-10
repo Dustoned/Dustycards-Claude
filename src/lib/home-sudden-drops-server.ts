@@ -26,6 +26,7 @@ const FAST_SUDDEN_DROP_REFRESH_MAX_AGE_DAYS = 3;
 const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
+type FastSuddenDropSnapshotPrefix = "latest" | "anchor";
 
 interface FastSuddenDropRow {
   card_id: string;
@@ -43,7 +44,21 @@ interface FastSuddenDropRow {
   old7_price: number | null;
   old30_price: number | null;
   latest_cm_en_lowest_nm: number | null;
+  latest_cm_de_lowest_nm: number | null;
+  latest_cm_fr_lowest_nm: number | null;
+  latest_cm_es_lowest_nm: number | null;
+  latest_cm_it_lowest_nm: number | null;
+  latest_cm_jp_lowest_nm: number | null;
+  latest_cm_en_avg_7d: number | null;
+  latest_cm_en_avg_30d: number | null;
   anchor_cm_en_lowest_nm: number | null;
+  anchor_cm_de_lowest_nm: number | null;
+  anchor_cm_fr_lowest_nm: number | null;
+  anchor_cm_es_lowest_nm: number | null;
+  anchor_cm_it_lowest_nm: number | null;
+  anchor_cm_jp_lowest_nm: number | null;
+  anchor_cm_en_avg_7d: number | null;
+  anchor_cm_en_avg_30d: number | null;
   latest_fetched_at: string;
   latest_changed_at: string | null;
   anchor_fetched_at: string | null;
@@ -81,6 +96,42 @@ function priceExpression(alias: string, source: PriceSource): string {
 
 function getSourceLabel(source: PriceSource): "CardMarket" | "TCGPlayer" {
   return source === "tcp" ? "TCGPlayer" : "CardMarket";
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function getCardMarketListingReference(
+  row: FastSuddenDropRow,
+  prefix: FastSuddenDropSnapshotPrefix
+): number | null {
+  const otherLanguages = ["de", "fr", "es", "it", "jp"]
+    .map((language) => row[`${prefix}_cm_${language}_lowest_nm` as keyof FastSuddenDropRow])
+    .filter((value): value is number => typeof value === "number" && value > 0);
+  const languageReference = median(otherLanguages);
+  if (languageReference != null) return languageReference;
+
+  const averages = [row[`${prefix}_cm_en_avg_30d`], row[`${prefix}_cm_en_avg_7d`]]
+    .filter((value): value is number => typeof value === "number" && value > 0);
+  return median(averages);
+}
+
+function isSuspiciousCardMarketListing(price: number | null, reference: number | null): boolean {
+  if (price == null || reference == null || price <= 0 || reference <= 0) return false;
+
+  const suspiciousHigh =
+    price >= 300 && price - reference >= 250 && price / reference >= 8;
+  const suspiciousLow =
+    reference >= 50 && reference - price >= 50 && price <= reference * 0.15;
+
+  return suspiciousHigh || suspiciousLow;
 }
 
 function getDropMetrics(input: {
@@ -270,9 +321,23 @@ function getQuickRarityWeight(normalizedRarity: string | null): number {
   return 1;
 }
 
-function getPriceQuality(row: FastSuddenDropRow): MoverPriceQuality {
+function getPriceQuality(row: FastSuddenDropRow, source: PriceSource): MoverPriceQuality {
   const percent = Math.abs(row.drop_percent ?? 0);
   const historyPoints = Number(row.history_points ?? 0);
+
+  if (
+    source === "cm_en" &&
+    (isSuspiciousCardMarketListing(
+      row.latest_cm_en_lowest_nm,
+      getCardMarketListingReference(row, "latest")
+    ) ||
+      isSuspiciousCardMarketListing(
+        row.anchor_cm_en_lowest_nm,
+        getCardMarketListingReference(row, "anchor")
+      ))
+  ) {
+    return { status: "suspicious", reason: "Outlier listing ignored" };
+  }
 
   if (percent >= 1000 && row.drop_amount >= 25) {
     return { status: "suspicious", reason: "Outlier ignored" };
@@ -329,7 +394,7 @@ function toMoverItem(row: FastSuddenDropRow, source: PriceSource): CollectionMov
   const normalizedRarity = normalizeRarityLabel(row.rarity);
   const rarityWeight = getQuickRarityWeight(normalizedRarity);
   const releaseAgeYears = getReleaseAgeYears(row.episode_release_date);
-  const priceQuality = getPriceQuality(row);
+  const priceQuality = getPriceQuality(row, source);
   const movementScore = Number((-row.drop_amount).toFixed(2));
   const rankingScore = Number((row.drop_amount * rarityWeight).toFixed(2));
 
@@ -447,6 +512,13 @@ async function getFastSuddenDropRows(
         ${cmCurrent} AS cardmarket_price,
         ${tcpCurrent} AS tcgplayer_price,
         latest.cm_en_lowest_nm AS latest_cm_en_lowest_nm,
+        latest.cm_de_lowest_nm AS latest_cm_de_lowest_nm,
+        latest.cm_fr_lowest_nm AS latest_cm_fr_lowest_nm,
+        latest.cm_es_lowest_nm AS latest_cm_es_lowest_nm,
+        latest.cm_it_lowest_nm AS latest_cm_it_lowest_nm,
+        latest.cm_jp_lowest_nm AS latest_cm_jp_lowest_nm,
+        latest.cm_en_avg_7d AS latest_cm_en_avg_7d,
+        latest.cm_en_avg_30d AS latest_cm_en_avg_30d,
         latest.fetched_at AS latest_fetched_at,
         latest.changed_at AS latest_changed_at,
         3 AS history_points
@@ -478,6 +550,13 @@ async function getFastSuddenDropRows(
         latest.*,
         ${selectedPriceAnchor} AS old7_price,
         anchor.cm_en_lowest_nm AS anchor_cm_en_lowest_nm,
+        anchor.cm_de_lowest_nm AS anchor_cm_de_lowest_nm,
+        anchor.cm_fr_lowest_nm AS anchor_cm_fr_lowest_nm,
+        anchor.cm_es_lowest_nm AS anchor_cm_es_lowest_nm,
+        anchor.cm_it_lowest_nm AS anchor_cm_it_lowest_nm,
+        anchor.cm_jp_lowest_nm AS anchor_cm_jp_lowest_nm,
+        anchor.cm_en_avg_7d AS anchor_cm_en_avg_7d,
+        anchor.cm_en_avg_30d AS anchor_cm_en_avg_30d,
         anchor.fetched_at AS anchor_fetched_at,
         NULL AS old30_price
       FROM latest

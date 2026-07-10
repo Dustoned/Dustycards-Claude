@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.11",
+    releasedAt: "July 10, 2026",
+    title: "Suspicious listings stay out",
+    summary:
+      "DustyCards 3.6.11 removes fake sudden drops caused by isolated CardMarket listing outliers.",
+    tone: "fixed",
+    highlights: [
+      "Current and previous English listings are checked against other available languages, with market averages used only when no language reference exists.",
+      "Reference prices are used only for suspicious-listing detection; displayed prices and drop calculations remain strictly English-to-English.",
+      "Gliscor DP36's return from an artificial €1,500 listing to €7 is now ignored instead of shown as a €1,493 market drop.",
+    ],
+  },
+  {
     version: "3.6.10",
     releasedAt: "July 10, 2026",
     title: "English prices stay English",
