@@ -26,9 +26,6 @@ const FAST_SUDDEN_DROP_REFRESH_MAX_AGE_DAYS = 3;
 const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
-const CARDMARKET_LANGUAGE_KEYS = ["en", "de", "fr", "es", "it", "jp"] as const;
-type CardMarketLanguageKey = (typeof CARDMARKET_LANGUAGE_KEYS)[number];
-type FastSuddenDropSnapshotPrefix = "latest" | "anchor";
 
 interface FastSuddenDropRow {
   card_id: string;
@@ -46,21 +43,7 @@ interface FastSuddenDropRow {
   old7_price: number | null;
   old30_price: number | null;
   latest_cm_en_lowest_nm: number | null;
-  latest_cm_de_lowest_nm: number | null;
-  latest_cm_fr_lowest_nm: number | null;
-  latest_cm_es_lowest_nm: number | null;
-  latest_cm_it_lowest_nm: number | null;
-  latest_cm_jp_lowest_nm: number | null;
-  latest_cm_en_avg_7d: number | null;
-  latest_cm_en_avg_30d: number | null;
   anchor_cm_en_lowest_nm: number | null;
-  anchor_cm_de_lowest_nm: number | null;
-  anchor_cm_fr_lowest_nm: number | null;
-  anchor_cm_es_lowest_nm: number | null;
-  anchor_cm_it_lowest_nm: number | null;
-  anchor_cm_jp_lowest_nm: number | null;
-  anchor_cm_en_avg_7d: number | null;
-  anchor_cm_en_avg_30d: number | null;
   latest_fetched_at: string;
   latest_changed_at: string | null;
   anchor_fetched_at: string | null;
@@ -93,130 +76,11 @@ function priceExpression(alias: string, source: PriceSource): string {
     return `${alias}.tcp_market`;
   }
 
-  return `COALESCE(${alias}.cm_en_lowest_nm, ${alias}.cm_de_lowest_nm, ${alias}.cm_fr_lowest_nm, ${alias}.cm_es_lowest_nm, ${alias}.cm_it_lowest_nm, ${alias}.cm_jp_lowest_nm)`;
+  return `${alias}.cm_en_lowest_nm`;
 }
 
 function getSourceLabel(source: PriceSource): "CardMarket" | "TCGPlayer" {
   return source === "tcp" ? "TCGPlayer" : "CardMarket";
-}
-
-function isFinitePrice(value: number | null | undefined): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value > 0;
-}
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-
-  return sorted.length % 2 === 0
-    ? Number(((sorted[middle - 1] + sorted[middle]) / 2).toFixed(2))
-    : sorted[middle];
-}
-
-function getSaneCardMarketSnapshotValue(input: {
-  primaryValue: number | null;
-  average7d: number | null;
-  average30d: number | null;
-  languageValues: Array<number | null>;
-}): number | null {
-  const primaryValue = input.primaryValue;
-  if (!isFinitePrice(primaryValue)) {
-    return null;
-  }
-
-  const languageValues = input.languageValues.filter(isFinitePrice);
-  const languageMedian = median(languageValues);
-  const stableAnchor =
-    (isFinitePrice(input.average30d) ? input.average30d : null) ??
-    (isFinitePrice(input.average7d) ? input.average7d : null) ??
-    languageMedian;
-
-  if (stableAnchor == null || stableAnchor <= 0) {
-    return primaryValue;
-  }
-
-  const highAverageOutlier =
-    primaryValue >= stableAnchor * 2.8 && primaryValue - stableAnchor >= 30;
-  const highLanguageOutlier =
-    languageMedian != null &&
-    primaryValue >= languageMedian * 3 &&
-    primaryValue - languageMedian >= 50;
-  const lowOutlier = stableAnchor >= 10 && primaryValue < 1 && primaryValue < stableAnchor * 0.15;
-
-  if (!highAverageOutlier && !highLanguageOutlier && !lowOutlier) {
-    return primaryValue;
-  }
-
-  return stableAnchor;
-}
-
-function getNumericRowField(row: FastSuddenDropRow, key: keyof FastSuddenDropRow): number | null {
-  const value = row[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function getCardMarketLanguageValue(
-  row: FastSuddenDropRow,
-  prefix: FastSuddenDropSnapshotPrefix,
-  language: CardMarketLanguageKey
-): number | null {
-  return getNumericRowField(
-    row,
-    `${prefix}_cm_${language}_lowest_nm` as keyof FastSuddenDropRow
-  );
-}
-
-function getCardMarketLanguageValues(
-  row: FastSuddenDropRow,
-  prefix: FastSuddenDropSnapshotPrefix
-): number[] {
-  return CARDMARKET_LANGUAGE_KEYS
-    .map((language) => getCardMarketLanguageValue(row, prefix, language))
-    .filter(isFinitePrice);
-}
-
-function getCardMarketSnapshotValue(
-  row: FastSuddenDropRow,
-  prefix: FastSuddenDropSnapshotPrefix,
-  language?: CardMarketLanguageKey | null
-): number | null {
-  const primaryValue =
-    language != null
-      ? getCardMarketLanguageValue(row, prefix, language)
-      : CARDMARKET_LANGUAGE_KEYS
-          .map((candidate) => getCardMarketLanguageValue(row, prefix, candidate))
-          .find(isFinitePrice) ?? null;
-
-  return getSaneCardMarketSnapshotValue({
-    primaryValue,
-    average7d: getNumericRowField(row, `${prefix}_cm_en_avg_7d` as keyof FastSuddenDropRow),
-    average30d: getNumericRowField(row, `${prefix}_cm_en_avg_30d` as keyof FastSuddenDropRow),
-    languageValues: getCardMarketLanguageValues(row, prefix),
-  });
-}
-
-function getPreferredCardMarketLanguage(row: FastSuddenDropRow): CardMarketLanguageKey | null {
-  for (const language of CARDMARKET_LANGUAGE_KEYS) {
-    const value = getCardMarketLanguageValue(row, "latest", language);
-    if (!isFinitePrice(value)) {
-      continue;
-    }
-
-    const saneValue = getSaneCardMarketSnapshotValue({
-      primaryValue: value,
-      average7d: getNumericRowField(row, "latest_cm_en_avg_7d"),
-      average30d: getNumericRowField(row, "latest_cm_en_avg_30d"),
-      languageValues: getCardMarketLanguageValues(row, "latest"),
-    });
-
-    if (saneValue === value) {
-      return language;
-    }
-  }
-
-  return null;
 }
 
 function getDropMetrics(input: {
@@ -346,11 +210,10 @@ function toRefreshMetadata(
 }
 
 function normalizeDropRow(row: FastSuddenDropRow, source: PriceSource): FastSuddenDropRow | null {
-  const cardMarketLanguage = source === "tcp" ? null : getPreferredCardMarketLanguage(row);
   const currentPrice =
     source === "tcp"
       ? row.current_price
-      : getCardMarketSnapshotValue(row, "latest", cardMarketLanguage);
+      : row.latest_cm_en_lowest_nm;
   if (
     currentPrice == null ||
     currentPrice < 3 ||
@@ -362,7 +225,7 @@ function normalizeDropRow(row: FastSuddenDropRow, source: PriceSource): FastSudd
   const anchorPrice =
     source === "tcp"
       ? row.old7_price
-      : getCardMarketSnapshotValue(row, "anchor", cardMarketLanguage);
+      : row.anchor_cm_en_lowest_nm;
   const { dropAmount, dropPercent } = getDropMetrics({
     currentPrice,
     old7Price: anchorPrice,
@@ -381,7 +244,7 @@ function normalizeDropRow(row: FastSuddenDropRow, source: PriceSource): FastSudd
     ...row,
     current_price: currentPrice,
     cardmarket_price:
-      source === "tcp" ? getCardMarketSnapshotValue(row, "latest") : currentPrice,
+      source === "tcp" ? row.latest_cm_en_lowest_nm : currentPrice,
     old7_price: anchorPrice,
     old30_price: null,
     drop_amount: dropAmount,
@@ -584,13 +447,6 @@ async function getFastSuddenDropRows(
         ${cmCurrent} AS cardmarket_price,
         ${tcpCurrent} AS tcgplayer_price,
         latest.cm_en_lowest_nm AS latest_cm_en_lowest_nm,
-        latest.cm_de_lowest_nm AS latest_cm_de_lowest_nm,
-        latest.cm_fr_lowest_nm AS latest_cm_fr_lowest_nm,
-        latest.cm_es_lowest_nm AS latest_cm_es_lowest_nm,
-        latest.cm_it_lowest_nm AS latest_cm_it_lowest_nm,
-        latest.cm_jp_lowest_nm AS latest_cm_jp_lowest_nm,
-        latest.cm_en_avg_7d AS latest_cm_en_avg_7d,
-        latest.cm_en_avg_30d AS latest_cm_en_avg_30d,
         latest.fetched_at AS latest_fetched_at,
         latest.changed_at AS latest_changed_at,
         3 AS history_points
@@ -622,13 +478,6 @@ async function getFastSuddenDropRows(
         latest.*,
         ${selectedPriceAnchor} AS old7_price,
         anchor.cm_en_lowest_nm AS anchor_cm_en_lowest_nm,
-        anchor.cm_de_lowest_nm AS anchor_cm_de_lowest_nm,
-        anchor.cm_fr_lowest_nm AS anchor_cm_fr_lowest_nm,
-        anchor.cm_es_lowest_nm AS anchor_cm_es_lowest_nm,
-        anchor.cm_it_lowest_nm AS anchor_cm_it_lowest_nm,
-        anchor.cm_jp_lowest_nm AS anchor_cm_jp_lowest_nm,
-        anchor.cm_en_avg_7d AS anchor_cm_en_avg_7d,
-        anchor.cm_en_avg_30d AS anchor_cm_en_avg_30d,
         anchor.fetched_at AS anchor_fetched_at,
         NULL AS old30_price
       FROM latest

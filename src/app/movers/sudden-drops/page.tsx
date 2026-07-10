@@ -220,7 +220,7 @@ export default async function SuddenDropsPage({
                 </HeaderPill>
                 <HeaderPill tone="violet">Top {FAST_SUDDEN_DROP_FEED_LIMIT}</HeaderPill>
                 <HeaderPill>
-                  Ranking source: {activePriceSource === "tcp" ? "TCGPlayer first" : "CardMarket first"}
+                  Price source: {activePriceSource === "tcp" ? "TCGPlayer market" : "CardMarket English"}
                 </HeaderPill>
               </div>
             </HeaderAction>

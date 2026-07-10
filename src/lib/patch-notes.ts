@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.10",
+    releasedAt: "July 10, 2026",
+    title: "English prices stay English",
+    summary:
+      "DustyCards 3.6.10 makes Sudden Price Drops use the same current CardMarket English price shown in card details.",
+    tone: "fixed",
+    highlights: [
+      "CardMarket English drops now compare the latest English price directly with the previous English price.",
+      "The feed no longer substitutes a 7-day or 30-day average, or another language, as the displayed current price.",
+      "Uta EB03-061 now correctly shows €815 current and a €135 drop from €950 instead of €41.35 and €908.65.",
+    ],
+  },
+  {
     version: "3.6.9",
     releasedAt: "July 10, 2026",
     title: "Live drops while prices refresh",

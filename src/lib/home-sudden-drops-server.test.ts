@@ -154,4 +154,102 @@ describe("getFastSuddenDropsData", () => {
       sqlite.close();
     }
   });
+
+  it("compares the displayed CardMarket English price without replacing it with an average", async () => {
+    const sqlite = new Database(":memory:");
+    sqlite.exec(`
+      CREATE TABLE "Episode" (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        code TEXT,
+        release_date TEXT
+      );
+      CREATE TABLE "Card" (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        image_url TEXT,
+        card_number TEXT,
+        rarity TEXT,
+        episode_id TEXT NOT NULL,
+        game TEXT NOT NULL
+      );
+      CREATE TABLE "Price" (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        changed_at TEXT,
+        cm_en_lowest_nm REAL,
+        cm_de_lowest_nm REAL,
+        cm_fr_lowest_nm REAL,
+        cm_es_lowest_nm REAL,
+        cm_it_lowest_nm REAL,
+        cm_jp_lowest_nm REAL,
+        cm_en_avg_30d REAL,
+        cm_en_avg_7d REAL,
+        tcp_market REAL,
+        tcp_mid REAL,
+        tcp_low REAL
+      );
+    `);
+
+    const now = Date.now();
+    const refreshStartedAt = new Date(now - 60 * 60 * 1000);
+    const refreshFinishedAt = new Date(now - 30 * 60 * 1000);
+    const currentSnapshotAt = new Date(now - 45 * 60 * 1000).toISOString();
+    const previousSnapshotAt = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+
+    sqlite.prepare(
+      `INSERT INTO "Episode" (id, name, code, release_date) VALUES (?, ?, ?, ?)`
+    ).run("eb03", "Heroines Edition", "EB03", "2026-01-01T00:00:00.000Z");
+    sqlite.prepare(
+      `INSERT INTO "Card" (id, name, card_number, rarity, episode_id, game)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run("uta", "Uta", "EB03-061", "Manga Rare", "eb03", "one-piece");
+    const insertPrice = sqlite.prepare(
+      `INSERT INTO "Price" (
+        id, card_id, fetched_at, changed_at, cm_en_lowest_nm,
+        cm_fr_lowest_nm, cm_en_avg_7d, cm_en_avg_30d
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    insertPrice.run(
+      "uta-before",
+      "uta",
+      previousSnapshotAt,
+      previousSnapshotAt,
+      950,
+      599.99,
+      800.9,
+      707.9
+    );
+    insertPrice.run(
+      "uta-after",
+      "uta",
+      currentSnapshotAt,
+      currentSnapshotAt,
+      815,
+      599.99,
+      37.12,
+      41.35
+    );
+
+    dbMock.syncJob.findUnique.mockResolvedValue({
+      status: "success",
+      started_at: refreshStartedAt,
+      finished_at: refreshFinishedAt,
+    });
+    dbMock.$queryRawUnsafe.mockImplementation((sql: string, ...params: unknown[]) =>
+      sqlite.prepare(sql).all(...params)
+    );
+
+    try {
+      const result = await getFastSuddenDropsData("cm_en", "one-piece");
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.cardId).toBe("uta");
+      expect(result.items[0]?.currentPrice).toBe(815);
+      expect(result.items[0]?.change7d).toBe(-135);
+    } finally {
+      sqlite.close();
+    }
+  });
 });
