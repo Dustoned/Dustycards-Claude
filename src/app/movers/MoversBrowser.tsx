@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
@@ -227,6 +227,7 @@ export default function MoversBrowser({
   metricWindowLabel,
 }: Props) {
   const { displaySettings } = useSettings();
+  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const isGradingScope = activeScope === "grading";
@@ -245,6 +246,7 @@ export default function MoversBrowser({
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [activeHighlightedCardId, setActiveHighlightedCardId] = useState(highlightedCardId);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
@@ -386,10 +388,10 @@ export default function MoversBrowser({
   ]);
   const highlightedVisibleIndex = useMemo(
     () =>
-      highlightedCardId
-        ? visibleMovers.findIndex((item) => item.cardId === highlightedCardId)
+      activeHighlightedCardId
+        ? visibleMovers.findIndex((item) => item.cardId === activeHighlightedCardId)
         : -1,
-    [highlightedCardId, visibleMovers]
+    [activeHighlightedCardId, visibleMovers]
   );
   const [renderState, setRenderState] = useState({ key: "", limit: INITIAL_MOVER_RENDER_COUNT });
   const renderKey = `${visibleMovers.length}:${visibleMovers[0]?.cardId ?? ""}:${
@@ -455,14 +457,14 @@ export default function MoversBrowser({
   }, [hasMoreMovers, renderKey, renderLimit, visibleMovers.length]);
 
   useEffect(() => {
-    if (!highlightedCardId || highlightedVisibleIndex < 0) {
+    if (!activeHighlightedCardId || highlightedVisibleIndex < 0) {
       return;
     }
 
-    const timeout = window.setTimeout(() => {
+    const scrollTimeout = window.setTimeout(() => {
       const target = Array.from(
         document.querySelectorAll<HTMLElement>("[data-mover-card-id]")
-      ).find((element) => element.dataset.moverCardId === highlightedCardId);
+      ).find((element) => element.dataset.moverCardId === activeHighlightedCardId);
 
       if (!target) {
         return;
@@ -472,8 +474,43 @@ export default function MoversBrowser({
       target.focus({ preventScroll: true });
     }, 220);
 
-    return () => window.clearTimeout(timeout);
-  }, [highlightedCardId, highlightedVisibleIndex, renderKey]);
+    const clearTimeout = window.setTimeout(() => {
+      const target = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-mover-card-id]")
+      ).find((element) => element.dataset.moverCardId === activeHighlightedCardId);
+      if (target && document.activeElement === target) {
+        target.blur();
+      }
+
+      setRenderState((current) => ({
+        key: renderKey,
+        limit: Math.max(
+          current.key === renderKey ? current.limit : INITIAL_MOVER_RENDER_COUNT,
+          highlightedVisibleIndex + 1
+        ),
+      }));
+      setActiveHighlightedCardId(null);
+
+      const nextParams = new URLSearchParams(searchParams.toString());
+      if (nextParams.get("highlight") === activeHighlightedCardId) {
+        nextParams.delete("highlight");
+        const query = nextParams.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      }
+    }, 1_800);
+
+    return () => {
+      window.clearTimeout(scrollTimeout);
+      window.clearTimeout(clearTimeout);
+    };
+  }, [
+    activeHighlightedCardId,
+    highlightedVisibleIndex,
+    pathname,
+    renderKey,
+    router,
+    searchParams,
+  ]);
 
   const hasActiveControls =
     search.trim().length > 0 ||
@@ -702,7 +739,7 @@ export default function MoversBrowser({
               minTileWidth={moverTileMinWidth}
               loadingCardId={loadingCardId}
               displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
-              highlightedCardId={highlightedCardId}
+              highlightedCardId={activeHighlightedCardId}
               metricWindowLabel={metricWindowLabel}
               onOpenCard={handleOpenMoverCard}
             />

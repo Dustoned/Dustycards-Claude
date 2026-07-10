@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.12",
+    releasedAt: "July 10, 2026",
+    title: "Highlights no longer stick",
+    summary:
+      "DustyCards 3.6.12 turns dashboard card highlights into a brief navigation cue instead of a permanent selected state.",
+    tone: "fixed",
+    highlights: [
+      "A linked mover is briefly highlighted and scrolled into view, then its highlight and focus ring clear automatically.",
+      "The temporary highlight parameter is removed from the URL so filters and live refreshes no longer keep reapplying it.",
+    ],
+  },
+  {
     version: "3.6.11",
     releasedAt: "July 10, 2026",
     title: "Suspicious listings stay out",
