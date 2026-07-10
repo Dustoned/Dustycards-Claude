@@ -1,3 +1,5 @@
+import type { TradingCardGame } from "@/lib/games";
+
 export interface GradedPriceData {
   label: string;
   price: number;
@@ -18,6 +20,7 @@ export interface EbaySoldGradedPriceData {
 
 export interface CardData {
   id: string;
+  game: TradingCardGame;
   name: string;
   card_number: string | null;
   rarity: string | null;

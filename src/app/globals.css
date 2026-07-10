@@ -644,6 +644,13 @@ html {
   color-scheme: dark;
 }
 
+html.dc-scroll-locked,
+html.dc-scroll-locked body {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  overscroll-behavior-y: none !important;
+}
+
 html.dark,
 html[data-theme="dark"] {
   background-color: var(--app-bg);

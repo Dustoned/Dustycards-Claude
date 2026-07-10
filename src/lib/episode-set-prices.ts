@@ -12,6 +12,9 @@ export interface EpisodeSetPriceSnapshotRow {
   cm_jp_lowest_nm: number | null;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const EPISODE_SET_HISTORY_DAYS = 120;
+
 // The per-set daily price-history snapshot rows (latest price per card per day).
 // This is a heavy window-function scan over the Price table and is identical for
 // every user — pure catalog data that only changes when prices sync — so it is
@@ -21,7 +24,9 @@ const cache = createSwrCache<EpisodeSetPriceSnapshotRow[]>(5 * 60_000, 30 * 60_0
 export function getEpisodeSetPriceSnapshotRows(
   episodeId: string
 ): Promise<EpisodeSetPriceSnapshotRow[]> {
-  return cache.get(episodeId, async () => {
+  const cutoff = new Date(Date.now() - EPISODE_SET_HISTORY_DAYS * DAY_MS).toISOString();
+
+  return cache.get(`${episodeId}:${EPISODE_SET_HISTORY_DAYS}d`, async () => {
     const rows = await db.$queryRaw<
       Array<{
         card_id: string;
@@ -60,6 +65,7 @@ export function getEpisodeSetPriceSnapshotRows(
         FROM "Price" p
         INNER JOIN "Card" c ON c.id = p.card_id
         WHERE c.episode_id = ${episodeId}
+          AND p.fetched_at >= ${cutoff}
       )
       WHERE row_num = 1
       ORDER BY fetched_at ASC, card_id ASC

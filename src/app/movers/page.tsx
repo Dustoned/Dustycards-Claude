@@ -396,7 +396,9 @@ export default async function MoversPage({
     isRawScope ? activeSourceLabel : null,
   ].filter(Boolean);
   const showDesktopFilterDetails = desktopActiveSecondaryFilters.length > 0;
-  function buildMarketPocketHref(pathname: "/movers/cheap-high-rarity" | "/movers/discount-watch") {
+  function buildMarketPocketHref(
+    pathname: "/movers/cheap-high-rarity" | "/movers/discount-watch" | "/movers/sudden-drops"
+  ) {
     const params = new URLSearchParams();
     const gameValue = getGameFilterSearchParamValue(activeGame);
 
@@ -559,6 +561,15 @@ export default async function MoversPage({
             href: buildMarketPocketHref("/movers/cheap-high-rarity"),
             hrefLabel: "Open pocket",
             items: cardData.cheapestHighRarityMovers,
+            reasonMode: "raw" as const,
+          },
+          {
+            title: "Sudden drops",
+            eyebrow: "Market pocket",
+            description: "Raw cards that recently dropped by 50+ and still score well on the Movers weights.",
+            href: buildMarketPocketHref("/movers/sudden-drops"),
+            hrefLabel: "Open pocket",
+            items: cardData.suddenDropDeals,
             reasonMode: "raw" as const,
           },
           {

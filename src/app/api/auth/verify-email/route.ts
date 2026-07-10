@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hashSessionToken } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
-
-function getPublicOrigin(req: NextRequest): string {
-  const configuredUrl = process.env.APP_URL;
-  if (configuredUrl) return configuredUrl;
-
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
+import { getPublicOrigin } from "@/lib/public-origin";
 
 function loginRedirect(req: NextRequest, params: Record<string, string>) {
   const redirectUrl = new URL("/login", getPublicOrigin(req));

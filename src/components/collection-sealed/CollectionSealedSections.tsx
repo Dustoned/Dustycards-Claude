@@ -207,6 +207,7 @@ function CollectionSealedTile({
   selectionMode,
   isSelected,
   removingItems,
+  readOnly,
   onActivate,
   onRemove,
 }: {
@@ -217,6 +218,7 @@ function CollectionSealedTile({
   selectionMode: boolean;
   isSelected: boolean;
   removingItems: boolean;
+  readOnly: boolean;
   onActivate: (item: CollectionSealedViewItem) => void;
   onRemove: (event: MouseEvent<HTMLButtonElement>, item: CollectionSealedViewItem) => void;
 }) {
@@ -289,7 +291,7 @@ function CollectionSealedTile({
               <span className={sealedTileNoPriceClass(cardSize)}>No price</span>
             )}
 
-            {!selectionMode && (
+            {!readOnly && !selectionMode && (
               <div className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
@@ -355,6 +357,7 @@ export function CollectionSealedGrid({
   selectionMode,
   selectedIdSet,
   removingItems,
+  readOnly,
   onActivate,
   onRemove,
 }: {
@@ -365,6 +368,7 @@ export function CollectionSealedGrid({
   selectionMode: boolean;
   selectedIdSet: Set<string>;
   removingItems: boolean;
+  readOnly: boolean;
   onActivate: (item: CollectionSealedViewItem) => void;
   onRemove: (event: MouseEvent<HTMLButtonElement>, item: CollectionSealedViewItem) => void;
 }) {
@@ -386,6 +390,7 @@ export function CollectionSealedGrid({
           selectionMode={selectionMode}
           isSelected={selectionMode && selectedIdSet.has(item.id)}
           removingItems={removingItems}
+          readOnly={readOnly}
           onActivate={onActivate}
           onRemove={onRemove}
         />

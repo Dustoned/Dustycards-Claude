@@ -37,7 +37,7 @@ import {
   hasAnyPrice,
   hasCardChanges,
   loadEpisodeCardEnrichmentLookups,
-  pricesMatch,
+  planPriceSnapshotWrite,
   syncCardWithEpisodeSelect,
   type CardWriteData,
   type EbaySoldGradedCreateRow,
@@ -1174,43 +1174,41 @@ function getTierWeight(tier: PriceRefreshTier): number {
   }
 }
 
+type PriceCreateRow = {
+  card_id: string;
+  fetched_at: Date;
+  changed_at: Date;
+} & PriceSnapshotData;
+
 function queuePriceSnapshotWrite(
   latestPrice: ExistingPriceRecord | null,
   nextPrice: PriceSnapshotData,
   cardId: string,
   fetchedAt: Date,
   options: { refreshAllPrices: boolean },
-  priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData>,
+  priceCreates: PriceCreateRow[],
   priceRefreshes: string[]
 ): "new" | "refreshed" | "none" {
-  if (!hasAnyPrice(nextPrice)) {
-    return "none";
+  const plan = planPriceSnapshotWrite(
+    latestPrice,
+    nextPrice,
+    options.refreshAllPrices
+  );
+
+  if (plan.recordSnapshot) {
+    priceCreates.push({
+      card_id: cardId,
+      fetched_at: fetchedAt,
+      changed_at: fetchedAt,
+      ...nextPrice,
+    });
   }
 
-  if (!options.refreshAllPrices) {
-    if (!latestPrice) {
-      priceCreates.push({
-        card_id: cardId,
-        fetched_at: fetchedAt,
-        ...nextPrice,
-      });
-      return "new";
-    }
-
-    return "none";
-  }
-
-  if (latestPrice && pricesMatch(latestPrice, nextPrice)) {
+  if (plan.refreshExistingSnapshot && latestPrice) {
     priceRefreshes.push(latestPrice.id);
-    return "refreshed";
   }
 
-  priceCreates.push({
-    card_id: cardId,
-    fetched_at: fetchedAt,
-    ...nextPrice,
-  });
-  return "new";
+  return plan.mode;
 }
 
 function toHistorySnapshotDate(dateKey: string): Date {
@@ -1248,7 +1246,7 @@ async function persistCardPriceWrites(
     ebaySoldGradedSyncedCardIds?: Set<string>;
     ebaySoldGradedUnavailableCardIds?: Set<string>;
     priceRefreshes: string[];
-    priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData>;
+    priceCreates: PriceCreateRow[];
   }
 ): Promise<{ gradedPricesUpdated: number }> {
   if (input.gradedCardIdsToReplace.size > 0) {
@@ -1461,19 +1459,13 @@ async function backfillCardNativeHistoryDetailed(
               cardId,
               synced: false,
               failed: true,
-              creates: [] as Array<{
-                card_id: string;
-                fetched_at: Date;
-              } & PriceSnapshotData>,
+              creates: [] as PriceCreateRow[],
               quotaExceeded: false,
             };
           }
 
           const existing = existingByCard.get(cardId) ?? new Set<string>();
-          const creates: Array<{
-            card_id: string;
-            fetched_at: Date;
-          } & PriceSnapshotData> = [];
+          const creates: PriceCreateRow[] = [];
 
           for (const point of history) {
             const fetchedAt = toHistorySnapshotDate(point.date);
@@ -1485,6 +1477,7 @@ async function backfillCardNativeHistoryDetailed(
             creates.push({
               card_id: cardId,
               fetched_at: fetchedAt,
+              changed_at: fetchedAt,
               cm_en_lowest_nm: point.cm_market,
               cm_de_lowest_nm: point.cm_market_de,
               cm_fr_lowest_nm: point.cm_market_fr,
@@ -1515,10 +1508,7 @@ async function backfillCardNativeHistoryDetailed(
               cardId,
               synced: false,
               failed: false,
-              creates: [] as Array<{
-                card_id: string;
-                fetched_at: Date;
-              } & PriceSnapshotData>,
+              creates: [] as PriceCreateRow[],
               quotaExceeded: true,
             };
           }
@@ -1527,10 +1517,7 @@ async function backfillCardNativeHistoryDetailed(
             cardId,
             synced: false,
             failed: true,
-            creates: [] as Array<{
-              card_id: string;
-              fetched_at: Date;
-            } & PriceSnapshotData>,
+            creates: [] as PriceCreateRow[],
             quotaExceeded: false,
           };
         }
@@ -2213,7 +2200,7 @@ async function syncEpisodeCards(
     });
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
-    const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
+    const priceCreates: PriceCreateRow[] = [];
     const priceRefreshes: string[] = [];
     const gradedCardIdsToReplace = new Set<string>();
     const gradedCreates: GradedCreateRow[] = [];
@@ -2999,7 +2986,7 @@ interface AutoPriceRefreshSnapshotResult {
 const AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS = 15_000;
 const autoPriceSnapshotCache = new Map<
   string,
-  { at: number; value: AutoPriceRefreshSnapshotResult }
+  { at: number; promise: Promise<AutoPriceRefreshSnapshotResult>; settled: boolean }
 >();
 
 export async function getAutoPriceRefreshSnapshot(options?: {
@@ -3008,10 +2995,38 @@ export async function getAutoPriceRefreshSnapshot(options?: {
   const cacheKey = options?.game ?? "all";
   const cachedSnapshot = autoPriceSnapshotCache.get(cacheKey);
   const cacheNowMs = Date.now();
-  if (cachedSnapshot && cacheNowMs - cachedSnapshot.at < AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS) {
-    return cachedSnapshot.value;
+  if (
+    cachedSnapshot &&
+    (!cachedSnapshot.settled || cacheNowMs - cachedSnapshot.at < AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS)
+  ) {
+    return cachedSnapshot.promise;
   }
 
+  const cacheEntry = {
+    at: cacheNowMs,
+    promise: Promise.resolve(null as unknown as AutoPriceRefreshSnapshotResult),
+    settled: false,
+  };
+  cacheEntry.promise = computeAutoPriceRefreshSnapshot(options)
+    .then((result) => {
+      cacheEntry.at = Date.now();
+      cacheEntry.settled = true;
+      return result;
+    })
+    .catch((error) => {
+      if (autoPriceSnapshotCache.get(cacheKey) === cacheEntry) {
+        autoPriceSnapshotCache.delete(cacheKey);
+      }
+      throw error;
+    });
+  autoPriceSnapshotCache.set(cacheKey, cacheEntry);
+
+  return cacheEntry.promise;
+}
+
+async function computeAutoPriceRefreshSnapshot(options?: {
+  game?: TradingCardGame;
+}): Promise<AutoPriceRefreshSnapshotResult> {
   const timer = startPerformanceTimer("sync.auto-price-refresh.snapshot");
   const now = new Date();
   const dueBatch = await selectAutoRefreshBatch(now, { game: options?.game });
@@ -3052,8 +3067,6 @@ export async function getAutoPriceRefreshSnapshot(options?: {
     nextBatchEpisodeIds: [...combinedBatch.keys()].slice(0, 6),
     nextBatchCardIds: [...new Set([...combinedBatch.values()].flat())].slice(0, 8),
   };
-
-  autoPriceSnapshotCache.set(cacheKey, { at: cacheNowMs, value: result });
 
   timer.finish({
     dueCards: result.dueCards,
@@ -3104,7 +3117,7 @@ async function refreshEpisodeDueCards(
     });
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
-    const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
+    const priceCreates: PriceCreateRow[] = [];
     const priceRefreshes: string[] = [];
     const gradedCardIdsToReplace = new Set<string>();
     const gradedCreates: GradedCreateRow[] = [];
@@ -3344,7 +3357,7 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
 
         const latestPrice = existingCard.prices[0] ?? null;
         const nextPrice = extractPrices(remoteCard.prices);
-        const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
+        const priceCreates: PriceCreateRow[] = [];
         const priceRefreshes: string[] = [];
         const writeMode = queuePriceSnapshotWrite(
           latestPrice,
@@ -3458,7 +3471,7 @@ export async function runSingleCardHistoryImport(
         dateFrom: incrementalDateFrom ? formatHistoryDateFrom(incrementalDateFrom) : undefined,
       });
       await progress.throwIfCancelled();
-      const priceCreates: Array<{ card_id: string; fetched_at: Date } & PriceSnapshotData> = [];
+      const priceCreates: PriceCreateRow[] = [];
 
       for (const point of history) {
         const fetchedAt = toHistorySnapshotDate(point.date);
@@ -3471,6 +3484,7 @@ export async function runSingleCardHistoryImport(
         priceCreates.push({
           card_id: cardId,
           fetched_at: fetchedAt,
+          changed_at: fetchedAt,
           cm_en_lowest_nm: point.cm_market,
           cm_de_lowest_nm: point.cm_market_de,
           cm_fr_lowest_nm: point.cm_market_fr,

@@ -186,16 +186,6 @@ export default async function ExpansionDetailPage({
   const activeTab = requestedTab === "sealed" && hasSealed ? "sealed" : "cards";
 
   let cards: CardData[] = [];
-  let setPriceSnapshots: Array<{
-    card_id: string;
-    fetched_at: string;
-    cm_en_lowest_nm: number | null;
-    cm_de_lowest_nm: number | null;
-    cm_fr_lowest_nm: number | null;
-    cm_es_lowest_nm: number | null;
-    cm_it_lowest_nm: number | null;
-    cm_jp_lowest_nm?: number | null;
-  }> = [];
   const sealedGroups = activeTab === "sealed" ? getGroupedSealedProducts(sealedProducts) : [];
   const activeSealedFilter =
     activeTab === "sealed" ? resolveSealedFilter(sealed, sealedGroups) : "all";
@@ -239,10 +229,6 @@ export default async function ExpansionDetailPage({
 
     const setPriceHistory = buildEpisodeSetPriceHistory(rawSetPriceSnapshots);
     const latestSetPricePoint = setPriceHistory[setPriceHistory.length - 1] ?? null;
-    setPriceSnapshots = rawSetPriceSnapshots.map((snapshot) => ({
-      ...snapshot,
-      fetched_at: new Date(snapshot.fetched_at).toISOString(),
-    }));
 
     pricePanelPoints = setPriceHistory.map((point) => ({
       date: point.date,
@@ -290,6 +276,7 @@ export default async function ExpansionDetailPage({
 
       return {
         id: card.id,
+        game: POKEMON_GAME,
         name: card.name,
         card_number: getDisplayCardNumber(card),
         rarity: card.rarity,
@@ -610,7 +597,6 @@ export default async function ExpansionDetailPage({
             cards={cards}
             totalCards={episode._count.cards}
             episode={{ id: episode.id, name: episode.name, code: episode.code }}
-            priceSnapshots={setPriceSnapshots}
             showPriceHistory={false}
           />
         )

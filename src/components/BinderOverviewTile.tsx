@@ -61,8 +61,10 @@ function moveBadgeClass(value: number | null): string {
 
 export default function BinderOverviewTile({
   binder,
+  readOnly = false,
 }: {
   binder: BinderOverviewItem;
+  readOnly?: boolean;
 }) {
   const accentColor = binder.accent_color;
   const progressWidth = binder.completionPct == null
@@ -107,9 +109,13 @@ export default function BinderOverviewTile({
 
   return (
     <Link
-      href={`/binders/${binder.id}`}
+      href={readOnly ? "#" : `/binders/${binder.id}`}
       prefetch={false}
-      className="binder-panel binder-overview-tile group relative flex h-full flex-col gap-2.5 overflow-hidden rounded-[18px] p-3 transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 max-[640px]:gap-2 max-[640px]:rounded-xl max-[640px]:p-2"
+      onClick={readOnly ? (event) => event.preventDefault() : undefined}
+      aria-disabled={readOnly ? true : undefined}
+      className={`binder-panel binder-overview-tile group relative flex h-full flex-col gap-2.5 overflow-hidden rounded-[18px] p-3 transition-[border-color,box-shadow,transform] duration-200 max-[640px]:gap-2 max-[640px]:rounded-xl max-[640px]:p-2 ${
+        readOnly ? "cursor-default" : "hover:-translate-y-0.5"
+      }`}
       style={tileStyle}
     >
       {binder.accent_color && (

@@ -8,9 +8,11 @@ import { getBinderGridTemplateColumns, getBinderTileTrackWidth } from "@/lib/dis
 export default function BinderOverviewGrid({
   binders,
   className = "",
+  readOnly = false,
 }: {
   binders: BinderOverviewItem[];
   className?: string;
+  readOnly?: boolean;
 }) {
   const { displaySettings, isMobileViewport } = useSettings();
   const binderTileTrackWidth = getBinderTileTrackWidth(
@@ -37,7 +39,7 @@ export default function BinderOverviewGrid({
       style={binderGridStyle}
     >
       {binders.map((binder) => (
-        <BinderOverviewTile key={binder.id} binder={binder} />
+        <BinderOverviewTile key={binder.id} binder={binder} readOnly={readOnly} />
       ))}
     </div>
   );

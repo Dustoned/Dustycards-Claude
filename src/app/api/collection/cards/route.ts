@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
@@ -53,7 +54,7 @@ function toStringArray(value: unknown): string[] {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
     cardId?: unknown;
     cardIds?: unknown;
     binderId?: unknown;
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     gradingCompany?: unknown;
     gradingGrade?: unknown;
     gradingSubgrades?: unknown;
-    };
+    }>(req);
 
   const cardIds = (() => {
     const multiple = toStringArray(body.cardIds);
@@ -216,19 +217,23 @@ export async function POST(req: NextRequest) {
     })),
   });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to add cards" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to add cards" }, { status: 500 })
+    );
   }
 }
 
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
     itemId?: unknown;
     itemIds?: unknown;
     binderId?: unknown;
     forSale?: unknown;
-    };
+    }>(req);
 
   const itemIds = (() => {
     const multiple = toStringArray(body.itemIds);
@@ -323,17 +328,21 @@ export async function PATCH(req: NextRequest) {
     count: updated.count,
   });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to update cards" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to update cards" }, { status: 500 })
+    );
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
     itemId?: unknown;
     itemIds?: unknown;
-    };
+    }>(req);
 
   const itemIds = (() => {
     const multiple = toStringArray(body.itemIds);
@@ -379,6 +388,10 @@ export async function DELETE(req: NextRequest) {
     count: deleted.count,
   });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to remove cards" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to remove cards" }, { status: 500 })
+    );
   }
 }

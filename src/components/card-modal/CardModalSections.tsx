@@ -1313,6 +1313,8 @@ export function CardModalDesktopActionGroup({
   onClose: () => void;
 }) {
   const collectionCard = buildCollectionCard(card);
+  const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
+  const canManageCollectionItem = Boolean(collectionItem && !readOnlyCollectionItem);
   const locationLabel = collectionItem
     ? collectionItem.for_sale
       ? "For sale"
@@ -1331,7 +1333,7 @@ export function CardModalDesktopActionGroup({
         card={collectionCard}
         mode="button"
         theme="dark"
-        label={collectionItem ? "Add copy" : "Add to Collection"}
+        label={collectionItem && !readOnlyCollectionItem ? "Add copy" : "Add to Collection"}
         className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-500/22 !px-4 !text-sm !font-bold !text-white hover:!border-violet-200/38 hover:!bg-violet-500/30"
         onAdded={onAddedToCollection}
       />
@@ -1346,7 +1348,7 @@ export function CardModalDesktopActionGroup({
         className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-600/20 !px-3 !text-sm !font-bold !text-violet-50 hover:!border-violet-200/38 hover:!bg-violet-500/30"
       />
 
-      {collectionItem && (
+      {canManageCollectionItem && collectionItem && (
         <>
           <CollectionEditCardButton
             card={collectionCard}
@@ -1640,12 +1642,19 @@ export function CardModalMobileShowcase({
   const [activeTab, setActiveTab] = useState("overview");
   const [moreOpen, setMoreOpen] = useState(false);
   const collectionCard = buildCollectionCard(card);
+  const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
   const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
   const metaPrefix = [card.episode_code, card.card_number ? `#${card.card_number}` : null]
     .filter(Boolean)
     .join(" ");
   const language = collectionItem?.language?.trim() || "English";
-  const savedLabel = collectionItem?.for_sale ? "For sale" : collectionItem ? "Saved" : "Not saved";
+  const savedLabel = readOnlyCollectionItem
+    ? "Shared"
+    : collectionItem?.for_sale
+      ? "For sale"
+      : collectionItem
+        ? "Saved"
+        : "Not saved";
   const conditionLabel =
     collectionItem?.condition ||
     (gradingCompanyLabel && gradingGradeLabel
@@ -1709,7 +1718,7 @@ export function CardModalMobileShowcase({
             card={collectionCard}
             mode="icon"
             theme="dark"
-            label={collectionItem ? "Add copy" : "Add"}
+            label={collectionItem && !readOnlyCollectionItem ? "Add copy" : "Add"}
             className={floatingButtonClass}
             onAdded={onAddedToCollection}
           />
@@ -1722,7 +1731,7 @@ export function CardModalMobileShowcase({
             wantItemId={card.want_item?.id ?? null}
             className={floatingButtonClass}
           />
-          {collectionItem && (
+          {collectionItem && !readOnlyCollectionItem && (
             <CollectionEditCardButton
               card={collectionCard}
               item={collectionItem}
@@ -1733,7 +1742,7 @@ export function CardModalMobileShowcase({
               onSaved={onClose}
             />
           )}
-          {collectionItem && !canManageCardPrices && (
+          {collectionItem && !readOnlyCollectionItem && !canManageCardPrices && (
             <MobileDetailIconButton
               label={collectionItem.for_sale ? "Remove from For Sale" : "Remove from collection"}
               onClick={onRemoveCollectionItem}
@@ -1754,7 +1763,7 @@ export function CardModalMobileShowcase({
 
           {moreOpen && canManageCardPrices && (
             <div data-mobile-action-sheet className="absolute right-0 top-[3.25rem] z-40 min-w-52 overflow-hidden rounded-2xl border border-white/12 bg-[#0b0b0d]/94 p-1.5 text-sm font-semibold text-white shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
-              {collectionItem && (
+              {collectionItem && !readOnlyCollectionItem && (
                 <button
                   type="button"
                   onClick={(event) => {
@@ -2108,7 +2117,7 @@ export function CardModalMobileShowcase({
             card={collectionCard}
             mode="button"
             theme="dark"
-            label={collectionItem ? "Add Copy" : "Add to Collection"}
+            label={collectionItem && !readOnlyCollectionItem ? "Add Copy" : "Add to Collection"}
             className="!min-h-12 !rounded-2xl !border-violet-300/35 !bg-violet-600/72 !px-2 !text-[13px] !font-bold !shadow-[0_16px_34px_rgba(124,92,255,0.24)]"
             onAdded={onAddedToCollection}
           />
@@ -2175,6 +2184,7 @@ export function CardModalHeroSection({
   const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
   const typeLabel = [card.supertype, card.subtypes].filter(Boolean).join(" / ");
   const collectionTags = collectionItem?.tags ?? [];
+  const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
   const collectionLanguage =
     collectionItem?.language && collectionItem.language.trim().length > 0
       ? collectionItem.language.trim()
@@ -2384,7 +2394,7 @@ export function CardModalHeroSection({
               </span>
             )}
             <span className={collectionItem ? "text-emerald-300" : "text-white/42"}>
-              {collectionItem ? "Saved" : "Not saved"}
+              {collectionItem ? (readOnlyCollectionItem ? "Shared" : "Saved") : "Not saved"}
             </span>
             {collectionLanguage && <span>{collectionLanguage}</span>}
             {gradingCompanyLabel && gradingGradeLabel && (
@@ -2768,12 +2778,17 @@ export function CardModalOwnedCopyPanel({
 }) {
   const collectionCard = buildCollectionCard(card);
   const ownedPrice = getOwnedCopyPrice(card, collectionItem);
+  const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
 
   return (
     <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} ${className}`}>
       <div className="flex items-center justify-between gap-3">
         <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>
-          {collectionItem?.for_sale ? "For Sale Copy" : "Owned Copy"}
+          {readOnlyCollectionItem
+            ? "Shared Copy"
+            : collectionItem?.for_sale
+              ? "For Sale Copy"
+              : "Owned Copy"}
         </h3>
         {collectionItem && (
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-white">
@@ -2823,7 +2838,7 @@ export function CardModalOwnedCopyPanel({
           card={collectionCard}
           mode="button"
           theme="dark"
-          label={collectionItem ? "Add Another Copy" : "Add to Collection"}
+          label={collectionItem && !readOnlyCollectionItem ? "Add Another Copy" : "Add to Collection"}
           className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-600/22 !text-sm !font-semibold !text-violet-50 hover:!border-violet-200/38 hover:!bg-violet-500/30"
           onAdded={onAddedToCollection}
         />

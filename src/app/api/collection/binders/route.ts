@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
@@ -118,7 +119,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
       name?: unknown;
       type?: unknown;
       episodeId?: unknown;
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
       iconName?: unknown;
       notes?: unknown;
       basePurchasePrice?: unknown;
-    };
+    }>(req);
 
     const type = toNullableString(body.type);
     if (type !== "linked_set" && type !== "custom" && type !== "auto") {
@@ -216,21 +217,25 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ binder, reused: false });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to save binder" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to save binder" }, { status: 500 })
+    );
   }
 }
 
 export async function PATCH(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
       id?: unknown;
       name?: unknown;
       accentColor?: unknown;
       iconName?: unknown;
       notes?: unknown;
       basePurchasePrice?: unknown;
-    };
+    }>(req);
 
     const binderId = toNullableString(body.id);
     if (!binderId) {
@@ -270,16 +275,20 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ binder });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to update binder" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to update binder" }, { status: 500 })
+    );
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
       id?: unknown;
-    };
+    }>(req);
 
     const binderId = toNullableString(body.id);
     if (!binderId) {
@@ -303,6 +312,10 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to delete binder" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to delete binder" }, { status: 500 })
+    );
   }
 }

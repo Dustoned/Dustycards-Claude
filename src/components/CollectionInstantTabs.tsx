@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { emitCollectionUrlChange } from "@/components/useLiveCollectionTab";
 import type { CollectionPageTab } from "@/lib/collection-data";
 
@@ -17,6 +17,7 @@ interface CollectionTabMeta {
 interface Props {
   initialTab: CollectionPageTab;
   tabs: CollectionTabMeta[];
+  instantTabs?: CollectionPageTab[];
   gameControls?: ReactNode;
   overviewSlot: ReactNode;
   completeSlot: ReactNode;
@@ -64,6 +65,7 @@ function pushCollectionUrl(href: string) {
 export default function CollectionInstantTabs({
   initialTab,
   tabs,
+  instantTabs,
   gameControls = null,
   overviewSlot,
   completeSlot,
@@ -79,6 +81,14 @@ export default function CollectionInstantTabs({
     () => tabs.find((tab) => tab.key === activeTab) ?? tabs[0],
     [activeTab, tabs]
   );
+  const instantTabSet = useMemo(
+    () => new Set((instantTabs ?? ["overview", "complete", "singles", "binders", "sealed", "graded", "selling"]).map(normalizeTab)),
+    [instantTabs]
+  );
+
+  const canSelectInstant = useCallback((tab: CollectionPageTab) => {
+    return instantTabSet.has(normalizeTab(tab));
+  }, [instantTabSet]);
 
   useEffect(() => {
     const onPopState = () => setActiveTab(readTabFromLocation());
@@ -116,6 +126,7 @@ export default function CollectionInstantTabs({
       if (!isCollectionTabLink) return;
 
       const nextTab = url.searchParams.get("graded") === "1" ? "graded" : normalizeTab(url.searchParams.get("tab"));
+      if (!canSelectInstant(nextTab)) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -125,10 +136,14 @@ export default function CollectionInstantTabs({
 
     document.addEventListener("click", onDocumentClick, true);
     return () => document.removeEventListener("click", onDocumentClick, true);
-  }, []);
+  }, [canSelectInstant]);
 
   function selectTab(tab: CollectionTabMeta) {
     if (activeTab === tab.key) return;
+    if (!canSelectInstant(tab.key)) {
+      window.location.assign(tab.href);
+      return;
+    }
 
     setActiveTab(tab.key);
     pushCollectionUrl(tab.href);
@@ -184,6 +199,21 @@ export default function CollectionInstantTabs({
                       >
                         {tabs.map((tab) => {
                           const active = activeTab === tab.key;
+                          const instant = canSelectInstant(tab.key);
+                          const tabClassName = cx(
+                            "inline-flex h-7 min-w-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-8 sm:px-4 sm:text-[12px]",
+                            active
+                              ? "border border-violet-400/40 bg-violet-600 text-white"
+                              : "text-white/58 hover:bg-white/[0.07] hover:text-white"
+                          );
+
+                          if (!instant && !active) {
+                            return (
+                              <a key={tab.key} href={tab.href} className={tabClassName}>
+                                <span className="truncate">{tab.label}</span>
+                              </a>
+                            );
+                          }
 
                           return (
                             <button
@@ -191,12 +221,7 @@ export default function CollectionInstantTabs({
                               type="button"
                               aria-current={active ? "page" : undefined}
                               onClick={() => selectTab(tab)}
-                              className={cx(
-                                "inline-flex h-7 min-w-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-8 sm:px-4 sm:text-[12px]",
-                                active
-                                  ? "border border-violet-400/40 bg-violet-600 text-white"
-                                  : "text-white/58 hover:bg-white/[0.07] hover:text-white"
-                              )}
+                              className={tabClassName}
                             >
                               <span className="truncate">{tab.label}</span>
                             </button>

@@ -13,6 +13,10 @@ let restoreState:
       right: string;
       width: string;
       overscrollBehavior: string;
+      documentElementOverflow: string;
+      documentElementOverscrollBehavior: string;
+      hadBodyScrollLockClass: boolean;
+      hadDocumentElementScrollLockClass: boolean;
       scrollY: number;
     }
   | null = null;
@@ -38,9 +42,17 @@ export default function useBodyScrollLock(active = true) {
         right: body.style.right,
         width: body.style.width,
         overscrollBehavior: body.style.overscrollBehavior,
+        documentElementOverflow: documentElement.style.overflow,
+        documentElementOverscrollBehavior: documentElement.style.overscrollBehavior,
+        hadBodyScrollLockClass: body.classList.contains("dc-scroll-locked"),
+        hadDocumentElementScrollLockClass: documentElement.classList.contains("dc-scroll-locked"),
         scrollY,
       };
 
+      documentElement.classList.add("dc-scroll-locked");
+      body.classList.add("dc-scroll-locked");
+      documentElement.style.overflow = "hidden";
+      documentElement.style.overscrollBehavior = "none";
       body.style.overflow = "hidden";
       body.style.position = "fixed";
       body.style.top = `-${scrollY}px`;
@@ -74,6 +86,15 @@ export default function useBodyScrollLock(active = true) {
       body.style.right = nextState.right;
       body.style.width = nextState.width;
       body.style.overscrollBehavior = nextState.overscrollBehavior;
+      documentElement.style.overflow = nextState.documentElementOverflow;
+      documentElement.style.overscrollBehavior = nextState.documentElementOverscrollBehavior;
+
+      if (!nextState.hadDocumentElementScrollLockClass) {
+        documentElement.classList.remove("dc-scroll-locked");
+      }
+      if (!nextState.hadBodyScrollLockClass) {
+        body.classList.remove("dc-scroll-locked");
+      }
 
       window.scrollTo(0, nextState.scrollY);
     };

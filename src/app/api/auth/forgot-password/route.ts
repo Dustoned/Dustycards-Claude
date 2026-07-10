@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateSessionToken, hashSessionToken, isValidEmail, normalizeEmail } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/mail";
+import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -10,17 +11,6 @@ const RESET_TOKEN_TTL_MS = 1000 * 60 * 30;
 const RESET_RATE_WINDOW_MS = 1000 * 60 * 15;
 const RESET_RATE_LIMIT_PER_IP = 5;
 const RESET_RATE_LIMIT_PER_EMAIL = 3;
-
-function getPublicOrigin(req: NextRequest): string {
-  const configuredUrl = process.env.APP_URL;
-  if (configuredUrl) return configuredUrl;
-
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 function sentResponse(req: NextRequest, isFormPost: boolean) {
   if (!isFormPost) {
@@ -72,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   const token = generateSessionToken();
-  const resetUrl = new URL("/reset-password", getPublicOrigin(req));
+  const resetUrl = new URL("/reset-password", getMailPublicOrigin());
   resetUrl.searchParams.set("token", token);
 
   await db.passwordResetToken.deleteMany({ where: { user_id: user.id } });

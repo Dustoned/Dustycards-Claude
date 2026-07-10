@@ -75,10 +75,12 @@ export default function BinderWatchSection({
   items,
   showGradedSlabPreview = false,
   sectionTrailing,
+  readOnlyCollectionItems = false,
 }: {
   items: CollectionCardViewItem[];
   showGradedSlabPreview?: boolean;
   sectionTrailing?: ReactNode;
+  readOnlyCollectionItems?: boolean;
 }) {
   const { settings } = useSettings();
   const threshold = settings.binderWatchMinPrice;
@@ -120,6 +122,7 @@ export default function BinderWatchSection({
         forcedSortDir="desc"
         showGradedSlabPreview={showGradedSlabPreview}
         splitByGrading={splitBinderWatchByGrading}
+        readOnlyCollectionItems={readOnlyCollectionItems}
       />
     </section>
   );

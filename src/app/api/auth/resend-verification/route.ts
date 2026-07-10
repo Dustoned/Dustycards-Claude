@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
+import { getMailPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -9,17 +10,6 @@ export const runtime = "nodejs";
 const RESEND_RATE_WINDOW_MS = 1000 * 60 * 15;
 const RESEND_RATE_LIMIT_PER_IP = 5;
 const RESEND_RATE_LIMIT_PER_EMAIL = 3;
-
-function getPublicOrigin(req: NextRequest): string {
-  const configuredUrl = process.env.APP_URL;
-  if (configuredUrl) return configuredUrl;
-
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { email?: unknown };
@@ -60,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendVerificationEmailForUser({
-      baseUrl: getPublicOrigin(req),
+      baseUrl: getMailPublicOrigin(),
       email: user.email,
       userId: user.id,
     });

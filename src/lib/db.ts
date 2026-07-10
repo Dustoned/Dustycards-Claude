@@ -45,6 +45,18 @@ type PrismaClientWithRuntimeModel = PrismaClient & {
 
 const REQUIRED_RUNTIME_FIELDS = {
   User: ["email", "password_hash", "role", "disabled", "settings_json", "email_verified_at"],
+  SocialConnection: [
+    "requester_id",
+    "addressee_id",
+    "user_a_id",
+    "user_b_id",
+    "status",
+    "accepted_at",
+    "full_access_status",
+    "full_access_requester_id",
+    "full_access_requested_at",
+    "full_access_accepted_at",
+  ],
   Session: ["user_id", "token_hash", "expires_at"],
   PasswordResetToken: ["user_id", "token_hash", "expires_at", "used_at"],
   EmailVerificationToken: ["user_id", "token_hash", "expires_at"],
@@ -80,7 +92,7 @@ const REQUIRED_RUNTIME_FIELDS = {
   SetPullRateProfile: ["set_code", "imported_at", "source_url", "booster_pack_ev_usd"],
   SetPullRateRarity: ["normalized_rarity", "specific_pull_denominator", "ev_per_pack_usd"],
   SealedPriceSnapshot: ["cm_avg_7d", "cm_avg_30d"],
-  Price: ["cm_en_avg_7d", "cm_en_avg_30d", "cm_jp_lowest_nm"],
+  Price: ["cm_en_avg_7d", "cm_en_avg_30d", "cm_jp_lowest_nm", "changed_at"],
   CardSubmission: [
     "normalized_key",
     "credits_used",

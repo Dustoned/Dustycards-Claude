@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authErrorResponse, requireUser } from "@/lib/auth";
+import {
+  authErrorResponse,
+  createUserSession,
+  requireUser,
+  setSessionCookie,
+} from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 
@@ -34,10 +39,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 });
     }
 
-    await db.user.update({
-      where: { id: user.id },
-      data: { password_hash: await hashPassword(newPassword) },
-    });
+    await db.$transaction([
+      db.user.update({
+        where: { id: user.id },
+        data: { password_hash: await hashPassword(newPassword) },
+      }),
+      db.session.deleteMany({ where: { user_id: user.id } }),
+    ]);
+
+    const session = await createUserSession(user.id);
+    await setSessionCookie(session.token, session.expiresAt);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -16,7 +16,6 @@ import {
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
-import { syncMissingBinderWantsForUser } from "@/lib/wantlist-planner";
 import WantsPageContent from "./WantsPageContent";
 
 const PriceHistoryPanel = nextDynamic(() => import("@/components/PriceHistoryPanel"), {
@@ -39,14 +38,6 @@ export default async function WantsPage({
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  try {
-    await syncMissingBinderWantsForUser(user.id, {
-      game: activeGame,
-      includeOnePiece: settings.onePieceLibraryEnabled,
-    });
-  } catch (error) {
-    console.error("Failed to prepare wantlist planner", error);
-  }
   const data = await getWantsPageData(user.id, activeGame);
 
   function buildGameHref(game: TradingCardGameFilter) {

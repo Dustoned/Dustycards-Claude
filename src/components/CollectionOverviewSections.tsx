@@ -62,6 +62,7 @@ interface Props {
   sealed: CollectionSealedViewItem[];
   binders: BinderOverviewItem[];
   initialSectionOrder?: OverviewSectionKey[] | null;
+  readOnly?: boolean;
 }
 
 interface OverviewSection {
@@ -208,6 +209,7 @@ export default function CollectionOverviewSections({
   sealed,
   binders,
   initialSectionOrder = null,
+  readOnly = false,
 }: Props) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -308,7 +310,7 @@ export default function CollectionOverviewSections({
         render: (sectionControls) => (
           <CollectionCardsView
             items={filteredGradedLooseSingles}
-            allowCollectionRemoval
+            allowCollectionRemoval={!readOnly}
             showGradedSlabPreview
             emptyTitle={hasSearch ? "No matching graded cards" : "No graded cards yet"}
             emptyText={
@@ -321,6 +323,7 @@ export default function CollectionOverviewSections({
             forcedSortBy="cm_en"
             forcedSortDir="desc"
             sectionTrailing={sectionControls}
+            readOnlyCollectionItems={readOnly}
           />
         ),
       },
@@ -331,7 +334,7 @@ export default function CollectionOverviewSections({
         render: (sectionControls) => (
           <CollectionCardsView
             items={filteredRawLooseSingles}
-            allowCollectionRemoval
+            allowCollectionRemoval={!readOnly}
             showGradedSlabPreview
             emptyTitle={hasSearch ? "No matching loose singles" : "No loose singles yet"}
             emptyText={
@@ -344,6 +347,7 @@ export default function CollectionOverviewSections({
             forcedSortBy="cm_en"
             forcedSortDir="desc"
             sectionTrailing={sectionControls}
+            readOnlyCollectionItems={readOnly}
           />
         ),
       },
@@ -356,6 +360,7 @@ export default function CollectionOverviewSections({
             items={filteredBinderCards}
             showGradedSlabPreview
             sectionTrailing={sectionControls}
+            readOnlyCollectionItems={readOnly}
           />
         ),
       },
@@ -375,6 +380,7 @@ export default function CollectionOverviewSections({
             sectionTitle="Sealed"
             sectionCount={filteredSealed.length}
             sectionTrailing={sectionControls}
+            readOnly={readOnly}
           />
         ),
       },
@@ -389,7 +395,7 @@ export default function CollectionOverviewSections({
               count={filteredBinders.length}
               trailing={
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <CreateBinderButton compact />
+                  {!readOnly ? <CreateBinderButton compact /> : null}
                   {sectionControls}
                 </div>
               }
@@ -407,7 +413,7 @@ export default function CollectionOverviewSections({
                 </p>
               </div>
             ) : (
-              <BinderOverviewGrid binders={filteredBinders} />
+              <BinderOverviewGrid binders={filteredBinders} readOnly={readOnly} />
             )}
           </section>
         ),
@@ -423,6 +429,7 @@ export default function CollectionOverviewSections({
     filteredRawLooseSingles,
     filteredSealed,
     hasSearch,
+    readOnly,
     showRawLooseSinglesSection,
   ]);
 

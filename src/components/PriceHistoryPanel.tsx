@@ -29,6 +29,7 @@ interface Props {
   currency: CurrencyCode;
   points: PriceHistoryValuePoint[];
   currentValue?: number | null;
+  deltaValue?: number | null;
   subtitle?: string;
   headerLeadingAccessory?: ReactNode;
   headerAccessory?: ReactNode;
@@ -450,6 +451,7 @@ export default function PriceHistoryPanel({
   currency,
   points,
   currentValue,
+  deltaValue,
   subtitle,
   headerLeadingAccessory,
   headerAccessory,
@@ -631,11 +633,12 @@ export default function PriceHistoryPanel({
   const activePoint =
     activeHover != null ? visibleCoordinates[activeHover.index] ?? null : null;
   const latestValue = currentValue ?? latestPoint?.value ?? null;
+  const deltaEndValue = deltaValue !== undefined ? deltaValue : latestValue;
   const firstValue = visibleCoordinates[0]?.value ?? null;
   const displayedValue = activePoint?.value ?? latestValue;
   const delta =
-    latestValue != null && firstValue != null && visibleCoordinates.length > 1
-      ? latestValue - firstValue
+    deltaEndValue != null && firstValue != null && visibleCoordinates.length > 1
+      ? deltaEndValue - firstValue
       : null;
   const selectedPreset =
     RANGE_PRESETS.find((range) => range.key === selectedRange) ?? RANGE_PRESETS[3];
@@ -811,10 +814,10 @@ export default function PriceHistoryPanel({
           }`}
         >
           {formatDelta(delta, currency)}
-          {delta != null && delta !== 0 && currentValue ? (
+          {delta != null && delta !== 0 && deltaEndValue != null ? (
             <span className={isMobileHeroLayout ? "block sm:ml-1.5 sm:inline" : "ml-1.5"}>
               ({delta >= 0 ? "+" : ""}
-              {((delta / Math.max(0.01, currentValue - delta)) * 100).toFixed(1)}%)
+              {((delta / Math.max(0.01, deltaEndValue - delta)) * 100).toFixed(1)}%)
             </span>
           ) : null}
         </p>

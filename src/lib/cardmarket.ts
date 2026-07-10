@@ -32,6 +32,60 @@ export function buildCardMarketProductUrl(
   );
 }
 
+export function getCardMarketUrlGame(url: string | null | undefined): TradingCardGame | null {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const start = /^[a-z]{2}$/i.test(segments[0] ?? "") ? 1 : 0;
+    const gameSegment = (segments[start] ?? "").toLowerCase();
+
+    if (gameSegment === "pokemon") return "pokemon";
+    if (gameSegment === "onepiece") return "one-piece";
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function isCardMarketProductIdUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const start = /^[a-z]{2}$/i.test(segments[0] ?? "") ? 1 : 0;
+    const productSegment = (segments[start + 1] ?? "").toLowerCase();
+
+    return (
+      parsed.hostname === "www.cardmarket.com" &&
+      productSegment === "products" &&
+      parsed.searchParams.has("idProduct")
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function getSafeDirectCardMarketCardUrl(
+  url: string | null | undefined,
+  game: TradingCardGame
+): string | null {
+  if (!isDirectCardMarketUrl(url)) return null;
+  if (getCardMarketUrlGame(url) !== game) return null;
+  if (isCardMarketProductIdUrl(url)) return null;
+  return withCardMarketFilters(url);
+}
+
+export function resolveCardMarketCardUrl(card: {
+  id: string;
+  game: TradingCardGame;
+  cardmarket_url?: string | null;
+}): string {
+  return getSafeDirectCardMarketCardUrl(card.cardmarket_url, card.game) ?? buildCardMarketProxyUrl(card.id);
+}
+
 function slugifyCardMarketProductName(name: string): string {
   return name
     .normalize("NFKD")
@@ -82,21 +136,6 @@ function getCardMarketSealedCategoryPath(name: string): string {
   if (normalized.includes(" deck ")) return "Theme-Decks";
 
   return "Box-Sets";
-}
-
-function isCardMarketProductIdUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const normalizedPath = parsed.pathname.replace(/^\/[a-z]{2}(?=\/Pokemon\/Products)/, "");
-
-    return (
-      parsed.hostname === "www.cardmarket.com" &&
-      normalizedPath === "/Pokemon/Products" &&
-      parsed.searchParams.has("idProduct")
-    );
-  } catch {
-    return false;
-  }
 }
 
 export function buildCardMarketSealedProductUrl(name: string): string | null {

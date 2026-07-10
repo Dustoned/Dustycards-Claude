@@ -5,10 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSettings } from "@/components/SettingsProvider";
 import {
-  buildCardMarketProductUrl,
   buildCardMarketProxyUrl,
+  getSafeDirectCardMarketCardUrl,
   isDirectCardMarketUrl,
-  withCardMarketFilters,
 } from "@/lib/cardmarket";
 import {
   GRADED_SLAB_ASPECT_CLASS,
@@ -337,7 +336,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   }
 
   async function removeCurrentCollectionItem() {
-    if (!collectionItem || removingCollectionItem) return;
+    if (!collectionItem || collectionItem.read_only || removingCollectionItem) return;
 
     const location = collectionItem.for_sale
       ? "For Sale"
@@ -368,15 +367,13 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     }
   }
 
-  function getCardMarketUrl(): string | null {
+  function getCardMarketUrl(): string {
     const stored = resolvedUrl ?? modalCard.cardmarket_url;
-    if (isDirectCardMarketUrl(stored)) return withCardMarketFilters(stored);
-    if (modalCard.cardmarket_id) return buildCardMarketProductUrl(modalCard.cardmarket_id);
-    return stored;
+    return getSafeDirectCardMarketCardUrl(stored, modalCard.game) ?? buildCardMarketProxyUrl(modalCard.id);
   }
 
   async function openCardMarket() {
-    let targetUrl = getCardMarketUrl() ?? buildCardMarketProxyUrl(modalCard.id);
+    let targetUrl = getCardMarketUrl();
     if (!isDirectCardMarketUrl(targetUrl)) {
       try {
         const res = await fetch(`/api/cm-url?card_id=${encodeURIComponent(modalCard.id)}`, {
@@ -385,8 +382,8 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
         if (res.ok) {
           const data = (await res.json()) as { url?: string };
           const direct =
-            typeof data.url === "string" && isDirectCardMarketUrl(data.url)
-              ? withCardMarketFilters(data.url)
+            typeof data.url === "string"
+              ? getSafeDirectCardMarketCardUrl(data.url, modalCard.game)
               : null;
           if (direct) {
             setResolvedUrl(direct);

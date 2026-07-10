@@ -2,23 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { hashPassword, isValidEmail, normalizeEmail } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
+import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const REGISTER_RATE_WINDOW_MS = 1000 * 60 * 60;
 const REGISTER_RATE_LIMIT_PER_IP = 10;
-
-function getPublicOrigin(req: NextRequest): string {
-  const configuredUrl = process.env.APP_URL;
-  if (configuredUrl) return configuredUrl;
-
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 function registerRedirect(req: NextRequest, error: string) {
   const redirectUrl = new URL("/register", getPublicOrigin(req));
@@ -97,7 +87,7 @@ export async function POST(req: NextRequest) {
   let verificationSent = true;
   try {
     await sendVerificationEmailForUser({
-      baseUrl: getPublicOrigin(req),
+      baseUrl: getMailPublicOrigin(),
       email: user.email,
       userId: user.id,
     });

@@ -66,14 +66,18 @@ function getOpeningItemKey(item: CollectionCardViewItem): string {
 
 function mergeCollectionItem(
   data: ModalCardData,
-  item: CollectionCardViewItem
+  item: CollectionCardViewItem,
+  readOnlyCollectionItems: boolean
 ): ModalCardData {
+  const shouldAttachCollectionItem =
+    item.owned && (Boolean(item.collection_item_id) || readOnlyCollectionItems);
+
   return {
     ...data,
     collection_item:
-      item.owned && item.collection_item_id
+      shouldAttachCollectionItem
         ? {
-            id: item.collection_item_id,
+            id: item.collection_item_id ?? `readonly-${item.card_id}`,
             binder_id: item.binder_id ?? null,
             binder_name: item.binder_name ?? null,
             binder_type: item.binder_type ?? null,
@@ -88,6 +92,7 @@ function mergeCollectionItem(
             grading_company: item.grading_company,
             grading_grade: item.grading_grade,
             grading_subgrades: item.grading_subgrades ?? null,
+            read_only: readOnlyCollectionItems,
           }
         : data.collection_item,
   };
@@ -227,9 +232,15 @@ function FeaturedCardTile({
 export default function HomeFeaturedCardsPanel({
   cards,
   viewAllHref,
+  desktopRows = 1,
+  mobileRows = MOBILE_FEATURED_ROWS,
+  readOnlyCollectionItems = false,
 }: {
   cards: CollectionCardViewItem[];
   viewAllHref: string;
+  desktopRows?: number;
+  mobileRows?: number;
+  readOnlyCollectionItems?: boolean;
 }) {
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
@@ -257,11 +268,11 @@ export default function HomeFeaturedCardsPanel({
     : "gap-2.5";
   const visibleCards = useMemo(() => {
     const visibleCount = isMobileViewport
-      ? getCardGridColumnCount(displaySettings.cardSize, true) * MOBILE_FEATURED_ROWS
-      : desktopColumnCount;
+      ? getCardGridColumnCount(displaySettings.cardSize, true) * Math.max(1, mobileRows)
+      : desktopColumnCount * Math.max(1, desktopRows);
 
     return cards.slice(0, Math.min(cards.length, visibleCount, MAX_FEATURED_CARDS));
-  }, [cards, desktopColumnCount, displaySettings.cardSize, isMobileViewport]);
+  }, [cards, desktopColumnCount, desktopRows, displaySettings.cardSize, isMobileViewport, mobileRows]);
 
   useEffect(() => {
     if (isMobileViewport) return;
@@ -302,7 +313,7 @@ export default function HomeFeaturedCardsPanel({
       });
       if (!response.ok) return;
       const data: ModalCardData = await response.json();
-      setSelectedCard(mergeCollectionItem(data, item));
+      setSelectedCard(mergeCollectionItem(data, item, readOnlyCollectionItems));
     } finally {
       setOpeningItemKey(null);
     }

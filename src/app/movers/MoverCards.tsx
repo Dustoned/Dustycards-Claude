@@ -160,6 +160,13 @@ interface MoverReason {
   tone: MoverReasonTone;
 }
 
+function getRecentDropAmount(item: CollectionMoverItem): number {
+  return Math.max(
+    item.change7d != null && item.change7d < 0 ? Math.abs(item.change7d) : 0,
+    item.change30d != null && item.change30d < 0 ? Math.abs(item.change30d) : 0
+  );
+}
+
 function reasonChipClass(tone: MoverReasonTone): string {
   switch (tone) {
     case "emerald":
@@ -269,7 +276,13 @@ export function getMoverReasons(
   }
 
   // raw or graded
-  if (item.change7dPct != null && item.change7dPct >= 15) {
+  const recentDropAmount = getRecentDropAmount(item);
+  if (recentDropAmount >= 50) {
+    reasons.push({
+      label: `-${formatCurrency(recentDropAmount, item.currency)} drop`,
+      tone: "rose",
+    });
+  } else if (item.change7dPct != null && item.change7dPct >= 15) {
     reasons.push({ label: `+${item.change7dPct.toFixed(0)}% 7d`, tone: "emerald" });
   } else if (item.change30dPct != null && item.change30dPct >= 30) {
     reasons.push({ label: `+${item.change30dPct.toFixed(0)}% 30d`, tone: "emerald" });
@@ -371,7 +384,8 @@ function CompactMetric({
 
 function buildCompactMetrics(
   item: CollectionMoverItem,
-  mode: MoverDisplayMode
+  mode: MoverDisplayMode,
+  metricWindowLabel = "7D"
 ): Array<{
   label: string;
   value: string;
@@ -410,7 +424,11 @@ function buildCompactMetrics(
         ? { label: "TCGGO", value: formatOptionalScore(item.tcggoScore.score) }
         : null,
       item.change7dPct != null
-        ? { label: "7D", value: formatPercent(item.change7dPct), toneValue: item.change7dPct }
+        ? {
+            label: metricWindowLabel,
+            value: formatPercent(item.change7dPct),
+            toneValue: item.change7dPct,
+          }
         : null,
       item.change30dPct != null
         ? { label: "30D", value: formatPercent(item.change30dPct), toneValue: item.change30dPct }
@@ -432,7 +450,11 @@ function buildCompactMetrics(
         ? { label: "TCGGO", value: formatOptionalScore(item.tcggoScore.score) }
         : null,
       item.change7dPct != null
-        ? { label: "7D", value: formatPercent(item.change7dPct), toneValue: item.change7dPct }
+        ? {
+            label: metricWindowLabel,
+            value: formatPercent(item.change7dPct),
+            toneValue: item.change7dPct,
+          }
         : null,
       item.change30dPct != null
         ? { label: "30D", value: formatPercent(item.change30dPct), toneValue: item.change30dPct }
@@ -457,17 +479,21 @@ const MoverTile = memo(function MoverTile({
   item,
   isLoading,
   displayMode,
+  isHighlighted,
+  metricWindowLabel,
   onOpen,
 }: {
   item: CollectionMoverItem;
   isLoading: boolean;
   displayMode: MoverDisplayMode;
+  isHighlighted: boolean;
+  metricWindowLabel?: string;
   onOpen: (cardId: string) => void;
 }) {
   const open = () => onOpen(item.cardId);
   const mode = displayMode;
   const isTarget = mode === "target";
-  const compactMetrics = buildCompactMetrics(item, mode);
+  const compactMetrics = buildCompactMetrics(item, mode, metricWindowLabel);
   const primaryLabel = isTarget ? "Grade score" : item.gradedLabel ?? "Current";
   const primaryValue = isTarget
     ? formatScoreValue(item.moverScore)
@@ -477,10 +503,15 @@ const MoverTile = memo(function MoverTile({
     <article
       role="button"
       tabIndex={0}
+      data-mover-card-id={item.cardId}
       onClick={open}
       onKeyDown={(event) => handleOpenKey(event, open)}
       aria-label={`Open details for ${item.name}`}
-      className="group relative flex h-full cursor-pointer flex-col rounded-2xl border border-white/8 bg-white/[0.035] p-2.5 outline-none transition-colors hover:border-white/14 hover:bg-white/[0.055] focus-visible:ring-2 focus-visible:ring-emerald-400/50 sm:p-3"
+      className={`group relative flex h-full scroll-mt-24 cursor-pointer flex-col rounded-2xl border p-2.5 outline-none transition-colors hover:border-white/14 hover:bg-white/[0.055] focus-visible:ring-2 focus-visible:ring-emerald-400/50 sm:p-3 ${
+        isHighlighted
+          ? "border-rose-300/65 bg-rose-400/[0.105] shadow-[0_0_0_1px_rgba(251,113,133,0.32),0_0_34px_rgba(244,63,94,0.26)]"
+          : "border-white/8 bg-white/[0.035]"
+      }`}
     >
       {isLoading ? (
         <div className="absolute right-2.5 top-2.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/80 text-white sm:h-7 sm:w-7">
@@ -877,12 +908,16 @@ export function MoverGrid({
   minTileWidth,
   loadingCardId,
   displayMode,
+  highlightedCardId,
+  metricWindowLabel,
   onOpenCard,
 }: {
   movers: readonly CollectionMoverItem[];
   minTileWidth: string;
   loadingCardId: string | null;
   displayMode: MoverDisplayMode;
+  highlightedCardId?: string | null;
+  metricWindowLabel?: string;
   onOpenCard: (cardId: string) => void;
 }) {
   return (
@@ -899,6 +934,8 @@ export function MoverGrid({
           item={item}
           isLoading={loadingCardId === item.cardId}
           displayMode={displayMode}
+          isHighlighted={item.cardId === highlightedCardId}
+          metricWindowLabel={metricWindowLabel}
           onOpen={onOpenCard}
         />
       ))}

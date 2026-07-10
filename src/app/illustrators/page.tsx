@@ -8,6 +8,7 @@ import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { db } from "@/lib/db";
 import { getFixedTrackGridTemplate, getIllustratorTileScale } from "@/lib/display-scale";
 import IllustratorSortToggle from "@/app/illustrators/IllustratorSortToggle";
+import { createSwrCache } from "@/lib/server-swr-cache";
 import {
   buildVisibleEpisodeWhereSql,
   ILLUSTRATOR_SORT_COOKIE_NAME,
@@ -58,6 +59,13 @@ export type IllustratorSummary = {
   topPrice: number | null;
 };
 
+const ILLUSTRATOR_CACHE_FRESH_MS = 5 * 60_000;
+const ILLUSTRATOR_CACHE_STALE_MS = 30 * 60_000;
+const illustratorSummariesCache = createSwrCache<IllustratorSummary[]>(
+  ILLUSTRATOR_CACHE_FRESH_MS,
+  ILLUSTRATOR_CACHE_STALE_MS
+);
+
 function formatCount(value: number): string {
   return value.toLocaleString("en-US");
 }
@@ -82,7 +90,9 @@ function compareByArtistValue(a: IllustratorSummary, b: IllustratorSummary): num
   return a.artist.localeCompare(b.artist, undefined, { sensitivity: "base" });
 }
 
-async function getIllustratorSummaries(game: TradingCardGameFilter): Promise<IllustratorSummary[]> {
+async function getIllustratorSummariesUncached(
+  game: TradingCardGameFilter
+): Promise<IllustratorSummary[]> {
   const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e", game);
   const rows = await db.$queryRawUnsafe<IllustratorSummaryRow[]>(`
     WITH visible_card_base AS (
@@ -186,6 +196,12 @@ ${visibleEpisodeWhereSql}
         : null,
     topPrice: row.top_price,
   }));
+}
+
+function getIllustratorSummaries(game: TradingCardGameFilter): Promise<IllustratorSummary[]> {
+  return illustratorSummariesCache.get(`summaries:${game}`, () =>
+    getIllustratorSummariesUncached(game)
+  );
 }
 
 export default async function IllustratorsPage({

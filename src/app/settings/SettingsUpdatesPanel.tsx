@@ -1,5 +1,12 @@
 import { appBuildLabel, appVersion, buildVersion } from "@/lib/app-version";
-import { patchNotes, roadmapItems, type PatchNoteTone } from "@/lib/patch-notes";
+import {
+  patchNotes,
+  roadmapItems,
+  type PatchNoteEntry,
+  type PatchNoteTone,
+} from "@/lib/patch-notes";
+
+const RECENT_PATCH_NOTE_COUNT = 8;
 
 function toneClasses(tone: PatchNoteTone): string {
   if (tone === "new") return "border-emerald-400/22 bg-emerald-400/[0.08] text-emerald-700 dark:text-emerald-200";
@@ -23,8 +30,68 @@ function formatToneLabel(tone: PatchNoteTone): string {
   return "Improved";
 }
 
+function PatchNoteCard({
+  note,
+  isLatest = false,
+  compact = false,
+}: {
+  note: PatchNoteEntry;
+  isLatest?: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <article
+      className={`min-w-0 rounded-xl border p-3 shadow-sm shadow-black/5 dark:shadow-none ${
+        isLatest
+          ? "border-emerald-400/20 bg-emerald-400/[0.055] dark:border-emerald-300/14 dark:bg-emerald-300/[0.045]"
+          : "border-black/6 bg-white/55 dark:border-white/8 dark:bg-white/[0.035]"
+      }`}
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="rounded-full border border-black/6 bg-black/[0.035] px-2 py-0.5 text-[11px] font-bold tabular-nums text-gray-900 dark:border-white/8 dark:bg-white/[0.055] dark:text-white">
+          {note.version}
+        </span>
+        <span
+          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${toneClasses(
+            note.tone
+          )}`}
+        >
+          {formatToneLabel(note.tone)}
+        </span>
+        <span className="text-[11px] font-medium text-gray-400">
+          {note.releasedAt}
+        </span>
+      </div>
+
+      <div className="mt-2 min-w-0">
+        <h3 className="text-sm font-semibold text-gray-950 dark:text-white">
+          {note.title}
+        </h3>
+        <p className="mt-0.5 text-sm leading-5 text-gray-500 dark:text-white/50">
+          {note.summary}
+        </p>
+      </div>
+
+      <ul
+        className={`mt-3 grid gap-1.5 text-[12px] leading-5 text-gray-500 dark:text-white/48 ${
+          isLatest ? "lg:grid-cols-2" : compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3"
+        }`}
+      >
+        {note.highlights.map((highlight) => (
+          <li key={highlight} className="flex min-w-0 gap-2">
+            <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-white/35" />
+            <span className="min-w-0">{highlight}</span>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
 export default function SettingsUpdatesPanel() {
   const latest = patchNotes[0] ?? null;
+  const recentPatchNotes = patchNotes.slice(1, RECENT_PATCH_NOTE_COUNT);
+  const olderPatchNotes = patchNotes.slice(RECENT_PATCH_NOTE_COUNT);
 
   return (
     <section className="settings-panel glass min-w-0 rounded-2xl p-5 shadow-md shadow-black/5 sm:p-6">
@@ -67,57 +134,36 @@ export default function SettingsUpdatesPanel() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
         <div className="min-w-0 rounded-2xl border border-black/6 bg-black/[0.018] p-3 dark:border-white/8 dark:bg-white/[0.025]">
           <div className="space-y-3">
-            {patchNotes.map((note, index) => {
-              const isLatest = index === 0;
-              return (
-              <article
-                key={note.version}
-                className={`min-w-0 rounded-xl border p-3 shadow-sm shadow-black/5 dark:shadow-none ${
-                  isLatest
-                    ? "border-emerald-400/20 bg-emerald-400/[0.055] dark:border-emerald-300/14 dark:bg-emerald-300/[0.045]"
-                    : "border-black/6 bg-white/55 dark:border-white/8 dark:bg-white/[0.035]"
-                }`}
-              >
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-black/6 bg-black/[0.035] px-2 py-0.5 text-[11px] font-bold tabular-nums text-gray-900 dark:border-white/8 dark:bg-white/[0.055] dark:text-white">
-                    {note.version}
-                  </span>
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] ${toneClasses(
-                      note.tone
-                    )}`}
-                  >
-                    {formatToneLabel(note.tone)}
-                  </span>
-                  <span className="text-[11px] font-medium text-gray-400">
-                    {note.releasedAt}
-                  </span>
-                </div>
+            {latest ? <PatchNoteCard note={latest} isLatest /> : null}
 
-                <div className="mt-2 min-w-0">
+            {recentPatchNotes.length > 0 ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3 px-1 pt-1">
                   <h3 className="text-sm font-semibold text-gray-950 dark:text-white">
-                    {note.title}
+                    Recent releases
                   </h3>
-                  <p className="mt-0.5 text-sm leading-5 text-gray-500 dark:text-white/50">
-                    {note.summary}
-                  </p>
+                  <span className="text-[11px] font-semibold text-gray-400">
+                    {recentPatchNotes.length} shown
+                  </span>
                 </div>
+                {recentPatchNotes.map((note) => (
+                  <PatchNoteCard key={note.version} note={note} compact />
+                ))}
+              </div>
+            ) : null}
 
-                <ul
-                  className={`mt-3 grid gap-1.5 text-[12px] leading-5 text-gray-500 dark:text-white/48 ${
-                    isLatest ? "lg:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3"
-                  }`}
-                >
-                  {note.highlights.map((highlight) => (
-                    <li key={highlight} className="flex min-w-0 gap-2">
-                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gray-400 dark:bg-white/35" />
-                      <span className="min-w-0">{highlight}</span>
-                    </li>
+            {olderPatchNotes.length > 0 ? (
+              <details className="rounded-xl border border-black/6 bg-white/40 p-3 dark:border-white/8 dark:bg-white/[0.03]">
+                <summary className="cursor-pointer select-none text-sm font-semibold text-gray-900 dark:text-white">
+                  Older releases ({olderPatchNotes.length})
+                </summary>
+                <div className="mt-3 space-y-3">
+                  {olderPatchNotes.map((note) => (
+                    <PatchNoteCard key={note.version} note={note} compact />
                   ))}
-                </ul>
-              </article>
-              );
-            })}
+                </div>
+              </details>
+            ) : null}
           </div>
         </div>
 

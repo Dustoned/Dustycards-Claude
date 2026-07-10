@@ -7,9 +7,11 @@ import type {
   CardPriceHistoryPoint,
 } from "@/lib/price-history";
 import type { BuySignalResult } from "@/lib/buy-signal";
+import type { TradingCardGame } from "@/lib/games";
 
 export interface ModalCardData {
   id: string;
+  game: TradingCardGame;
   name: string;
   card_number: string | null;
   rarity: string | null;
@@ -91,6 +93,7 @@ export interface ModalCardData {
     grading_company: string | null;
     grading_grade: string | null;
     grading_subgrades?: BgsSubgrades | null;
+    read_only?: boolean;
   } | null;
   want_item?: {
     id: string;

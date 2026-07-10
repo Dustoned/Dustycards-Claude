@@ -108,6 +108,7 @@ function buildModalCardData(
 
   return {
     id: card.id,
+    game: card.game,
     name: card.name,
     card_number: card.card_number,
     rarity: card.rarity,

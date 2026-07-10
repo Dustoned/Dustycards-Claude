@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import { importPullRateData } from "@/lib/pull-rates";
 
@@ -10,10 +11,10 @@ export async function POST(req: NextRequest) {
     let source: string | null = null;
 
     if (contentType.includes("application/json")) {
-      const body = (await req.json()) as {
+      const body = await readJsonBody<{
         content?: unknown;
         source?: unknown;
-      };
+      }>(req);
       content = typeof body.content === "string" ? body.content : "";
       source = typeof body.source === "string" ? body.source : null;
     } else {
@@ -29,6 +30,8 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
+    const malformedResponse = malformedJsonBodyResponse(error);
+    if (malformedResponse) return malformedResponse;
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }

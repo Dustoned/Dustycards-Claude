@@ -379,6 +379,7 @@ async function getCardDetailPayload(id: string, userId: string) {
 
   return {
     id: card.id,
+    game: card.game,
     name: card.name,
     card_number: getDisplayCardNumber(card),
     rarity: card.rarity,

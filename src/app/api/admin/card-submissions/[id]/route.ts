@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import {
   CardSubmissionError,
@@ -15,12 +16,14 @@ export async function PATCH(req: Request, context: RouteContext) {
   try {
     await requireAdmin();
     const { id } = await context.params;
-    const body = (await req.json()) as Record<string, unknown>;
+    const body = await readJsonBody<Record<string, unknown>>(req);
     const result = await updateAdminCardSubmission(id, body);
     return NextResponse.json({ ok: true, result });
   } catch (error) {
     const authResponse = authErrorResponse(error);
     if (authResponse) return authResponse;
+    const malformedResponse = malformedJsonBodyResponse(error);
+    if (malformedResponse) return malformedResponse;
     if (error instanceof CardSubmissionError) {
       return NextResponse.json({ ok: false, error: error.message }, { status: error.status });
     }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ONE_PIECE_GAME } from "@/lib/games";
@@ -32,7 +33,7 @@ function toStringArray(value: unknown): string[] {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as { cardId?: unknown };
+    const body = await readJsonBody<{ cardId?: unknown }>(req);
     const cardId = toNullableString(body.cardId);
 
     if (!cardId) {
@@ -98,14 +99,23 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to add want" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to add want" }, { status: 500 })
+    );
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as { itemId?: unknown; itemIds?: unknown; cardId?: unknown; cardIds?: unknown };
+    const body = await readJsonBody<{
+      itemId?: unknown;
+      itemIds?: unknown;
+      cardId?: unknown;
+      cardIds?: unknown;
+    }>(req);
     const itemIds = (() => {
       const multiple = toStringArray(body.itemIds);
       if (multiple.length > 0) return multiple;
@@ -218,6 +228,10 @@ export async function DELETE(req: NextRequest) {
       deleted: result.deleted,
     });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to remove wants" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to remove wants" }, { status: 500 })
+    );
   }
 }

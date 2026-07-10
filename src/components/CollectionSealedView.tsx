@@ -40,6 +40,7 @@ export default function CollectionSealedView({
   sectionTitle,
   sectionCount,
   sectionTrailing,
+  readOnly = false,
 }: CollectionSealedViewProps) {
   const router = useRouter();
   const { displaySettings, isMobileViewport } = useSettings();
@@ -60,7 +61,7 @@ export default function CollectionSealedView({
   const allSelectableSelected =
     selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id));
   const showInlineSelectionButton =
-    Boolean(sectionTitle) && !selectionMode && sortedItems.length > 0;
+    !readOnly && Boolean(sectionTitle) && !selectionMode && sortedItems.length > 0;
   const tileImageSizes = getSealedProductImageSizes(
     displaySettings.cardSize,
     displaySettings.widescreen,
@@ -191,7 +192,7 @@ export default function CollectionSealedView({
       />
 
       <CollectionSealedSelectionToolbar
-        visible={selectionMode || !sectionTitle}
+        visible={!readOnly && (selectionMode || !sectionTitle)}
         selectionMode={selectionMode}
         activeSelectedCount={activeSelectedIds.length}
         selectableCount={selectableIds.length}
@@ -211,6 +212,7 @@ export default function CollectionSealedView({
         selectionMode={selectionMode}
         selectedIdSet={selectedIdSet}
         removingItems={removingItems}
+        readOnly={readOnly}
         onActivate={handleTileActivate}
         onRemove={handleSingleRemove}
       />

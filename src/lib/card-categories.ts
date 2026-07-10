@@ -5,6 +5,7 @@ import {
   getCollectionCardValueInfo,
 } from "@/lib/collection";
 import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
+import { createSwrCache } from "@/lib/server-swr-cache";
 import {
   HIDDEN_EXPANSION_CODES,
   HIDDEN_EXPANSION_IDS,
@@ -69,6 +70,23 @@ const CATEGORY_GROUP_ORDER: CardCategoryGroup[] = [
 
 const CATEGORY_GROUP_RANK = new Map(
   CATEGORY_GROUP_ORDER.map((group, index) => [group, index])
+);
+const DAY_MS = 24 * 60 * 60 * 1000;
+const HISTORY_CUTOFF_DAYS = 120;
+const CATEGORY_CACHE_FRESH_MS = 5 * 60_000;
+const CATEGORY_CACHE_STALE_MS = 30 * 60_000;
+
+const categorySummariesCache = createSwrCache<CardCategorySummary[]>(
+  CATEGORY_CACHE_FRESH_MS,
+  CATEGORY_CACHE_STALE_MS
+);
+const categoryCardsCache = createSwrCache<CategoryCardRecord[]>(
+  CATEGORY_CACHE_FRESH_MS,
+  CATEGORY_CACHE_STALE_MS
+);
+const categoryPriceSnapshotsCache = createSwrCache<EpisodePriceHistorySnapshot[]>(
+  CATEGORY_CACHE_FRESH_MS,
+  CATEGORY_CACHE_STALE_MS
 );
 
 const PRICE_SELECT = {
@@ -860,7 +878,7 @@ export function sortCategorySummaries<T extends { group: CardCategoryGroup; titl
   });
 }
 
-export async function getCardCategorySummaries(
+async function getCardCategorySummariesUncached(
   game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<CardCategorySummary[]> {
   const entries = getCardCategoryEntriesForGame(game);
@@ -878,6 +896,14 @@ export async function getCardCategorySummaries(
       game: entry.game,
       count: counts[index] ?? 0,
     })).filter((category) => category.count > 0)
+  );
+}
+
+export async function getCardCategorySummaries(
+  game: TradingCardGameFilter = POKEMON_GAME
+): Promise<CardCategorySummary[]> {
+  return categorySummariesCache.get(`summaries:${game}`, () =>
+    getCardCategorySummariesUncached(game)
   );
 }
 
@@ -1101,8 +1127,30 @@ async function getCategoryCards(where: Prisma.CardWhereInput): Promise<CategoryC
   return cards;
 }
 
+function getHistoryCutoffIso(days = HISTORY_CUTOFF_DAYS): string {
+  return new Date(Date.now() - days * DAY_MS).toISOString();
+}
+
+function getCategoryCatalogCacheKey(input: {
+  slug: string;
+  game: TradingCardGame;
+}): string {
+  return `${input.game}:${input.slug}`;
+}
+
+function getCachedCategoryCards(input: {
+  slug: string;
+  game: TradingCardGame;
+  where: Prisma.CardWhereInput;
+}): Promise<CategoryCardRecord[]> {
+  return categoryCardsCache.get(`cards:${getCategoryCatalogCacheKey(input)}`, () =>
+    getCategoryCards(input.where)
+  );
+}
+
 async function getCategoryPriceSnapshots(
-  cardIds: string[]
+  cardIds: string[],
+  since: string
 ): Promise<EpisodePriceHistorySnapshot[]> {
   if (cardIds.length === 0) return [];
 
@@ -1132,10 +1180,12 @@ async function getCategoryPriceSnapshots(
             ) AS row_num
           FROM "Price" p
           WHERE p.card_id IN (${placeholdersFor(chunk)})
+            AND p.fetched_at >= ?
         )
         WHERE row_num = 1
         ORDER BY fetched_at ASC, card_id ASC`,
-        ...chunk
+        ...chunk,
+        since
       )
     )
   );
@@ -1154,6 +1204,17 @@ async function getCategoryPriceSnapshots(
     });
 }
 
+function getCachedCategoryPriceSnapshots(input: {
+  slug: string;
+  game: TradingCardGame;
+  cardIds: string[];
+}): Promise<EpisodePriceHistorySnapshot[]> {
+  return categoryPriceSnapshotsCache.get(
+    `history:${getCategoryCatalogCacheKey(input)}`,
+    () => getCategoryPriceSnapshots(input.cardIds, getHistoryCutoffIso())
+  );
+}
+
 export async function getCardCategoryPageData(
   slug: string,
   userId: string,
@@ -1163,7 +1224,11 @@ export async function getCardCategoryPageData(
   if (!entry) return null;
 
   const { category } = entry;
-  const cards = await getCategoryCards(withVisibleCards(category.where, entry.game));
+  const categoryCacheKey = { slug: category.slug, game: entry.game };
+  const cards = await getCachedCategoryCards({
+    ...categoryCacheKey,
+    where: withVisibleCards(category.where, entry.game),
+  });
 
   const cardIds = cards.map((card) => card.id);
   const [ownedRecords, wantRecords, priceSnapshots] =
@@ -1171,7 +1236,7 @@ export async function getCardCategoryPageData(
       ? await Promise.all([
           getOwnedCategoryRecords(cardIds, userId),
           getWantCategoryRecords(cardIds, userId),
-          getCategoryPriceSnapshots(cardIds),
+          getCachedCategoryPriceSnapshots({ ...categoryCacheKey, cardIds }),
         ])
       : [[], [], []];
 

@@ -58,6 +58,7 @@ interface Props {
   movers: CollectionMoverItem[];
   activeScope: MoversScope;
   activeItemScope: MoversItemScope;
+  marketMode?: "standard" | "sudden_drops";
   eyebrow?: string;
   title?: string;
   description?: string;
@@ -66,12 +67,25 @@ interface Props {
   previewCards?: PreviewCardConfig[];
   spotlights?: SpotlightConfig[];
   initialDirection?: DirectionFilter;
+  highlightedCardId?: string | null;
+  metricWindowLabel?: string;
 }
 
-type FocusFilter = "all" | "cheap" | "older_value" | "high_rarity" | "owned" | "grading_upside";
+type FocusFilter =
+  | "all"
+  | "cheap"
+  | "older_value"
+  | "high_rarity"
+  | "owned"
+  | "grading_upside"
+  | "strong_drop"
+  | "weighted_pick";
 type BuySignalFilter = "all" | BuySignalLabel;
+type FocusFilterOption = { value: FocusFilter; label: string };
 
 const SELECT_OPTION_CLASS = "bg-gray-950 text-white";
+const SUDDEN_DROP_STRONG_AMOUNT = 100;
+const SUDDEN_DROP_CHEAP_PRICE = 120;
 const BUY_SIGNAL_FILTER_OPTIONS: Array<{ value: BuySignalFilter; label: string }> = [
   { value: "all", label: "Every Buy Signal" },
   { value: "strong_buy", label: "STRONG BUY" },
@@ -86,6 +100,101 @@ function isGradeTenLabel(label: string | null | undefined): boolean {
 
   const normalized = label.toUpperCase().replace(/[^A-Z0-9.]+/g, " ");
   return /\b(?:PSA|BGS|CGC|SGC)?\s*10\b/.test(normalized) || normalized.includes("GEM MINT");
+}
+
+function getRecentDropAmount(item: Pick<CollectionMoverItem, "change7d" | "change30d">): number {
+  return Math.max(
+    item.change7d != null && item.change7d < 0 ? Math.abs(item.change7d) : 0,
+    item.change30d != null && item.change30d < 0 ? Math.abs(item.change30d) : 0
+  );
+}
+
+function matchesFocusFilter(
+  item: CollectionMoverItem,
+  focusFilter: FocusFilter,
+  options: { isGradingScope: boolean; isSuddenDropMode: boolean }
+): boolean {
+  if (focusFilter === "all") return true;
+
+  if (focusFilter === "strong_drop") {
+    return getRecentDropAmount(item) >= SUDDEN_DROP_STRONG_AMOUNT;
+  }
+
+  if (focusFilter === "weighted_pick") {
+    return item.rankingScore >= 8 || item.opportunityScore >= 8;
+  }
+
+  if (focusFilter === "cheap") {
+    const cheapReferencePrice = options.isGradingScope ? item.grading?.rawPrice : item.currentPrice;
+    const maxPrice = options.isSuddenDropMode ? SUDDEN_DROP_CHEAP_PRICE : 15;
+    return cheapReferencePrice != null && cheapReferencePrice <= maxPrice;
+  }
+
+  if (focusFilter === "older_value") {
+    const valueReferencePrice = options.isGradingScope ? item.grading?.rawPrice : item.currentPrice;
+    return (
+      item.olderValueScore >= 4 &&
+      valueReferencePrice != null &&
+      (!options.isGradingScope || isGradeTenLabel(item.gradedLabel))
+    );
+  }
+
+  if (focusFilter === "high_rarity") {
+    return item.rarityWeight >= 1.15;
+  }
+
+  if (focusFilter === "grading_upside") {
+    return (
+      options.isGradingScope &&
+      (item.grading?.valueMultiplier ?? 0) >= 3 &&
+      (item.grading?.valueGap ?? 0) >= 20
+    );
+  }
+
+  if (focusFilter === "owned") {
+    return item.ownedCount >= 2;
+  }
+
+  return true;
+}
+
+function buildFocusOptions({
+  isGradingScope,
+  isSuddenDropMode,
+  movers,
+}: {
+  isGradingScope: boolean;
+  isSuddenDropMode: boolean;
+  movers: CollectionMoverItem[];
+}): FocusFilterOption[] {
+  const options: FocusFilterOption[] = isSuddenDropMode
+    ? [
+        { value: "all", label: "Everything" },
+        { value: "strong_drop", label: "100+ drops" },
+        { value: "weighted_pick", label: "Weighted picks" },
+        { value: "cheap", label: "After fall <= 120" },
+        { value: "high_rarity", label: "High rarity" },
+      ]
+    : [
+        { value: "all", label: "Everything" },
+        { value: "cheap", label: isGradingScope ? "Raw <= 15" : "Cheap <= 15" },
+        {
+          value: "older_value",
+          label: isGradingScope ? "Older cheap 10s" : "Older value",
+        },
+        ...(isGradingScope
+          ? [{ value: "grading_upside" as const, label: "3x+ upside" }]
+          : [{ value: "high_rarity" as const, label: "High rarity" }]),
+        { value: "owned", label: "Owned x2+" },
+      ];
+
+  return options.filter(
+    (option) =>
+      option.value === "all" ||
+      movers.some((item) =>
+        matchesFocusFilter(item, option.value, { isGradingScope, isSuddenDropMode })
+      )
+  );
 }
 
 function MoverGridFallback() {
@@ -105,6 +214,7 @@ export default function MoversBrowser({
   movers,
   activeScope,
   activeItemScope,
+  marketMode = "standard",
   eyebrow = "Market",
   title = "Recent market cards",
   description,
@@ -113,15 +223,22 @@ export default function MoversBrowser({
   previewCards = [],
   spotlights = [],
   initialDirection = "all",
+  highlightedCardId = null,
+  metricWindowLabel,
 }: Props) {
   const { displaySettings } = useSettings();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const isGradingScope = activeScope === "grading";
+  const isGradedScope = activeScope === "graded";
+  const isRawScope = !isGradedScope && !isGradingScope;
+  const isSuddenDropMode = marketMode === "sudden_drops";
+  const defaultDirection: DirectionFilter = isSuddenDropMode ? "fallers" : initialDirection;
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>(
     activeScope === "grading" ? "grade_score" : "move"
   );
-  const [direction, setDirection] = useState<DirectionFilter>(initialDirection);
+  const [direction, setDirection] = useState<DirectionFilter>(defaultDirection);
   const [focusFilter, setFocusFilter] = useState<FocusFilter>("all");
   const [buySignalFilter, setBuySignalFilter] = useState<BuySignalFilter>("all");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
@@ -131,9 +248,8 @@ export default function MoversBrowser({
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
-  const isGradingScope = activeScope === "grading";
-  const isGradedScope = activeScope === "graded";
-  const isRawScope = !isGradedScope && !isGradingScope;
+  const showBuySignalFilter = !isSuddenDropMode;
+  const showTrendFilter = !isGradingScope && !isSuddenDropMode;
   const moverTileMinWidth = getMoverTileMinWidth(
     displaySettings.cardSize,
     displaySettings.widescreen
@@ -189,6 +305,15 @@ export default function MoversBrowser({
   }, [isGradingScope, isRawScope, pathname, searchParams]);
 
   const sortOptions = useMemo(() => {
+    if (isSuddenDropMode) {
+      return [
+        { key: "move" as const, label: "Fresh biggest drop" },
+        { key: "7d" as const, label: "Fresh drop %" },
+        { key: "price_low" as const, label: "Price low" },
+        { key: "name" as const, label: "Name" },
+      ];
+    }
+
     if (activeScope === "grading") {
       return [
         { key: "grade_score" as const, label: "Best targets" },
@@ -208,7 +333,15 @@ export default function MoversBrowser({
       { key: "price_low" as const, label: "Price low" },
       { key: "name" as const, label: "Name" },
     ];
-  }, [activeScope]);
+  }, [activeScope, isSuddenDropMode]);
+
+  const focusOptions = useMemo(
+    () => buildFocusOptions({ isGradingScope, isSuddenDropMode, movers }),
+    [isGradingScope, isSuddenDropMode, movers]
+  );
+  const activeFocusFilter = focusOptions.some((option) => option.value === focusFilter)
+    ? focusFilter
+    : "all";
 
   const visibleMovers = useMemo(() => {
     const filtered = movers.filter((item) => {
@@ -220,37 +353,7 @@ export default function MoversBrowser({
         return false;
       }
 
-      if (focusFilter === "cheap") {
-        const cheapReferencePrice = isGradingScope ? item.grading?.rawPrice : item.currentPrice;
-        if (cheapReferencePrice == null || cheapReferencePrice > 15) {
-          return false;
-        }
-      }
-
-      if (focusFilter === "older_value") {
-        const valueReferencePrice = isGradingScope ? item.grading?.rawPrice : item.currentPrice;
-        if (
-          item.olderValueScore < 4 ||
-          valueReferencePrice == null ||
-          (isGradingScope && !isGradeTenLabel(item.gradedLabel))
-        ) {
-          return false;
-        }
-      }
-
-      if (focusFilter === "high_rarity" && item.rarityWeight < 1.15) {
-        return false;
-      }
-
-      if (
-        isGradingScope &&
-        focusFilter === "grading_upside" &&
-        ((item.grading?.valueMultiplier ?? 0) < 3 || (item.grading?.valueGap ?? 0) < 20)
-      ) {
-        return false;
-      }
-
-      if (focusFilter === "owned" && item.ownedCount < 2) {
+      if (!matchesFocusFilter(item, activeFocusFilter, { isGradingScope, isSuddenDropMode })) {
         return false;
       }
 
@@ -273,24 +376,39 @@ export default function MoversBrowser({
     return [...filtered].sort((a, b) => compareMoverItems(a, b, sortKey, direction));
   }, [
     movers,
+    activeFocusFilter,
     buySignalFilter,
     direction,
-    focusFilter,
     isGradingScope,
+    isSuddenDropMode,
     normalizedSearch,
     sortKey,
   ]);
+  const highlightedVisibleIndex = useMemo(
+    () =>
+      highlightedCardId
+        ? visibleMovers.findIndex((item) => item.cardId === highlightedCardId)
+        : -1,
+    [highlightedCardId, visibleMovers]
+  );
   const [renderState, setRenderState] = useState({ key: "", limit: INITIAL_MOVER_RENDER_COUNT });
   const renderKey = `${visibleMovers.length}:${visibleMovers[0]?.cardId ?? ""}:${
     visibleMovers[visibleMovers.length - 1]?.cardId ?? ""
-  }:${sortKey}:${direction}:${focusFilter}:${buySignalFilter}:${normalizedSearch}`;
-  const renderLimit = renderState.key === renderKey ? renderState.limit : INITIAL_MOVER_RENDER_COUNT;
+  }:${sortKey}:${direction}:${activeFocusFilter}:${buySignalFilter}:${normalizedSearch}`;
+  const minimumRenderLimit =
+    highlightedVisibleIndex >= 0
+      ? Math.max(INITIAL_MOVER_RENDER_COUNT, highlightedVisibleIndex + 1)
+      : INITIAL_MOVER_RENDER_COUNT;
+  const renderLimit =
+    renderState.key === renderKey
+      ? Math.max(renderState.limit, minimumRenderLimit)
+      : minimumRenderLimit;
   const renderedMovers = useMemo(
     () => visibleMovers.slice(0, renderLimit),
     [renderLimit, visibleMovers]
   );
   const hasMoreMovers = renderLimit < visibleMovers.length;
-  const hasDirectionFilter = !isGradingScope && direction !== "all";
+  const hasDirectionFilter = showTrendFilter && direction !== defaultDirection;
 
   useEffect(() => {
     if (!hasMoreMovers) {
@@ -336,15 +454,36 @@ export default function MoversBrowser({
     };
   }, [hasMoreMovers, renderKey, renderLimit, visibleMovers.length]);
 
+  useEffect(() => {
+    if (!highlightedCardId || highlightedVisibleIndex < 0) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const target = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-mover-card-id]")
+      ).find((element) => element.dataset.moverCardId === highlightedCardId);
+
+      if (!target) {
+        return;
+      }
+
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+    }, 220);
+
+    return () => window.clearTimeout(timeout);
+  }, [highlightedCardId, highlightedVisibleIndex, renderKey]);
+
   const hasActiveControls =
     search.trim().length > 0 ||
     hasDirectionFilter ||
-    focusFilter !== "all" ||
+    activeFocusFilter !== "all" ||
     buySignalFilter !== "all" ||
     sortKey !== (isGradingScope ? "grade_score" : "move");
 
   function clearAllFilters() {
-    setDirection("all");
+    setDirection(defaultDirection);
     setFocusFilter("all");
     setBuySignalFilter("all");
     setSortKey(isGradingScope ? "grade_score" : "move");
@@ -423,7 +562,13 @@ export default function MoversBrowser({
         ) : null}
 
         <div className="binder-panel mb-4 rounded-2xl px-3 py-3 sm:px-4 sm:py-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(4,minmax(9rem,12rem))_auto] lg:items-end">
+          <div
+            className={`grid gap-3 lg:items-end ${
+              isSuddenDropMode
+                ? "lg:grid-cols-[minmax(16rem,1fr)_repeat(2,minmax(9rem,12rem))_auto]"
+                : "lg:grid-cols-[minmax(16rem,1fr)_repeat(4,minmax(9rem,12rem))_auto]"
+            }`}
+          >
             <label className="block">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
                 Search
@@ -450,24 +595,26 @@ export default function MoversBrowser({
               </span>
             </label>
 
-            <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
-                Buy Signal
-              </span>
-              <select
-                value={buySignalFilter}
-                onChange={(event) => setBuySignalFilter(event.target.value as BuySignalFilter)}
-                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
-              >
-                {BUY_SIGNAL_FILTER_OPTIONS.map((option) => (
-                  <option className={SELECT_OPTION_CLASS} key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {showBuySignalFilter ? (
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+                  Buy Signal
+                </span>
+                <select
+                  value={buySignalFilter}
+                  onChange={(event) => setBuySignalFilter(event.target.value as BuySignalFilter)}
+                  className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
+                >
+                  {BUY_SIGNAL_FILTER_OPTIONS.map((option) => (
+                    <option className={SELECT_OPTION_CLASS} key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
 
-            {!isGradingScope ? (
+            {showTrendFilter ? (
               <label className="block">
                 <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
                   Trend
@@ -482,9 +629,7 @@ export default function MoversBrowser({
                   <option className={SELECT_OPTION_CLASS} value="fallers">Fallers</option>
                 </select>
               </label>
-            ) : (
-              <div className="hidden lg:block" />
-            )}
+            ) : null}
 
             <label className="block">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
@@ -508,24 +653,15 @@ export default function MoversBrowser({
                 Focus
               </span>
               <select
-                value={focusFilter}
+                value={activeFocusFilter}
                 onChange={(event) => setFocusFilter(event.target.value as FocusFilter)}
                 className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
               >
-                <option className={SELECT_OPTION_CLASS} value="all">Everything</option>
-                <option className={SELECT_OPTION_CLASS} value="cheap">
-                  {isGradingScope ? "Raw <= 15" : "Cheap <= 15"}
-                </option>
-                <option className={SELECT_OPTION_CLASS} value="older_value">
-                  {isGradingScope ? "Older cheap 10s" : "Older value"}
-                </option>
-                {!isGradingScope ? (
-                  <option className={SELECT_OPTION_CLASS} value="high_rarity">High rarity</option>
-                ) : null}
-                {isGradingScope ? (
-                  <option className={SELECT_OPTION_CLASS} value="grading_upside">3x+ upside</option>
-                ) : null}
-                <option className={SELECT_OPTION_CLASS} value="owned">Owned x2+</option>
+                {focusOptions.map((option) => (
+                  <option className={SELECT_OPTION_CLASS} key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -566,6 +702,8 @@ export default function MoversBrowser({
               minTileWidth={moverTileMinWidth}
               loadingCardId={loadingCardId}
               displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
+              highlightedCardId={highlightedCardId}
+              metricWindowLabel={metricWindowLabel}
               onOpenCard={handleOpenMoverCard}
             />
             {hasMoreMovers ? (

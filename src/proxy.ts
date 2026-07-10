@@ -4,6 +4,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth-constants";
 const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
 const PUBLIC_API_PREFIXES = [
   "/api/app-version",
+  "/api/health",
   "/api/auth",
   "/api/internal/sync-scheduler",
   "/api/internal/sync-pricedex-pull-rates",

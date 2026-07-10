@@ -128,6 +128,7 @@ interface Props {
   collectionRemovalLabel?: string;
   collectionRemovalWarning?: string;
   allowSoldMarking?: boolean;
+  readOnlyCollectionItems?: boolean;
 }
 
 interface RemoveDialogState {
@@ -200,6 +201,7 @@ export default function CollectionCardsView({
   collectionRemovalLabel = "My Collection",
   collectionRemovalWarning = "This removes the saved collection entry entirely. It will not be moved to loose singles.",
   allowSoldMarking = false,
+  readOnlyCollectionItems = false,
 }: Props) {
   const router = useRouter();
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
@@ -623,12 +625,14 @@ export default function CollectionCardsView({
         return;
       }
       const data: ModalCardData = await response.json();
+      const shouldAttachCollectionItem =
+        item.owned && (Boolean(item.collection_item_id) || readOnlyCollectionItems);
       setSelectedCard({
         ...data,
         collection_item:
-          item.owned && item.collection_item_id
+          shouldAttachCollectionItem
             ? {
-                id: item.collection_item_id,
+                id: item.collection_item_id ?? `readonly-${item.card_id}`,
                 binder_id: item.binder_id ?? null,
                 for_sale: item.for_sale ?? false,
                 binder_name: item.binder_name ?? null,
@@ -644,6 +648,7 @@ export default function CollectionCardsView({
                 grading_company: item.grading_company,
                 grading_grade: item.grading_grade,
                 grading_subgrades: item.grading_subgrades ?? null,
+                read_only: readOnlyCollectionItems,
               }
             : null,
       });

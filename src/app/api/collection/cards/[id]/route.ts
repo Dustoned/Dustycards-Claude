@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
@@ -37,7 +38,7 @@ export async function PATCH(
   try {
     const user = await requireUser();
     const { id } = await params;
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
     binderId?: unknown;
     forSale?: unknown;
     purchasePrice?: unknown;
@@ -48,7 +49,7 @@ export async function PATCH(
     gradingCompany?: unknown;
     gradingGrade?: unknown;
     gradingSubgrades?: unknown;
-    };
+    }>(req);
 
   const purchasePrice = toNullableNumber(body.purchasePrice);
   if (purchasePrice != null && purchasePrice < 0) {
@@ -160,6 +161,10 @@ export async function PATCH(
 
   return NextResponse.json({ success: true });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to update collection item" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to update collection item" }, { status: 500 })
+    );
   }
 }

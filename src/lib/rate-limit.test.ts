@@ -1,5 +1,15 @@
+import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { consumeRateLimit, isRateLimited, recordRateLimitHit } from "./rate-limit";
+import {
+  consumeRateLimit,
+  getClientIp,
+  isRateLimited,
+  recordRateLimitHit,
+} from "./rate-limit";
+
+function requestWithHeaders(headers: Record<string, string>) {
+  return new NextRequest("http://localhost:3000/api/auth/login", { headers });
+}
 
 describe("rate limit", () => {
   beforeEach(() => {
@@ -47,5 +57,22 @@ describe("rate limit", () => {
     recordRateLimitHit(key);
     recordRateLimitHit(key);
     expect(isRateLimited(key, 2, 60_000)).toBe(true);
+  });
+
+  it("uses the trusted proxy hop from x-forwarded-for", () => {
+    const req = requestWithHeaders({
+      "x-forwarded-for": "198.51.100.1, 203.0.113.10",
+      "x-real-ip": "198.51.100.200",
+    });
+
+    expect(getClientIp(req)).toBe("203.0.113.10");
+  });
+
+  it("falls back to x-real-ip when x-forwarded-for is absent", () => {
+    const req = requestWithHeaders({
+      "x-real-ip": "203.0.113.20:443",
+    });
+
+    expect(getClientIp(req)).toBe("203.0.113.20");
   });
 });
