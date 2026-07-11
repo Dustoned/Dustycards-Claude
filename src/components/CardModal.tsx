@@ -27,6 +27,7 @@ import useModalA11y from "@/lib/useModalA11y";
 import {
   CardModalActiveListingsPanel,
   CardModalBuySignalPanel,
+  CardModalCardLinksPanel,
   CardModalDesktopActionGroup,
   CardModalHeroSection,
   CardModalHistorySection,
@@ -588,18 +589,22 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                   {desktopHistoryPanel}
                 </div>
 
-                <div className="card-modal-area-support grid min-w-0 items-start gap-5 lg:grid-cols-2">
+                <div className="card-modal-area-support grid min-w-0 items-stretch gap-5 2xl:grid-cols-[minmax(16rem,0.9fr)_minmax(28rem,1.55fr)_minmax(15rem,0.75fr)]">
                     <CardModalRecentPricesPanel
                       card={modalCard}
                       className="h-full min-h-[10rem]"
                     />
                     <CardModalActiveListingsPanel
                       card={modalCard}
+                      className="h-full min-h-[10rem]"
+                      onOpenSealedProduct={setSelectedSealedProduct}
+                      onClose={onClose}
+                    />
+                    <CardModalCardLinksPanel
+                      card={modalCard}
                       storedCardMarketUrl={storedCardMarketUrl}
                       className="h-full min-h-[10rem]"
                       onOpenCardMarket={openCardMarket}
-                      onOpenSealedProduct={setSelectedSealedProduct}
-                      onClose={onClose}
                     />
                 </div>
 
