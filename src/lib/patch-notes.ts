@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.13",
+    releasedAt: "July 11, 2026",
+    title: "One complete nightly drop window",
+    summary:
+      "DustyCards 3.6.13 keeps every chained price batch inside the same refresh window so a small final batch cannot empty Sudden Drops.",
+    tone: "fixed",
+    highlights: [
+      "Queued continuations now preserve the original start of the nightly price scan instead of resetting it for the last batch.",
+      "Sudden Drops therefore evaluates the complete refresh across all processed cards, including earlier batches from the same run.",
+      "The affected July 11 refresh window is repaired so its valid Gengar and Ditto drops are visible again.",
+    ],
+  },
+  {
     version: "3.6.12",
     releasedAt: "July 10, 2026",
     title: "Highlights no longer stick",
