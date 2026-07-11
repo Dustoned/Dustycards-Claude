@@ -208,20 +208,20 @@ function UpcomingReleaseCard({
   onOpen: (item: SealedMoverItem) => void;
 }) {
   return (
-    <article className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3 transition-colors hover:border-violet-400/22 hover:bg-violet-400/[0.045]">
-      <div className="relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-xl border border-white/8 bg-black/20">
+    <article className="group flex min-w-0 items-center gap-3.5 rounded-2xl border border-white/8 bg-white/[0.035] p-3.5 transition-colors hover:border-violet-400/22 hover:bg-violet-400/[0.045] sm:gap-4 sm:p-4">
+      <div className="relative h-[5.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl border border-white/8 bg-black/20 sm:h-24 sm:w-24">
         {release.imageUrl ? (
           <Image
             src={getCachedImageUrl(release.imageUrl) ?? release.imageUrl}
             alt={release.name}
             fill
-            sizes="72px"
-            className="object-contain p-1.5"
+            sizes="(max-width: 640px) 88px, 96px"
+            className="object-contain p-2"
             unoptimized
           />
         ) : (
           <span className="flex h-full w-full items-center justify-center text-white/28">
-            <Package className="h-6 w-6" />
+            <Package className="h-7 w-7" />
           </span>
         )}
       </div>
@@ -236,10 +236,10 @@ function UpcomingReleaseCard({
             {release.daysUntil === 0 ? "Today" : `${release.daysUntil} days`}
           </span>
         </div>
-        <h3 className="line-clamp-2 text-[13px] font-semibold leading-4 text-white sm:text-sm">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-[1.2rem] text-white sm:text-[15px] sm:leading-5">
           {release.name}
         </h3>
-        <p className="mt-1 text-[11px] font-semibold text-violet-200/78">
+        <p className="mt-1 text-[11.5px] font-semibold text-violet-200/78 sm:text-xs">
           {RELEASE_DATE_FORMATTER.format(new Date(release.releaseDate))}
         </p>
 
@@ -544,7 +544,7 @@ export default function SealedMoversBrowser({ data }: Props) {
         />
 
         {upcomingReleases.length > 0 ? (
-          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[2300px]:grid-cols-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[2500px]:grid-cols-5 min-[3800px]:grid-cols-6">
             {visibleUpcomingReleases.map((release) => (
               <UpcomingReleaseCard
                 key={release.id}
