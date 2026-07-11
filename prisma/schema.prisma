@@ -28,6 +28,7 @@ model Episode {
   cards          Card[]
   binders        CollectionBinder[]
   sealedProducts SealedProduct[]
+  sealedProductContents SealedProductContentSet[]
   cardSubmissions CardSubmission[]
 
   @@index([source_status, source_checked_at])
@@ -236,6 +237,7 @@ model SealedProduct {
 
   episode         Episode  @relation(fields: [episode_id], references: [id])
   collectionItems CollectionSealed[]
+  contentSets     SealedProductContentSet[]
 
   @@index([episode_id])
   @@index([game, episode_id])
@@ -243,6 +245,23 @@ model SealedProduct {
   @@index([release_date])
   @@index([native_history_synced_at])
   @@index([native_history_status, native_history_checked_at])
+}
+
+model SealedProductContentSet {
+  product_id   String
+  episode_id   String
+  source_name  String?
+  source_url   String?
+  confidence   Float?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  product      SealedProduct @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  episode      Episode       @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+
+  @@id([product_id, episode_id])
+  @@index([episode_id])
+  @@index([product_id])
 }
 
 model SealedReleaseWatch {
