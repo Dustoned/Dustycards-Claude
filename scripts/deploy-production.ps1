@@ -92,6 +92,7 @@ prune_predeploy_backups() {
 
   declare -A kept_days=()
   declare -A kept_weeks=()
+  recent_kept=0
 
   while IFS= read -r line; do
     [ -n "$line" ] || continue
@@ -101,7 +102,13 @@ prune_predeploy_backups() {
     age_seconds=$((now_epoch - ts_epoch))
 
     if [ "$age_seconds" -lt 86400 ]; then
-      printf '%s\n' "$file" >> "$tmp_keep"
+      # Full database copies are currently about 2 GB each. Keep only the two
+      # newest same-day deploy points instead of exhausting the server disk
+      # during a busy release session.
+      if [ "$recent_kept" -lt 2 ]; then
+        printf '%s\n' "$file" >> "$tmp_keep"
+        recent_kept=$((recent_kept + 1))
+      fi
       continue
     fi
 
@@ -135,6 +142,11 @@ prune_predeploy_backups() {
       *) echo "Refusing to remove unexpected backup path: $file" >&2; exit 1 ;;
     esac
   done < "$tmp_all"
+
+  # Failed VACUUM INTO runs can leave multi-gigabyte temporary files behind.
+  # Only remove stale files matching the exact predeploy temp naming contract.
+  find "$backup_dir" -maxdepth 1 -type f \
+    -name 'dustycards-predeploy-*.db.tmp*' -mmin +10 -delete
 
   rm -f "$tmp_all" "$tmp_keep"
 }
