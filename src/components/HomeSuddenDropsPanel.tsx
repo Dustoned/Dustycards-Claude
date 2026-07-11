@@ -160,7 +160,7 @@ export default function HomeSuddenDropsPanel({
     <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-300/75">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/34">
             Market Snapshot
           </p>
           <h2 className="mt-0.5 text-base font-black tracking-tight text-white">
@@ -171,10 +171,15 @@ export default function HomeSuddenDropsPanel({
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-          <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-rose-400/14 bg-rose-400/[0.07] px-2.5 text-[12px] font-black tabular-nums text-rose-200">
-            <Sparkles className="h-3.5 w-3.5" />
+          <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/8 bg-black/18 px-2.5 text-[12px] font-black tabular-nums text-white">
+            <Sparkles className="h-3.5 w-3.5 text-rose-300/80" />
             {isLoading ? "--" : data.total.toLocaleString("en-US")}
           </span>
+          {!isLoading && hasItems ? (
+            <span className="inline-flex h-8 items-center rounded-full border border-white/8 bg-white/[0.035] px-2.5 text-[12px] font-black tabular-nums text-white/72">
+              Biggest <span className="ml-1.5 text-rose-300">-{formatCurrency(topDrop, currency)}</span>
+            </span>
+          ) : null}
           <Link
             href={viewAllHref}
             prefetch={false}
@@ -186,7 +191,7 @@ export default function HomeSuddenDropsPanel({
         </div>
       </div>
 
-      <div className="mt-2 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <div className="mt-3 min-w-0">
         {isLoading ? (
           <LoadingRows />
         ) : state.status === "error" ? (
@@ -208,21 +213,6 @@ export default function HomeSuddenDropsPanel({
             No verified raw-card drops of {thresholdLabel}+ in the last 24 hours.
           </div>
         )}
-        <Link
-          href={viewAllHref}
-          prefetch={false}
-          className="hidden min-w-[9rem] rounded-2xl border border-white/8 bg-white/[0.035] p-3 text-center transition-colors hover:border-white/14 hover:bg-white/[0.055] lg:block"
-        >
-          <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-white/34">
-            {hasItems ? "Biggest shown" : "Status"}
-          </span>
-          <span className="mt-1 block text-xl font-black tabular-nums text-rose-200">
-            {hasItems ? `-${formatCurrency(topDrop, currency)}` : "0"}
-          </span>
-          <span className="mt-1 block text-[11px] font-semibold text-white/42">
-            Open full list
-          </span>
-        </Link>
       </div>
     </section>
   );
