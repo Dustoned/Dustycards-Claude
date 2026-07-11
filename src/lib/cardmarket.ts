@@ -74,7 +74,12 @@ export function getSafeDirectCardMarketCardUrl(
 ): string | null {
   if (!isDirectCardMarketUrl(url)) return null;
   if (getCardMarketUrlGame(url) !== game) return null;
-  if (isCardMarketProductIdUrl(url)) return null;
+  // TCGGo currently provides almost every One Piece card as a CardMarket
+  // idProduct URL. Sending those through the TCGGo fallback breaks because
+  // DustyCards uses scoped IDs (for example `one-piece:28806`) while that
+  // redirect endpoint expects its own unscoped identifier. CardMarket can
+  // resolve the product ID directly, so keep the validated same-game URL.
+  if (isCardMarketProductIdUrl(url) && game !== "one-piece") return null;
   return withCardMarketFilters(url);
 }
 

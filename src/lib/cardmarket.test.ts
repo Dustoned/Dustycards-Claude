@@ -21,6 +21,24 @@ describe("CardMarket card URL resolution", () => {
     ).toBe("https://www.tcggo.com/external/cm/18459");
   });
 
+  it("keeps validated One Piece idProduct URLs direct instead of using the scoped-ID proxy", () => {
+    const url = "https://www.cardmarket.com/OnePiece/Products?idProduct=842904&language=1";
+
+    expect(isCardMarketProductIdUrl(url)).toBe(true);
+    expect(getSafeDirectCardMarketCardUrl(url, ONE_PIECE_GAME)).toBe(
+      "https://www.cardmarket.com/OnePiece/Products?idProduct=842904&language=1&minCondition=2"
+    );
+    expect(
+      resolveCardMarketCardUrl({
+        id: "one-piece:28806",
+        game: ONE_PIECE_GAME,
+        cardmarket_url: url,
+      })
+    ).toBe(
+      "https://www.cardmarket.com/OnePiece/Products?idProduct=842904&language=1&minCondition=2"
+    );
+  });
+
   it("keeps canonical same-game singles URLs direct", () => {
     const url =
       "https://www.cardmarket.com/en/Pokemon/Products/Singles/Neo-Destiny/Shining-Charizard-N4";
