@@ -9,6 +9,9 @@ export const CACHEABLE_IMAGE_HOSTS = new Set([
   "images.cardmarket.com",
   "product-images.cardmarket.com",
   "product-images.s3.cardmarket.com",
+  "www.pokebeach.com",
+  "www.pokemon.com",
+  "icv2.com",
 ]);
 
 export const TCGGO_CARD_TRANSPARENT_TRIM_VARIANT = "tcggo-card-transparent-trim-v3";

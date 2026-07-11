@@ -23,4 +23,14 @@ describe("image cache", () => {
       `/api/image-cache?url=${encodeURIComponent(sourceUrl)}`
     );
   });
+
+  it.each([
+    "https://www.pokebeach.com/news/2026/06/product.jpg",
+    "https://www.pokemon.com/static-assets/product.png",
+    "https://icv2.com/images/product.jpg",
+  ])("proxies release-watch artwork from %s through the local cache", (sourceUrl) => {
+    expect(getCachedImageUrl(sourceUrl)).toBe(
+      `/api/image-cache?url=${encodeURIComponent(sourceUrl)}`
+    );
+  });
 });
