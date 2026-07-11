@@ -575,7 +575,7 @@ function buildFastSuddenDropsData(
     refresh: refreshMetadata,
     preview: {
       items: items
-        .slice(0, 4)
+        .slice(0, 8)
         .map((item) => toPreviewItem(item, getDropAmount(item), getDropPercent(item))),
       total: items.length,
       threshold: SUDDEN_DROP_DEAL_MIN_AMOUNT,

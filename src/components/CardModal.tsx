@@ -599,6 +599,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                       className="h-full min-h-[10rem]"
                       onOpenCardMarket={openCardMarket}
                       onOpenSealedProduct={setSelectedSealedProduct}
+                      onClose={onClose}
                     />
                 </div>
 
