@@ -12,8 +12,6 @@ import type {
 } from "@/lib/home-sudden-drops";
 import {
   SUDDEN_DROP_DEAL_MAX_CURRENT_PRICE,
-  SUDDEN_DROP_DEAL_MIN_AMOUNT,
-  SUDDEN_DROP_DEAL_STRONG_AMOUNT,
   type CollectionMoverItem,
 } from "@/lib/movers";
 import type { MoverPriceQuality } from "@/lib/mover-scoring";
@@ -23,6 +21,8 @@ import type { PriceSource } from "@/lib/user-settings";
 export const FAST_SUDDEN_DROP_FEED_LIMIT = 50;
 export const FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS = 1;
 export const FAST_SUDDEN_DROP_WINDOW_HOURS = 24;
+export const FAST_SUDDEN_DROP_MIN_AMOUNT = 5;
+export const FAST_SUDDEN_DROP_STRONG_AMOUNT = 25;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
 type FastSuddenDropSnapshotPrefix = "latest" | "anchor";
@@ -217,8 +217,8 @@ function normalizeDropRow(row: FastSuddenDropRow, source: PriceSource): FastSudd
   });
 
   if (
-    dropAmount < SUDDEN_DROP_DEAL_MIN_AMOUNT ||
-    (dropAmount < SUDDEN_DROP_DEAL_STRONG_AMOUNT &&
+    dropAmount < FAST_SUDDEN_DROP_MIN_AMOUNT ||
+    (dropAmount < FAST_SUDDEN_DROP_STRONG_AMOUNT &&
       Math.abs(dropPercent ?? 0) < 10)
   ) {
     return null;
@@ -536,8 +536,8 @@ async function getFastSuddenDropRows(
     SUDDEN_DROP_DEAL_MAX_CURRENT_PRICE,
     refreshStartedAt,
     refreshEndedAt,
-    SUDDEN_DROP_DEAL_MIN_AMOUNT,
-    SUDDEN_DROP_DEAL_STRONG_AMOUNT,
+    FAST_SUDDEN_DROP_MIN_AMOUNT,
+    FAST_SUDDEN_DROP_STRONG_AMOUNT,
     limit
   );
 }
@@ -578,7 +578,7 @@ function buildFastSuddenDropsData(
         .slice(0, 8)
         .map((item) => toPreviewItem(item, getDropAmount(item), getDropPercent(item))),
       total: items.length,
-      threshold: SUDDEN_DROP_DEAL_MIN_AMOUNT,
+      threshold: FAST_SUDDEN_DROP_MIN_AMOUNT,
       windowDays: FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS,
       limit,
       refreshStartedAt: refreshMetadata?.startedAt ?? null,
