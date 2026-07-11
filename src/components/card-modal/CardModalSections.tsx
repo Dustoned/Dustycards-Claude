@@ -2896,15 +2896,11 @@ export function CardModalRecentPricesPanel({
 
 export function CardModalActiveListingsPanel({
   card,
-  storedCardMarketUrl,
-  onOpenCardMarket,
   onOpenSealedProduct,
   onClose,
   className = "",
 }: {
   card: ModalCardData;
-  storedCardMarketUrl: string | null;
-  onOpenCardMarket: () => void;
   onOpenSealedProduct?: (product: NonNullable<ModalCardData["sealed_products"]>[number]) => void;
   onClose?: () => void;
   className?: string;
@@ -2995,47 +2991,69 @@ export function CardModalActiveListingsPanel({
         View all sealed from this set
         <ChevronRight className="h-4 w-4" />
       </Link>
+      <p className="mt-2 text-[10px] font-medium leading-relaxed text-white/28">
+        Set-linked products; exact pack contents and pull results can vary.
+      </p>
+    </section>
+  );
+}
 
-      <div className="mt-3 rounded-xl border border-white/7 bg-black/15 p-2.5">
-        <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-white/30">
-          Card links
+export function CardModalCardLinksPanel({
+  card,
+  storedCardMarketUrl,
+  onOpenCardMarket,
+  className = "",
+}: {
+  card: ModalCardData;
+  storedCardMarketUrl: string | null;
+  onOpenCardMarket: () => void;
+  className?: string;
+}) {
+  return (
+    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
+      <div>
+        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Card Links</h3>
+        <p className="mt-1 text-[11px] font-medium text-white/38">
+          Compare this specific card on external markets.
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          {storedCardMarketUrl ? (
-            <a
-              href={storedCardMarketUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={DETAIL_MARKET_LINK_CLASS}
-            >
-              CardMarket
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          ) : (
-            <button type="button" onClick={onOpenCardMarket} className={DETAIL_MARKET_LINK_CLASS}>
-              CardMarket
-              <ExternalLink className="h-4 w-4" />
-            </button>
-          )}
+      </div>
 
+      <div className="mt-4 grid gap-2">
+        {storedCardMarketUrl ? (
           <a
-            href={buildCardEbaySearchUrl({
-              name: card.name,
-              cardNumber: card.card_number,
-              gradingCompany: normalizeGradingCompanyLabel(card.collection_item?.grading_company),
-              gradingGrade: normalizeGradingGradeLabel(card.collection_item?.grading_grade),
-            })}
+            href={storedCardMarketUrl}
             target="_blank"
             rel="noopener noreferrer"
             className={DETAIL_MARKET_LINK_CLASS}
           >
-            eBay Deals
+            CardMarket
             <ExternalLink className="h-4 w-4" />
           </a>
-        </div>
+        ) : (
+          <button type="button" onClick={onOpenCardMarket} className={DETAIL_MARKET_LINK_CLASS}>
+            CardMarket
+            <ExternalLink className="h-4 w-4" />
+          </button>
+        )}
+
+        <a
+          href={buildCardEbaySearchUrl({
+            name: card.name,
+            cardNumber: card.card_number,
+            gradingCompany: normalizeGradingCompanyLabel(card.collection_item?.grading_company),
+            gradingGrade: normalizeGradingGradeLabel(card.collection_item?.grading_grade),
+          })}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={DETAIL_MARKET_LINK_CLASS}
+        >
+          eBay Deals
+          <ExternalLink className="h-4 w-4" />
+        </a>
       </div>
-      <p className="mt-2 text-[10px] font-medium leading-relaxed text-white/28">
-        Set-linked products; exact pack contents and pull results can vary.
+
+      <p className="mt-auto pt-4 text-[10px] font-medium leading-relaxed text-white/28">
+        Opens in a new tab; sealed-product links are kept in their own panel.
       </p>
     </section>
   );
@@ -3056,7 +3074,7 @@ export function CardModalFooter({
 }) {
   return (
     <div className="mt-1">
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
         <CardModalOwnedCopyPanel
           card={card}
           collectionItem={collectionItem}
@@ -3064,6 +3082,9 @@ export function CardModalFooter({
         />
         <CardModalRecentPricesPanel card={card} />
         <CardModalActiveListingsPanel
+          card={card}
+        />
+        <CardModalCardLinksPanel
           card={card}
           storedCardMarketUrl={storedCardMarketUrl}
           onOpenCardMarket={onOpenCardMarket}
