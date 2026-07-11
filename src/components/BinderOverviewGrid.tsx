@@ -8,9 +8,11 @@ import { getBinderGridTemplateColumns, getBinderTileTrackWidth } from "@/lib/dis
 export default function BinderOverviewGrid({
   binders,
   className = "",
+  readOnly = false,
 }: {
   binders: BinderOverviewItem[];
   className?: string;
+  readOnly?: boolean;
 }) {
   const { displaySettings, isMobileViewport } = useSettings();
   const binderTileTrackWidth = getBinderTileTrackWidth(
@@ -34,10 +36,10 @@ export default function BinderOverviewGrid({
   return (
     <div
       className={`grid gap-2 lg:gap-3 ${className}`}
-      style={binderGridStyle}
+      style={{ ...binderGridStyle, justifyContent: "stretch" }}
     >
       {binders.map((binder) => (
-        <BinderOverviewTile key={binder.id} binder={binder} />
+        <BinderOverviewTile key={binder.id} binder={binder} readOnly={readOnly} />
       ))}
     </div>
   );

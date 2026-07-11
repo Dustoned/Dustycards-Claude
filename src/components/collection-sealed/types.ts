@@ -10,6 +10,7 @@ export interface CollectionSealedViewProps {
   sectionTitle?: string;
   sectionCount?: ReactNode;
   sectionTrailing?: ReactNode;
+  readOnly?: boolean;
 }
 
 export interface RemoveDialogState {

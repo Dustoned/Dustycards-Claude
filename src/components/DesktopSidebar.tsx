@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   Sparkles,
   UserRound,
+  UsersRound,
 } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
@@ -52,6 +53,7 @@ const NAV_SECTIONS = [
       { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "sealed" },
       { href: "/?tab=graded", label: "Graded", icon: LibraryBig, badge: null, key: "graded" },
       { href: "/wants", label: "Wants", icon: Heart, badge: "wants", key: "wants" },
+      { href: "/social", label: "Social", icon: UsersRound, badge: null, key: "social" },
     ],
   },
   {

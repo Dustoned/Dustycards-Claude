@@ -65,10 +65,44 @@ model User {
   ebayListingCardOverrides EbayListingCardOverride[]
   ebayWatchedListings EbayWatchedListing[]
   cardSubmissions CardSubmission[]
+  socialRequestsSent SocialConnection[] @relation("SocialConnectionRequester")
+  socialRequestsReceived SocialConnection[] @relation("SocialConnectionAddressee")
+  socialConnectionsAsA SocialConnection[] @relation("SocialConnectionUserA")
+  socialConnectionsAsB SocialConnection[] @relation("SocialConnectionUserB")
 
   @@index([role])
   @@index([disabled])
   @@index([email_verified_at])
+}
+
+model SocialConnection {
+  id           String    @id @default(cuid())
+  requester_id String
+  addressee_id String
+  user_a_id    String
+  user_b_id    String
+  status       String    @default("pending")
+  accepted_at  DateTime?
+  full_access_status String @default("none")
+  full_access_requester_id String?
+  full_access_requested_at DateTime?
+  full_access_accepted_at DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  requester    User      @relation("SocialConnectionRequester", fields: [requester_id], references: [id], onDelete: Cascade)
+  addressee    User      @relation("SocialConnectionAddressee", fields: [addressee_id], references: [id], onDelete: Cascade)
+  userA        User      @relation("SocialConnectionUserA", fields: [user_a_id], references: [id], onDelete: Cascade)
+  userB        User      @relation("SocialConnectionUserB", fields: [user_b_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_a_id, user_b_id])
+  @@index([requester_id, status])
+  @@index([addressee_id, status])
+  @@index([user_a_id, status])
+  @@index([user_b_id, status])
+  @@index([status, updated_at])
+  @@index([full_access_status, updated_at])
+  @@index([full_access_requester_id])
 }
 
 model Session {
@@ -190,6 +224,11 @@ model SealedProduct {
   cm_lowest_it    Float?
   cm_avg_7d       Float?
   cm_avg_30d      Float?
+  release_date                DateTime?
+  release_date_source         String?
+  release_date_source_url     String?
+  release_date_confidence     Float?
+  release_date_checked_at     DateTime?
   native_history_synced_at DateTime?
   native_history_status     String?
   native_history_checked_at DateTime?
@@ -201,8 +240,27 @@ model SealedProduct {
   @@index([episode_id])
   @@index([game, episode_id])
   @@index([name])
+  @@index([release_date])
   @@index([native_history_synced_at])
   @@index([native_history_status, native_history_checked_at])
+}
+
+model SealedReleaseWatch {
+  id             String   @id
+  game           String   @default("pokemon")
+  name           String
+  release_date   DateTime
+  image_url      String?
+  source_name    String
+  source_url     String
+  confidence     Float?
+  matched_product_id String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@index([game, release_date])
+  @@index([matched_product_id])
+  @@unique([source_url, name])
 }
 
 model SealedPriceSnapshot {
@@ -284,6 +342,8 @@ model Card {
   @@index([episode_id])
   @@index([game, episode_id])
   @@index([episode_id, card_number])
+  @@index([artist])
+  @@index([game, rarity])
   @@index([printed_card_number])
   @@index([price_source_status, price_source_checked_at])
   @@index([native_history_synced_at])
@@ -582,6 +642,9 @@ model Price {
   id                    String   @id @default(cuid())
   card_id               String
   fetched_at            DateTime @default(now())
+  // When the marketplace value last changed. Unlike fetched_at this does not
+  // move forward for an unchanged refresh observation.
+  changed_at            DateTime?
 
   // CardMarket prices per language
   cm_en_lowest_nm       Float?

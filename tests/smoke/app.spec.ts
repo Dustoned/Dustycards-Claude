@@ -125,6 +125,36 @@ function findPokemonEpisodeWithImageCards(): string | null {
   return row?.episode_id ?? null;
 }
 
+function findSealedProductWithCards(): {
+  id: string;
+  episode_id: string;
+  name: string;
+} | null {
+  const db = openDb();
+  const row = db.prepare<[], { id: string; episode_id: string; name: string }>(`
+    SELECT sp.id, sp.episode_id, sp.name
+    FROM "SealedProduct" sp
+    WHERE sp.image_url IS NOT NULL
+      AND sp.image_url <> ''
+      AND EXISTS (
+        SELECT 1
+        FROM "Card" c
+        WHERE c.episode_id = sp.episode_id
+          AND c.image_url IS NOT NULL
+          AND c.image_url <> ''
+      )
+    ORDER BY (
+      SELECT COUNT(*)
+      FROM "Card" c
+      WHERE c.episode_id = sp.episode_id
+    ) DESC
+    LIMIT 1
+  `).get();
+  db.close();
+
+  return row ?? null;
+}
+
 async function applyDisplaySettings(
   page: Page,
   settings: Partial<typeof baseSettings>
@@ -332,6 +362,258 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("admin users and illustrators use progressive master-detail layouts", async ({ page }) => {
+    await page.goto("/account");
+    await page.getByRole("tab", { name: "Users" }).click();
+
+    await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reset password..." })).toHaveCount(1);
+    await expectNoHorizontalOverflow(page);
+
+    await page.goto("/illustrators");
+    const initialIllustrators = page.locator('main a[href^="/illustrators/"]');
+    await expect(initialIllustrators).toHaveCount(24);
+    await expect(page.getByRole("button", { name: /Load more illustrators/ })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("authenticated navigation covers tablet widths and clears the mobile bottom bar", async ({ page }) => {
+    await page.setViewportSize({ width: 767, height: 900 });
+    await page.goto("/settings");
+
+    const headerMenu = page.getByRole("button", { name: "Open menu" });
+    const bottomNav = page.locator("[data-mobile-bottom-nav]");
+    const sidebar = page.locator("aside").first();
+
+    await expect(bottomNav).toBeVisible();
+    await expect(headerMenu).toBeHidden();
+    await expect(sidebar).toBeHidden();
+    const mobileMainPadding = await page.locator("main").evaluate((element) =>
+      Number.parseFloat(window.getComputedStyle(element).paddingBottom)
+    );
+    expect(mobileMainPadding).toBeGreaterThanOrEqual(90);
+
+    await page.setViewportSize({ width: 768, height: 900 });
+    await expect(bottomNav).toBeHidden();
+    await expect(headerMenu).toBeVisible();
+    await expect(sidebar).toBeHidden();
+    const brandBox = await page.getByRole("link", { name: "DustyCards" }).boundingBox();
+    const menuBox = await headerMenu.boundingBox();
+    const compactSearchBox = await page.getByRole("button", { name: "Open search" }).boundingBox();
+    expect(brandBox).not.toBeNull();
+    expect(menuBox).not.toBeNull();
+    expect(compactSearchBox).not.toBeNull();
+    expect(menuBox?.x ?? 0).toBeGreaterThan((brandBox?.x ?? 0) + (brandBox?.width ?? 0));
+    expect(compactSearchBox?.x ?? 0).toBeGreaterThan((menuBox?.x ?? 0) + (menuBox?.width ?? 0));
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 1024, height: 900 });
+    const fullSearch = page.getByPlaceholder("Search cards, sealed, expansions...");
+    await expect(headerMenu).toBeVisible();
+    await expect(fullSearch).toBeVisible();
+    const desktopMenuBox = await headerMenu.boundingBox();
+    const fullSearchBox = await fullSearch.boundingBox();
+    expect(desktopMenuBox).not.toBeNull();
+    expect(fullSearchBox).not.toBeNull();
+    expect(fullSearchBox?.x ?? 0).toBeGreaterThan(
+      (desktopMenuBox?.x ?? 0) + (desktopMenuBox?.width ?? 0)
+    );
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 1279, height: 900 });
+    await expect(headerMenu).toBeVisible();
+    await expect(sidebar).toBeHidden();
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(headerMenu).toBeHidden();
+    await expect(sidebar).toBeVisible();
+  });
+
+  test("widescreen keeps headers and grids inside one page canvas", async ({ page }) => {
+    await page.setViewportSize({ width: 5120, height: 1440 });
+    await applyDisplaySettings(page, { widescreen: true, defaultView: "grid" });
+    await page.goto("/");
+
+    await expect(page.locator("html")).toHaveClass(/widescreen/);
+    const appHeader = page.getByRole("banner");
+    const canvas = page.locator("main > .page-container");
+    const [headerBounds, bounds] = await Promise.all([
+      appHeader.boundingBox(),
+      canvas.boundingBox(),
+    ]);
+
+    expect(headerBounds).not.toBeNull();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.width).toBeGreaterThan(4500);
+    expect(Math.abs(bounds!.x - headerBounds!.x)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(bounds!.x + bounds!.width - (headerBounds!.x + headerBounds!.width))
+    ).toBeLessThanOrEqual(1);
+    await expectNoHorizontalOverflow(page);
+
+    await page.goto("/search?q=pikachu");
+    const detailCanvas = page.locator("main > .page-container");
+    const cardGrid = page.locator(".dc-wide-grid-zone").first();
+    await expect(cardGrid).toBeVisible({ timeout: 15_000 });
+    const detailBounds = await detailCanvas.boundingBox();
+    const gridBounds = await cardGrid.boundingBox();
+
+    expect(detailBounds).not.toBeNull();
+    expect(gridBounds).not.toBeNull();
+    expect(gridBounds!.x).toBeGreaterThanOrEqual(detailBounds!.x - 1);
+    expect(gridBounds!.x + gridBounds!.width).toBeLessThanOrEqual(
+      detailBounds!.x + detailBounds!.width + 1
+    );
+    const cardBounds = await cardGrid.locator(":scope > [role='button']").evaluateAll((cards) =>
+      cards.map((card) => {
+        const bounds = card.getBoundingClientRect();
+        return { x: bounds.x, y: bounds.y, width: bounds.width };
+      })
+    );
+    const firstRowY = Math.min(...cardBounds.map((card) => card.y));
+    const firstRowCards = cardBounds
+      .filter((card) => Math.abs(card.y - firstRowY) <= 2)
+      .sort((left, right) => left.x - right.x);
+    expect(firstRowCards.length).toBeGreaterThan(2);
+    expect(Math.abs(firstRowCards[0]!.x - gridBounds!.x)).toBeLessThanOrEqual(2);
+    const lastCard = firstRowCards.at(-1)!;
+    expect(
+      Math.abs(lastCard.x + lastCard.width - (gridBounds!.x + gridBounds!.width))
+    ).toBeLessThanOrEqual(2);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("card detail uses an aligned responsive workspace", async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await applyDisplaySettings(page, { widescreen: true, modalSize: "medium" });
+    await page.goto("/search?q=pikachu");
+
+    const firstCard = page.locator(".dc-wide-grid-zone [role='button']").first();
+    await expect(firstCard).toBeVisible({ timeout: 15_000 });
+    await firstCard.click();
+
+    const dialog = page.getByRole("dialog");
+    const detailGrid = dialog.locator(".card-modal-layout-grid");
+    await expect(detailGrid).toBeVisible({ timeout: 15_000 });
+
+    const preview = detailGrid.locator(".card-modal-area-preview");
+    const hero = detailGrid.locator(".card-modal-area-hero");
+    const history = detailGrid.locator(".card-modal-area-history");
+    const [previewBounds, heroBounds, historyBounds] = await Promise.all([
+      preview.boundingBox(),
+      hero.boundingBox(),
+      history.boundingBox(),
+    ]);
+
+    expect(previewBounds).not.toBeNull();
+    expect(heroBounds).not.toBeNull();
+    expect(historyBounds).not.toBeNull();
+    expect(previewBounds!.x).toBeLessThan(heroBounds!.x);
+    expect(heroBounds!.x).toBeLessThan(historyBounds!.x);
+    expect(heroBounds!.x - (previewBounds!.x + previewBounds!.width)).toBeLessThanOrEqual(180);
+    expect(Math.abs(heroBounds!.y - historyBounds!.y)).toBeLessThanOrEqual(2);
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const compactPreviewBounds = await preview.boundingBox();
+    const compactHeroBounds = await hero.boundingBox();
+    const compactHistoryBounds = await history.boundingBox();
+    expect(compactPreviewBounds).not.toBeNull();
+    expect(compactHeroBounds).not.toBeNull();
+    expect(compactHistoryBounds).not.toBeNull();
+    expect(compactPreviewBounds!.x).toBeLessThan(compactHeroBounds!.x);
+    expect(Math.abs(compactHistoryBounds!.x - compactHeroBounds!.x)).toBeLessThanOrEqual(2);
+    expect(compactHistoryBounds!.y).toBeGreaterThan(compactHeroBounds!.y);
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 768, height: 900 });
+    const tabletPreviewBounds = await preview.boundingBox();
+    const tabletHeroBounds = await hero.boundingBox();
+    expect(tabletPreviewBounds).not.toBeNull();
+    expect(tabletHeroBounds).not.toBeNull();
+    expect(tabletPreviewBounds!.x).toBeLessThan(tabletHeroBounds!.x);
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(detailGrid).toBeHidden();
+    await expect(dialog).toHaveAttribute("data-mobile-showcase", "true");
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("sealed detail aligns left and embeds featured set cards", async ({ page }) => {
+    const sealedProduct = findSealedProductWithCards();
+    expect(sealedProduct).not.toBeNull();
+    if (!sealedProduct) return;
+
+    const detailResponse = await page.request.get(`/api/sealed/${sealedProduct.id}`);
+    expect(detailResponse.ok()).toBe(true);
+    const detail = (await detailResponse.json()) as {
+      release_date: string | null;
+      episode: { release_date: string | null };
+      featured_cards: Array<{
+        id: string;
+        name: string;
+        market_price: number | null;
+        rarity: string | null;
+        pull_rate_info: unknown | null;
+      }>;
+    };
+    expect(detail.featured_cards.length).toBeGreaterThan(0);
+    expect(detail.featured_cards.length).toBeLessThanOrEqual(24);
+    expect(detail.featured_cards.some((card) => card.rarity != null)).toBe(true);
+    expect(detail.episode.release_date).not.toBeNull();
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await applyDisplaySettings(page, { widescreen: true });
+    await page.goto(`/expansions/${sealedProduct.episode_id}?tab=sealed`);
+
+    const productTile = page.locator("[role='button']").filter({ hasText: sealedProduct.name }).first();
+    await expect(productTile).toBeVisible({ timeout: 15_000 });
+    await productTile.click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(/Product release|Set release/)).toBeVisible();
+    const backButton = dialog.getByRole("button", { name: "Back to Collection" });
+    const [dialogBounds, backBounds] = await Promise.all([
+      dialog.boundingBox(),
+      backButton.boundingBox(),
+    ]);
+    expect(dialogBounds).not.toBeNull();
+    expect(backBounds).not.toBeNull();
+    expect(backBounds!.x - dialogBounds!.x).toBeLessThanOrEqual(40);
+
+    await expect(dialog.getByRole("heading", { name: "Featured Cards" })).toBeVisible();
+    await expect(dialog.locator("[data-featured-card]")).toHaveCount(detail.featured_cards.length);
+    await expect(dialog.getByRole("tab")).toHaveCount(0);
+    const desktopModalHeight = await dialog.evaluate((element) => element.scrollHeight);
+    expect(desktopModalHeight).toBeLessThanOrEqual(1082);
+    await expectNoHorizontalOverflow(page);
+
+    await dialog.locator("[data-featured-card]").first().click();
+    const dialogs = page.getByRole("dialog");
+    await expect(dialogs).toHaveCount(2);
+    await expect(dialogs.last()).toHaveAttribute("aria-label", detail.featured_cards[0]!.name);
+    await dialogs.last().getByRole("button", { name: "Back to Collection" }).click();
+    await expect(dialogs).toHaveCount(1);
+
+    await page.setViewportSize({ width: 5120, height: 1440 });
+    const ultrawideFeaturedCard = await dialog.locator("[data-featured-card]").first().boundingBox();
+    expect(ultrawideFeaturedCard).not.toBeNull();
+    expect(ultrawideFeaturedCard!.width).toBeLessThanOrEqual(194);
+    const visibleUltrawideCards = await dialog.locator("[data-featured-card]").evaluateAll((cards) =>
+      cards.filter((card) => window.getComputedStyle(card).display !== "none").length
+    );
+    expect(visibleUltrawideCards).toBe(24);
+    const ultrawideModalHeight = await dialog.evaluate((element) => element.scrollHeight);
+    expect(ultrawideModalHeight).toBeLessThanOrEqual(1442);
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(dialog.locator("[data-sealed-featured-cards]")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("mobile header search opens in the top bar", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
@@ -365,7 +647,7 @@ test.describe("DustyCards smoke", () => {
     await page.getByRole("button", { name: "More" }).click();
     await expect(page.locator("[data-mobile-more-sheet]")).toBeVisible();
 
-    await page.mouse.click(20, 120);
+    await page.locator("[data-mobile-more-backdrop]").click({ position: { x: 4, y: 4 } });
 
     await expect(page.locator("[data-mobile-more-sheet]")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "More" })).toBeVisible();
@@ -407,7 +689,6 @@ test.describe("DustyCards smoke", () => {
     const addButtons = page.locator('main button[aria-label^="Add "][aria-label$=" to collection"]');
     await expect(addButtons.first()).toBeVisible();
     const addButton = (await addButtons.count()) > 5 ? addButtons.nth(5) : addButtons.first();
-    await addButton.scrollIntoViewIfNeeded();
     await addButton.click();
 
     const addDialog = page.locator('[data-collection-add-modal="true"]');
@@ -584,7 +865,7 @@ test.describe("DustyCards smoke", () => {
       const context = await browser.newContext({
         baseURL: BASE_URL,
         viewport,
-        isMobile: viewport.width <= 640,
+        isMobile: viewport.width <= 767,
       });
 
       const session = createAuthenticatedSmokeSession();
@@ -610,7 +891,7 @@ test.describe("DustyCards smoke", () => {
         await expect(cardTiles.first()).toBeVisible();
         await cardTiles.first().scrollIntoViewIfNeeded();
 
-        if (viewport.width <= 640) {
+        if (viewport.width <= 767) {
           await expect
             .poll(() => checkPage.evaluate(() => document.documentElement.dataset.uiScale))
             .toBe("small");
@@ -687,6 +968,36 @@ test.describe("DustyCards smoke", () => {
     }
   });
 
+  test("sealed market shows the upcoming release watch without overflow", async ({ page }) => {
+    for (const viewport of [
+      { width: 390, height: 844 },
+      { width: 1920, height: 1080 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/movers?scope=sealed");
+
+      const releaseWatch = page.getByRole("region", { name: "Upcoming sealed releases" });
+      await expect(releaseWatch).toBeVisible();
+      await expect(
+        releaseWatch.getByRole("heading", { name: "Upcoming sealed products" })
+      ).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+
+      const releaseCards = releaseWatch.locator("article");
+      if ((await releaseCards.count()) > 0) {
+        await expect(releaseCards.first()).toContainText(/days|Today/);
+        const showAllButton = releaseWatch.getByRole("button", { name: /Show all \d+ products/ });
+        if ((await showAllButton.count()) > 0) {
+          await showAllButton.click();
+          expect(await releaseCards.count()).toBeGreaterThan(12);
+          await expectNoHorizontalOverflow(page);
+        }
+      } else {
+        await expect(releaseWatch).toContainText("No confirmed upcoming products yet");
+      }
+    }
+  });
+
   test("movers can open a card detail modal when data is available", async ({ page }) => {
     await page.goto("/movers");
 
@@ -697,7 +1008,10 @@ test.describe("DustyCards smoke", () => {
     }
 
     await cardButton.click();
-    await expect(page.locator('[role="dialog"]').first()).toBeVisible();
+    const dialog = page.locator('[role="dialog"]').first();
+    await expect(dialog).toBeVisible();
     await expectNoHorizontalOverflow(page);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
   });
 });

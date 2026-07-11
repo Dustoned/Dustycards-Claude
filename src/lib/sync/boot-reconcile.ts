@@ -1,6 +1,26 @@
 import "server-only";
 import { db } from "@/lib/db";
 
+const BOOT_RECONCILE_RETRY_DELAYS_MS = [250, 1000, 2500] as const;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function reconcileOrphanedSyncsOnce(now: Date): Promise<{ logs: number; jobs: number }> {
+  const logs = await db.syncLog.updateMany({
+    where: { status: "running" },
+    data: { status: "failed", finished_at: now },
+  });
+
+  const jobs = await db.syncJob.updateMany({
+    where: { status: "running" },
+    data: { status: "queued", finished_at: null, heartbeat_at: now },
+  });
+
+  return { logs: logs.count, jobs: jobs.count };
+}
+
 // On a freshly started process, no sync can actually be in flight — the worker
 // lives in memory and is gone after a restart/crash/deploy. Any SyncLog or
 // SyncJob still marked "running" is therefore an orphan from a previous process.
@@ -14,28 +34,29 @@ import { db } from "@/lib/db";
 export async function reconcileOrphanedSyncsOnBoot(): Promise<void> {
   const now = new Date();
 
-  try {
-    const logs = await db.syncLog.updateMany({
-      where: { status: "running" },
-      data: { status: "failed", finished_at: now },
-    });
+  for (let attempt = 0; attempt <= BOOT_RECONCILE_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      const result = await reconcileOrphanedSyncsOnce(now);
 
-    // Re-queue (rather than fail) running jobs so the scheduler resumes them
-    // immediately instead of waiting out the 10-minute stale-heartbeat window.
-    const jobs = await db.syncJob.updateMany({
-      where: { status: "running" },
-      data: { status: "queued", finished_at: null, heartbeat_at: now },
-    });
+      if (result.logs > 0 || result.jobs > 0) {
+        console.info(
+          `[boot-reconcile] cleared ${result.logs} orphaned running sync log(s), re-queued ${result.jobs} job(s)`
+        );
+      }
+      return;
+    } catch (error) {
+      const delayMs = BOOT_RECONCILE_RETRY_DELAYS_MS[attempt];
+      const message = error instanceof Error ? error.message : String(error);
+      if (delayMs == null) {
+        console.warn("[boot-reconcile] could not reconcile orphaned syncs:", message);
+        return;
+      }
 
-    if (logs.count > 0 || jobs.count > 0) {
-      console.info(
-        `[boot-reconcile] cleared ${logs.count} orphaned running sync log(s), re-queued ${jobs.count} job(s)`
+      console.warn(
+        `[boot-reconcile] reconcile attempt ${attempt + 1} failed, retrying in ${delayMs}ms:`,
+        message
       );
+      await delay(delayMs);
     }
-  } catch (error) {
-    console.warn(
-      "[boot-reconcile] could not reconcile orphaned syncs:",
-      error instanceof Error ? error.message : String(error)
-    );
   }
 }

@@ -14,7 +14,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="page-container binder-bottom-safe mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center p-4 text-center">
+    <div className="page-container page-readable binder-bottom-safe mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center p-4 text-center">
       <section className="binder-panel w-full rounded-[24px] p-5">
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-rose-300/75">
           Error

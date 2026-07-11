@@ -13,12 +13,17 @@ export interface BackupFileInfo {
 const MANUAL_BACKUP_PREFIX = "dustycards-manual-";
 const MANUAL_BACKUPS_TO_KEEP = 5;
 
+function joinRuntimeFile(dir: string, fileName: string): string {
+  const normalizedDir = dir.replace(/[\\/]+$/, "");
+  return `${normalizedDir}${path.sep}${fileName}`;
+}
+
 function getBackupDirCandidates(): string[] {
   const candidates = [
     process.env.DUSTYCARDS_BACKUP_DIR,
-    path.resolve(process.cwd(), "..", "dustycards-db-backups"),
-    path.resolve(process.cwd(), "..", "backups"),
-    path.resolve(process.cwd(), "backups"),
+    path.resolve(/*turbopackIgnore: true*/ process.cwd(), "..", "dustycards-db-backups"),
+    path.resolve(/*turbopackIgnore: true*/ process.cwd(), "..", "backups"),
+    path.resolve(/*turbopackIgnore: true*/ process.cwd(), "backups"),
     "/opt/dustycards/backups",
   ].filter((entry): entry is string => Boolean(entry));
 
@@ -27,7 +32,7 @@ function getBackupDirCandidates(): string[] {
 
 async function dirExists(dir: string): Promise<boolean> {
   try {
-    return (await fs.stat(dir)).isDirectory();
+    return (await fs.stat(/*turbopackIgnore: true*/ dir)).isDirectory();
   } catch {
     return false;
   }
@@ -40,7 +45,7 @@ async function dirExists(dir: string): Promise<boolean> {
 export async function resolveBackupDir(options?: { create?: boolean }): Promise<string | null> {
   const configured = process.env.DUSTYCARDS_BACKUP_DIR;
   if (configured) {
-    if (options?.create) await fs.mkdir(configured, { recursive: true });
+    if (options?.create) await fs.mkdir(/*turbopackIgnore: true*/ configured, { recursive: true });
     return (await dirExists(configured)) ? configured : null;
   }
 
@@ -49,8 +54,8 @@ export async function resolveBackupDir(options?: { create?: boolean }): Promise<
   }
 
   if (options?.create) {
-    const fallback = path.resolve(process.cwd(), "..", "backups");
-    await fs.mkdir(fallback, { recursive: true });
+    const fallback = path.resolve(/*turbopackIgnore: true*/ process.cwd(), "..", "backups");
+    await fs.mkdir(/*turbopackIgnore: true*/ fallback, { recursive: true });
     return fallback;
   }
 
@@ -61,12 +66,12 @@ export async function listBackups(): Promise<{ dir: string | null; backups: Back
   const dir = await resolveBackupDir();
   if (!dir) return { dir: null, backups: [] };
 
-  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const entries = await fs.readdir(/*turbopackIgnore: true*/ dir, { withFileTypes: true });
   const backups = await Promise.all(
     entries
       .filter((entry) => entry.isFile() && entry.name.endsWith(".db"))
       .map(async (entry) => {
-        const stat = await fs.stat(path.join(dir, entry.name));
+        const stat = await fs.stat(/*turbopackIgnore: true*/ joinRuntimeFile(dir, entry.name));
         return {
           name: entry.name,
           sizeBytes: stat.size,
@@ -94,7 +99,11 @@ async function pruneManualBackups(dir: string): Promise<number> {
   const manualBackups = backups.filter((backup) => backup.manual);
   const stale = manualBackups.slice(MANUAL_BACKUPS_TO_KEEP);
 
-  await Promise.all(stale.map((backup) => fs.rm(path.join(dir, backup.name), { force: true })));
+  await Promise.all(
+    stale.map((backup) =>
+      fs.rm(/*turbopackIgnore: true*/ joinRuntimeFile(dir, backup.name), { force: true })
+    )
+  );
   return stale.length;
 }
 
@@ -109,15 +118,15 @@ export async function createManualBackup(): Promise<BackupFileInfo> {
   }
 
   const name = buildManualBackupName(new Date());
-  const target = path.join(dir, name);
+  const target = joinRuntimeFile(dir, name);
   // VACUUM INTO refuses to overwrite; the timestamped name makes collisions
   // practically impossible, but clear a leftover partial file just in case.
-  await fs.rm(target, { force: true });
+  await fs.rm(/*turbopackIgnore: true*/ target, { force: true });
 
   const escapedTarget = target.replaceAll("'", "''");
   await db.$executeRawUnsafe(`VACUUM INTO '${escapedTarget}'`);
 
-  const stat = await fs.stat(target);
+  const stat = await fs.stat(/*turbopackIgnore: true*/ target);
   await pruneManualBackups(dir);
 
   return {

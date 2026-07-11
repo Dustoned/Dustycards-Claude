@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
+import Link from "next/link";
 import { ArrowLeft, CheckCircle2, Coins, Layers, TrendingDown, TrendingUp, WalletCards } from "lucide-react";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
 import CollectionCardsView from "@/components/CollectionCardsView";
@@ -14,7 +15,7 @@ import {
   formatCollectionCurrency,
 } from "@/lib/collection";
 import { getCachedImageUrl } from "@/lib/image-cache";
-import type { BinderPageData } from "@/lib/collection-data";
+import type { BinderHistoryRange, BinderPageData } from "@/lib/collection-data";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
 const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
@@ -40,7 +41,71 @@ function buildVisibleQuantityMap(
   return quantities;
 }
 
-export default function BinderDetailClient({ data }: { data: BinderPageData }) {
+function BinderHistoryRangeSwitch({
+  binderId,
+  historyRange,
+  recentHistoryDays,
+}: {
+  binderId: string;
+  historyRange: BinderHistoryRange;
+  recentHistoryDays: number;
+}) {
+  const items = [
+    {
+      key: "recent" as const,
+      label: `${recentHistoryDays}D`,
+      href: `/binders/${binderId}`,
+      title: `Show the last ${recentHistoryDays} days`,
+    },
+    {
+      key: "all" as const,
+      label: "All",
+      href: `/binders/${binderId}?history=all`,
+      title: "Load all binder history",
+    },
+  ];
+
+  return (
+    <nav
+      aria-label="Binder chart history range"
+      className="inline-flex min-h-[var(--ui-chip-min-height)] items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20"
+    >
+      <span className="px-2 text-[10px] font-black uppercase tracking-[0.12em] text-white/38">
+        Data
+      </span>
+      {items.map((item) => {
+        const active = historyRange === item.key;
+
+        return (
+          <Link
+            key={item.key}
+            href={item.href}
+            prefetch={false}
+            aria-current={active ? "page" : undefined}
+            title={item.title}
+            className={`inline-flex min-h-7 min-w-12 items-center justify-center rounded-full px-2.5 text-[11px] font-bold leading-none transition-colors ${
+              active
+                ? "border border-violet-400/40 bg-violet-600 text-white"
+                : "border border-transparent text-white/58 hover:bg-white/[0.07] hover:text-white"
+            }`}
+          >
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+export default function BinderDetailClient({
+  data,
+  historyRange,
+  recentHistoryDays,
+}: {
+  data: BinderPageData;
+  historyRange: BinderHistoryRange;
+  recentHistoryDays: number;
+}) {
   const [visibleItems, setVisibleItems] = useState<CollectionCardViewItem[]>(data.items);
   const totalCardsLabel =
     data.metrics.totalCards != null
@@ -102,11 +167,14 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
       : currentValue != null
         ? [{ date: "current", label: "Nu", value: currentValue }]
         : [];
+  const chartValuePoints = chartPoints.filter((point) => point.value != null);
+  const chartDeltaValue = chartValuePoints[chartValuePoints.length - 1]?.value ?? null;
+  const historyRangeLabel = historyRange === "all" ? "all time" : `${recentHistoryDays}D`;
   const priceSubtitle = showingFilteredSubset
     ? visibleOwnedItems.length > 0
-      ? `${visibleTotals.priced}/${visibleOwnedItems.length} visible owned cards priced`
+      ? `${visibleTotals.priced}/${visibleOwnedItems.length} visible owned cards priced / ${historyRangeLabel}`
       : "No owned cards in the current filter"
-    : `Current value ${formatCollectionCurrency(data.metrics.currentValue)}`;
+    : `Current value ${formatCollectionCurrency(data.metrics.currentValue)} / ${historyRangeLabel}`;
   const headerDescription = data.binder.episode
     ? `${data.binder.episode.series ?? "Set"} / ${data.binder.episode.name}`
     : "Custom binder";
@@ -219,7 +287,15 @@ export default function BinderDetailClient({ data }: { data: BinderPageData }) {
             currency="EUR"
             points={chartPoints}
             currentValue={currentValue}
+            deltaValue={chartDeltaValue}
             subtitle={priceSubtitle}
+            headerAccessory={
+              <BinderHistoryRangeSwitch
+                binderId={data.binder.id}
+                historyRange={historyRange}
+                recentHistoryDays={recentHistoryDays}
+              />
+            }
             emptyText="Add cards to start tracking this binder"
           />
         }

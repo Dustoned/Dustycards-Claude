@@ -25,6 +25,11 @@ let activeRemoteImageFetches = 0;
 const remoteImageFetchQueue: Array<() => void> = [];
 const pendingDownloads = new Map<string, Promise<EnsureImageResult>>();
 
+function joinRuntimeFile(dir: string, fileName: string): string {
+  const normalizedDir = dir.replace(/[\\/]+$/, "");
+  return `${normalizedDir}${path.sep}${fileName}`;
+}
+
 interface ImageMeta {
   contentType: string;
   sourceUrl: string;
@@ -43,8 +48,8 @@ export function getCachePaths(sourceUrl: string, variant: ImageCacheVariant | nu
   const hashInput = variant ? `${sourceUrl}\n${variant}` : sourceUrl;
   const hash = createHash("sha256").update(hashInput).digest("hex");
   return {
-    imagePath: path.join(IMAGE_CACHE_DIR, `${hash}.img`),
-    metaPath: path.join(IMAGE_CACHE_DIR, `${hash}.json`),
+    imagePath: joinRuntimeFile(IMAGE_CACHE_DIR, `${hash}.img`),
+    metaPath: joinRuntimeFile(IMAGE_CACHE_DIR, `${hash}.json`),
   };
 }
 

@@ -1,13 +1,12 @@
 ﻿"use client";
 
 import type { ReactNode } from "react";
-import { Library, Maximize2, Monitor, Moon, Smartphone, Sun } from "lucide-react";
+import { Library, Maximize2, Moon, Smartphone } from "lucide-react";
 import {
   type Card3dSize,
   type CardSize,
   type CardView,
   type ModalSize,
-  type Theme,
   type UiScale,
   useSettings,
 } from "@/components/SettingsProvider";
@@ -18,12 +17,6 @@ type Option<T extends string> = {
   description?: string;
   icon?: ReactNode;
 };
-
-const THEME_OPTIONS: Option<Theme>[] = [
-  { value: "light", label: "Light", icon: <Sun className="h-4 w-4" /> },
-  { value: "dark", label: "Dark", icon: <Moon className="h-4 w-4" /> },
-  { value: "system", label: "System", icon: <Monitor className="h-4 w-4" /> },
-];
 
 const SIZE_OPTIONS: Option<UiScale>[] = [
   { value: "small", label: "Small", description: "Compact" },
@@ -157,19 +150,25 @@ function ToggleRow({
       </div>
       <button
         type="button"
+        aria-label={`${title}: ${checked ? "on" : "off"}`}
         aria-pressed={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center overflow-hidden rounded-full transition-colors ${
-          checked ? "bg-gray-950 dark:bg-white" : "bg-black/10 dark:bg-white/12"
-        }`}
+        className="inline-flex h-11 w-12 shrink-0 items-center justify-center rounded-xl transition hover:bg-white/[0.05]"
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
-            checked
-              ? "translate-x-6 bg-white dark:bg-gray-950"
-              : "translate-x-1 bg-white dark:bg-white/65"
+          aria-hidden="true"
+          className={`relative inline-flex h-6 w-11 items-center overflow-hidden rounded-full transition-colors ${
+            checked ? "bg-gray-950 dark:bg-white" : "bg-black/10 dark:bg-white/12"
           }`}
-        />
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+              checked
+                ? "translate-x-6 bg-white dark:bg-gray-950"
+                : "translate-x-1 bg-white dark:bg-white/65"
+            }`}
+          />
+        </span>
       </button>
     </div>
   );
@@ -191,12 +190,22 @@ export default function SettingsPreferencesPanel() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <div className="space-y-5">
-          <SegmentedControl<Theme>
-            label="Appearance"
-            options={THEME_OPTIONS}
-            value={settings.theme}
-            onChange={(value) => set("theme", value)}
-          />
+          <div className="rounded-xl border border-white/8 bg-white/[0.035] p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+              Appearance
+            </p>
+            <div className="mt-2 flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-500/[0.12] text-violet-100">
+                <Moon className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-white">Dark</p>
+                <p className="mt-0.5 text-xs text-white/48">
+                  DustyCards currently uses one fully supported collector theme.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <SegmentedControl<UiScale>
             label="Desktop scale"
@@ -208,7 +217,7 @@ export default function SettingsPreferencesPanel() {
           <div className="border-t border-black/6 pt-3 dark:border-white/6">
             <ToggleRow
               title="Widescreen"
-              description="Use the full browser width on desktop."
+              description="Use an expanded desktop canvas with wider dashboards and denser grids."
               checked={settings.widescreen}
               onChange={(value) => set("widescreen", value)}
               icon={<Maximize2 className="h-4 w-4" />}

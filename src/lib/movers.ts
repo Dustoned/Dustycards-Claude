@@ -426,9 +426,14 @@ export interface CollectionMoversData {
   topOpportunities: CollectionMoverItem[];
   cheapestHighRarityMovers: CollectionMoverItem[];
   discountedHighRarity: CollectionMoverItem[];
+  suddenDropDeals: CollectionMoverItem[];
   strongest7d: CollectionMoverItem | null;
   strongest30d: CollectionMoverItem | null;
 }
+
+export const SUDDEN_DROP_DEAL_MIN_AMOUNT = 50;
+export const SUDDEN_DROP_DEAL_STRONG_AMOUNT = 100;
+export const SUDDEN_DROP_DEAL_MAX_CURRENT_PRICE = 3000;
 
 function round(value: number, decimals = 2): number {
   return Number(value.toFixed(decimals));
@@ -447,6 +452,113 @@ function pickStrongestCollectionMover(
           (a[metric] ?? Number.NEGATIVE_INFINITY)
       )[0] ?? null
   );
+}
+
+export function getMoverRecentDropAmount(
+  item: Pick<CollectionMoverItem, "change7d" | "change30d">
+): number {
+  return Math.max(
+    item.change7d != null && item.change7d < 0 ? Math.abs(item.change7d) : 0,
+    item.change30d != null && item.change30d < 0 ? Math.abs(item.change30d) : 0
+  );
+}
+
+export function getMoverRecentDropPercent(
+  item: Pick<
+    CollectionMoverItem,
+    "change7d" | "change7dPct" | "change30d" | "change30dPct"
+  >
+): number | null {
+  const candidates = [
+    {
+      change: item.change7d,
+      percent: item.change7dPct,
+    },
+    {
+      change: item.change30d,
+      percent: item.change30dPct,
+    },
+  ]
+    .filter(
+      (candidate): candidate is { change: number; percent: number | null } =>
+        candidate.change != null && candidate.change < 0
+    )
+    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+
+  return candidates[0]?.percent ?? null;
+}
+
+function getSuddenDropInterestScore(item: CollectionMoverItem): number {
+  const weightedCore =
+    item.rankingScore +
+    item.opportunityScore * 0.65 +
+    Math.max(0, item.olderValueScore) * 0.85 +
+    item.cheapnessWeight * 4 +
+    item.ageWeight * 1.5;
+
+  return weightedCore * clamp(item.rarityWeight, 0.8, 1.75);
+}
+
+function isSuddenDropDeal(item: CollectionMoverItem): boolean {
+  if (item.priceQuality.status === "suspicious") {
+    return false;
+  }
+
+  const dropAmount = getMoverRecentDropAmount(item);
+  if (dropAmount < SUDDEN_DROP_DEAL_MIN_AMOUNT) {
+    return false;
+  }
+
+  const dropPercent = Math.abs(getMoverRecentDropPercent(item) ?? 0);
+  const peakGapPercent = Math.abs(Math.min(item.gapToPeakPct ?? 0, 0));
+  const hasDropContext =
+    dropAmount >= SUDDEN_DROP_DEAL_STRONG_AMOUNT ||
+    dropPercent >= 10 ||
+    peakGapPercent >= 20;
+  const hasEnoughHistory =
+    item.priceQuality.status === "ok" || dropAmount >= SUDDEN_DROP_DEAL_STRONG_AMOUNT;
+  const hasInterestingWeight =
+    item.rarityWeight >= 1.05 ||
+    item.olderValueScore >= 4 ||
+    item.opportunityScore >= 8 ||
+    item.rankingScore >= 8 ||
+    item.currentPrice <= 120;
+
+  return (
+    item.currentPrice <= SUDDEN_DROP_DEAL_MAX_CURRENT_PRICE &&
+    hasDropContext &&
+    hasEnoughHistory &&
+    hasInterestingWeight
+  );
+}
+
+function compareSuddenDropDeals(a: CollectionMoverItem, b: CollectionMoverItem): number {
+  const interestDiff = getSuddenDropInterestScore(b) - getSuddenDropInterestScore(a);
+  if (Math.abs(interestDiff) >= 0.01) {
+    return interestDiff;
+  }
+
+  const dropDiff = getMoverRecentDropAmount(b) - getMoverRecentDropAmount(a);
+  if (dropDiff !== 0) {
+    return dropDiff;
+  }
+
+  const percentDiff =
+    Math.abs(getMoverRecentDropPercent(b) ?? 0) -
+    Math.abs(getMoverRecentDropPercent(a) ?? 0);
+  if (percentDiff !== 0) {
+    return percentDiff;
+  }
+
+  if (a.currentPrice !== b.currentPrice) {
+    return a.currentPrice - b.currentPrice;
+  }
+
+  return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+}
+
+function getSuddenDropDeals(movers: CollectionMoverItem[]): CollectionMoverItem[] {
+  return movers.filter(isSuddenDropDeal).sort(compareSuddenDropDeals);
 }
 
 function combineCollectionMoversData(
@@ -478,6 +590,9 @@ function combineCollectionMoversData(
         a.currentPrice - b.currentPrice ||
         a.name.localeCompare(b.name)
     );
+  const suddenDropDeals = results
+    .flatMap((result) => result.suddenDropDeals)
+    .sort(compareSuddenDropDeals);
 
   return {
     scope: sourceResult?.scope ?? "collection",
@@ -488,6 +603,7 @@ function combineCollectionMoversData(
     topOpportunities,
     cheapestHighRarityMovers,
     discountedHighRarity,
+    suddenDropDeals,
     strongest7d: pickStrongestCollectionMover(movers, "change7dPct"),
     strongest30d: pickStrongestCollectionMover(movers, "change30dPct"),
   };
@@ -2000,6 +2116,7 @@ async function buildGradedMoversData(
 
             return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
           });
+  const suddenDropDeals: CollectionMoverItem[] = [];
   const strongest7d =
     [...sortedMovers]
       .filter((item) => (item.change7dPct ?? 0) > 0)
@@ -2019,6 +2136,7 @@ async function buildGradedMoversData(
       topOpportunities,
       cheapestHighRarityMovers,
       discountedHighRarity,
+      suddenDropDeals,
       strongest7d,
       strongest30d,
     },
@@ -2645,6 +2763,7 @@ export async function getMovers(
 
       return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
     });
+  const suddenDropDeals = getSuddenDropDeals(sortedMovers);
   const strongest7d =
     [...sortedMovers]
       .filter((item) => (item.change7dPct ?? 0) > 0)
@@ -2668,6 +2787,7 @@ export async function getMovers(
     topOpportunities,
     cheapestHighRarityMovers,
     discountedHighRarity,
+    suddenDropDeals,
     strongest7d,
     strongest30d,
   };

@@ -17,6 +17,216 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.14",
+    releasedAt: "July 11, 2026",
+    title: "Sudden Drops now rolls over 24 hours",
+    summary:
+      "DustyCards 3.6.14 rebuilds Sudden Drops around a rolling 24-hour market window instead of internal refresh-job boundaries.",
+    tone: "improved",
+    highlights: [
+      "Verified English price drops remain visible for 24 hours even when new batches or small catch-up jobs run.",
+      "The page refreshes every minute and now clearly labels the rolling window, threshold, source, largest drop, and last update time.",
+      "Dashboard copy and empty states now use the same 24-hour definition, while suspicious listings remain excluded.",
+    ],
+  },
+  {
+    version: "3.6.13",
+    releasedAt: "July 11, 2026",
+    title: "One complete nightly drop window",
+    summary:
+      "DustyCards 3.6.13 keeps every chained price batch inside the same refresh window so a small final batch cannot empty Sudden Drops.",
+    tone: "fixed",
+    highlights: [
+      "Queued continuations now preserve the original start of the nightly price scan instead of resetting it for the last batch.",
+      "Sudden Drops therefore evaluates the complete refresh across all processed cards, including earlier batches from the same run.",
+      "The affected July 11 refresh window is repaired so its valid Gengar and Ditto drops are visible again.",
+    ],
+  },
+  {
+    version: "3.6.12",
+    releasedAt: "July 10, 2026",
+    title: "Highlights no longer stick",
+    summary:
+      "DustyCards 3.6.12 turns dashboard card highlights into a brief navigation cue instead of a permanent selected state.",
+    tone: "fixed",
+    highlights: [
+      "A linked mover is briefly highlighted and scrolled into view, then its highlight and focus ring clear automatically.",
+      "The temporary highlight parameter is removed from the URL so filters and live refreshes no longer keep reapplying it.",
+    ],
+  },
+  {
+    version: "3.6.11",
+    releasedAt: "July 10, 2026",
+    title: "Suspicious listings stay out",
+    summary:
+      "DustyCards 3.6.11 removes fake sudden drops caused by isolated CardMarket listing outliers.",
+    tone: "fixed",
+    highlights: [
+      "Current and previous English listings are checked against other available languages, with market averages used only when no language reference exists.",
+      "Reference prices are used only for suspicious-listing detection; displayed prices and drop calculations remain strictly English-to-English.",
+      "Gliscor DP36's return from an artificial €1,500 listing to €7 is now ignored instead of shown as a €1,493 market drop.",
+    ],
+  },
+  {
+    version: "3.6.10",
+    releasedAt: "July 10, 2026",
+    title: "English prices stay English",
+    summary:
+      "DustyCards 3.6.10 makes Sudden Price Drops use the same current CardMarket English price shown in card details.",
+    tone: "fixed",
+    highlights: [
+      "CardMarket English drops now compare the latest English price directly with the previous English price.",
+      "The feed no longer substitutes a 7-day or 30-day average, or another language, as the displayed current price.",
+      "Uta EB03-061 now correctly shows €815 current and a €135 drop from €950 instead of €41.35 and €908.65.",
+    ],
+  },
+  {
+    version: "3.6.9",
+    releasedAt: "July 10, 2026",
+    title: "Live drops while prices refresh",
+    summary:
+      "DustyCards 3.6.9 keeps the Sudden Price Drops page in sync while the daily price scan is still running.",
+    tone: "fixed",
+    highlights: [
+      "The page now refreshes itself every few seconds during an active price scan, so newly detected €50 drops appear without a manual reload.",
+      "The refresh badge clearly says when the scan is still running and the results are updating.",
+      "A deploy or restart now preserves the active scan window, so already detected drops do not disappear while the job resumes.",
+    ],
+  },
+  {
+    version: "3.6.8",
+    releasedAt: "July 10, 2026",
+    title: "Only genuinely new price drops",
+    summary:
+      "DustyCards 3.6.8 makes Sudden Price Drops an exact latest-refresh feed instead of letting old flat drops return.",
+    tone: "fixed",
+    highlights: [
+      "The feed now compares cards changed in the newest price refresh with their immediately previous marketplace value.",
+      "Cards that stay at the same low price disappear on the next refresh instead of being presented as a new drop again.",
+      "Price rows now keep a separate changed-at timestamp, preserving compact history without writing duplicate unchanged snapshots.",
+      "Refresh time, labels, empty states, and the home preview now clearly describe the latest price refresh.",
+    ],
+  },
+  {
+    version: "3.6.7",
+    releasedAt: "July 8, 2026",
+    title: "Clearer binder history control",
+    summary:
+      "DustyCards 3.6.7 moves the binder 120D / All data switch into the chart header so the loaded history range is easier to find.",
+    tone: "improved",
+    highlights: [
+      "The binder chart now shows a visible Data 120D / All switch inside the chart panel.",
+      "The All option still only loads full history after an explicit click.",
+    ],
+  },
+  {
+    version: "3.6.6",
+    releasedAt: "July 8, 2026",
+    title: "Binder chart range switch",
+    summary:
+      "DustyCards 3.6.6 keeps binder charts fast by default while adding an opt-in all-time history view.",
+    tone: "improved",
+    highlights: [
+      "Binder detail pages now show a compact 120D / All switch next to the binder actions.",
+      "The default binder chart still loads the recent 120-day window for speed.",
+      "All-time binder history is only loaded after clicking All, so the heavy query does not run in the background.",
+    ],
+  },
+  {
+    version: "3.6.5",
+    releasedAt: "July 8, 2026",
+    title: "Faster heavy pages",
+    summary:
+      "DustyCards 3.6.5 cuts more oversized history payloads and prevents repeated expensive status scans from stacking up.",
+    tone: "improved",
+    highlights: [
+      "Binder detail charts now use the same recent 120-day price-history window as the overview charts.",
+      "Expansion detail pages now build set-value charts server-side and no longer send raw per-card snapshot history to the card grid.",
+      "Direct collection tab links now load only the relevant tab detail data, while safe instant switching stays enabled when the data is already present.",
+      "The Wants page no longer runs the missing-binder write sync during the initial page render; it uses the existing background planner sync when needed.",
+      "Auto-price refresh status now shares one in-flight snapshot calculation per game instead of starting duplicate catalog scans.",
+    ],
+  },
+  {
+    version: "3.6.4",
+    releasedAt: "July 8, 2026",
+    title: "Faster catalog pages",
+    summary:
+      "DustyCards 3.6.4 speeds up category and illustrator pages with bounded price history, shared caches, and new card lookup indexes.",
+    tone: "improved",
+    highlights: [
+      "Category detail pages now send recent 120-day daily price history instead of every historical snapshot for every card.",
+      "Illustrator detail pages now use the same 120-day history window; the heaviest local artist test dropped from 70,674 to 23,011 daily history rows.",
+      "Category summaries and illustrator summaries are cached per game, so repeated opens no longer rerun the same catalog-wide aggregate scans.",
+      "Category card catalogs and illustrator card catalogs are cached briefly while user-owned and wanted state stays live per account.",
+      "New Card indexes on artist and game+rarity support the slow category and illustrator queries.",
+    ],
+  },
+  {
+    version: "3.6.3",
+    releasedAt: "July 8, 2026",
+    title: "Safer deploys and health checks",
+    summary:
+      "DustyCards 3.6.3 hardens deploy backups, restore safety, boot recovery, and production health monitoring.",
+    tone: "system",
+    highlights: [
+      "Pre-deploy backups now use SQLite VACUUM INTO plus quick_check instead of copying the live WAL database file.",
+      "Deploys now use a server-side lock, so overlapping deploys cannot interleave build, restart, and cleanup steps.",
+      "Pre-deploy backups now use age-tiered retention: all recent backups, daily keepers, then weekly keepers.",
+      "Fresh database materialization and the new restore script remove stale WAL/SHM sidecars before replacing dustycards.db.",
+      "A new /api/health endpoint checks DB access, WAL/SHM size, and scheduler heartbeat freshness for uptime monitoring.",
+      "Boot reconcile now retries before giving up, and shutdown now disconnects the database before the process exits.",
+      "Deploy migration checks no longer silently skip an unknown state; they stop services, retry, then fail closed if still unknown.",
+      "Production builds now ignore runtime image caches, backups, screenshots, reports, and docs during file tracing so deploys stay much lighter.",
+    ],
+  },
+  {
+    version: "3.6.2",
+    releasedAt: "July 8, 2026",
+    title: "Trust fixes for drops and value drivers",
+    summary:
+      "DustyCards 3.6.2 tightens the visible money-movement math behind home value drivers and Sudden Price Drops.",
+    tone: "fixed",
+    highlights: [
+      "Collection value drivers now skip cards and sealed products with missing current prices instead of treating them as EUR 0 drops.",
+      "All-cards value drivers now require a fresh per-card baseline, so older snapshots are not shown as a 1-2 day move.",
+      "Sudden Price Drops now carries the real covered-days window per card and labels the home/full views honestly when an anchor is older than 2 days.",
+      "Collection, wants, card submission, and pull-rate import APIs now return a clean 400 for malformed JSON bodies instead of falling into generic 500 errors.",
+      "Movers scope tests now seed fresh time-relative fixtures, so all-card and collection scope checks stay meaningful as the local DB ages.",
+    ],
+  },
+  {
+    version: "3.6.1",
+    releasedAt: "July 8, 2026",
+    title: "Auth hardening",
+    summary:
+      "DustyCards 3.6.1 hardens password-reset links, auth throttling, and password-change sessions.",
+    tone: "system",
+    highlights: [
+      "Password reset and verification email links now use the configured APP_URL only, never Host or forwarded request headers.",
+      "Production auth redirects fail closed when APP_URL is missing, and the example env now documents it.",
+      "Login, register, reset, and verification throttles now key from the trusted proxy hop instead of the spoofable first X-Forwarded-For value.",
+      "Changing your password now revokes old sessions and immediately issues a fresh current session cookie.",
+    ],
+  },
+  {
+    version: "3.6.0",
+    releasedAt: "July 8, 2026",
+    title: "Social collections and fresh market drops",
+    summary:
+      "DustyCards 3.6.0 finishes the Social tab, brings Sudden Price Drops onto the home overview, and makes mobile navigation feel more app-like.",
+    tone: "new",
+    highlights: [
+      "Social now lists collectors with cards, lets you add friends without knowing an email address, and opens friend collections in a home-style overview instead of dumping every card immediately.",
+      "Full Access can be requested and accepted both ways, unlocking private totals, purchase prices, notes, and tags only after both accounts agree.",
+      "Friend featured cards now use the same selection logic as that user's own homepage, with a complete collection option when you want to inspect everything.",
+      "Sudden Price Drops now appears as a compact home panel and opens a full Movers pocket with game switching, highlight-and-scroll from the clicked card, and cleaner filters.",
+      "The sudden drop feed is now a fresh top 50 based on new 2-day 50+ drops, so old flat drops age out instead of lingering for a week.",
+      "Mobile More, bottom navigation, and pull-to-refresh were polished so the phone app feels cleaner and accidental refreshes happen less often.",
+      "CardMarket links and market movement views were tightened so Pokemon and One Piece cards stay on the right market context.",
+    ],
+  },
+  {
     version: "3.5.1",
     releasedAt: "July 1, 2026",
     title: "Faster expansion pages",
@@ -1444,6 +1654,16 @@ export const patchNotes: PatchNoteEntry[] = [
 
 export const roadmapItems: RoadmapItem[] = [
   {
+    title: "Heavy-page performance",
+    status: "Completed",
+    summary: "Binder, expansion, catalog, Wants, and auto-price status paths now use bounded history, caches, and lighter render-time work.",
+  },
+  {
+    title: "Social collections",
+    status: "Completed",
+    summary: "Friends, collector discovery, collection overviews, and mutual Full Access are now live.",
+  },
+  {
     title: "Japanese card support",
     status: "Waiting",
     summary: "Add Japanese library and price flows when TCGGO exposes reliable Japanese data.",
@@ -1455,8 +1675,8 @@ export const roadmapItems: RoadmapItem[] = [
   },
   {
     title: "Admin data quality center",
-    status: "Next",
-    summary: "Admin-only diagnostics for missing images, missing source URLs, stale prices, empty histories, and unavailable price states.",
+    status: "Completed",
+    summary: "Admin-only diagnostics for missing images, missing source URLs, stale prices, empty histories, and unavailable price states are available in Settings.",
   },
   {
     title: "Price alerts and watch rules",

@@ -6,24 +6,15 @@ import {
 import { normalizeEmail, verifyPassword } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
+import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { getClientIp, isRateLimited, recordRateLimitHit } from "@/lib/rate-limit";
+import { getSafeNextPath } from "@/lib/safe-next-path";
 
 export const runtime = "nodejs";
 
 const LOGIN_RATE_WINDOW_MS = 1000 * 60 * 15;
 const LOGIN_RATE_LIMIT_PER_IP = 20;
 const LOGIN_RATE_LIMIT_PER_EMAIL = 8;
-
-function getPublicOrigin(req: NextRequest): string {
-  const configuredUrl = process.env.APP_URL;
-  if (configuredUrl) return configuredUrl;
-
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") ?? "";
@@ -38,10 +29,7 @@ export async function POST(req: NextRequest) {
         password?: unknown;
       });
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
-  const next =
-    typeof body.next === "string" && body.next.startsWith("/") && !body.next.startsWith("//")
-      ? body.next
-      : "/";
+  const next = getSafeNextPath(body.next);
   const password = typeof body.password === "string" ? body.password : "";
 
   const ipKey = `login:ip:${getClientIp(req)}`;
@@ -93,8 +81,9 @@ export async function POST(req: NextRequest) {
   if (!user.email_verified_at) {
     try {
       await sendVerificationEmailForUser({
-        baseUrl: getPublicOrigin(req),
+        baseUrl: getMailPublicOrigin(),
         email: user.email,
+        nextPath: next,
         userId: user.id,
       });
     } catch (error) {

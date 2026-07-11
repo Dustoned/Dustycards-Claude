@@ -101,6 +101,7 @@ export default async function OnePieceExpansionDetailPage({
 
     return {
       id: card.id,
+      game: ONE_PIECE_GAME,
       name: card.name,
       card_number: card.card_number,
       rarity: card.rarity,
@@ -240,10 +241,6 @@ export default async function OnePieceExpansionDetailPage({
           cards={cards}
           totalCards={episode._count.cards}
           episode={{ id: episode.id, name: episode.name, code: episode.code }}
-          priceSnapshots={rawSetPriceSnapshots.map((snapshot) => ({
-            ...snapshot,
-            fetched_at: new Date(snapshot.fetched_at).toISOString(),
-          }))}
           showPriceHistory={false}
         />
       )}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import { resolveCardMarketSealedProductUrl } from "@/lib/cardmarket";
@@ -13,8 +14,10 @@ import {
 } from "@/lib/price-history";
 import { getSealedProductPrice } from "@/lib/sealed-products";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
+import useModalA11y from "@/lib/useModalA11y";
 import {
   SealedModalFooter,
+  SealedFeaturedCardsSection,
   SealedModalHeroSection,
   SealedModalHistorySection,
   SealedModalPreview,
@@ -29,6 +32,12 @@ import {
   formatTimestamp,
   getSealedModalLayoutClasses,
 } from "./sealed-modal/utils";
+import type { ModalCardData } from "./card-modal/types";
+
+const CardModal = dynamic(() => import("@/components/CardModal"), {
+  ssr: false,
+  loading: () => null,
+});
 
 export type { SealedModalProductData } from "./sealed-modal/types";
 
@@ -39,6 +48,7 @@ interface Props {
 
 export default function SealedProductModal({ product, onClose }: Props) {
   useBodyScrollLock();
+  const modalFrameRef = useRef<HTMLDivElement | null>(null);
 
   const { displaySettings, currentUserRole } = useSettings();
   const [modalProduct, setModalProduct] = useState<SealedDetailResponse>(() =>
@@ -48,6 +58,8 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [openingFeaturedCardId, setOpeningFeaturedCardId] = useState<string | null>(null);
+  const [selectedFeaturedCard, setSelectedFeaturedCard] = useState<ModalCardData | null>(null);
   const [sealedHistorySeries, setSealedHistorySeries] =
     useState<SealedMarketHistorySeriesKey>("cm_market");
 
@@ -56,9 +68,9 @@ export default function SealedProductModal({ product, onClose }: Props) {
     displaySettings.widescreen
   );
   const desktopWorkspaceStyle = {
-    maxWidth: `min(100%, max(${layout.maxW}, min(176rem, calc(100vw - 20rem))))`,
+    maxWidth: "100%",
   };
-  const desktopGridClass = `grid min-w-0 gap-5 xl:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1fr)] xl:items-start 2xl:grid-cols-[minmax(20rem,0.72fr)_minmax(24rem,0.86fr)_minmax(32rem,1.32fr)] 2xl:gap-6`;
+  const desktopGridClass = `grid min-w-0 gap-5 xl:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1fr)] xl:items-start 2xl:grid-cols-[minmax(20rem,36rem)_minmax(24rem,42rem)_minmax(32rem,1fr)] 2xl:gap-6`;
   const desktopHistoryClass = "min-w-0 xl:col-start-2 2xl:col-start-auto";
   const primaryPrice = getSealedProductPrice(modalProduct);
   const priceHistory = modalProduct.price_history;
@@ -92,6 +104,8 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const isBusy = refreshing || syncingHistory;
   const priceFetchedAtLabel = formatTimestamp(modalProduct.price_fetched_at);
   const canManageSealedPrices = currentUserRole === "admin";
+
+  useModalA11y({ dialogRef: modalFrameRef, onClose });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -190,7 +204,25 @@ export default function SealedProductModal({ product, onClose }: Props) {
     }
   }
 
+  async function openFeaturedCard(cardId: string) {
+    if (openingFeaturedCardId) return;
+    setOpeningFeaturedCardId(cardId);
+
+    try {
+      const response = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      setSelectedFeaturedCard((await response.json()) as ModalCardData);
+    } catch {
+      setActionError("Could not open this featured card");
+    } finally {
+      setOpeningFeaturedCardId(null);
+    }
+  }
+
   return (
+    <>
     <div
       className="dc-modal-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#050507] p-2 sm:p-4 md:block md:bg-[#08080c] md:p-0 xl:left-[16rem]"
       style={{ overscrollBehavior: "contain" }}
@@ -211,14 +243,16 @@ export default function SealedProductModal({ product, onClose }: Props) {
         </button>
 
         <div
+          ref={modalFrameRef}
           role="dialog"
           aria-modal="true"
           aria-label={modalProduct.name}
+          tabIndex={-1}
           className="card-modal-frame dc-modal-panel relative max-h-[calc(100dvh-1rem)] w-full overflow-y-auto overscroll-contain rounded-[32px] border border-white/12 bg-[#050506] [overflow-anchor:none] [scrollbar-gutter:stable] shadow-[0_32px_90px_rgba(0,0,0,0.62)] md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
           data-modal-size={displaySettings.modalSize}
         >
           <div
-            className="mx-auto hidden w-full items-center justify-between gap-4 px-6 py-6 md:flex lg:px-8 lg:py-7"
+            className="mx-auto hidden w-full items-center justify-between gap-4 px-6 py-4 md:flex lg:px-8"
             style={desktopWorkspaceStyle}
           >
             <button
@@ -247,7 +281,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
             <div className={desktopGridClass}>
               <SealedModalPreview
                 product={modalProduct}
-                mediaWidth="clamp(20rem, 18vw, 32rem)"
+                mediaWidth="clamp(20rem, 18vw, 36rem)"
                 imageSize={layout.imageSize}
                 imagePadding={layout.imagePadding}
               />
@@ -294,6 +328,15 @@ export default function SealedProductModal({ product, onClose }: Props) {
                 />
               </div>
             </div>
+
+            <div className="mt-5">
+              <SealedFeaturedCardsSection
+                product={modalProduct}
+                loading={detailsLoading}
+                openingCardId={openingFeaturedCardId}
+                onOpenCard={(cardId) => void openFeaturedCard(cardId)}
+              />
+            </div>
           </div>
 
           <div className="md:hidden">
@@ -308,5 +351,12 @@ export default function SealedProductModal({ product, onClose }: Props) {
         </div>
       </div>
     </div>
+    {selectedFeaturedCard ? (
+      <CardModal
+        card={selectedFeaturedCard}
+        onClose={() => setSelectedFeaturedCard(null)}
+      />
+    ) : null}
+    </>
   );
 }

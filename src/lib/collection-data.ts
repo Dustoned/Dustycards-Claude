@@ -136,6 +136,19 @@ export interface CollectionOverviewData {
   }>;
 }
 
+export interface SocialCollectionData {
+  cards: CollectionCardViewItem[];
+  metrics: {
+    totalCards: number;
+    rawCards: number;
+    gradedCards: number;
+    totalBinders: number;
+    totalSealedUnits: number;
+    currentValue: number;
+    pricedCards: number;
+  };
+}
+
 export type CollectionPageTab =
   | "overview"
   | "complete"
@@ -145,6 +158,8 @@ export type CollectionPageTab =
   | "sealed"
   | "graded"
   | "selling";
+
+export type BinderHistoryRange = "recent" | "all";
 
 export interface BinderPageData {
   binder: {
@@ -493,6 +508,7 @@ const collectionBinderMetricSelect = {
 
 const SQLITE_SAFE_CHUNK_SIZE = 250;
 const COLLECTION_OVERVIEW_CHART_DAYS = 120;
+export const BINDER_HISTORY_RECENT_DAYS = COLLECTION_OVERVIEW_CHART_DAYS;
 const COLLECTION_VALUE_DRIVER_LIMIT = 24;
 const COLLECTION_VALUE_DRIVER_WINDOW_DAYS = 2;
 const COLLECTION_VALUE_DRIVER_STALE_DAYS = COLLECTION_VALUE_DRIVER_WINDOW_DAYS;
@@ -1462,7 +1478,8 @@ function buildCollectionValueDrivers({
     // entry that used to stay pinned to the panel for weeks).
     const currentSource = getCollectionValueDriverCardSource(item);
     if (currentSource !== "Raw") continue;
-    const currentItemValue = item.current_value ?? 0;
+    if (item.current_value == null) continue;
+    const currentItemValue = item.current_value;
     const previousItemValue = baseline.value;
     const previousSource = "Raw";
     const key = `card:${item.card_id}:${currentSource}`;
@@ -1495,7 +1512,8 @@ function buildCollectionValueDrivers({
     if (isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate)) continue;
     const baseline = sealedBaselineValues.get(item.product_id);
     if (!baseline || isValueDriverBaselineTooOld(baseline.date, minBaselineDate)) continue;
-    const currentItemValue = (item.current_value_per_item ?? 0) * item.quantity;
+    if (item.current_value_per_item == null) continue;
+    const currentItemValue = item.current_value_per_item * item.quantity;
     const previousItemValue = baseline.value * item.quantity;
 
     addCollectionValueDriverDraft(drafts, {
@@ -1512,7 +1530,7 @@ function buildCollectionValueDrivers({
       href: getExpansionHref(item.episode_id),
       detail: buildSealedValueDriverDetail(item),
       quantity: item.quantity,
-      previousValue: currentItemValue === 0 && previousItemValue === 0 ? 0 : previousItemValue,
+      previousValue: previousItemValue,
       currentValue: currentItemValue,
       currentSource: "Sealed",
       previousSource: "Sealed",
@@ -2003,6 +2021,119 @@ export async function getCollectionOverviewData(
   return result;
 }
 
+interface SocialCollectionAccessOptions {
+  fullAccess?: boolean;
+}
+
+function sanitizeSocialCollectionCard(
+  item: CollectionCardViewItem,
+  options: SocialCollectionAccessOptions = {}
+): CollectionCardViewItem {
+  const fullAccess = options.fullAccess === true;
+
+  return {
+    ...item,
+    collection_item_id: null,
+    collection_item_ids: [],
+    binder_id: null,
+    purchase_price: fullAccess ? item.purchase_price : null,
+    cost_basis_value: fullAccess ? item.cost_basis_value : null,
+    cost_basis_label: fullAccess ? item.cost_basis_label : "Paid",
+    cost_basis_source: fullAccess ? item.cost_basis_source : "direct",
+    notes: fullAccess ? item.notes ?? null : null,
+    tags: fullAccess ? item.tags ?? [] : [],
+  };
+}
+
+function sanitizeSocialCollectionOverviewData(
+  data: CollectionOverviewData,
+  options: SocialCollectionAccessOptions = {}
+): CollectionOverviewData {
+  const fullAccess = options.fullAccess === true;
+  const sanitizeCards = (items: CollectionCardViewItem[]) =>
+    items.map((item) => sanitizeSocialCollectionCard(item, options));
+
+  return {
+    ...data,
+    overview: {
+      ...data.overview,
+      investment: fullAccess ? data.overview.investment : 0,
+      pnl: fullAccess ? data.overview.pnl : 0,
+    },
+    cards: sanitizeCards(data.cards),
+    looseSingles: sanitizeCards(data.looseSingles),
+    binderCards: sanitizeCards(data.binderCards),
+    forSaleCards: [],
+    soldCards: [],
+    saleSummary: {
+      soldTotal: 0,
+      soldCards: 0,
+      soldCost: 0,
+      soldPnl: 0,
+    },
+    sealed: data.sealed.map((item) => ({
+      ...item,
+      purchase_price_per_item: fullAccess ? item.purchase_price_per_item : null,
+    })),
+    binders: data.binders.map((binder) => ({
+      ...binder,
+      investment: fullAccess ? binder.investment : 0,
+      pnl: fullAccess ? binder.pnl : 0,
+    })),
+  };
+}
+
+export async function getSocialCollectionOverviewData(
+  userId: string,
+  game: TradingCardGameFilter = POKEMON_GAME,
+  options: SocialCollectionAccessOptions = {}
+): Promise<CollectionOverviewData> {
+  const data = await getCollectionOverviewData({
+    userId,
+    activeTab: "overview",
+    game,
+  });
+
+  return sanitizeSocialCollectionOverviewData(data, options);
+}
+
+export async function getSocialCollectionData(
+  userId: string,
+  game: TradingCardGameFilter = POKEMON_GAME
+): Promise<SocialCollectionData> {
+  const [collectionCards, collectionSealed, binders] = await Promise.all([
+    getCollectionCards({ userId, game }),
+    getCollectionSealedMetrics(userId, game),
+    getCollectionBinders(userId, false, game),
+  ]);
+  const metricCards = collectionCards as CollectionCardMetricRecord[];
+  const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
+  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards)
+    ? await getUsdToEurRate()
+    : null;
+  const valueOptions = { usdToEurRate };
+  const cards = (collectionCards as CollectionCardRecord[]).map((record) =>
+    sanitizeSocialCollectionCard(buildCardViewItem(record, null, valueOptions))
+  );
+  const rawCards = cards.filter((item) => !item.grading_company || !item.grading_grade).length;
+  const gradedCards = cards.length - rawCards;
+  const cardCurrentValue = sumCardCurrentValue(metricCards, valueOptions);
+  const sealedCurrentValue = sumSealedCurrentValue(metricSealed);
+
+  return {
+    cards,
+    metrics: {
+      totalCards: metricCards.length,
+      rawCards,
+      gradedCards,
+      totalBinders: binders.length,
+      totalSealedUnits: metricSealed.reduce((total, item) => total + item.quantity, 0),
+      currentValue: Number((cardCurrentValue + sealedCurrentValue).toFixed(2)),
+      pricedCards: cards.filter((item) => item.current_value != null).length,
+    },
+  };
+}
+
 interface AllCardValueDriverRow {
   cardId: string;
   name: string;
@@ -2012,6 +2143,7 @@ interface AllCardValueDriverRow {
   episodeName: string;
   episodeCode: string | null;
   currentFetchedAt: Date | string | null;
+  previousFetchedAt: Date | string | null;
   currentCmEnLowestNm: number | null;
   currentCmDeLowestNm: number | null;
   currentCmFrLowestNm: number | null;
@@ -2155,6 +2287,7 @@ async function getAllCardValueDriversData(
       FROM (
         SELECT
           p.card_id,
+          p.fetched_at,
           p.cm_en_lowest_nm,
           p.cm_de_lowest_nm,
           p.cm_fr_lowest_nm,
@@ -2260,6 +2393,7 @@ async function getAllCardValueDriversData(
       e.name AS "episodeName",
       e.code AS "episodeCode",
       cp.fetched_at AS "currentFetchedAt",
+      pp.fetched_at AS "previousFetchedAt",
       cp.cm_en_lowest_nm AS "currentCmEnLowestNm",
       cp.cm_de_lowest_nm AS "currentCmDeLowestNm",
       cp.cm_fr_lowest_nm AS "currentCmFrLowestNm",
@@ -2287,11 +2421,18 @@ async function getAllCardValueDriversData(
 
   const drafts = new Map<string, CollectionValueDriverDraft>();
   const staleBeforeDate = getValueDriverStaleBeforeDate();
+  const minBaselineDate = shiftHistoryDateKey(
+    previousDate,
+    -COLLECTION_VALUE_DRIVER_BASELINE_MAX_AGE_DAYS
+  );
 
   for (const row of rows) {
     const latestSnapshotDate = row.currentFetchedAt ? toHistoryDateKey(row.currentFetchedAt) : null;
-    const stale = isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate);
-    if (stale) continue;
+    if (!latestSnapshotDate || isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate)) {
+      continue;
+    }
+    const baselineDate = row.previousFetchedAt ? toHistoryDateKey(row.previousFetchedAt) : null;
+    if (!baselineDate || isValueDriverBaselineTooOld(baselineDate, minBaselineDate)) continue;
 
     const currentValue = getSaneAllCardRawValue(
       getCardMarketValue({
@@ -2325,8 +2466,8 @@ async function getAllCardValueDriversData(
     const coveredDays = Math.max(
       1,
       Math.round(
-        (new Date(`${latestDate}T00:00:00.000Z`).getTime() -
-          new Date(`${previousDate}T00:00:00.000Z`).getTime()) /
+        (new Date(`${latestSnapshotDate}T00:00:00.000Z`).getTime() -
+          new Date(`${baselineDate}T00:00:00.000Z`).getTime()) /
           (24 * 60 * 60 * 1000)
       )
     );
@@ -2363,7 +2504,7 @@ async function getAllCardValueDriversData(
       currentSource: "Raw",
       previousSource: "Raw",
       latestSnapshotDate,
-      stale,
+      stale: false,
     });
   }
 
@@ -2804,7 +2945,8 @@ export async function getWantBinderPageData(
 
 export async function getBinderPageData(
   binderId: string,
-  userId: string
+  userId: string,
+  options: { historyRange?: BinderHistoryRange } = {}
 ): Promise<BinderPageData | null> {
   const binder = await db.collectionBinder.findFirst({
     where: { id: binderId, user_id: userId },
@@ -2830,6 +2972,9 @@ export async function getBinderPageData(
   });
 
   if (!binder) return null;
+
+  const historySince =
+    options.historyRange === "all" ? undefined : getHistoryCutoffDate(BINDER_HISTORY_RECENT_DAYS);
 
   if (binder.type === "linked_set" && binder.episode) {
     const [allSetCards, ownedCards] = await Promise.all([
@@ -3006,7 +3151,7 @@ export async function getBinderPageData(
 
     const historyRows =
       cardQuantities.size > 0
-        ? await getCardHistoryRows([...cardQuantities.keys()])
+        ? await getCardHistoryRows([...cardQuantities.keys()], historySince)
         : [];
 
     const items: CollectionCardViewItem[] = allSetCards.map((card) => {
@@ -3097,7 +3242,7 @@ export async function getBinderPageData(
   const cardQuantities = buildCardQuantityMap(metricBinderCards);
   const historyRows =
     cardQuantities.size > 0
-      ? await getCardHistoryRows([...cardQuantities.keys()])
+      ? await getCardHistoryRows([...cardQuantities.keys()], historySince)
       : [];
 
   return {

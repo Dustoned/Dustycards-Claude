@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hashSessionToken } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
-
-function getPublicOrigin(req: NextRequest): string {
-  const configuredUrl = process.env.APP_URL;
-  if (configuredUrl) return configuredUrl;
-
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
+import { getPublicOrigin } from "@/lib/public-origin";
+import { getSafeNextPath } from "@/lib/safe-next-path";
 
 function loginRedirect(req: NextRequest, params: Record<string, string>) {
   const redirectUrl = new URL("/login", getPublicOrigin(req));
@@ -21,6 +12,7 @@ function loginRedirect(req: NextRequest, params: Record<string, string>) {
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token") ?? "";
+  const nextPath = getSafeNextPath(req.nextUrl.searchParams.get("next"));
   const record = token
     ? await db.emailVerificationToken.findUnique({
         where: { token_hash: hashSessionToken(token) },
@@ -42,7 +34,7 @@ export async function GET(req: NextRequest) {
     record.expires_at.getTime() <= Date.now() ||
     record.user.disabled
   ) {
-    return loginRedirect(req, { verify: "invalid" });
+    return loginRedirect(req, { verify: "invalid", next: nextPath });
   }
 
   if (!record.user.email_verified_at) {
@@ -54,5 +46,5 @@ export async function GET(req: NextRequest) {
 
   await db.emailVerificationToken.deleteMany({ where: { user_id: record.user_id } });
 
-  return loginRedirect(req, { verified: "1" });
+  return loginRedirect(req, { verified: "1", next: nextPath });
 }

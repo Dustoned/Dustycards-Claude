@@ -245,7 +245,7 @@ export const initSettingsScript = `
     var t = s.theme || 'system';
     var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.cookie = '${SETTINGS_RESOLVED_THEME_COOKIE_NAME}=' + (dark ? 'dark' : 'light') + '; Path=/; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; SameSite=Lax';
-    var phone = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+    var phone = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
     var rawUi = phone ? (s.mobileUiScale || 'small') : (s.uiScale || 'medium');
     var ui = ['small', 'medium', 'large'].indexOf(rawUi) >= 0 ? rawUi : (phone ? 'small' : 'medium');
     document.documentElement.dataset.theme = t;

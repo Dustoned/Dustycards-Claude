@@ -130,6 +130,22 @@ export interface SealedMoverItem {
   moverScore: number;
 }
 
+export interface UpcomingSealedRelease {
+  id: string;
+  kind: "product";
+  name: string;
+  imageUrl: string | null;
+  releaseDate: string;
+  daysUntil: number;
+  sourceName: string;
+  sourceUrl: string | null;
+  confidence: number | null;
+  productId: string | null;
+  episodeId: string | null;
+  episodeName: string | null;
+  episodeCode: string | null;
+}
+
 export interface SealedMoversData {
   scope: "sealed";
   itemScope: MoversItemScope;
@@ -140,6 +156,7 @@ export interface SealedMoversData {
   strongest7d: SealedMoverItem | null;
   strongest30d: SealedMoverItem | null;
   updatedAt: string | null;
+  upcomingReleases: UpcomingSealedRelease[];
 }
 
 function round(value: number, decimals = 2): number {
@@ -346,6 +363,11 @@ function combineSealedMoversData(results: SealedMoversData[]): SealedMoversData 
     .flatMap((result) => result.cheapestMovers)
     .sort((a, b) => a.currentPrice - b.currentPrice || b.rankingScore - a.rankingScore)
     .slice(0, 12);
+  const upcomingReleases = [...new Map(
+    results.flatMap((result) => result.upcomingReleases).map((release) => [release.id, release])
+  ).values()]
+    .sort((a, b) => a.releaseDate.localeCompare(b.releaseDate) || a.name.localeCompare(b.name))
+    .slice(0, 60);
 
   return {
     scope: "sealed",
@@ -362,7 +384,56 @@ function combineSealedMoversData(results: SealedMoversData[]): SealedMoversData 
         .filter((value): value is string => Boolean(value))
         .sort()
         .at(-1) ?? null,
+    upcomingReleases,
   };
+}
+
+async function getUpcomingSealedReleases(
+  game: Exclude<TradingCardGameFilter, typeof ALL_GAMES>
+): Promise<UpcomingSealedRelease[]> {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  const watchedProducts = await db.sealedReleaseWatch.findMany({
+    where: { game, release_date: { gte: today } },
+    orderBy: [{ release_date: "asc" }, { name: "asc" }],
+    take: 60,
+  });
+
+  const matchedProductIds = watchedProducts
+    .map((release) => release.matched_product_id)
+    .filter((id): id is string => Boolean(id));
+  const matchedProducts = matchedProductIds.length
+    ? await db.sealedProduct.findMany({
+        where: { id: { in: matchedProductIds } },
+        select: {
+          id: true,
+          episode: { select: { id: true, name: true, code: true } },
+        },
+      })
+    : [];
+  const matchedById = new Map(matchedProducts.map((product) => [product.id, product]));
+
+  return watchedProducts.map((release): UpcomingSealedRelease => {
+    const matched = release.matched_product_id
+      ? matchedById.get(release.matched_product_id) ?? null
+      : null;
+    return {
+      id: `product:${release.id}`,
+      kind: "product",
+      name: release.name,
+      imageUrl: release.image_url,
+      releaseDate: release.release_date.toISOString(),
+      daysUntil: Math.max(0, Math.ceil((release.release_date.getTime() - today.getTime()) / DAY_MS)),
+      sourceName: release.source_name,
+      sourceUrl: release.source_url,
+      confidence: release.confidence,
+      productId: matched?.id ?? null,
+      episodeId: matched?.episode.id ?? null,
+      episodeName: matched?.episode.name ?? null,
+      episodeCode: matched?.episode.code ?? null,
+    };
+  });
 }
 
 function getPricePresenceWhere(): Prisma.SealedPriceSnapshotWhereInput["OR"] {
@@ -445,6 +516,7 @@ export async function getSealedMovers(
   }
 
   const timer = startPerformanceTimer("movers.sealed", { itemScope, game });
+  const upcomingReleasesPromise = getUpcomingSealedReleases(game);
   const productWhere =
     itemScope === "collection"
       ? {
@@ -614,6 +686,7 @@ export async function getSealedMovers(
     strongest7d: pickStrongestMover(movers, "change7dPct"),
     strongest30d: pickStrongestMover(movers, "change30dPct"),
     updatedAt: movers[0]?.latestFetchedAt ?? null,
+    upcomingReleases: await upcomingReleasesPromise,
   };
 
   timer.finish({

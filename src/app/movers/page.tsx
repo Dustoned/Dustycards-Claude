@@ -396,7 +396,9 @@ export default async function MoversPage({
     isRawScope ? activeSourceLabel : null,
   ].filter(Boolean);
   const showDesktopFilterDetails = desktopActiveSecondaryFilters.length > 0;
-  function buildMarketPocketHref(pathname: "/movers/cheap-high-rarity" | "/movers/discount-watch") {
+  function buildMarketPocketHref(
+    pathname: "/movers/cheap-high-rarity" | "/movers/discount-watch" | "/movers/sudden-drops"
+  ) {
     const params = new URLSearchParams();
     const gameValue = getGameFilterSearchParamValue(activeGame);
 
@@ -435,6 +437,7 @@ export default async function MoversPage({
       : cardData
         ? buildMoverPulseChart(cardData.movers, modeCopy.ranking)
         : null;
+  const hasPulseHistory = Boolean(pulseChart && pulseChart.points.length > 1);
   const metrics = valueData
     ? ([
         {
@@ -562,6 +565,15 @@ export default async function MoversPage({
             reasonMode: "raw" as const,
           },
           {
+            title: "Sudden drops",
+            eyebrow: "Market pocket",
+            description: "Raw cards that recently dropped by 50+ and still score well on the Movers weights.",
+            href: buildMarketPocketHref("/movers/sudden-drops"),
+            hrefLabel: "Open pocket",
+            items: cardData.suddenDropDeals,
+            reasonMode: "raw" as const,
+          },
+          {
             title: "Discount watch",
             eyebrow: "Market pocket",
             description: "High-rarity cards that pulled back hard from previous peaks.",
@@ -588,10 +600,10 @@ export default async function MoversPage({
           </p>
         </div>
 
-        <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
+        <section className={`grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${hasPulseHistory ? "xl:items-stretch" : "xl:items-start"}`}>
           <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
             <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
-              {pulseChart ? (
+              {pulseChart && hasPulseHistory ? (
                 <PriceHistoryPanel
                   layout="dashboard"
                   title={pulseChart.title}
@@ -604,8 +616,16 @@ export default async function MoversPage({
                   rangeStorageKey={`movers-${activeMode}-${activeItemScope}`}
                 />
               ) : (
-                <div className="flex h-full min-h-[var(--ui-dashboard-header-panel-min-height)] items-center justify-center text-sm font-semibold text-white/35">
-                  Not enough market history yet
+                <div className="flex min-h-28 flex-col justify-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/38">
+                    Mover Pulse
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-white/42">
+                    Not enough market history yet
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-white/30">
+                    Movement appears here after at least two comparable snapshots.
+                  </p>
                 </div>
               )}
             </div>

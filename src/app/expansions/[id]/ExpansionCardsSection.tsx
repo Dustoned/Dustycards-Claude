@@ -18,7 +18,7 @@ interface Props {
     name: string;
     code: string | null;
   };
-  priceSnapshots: EpisodePriceHistorySnapshot[];
+  priceSnapshots?: EpisodePriceHistorySnapshot[];
   showPriceHistory?: boolean;
 }
 
@@ -26,7 +26,7 @@ export default function ExpansionCardsSection({
   cards,
   totalCards,
   episode,
-  priceSnapshots,
+  priceSnapshots = [],
   showPriceHistory = true,
 }: Props) {
   const [visibleCards, setVisibleCards] = useState<CardData[]>(cards);
@@ -37,11 +37,14 @@ export default function ExpansionCardsSection({
   );
 
   const visiblePriceHistory = useMemo(
-    () =>
-      buildEpisodeSetPriceHistory(
+    () => {
+      if (!showPriceHistory || priceSnapshots.length === 0) return [];
+
+      return buildEpisodeSetPriceHistory(
         priceSnapshots.filter((snapshot) => visibleCardIds.has(snapshot.card_id))
-      ),
-    [priceSnapshots, visibleCardIds]
+      );
+    },
+    [priceSnapshots, showPriceHistory, visibleCardIds]
   );
 
   const currentTotals = useMemo(

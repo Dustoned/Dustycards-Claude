@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus, Package, X } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import EmptyState from "@/components/EmptyState";
 import {
   modalActionRowClass,
   modalCenteredMobileOverlayClass,
@@ -119,10 +120,12 @@ export function CollectionSealedEmptyState({
           trailing={sectionTrailing}
         />
       )}
-      <div className="binder-panel rounded-2xl px-5 py-7 text-center sm:rounded-3xl sm:px-8 sm:py-9">
-        <p className="mb-1 font-medium text-white/82">{emptyTitle}</p>
-        <p className="mx-auto max-w-xl text-sm leading-6 text-white/42">{emptyText}</p>
-      </div>
+      <EmptyState
+        title={emptyTitle}
+        description={emptyText}
+        actionHref="/expansions"
+        actionLabel="Browse sealed products"
+      />
     </>
   );
 }
@@ -207,6 +210,7 @@ function CollectionSealedTile({
   selectionMode,
   isSelected,
   removingItems,
+  readOnly,
   onActivate,
   onRemove,
 }: {
@@ -217,6 +221,7 @@ function CollectionSealedTile({
   selectionMode: boolean;
   isSelected: boolean;
   removingItems: boolean;
+  readOnly: boolean;
   onActivate: (item: CollectionSealedViewItem) => void;
   onRemove: (event: MouseEvent<HTMLButtonElement>, item: CollectionSealedViewItem) => void;
 }) {
@@ -289,7 +294,7 @@ function CollectionSealedTile({
               <span className={sealedTileNoPriceClass(cardSize)}>No price</span>
             )}
 
-            {!selectionMode && (
+            {!readOnly && !selectionMode && (
               <div className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
@@ -355,6 +360,7 @@ export function CollectionSealedGrid({
   selectionMode,
   selectedIdSet,
   removingItems,
+  readOnly,
   onActivate,
   onRemove,
 }: {
@@ -365,15 +371,16 @@ export function CollectionSealedGrid({
   selectionMode: boolean;
   selectedIdSet: Set<string>;
   removingItems: boolean;
+  readOnly: boolean;
   onActivate: (item: CollectionSealedViewItem) => void;
   onRemove: (event: MouseEvent<HTMLButtonElement>, item: CollectionSealedViewItem) => void;
 }) {
   return (
     <div
-      className={`grid ${sealedTileGridGapClass(cardSize)}`}
+      className={`dc-wide-grid-zone grid ${sealedTileGridGapClass(cardSize)}`}
       style={{
         gridTemplateColumns,
-        justifyContent: "start",
+        justifyContent: "stretch",
       }}
     >
       {items.map((item, index) => (
@@ -386,6 +393,7 @@ export function CollectionSealedGrid({
           selectionMode={selectionMode}
           isSelected={selectionMode && selectedIdSet.has(item.id)}
           removingItems={removingItems}
+          readOnly={readOnly}
           onActivate={onActivate}
           onRemove={onRemove}
         />

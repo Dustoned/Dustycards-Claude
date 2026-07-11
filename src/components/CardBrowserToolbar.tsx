@@ -67,12 +67,12 @@ interface Props {
 
 function metaChipClass(accent = false): string {
   return accent
-    ? "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-violet-400/30 bg-violet-400/12 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-violet-200 max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs"
-    : "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-white/55 max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs";
+    ? "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-violet-400/30 bg-violet-400/12 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-violet-200 max-[767px]:min-h-10 max-[767px]:px-2.5 max-[767px]:py-1.5 max-[767px]:text-xs"
+    : "inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-white/55 max-[767px]:min-h-10 max-[767px]:px-2.5 max-[767px]:py-1.5 max-[767px]:text-xs";
 }
 
 function actionButtonClass(active = false): string {
-  return `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors max-[640px]:min-h-8 max-[640px]:px-2.5 max-[640px]:py-1.5 max-[640px]:text-xs ${
+  return `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors max-[767px]:min-h-10 max-[767px]:px-2.5 max-[767px]:py-1.5 max-[767px]:text-xs ${
     active
       ? ACTIVE_SEGMENT_CLASS
       : "border-white/8 bg-white/[0.045] text-white/62 hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
@@ -80,7 +80,7 @@ function actionButtonClass(active = false): string {
 }
 
 function sectionCardClass(): string {
-  return "overflow-hidden rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-3 shadow-sm shadow-black/20 max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2.5";
+  return "overflow-hidden border-t border-white/8 px-0 py-3 max-[767px]:rounded-none max-[767px]:bg-transparent max-[767px]:shadow-none md:rounded-2xl md:border md:bg-white/[0.04] md:px-3 md:shadow-sm md:shadow-black/20";
 }
 
 function controlsStripClass(): string {
@@ -88,7 +88,7 @@ function controlsStripClass(): string {
 }
 
 function sectionLabelClass(): string {
-  return "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35 max-[640px]:w-auto max-[640px]:text-[9px]";
+  return "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/42 max-[767px]:w-auto max-[767px]:text-[10px]";
 }
 
 function compactSegmentedShellClass(): string {
@@ -120,7 +120,7 @@ function mobileSegmentedShellClass(): string {
 }
 
 function mobileSegmentedButtonClass(active: boolean): string {
-  return `min-h-8 min-w-0 rounded-full border border-transparent px-1.5 text-[11px] font-black leading-none transition-colors ${
+  return `min-h-10 min-w-0 rounded-full border border-transparent px-1.5 text-[11px] font-black leading-none transition-colors ${
     active
       ? ACTIVE_SEGMENT_CLASS
       : "text-white/56 hover:bg-white/[0.07] hover:text-white"
@@ -140,7 +140,7 @@ function MobileSegmentedControl({
 }) {
   return (
     <div className="min-w-0">
-      <span className="mb-0.5 block text-[9px] font-semibold uppercase tracking-[0.12em] text-white/35">
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/42">
         {label}
       </span>
       <div
@@ -218,7 +218,7 @@ export default function CardBrowserToolbar({
   const metaControls = (
     <div className="flex flex-wrap items-center gap-2 xl:justify-end">
       <span className={metaChipClass()}>{resultLabel}</span>
-      <span className={`${metaChipClass()} max-[640px]:hidden`}>{summaryLabel}</span>
+      <span className={`${metaChipClass()} max-[767px]:hidden`}>{summaryLabel}</span>
       <button
         type="button"
         onClick={onToggleFilters}
@@ -330,7 +330,7 @@ export default function CardBrowserToolbar({
               placeholder={searchPlaceholder}
               value={searchValue}
               onChange={(event) => onSearchChange(event.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white outline-none transition-colors placeholder:text-white/34 focus:border-white/20 focus:bg-black/20 max-[640px]:h-10 max-[640px]:rounded-xl max-[640px]:py-2 max-[640px]:text-sm"
+              className="w-full rounded-2xl border border-white/10 bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white outline-none transition-colors placeholder:text-white/42 focus:border-white/20 focus:bg-black/20 max-[767px]:h-11 max-[767px]:rounded-xl max-[767px]:py-2 max-[767px]:text-sm"
             />
             {searchValue && (
               <button
@@ -348,7 +348,7 @@ export default function CardBrowserToolbar({
       )}
 
       <section
-        className={`grid gap-2 sm:hidden ${
+        className={`grid gap-2 md:hidden ${
           hideSearch
             ? "rounded-2xl border border-white/8 bg-white/[0.04] p-2 shadow-sm shadow-black/20"
             : ""
@@ -383,7 +383,7 @@ export default function CardBrowserToolbar({
       </section>
 
       {!hideSearch ? (
-        <section className={`${controlsStripClass()} max-[640px]:hidden`}>
+        <section className={`${controlsStripClass()} max-[767px]:hidden`}>
           {desktopControls}
         </section>
       ) : null}

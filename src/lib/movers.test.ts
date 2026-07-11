@@ -1,7 +1,151 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/lib/db";
-import { getMovers, resolveMoverRarityWeight, resolveRawMoverRarityWeight } from "@/lib/movers";
+import {
+  getMoverRecentDropAmount,
+  getMoverRecentDropPercent,
+  getMovers,
+  resolveMoverRarityWeight,
+  resolveRawMoverRarityWeight,
+  SUDDEN_DROP_DEAL_MIN_AMOUNT,
+} from "@/lib/movers";
 import { POKEMON_GAME } from "@/lib/games";
+
+const TEST_PREFIX = "test-movers-fixture";
+const TEST_USER_ID = `${TEST_PREFIX}-user`;
+const TEST_EPISODE_ID = `${TEST_PREFIX}-episode`;
+const TEST_OWNED_CARD_ID = `${TEST_PREFIX}-owned-card`;
+const TEST_NON_OWNED_CARD_ID = `${TEST_PREFIX}-non-owned-card`;
+const TEST_COLLECTION_ITEM_ID = `${TEST_PREFIX}-collection-item`;
+
+function daysAgo(days: number): Date {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() - days);
+  return date;
+}
+
+async function cleanupMoverFixtures() {
+  await db.collectionCard.deleteMany({
+    where: { OR: [{ id: TEST_COLLECTION_ITEM_ID }, { user_id: TEST_USER_ID }] },
+  });
+  await db.cardGradedPrice.deleteMany({
+    where: { card_id: { in: [TEST_OWNED_CARD_ID, TEST_NON_OWNED_CARD_ID] } },
+  });
+  await db.price.deleteMany({
+    where: { card_id: { in: [TEST_OWNED_CARD_ID, TEST_NON_OWNED_CARD_ID] } },
+  });
+  await db.card.deleteMany({
+    where: { id: { in: [TEST_OWNED_CARD_ID, TEST_NON_OWNED_CARD_ID] } },
+  });
+  await db.episode.deleteMany({ where: { id: TEST_EPISODE_ID } });
+  await db.user.deleteMany({ where: { id: TEST_USER_ID } });
+}
+
+beforeAll(async () => {
+  await cleanupMoverFixtures();
+
+  await db.user.create({
+    data: {
+      id: TEST_USER_ID,
+      email: `${TEST_PREFIX}@example.test`,
+      password_hash: "test",
+    },
+  });
+  await db.episode.create({
+    data: {
+      id: TEST_EPISODE_ID,
+      game: POKEMON_GAME,
+      name: "Mover Fixture Set",
+      code: "MVF",
+      release_date: "2016-01-01",
+    },
+  });
+  await db.card.createMany({
+    data: [
+      {
+        id: TEST_OWNED_CARD_ID,
+        game: POKEMON_GAME,
+        episode_id: TEST_EPISODE_ID,
+        name: "Mover Fixture Owned",
+        card_number: "1",
+        rarity: "Secret Rare",
+      },
+      {
+        id: TEST_NON_OWNED_CARD_ID,
+        game: POKEMON_GAME,
+        episode_id: TEST_EPISODE_ID,
+        name: "Mover Fixture Non Owned",
+        card_number: "2",
+        rarity: "Secret Rare",
+      },
+    ],
+  });
+  await db.price.createMany({
+    data: [
+      {
+        card_id: TEST_OWNED_CARD_ID,
+        fetched_at: daysAgo(10),
+        cm_en_lowest_nm: 20,
+        cm_en_avg_7d: 20,
+        cm_en_avg_30d: 20,
+      },
+      {
+        card_id: TEST_OWNED_CARD_ID,
+        fetched_at: daysAgo(1),
+        cm_en_lowest_nm: 55,
+        cm_en_avg_7d: 55,
+        cm_en_avg_30d: 55,
+      },
+      {
+        card_id: TEST_NON_OWNED_CARD_ID,
+        fetched_at: daysAgo(10),
+        cm_en_lowest_nm: 18,
+        cm_en_avg_7d: 18,
+        cm_en_avg_30d: 18,
+      },
+      {
+        card_id: TEST_NON_OWNED_CARD_ID,
+        fetched_at: daysAgo(1),
+        cm_en_lowest_nm: 90,
+        cm_en_avg_7d: 90,
+        cm_en_avg_30d: 90,
+      },
+    ],
+  });
+  await db.cardGradedPrice.create({
+    data: {
+      card_id: TEST_NON_OWNED_CARD_ID,
+      label: "PSA 10",
+      price: 350,
+    },
+  });
+  await db.collectionCard.create({
+    data: {
+      id: TEST_COLLECTION_ITEM_ID,
+      user_id: TEST_USER_ID,
+      card_id: TEST_OWNED_CARD_ID,
+      for_sale: false,
+    },
+  });
+});
+
+afterAll(async () => {
+  await cleanupMoverFixtures();
+});
+
+describe("sudden drop mover helpers", () => {
+  it("uses the largest recent absolute drop across the 7d and 30d windows", () => {
+    const item = {
+      change7d: -52,
+      change7dPct: -18,
+      change30d: -125,
+      change30dPct: -42,
+    };
+
+    expect(getMoverRecentDropAmount(item)).toBeGreaterThanOrEqual(SUDDEN_DROP_DEAL_MIN_AMOUNT);
+    expect(getMoverRecentDropAmount(item)).toBe(125);
+    expect(getMoverRecentDropPercent(item)).toBe(-42);
+  });
+});
 
 describe("mover pull-rate weighting", () => {
   it("uses pull-rate weight before rarity fallback", () => {
@@ -26,16 +170,21 @@ describe("mover scopes", () => {
     "keeps collection movers collection-only and includes non-owned cards in all-card movers",
     async () => {
       const [collectionData, allData] = await Promise.all([
-        getMovers("cm_en", "collection"),
-        getMovers("cm_en", "all"),
+        getMovers("cm_en", "collection", "collection", TEST_USER_ID),
+        getMovers("cm_en", "all", "all", TEST_USER_ID),
       ]);
+      const nonOwnedFixture = allData.movers.find(
+        (item) => item.cardId === TEST_NON_OWNED_CARD_ID
+      );
 
       expect(collectionData.scope).toBe("collection");
       expect(allData.scope).toBe("all");
       expect(collectionData.trackedCards).toBeGreaterThan(0);
       expect(allData.trackedCards).toBeGreaterThan(collectionData.trackedCards);
+      expect(collectionData.movers.length).toBeGreaterThan(0);
+      expect(allData.movers.length).toBeGreaterThan(0);
       expect(collectionData.movers.every((item) => item.ownedCount > 0)).toBe(true);
-      expect(allData.movers.some((item) => item.ownedCount === 0)).toBe(true);
+      expect(nonOwnedFixture?.ownedCount).toBe(0);
       expect(collectionData.movers.every((item) => Array.isArray(item.gradedPrices))).toBe(true);
       expect(allData.movers.every((item) => Array.isArray(item.gradedPrices))).toBe(true);
     },
@@ -46,10 +195,12 @@ describe("mover scopes", () => {
     "keeps micro-priced raw cards out of the regular movers lists",
     async () => {
       const [collectionData, allData] = await Promise.all([
-        getMovers("cm_en", "collection"),
-        getMovers("cm_en", "all"),
+        getMovers("cm_en", "collection", "collection", TEST_USER_ID),
+        getMovers("cm_en", "all", "all", TEST_USER_ID),
       ]);
 
+      expect(collectionData.movers.length).toBeGreaterThan(0);
+      expect(allData.movers.length).toBeGreaterThan(0);
       expect(collectionData.movers.every((item) => item.currentPrice >= 3)).toBe(true);
       expect(allData.movers.every((item) => item.currentPrice >= 3)).toBe(true);
     },
@@ -59,8 +210,8 @@ describe("mover scopes", () => {
   it(
     "includes all current graded prices for all-card movers without changing raw mover scope",
     async () => {
-      const allData = await getMovers("cm_en", "all");
-      const gradedMover = allData.movers.find((item) => item.gradedPrices.length > 0);
+      const allData = await getMovers("cm_en", "all", "all", TEST_USER_ID);
+      const gradedMover = allData.movers.find((item) => item.cardId === TEST_NON_OWNED_CARD_ID);
 
       expect(gradedMover).toBeDefined();
       if (!gradedMover) {

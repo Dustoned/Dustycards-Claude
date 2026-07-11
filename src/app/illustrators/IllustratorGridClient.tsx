@@ -39,8 +39,8 @@ interface Props {
   gameQueryParam?: string | null;
 }
 
-const INITIAL_ILLUSTRATORS = 72;
-const ILLUSTRATOR_BATCH_SIZE = 72;
+const INITIAL_ILLUSTRATORS = 24;
+const ILLUSTRATOR_BATCH_SIZE = 24;
 
 function formatCount(value: number): string {
   return value.toLocaleString("en-US");
@@ -135,7 +135,7 @@ export default function IllustratorGridClient({
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      <div className="glass rounded-3xl border border-white/8 bg-black/20 p-2.5 shadow-sm shadow-black/20 sm:p-4">
+      <div className="glass sticky top-[calc(var(--ui-header-height)+0.75rem)] z-20 rounded-3xl border border-white/8 bg-[#0b0c11]/96 p-2.5 shadow-lg shadow-black/30 backdrop-blur-xl sm:p-4">
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="relative min-w-0">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-white/38" />
@@ -224,12 +224,12 @@ export default function IllustratorGridClient({
                     : `/illustrators/${encodeURIComponent(illustrator.artist)}`
                 }
                 prefetch={false}
-                className={`group glass relative flex flex-col overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
+                className={`group glass relative grid overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:items-start dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
               >
                 <div
                   className={getCardImageFrameClassName(
                     illustrator.topCard?.image_url,
-                    `relative overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] ${tileConfig.imageWrapClass}`
+                    `relative overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] sm:row-span-2 sm:w-full ${tileConfig.imageWrapClass}`
                   )}
                 >
                   {illustrator.topCard?.image_url ? (
@@ -257,7 +257,7 @@ export default function IllustratorGridClient({
                   )}
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1 sm:col-start-2">
                   <p
                     className={`line-clamp-2 font-bold leading-snug text-gray-900 transition-colors group-hover:text-black dark:text-white dark:group-hover:text-white ${tileConfig.titleClass}`}
                   >
@@ -276,7 +276,7 @@ export default function IllustratorGridClient({
                   </div>
                 </div>
 
-                <div className="mt-auto border-t border-black/6 pt-3 dark:border-white/8">
+                <div className="mt-auto border-t border-black/6 pt-3 sm:col-start-2 dark:border-white/8">
                   <div className="flex flex-wrap gap-2">
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-white/60 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55">
                       <Images className="h-3 w-3" />
@@ -319,7 +319,7 @@ export default function IllustratorGridClient({
                 ),
               }))
             }
-            className="inline-flex min-h-10 items-center justify-center rounded-full border border-black/8 bg-white/75 px-4 text-sm font-semibold text-gray-600 shadow-sm shadow-black/5 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/58 dark:hover:border-white/18 dark:hover:text-white"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-black/8 bg-white/75 px-5 text-sm font-semibold text-gray-600 shadow-sm shadow-black/5 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/58 dark:hover:border-white/18 dark:hover:text-white"
           >
             Load more illustrators ({formatCount(visibleEntries.length)} /{" "}
             {formatCount(filteredEntries.length)})

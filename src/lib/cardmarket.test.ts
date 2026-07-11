@@ -1,0 +1,41 @@
+import { describe, expect, it } from "vitest";
+import {
+  getSafeDirectCardMarketCardUrl,
+  isCardMarketProductIdUrl,
+  resolveCardMarketCardUrl,
+} from "@/lib/cardmarket";
+import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
+
+describe("CardMarket card URL resolution", () => {
+  it("treats idProduct card URLs as unsafe direct links", () => {
+    const url = "https://www.cardmarket.com/Pokemon/Products?idProduct=775295&language=1";
+
+    expect(isCardMarketProductIdUrl(url)).toBe(true);
+    expect(getSafeDirectCardMarketCardUrl(url, POKEMON_GAME)).toBeNull();
+    expect(
+      resolveCardMarketCardUrl({
+        id: "18459",
+        game: POKEMON_GAME,
+        cardmarket_url: url,
+      })
+    ).toBe("https://www.tcggo.com/external/cm/18459");
+  });
+
+  it("keeps canonical same-game singles URLs direct", () => {
+    const url =
+      "https://www.cardmarket.com/en/Pokemon/Products/Singles/Neo-Destiny/Shining-Charizard-N4";
+
+    expect(getSafeDirectCardMarketCardUrl(url, POKEMON_GAME)).toBe(
+      "https://www.cardmarket.com/en/Pokemon/Products/Singles/Neo-Destiny/Shining-Charizard-N4?language=1&minCondition=2"
+    );
+  });
+
+  it("rejects direct URLs from another game", () => {
+    const url = "https://www.cardmarket.com/en/OnePiece/Products/Singles/OP03/Issho-OP03-078";
+
+    expect(getSafeDirectCardMarketCardUrl(url, POKEMON_GAME)).toBeNull();
+    expect(getSafeDirectCardMarketCardUrl(url, ONE_PIECE_GAME)).toBe(
+      "https://www.cardmarket.com/en/OnePiece/Products/Singles/OP03/Issho-OP03-078?language=1&minCondition=2"
+    );
+  });
+});

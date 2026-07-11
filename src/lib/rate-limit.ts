@@ -57,11 +57,34 @@ export function consumeRateLimit(key: string, limit: number, windowMs: number): 
   return false;
 }
 
+function normalizeForwardedIp(value: string | null | undefined): string | null {
+  const raw = value?.trim();
+  if (!raw || raw.toLowerCase() === "unknown") {
+    return null;
+  }
+
+  if (raw.startsWith("[") && raw.includes("]")) {
+    return raw.slice(1, raw.indexOf("]"));
+  }
+
+  const withoutPort = raw.includes(":") && raw.split(":").length === 2
+    ? raw.split(":")[0]
+    : raw;
+
+  return withoutPort.replace(/^"|"$/g, "").trim() || null;
+}
+
 export function getClientIp(req: NextRequest): string {
   const forwardedFor = req.headers.get("x-forwarded-for");
   if (forwardedFor) {
-    const first = forwardedFor.split(",")[0]?.trim();
-    if (first) return first;
+    const trustedProxyHop = forwardedFor
+      .split(",")
+      .map((part) => normalizeForwardedIp(part))
+      .filter((part): part is string => Boolean(part))
+      .at(-1);
+
+    if (trustedProxyHop) return trustedProxyHop;
   }
-  return req.headers.get("x-real-ip")?.trim() || "unknown";
+
+  return normalizeForwardedIp(req.headers.get("x-real-ip")) ?? "unknown";
 }

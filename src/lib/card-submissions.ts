@@ -2705,6 +2705,7 @@ export async function saveCardSubmission(
         data: {
           card_id: cardId,
           fetched_at: now,
+          changed_at: now,
           ...priceDataForLanguage(submission.detected_language, submissionNmPriceEur),
         },
       });
@@ -2910,10 +2911,12 @@ export async function updateAdminCardSubmission(
           },
         });
         if (isNearMintCondition(condition)) {
+          const priceFetchedAt = new Date();
           await tx.price.create({
             data: {
               card_id: card.id,
-              fetched_at: new Date(),
+              fetched_at: priceFetchedAt,
+              changed_at: priceFetchedAt,
               ...priceDataForLanguage(normalizedLanguage, nmPriceEur),
             },
           });
@@ -3074,10 +3077,12 @@ export async function refreshAdminCardSubmission(submissionId: string): Promise<
         });
       }
       if (isNearMintCondition(parsed.condition)) {
+        const priceFetchedAt = new Date();
         await tx.price.create({
           data: {
             card_id: submission.card_id,
-            fetched_at: new Date(),
+            fetched_at: priceFetchedAt,
+            changed_at: priceFetchedAt,
             ...priceDataForLanguage(parsed.language, parsedNmPriceEur),
           },
         });

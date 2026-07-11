@@ -281,6 +281,40 @@ export function pricesMatch(existing: ExistingPriceRecord, next: PriceSnapshotDa
   return PRICE_FIELDS.every((field) => existing[field] === next[field]);
 }
 
+export type PriceSnapshotWriteMode = "new" | "refreshed" | "none";
+
+export interface PriceSnapshotWritePlan {
+  mode: PriceSnapshotWriteMode;
+  recordSnapshot: boolean;
+  refreshExistingSnapshot: boolean;
+}
+
+export function planPriceSnapshotWrite(
+  latestPrice: ExistingPriceRecord | null,
+  nextPrice: PriceSnapshotData,
+  refreshAllPrices: boolean
+): PriceSnapshotWritePlan {
+  if (!hasAnyPrice(nextPrice)) {
+    return { mode: "none", recordSnapshot: false, refreshExistingSnapshot: false };
+  }
+
+  if (!refreshAllPrices) {
+    return latestPrice
+      ? { mode: "none", recordSnapshot: false, refreshExistingSnapshot: false }
+      : { mode: "new", recordSnapshot: true, refreshExistingSnapshot: false };
+  }
+
+  const unchanged = Boolean(latestPrice && pricesMatch(latestPrice, nextPrice));
+
+  return {
+    mode: unchanged ? "refreshed" : "new",
+    recordSnapshot: !unchanged,
+    // fetched_at tracks the last successful observation; changed_at stays on
+    // the original value change so old drops cannot look new after a refresh.
+    refreshExistingSnapshot: unchanged,
+  };
+}
+
 export function hasAnyMarketplaceId(
   card: Pick<CardWriteData, "cardmarket_id" | "tcgplayer_id">
 ): boolean {

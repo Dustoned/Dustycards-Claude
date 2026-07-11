@@ -12,11 +12,20 @@ export default function AccountActions() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
+    setLoggingOut(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" });
+      if (!response.ok) throw new Error("Logout failed");
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setError("Could not log out. Check your connection and try again.");
+      setLoggingOut(false);
+    }
   }
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
@@ -44,7 +53,9 @@ export default function AccountActions() {
       setCurrentPassword("");
       setNewPassword("");
       setNewPasswordConfirm("");
-      setMessage("Password updated.");
+      setMessage("Password updated. Other signed-in sessions were ended for your security.");
+    } catch {
+      setError("Could not update your password. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -77,7 +88,9 @@ export default function AccountActions() {
               required
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
-              className="rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-white outline-none transition focus:border-white/24"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "account-security-error" : undefined}
+              className="min-h-11 rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition focus:border-white/24"
             />
           </label>
           <label className="grid gap-1.5 text-sm font-medium text-white/75">
@@ -89,7 +102,9 @@ export default function AccountActions() {
               minLength={8}
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
-              className="rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-white outline-none transition focus:border-white/24"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "account-security-error" : undefined}
+              className="min-h-11 rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition focus:border-white/24"
             />
           </label>
           <label className="grid gap-1.5 text-sm font-medium text-white/75">
@@ -101,28 +116,31 @@ export default function AccountActions() {
               minLength={8}
               value={newPasswordConfirm}
               onChange={(event) => setNewPasswordConfirm(event.target.value)}
-              className="rounded-xl border border-white/10 bg-white/8 px-3 py-2 text-white outline-none transition focus:border-white/24"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "account-security-error" : undefined}
+              className="min-h-11 rounded-xl border border-white/10 bg-white/8 px-3 py-2.5 text-white outline-none transition focus:border-white/24"
             />
           </label>
         </div>
-        {message && <p className="text-sm font-medium text-emerald-600 dark:text-emerald-300">{message}</p>}
-        {error && <p className="text-sm font-medium text-red-600 dark:text-red-300">{error}</p>}
+        {message && <p role="status" aria-live="polite" className="text-sm font-medium text-emerald-600 dark:text-emerald-300">{message}</p>}
+        {error && <p id="account-security-error" role="alert" className="text-sm font-medium text-red-600 dark:text-red-300">{error}</p>}
 
         <div className="flex flex-col gap-2 border-t border-white/8 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex min-h-10 items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-gray-950 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-gray-950 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Saving..." : "Save password"}
           </button>
           <button
             type="button"
             onClick={logout}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/8 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/12"
+            disabled={loggingOut}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/12 disabled:cursor-wait disabled:opacity-60"
           >
             <LogOut className="h-4 w-4" />
-            Log out
+            {loggingOut ? "Logging out..." : "Log out"}
           </button>
         </div>
       </form>

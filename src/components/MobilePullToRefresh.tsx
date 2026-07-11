@@ -20,11 +20,27 @@ function isAtTop(): boolean {
   return (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
 }
 
+function isPullRefreshBlocked(): boolean {
+  return (
+    document.documentElement.classList.contains("dc-scroll-locked") ||
+    document.body.classList.contains("dc-scroll-locked") ||
+    Boolean(
+      document.querySelector(
+        "[data-no-pull-refresh], [data-mobile-more-backdrop], [data-mobile-more-sheet], .dc-modal-overlay, .dc-modal-panel, [role='dialog']"
+      )
+    )
+  );
+}
+
 // Skip when the gesture starts inside an open dialog/overlay so its own
 // scrolling is not hijacked by a page refresh.
 function isInsideOverlay(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return Boolean(target.closest("[role='dialog'], [data-no-pull-refresh]"));
+  return Boolean(
+    target.closest(
+      "[role='dialog'], [data-no-pull-refresh], [data-mobile-more-backdrop], [data-mobile-more-sheet], .dc-modal-overlay, .dc-modal-panel"
+    )
+  );
 }
 
 export default function MobilePullToRefresh() {
@@ -59,6 +75,7 @@ export default function MobilePullToRefresh() {
       if (refreshingRef.current) return;
       if (!isMobileViewport()) return;
       if (event.touches.length !== 1) return;
+      if (isPullRefreshBlocked()) return;
       if (isInsideOverlay(event.target)) return;
 
       // Track every gesture, not only ones that start at the top. The pull only
@@ -70,6 +87,10 @@ export default function MobilePullToRefresh() {
     }
 
     function onMove(event: TouchEvent) {
+      if (isPullRefreshBlocked()) {
+        reset();
+        return;
+      }
       if (!trackingRef.current || refreshingRef.current) return;
       const touch = event.touches[0];
       if (!touch) return;
@@ -105,6 +126,13 @@ export default function MobilePullToRefresh() {
     function onEnd() {
       if (!trackingRef.current) return;
       trackingRef.current = false;
+
+      if (isPullRefreshBlocked()) {
+        activeRef.current = false;
+        setDragging(false);
+        setPull(0);
+        return;
+      }
 
       setDragging(false);
       if (activeRef.current && pullRef.current >= TRIGGER_PX) {

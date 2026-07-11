@@ -12,7 +12,10 @@ vi.mock("@/lib/tcgdex", () => tcgdexMock);
 import {
   buildCardWriteData,
   loadEpisodeCardEnrichmentLookups,
+  planPriceSnapshotWrite,
   type CardWriteData,
+  type ExistingPriceRecord,
+  type PriceSnapshotData,
 } from "@/lib/sync/card-helpers";
 
 function makeCard(overrides: Partial<CardWriteData> = {}): CardWriteData {
@@ -43,6 +46,23 @@ function makeCard(overrides: Partial<CardWriteData> = {}): CardWriteData {
     tcggo_score_ath: null,
     tcggo_score_atl: null,
     tcggo_score_updated_at: null,
+    ...overrides,
+  };
+}
+
+function makePrice(overrides: Partial<PriceSnapshotData> = {}): PriceSnapshotData {
+  return {
+    cm_en_lowest_nm: null,
+    cm_de_lowest_nm: null,
+    cm_fr_lowest_nm: null,
+    cm_es_lowest_nm: null,
+    cm_it_lowest_nm: null,
+    cm_jp_lowest_nm: null,
+    cm_en_avg_30d: null,
+    cm_en_avg_7d: null,
+    tcp_market: null,
+    tcp_mid: null,
+    tcp_low: null,
     ...overrides,
   };
 }
@@ -125,5 +145,44 @@ describe("buildCardWriteData", () => {
     });
 
     expect(buildCardWriteData(existing, incoming).rarity).toBe("Special Rare");
+  });
+});
+
+describe("planPriceSnapshotWrite", () => {
+  it("refreshes an unchanged snapshot without recording a duplicate", () => {
+    const nextPrice = makePrice({ cm_en_lowest_nm: 125 });
+    const latestPrice: ExistingPriceRecord = { id: "price-1", ...nextPrice };
+
+    expect(planPriceSnapshotWrite(latestPrice, nextPrice, true)).toEqual({
+      mode: "refreshed",
+      recordSnapshot: false,
+      refreshExistingSnapshot: true,
+    });
+  });
+
+  it("does not add duplicate observations during catalog-only syncs", () => {
+    const nextPrice = makePrice({ tcp_market: 80 });
+    const latestPrice: ExistingPriceRecord = { id: "price-1", ...nextPrice };
+
+    expect(planPriceSnapshotWrite(latestPrice, nextPrice, false)).toEqual({
+      mode: "none",
+      recordSnapshot: false,
+      refreshExistingSnapshot: false,
+    });
+  });
+
+  it("records a changed marketplace value", () => {
+    const latestPrice: ExistingPriceRecord = {
+      id: "price-1",
+      ...makePrice({ cm_en_lowest_nm: 125 }),
+    };
+
+    expect(
+      planPriceSnapshotWrite(latestPrice, makePrice({ cm_en_lowest_nm: 80 }), true)
+    ).toEqual({
+      mode: "new",
+      recordSnapshot: true,
+      refreshExistingSnapshot: false,
+    });
   });
 });

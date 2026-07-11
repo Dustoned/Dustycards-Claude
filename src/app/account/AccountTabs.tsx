@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 
 const ACTIVE_TAB_CLASS =
   "border border-violet-400/40 bg-violet-600 text-white";
@@ -26,17 +26,33 @@ export default function AccountTabs({
   const [selectedKey, setSelectedKey] = useState(initialKey);
   const selected = tabs.find((tab) => tab.key === selectedKey) ?? tabs[0] ?? null;
 
+  function selectFromKeyboard(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+    if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = tabs.length - 1;
+    if (nextIndex == null) return;
+
+    event.preventDefault();
+    const next = tabs[nextIndex];
+    setSelectedKey(next.key);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`account-tab-button-${next.key}`)?.focus();
+    });
+  }
+
   if (!selected) return null;
 
   return (
     <div className="space-y-4">
       <div
-        className="min-w-0 overflow-hidden rounded-2xl border border-white/8 bg-white/[0.035] p-1"
+        className="min-w-0 overflow-x-auto rounded-2xl border border-white/8 bg-white/[0.035] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="Account sections"
       >
         <div
-          className="grid min-w-0 gap-1"
+          className="flex min-w-max gap-1 md:grid md:min-w-0"
           style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
         >
           {tabs.map((tab) => {
@@ -45,12 +61,15 @@ export default function AccountTabs({
             return (
               <button
                 key={tab.key}
+                id={`account-tab-button-${tab.key}`}
                 type="button"
                 role="tab"
                 aria-selected={active}
                 aria-controls={`account-tab-${tab.key}`}
+                tabIndex={active ? 0 : -1}
                 onClick={() => setSelectedKey(tab.key)}
-                className={`min-h-9 min-w-0 rounded-xl px-1.5 text-[11px] font-semibold leading-none transition sm:min-h-10 sm:px-4 sm:text-sm ${
+                onKeyDown={(event) => selectFromKeyboard(event, tabs.indexOf(tab))}
+                className={`min-h-11 min-w-[7rem] rounded-xl px-3 text-xs font-semibold leading-none transition md:min-w-0 md:px-4 md:text-sm ${
                   active
                     ? ACTIVE_TAB_CLASS
                     : "text-white/50 hover:bg-white/8 hover:text-white"
@@ -67,7 +86,11 @@ export default function AccountTabs({
         <p className="text-sm text-white/45">{selected.description}</p>
       ) : null}
 
-      <div id={`account-tab-${selected.key}`} role="tabpanel">
+      <div
+        id={`account-tab-${selected.key}`}
+        role="tabpanel"
+        aria-labelledby={`account-tab-button-${selected.key}`}
+      >
         {selected.content}
       </div>
     </div>

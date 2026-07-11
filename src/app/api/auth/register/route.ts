@@ -2,27 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { hashPassword, isValidEmail, normalizeEmail } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
+import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getSafeNextPath } from "@/lib/safe-next-path";
 
 export const runtime = "nodejs";
 
 const REGISTER_RATE_WINDOW_MS = 1000 * 60 * 60;
 const REGISTER_RATE_LIMIT_PER_IP = 10;
 
-function getPublicOrigin(req: NextRequest): string {
-  const configuredUrl = process.env.APP_URL;
-  if (configuredUrl) return configuredUrl;
-
-  const forwardedHost = req.headers.get("x-forwarded-host");
-  const host = forwardedHost ?? req.headers.get("host") ?? new URL(req.url).host;
-  const forwardedProto = req.headers.get("x-forwarded-proto");
-  const proto = forwardedProto ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
-
-function registerRedirect(req: NextRequest, error: string) {
+function registerRedirect(req: NextRequest, error: string, nextPath: string) {
   const redirectUrl = new URL("/register", getPublicOrigin(req));
   redirectUrl.searchParams.set("error", error);
+  redirectUrl.searchParams.set("next", nextPath);
   return NextResponse.redirect(redirectUrl, { status: 303 });
 }
 
@@ -35,26 +27,28 @@ export async function POST(req: NextRequest) {
     ? Object.fromEntries(await req.formData())
     : ((await req.json().catch(() => ({}))) as {
         email?: unknown;
+        next?: unknown;
         password?: unknown;
         passwordConfirm?: unknown;
       });
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
+  const nextPath = getSafeNextPath(body.next);
   const password = typeof body.password === "string" ? body.password : "";
   const passwordConfirm =
     typeof body.passwordConfirm === "string" ? body.passwordConfirm : "";
 
   if (!isValidEmail(email)) {
-    if (isFormPost) return registerRedirect(req, "email");
+    if (isFormPost) return registerRedirect(req, "email", nextPath);
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
 
   if (password.length < 8) {
-    if (isFormPost) return registerRedirect(req, "short");
+    if (isFormPost) return registerRedirect(req, "short", nextPath);
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
   }
 
   if (password !== passwordConfirm) {
-    if (isFormPost) return registerRedirect(req, "mismatch");
+    if (isFormPost) return registerRedirect(req, "mismatch", nextPath);
     return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
   }
 
@@ -65,7 +59,7 @@ export async function POST(req: NextRequest) {
       REGISTER_RATE_WINDOW_MS
     )
   ) {
-    if (isFormPost) return registerRedirect(req, "throttled");
+    if (isFormPost) return registerRedirect(req, "throttled", nextPath);
     return NextResponse.json(
       { error: "Too many registration attempts. Try again later." },
       { status: 429 }
@@ -77,7 +71,7 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
   if (existing) {
-    if (isFormPost) return registerRedirect(req, "exists");
+    if (isFormPost) return registerRedirect(req, "exists", nextPath);
     return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
   }
 
@@ -97,8 +91,9 @@ export async function POST(req: NextRequest) {
   let verificationSent = true;
   try {
     await sendVerificationEmailForUser({
-      baseUrl: getPublicOrigin(req),
+      baseUrl: getMailPublicOrigin(),
       email: user.email,
+      nextPath,
       userId: user.id,
     });
   } catch (error) {
@@ -110,6 +105,7 @@ export async function POST(req: NextRequest) {
     const redirectUrl = new URL("/login", getPublicOrigin(req));
     redirectUrl.searchParams.set("verify", verificationSent ? "sent" : "failed");
     redirectUrl.searchParams.set("email", user.email);
+    redirectUrl.searchParams.set("next", nextPath);
     return NextResponse.redirect(redirectUrl, { status: 303 });
   }
 

@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { buildVisibleEpisodeWhereSql } from "@/lib/illustrators";
+import { createSwrCache } from "@/lib/server-swr-cache";
 import {
   GAME_SEARCH_PARAM,
   getGameFilterSearchParamValue,
+  normalizeTradingCardGame,
   ONE_PIECE_GAME,
   parseVisibleGameFilter,
   type TradingCardGameFilter,
@@ -15,8 +17,14 @@ import type { CardData } from "@/types/card-data";
 
 export const dynamic = "force-dynamic";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const HISTORY_CUTOFF_DAYS = 120;
+const ILLUSTRATOR_DETAIL_CACHE_FRESH_MS = 5 * 60_000;
+const ILLUSTRATOR_DETAIL_CACHE_STALE_MS = 30 * 60_000;
+
 type IllustratorCardRow = {
   id: string;
+  game: string;
   name: string;
   card_number: string | null;
   rarity: string | null;
@@ -56,12 +64,29 @@ type IllustratorPriceSnapshotRow = {
   cm_it_lowest_nm: number | null;
 };
 
+const illustratorCardsCache = createSwrCache<IllustratorCardRow[]>(
+  ILLUSTRATOR_DETAIL_CACHE_FRESH_MS,
+  ILLUSTRATOR_DETAIL_CACHE_STALE_MS
+);
+const illustratorPriceSnapshotsCache = createSwrCache<IllustratorPriceSnapshotRow[]>(
+  ILLUSTRATOR_DETAIL_CACHE_FRESH_MS,
+  ILLUSTRATOR_DETAIL_CACHE_STALE_MS
+);
+
 function toIsoString(value: Date | string | null | undefined): string | null {
   if (!value) return null;
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
-async function getIllustratorCards(
+function getHistoryCutoffIso(days = HISTORY_CUTOFF_DAYS): string {
+  return new Date(Date.now() - days * DAY_MS).toISOString();
+}
+
+function getIllustratorCacheKey(artist: string, game: TradingCardGameFilter): string {
+  return `${game}:${encodeURIComponent(artist)}`;
+}
+
+async function getIllustratorCardsUncached(
   artist: string,
   game: TradingCardGameFilter
 ): Promise<IllustratorCardRow[]> {
@@ -72,6 +97,7 @@ async function getIllustratorCards(
       WITH artist_cards AS (
         SELECT
           c.id,
+          c.game,
           c.name,
           c.card_number,
           c.rarity,
@@ -97,6 +123,7 @@ ${visibleEpisodeWhereSql}
       )
       SELECT
         ac.id,
+        ac.game,
         ac.name,
         ac.card_number,
         ac.rarity,
@@ -146,9 +173,19 @@ ${visibleEpisodeWhereSql}
   );
 }
 
-async function getIllustratorPriceSnapshots(
+function getIllustratorCards(
   artist: string,
   game: TradingCardGameFilter
+): Promise<IllustratorCardRow[]> {
+  return illustratorCardsCache.get(`cards:${getIllustratorCacheKey(artist, game)}`, () =>
+    getIllustratorCardsUncached(artist, game)
+  );
+}
+
+async function getIllustratorPriceSnapshotsUncached(
+  artist: string,
+  game: TradingCardGameFilter,
+  since: string
 ): Promise<IllustratorPriceSnapshotRow[]> {
   const visibleEpisodeWhereSql = buildVisibleEpisodeWhereSql("e", game);
 
@@ -174,6 +211,7 @@ async function getIllustratorPriceSnapshots(
           ON e.id = c.episode_id
         WHERE c.artist = ?
 ${visibleEpisodeWhereSql}
+          AND p.fetched_at >= ?
       )
       SELECT
         card_id,
@@ -187,7 +225,18 @@ ${visibleEpisodeWhereSql}
       WHERE daily_rank = 1
       ORDER BY fetched_at ASC, card_id ASC
     `,
-    artist
+    artist,
+    since
+  );
+}
+
+function getIllustratorPriceSnapshots(
+  artist: string,
+  game: TradingCardGameFilter
+): Promise<IllustratorPriceSnapshotRow[]> {
+  return illustratorPriceSnapshotsCache.get(
+    `history:${getIllustratorCacheKey(artist, game)}`,
+    () => getIllustratorPriceSnapshotsUncached(artist, game, getHistoryCutoffIso())
   );
 }
 
@@ -225,6 +274,7 @@ export default async function IllustratorPage({
 
   const visibleCards: CardData[] = cards.map((card) => ({
       id: card.id,
+      game: normalizeTradingCardGame(card.game),
       name: card.name,
       card_number: card.card_number,
       rarity: card.rarity,

@@ -75,7 +75,7 @@ function loadBrowserSettings(): UserSettings | null {
 }
 
 function getInitialSettings(initialSettings?: UserSettings | null): UserSettings {
-  return loadBrowserSettings() ?? initialSettings ?? DEFAULT_SETTINGS;
+  return initialSettings ?? DEFAULT_SETTINGS;
 }
 
 function saveToBrowser(s: UserSettings) {
@@ -159,7 +159,7 @@ export default function SettingsProvider({
   currentUserRole?: "admin" | "user" | null;
 }) {
   const [settings, setSettings] = useState<UserSettings>(() => getInitialSettings(initialSettings));
-  const [isLoaded, setIsLoaded] = useState(Boolean(initialSettings));
+  const [isLoaded, setIsLoaded] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(initialMobileViewport);
   const didSyncInitialSettingsRef = useRef(false);
   const displaySettings = getDisplaySettings(settings, isMobileViewport);
@@ -187,7 +187,7 @@ export default function SettingsProvider({
   }, [initialSettings]);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 640px)");
+    const media = window.matchMedia("(max-width: 767px)");
     const handleChange = () => {
       setIsMobileViewport((previous) => (previous === media.matches ? previous : media.matches));
     };

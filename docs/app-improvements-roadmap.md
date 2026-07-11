@@ -1,5 +1,7 @@
 # DustyCards roadmap
 
+> Dedicated UI audit and execution plan: [UI roadmap — 2026-07-11](ui-roadmap-2026-07-11.md)
+
 Rebuilt from scratch on 2026-06-12 after a full desktop + mobile walkthrough of the
 running app (screenshots in `screenshots-ui/audit-desktop` and `audit-mobile`).
 
@@ -49,6 +51,104 @@ code, and refuted claims were dropped).
 
 ---
 
+## Execution waves — started 2026-07-08
+
+Work in waves so every release has one clear job, a small verification surface,
+and a clean patch note. A wave is done only when it is built, verified, deployed,
+and the shipped lines are removed from the queue below.
+
+### Wave 1 — Trust: security + wrong numbers users can see
+
+Goal: no account-risk issues and no obvious false money movement.
+
+Pull from:
+- Block 1 completely.
+- Block 5 small correctness items that touch visible numbers or API safety:
+  sudden-drops covered days, malformed JSON 400s, movers test fixtures.
+
+Ship criteria:
+- Auth/session/security changes have tests where practical.
+- Collection value-driver totals cannot treat missing prices as EUR 0.
+- Sudden Drops labels match the actual covered window.
+- No user-facing money number becomes less reliable.
+
+### Wave 2 — Resilience: backups, deploys, health
+
+Goal: never repeat the 2026-07-01 database corruption/deploy pain.
+
+Pull from:
+- Block 2 completely, in this order: consistent backups, stale WAL cleanup,
+  deploy lock, health endpoint, boot reconcile, migration check, then larger
+  out-of-place build/off-server backup work.
+
+Ship criteria:
+- A deploy cannot create a torn predeploy backup.
+- Restores/materialization cannot attach stale WAL files.
+- `/api/health` proves DB + scheduler basics are alive.
+- Deployment has a lock and a safer rollback story.
+
+### Wave 3 — Speed: remaining slow pages
+
+Goal: all large catalog pages keep payloads bounded and cacheable.
+
+Pull from:
+- Block 3 completely.
+
+Order:
+1. Lowest-risk caches and cutoffs: illustrators index/detail, categories index.
+2. History payload cutoffs: binder, category detail, expansion detail.
+3. Heavier data-flow fixes: home active tab, wants GET write, collection chunking.
+4. Index migration and sync cache stampede.
+
+Ship criteria:
+- Production build remains clean.
+- At least one representative heavy page is timed before/after per cluster.
+- No page ships unbounded history to the client when a 120d/aggregated view is enough.
+
+### Wave 4 — Polish: UI correctness and accessibility
+
+Goal: remove the recurring rough edges users feel every day.
+
+Pull from:
+- Block 4 completely.
+- Only the cleanup items from Block 5 that are already touched by those files.
+
+Ship criteria:
+- Purple-control regression has a structural fix.
+- Card/sealed modal basics work with keyboard: Escape, focus, initial focus.
+- Dutch/English UI copy is consistent.
+- Touch targets and inline errors feel app-level instead of incidental.
+
+### Wave 5 — Product wins: high-value features
+
+Goal: ship visible features that make the app more useful, not just safer/faster.
+
+Pull from:
+- Block 6 high-value items first:
+  set completion, wants price-drop watch, CSV export, eBay countdown, tag filter,
+  duplicates filter, then grading helper.
+
+Ship criteria:
+- Each feature gets a small dedicated patch note.
+- Features reuse existing data and UI patterns before adding new abstractions.
+- Mobile and desktop happy paths are checked.
+
+### Wave 6 — Structural cleanup while touching areas
+
+Goal: reduce code weight without turning cleanup into a risky standalone project.
+
+Pull from:
+- Block 5 remaining cleanup/tech-debt items.
+- The "Tech debt" section at the bottom only when a feature already touches
+  that module.
+
+Ship criteria:
+- No large refactor without a feature/fix reason.
+- Tests or smoke checks cover the extracted path.
+- Deleted dead code is verified unused by `rg` and build.
+
+---
+
 ## Queued — 2026-07-07 full audit (7 dimensions, adversarially verified)
 
 Work the blocks top-to-bottom. When something ships: delete the line here and
@@ -56,47 +156,8 @@ add one line under Shipped. Tags: **[S/M/L]** effort, **[verified]** = confirmed
 by an independent verifier agent, **[plausible]** = verifier crashed mid-check,
 re-confirm while picking it up.
 
-### Block 1 — Critical: security + wrong numbers users can see
-
-- [ ] **Password-reset link poisoning (account takeover).** [S][verified]
-  `getPublicOrigin()` falls back to attacker-controlled `X-Forwarded-Host`/`Host`
-  because `APP_URL` is NOT set in the deployed `.env`. Reset mails can be made to
-  point at an attacker host that harvests the token. Fix: require/set `APP_URL`
-  on the server and never derive mail origins from request headers
-  (`src/app/api/auth/forgot-password/route.ts:75`, `src/lib/mail.ts`).
-- [ ] **Phantom full-value "drop" in collection value drivers.** [S][verified]
-  When a card's newest Price row has all-null CM columns (45 cards today; 101k
-  such rows exist), `current_value ?? 0` reports the card as dropping to €0 and
-  inflates dropsTotal/totalChange. Fix: `continue` on null current value (cards
-  + sealed), matching the all-cards guard (`src/lib/collection-data.ts:1478`).
-- [ ] **All-cards drivers: missing baseline-age guard.** [S][plausible]
-  Weeks-old baselines can be presented as the 1–2 day change in the all-cards
-  scope (collection scope has the guard, all-cards does not)
-  (`src/lib/collection-data.ts:2417`).
-- [ ] **Rate-limit bypass via spoofed X-Forwarded-For.** [S][verified]
-  All per-IP throttles key off the client-controlled first XFF hop; registration
-  has no per-account backstop. Fix: derive IP from the trusted proxy hop only
-  (`src/lib/rate-limit.ts:63`).
-- [ ] **Password change doesn't revoke other sessions.** [S][verified]
-  Unlike reset-password and admin-reset. Fix: `session.deleteMany` + fresh
-  cookie after change (`src/app/api/auth/change-password/route.ts:37`).
-
 ### Block 2 — Resilience: never repeat the 2026-07-01 corruption
 
-- [ ] **Pre-deploy backup is a raw `cp` of the live WAL db — backups themselves
-  can be torn.** [S][verified] Replace with `VACUUM INTO` (online, consistent,
-  no app stop) + `quick_check` on the result
-  (`scripts/deploy-production.ps1:147`).
-- [ ] **Count-based backup rotation: 8 rapid deploys wipe the whole retention
-  window.** [S][verified] Switch to age-tiered retention (all <24h, daily 14d,
-  weekly 8w) (`scripts/deploy-production.ps1:99`).
-- [ ] **Restore/materialize next to a stale `-wal` replays foreign WAL frames →
-  instant corruption.** [S][verified] `ensureLiveDbFile` must delete
-  `-wal`/`-shm` before copying; add a documented `scripts/restore-db.sh`
-  (`src/lib/db-paths.ts:19`). Likely a contributor to the 07-01 incident.
-- [ ] **Deploy concurrency lock.** [S] `flock` guard at the top of the remote
-  script so overlapping deploys can't interleave build/restart/prune
-  (`scripts/deploy-production.ps1:74`).
 - [ ] **Build out-of-place.** [M] `npm install && npm run build` currently run
   in-place under the live app (crash loops + OOM risk — plausible sshd-killer).
   Build in the release dir, then stop → swap → start
@@ -106,48 +167,12 @@ re-confirm while picking it up.
   dies with the server (`src/lib/backups.ts:105`).
 - [ ] **Graceful shutdown.** [S] SIGTERM handler: flag sync loops, close
   better-sqlite3 (checkpoints WAL) before exit (`src/instrumentation.ts`).
-- [ ] **/api/health + external uptime monitor.** [S] `SELECT 1`, WAL size,
-  scheduler heartbeat age; point a free monitor at it. Today's incident was
-  found by hand (`src/lib/sync/scheduler.ts:76`).
-- [ ] **Boot-reconcile failure is swallowed → syncs wedge up to 2h.** [S][verified]
-  Retry with backoff + treat pre-boot "running" logs as stale
-  (`src/lib/sync/boot-reconcile.ts:35`).
-- [ ] **Migrate-skip on "unknown" is silent.** [S][verified] Compare shipped
-  migration dirs against the last applied list instead of skipping blind
-  (`scripts/deploy-production.ps1:222`).
 
-### Block 3 — Performance: the remaining slow pages
+### Block 3 ? Performance: the remaining slow pages
 
-- [ ] **Category detail ships the full price history of every card** (no cutoff,
-  no cache; biggest category ≈ 100k+ rows serialized). Add 120d cutoff +
-  `createSwrCache` + slim payload (`src/lib/card-categories.ts:1104`). [M]
-- [ ] **Illustrator detail: 70k+ rows uncached** for big artists. Same fix
-  (cutoff + cache keyed `${game}:${artist}`)
-  (`src/app/illustrators/[artist]/page.tsx:153`). [S]
-- [ ] **Binder page: unbounded history, serialized raw.** Pass the existing
-  120d cutoff at both call sites + slim rows
-  (`src/lib/collection-data.ts:3135`). [S]
-- [ ] **Home page always loads ALL six tabs' detailed data** (`activeTab`
-  hardcoded to `'overview'`; the gating code is dead as called). Pass the real
-  tab (`src/app/page.tsx:430`). [M]
-- [ ] **Expansion detail serializes the whole set's snapshot history** (31k rows
-  worst case) into the client payload every request. Cutoff inside
-  `getEpisodeSetPriceSnapshotRows` + ship aggregated series only
-  (`src/app/expansions/[id]/page.tsx:242`). [M]
-- [ ] **Wants page runs a WRITE sync transaction on every GET.** Render with the
-  read-only `needsPlannerSync` check; sync via background POST only when needed
-  (`src/app/wants/page.tsx:43`). [S]
-- [ ] **Categories index: 26–39 COUNT scans per request** for identical-for-everyone
-  data → `createSwrCache` per game (`src/lib/card-categories.ts:867`). [S]
-- [ ] **Illustrators index recomputes whole-catalog aggregate per request** →
-  cache per game (`src/app/illustrators/page.tsx:87`). [S]
-- [ ] **Missing indexes:** `Card(artist)` and `Card(game, rarity)`
-  (`prisma/schema.prisma`). [S]
 - [ ] **fetchCollectionCards pages serially in 200-row chunks** (6 sequential
-  round-trips × nested includes for the top user). Single query or parallel
+  round-trips ? nested includes for the top user). Single query or parallel
   chunks (`src/lib/collection-data.ts:640`). [S]
-- [ ] **Auto-price snapshot cache stampede:** cache the in-flight promise, not
-  the resolved value (or reuse `createSwrCache`) (`src/lib/sync.ts:3011`). [S]
 
 ### Block 4 — UX correctness & polish
 
@@ -171,10 +196,6 @@ re-confirm while picking it up.
 
 ### Block 5 — Cleanup / tech debt (do when touching the area)
 
-- [ ] **Fix the 2 movers tests** (root cause found: stale local DB crossed the
-  45-day lookback → tests went vacuous; production scope logic is correct).
-  Seed time-relative fixtures + assert `movers.length > 0` so staleness fails
-  loudly (`src/lib/movers.test.ts`). [S][verified]
 - [ ] **Delete dead code:** `HeaderNav.tsx` (474 lines), `SyncAllButton.tsx`
   (202 lines), 4 unused lib exports (getSocialCollectionData, getCollectionMovers,
   getCardCategory, resolveCardMarketCardUrl). [S]
@@ -191,11 +212,6 @@ re-confirm while picking it up.
   (`src/lib/sync.ts:1451`). [M][verified]
 - [ ] **Quota-pause message overstates progress** (counts unfetched cards as
   processed) (`src/lib/sync.ts:1582`). [S][verified]
-- [ ] **Sudden-drops shows up-to-45-day declines as "2-day" drops** — compute
-  covered days from the anchor date (`src/lib/home-sudden-drops-server.ts:506`).
-  [S][verified]
-- [ ] **API routes: 400 on malformed JSON** instead of 500
-  (`src/app/api/collection/cards/route.ts:56` + siblings). [S][verified]
 
 ### Block 6 — Feature ideas (all build on existing data; graded by value/effort)
 
@@ -264,6 +280,27 @@ expected, not a bug.
 ---
 
 ## Shipped (2026-06-12 rebuild day)
+
+- 2026-07-10 Sudden Price Drops now uses the exact latest price-refresh window
+  plus a compact changed-at timestamp, so unchanged old drops disappear without
+  generating duplicate price-history rows.
+- 2026-07-08 Wave 1A auth hardening: APP_URL-only auth email origins, trusted
+  proxy-hop rate-limit keys, and password-change session revocation.
+- 2026-07-08 Wave 1B/C trust fixes: value-driver null/current guards,
+  all-cards baseline freshness, honest sudden-drop covered-days labels,
+  malformed JSON 400s, and deterministic movers scope fixtures.
+- 2026-07-08 Wave 2A resilience hardening: VACUUM INTO pre-deploy backups
+  with quick_check, deploy flock, age-tiered backup retention, WAL-safe DB
+  restore/materialization, public scrubbed `/api/health`, boot-reconcile
+  retries, fail-closed unknown migration checks, and lighter production build
+  tracing for runtime caches/backups/screenshots.
+- 2026-07-08 Wave 3A catalog speed: category and illustrator pages now use
+  per-game/per-artist SWR caches, 120d price-history payloads, and Card indexes
+  for artist and game+rarity. Local heavy-artist history rows dropped 67%.
+- 2026-07-08 Wave 3B heavy-page payloads: binder and expansion history are
+  bounded, expansion grids no longer receive raw set snapshot history, direct
+  home tab links use the real active-tab data gate, Wants page render is
+  read-only, and auto-price status snapshot scans are single-flight per game.
 
 - Data Quality Center upstream-aware signals: investigated against the live DB
   — all 862 no-price cards are `price_source_status = unavailable` (TCGgo has

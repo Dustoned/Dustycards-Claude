@@ -8,6 +8,7 @@ import {
   type AutoPriceRefreshResult,
 } from "@/lib/sync";
 import { maybeStartCardHistoryQuotaDrainJob } from "@/lib/sync/card-history-auto-drain";
+import { resolveAutoPriceRefreshStartedAt } from "@/lib/sync/auto-price-refresh-window";
 import { createAutoPriceRefreshResultDetails } from "@/lib/sync/progress-details";
 import {
   decodeSyncLogDetailsJson,
@@ -108,7 +109,6 @@ async function runPersistedAutoPriceRefreshJob(jobId: string) {
     where: { id: jobId },
     data: {
       status: "running",
-      started_at: new Date(),
       finished_at: null,
       heartbeat_at: new Date(),
     },
@@ -342,11 +342,13 @@ export async function startAutoPriceRefreshJob(): Promise<{
     };
   }
 
+  const startedAt = resolveAutoPriceRefreshStartedAt(existing, now);
   const job = existing
     ? await db.syncJob.update({
         where: { id: existing.id },
         data: {
           status: "queued",
+          started_at: startedAt,
           finished_at: null,
           heartbeat_at: now,
         },
@@ -355,6 +357,7 @@ export async function startAutoPriceRefreshJob(): Promise<{
         data: {
           type: AUTO_PRICE_REFRESH_SYNC_TYPE,
           status: "queued",
+          started_at: startedAt,
           heartbeat_at: now,
         },
       });
@@ -371,7 +374,7 @@ export async function startAutoPriceRefreshJob(): Promise<{
     nextBatchCards: snapshot.nextBatchCards,
     nextBatchEpisodes: snapshot.nextBatchEpisodes,
     status: "queued",
-    startedAt: now.toISOString(),
+    startedAt: startedAt.toISOString(),
     finishedAt: null,
   };
 }

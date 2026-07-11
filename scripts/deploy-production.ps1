@@ -45,6 +45,17 @@ tar -czf $archive `
   --exclude="*.log" `
   --exclude="*.png" `
   --exclude="*.db" `
+  --exclude="./*.db" `
+  --exclude="dustycards.db" `
+  --exclude="./dustycards.db" `
+  --exclude="*.db-wal" `
+  --exclude="./*.db-wal" `
+  --exclude="dustycards.db-wal" `
+  --exclude="./dustycards.db-wal" `
+  --exclude="*.db-shm" `
+  --exclude="./*.db-shm" `
+  --exclude="dustycards.db-shm" `
+  --exclude="./dustycards.db-shm" `
   --exclude="*.sqlite" `
   --exclude="*.sqlite3" `
   --exclude="*.tsbuildinfo" `
@@ -63,29 +74,110 @@ $remoteScript = @'
 set -e
 RemoteAppPath=__REMOTE_APP_PATH__
 
-mkdir -p /opt/dustycards/backups
+mkdir -p /opt/dustycards /opt/dustycards/backups
+exec 9>/opt/dustycards/deploy.lock
+if ! flock -n 9; then
+  echo "Another DustyCards deploy is already running; refusing to overlap." >&2
+  exit 75
+fi
+
 prune_predeploy_backups() {
   backup_dir="/opt/dustycards/backups"
-  keep="${1:-8}"
-  count="$(find "$backup_dir" -maxdepth 1 -type f -name 'dustycards-predeploy-*.db' | wc -l | tr -d '[:space:]')"
-  remove=$((count - keep))
-  if [ "$remove" -le 0 ]; then
-    return 0
-  fi
+  tmp_all="$(mktemp)"
+  tmp_keep="$(mktemp)"
+  now_epoch="$(date -u +%s)"
 
   find "$backup_dir" -maxdepth 1 -type f -name 'dustycards-predeploy-*.db' -printf '%T@ %p\n' |
-    sort -n |
-    head -n "$remove" |
-    cut -d' ' -f2- |
-    while IFS= read -r file; do
-      case "$file" in
-        "$backup_dir"/dustycards-predeploy-*.db) rm -f -- "$file" ;;
-        *) echo "Refusing to remove unexpected backup path: $file" >&2; exit 1 ;;
-      esac
-    done
+    sort -nr > "$tmp_all"
+
+  declare -A kept_days=()
+  declare -A kept_weeks=()
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    ts="${line%% *}"
+    file="${line#* }"
+    ts_epoch="${ts%.*}"
+    age_seconds=$((now_epoch - ts_epoch))
+
+    if [ "$age_seconds" -lt 86400 ]; then
+      printf '%s\n' "$file" >> "$tmp_keep"
+      continue
+    fi
+
+    if [ "$age_seconds" -lt 1209600 ]; then
+      day_key="$(date -u -d "@$ts_epoch" +%Y%m%d)"
+      if [ -z "${kept_days[$day_key]+x}" ]; then
+        kept_days[$day_key]=1
+        printf '%s\n' "$file" >> "$tmp_keep"
+      fi
+      continue
+    fi
+
+    if [ "$age_seconds" -lt 4838400 ]; then
+      week_key="$(date -u -d "@$ts_epoch" +%G%V)"
+      if [ -z "${kept_weeks[$week_key]+x}" ]; then
+        kept_weeks[$week_key]=1
+        printf '%s\n' "$file" >> "$tmp_keep"
+      fi
+    fi
+  done < "$tmp_all"
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    file="${line#* }"
+    if grep -Fxq "$file" "$tmp_keep"; then
+      continue
+    fi
+
+    case "$file" in
+      "$backup_dir"/dustycards-predeploy-*.db) rm -f -- "$file" ;;
+      *) echo "Refusing to remove unexpected backup path: $file" >&2; exit 1 ;;
+    esac
+  done < "$tmp_all"
+
+  rm -f "$tmp_all" "$tmp_keep"
 }
 
-prune_predeploy_backups 8
+create_predeploy_backup() {
+  [ -f "$RemoteAppPath/dustycards.db" ] || return 0
+
+  backup_file="/opt/dustycards/backups/dustycards-predeploy-$(date -u +%Y%m%d-%H%M%S).db"
+  tmp_file="$backup_file.tmp"
+  rm -f "$tmp_file"
+
+  NODE_PATH="$RemoteAppPath/node_modules" node - "$RemoteAppPath/dustycards.db" "$tmp_file" <<'NODE'
+const Database = require("better-sqlite3");
+
+const [, , sourcePath, targetPath] = process.argv;
+function quoteSqlString(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+const source = new Database(sourcePath);
+try {
+  source.pragma("busy_timeout = 10000");
+  source.exec(`VACUUM INTO ${quoteSqlString(targetPath)}`);
+} finally {
+  source.close();
+}
+
+const backup = new Database(targetPath, { readonly: true });
+try {
+  const result = backup.pragma("quick_check", { simple: true });
+  if (result !== "ok") {
+    throw new Error(`backup quick_check failed: ${result}`);
+  }
+} finally {
+  backup.close();
+}
+NODE
+
+  mv "$tmp_file" "$backup_file"
+  prune_predeploy_backups
+}
+
+prune_predeploy_backups
 
 cleanup_remote_junk() {
   [ -d "$RemoteAppPath" ] || return 0
@@ -129,14 +221,7 @@ cleanup_remote_junk() {
 }
 
 cleanup_remote_junk
-
-if [ -f "$RemoteAppPath/dustycards.db" ]; then
-  backup_file="/opt/dustycards/backups/dustycards-predeploy-$(date -u +%Y%m%d-%H%M%S).db"
-  rm -f "$backup_file.tmp"
-  cp "$RemoteAppPath/dustycards.db" "$backup_file.tmp"
-  mv "$backup_file.tmp" "$backup_file"
-  prune_predeploy_backups 8
-fi
+create_predeploy_backup
 
 release_dir="$(mktemp -d /tmp/dustycards-release.XXXXXX)"
 cleanup() {
@@ -208,8 +293,46 @@ PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
 # deploy` that then died on "database is locked" and aborted the whole deploy.
 # When the count is 0 or undeterminable, skip: migrations are hand-applied for
 # this project, so running migrate against the live WAL db only causes locks.
+if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
+  echo "Migration state unknown while app is live; stopping services and retrying check."
+  systemctl stop dustycards-sync-scheduler.timer 2>/dev/null || true
+  systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
+  systemctl stop dustycards 2>/dev/null || true
+  PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
+    const Database = require("better-sqlite3");
+    const fs = require("fs");
+    if (!fs.existsSync("dustycards.db")) {
+      console.log(0);
+      process.exit(0);
+    }
+    const dirs = fs.readdirSync("prisma/migrations", { withFileTypes: true })
+      .filter((d) => d.isDirectory()).map((d) => d.name);
+    const db = new Database("dustycards.db", { readonly: true });
+    try {
+      const table = db.prepare("SELECT name FROM sqlite_master WHERE type = '\''table'\'' AND name = '\''_prisma_migrations'\''").get();
+      if (!table) {
+        console.log(dirs.length);
+        process.exit(0);
+      }
+      const applied = new Set(
+        db.prepare("SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL")
+          .all().map((r) => r.migration_name)
+      );
+      console.log(dirs.filter((d) => !applied.has(d)).length);
+    } finally { db.close(); }
+  ' 2>/dev/null) || PENDING_MIGRATIONS="unknown"
+fi
+
+if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
+  echo "Could not determine Prisma migration state after stopping services; aborting deploy." >&2
+  exit 1
+fi
+
 if [ "$PENDING_MIGRATIONS" -gt 0 ] 2>/dev/null; then
   echo "Pending migrations: $PENDING_MIGRATIONS — running prisma migrate deploy."
+  systemctl stop dustycards-sync-scheduler.timer 2>/dev/null || true
+  systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
+  systemctl stop dustycards 2>/dev/null || true
   npx prisma migrate deploy
 else
   echo "No definite pending migrations ($PENDING_MIGRATIONS); skipping prisma migrate deploy."

@@ -278,7 +278,7 @@ export default function HeaderSearch() {
         type="button"
         aria-label="Open search"
         onClick={openMobileSearch}
-        className="inline-flex h-[calc(var(--ui-header-search-height)-0.35rem)] w-[calc(var(--ui-header-search-height)-0.35rem)] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/72 shadow-sm shadow-black/20 transition-colors hover:border-white/18 hover:bg-white/[0.085] hover:text-white lg:hidden"
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/72 shadow-sm shadow-black/20 transition-colors hover:border-white/18 hover:bg-white/[0.085] hover:text-white lg:hidden"
       >
         <Search className="h-4 w-4" />
       </button>
@@ -295,7 +295,7 @@ export default function HeaderSearch() {
             type="button"
             aria-label="Close search"
             onClick={closeMobileSearch}
-            className="inline-flex h-[calc(var(--ui-header-search-height)-0.25rem)] w-[calc(var(--ui-header-search-height)-0.25rem)] shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>

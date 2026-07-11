@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -41,11 +42,11 @@ function centsToMoney(value: number): number {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
       itemIds?: unknown;
       prices?: unknown;
       totalPrice?: unknown;
-    };
+    }>(req);
 
     const itemIds = toStringArray(body.itemIds);
     if (itemIds.length === 0) {
@@ -137,6 +138,10 @@ export async function POST(req: NextRequest) {
       soldAt: soldAt.toISOString(),
     });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to mark cards sold" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to mark cards sold" }, { status: 500 })
+    );
   }
 }

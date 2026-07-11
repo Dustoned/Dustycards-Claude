@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
@@ -44,13 +45,13 @@ function toStringArray(value: unknown): string[] {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
     productId?: unknown;
     quantity?: unknown;
     purchasePricePerItem?: unknown;
     notes?: unknown;
     tags?: unknown;
-    };
+    }>(req);
 
   const productId = toNullableString(body.productId);
   if (!productId) {
@@ -110,17 +111,21 @@ export async function POST(req: NextRequest) {
     },
   });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to add sealed" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to add sealed" }, { status: 500 })
+    );
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
     const user = await requireUser();
-    const body = (await req.json()) as {
+    const body = await readJsonBody<{
     itemId?: unknown;
     itemIds?: unknown;
-    };
+    }>(req);
 
   const itemIds = (() => {
     const multiple = toStringArray(body.itemIds);
@@ -157,6 +162,10 @@ export async function DELETE(req: NextRequest) {
     count: deleted.count,
   });
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to remove sealed" }, { status: 500 });
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to remove sealed" }, { status: 500 })
+    );
   }
 }

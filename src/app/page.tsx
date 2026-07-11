@@ -15,6 +15,7 @@ import {
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
 import CollectionInstantTabs from "@/components/CollectionInstantTabs";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
+import HomeSuddenDropsPanel from "@/components/HomeSuddenDropsPanel";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
@@ -23,6 +24,7 @@ import {
   type CollectionPageTab,
 } from "@/lib/collection-data";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { getFeaturedCollectionCards } from "@/lib/featured-cards";
 import {
   GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
@@ -34,6 +36,7 @@ import {
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
+import EmptyState from "@/components/EmptyState";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionOverviewSections = nextDynamic(() => import("@/components/CollectionOverviewSections"));
@@ -44,8 +47,6 @@ const HomeValueDriversPanel = nextDynamic(() => import("@/components/HomeValueDr
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"));
 
 export const dynamic = "force-dynamic";
-
-const HOME_FEATURED_CARD_LIMIT = 24;
 
 function isGradedCollectionCard(item: {
   grading_company: string | null;
@@ -339,10 +340,7 @@ function FeaturedCardsPanel({
   cards: CollectionOverviewData["cards"];
   viewAllHref: string;
 }) {
-  const featured = [...cards]
-    .filter((item) => item.current_value != null && (item.current_value ?? 0) > 0)
-    .sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0))
-    .slice(0, HOME_FEATURED_CARD_LIMIT);
+  const featured = getFeaturedCollectionCards(cards);
 
   if (featured.length === 0) return null;
 
@@ -403,14 +401,70 @@ function HomeCollectionLinks({
   );
 }
 
+function FirstRunCollectionPanel({
+  browseHref,
+  collectionTitle,
+}: {
+  browseHref: string;
+  collectionTitle: string;
+}) {
+  return (
+    <div className="grid gap-4">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-200/68">
+          Welcome to DustyCards
+        </p>
+        <h1 className="mt-1 text-[length:var(--ui-page-header-title-size)] font-bold tracking-tight text-white">
+          {collectionTitle}
+        </h1>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-white/56">
+          Add your first item and DustyCards will build the value, progress, and market views automatically.
+        </p>
+      </div>
+
+      <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-4 sm:p-5">
+        <div className="grid gap-3 md:grid-cols-3">
+          <Link
+            href="/search"
+            prefetch={false}
+            className="group rounded-2xl border border-white/8 bg-white/[0.035] p-4 transition hover:border-violet-300/25 hover:bg-violet-500/[0.08]"
+          >
+            <Sparkles className="h-5 w-5 text-violet-200" />
+            <p className="mt-3 font-semibold text-white">Find a card</p>
+            <p className="mt-1 text-sm leading-5 text-white/48">Search by card, set, or product and save it directly.</p>
+          </Link>
+          <Link
+            href={browseHref}
+            prefetch={false}
+            className="group rounded-2xl border border-white/8 bg-white/[0.035] p-4 transition hover:border-sky-300/25 hover:bg-sky-500/[0.07]"
+          >
+            <Layers3 className="h-5 w-5 text-sky-200" />
+            <p className="mt-3 font-semibold text-white">Browse sets</p>
+            <p className="mt-1 text-sm leading-5 text-white/48">Explore cards and sealed products by expansion.</p>
+          </Link>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
+            <PackageCheck className="h-5 w-5 text-emerald-200" />
+            <p className="mt-3 font-semibold text-white">Start a binder</p>
+            <p className="mt-1 text-sm leading-5 text-white/48">Track a set goal or build a custom collection.</p>
+            <CreateBinderButton className="mt-3 min-h-11 w-full justify-center rounded-xl" />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default async function HomePage({
   searchParams,
 }: {
   searchParams: Promise<{ tab?: string; graded?: string; game?: string }>;
 }) {
   const user = await requirePageUser("/");
-  const settings = await getServerUserSettings(user.id);
-  const { tab, graded, game: gameParam } = await searchParams;
+  const [settings, params] = await Promise.all([
+    getServerUserSettings(user.id),
+    searchParams,
+  ]);
+  const { tab, graded, game: gameParam } = params;
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
@@ -429,7 +483,7 @@ export default async function HomePage({
         : "overview";
   const data = await getCollectionOverviewData({
     userId: user.id,
-    activeTab: "overview",
+    activeTab,
     game: activeGame,
   });
   const pricedCardCount = data.cards.filter((item) => item.current_value != null).length;
@@ -582,6 +636,30 @@ export default async function HomePage({
     return `/movers?${params.toString()}`;
   }
 
+  function buildSuddenDropsHref() {
+    const params = new URLSearchParams();
+    const gameValue = getGameFilterSearchParamValue(activeGame);
+
+    params.set("scope", "all");
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+
+    return `/movers/sudden-drops?${params.toString()}`;
+  }
+
+  function buildSuddenDropsApiHref() {
+    const params = new URLSearchParams();
+    const gameValue = getGameFilterSearchParamValue(activeGame);
+
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+
+    const query = params.toString();
+    return query ? `/api/movers/sudden-drops?${query}` : "/api/movers/sudden-drops";
+  }
+
   const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
     href: buildGameHref(game),
     active: activeGame === game,
@@ -593,6 +671,8 @@ export default async function HomePage({
       ? `${valueRangePoints[0].label} - ${valueRangePoints[valueRangePoints.length - 1].label}`
       : valueRangePoints[0]?.label ?? "No history yet";
   const showCollectionChart = valueRangePoints.length > 1;
+  const latestCollectionChartValue =
+    valueRangePoints[valueRangePoints.length - 1]?.value ?? null;
   const collectionTitle =
     activeGame === ONE_PIECE_GAME ? "One Piece Collection" : "My Collection";
   const collectionTabs = [
@@ -649,10 +729,18 @@ export default async function HomePage({
       )} cards`,
     },
   ];
+  const instantTabs: CollectionPageTab[] =
+    activeTab === "overview" || activeTab === "complete"
+      ? ["overview", "complete", "singles", "binders", "sealed", "graded", "selling"]
+      : activeTab === "singles" || activeTab === "graded" || activeTab === "selling"
+        ? ["singles", "graded", "selling"]
+        : [activeTab];
+
   return (
     <CollectionInstantTabs
       initialTab={activeTab}
       tabs={collectionTabs}
+      instantTabs={instantTabs}
       gameControls={
         settings.onePieceLibraryEnabled ? (
           <GameFilterSwitch
@@ -663,6 +751,7 @@ export default async function HomePage({
         ) : null
       }
       overviewSlot={
+        hasCollection ? (
         <div className="space-y-2.5 sm:space-y-3">
           <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
@@ -701,6 +790,7 @@ export default async function HomePage({
                     currency="EUR"
                     points={data.overview.chart}
                     currentValue={data.overview.currentValue}
+                    deltaValue={latestCollectionChartValue}
                     tone="dark"
                     subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
                       data.overview.pnl
@@ -727,10 +817,16 @@ export default async function HomePage({
           </section>
 
           {hasCollection && (
-            <HomeValueDriversPanel
-              data={data.valueDrivers}
-              viewAllHref={buildValueDriversHref()}
-            />
+            <div className="home-insight-panels">
+              <HomeValueDriversPanel
+                data={data.valueDrivers}
+                viewAllHref={buildValueDriversHref()}
+              />
+              <HomeSuddenDropsPanel
+                apiHref={buildSuddenDropsApiHref()}
+                viewAllHref={buildSuddenDropsHref()}
+              />
+            </div>
           )}
 
           {hasCollection && (
@@ -763,27 +859,11 @@ export default async function HomePage({
             sellingHref={buildCollectionHref("selling")}
           />
         </div>
+        ) : (
+          <FirstRunCollectionPanel browseHref={browseHref} collectionTitle={collectionTitle} />
+        )
       }
-      emptySlot={
-        !hasCollection ? (
-          <div className="binder-panel rounded-2xl px-4 py-6 text-center sm:px-6 sm:py-7">
-            <p className="mb-1 font-medium text-white/76">Your collection is still empty</p>
-            <p className="mx-auto max-w-xl text-sm leading-6 text-white/42">
-              Start with a card, create a binder, or add sealed from search and expansion pages.
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <Link
-                href={browseHref}
-                prefetch={false}
-                className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-semibold text-white/78 transition-colors hover:border-white/18 hover:bg-white/[0.1]"
-              >
-                Browse cards
-              </Link>
-              <CreateBinderButton className="rounded-full" />
-            </div>
-          </div>
-        ) : null
-      }
+      emptySlot={null}
       completeSlot={
         <CollectionOverviewSections
           gradedLooseSingles={gradedLooseSingles}
@@ -842,6 +922,14 @@ export default async function HomePage({
         />
       }
       sellingSlot={
+        data.forSaleCards.length === 0 ? (
+          <EmptyState
+            title="Nothing marked for sale yet"
+            description="Open a saved card, choose Edit, and enable For Sale. It will appear here with its estimated value and sale tracking."
+            actionHref="/search"
+            actionLabel="Find cards"
+          />
+        ) : (
         <div className="space-y-3">
           <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0">
@@ -899,6 +987,7 @@ export default async function HomePage({
             collectionRemovalWarning="This removes the saved For Sale entry entirely."
           />
         </div>
+        )
       }
     />
   );

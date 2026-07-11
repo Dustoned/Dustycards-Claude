@@ -4,6 +4,7 @@ import { Geist } from "next/font/google";
 import Link from "next/link";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
+import { HeaderMobileMenu } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
 import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import MobileBottomNav from "@/components/MobileBottomNav";
@@ -37,8 +38,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
+  userScalable: true,
 };
 
 function detectInitialMobileViewport(headerStore: Headers) {
@@ -116,7 +117,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           : "system";
         var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         var dark = true;
-        var phone = window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
+        var phone = window.matchMedia && window.matchMedia("(max-width: 767px)").matches;
         var rawUi = phone ? settings.mobileUiScale : settings.uiScale;
         var ui = ["small", "medium", "large"].indexOf(rawUi) >= 0 ? rawUi : (phone ? "small" : "medium");
         window.__dustycardsSettings = settings;
@@ -226,6 +227,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               </Link>
               {currentUser ? (
                 <>
+                  <HeaderMobileMenu />
                   <div className="flex-1 lg:hidden" />
                   <HeaderSearch />
                 </>
