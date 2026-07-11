@@ -2899,12 +2899,14 @@ export function CardModalActiveListingsPanel({
   storedCardMarketUrl,
   onOpenCardMarket,
   onOpenSealedProduct,
+  onClose,
   className = "",
 }: {
   card: ModalCardData;
   storedCardMarketUrl: string | null;
   onOpenCardMarket: () => void;
   onOpenSealedProduct?: (product: NonNullable<ModalCardData["sealed_products"]>[number]) => void;
+  onClose?: () => void;
   className?: string;
 }) {
   const sealedProducts = (card.sealed_products ?? []).slice(0, 4);
@@ -2941,15 +2943,15 @@ export function CardModalActiveListingsPanel({
                 type="button"
                 onClick={() => onOpenSealedProduct?.(product)}
                 disabled={!onOpenSealedProduct}
-                className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.025] p-2 text-left transition-colors hover:border-violet-400/22 hover:bg-violet-400/[0.045] disabled:cursor-default"
+                className="group flex min-w-0 items-center gap-3 rounded-xl border border-white/8 bg-white/[0.025] p-2.5 text-left transition-colors hover:border-violet-400/22 hover:bg-violet-400/[0.045] disabled:cursor-default"
               >
-                <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20">
+                <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20 2xl:h-[4.5rem] 2xl:w-[4.5rem]">
                   {product.image_url ? (
                     <Image
                       src={getCachedImageUrl(product.image_url) ?? product.image_url}
                       alt={product.name}
                       fill
-                      sizes="56px"
+                      sizes="(max-width: 1536px) 64px, 72px"
                       className="object-contain p-1"
                       unoptimized
                     />
@@ -2984,38 +2986,53 @@ export function CardModalActiveListingsPanel({
         </div>
       )}
 
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/7 pt-3">
-        {storedCardMarketUrl ? (
+      <Link
+        href={`${getExpansionHref(card.episode_id)}?tab=sealed`}
+        prefetch={false}
+        onClick={onClose}
+        className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/22 bg-violet-500/[0.10] px-3 text-sm font-semibold text-violet-100 transition-colors hover:border-violet-300/35 hover:bg-violet-500/[0.16] hover:text-white"
+      >
+        View all sealed from this set
+        <ChevronRight className="h-4 w-4" />
+      </Link>
+
+      <div className="mt-3 rounded-xl border border-white/7 bg-black/15 p-2.5">
+        <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.14em] text-white/30">
+          Card links
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {storedCardMarketUrl ? (
+            <a
+              href={storedCardMarketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={DETAIL_MARKET_LINK_CLASS}
+            >
+              CardMarket
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          ) : (
+            <button type="button" onClick={onOpenCardMarket} className={DETAIL_MARKET_LINK_CLASS}>
+              CardMarket
+              <ExternalLink className="h-4 w-4" />
+            </button>
+          )}
+
           <a
-            href={storedCardMarketUrl}
+            href={buildCardEbaySearchUrl({
+              name: card.name,
+              cardNumber: card.card_number,
+              gradingCompany: normalizeGradingCompanyLabel(card.collection_item?.grading_company),
+              gradingGrade: normalizeGradingGradeLabel(card.collection_item?.grading_grade),
+            })}
             target="_blank"
             rel="noopener noreferrer"
             className={DETAIL_MARKET_LINK_CLASS}
           >
-            CardMarket
+            eBay Deals
             <ExternalLink className="h-4 w-4" />
           </a>
-        ) : (
-          <button type="button" onClick={onOpenCardMarket} className={DETAIL_MARKET_LINK_CLASS}>
-            CardMarket
-            <ExternalLink className="h-4 w-4" />
-          </button>
-        )}
-
-        <a
-          href={buildCardEbaySearchUrl({
-            name: card.name,
-            cardNumber: card.card_number,
-            gradingCompany: normalizeGradingCompanyLabel(card.collection_item?.grading_company),
-            gradingGrade: normalizeGradingGradeLabel(card.collection_item?.grading_grade),
-          })}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={DETAIL_MARKET_LINK_CLASS}
-        >
-          eBay Deals
-          <ExternalLink className="h-4 w-4" />
-        </a>
+        </div>
       </div>
       <p className="mt-2 text-[10px] font-medium leading-relaxed text-white/28">
         Set-linked products; exact pack contents and pull results can vary.

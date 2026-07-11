@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Sparkles } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
@@ -52,7 +52,7 @@ function HomeSuddenDropRow({
     <Link
       href={href}
       prefetch={false}
-      className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2.5 first:border-t-0"
+      className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-rose-400/14 bg-rose-400/[0.07] text-rose-300">
         <ArrowDownRight className="h-3.5 w-3.5" />
@@ -94,7 +94,7 @@ function LoadingRows() {
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={index}
-          className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2.5 first:border-t-0"
+          className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
         >
           <span className="h-8 w-8 shrink-0 animate-pulse rounded-xl bg-white/[0.07]" />
           <span className="min-w-0 space-y-1.5">
@@ -107,6 +107,38 @@ function LoadingRows() {
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function HomeSuddenDropLane({
+  title,
+  items,
+  viewAllHref,
+}: {
+  title: string;
+  items: HomeSuddenDropPreviewItem[];
+  viewAllHref: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
+          {title}
+        </p>
+        <span className="text-[10.5px] font-semibold text-white/34">
+          {items.length.toLocaleString("en-US")}
+        </span>
+      </div>
+      <div className="min-w-0">
+        {items.map((item) => (
+          <HomeSuddenDropRow
+            key={`${item.cardId}:${item.source}`}
+            item={item}
+            href={buildHighlightedHref(viewAllHref, item.cardId)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -151,11 +183,8 @@ export default function HomeSuddenDropsPanel({
   const currency = previewItems[0]?.currency ?? "EUR";
   const thresholdLabel = formatCurrency(data.threshold, currency);
   const hasItems = previewItems.length > 0;
-  const topDrop = useMemo(
-    () => (hasItems ? Math.max(...previewItems.map((item) => item.dropAmount)) : 0),
-    [hasItems, previewItems]
-  );
-
+  const primaryDrops = previewItems.slice(0, 4);
+  const secondaryDrops = previewItems.slice(4, 8);
   return (
     <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -175,11 +204,6 @@ export default function HomeSuddenDropsPanel({
             <Sparkles className="h-3.5 w-3.5 text-rose-300/80" />
             {isLoading ? "--" : data.total.toLocaleString("en-US")}
           </span>
-          {!isLoading && hasItems ? (
-            <span className="inline-flex h-8 items-center rounded-full border border-white/8 bg-white/[0.035] px-2.5 text-[12px] font-black tabular-nums text-white/72">
-              Biggest <span className="ml-1.5 text-rose-300">-{formatCurrency(topDrop, currency)}</span>
-            </span>
-          ) : null}
           <Link
             href={viewAllHref}
             prefetch={false}
@@ -199,14 +223,17 @@ export default function HomeSuddenDropsPanel({
             Could not load sudden price drops right now.
           </div>
         ) : hasItems ? (
-          <div className="min-w-0">
-            {previewItems.map((item) => (
-              <HomeSuddenDropRow
-                key={`${item.cardId}:${item.source}`}
-                item={item}
-                href={buildHighlightedHref(viewAllHref, item.cardId)}
-              />
-            ))}
+          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+            <HomeSuddenDropLane
+              title="Biggest drops"
+              items={primaryDrops}
+              viewAllHref={viewAllHref}
+            />
+            <HomeSuddenDropLane
+              title="More drops"
+              items={secondaryDrops}
+              viewAllHref={viewAllHref}
+            />
           </div>
         ) : (
           <div className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
