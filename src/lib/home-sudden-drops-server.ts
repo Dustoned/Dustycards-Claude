@@ -21,9 +21,8 @@ import { normalizeRarityLabel } from "@/lib/rarity";
 import type { PriceSource } from "@/lib/user-settings";
 
 export const FAST_SUDDEN_DROP_FEED_LIMIT = 50;
-export const FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS = 2;
-const FAST_SUDDEN_DROP_REFRESH_MAX_AGE_DAYS = 3;
-const AUTO_PRICE_REFRESH_TYPE = "auto-prices";
+export const FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS = 1;
+export const FAST_SUDDEN_DROP_WINDOW_HOURS = 24;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
 type FastSuddenDropSnapshotPrefix = "latest" | "anchor";
@@ -172,80 +171,14 @@ export function getFastSuddenDropCoveredDays(
   return Math.max(1, Math.round((latestTime - anchorTime) / MS_PER_DAY));
 }
 
-export function normalizeFastSuddenDropRefreshWindow(
-  input: {
-    startedAt: Date | string | null | undefined;
-    finishedAt: Date | string | null | undefined;
-    status: string;
-  },
+export function getFastSuddenDropRollingWindow(
   now = new Date()
-): FastSuddenDropRefreshWindow | null {
-  if (!input.startedAt) return null;
-
-  const startedAt = new Date(input.startedAt);
-  const finishedAt = input.finishedAt ? new Date(input.finishedAt) : null;
-  const effectiveEnd = finishedAt ?? now;
-  const startedTime = startedAt.getTime();
-  const endTime = effectiveEnd.getTime();
-  const nowTime = now.getTime();
-
-  if (
-    !Number.isFinite(startedTime) ||
-    !Number.isFinite(endTime) ||
-    startedTime > endTime ||
-    startedTime > nowTime
-  ) {
-    return null;
-  }
-
-  if (nowTime - startedTime > FAST_SUDDEN_DROP_REFRESH_MAX_AGE_DAYS * MS_PER_DAY) {
-    return null;
-  }
-
+): FastSuddenDropRefreshWindow {
   return {
-    startedAt,
-    finishedAt,
-    status: input.status,
+    startedAt: new Date(now.getTime() - FAST_SUDDEN_DROP_WINDOW_HOURS * 60 * 60 * 1000),
+    finishedAt: now,
+    status: "rolling",
   };
-}
-
-async function getLatestPriceRefreshWindow(): Promise<FastSuddenDropRefreshWindow | null> {
-  const job = await db.syncJob.findUnique({
-    where: { type: AUTO_PRICE_REFRESH_TYPE },
-    select: {
-      status: true,
-      started_at: true,
-      finished_at: true,
-    },
-  });
-
-  if (job?.started_at) {
-    const jobWindow = normalizeFastSuddenDropRefreshWindow({
-      startedAt: job.started_at,
-      finishedAt: job.finished_at,
-      status: job.status,
-    });
-
-    if (jobWindow) {
-      return jobWindow;
-    }
-  }
-
-  const log = await db.syncLog.findFirst({
-    where: { type: AUTO_PRICE_REFRESH_TYPE },
-    orderBy: { started_at: "desc" },
-    select: {
-      status: true,
-      started_at: true,
-      finished_at: true,
-    },
-  });
-
-  return normalizeFastSuddenDropRefreshWindow({
-    startedAt: log?.started_at,
-    finishedAt: log?.finished_at,
-    status: log?.status ?? "unknown",
-  });
 }
 
 function toRefreshMetadata(
@@ -695,6 +628,6 @@ export async function getFastSuddenDropsData(
   game: TradingCardGameFilter,
   limit = FAST_SUDDEN_DROP_FEED_LIMIT
 ): Promise<FastSuddenDropsData> {
-  const refresh = await getLatestPriceRefreshWindow();
+  const refresh = getFastSuddenDropRollingWindow();
   return getFastSuddenDropsForRefresh(source, game, limit, refresh);
 }

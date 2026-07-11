@@ -2,8 +2,6 @@ import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const dbMock = vi.hoisted(() => ({
-  syncJob: { findUnique: vi.fn() },
-  syncLog: { findFirst: vi.fn() },
   $queryRawUnsafe: vi.fn(),
 }));
 
@@ -11,7 +9,7 @@ vi.mock("@/lib/db", () => ({ db: dbMock }));
 import {
   getFastSuddenDropCoveredDays,
   getFastSuddenDropsData,
-  normalizeFastSuddenDropRefreshWindow,
+  getFastSuddenDropRollingWindow,
 } from "./home-sudden-drops-server";
 
 afterEach(() => {
@@ -40,39 +38,20 @@ describe("getFastSuddenDropCoveredDays", () => {
   });
 });
 
-describe("normalizeFastSuddenDropRefreshWindow", () => {
+describe("getFastSuddenDropRollingWindow", () => {
   const now = new Date("2026-07-10T12:00:00.000Z");
 
-  it("keeps the latest daily refresh window", () => {
-    const result = normalizeFastSuddenDropRefreshWindow(
-      {
-        startedAt: "2026-07-10T09:00:00.000Z",
-        finishedAt: "2026-07-10T09:30:00.000Z",
-        status: "success",
-      },
-      now
-    );
+  it("always covers the rolling previous 24 hours", () => {
+    const result = getFastSuddenDropRollingWindow(now);
 
-    expect(result?.startedAt.toISOString()).toBe("2026-07-10T09:00:00.000Z");
-    expect(result?.finishedAt?.toISOString()).toBe("2026-07-10T09:30:00.000Z");
-  });
-
-  it("drops stale refresh windows so old deals cannot remain pinned", () => {
-    expect(
-      normalizeFastSuddenDropRefreshWindow(
-        {
-          startedAt: "2026-07-06T09:00:00.000Z",
-          finishedAt: "2026-07-06T09:30:00.000Z",
-          status: "success",
-        },
-        now
-      )
-    ).toBeNull();
+    expect(result.startedAt.toISOString()).toBe("2026-07-09T12:00:00.000Z");
+    expect(result.finishedAt?.toISOString()).toBe(now.toISOString());
+    expect(result.status).toBe("rolling");
   });
 });
 
 describe("getFastSuddenDropsData", () => {
-  it("keeps only drops introduced by the latest refresh", async () => {
+  it("keeps only drops introduced in the rolling 24-hour window", async () => {
     const sqlite = new Database(":memory:");
     sqlite.exec(`
       CREATE TABLE "Episode" (
@@ -110,10 +89,9 @@ describe("getFastSuddenDropsData", () => {
     `);
 
     const now = Date.now();
-    const refreshStartedAt = new Date(now - 60 * 60 * 1000);
-    const refreshFinishedAt = new Date(now - 30 * 60 * 1000);
     const currentSnapshotAt = new Date(now - 45 * 60 * 1000).toISOString();
     const previousSnapshotAt = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const staleChangedAt = new Date(now - 25 * 60 * 60 * 1000).toISOString();
     const olderSnapshotAt = new Date(now - 48 * 60 * 60 * 1000).toISOString();
 
     sqlite.prepare(
@@ -133,13 +111,8 @@ describe("getFastSuddenDropsData", () => {
     insertPrice.run("new-before", "new-drop", previousSnapshotAt, previousSnapshotAt, 150);
     insertPrice.run("new-after", "new-drop", currentSnapshotAt, currentSnapshotAt, 90);
     insertPrice.run("old-high", "old-drop", olderSnapshotAt, olderSnapshotAt, 150);
-    insertPrice.run("old-low", "old-drop", currentSnapshotAt, previousSnapshotAt, 90);
+    insertPrice.run("old-low", "old-drop", currentSnapshotAt, staleChangedAt, 90);
 
-    dbMock.syncJob.findUnique.mockResolvedValue({
-      status: "success",
-      started_at: refreshStartedAt,
-      finished_at: refreshFinishedAt,
-    });
     dbMock.$queryRawUnsafe.mockImplementation((sql: string, ...params: unknown[]) =>
       sqlite.prepare(sql).all(...params)
     );
@@ -149,7 +122,7 @@ describe("getFastSuddenDropsData", () => {
 
       expect(result.items.map((item) => item.cardId)).toEqual(["new-drop"]);
       expect(result.items[0]?.change7d).toBe(-60);
-      expect(result.refresh?.startedAt).toBe(refreshStartedAt.toISOString());
+      expect(result.refresh?.status).toBe("rolling");
     } finally {
       sqlite.close();
     }
@@ -193,8 +166,6 @@ describe("getFastSuddenDropsData", () => {
     `);
 
     const now = Date.now();
-    const refreshStartedAt = new Date(now - 60 * 60 * 1000);
-    const refreshFinishedAt = new Date(now - 30 * 60 * 1000);
     const currentSnapshotAt = new Date(now - 45 * 60 * 1000).toISOString();
     const previousSnapshotAt = new Date(now - 24 * 60 * 60 * 1000).toISOString();
 
@@ -256,11 +227,6 @@ describe("getFastSuddenDropsData", () => {
       3.21
     );
 
-    dbMock.syncJob.findUnique.mockResolvedValue({
-      status: "success",
-      started_at: refreshStartedAt,
-      finished_at: refreshFinishedAt,
-    });
     dbMock.$queryRawUnsafe.mockImplementation((sql: string, ...params: unknown[]) =>
       sqlite.prepare(sql).all(...params)
     );

@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.14",
+    releasedAt: "July 11, 2026",
+    title: "Sudden Drops now rolls over 24 hours",
+    summary:
+      "DustyCards 3.6.14 rebuilds Sudden Drops around a rolling 24-hour market window instead of internal refresh-job boundaries.",
+    tone: "improved",
+    highlights: [
+      "Verified English price drops remain visible for 24 hours even when new batches or small catch-up jobs run.",
+      "The page refreshes every minute and now clearly labels the rolling window, threshold, source, largest drop, and last update time.",
+      "Dashboard copy and empty states now use the same 24-hour definition, while suspicious listings remain excluded.",
+    ],
+  },
+  {
     version: "3.6.13",
     releasedAt: "July 11, 2026",
     title: "One complete nightly drop window",

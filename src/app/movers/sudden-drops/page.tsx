@@ -82,25 +82,20 @@ export default async function SuddenDropsPage({
   const scopeLabel = isAllScope ? "All Cards" : "Collection";
   const activeCurrency: CurrencyCode = activePriceSource === "tcp" ? "USD" : "EUR";
   const dropAmounts = movers.map(getMoverRecentDropAmount);
-  const refreshLabel = data.refresh
+  const updatedLabel = data.refresh
     ? new Intl.DateTimeFormat("en-GB", {
-        day: "numeric",
-        month: "short",
         hour: "2-digit",
         minute: "2-digit",
       }).format(new Date(data.refresh.finishedAt ?? data.refresh.startedAt))
-    : "No recent refresh";
+    : "--";
   const strongDropCount = movers.filter(
     (item) => getMoverRecentDropAmount(item) >= SUDDEN_DROP_DEAL_STRONG_AMOUNT
   ).length;
-  const highWeightCount = movers.filter(
-    (item) => item.rankingScore >= 8 || item.opportunityScore >= 8
-  ).length;
   const averageDrop = average(dropAmounts);
-  const refreshIsRunning = data.refresh?.status.toLowerCase() === "running";
+  const largestDrop = dropAmounts.length > 0 ? Math.max(...dropAmounts) : null;
   const headerStats = [
     {
-      label: "Cards",
+      label: "24H Matches",
       value: movers.length.toLocaleString("en-US"),
       Icon: ArrowDownRight,
       tone: "rose",
@@ -112,8 +107,8 @@ export default async function SuddenDropsPage({
       tone: "amber",
     },
     {
-      label: "Weighted Picks",
-      value: highWeightCount.toLocaleString("en-US"),
+      label: "Largest Drop",
+      value: largestDrop == null ? "--" : formatCurrency(largestDrop, activeCurrency),
       Icon: Sparkles,
       tone: "violet",
     },
@@ -148,16 +143,12 @@ export default async function SuddenDropsPage({
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <SuddenDropsAutoRefresh enabled={refreshIsRunning} />
+      <SuddenDropsAutoRefresh />
       <div className="flex w-full flex-col gap-8">
         <PageHeroHeader
           eyebrow="Sudden Drops"
-          title="New drops from the latest price refresh"
-          description={
-            isAllScope
-              ? "Only raw cards that lost at least the threshold since their previous price check. Unchanged old drops disappear on the next refresh."
-              : "Only raw collection cards that lost at least the threshold since their previous price check. Unchanged old drops disappear on the next refresh."
-          }
+          title="Verified market drops from the last 24 hours"
+          description="A rolling view of cards whose current marketplace price fell by at least the threshold versus their immediately previous price. Internal job and batch boundaries no longer affect this list."
           stats={headerStats}
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-white/50">
@@ -213,12 +204,12 @@ export default async function SuddenDropsPage({
               <div className="flex flex-wrap items-center gap-[var(--ui-header-action-gap)]">
                 <HeaderPill tone={isAllScope ? "sky" : "emerald"}>Scope: {scopeLabel}</HeaderPill>
                 <HeaderPill tone="rose">
-                  Latest refresh drop: {formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+
+                  Drop threshold: {formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+
                 </HeaderPill>
                 <HeaderPill tone="amber">
-                  Refresh: {refreshLabel}{refreshIsRunning ? " · scanning, auto-updating" : ""}
+                  Rolling window: 24 hours
                 </HeaderPill>
-                <HeaderPill tone="violet">Top {FAST_SUDDEN_DROP_FEED_LIMIT}</HeaderPill>
+                <HeaderPill tone="violet">Updated: {updatedLabel}</HeaderPill>
                 <HeaderPill>
                   Price source: {activePriceSource === "tcp" ? "TCGPlayer market" : "CardMarket English"}
                 </HeaderPill>
@@ -230,15 +221,15 @@ export default async function SuddenDropsPage({
         <div className="flex flex-wrap gap-3 text-sm">
           <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/20 bg-rose-400/[0.08] px-3 py-1.5 text-rose-700 dark:text-rose-200">
             <ArrowDownRight className="h-4 w-4" />
-            Latest price refresh {formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+ drop
+            Rolling 24-hour {formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+ drops
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1.5 text-violet-700 dark:text-violet-200">
             <Sparkles className="h-4 w-4" />
-            Movers weighting
+            English price vs previous English price
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-3 py-1.5 text-amber-700 dark:text-amber-200">
             <BadgePercent className="h-4 w-4" />
-            Cheap after the fall
+            Suspicious listings excluded
           </span>
         </div>
 
@@ -249,12 +240,12 @@ export default async function SuddenDropsPage({
           marketMode="sudden_drops"
           initialDirection="fallers"
           highlightedCardId={highlight ?? null}
-          metricWindowLabel="REFRESH"
+          metricWindowLabel="24H"
           eyebrow="Sudden Drops"
-          title="Newly cheaper cards"
-          description={`Search, filter, and sort the latest top ${FAST_SUDDEN_DROP_FEED_LIMIT} raw cards that became at least ${formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)} cheaper in the newest price refresh.`}
-          emptyTitle={`No new ${formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+ drops in this refresh`}
-          emptyDescription={`No raw cards became ${formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)} or more cheaper since their previous price check.`}
+          title="Cards that became cheaper in the last 24 hours"
+          description={`Search, filter, and sort up to ${FAST_SUDDEN_DROP_FEED_LIMIT} verified raw cards whose current price is at least ${formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)} below their previous price within the rolling 24-hour window.`}
+          emptyTitle={`No verified ${formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+ drops in the last 24 hours`}
+          emptyDescription="No raw cards currently meet the rolling 24-hour threshold. Suspicious listing outliers are excluded."
         />
       </div>
     </div>

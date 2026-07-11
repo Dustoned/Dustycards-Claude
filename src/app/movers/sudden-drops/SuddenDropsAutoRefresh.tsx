@@ -3,17 +3,15 @@
 import { startTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-const REFRESH_INTERVAL_MS = 5_000;
+const REFRESH_INTERVAL_MS = 60_000;
 const REFRESH_RELEASE_MS = 1_000;
 
-export default function SuddenDropsAutoRefresh({ enabled }: { enabled: boolean }) {
+export default function SuddenDropsAutoRefresh() {
   const router = useRouter();
   const inFlightRef = useRef(false);
   const releaseTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
-
     let cancelled = false;
 
     function refresh() {
@@ -51,7 +49,7 @@ export default function SuddenDropsAutoRefresh({ enabled }: { enabled: boolean }
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [enabled, router]);
+  }, [router]);
 
   return null;
 }

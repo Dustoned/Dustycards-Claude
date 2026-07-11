@@ -19,7 +19,7 @@ const EMPTY_DATA: HomeSuddenDropsResponse = {
   items: [],
   total: 0,
   threshold: DEFAULT_THRESHOLD,
-  windowDays: 2,
+  windowDays: 1,
   limit: 50,
   refreshStartedAt: null,
   refreshFinishedAt: null,
@@ -72,7 +72,7 @@ function HomeSuddenDropRow({
           <span className="shrink-0 text-white/28">/</span>
           <span className="shrink-0">{item.sourceLabel}</span>
           <span className="shrink-0 text-white/28">/</span>
-          <span className="shrink-0">latest refresh</span>
+          <span className="shrink-0">last 24h</span>
         </span>
       </span>
       <span className="min-w-[6.5rem] shrink-0 text-right">
@@ -167,7 +167,7 @@ export default function HomeSuddenDropsPanel({
             Sudden Price Drops
           </h2>
           <p className="mt-0.5 text-[12px] font-semibold text-white/42">
-            Newly down {thresholdLabel}+ in the latest price refresh.
+            Verified {thresholdLabel}+ drops in the rolling last 24 hours.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
@@ -205,7 +205,7 @@ export default function HomeSuddenDropsPanel({
           </div>
         ) : (
           <div className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
-            No raw cards newly dropped by {thresholdLabel}+ in the latest price refresh.
+            No verified raw-card drops of {thresholdLabel}+ in the last 24 hours.
           </div>
         )}
         <Link
