@@ -16,6 +16,7 @@ import {
   Info,
   LineChart,
   MoreHorizontal,
+  Package,
   RefreshCw,
   ShoppingCart,
   Sparkles,
@@ -2897,20 +2898,93 @@ export function CardModalActiveListingsPanel({
   card,
   storedCardMarketUrl,
   onOpenCardMarket,
+  onOpenSealedProduct,
   className = "",
 }: {
   card: ModalCardData;
   storedCardMarketUrl: string | null;
   onOpenCardMarket: () => void;
+  onOpenSealedProduct?: (product: NonNullable<ModalCardData["sealed_products"]>[number]) => void;
   className?: string;
 }) {
+  const sealedProducts = (card.sealed_products ?? []).slice(0, 4);
+
   return (
     <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
       <div className="flex items-center justify-between gap-3">
-        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Active Listings</h3>
-        <span className="text-xs font-semibold text-violet-200/80">Market</span>
+        <div className="min-w-0">
+          <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Find in Sealed</h3>
+          <p className="mt-1 truncate text-[11px] font-medium text-white/38">
+            Products connected to {card.episode_name}
+          </p>
+        </div>
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-400/16 bg-violet-400/[0.07] px-2 py-1 text-[10px] font-semibold text-violet-200/80">
+          <Package className="h-3 w-3" />
+          {sealedProducts.length}
+        </span>
       </div>
-      <div className="mt-4 grid gap-2">
+
+      {sealedProducts.length > 0 ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {sealedProducts.map((product) => {
+            const price =
+              product.price.cm_lowest ??
+              product.price.cm_lowest_eu ??
+              product.price.cm_lowest_de ??
+              product.price.cm_lowest_fr ??
+              product.price.cm_lowest_es ??
+              product.price.cm_lowest_it;
+
+            return (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => onOpenSealedProduct?.(product)}
+                disabled={!onOpenSealedProduct}
+                className="group flex min-w-0 items-center gap-2.5 rounded-xl border border-white/8 bg-white/[0.025] p-2 text-left transition-colors hover:border-violet-400/22 hover:bg-violet-400/[0.045] disabled:cursor-default"
+              >
+                <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20">
+                  {product.image_url ? (
+                    <Image
+                      src={getCachedImageUrl(product.image_url) ?? product.image_url}
+                      alt={product.name}
+                      fill
+                      sizes="56px"
+                      className="object-contain p-1"
+                      unoptimized
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center text-white/25">
+                      <Package className="h-5 w-5" />
+                    </span>
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-2 block text-[11px] font-semibold leading-4 text-white/78 transition-colors group-hover:text-white">
+                    {product.name}
+                  </span>
+                  <span className="mt-1 block text-xs font-bold tabular-nums text-violet-200/88">
+                    {price == null ? "Price unavailable" : formatCurrency(price, "EUR")}
+                  </span>
+                  {product.match_type === "mixed_pack" ? (
+                    <span className="mt-1 inline-flex rounded-full border border-amber-300/14 bg-amber-300/[0.06] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-amber-100/70">
+                      Mixed packs
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-1 items-center justify-center rounded-xl border border-dashed border-white/10 px-3 py-6 text-center">
+          <p className="text-xs font-medium leading-5 text-white/38">
+            No matching sealed products are linked to this set yet.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/7 pt-3">
         {storedCardMarketUrl ? (
           <a
             href={storedCardMarketUrl}
@@ -2943,8 +3017,8 @@ export function CardModalActiveListingsPanel({
           <ExternalLink className="h-4 w-4" />
         </a>
       </div>
-      <p className="mt-auto pt-4 text-[11px] font-medium leading-relaxed text-white/34">
-        Compare live listings before buying, selling, or updating your collection value.
+      <p className="mt-2 text-[10px] font-medium leading-relaxed text-white/28">
+        Set-linked products; exact pack contents and pull results can vary.
       </p>
     </section>
   );

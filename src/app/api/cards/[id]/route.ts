@@ -274,6 +274,39 @@ async function getCardDetailPayload(id: string, userId: string) {
     }
   }
 
+  const sealedProducts = await db.sealedProduct.findMany({
+    where: {
+      game: card.game,
+      OR: [
+        { episode_id: card.episode.id },
+        { contentSets: { some: { episode_id: card.episode.id } } },
+      ],
+    },
+    orderBy: [{ cm_lowest: "desc" }, { name: "asc" }],
+    take: 8,
+    select: {
+      id: true,
+      name: true,
+      image_url: true,
+      cardmarket_url: true,
+      release_date: true,
+      cm_lowest: true,
+      cm_lowest_eu: true,
+      cm_lowest_de: true,
+      cm_lowest_fr: true,
+      cm_lowest_es: true,
+      cm_lowest_it: true,
+      cm_avg_7d: true,
+      cm_avg_30d: true,
+      episode_id: true,
+      contentSets: {
+        where: { episode_id: card.episode.id },
+        take: 1,
+        select: { episode_id: true },
+      },
+    },
+  });
+
   const latestPrice = card.prices[card.prices.length - 1] ?? null;
   const priceHistory = buildCardPriceHistory(card.prices);
   const gradedPriceHistory = buildCardGradedPriceHistory(card.gradedPriceSnapshots);
@@ -416,6 +449,32 @@ async function getCardDetailPayload(id: string, userId: string) {
     episode_code: card.episode.code,
     episode_series: card.episode.series,
     episode_release_date: card.episode.release_date,
+    sealed_products: sealedProducts.map((product) => ({
+      id: product.id,
+      name: product.name,
+      image_url: product.image_url,
+      cardmarket_url: product.cardmarket_url,
+      release_date: product.release_date ? product.release_date.toISOString() : null,
+      match_type:
+        product.episode_id === card.episode.id && product.contentSets.length === 0
+          ? "set_product"
+          : "mixed_pack",
+      price: {
+        cm_lowest: product.cm_lowest,
+        cm_lowest_eu: product.cm_lowest_eu,
+        cm_lowest_de: product.cm_lowest_de,
+        cm_lowest_fr: product.cm_lowest_fr,
+        cm_lowest_es: product.cm_lowest_es,
+        cm_lowest_it: product.cm_lowest_it,
+        cm_avg_7d: product.cm_avg_7d,
+        cm_avg_30d: product.cm_avg_30d,
+      },
+      episode: {
+        id: card.episode.id,
+        name: card.episode.name,
+        code: card.episode.code,
+      },
+    })),
     collection_item: collectionItemPayload,
     want_item: wantItem
       ? {

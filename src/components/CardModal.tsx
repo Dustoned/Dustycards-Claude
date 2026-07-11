@@ -36,11 +36,16 @@ import {
   CardModalRecentPricesPanel,
 } from "./card-modal/CardModalSections";
 import type { ModalCardData } from "./card-modal/types";
+import type { SealedModalProductData } from "./sealed-modal/types";
 import { getCardModalLayoutClasses } from "./card-modal/utils";
 
 export type { ModalCardData } from "./card-modal/types";
 
 const CardThreeViewer = dynamic(() => import("@/app/expansions/[id]/CardThreeViewer"), {
+  ssr: false,
+  loading: () => null,
+});
+const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
   loading: () => null,
 });
@@ -153,6 +158,8 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const [modalCard, setModalCard] = useState(card);
   const { displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
+  const [selectedSealedProduct, setSelectedSealedProduct] =
+    useState<SealedModalProductData | null>(null);
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
@@ -591,6 +598,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                       storedCardMarketUrl={storedCardMarketUrl}
                       className="h-full min-h-[10rem]"
                       onOpenCardMarket={openCardMarket}
+                      onOpenSealedProduct={setSelectedSealedProduct}
                     />
                 </div>
 
@@ -616,6 +624,13 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
           onClose={closeThreeDView}
         />
       )}
+
+      {selectedSealedProduct ? (
+        <SealedProductModal
+          product={selectedSealedProduct}
+          onClose={() => setSelectedSealedProduct(null)}
+        />
+      ) : null}
     </>
   );
 }

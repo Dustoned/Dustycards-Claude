@@ -76,6 +76,29 @@ export interface ModalCardData {
   episode_code: string | null;
   episode_series?: string | null;
   episode_release_date?: string | null;
+  sealed_products?: Array<{
+    id: string;
+    name: string;
+    image_url: string | null;
+    cardmarket_url: string | null;
+    release_date: string | null;
+    match_type: "set_product" | "mixed_pack";
+    price: {
+      cm_lowest: number | null;
+      cm_lowest_eu: number | null;
+      cm_lowest_de: number | null;
+      cm_lowest_fr: number | null;
+      cm_lowest_es: number | null;
+      cm_lowest_it: number | null;
+      cm_avg_7d: number | null;
+      cm_avg_30d: number | null;
+    };
+    episode: {
+      id: string;
+      name: string;
+      code: string | null;
+    };
+  }>;
   collection_item?: {
     id: string;
     binder_id: string | null;
