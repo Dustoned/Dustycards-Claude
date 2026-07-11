@@ -275,6 +275,9 @@
   --ui-brand-size: 1.1rem;
   --ui-nav-link-size: 0.9375rem;
   --ui-page-y: 1.45rem;
+  --ui-wide-canvas-max: 180rem;
+  --ui-wide-grid-max: 150rem;
+  --ui-wide-table-max: 140rem;
   --ui-panel-padding: 1rem;
   --ui-panel-radius: 1.1rem;
   --ui-panel-title-size: 1rem;
@@ -344,7 +347,7 @@
   background-color: var(--app-bg);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   :root {
     --ui-header-height: 3.4rem;
     --ui-header-gap: 0.55rem;
@@ -461,7 +464,7 @@ html.ui-scale-small {
   --ui-binder-progress-height: 0.5rem;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   html.ui-scale-small {
     --ui-header-height: 3.35rem;
     --ui-header-gap: 0.55rem;
@@ -607,7 +610,7 @@ html.ui-scale-large {
   --ui-binder-progress-height: 0.625rem;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   html.ui-scale-large {
     --ui-header-height: 3.65rem;
     --ui-header-gap: 0.85rem;
@@ -635,6 +638,26 @@ html.ui-scale-large {
     --ui-segment-x: 0.95rem;
     --ui-segment-y: 0.5rem;
     --ui-segment-font-size: 0.875rem;
+  }
+
+  html.ui-scale-small,
+  html.ui-scale-medium,
+  html.ui-scale-large {
+    --ui-chip-min-height: 2.5rem;
+  }
+
+  .card-modal-frame button,
+  .card-modal-frame [role="tab"] {
+    min-height: 2.75rem;
+  }
+
+  .card-modal-frame button[aria-label] {
+    min-width: 2.75rem;
+  }
+
+  .dc-wide-grid-zone button[aria-label] {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
   }
 }
 
@@ -735,9 +758,49 @@ body {
   border: 1px solid rgb(var(--dc-border-rgb) / 0.9);
 }
 
-/* Widescreen — removes max-width on page containers */
+/* Widescreen uses the full workspace; normal mode keeps its centered responsive gutters. */
 html.widescreen .page-container {
+  width: 100%;
   max-width: none !important;
+}
+
+html.widescreen .page-container.page-readable {
+  max-width: 100rem !important;
+}
+
+html.widescreen .dc-wide-grid-zone {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  margin-inline: 0;
+}
+
+html.widescreen .dc-wide-table-zone {
+  width: 100%;
+  max-width: var(--ui-wide-table-max);
+  margin-inline: auto;
+}
+
+.home-insight-panels {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .home-insight-panels {
+    gap: 1.25rem;
+  }
+}
+
+@media (min-width: 2200px) {
+  html.widescreen .home-insight-panels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  html.widescreen .home-insight-panels > section {
+    height: 100%;
+  }
 }
 
 @media (min-width: 1536px) {
@@ -782,6 +845,131 @@ html.widescreen .page-container {
 .dc-modal-field {
   background: var(--dc-surface-primary);
   border-color: rgb(var(--dc-border-rgb) / 0.95);
+}
+
+.card-modal-layout-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-areas:
+    "hero"
+    "preview"
+    "owned"
+    "details"
+    "history"
+    "support"
+    "signal";
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: stretch;
+}
+
+.card-modal-area-preview { grid-area: preview; }
+.card-modal-area-hero { grid-area: hero; }
+.card-modal-area-owned { grid-area: owned; }
+.card-modal-area-details { grid-area: details; }
+.card-modal-area-history { grid-area: history; }
+.card-modal-area-support { grid-area: support; }
+.card-modal-area-signal { grid-area: signal; }
+
+.sealed-featured-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sealed-featured-grid > :nth-child(n + 13) {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .sealed-featured-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .sealed-featured-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .sealed-featured-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  .sealed-featured-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1900px) {
+  .sealed-featured-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+}
+
+@media (min-width: 3200px) {
+  .sealed-featured-grid {
+    grid-template-columns: repeat(18, minmax(0, 1fr));
+  }
+
+  .sealed-featured-grid > :nth-child(n + 13) {
+    display: block;
+  }
+
+  .sealed-featured-grid > :nth-child(n + 19) {
+    display: none;
+  }
+}
+
+@media (min-width: 4200px) {
+  .sealed-featured-grid {
+    grid-template-columns: repeat(24, minmax(0, 1fr));
+  }
+
+  .sealed-featured-grid > :nth-child(n + 19) {
+    display: block;
+  }
+}
+
+.card-modal-area-owned > section,
+.card-modal-area-support > section,
+.card-modal-area-signal > section {
+  height: 100%;
+}
+
+@media (min-width: 768px) {
+  .card-modal-layout-grid {
+    grid-template-areas:
+      "preview hero"
+      "preview owned"
+      "preview details"
+      "preview history"
+      "preview signal"
+      "preview support";
+    grid-template-columns: minmax(15rem, 0.68fr) minmax(0, 1.32fr);
+    align-items: start;
+  }
+}
+
+@media (min-width: 1536px) {
+  .card-modal-layout-grid {
+    min-height: calc(100dvh - 8.75rem);
+    grid-template-areas:
+      "preview hero history"
+      "preview owned history"
+      "preview details signal"
+      "preview details support";
+    grid-template-columns:
+      minmax(20rem, 36rem)
+      minmax(24rem, 42rem)
+      minmax(30rem, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: stretch;
+  }
 }
 
 .binder-panel {
@@ -866,11 +1054,18 @@ main > .page-container.binder-bottom-safe {
   padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)) !important;
 }
 
-@media (max-width: 640px) {
-  body.has-mobile-bottom-nav main > .page-container {
-    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom)) !important;
+@media (max-width: 767px) {
+  /* Keep content clear for exactly the same range where MobileBottomNav is visible. */
+  body.has-mobile-bottom-nav main {
+    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
   }
 
+  body.has-mobile-bottom-nav main > .page-container {
+    padding-bottom: var(--ui-page-y) !important;
+  }
+}
+
+@media (max-width: 767px) {
   main > .page-container {
     padding-left: 0.75rem !important;
     padding-right: 0.75rem !important;
@@ -1146,7 +1341,7 @@ body :where(option) {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   html,
   body {
     overflow-x: hidden;
@@ -1297,7 +1492,7 @@ html.widescreen .settings-page {
   font-size: var(--ui-panel-copy-size) !important;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .card-modal-frame {
     width: min(100%, calc(100vw - 1.5rem)) !important;
     max-width: 100% !important;

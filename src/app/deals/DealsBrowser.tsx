@@ -1453,7 +1453,7 @@ export default function DealsBrowser() {
             ) : (
               !suggestionsLoading && (
                 <p className="text-xs font-semibold text-white/42">
-                  Geen databasekaarten gevonden.
+                  No matching cards found in the database.
                 </p>
               )
             )}

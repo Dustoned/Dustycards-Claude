@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Minus, Package, X } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import EmptyState from "@/components/EmptyState";
 import {
   modalActionRowClass,
   modalCenteredMobileOverlayClass,
@@ -119,10 +120,12 @@ export function CollectionSealedEmptyState({
           trailing={sectionTrailing}
         />
       )}
-      <div className="binder-panel rounded-2xl px-5 py-7 text-center sm:rounded-3xl sm:px-8 sm:py-9">
-        <p className="mb-1 font-medium text-white/82">{emptyTitle}</p>
-        <p className="mx-auto max-w-xl text-sm leading-6 text-white/42">{emptyText}</p>
-      </div>
+      <EmptyState
+        title={emptyTitle}
+        description={emptyText}
+        actionHref="/expansions"
+        actionLabel="Browse sealed products"
+      />
     </>
   );
 }
@@ -374,10 +377,10 @@ export function CollectionSealedGrid({
 }) {
   return (
     <div
-      className={`grid ${sealedTileGridGapClass(cardSize)}`}
+      className={`dc-wide-grid-zone grid ${sealedTileGridGapClass(cardSize)}`}
       style={{
         gridTemplateColumns,
-        justifyContent: "start",
+        justifyContent: "stretch",
       }}
     >
       {items.map((item, index) => (

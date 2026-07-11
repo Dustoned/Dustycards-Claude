@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
 import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { getClientIp, isRateLimited, recordRateLimitHit } from "@/lib/rate-limit";
+import { getSafeNextPath } from "@/lib/safe-next-path";
 
 export const runtime = "nodejs";
 
@@ -28,10 +29,7 @@ export async function POST(req: NextRequest) {
         password?: unknown;
       });
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
-  const next =
-    typeof body.next === "string" && body.next.startsWith("/") && !body.next.startsWith("//")
-      ? body.next
-      : "/";
+  const next = getSafeNextPath(body.next);
   const password = typeof body.password === "string" ? body.password : "";
 
   const ipKey = `login:ip:${getClientIp(req)}`;
@@ -85,6 +83,7 @@ export async function POST(req: NextRequest) {
       await sendVerificationEmailForUser({
         baseUrl: getMailPublicOrigin(),
         email: user.email,
+        nextPath: next,
         userId: user.id,
       });
     } catch (error) {

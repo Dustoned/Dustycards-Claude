@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/lib/mail";
 import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getSafeNextPath } from "@/lib/safe-next-path";
 
 export const runtime = "nodejs";
 
@@ -12,13 +13,14 @@ const RESET_RATE_WINDOW_MS = 1000 * 60 * 15;
 const RESET_RATE_LIMIT_PER_IP = 5;
 const RESET_RATE_LIMIT_PER_EMAIL = 3;
 
-function sentResponse(req: NextRequest, isFormPost: boolean) {
+function sentResponse(req: NextRequest, isFormPost: boolean, nextPath: string) {
   if (!isFormPost) {
     return NextResponse.json({ ok: true });
   }
 
   const redirectUrl = new URL("/forgot-password", getPublicOrigin(req));
   redirectUrl.searchParams.set("sent", "1");
+  redirectUrl.searchParams.set("next", nextPath);
   return NextResponse.redirect(redirectUrl, { status: 303 });
 }
 
@@ -29,11 +31,12 @@ export async function POST(req: NextRequest) {
     contentType.includes("multipart/form-data");
   const body = isFormPost
     ? Object.fromEntries(await req.formData())
-    : ((await req.json().catch(() => ({}))) as { email?: unknown });
+    : ((await req.json().catch(() => ({}))) as { email?: unknown; next?: unknown });
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
+  const nextPath = getSafeNextPath(body.next);
 
   if (!email || !isValidEmail(email)) {
-    return sentResponse(req, isFormPost);
+    return sentResponse(req, isFormPost, nextPath);
   }
 
   // Silent throttle: respond as if sent so the limiter leaks nothing about
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
     RESET_RATE_WINDOW_MS
   );
   if (ipThrottled || emailThrottled) {
-    return sentResponse(req, isFormPost);
+    return sentResponse(req, isFormPost, nextPath);
   }
 
   const user = await db.user.findUnique({
@@ -58,12 +61,13 @@ export async function POST(req: NextRequest) {
   });
 
   if (!user || user.disabled) {
-    return sentResponse(req, isFormPost);
+    return sentResponse(req, isFormPost, nextPath);
   }
 
   const token = generateSessionToken();
   const resetUrl = new URL("/reset-password", getMailPublicOrigin());
   resetUrl.searchParams.set("token", token);
+  resetUrl.searchParams.set("next", nextPath);
 
   await db.passwordResetToken.deleteMany({ where: { user_id: user.id } });
   await db.passwordResetToken.create({
@@ -83,5 +87,5 @@ export async function POST(req: NextRequest) {
     console.error("Password reset email failed", error);
   }
 
-  return sentResponse(req, isFormPost);
+  return sentResponse(req, isFormPost, nextPath);
 }

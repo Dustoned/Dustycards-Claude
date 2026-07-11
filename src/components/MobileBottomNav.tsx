@@ -179,14 +179,6 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
     moreSections
       .flatMap((section) => section.items.map((item) => ({ section: section.label, item })))
       .find(({ item }) => isNavItemActive(pathname, collectionTab, item.matches)) ?? null;
-  const quickStats = summary
-    ? [
-        { label: "Cards", value: summary.cards },
-        { label: "Wants", value: summary.wants },
-        { label: "Selling", value: summary.forSaleCards },
-      ]
-    : [];
-
   function closeMoreMenu() {
     setMoreOpen(false);
     setAccountPopupOpen(false);
@@ -357,7 +349,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                   <button
                     type="button"
                     onClick={closeMoreMenu}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white/74 transition-colors hover:bg-white/[0.09] hover:text-white"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white/74 transition-colors hover:bg-white/[0.09] hover:text-white"
                     aria-label="Close navigation menu"
                   >
                     <X className="h-4 w-4" />
@@ -395,41 +387,20 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                 </button>
               ) : null}
 
-              {quickStats.length > 0 ? (
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {quickStats.map((stat) => (
-                    <div
-                      key={stat.label}
-                      className="rounded-[18px] border border-white/8 bg-white/[0.035] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
-                    >
-                      <p className="text-[17px] font-black leading-none tabular-nums text-white">
-                        {formatCount(stat.value)}
-                      </p>
-                      <p className="mt-1 truncate text-[8px] font-black uppercase tracking-[0.1em] text-white/38">
-                        {stat.label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              <div className="mt-3 grid gap-2.5">
+              <div className="mt-3 grid gap-3">
                 {moreSections.map((section) => (
                   <section
                     key={section.label}
                     data-mobile-nav-card
-                    className="overflow-hidden rounded-[22px] border border-white/8 bg-white/[0.028] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
+                    className="border-t border-white/8 pt-3 first:border-t-0 first:pt-0"
                   >
-                    <div className="flex items-center justify-between gap-2 px-3.5 pb-1.5 pt-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.13em] text-white/42">
+                    <div className="flex items-center justify-between gap-2 px-1 pb-1.5">
+                      <p className="text-[10px] font-black uppercase tracking-[0.13em] text-white/48">
                         {section.label}
                       </p>
-                      <span className="rounded-full border border-white/10 bg-black/18 px-2 py-0.5 text-[9px] font-black text-white/38">
-                        {section.items.length}
-                      </span>
                     </div>
 
-                    <div className="grid gap-1 p-1.5 pt-0">
+                    <div className="grid gap-0.5">
                       {section.items.map((item) => {
                         const active = isNavItemActive(pathname, collectionTab, item.matches);
                         const Icon = item.icon;
@@ -442,17 +413,17 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                             onClick={closeMoreMenu}
                             aria-current={active ? "page" : undefined}
                             title={item.label}
-                            className={`grid min-h-[3.1rem] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[18px] border px-2.5 transition-colors ${
+                            className={`grid min-h-12 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 transition-colors ${
                               active
-                                ? "border-violet-300/30 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgba(124,92,255,0.14),inset_2px_0_0_rgba(179,155,255,0.58)]"
-                                : "border-transparent bg-transparent text-white/70 hover:border-white/8 hover:bg-white/[0.045] hover:text-white"
+                                ? "bg-violet-500/[0.16] text-violet-50 shadow-[inset_2px_0_0_rgba(179,155,255,0.58)]"
+                                : "bg-transparent text-white/70 hover:bg-white/[0.045] hover:text-white"
                             }`}
                           >
                             <span
-                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] border ${
+                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
                                 active
-                                  ? "border-violet-300/26 bg-violet-500/[0.20] text-violet-100"
-                                  : "border-white/8 bg-black/18 text-white/42"
+                                  ? "bg-violet-500/[0.20] text-violet-100"
+                                  : "bg-white/[0.035] text-white/46"
                               }`}
                             >
                               <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -461,15 +432,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                               <span className="block truncate text-[13px] font-black leading-tight">
                                 {item.label}
                               </span>
-                              <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/38">
-                                {section.label}
-                              </span>
                             </span>
                             <span
-                              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
                                 active
-                                  ? "border-violet-300/22 bg-violet-500/[0.16] text-violet-100"
-                                  : "border-white/8 bg-white/[0.035] text-white/32"
+                                  ? "bg-violet-500/[0.16] text-violet-100"
+                                  : "text-white/34"
                               }`}
                             >
                               <ChevronRight className="h-3.5 w-3.5" />
@@ -510,7 +478,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                   setAccountPopupOpen(false);
                   setLogoutConfirmOpen(false);
                 }}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-violet-300/18 bg-violet-500/[0.09] text-violet-50"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-violet-300/18 bg-violet-500/[0.09] text-violet-50"
                 aria-label="Close account details"
               >
                 <X className="h-3.5 w-3.5" />
@@ -578,13 +546,13 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               {logoutConfirmOpen ? (
                 <div className="grid grid-cols-[1fr_auto] items-center gap-2">
                   <p className="min-w-0 text-[10px] font-bold leading-snug text-rose-100/72">
-                    Zeker weten dat je wilt uitloggen?
+                    Are you sure you want to log out?
                   </p>
                   <div className="flex gap-1.5">
                     <button
                       type="button"
                       onClick={() => setLogoutConfirmOpen(false)}
-                      className="h-8 rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[10px] font-black text-white/72"
+                    className="min-h-11 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-white/72"
                     >
                       Cancel
                     </button>
@@ -592,7 +560,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                       type="button"
                       onClick={logout}
                       disabled={loggingOut}
-                      className="h-8 rounded-xl border border-rose-300/20 bg-rose-500/[0.16] px-2 text-[10px] font-black text-rose-100 disabled:cursor-wait disabled:opacity-60"
+                    className="min-h-11 rounded-xl border border-rose-300/20 bg-rose-500/[0.16] px-3 text-xs font-black text-rose-100 disabled:cursor-wait disabled:opacity-60"
                     >
                       {loggingOut ? "..." : "Log out"}
                     </button>
@@ -602,7 +570,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                 <button
                   type="button"
                   onClick={() => setLogoutConfirmOpen(true)}
-                  className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl text-[11px] font-black text-rose-100"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-xs font-black text-rose-100"
                 >
                   <LogOut className="h-4 w-4" />
                   Log out

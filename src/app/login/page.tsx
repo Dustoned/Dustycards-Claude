@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import AuthForm from "@/components/AuthForm";
+import AuthShell from "@/components/AuthShell";
 import { getCurrentUser } from "@/lib/auth";
+import { getSafeNextPath } from "@/lib/safe-next-path";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,7 @@ export default async function LoginPage({
 }) {
   const user = await getCurrentUser();
   const { email, error, next, reset, verified, verify } = await searchParams;
-  const nextPath = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const nextPath = getSafeNextPath(next);
   const initialError =
     error === "invalid"
       ? "Invalid email or password"
@@ -46,7 +48,7 @@ export default async function LoginPage({
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-var(--ui-header-height))] max-w-5xl items-center justify-center px-4 py-10">
+    <AuthShell>
       <div className="grid w-full max-w-sm gap-3">
         {(resetMessage || verifyMessage) && (
           <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-500/10 dark:text-emerald-200">
@@ -58,8 +60,9 @@ export default async function LoginPage({
           nextPath={nextPath}
           initialError={initialError}
           initialVerificationEmail={verificationEmail}
+          showVerificationRecovery={verify === "invalid" || verify === "failed" || error === "unverified"}
         />
       </div>
-    </div>
+    </AuthShell>
   );
 }

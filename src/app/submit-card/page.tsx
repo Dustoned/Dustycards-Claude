@@ -8,7 +8,7 @@ export default async function SubmitCardPage() {
   await requirePageUser("/submit-card");
 
   return (
-    <div className="page-container mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <div className="page-container page-readable mx-auto px-4 py-8 sm:px-6 lg:px-8">
       <PageHeroHeader
         eyebrow="CardMarket"
         title="Submit Missing Card"

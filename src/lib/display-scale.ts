@@ -93,7 +93,7 @@ export function getCardGridTemplateColumns(
   }
 
   const trackWidth = getCardGridTrackWidth(cardSize, widescreen);
-  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), ${trackWidth}))`;
+  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), 1fr))`;
 }
 
 export function getCardGridImageSizes(
@@ -151,7 +151,7 @@ export function getSealedProductGridTemplateColumns(
   }
 
   const trackWidth = getSealedProductTrackWidth(cardSize, widescreen);
-  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), ${trackWidth}))`;
+  return `repeat(auto-fill, minmax(min(100%, ${trackWidth}), 1fr))`;
 }
 
 export function getSealedProductImageSizes(

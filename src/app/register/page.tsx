@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import AuthForm from "@/components/AuthForm";
+import AuthShell from "@/components/AuthShell";
 import { getCurrentUser } from "@/lib/auth";
+import { getSafeNextPath } from "@/lib/safe-next-path";
 
 export const dynamic = "force-dynamic";
 
@@ -15,18 +17,23 @@ const REGISTER_ERRORS: Record<string, string> = {
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
 }) {
   const user = await getCurrentUser();
-  const { error } = await searchParams;
+  const { error, next } = await searchParams;
+  const nextPath = getSafeNextPath(next);
 
   if (user) {
-    redirect("/");
+    redirect(nextPath);
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-var(--ui-header-height))] max-w-5xl items-center justify-center px-4 py-10">
-      <AuthForm mode="register" initialError={error ? REGISTER_ERRORS[error] ?? null : null} />
-    </div>
+    <AuthShell>
+      <AuthForm
+        mode="register"
+        nextPath={nextPath}
+        initialError={error ? REGISTER_ERRORS[error] ?? null : null}
+      />
+    </AuthShell>
   );
 }

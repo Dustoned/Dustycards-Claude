@@ -1,5 +1,7 @@
 # DustyCards roadmap
 
+> Dedicated UI audit and execution plan: [UI roadmap — 2026-07-11](ui-roadmap-2026-07-11.md)
+
 Rebuilt from scratch on 2026-06-12 after a full desktop + mobile walkthrough of the
 running app (screenshots in `screenshots-ui/audit-desktop` and `audit-mobile`).
 

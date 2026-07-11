@@ -187,7 +187,7 @@ export default function SettingsProvider({
   }, [initialSettings]);
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 640px)");
+    const media = window.matchMedia("(max-width: 767px)");
     const handleChange = () => {
       setIsMobileViewport((previous) => (previous === media.matches ? previous : media.matches));
     };

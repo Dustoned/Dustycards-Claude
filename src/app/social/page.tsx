@@ -656,9 +656,12 @@ export default async function SocialPage({
               ) : null}
             </div>
           ) : (
-            <div className="binder-panel rounded-[var(--ui-page-header-radius)] px-5 py-12 text-center">
+            <div className="binder-panel hidden rounded-[var(--ui-page-header-radius)] px-5 py-12 text-center lg:block">
               <UsersRound className="mx-auto h-8 w-8 text-white/24" />
               <h2 className="mt-3 text-lg font-black text-white">No friend selected</h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/45">
+                Choose a friend from the list to explore the collection they share with you.
+              </p>
             </div>
           )}
         </main>

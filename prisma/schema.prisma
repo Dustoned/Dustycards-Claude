@@ -224,6 +224,11 @@ model SealedProduct {
   cm_lowest_it    Float?
   cm_avg_7d       Float?
   cm_avg_30d      Float?
+  release_date                DateTime?
+  release_date_source         String?
+  release_date_source_url     String?
+  release_date_confidence     Float?
+  release_date_checked_at     DateTime?
   native_history_synced_at DateTime?
   native_history_status     String?
   native_history_checked_at DateTime?
@@ -235,8 +240,27 @@ model SealedProduct {
   @@index([episode_id])
   @@index([game, episode_id])
   @@index([name])
+  @@index([release_date])
   @@index([native_history_synced_at])
   @@index([native_history_status, native_history_checked_at])
+}
+
+model SealedReleaseWatch {
+  id             String   @id
+  game           String   @default("pokemon")
+  name           String
+  release_date   DateTime
+  image_url      String?
+  source_name    String
+  source_url     String
+  confidence     Float?
+  matched_product_id String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@index([game, release_date])
+  @@index([matched_product_id])
+  @@unique([source_url, name])
 }
 
 model SealedPriceSnapshot {

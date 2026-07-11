@@ -340,7 +340,7 @@ export default function HomeFeaturedCardsPanel({
         className={`grid ${gridGapClass}`}
         style={{
           gridTemplateColumns,
-          justifyContent: isMobileViewport ? "stretch" : "start",
+          justifyContent: "stretch",
         }}
       >
         {visibleCards.map((item) => {

@@ -15,6 +15,7 @@ import CardBrowserToolbar, {
 import { cardMatchesSearchQuery } from "@/lib/card-search";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import EmptyState from "@/components/EmptyState";
 import { SectionHeader } from "@/components/PageHeader";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
 import { formatCollectionCurrency } from "@/lib/collection";
@@ -109,6 +110,8 @@ interface Props {
   blurMissing?: boolean;
   emptyTitle: string;
   emptyText: string;
+  emptyActionHref?: string | null;
+  emptyActionLabel?: string;
   bulkAddBinder?: BulkAddBinderTarget | null;
   allowCollectionRemoval?: boolean;
   allowWantRemoval?: boolean;
@@ -182,6 +185,8 @@ export default function CollectionCardsView({
   blurMissing = false,
   emptyTitle,
   emptyText,
+  emptyActionHref = "/search",
+  emptyActionLabel = "Find cards",
   bulkAddBinder = null,
   allowCollectionRemoval = false,
   allowWantRemoval = false,
@@ -1023,10 +1028,12 @@ export default function CollectionCardsView({
 
   if (items.length === 0) {
     return (
-      <div className="glass rounded-2xl px-5 py-7 text-center shadow-md shadow-black/5 sm:rounded-3xl sm:px-8 sm:py-9">
-        <p className="mb-1 font-medium text-gray-700 dark:text-gray-300">{emptyTitle}</p>
-        <p className="mx-auto max-w-xl text-sm leading-6 text-gray-400">{emptyText}</p>
-      </div>
+      <EmptyState
+        title={emptyTitle}
+        description={emptyText}
+        actionHref={emptyActionHref}
+        actionLabel={emptyActionLabel}
+      />
     );
   }
 
@@ -1314,7 +1321,7 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={handleBulkAdd}
                           disabled={selectedCards.length === 0}
-                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-45"
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
                         >
                           Bulk add
                         </button>
@@ -1484,7 +1491,7 @@ export default function CollectionCardsView({
                         type="button"
                         onClick={handleBulkAdd}
                         disabled={selectedCards.length === 0}
-                        className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-45"
+                        className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
                       >
                         Bulk add
                       </button>
@@ -1646,7 +1653,7 @@ export default function CollectionCardsView({
                   type="button"
                   onClick={handleBulkAdd}
                   disabled={selectedCards.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
                 >
                   Bulk add
                 </button>
@@ -1896,7 +1903,7 @@ export default function CollectionCardsView({
                 })}
               </div>
 
-              <div className="hidden overflow-x-auto rounded-2xl border border-black/8 bg-white/70 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] md:block">
+              <div className="dc-wide-table-zone hidden overflow-x-auto rounded-2xl border border-black/8 bg-white/70 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] md:block">
                 <table className="min-w-full text-sm text-gray-900 dark:text-white">
                   <thead className="border-b border-black/8 text-xs uppercase tracking-[0.14em] text-gray-400 dark:border-white/8 dark:text-white/40">
                     <tr>
@@ -2134,10 +2141,10 @@ export default function CollectionCardsView({
                 />
               )}
               <div
-                className={`grid ${gridGapClass}`}
+                className={`dc-wide-grid-zone grid ${gridGapClass}`}
                 style={{
                   gridTemplateColumns,
-                  justifyContent: isMobileViewport ? "stretch" : "start",
+                  justifyContent: "stretch",
                 }}
               >
                 {group.entries.map(({ item, selectionKey }, index) => {

@@ -26,6 +26,7 @@ import {
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
+import { DETAIL_MARKET_LINK_CLASS } from "@/components/detail-market-link-style";
 import type { CardSize } from "@/components/SettingsProvider";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import {
@@ -2726,8 +2727,6 @@ export function CardModalHistorySection({
 const CARD_MODAL_SUPPORT_PANEL_CLASS =
   "min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.022))] p-4";
 const CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS = "text-sm font-semibold text-white";
-const CARD_MODAL_MARKET_BUTTON_CLASS =
-  "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-center text-sm font-semibold text-white/82 transition-colors hover:border-white/18 hover:bg-white/[0.08] hover:text-white";
 
 function getOwnedCopyPrice(
   card: ModalCardData,
@@ -2781,7 +2780,7 @@ export function CardModalOwnedCopyPanel({
   const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
 
   return (
-    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} ${className}`}>
+    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
       <div className="flex items-center justify-between gap-3">
         <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>
           {readOnlyCollectionItem
@@ -2866,12 +2865,12 @@ export function CardModalRecentPricesPanel({
   const recentPricePoints = getRecentDesktopPricePoints(card);
 
   return (
-    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} ${className}`}>
+    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
       <div className="flex items-center justify-between gap-3">
         <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Recent Prices</h3>
         <span className="text-xs font-semibold text-violet-200/80">View All</span>
       </div>
-      <div className="mt-3 grid gap-0">
+      <div className="mt-3 grid flex-1 auto-rows-fr gap-0">
         {recentPricePoints.length > 0 ? (
           recentPricePoints.map((point) => (
             <div
@@ -2906,7 +2905,7 @@ export function CardModalActiveListingsPanel({
   className?: string;
 }) {
   return (
-    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} ${className}`}>
+    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
       <div className="flex items-center justify-between gap-3">
         <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Active Listings</h3>
         <span className="text-xs font-semibold text-violet-200/80">Market</span>
@@ -2917,13 +2916,13 @@ export function CardModalActiveListingsPanel({
             href={storedCardMarketUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={CARD_MODAL_MARKET_BUTTON_CLASS}
+            className={DETAIL_MARKET_LINK_CLASS}
           >
             CardMarket
             <ExternalLink className="h-4 w-4" />
           </a>
         ) : (
-          <button type="button" onClick={onOpenCardMarket} className={CARD_MODAL_MARKET_BUTTON_CLASS}>
+          <button type="button" onClick={onOpenCardMarket} className={DETAIL_MARKET_LINK_CLASS}>
             CardMarket
             <ExternalLink className="h-4 w-4" />
           </button>
@@ -2938,12 +2937,15 @@ export function CardModalActiveListingsPanel({
           })}
           target="_blank"
           rel="noopener noreferrer"
-          className={CARD_MODAL_MARKET_BUTTON_CLASS}
+          className={DETAIL_MARKET_LINK_CLASS}
         >
           eBay Deals
           <ExternalLink className="h-4 w-4" />
         </a>
       </div>
+      <p className="mt-auto pt-4 text-[11px] font-medium leading-relaxed text-white/34">
+        Compare live listings before buying, selling, or updating your collection value.
+      </p>
     </section>
   );
 }

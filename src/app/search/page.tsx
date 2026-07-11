@@ -105,9 +105,41 @@ const SEARCH_CACHE_MAX_ENTRIES = 50;
 const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
 const REMEMBER_SEARCH_AFTER_MS = 2500;
 const MIN_REMEMBER_QUERY_LENGTH = 2;
+const INITIAL_EXPANSION_RESULTS = 12;
+const INITIAL_SINGLE_RESULTS = 36;
+const INITIAL_SEALED_RESULTS = 18;
 
 type SearchSection = "all" | "singles" | "sealed" | "expansions";
 type SearchSortMode = "relevance" | "price_desc" | "price_asc" | "newest";
+
+function ShowMoreResults({
+  visible,
+  total,
+  label,
+  onClick,
+}: {
+  visible: number;
+  total: number;
+  label: string;
+  onClick: () => void;
+}) {
+  if (visible >= total) return null;
+
+  return (
+    <div className="mt-4 flex justify-center">
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/12 bg-white/[0.055] px-5 text-sm font-bold text-white/72 transition-colors hover:border-white/22 hover:bg-white/[0.09] hover:text-white"
+      >
+        Show more {label}
+        <span className="ml-2 text-xs font-semibold tabular-nums text-white/42">
+          {Math.min(total - visible, visible)} of {total - visible} remaining
+        </span>
+      </button>
+    </div>
+  );
+}
 
 function compareNullablePrice(a: number | null, b: number | null, direction: 1 | -1): number {
   if (a == null && b == null) return 0;
@@ -153,6 +185,9 @@ function SearchPageContent({
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [activeSection, setActiveSection] = useState<SearchSection>("all");
   const [sortMode, setSortMode] = useState<SearchSortMode>("relevance");
+  const [visibleExpansions, setVisibleExpansions] = useState(INITIAL_EXPANSION_RESULTS);
+  const [visibleSingles, setVisibleSingles] = useState(INITIAL_SINGLE_RESULTS);
+  const [visibleSealed, setVisibleSealed] = useState(INITIAL_SEALED_RESULTS);
   const abortRef = useRef<AbortController | null>(null);
   const resultsCacheRef = useRef(new Map<string, SearchResults>());
   const trimmedQuery = initialQuery.trim();
@@ -189,9 +224,22 @@ function SearchPageContent({
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setActiveSection("all"), 0);
+    const timer = window.setTimeout(() => {
+      setActiveSection("all");
+      setVisibleExpansions(INITIAL_EXPANSION_RESULTS);
+      setVisibleSingles(INITIAL_SINGLE_RESULTS);
+      setVisibleSealed(INITIAL_SEALED_RESULTS);
+    }, 0);
     return () => window.clearTimeout(timer);
   }, [trimmedQuery]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setVisibleSingles(INITIAL_SINGLE_RESULTS);
+      setVisibleSealed(INITIAL_SEALED_RESULTS);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [sortMode]);
 
   // Remember a query once it has been stable for a moment and produced
   // results, so search-as-you-type prefixes do not pollute the recents.
@@ -466,7 +514,7 @@ function SearchPageContent({
                   type="button"
                   disabled={disabled}
                   onClick={() => setActiveSection(active ? "all" : chip.key)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                  className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
                     active
                       ? "border-violet-300/40 bg-violet-500/25 text-white"
                       : "border-white/10 bg-white/[0.04] text-white/60 hover:border-white/20 hover:text-white"
@@ -483,7 +531,7 @@ function SearchPageContent({
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SearchSortMode)}
               aria-label="Sort results"
-              className="h-[26px] rounded-full border border-white/10 bg-white/[0.04] px-2.5 text-xs font-semibold text-white/60 outline-none transition-colors hover:border-white/20 hover:text-white [&>option]:bg-zinc-900"
+              className="min-h-11 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/60 outline-none transition-colors hover:border-white/20 hover:text-white [&>option]:bg-zinc-900"
             >
               <option value="relevance">Best match</option>
               <option value="price_desc">Price: high to low</option>
@@ -566,7 +614,7 @@ function SearchPageContent({
                   justifyContent: "stretch",
                 }}
               >
-                {allExpansions.map((ep) => (
+                {allExpansions.slice(0, visibleExpansions).map((ep) => (
                   <Link
                     key={ep.id}
                     href={getExpansionHref(ep.id)}
@@ -609,6 +657,14 @@ function SearchPageContent({
                   </Link>
                 ))}
               </div>
+              <ShowMoreResults
+                visible={visibleExpansions}
+                total={allExpansions.length}
+                label="expansions"
+                onClick={() =>
+                  setVisibleExpansions((current) => current + INITIAL_EXPANSION_RESULTS)
+                }
+              />
             </section>
           )}
 
@@ -618,13 +674,13 @@ function SearchPageContent({
               <SectionHeader title="Singles" count={sortedSingles.length} compact className="mb-4" />
 
               <div
-                className={`grid ${singlesGridGapClass}`}
+                className={`dc-wide-grid-zone grid ${singlesGridGapClass}`}
                 style={{
                   gridTemplateColumns: singlesGridTemplateColumns,
-                  justifyContent: isMobileViewport ? "stretch" : "start",
+                  justifyContent: "stretch",
                 }}
               >
-                {sortedSingles.map((card, index) => (
+                {sortedSingles.slice(0, visibleSingles).map((card, index) => (
                     <div
                       key={card.id}
                       role="button"
@@ -732,7 +788,7 @@ function SearchPageContent({
                                     code: card.episode_code,
                                   },
                                 }}
-                                className="h-[24px] w-[24px] shrink-0 rounded-lg border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34 sm:h-7 sm:w-7"
+                                className="h-11 w-11 shrink-0 rounded-xl border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34"
                               />
                               <CollectionWantButton
                                 card={{
@@ -747,7 +803,7 @@ function SearchPageContent({
                                 }}
                                 initialWanted={Boolean(card.want_item)}
                                 wantItemId={card.want_item?.id ?? null}
-                                className="h-[24px] w-[24px] shrink-0 rounded-lg border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34 sm:h-7 sm:w-7"
+                                className="h-11 w-11 shrink-0 rounded-xl border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34"
                               />
                             </div>
                           </div>
@@ -756,6 +812,12 @@ function SearchPageContent({
                     </div>
                 ))}
               </div>
+              <ShowMoreResults
+                visible={visibleSingles}
+                total={sortedSingles.length}
+                label="singles"
+                onClick={() => setVisibleSingles((current) => current + INITIAL_SINGLE_RESULTS)}
+              />
             </section>
           )}
 
@@ -765,13 +827,13 @@ function SearchPageContent({
               <SectionHeader title="Sealed" count={sortedSealed.length} compact className="mb-4" />
 
               <div
-                className="grid gap-2"
+                className="dc-wide-grid-zone grid gap-2"
                 style={{
                   gridTemplateColumns: sealedGridTemplateColumns,
-                  justifyContent: isMobileViewport ? "stretch" : "start",
+                  justifyContent: "stretch",
                 }}
               >
-                {sortedSealed.map((product, index) => (
+                {sortedSealed.slice(0, visibleSealed).map((product, index) => (
                   <div
                     key={product.id}
                     role="button"
@@ -840,7 +902,7 @@ function SearchPageContent({
                               image_url: product.image_url,
                               episode: product.episode,
                             }}
-                            className="h-[24px] w-[24px] shrink-0 rounded-lg border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34 sm:h-7 sm:w-7"
+                            className="h-11 w-11 shrink-0 rounded-xl border-violet-300/24 bg-violet-600/24 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/34"
                           />
                         </div>
                       </div>
@@ -848,6 +910,12 @@ function SearchPageContent({
                   </div>
                 ))}
               </div>
+              <ShowMoreResults
+                visible={visibleSealed}
+                total={sortedSealed.length}
+                label="sealed products"
+                onClick={() => setVisibleSealed((current) => current + INITIAL_SEALED_RESULTS)}
+              />
             </section>
           )}
         </div>

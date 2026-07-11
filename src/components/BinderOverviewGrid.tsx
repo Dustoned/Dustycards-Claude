@@ -36,7 +36,7 @@ export default function BinderOverviewGrid({
   return (
     <div
       className={`grid gap-2 lg:gap-3 ${className}`}
-      style={binderGridStyle}
+      style={{ ...binderGridStyle, justifyContent: "stretch" }}
     >
       {binders.map((binder) => (
         <BinderOverviewTile key={binder.id} binder={binder} readOnly={readOnly} />

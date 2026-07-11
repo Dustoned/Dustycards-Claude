@@ -23,6 +23,7 @@ import {
   type CardMarketHistorySeriesKey,
 } from "@/lib/price-history";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
+import useModalA11y from "@/lib/useModalA11y";
 import {
   CardModalActiveListingsPanel,
   CardModalBuySignalPanel,
@@ -176,12 +177,10 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     displaySettings.widescreen
   );
   const desktopWorkspaceStyle = {
-    maxWidth: `min(100%, max(${layout.maxW}, min(176rem, calc(100vw - 20rem))))`,
+    maxWidth: "100%",
   };
-  const desktopGridClass =
-    "grid min-w-0 gap-5 xl:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1fr)] xl:items-start 2xl:grid-cols-[minmax(20rem,0.68fr)_minmax(22rem,0.86fr)_minmax(30rem,1.36fr)] 2xl:gap-6";
   const desktopPreviewClass =
-    "min-w-0 xl:sticky xl:top-6 xl:justify-self-center 2xl:justify-self-stretch";
+    "card-modal-area-preview min-w-0 lg:sticky lg:top-6 lg:self-start lg:justify-self-center 2xl:justify-self-start";
   const gradedPrices = modalCard.graded_prices ?? [];
   const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];
   const gradedPriceHistory = modalCard.graded_price_history ?? [];
@@ -191,7 +190,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const showGradedPreview = Boolean(
     showGradedSlabPreview && gradingCompanyLabel && gradingGradeLabel
   );
-  const desktopPreviewMediaWidth = "clamp(20rem, 18vw, 32rem)";
+  const desktopPreviewMediaWidth = "clamp(20rem, 26vw, 32rem)";
   const previewAspectClass = showGradedPreview
     ? GRADED_SLAB_ASPECT_CLASS
     : RAW_CARD_ASPECT_CLASS;
@@ -251,6 +250,12 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     gradedPriceHistory.some((series) => series.points.some((point) => point.value != null)) ||
     ebaySoldGradedPriceHistory.some((series) => series.points.some((point) => point.value != null));
   const effectiveHistoryChartMode = hasGradedData ? historyChartMode : "market";
+
+  useModalA11y({
+    dialogRef: modalFrameRef,
+    enabled: !threeDOpen,
+    onClose,
+  });
 
   useEffect(() => {
     const frame = modalFrameRef.current;
@@ -477,6 +482,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
             role="dialog"
             aria-modal="true"
             aria-label={modalCard.name}
+            tabIndex={-1}
             className="card-modal-frame dc-modal-panel relative h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain rounded-none border border-white/12 bg-[#050506] [scrollbar-gutter:stable] shadow-none md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
             data-modal-size={displaySettings.modalSize}
             data-mobile-showcase="true"
@@ -549,38 +555,50 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                   />
                 </div>
 
-              <div className={desktopGridClass}>
-                <div className={`${desktopPreviewClass} flex min-w-0 justify-center`}>
+              <div className="card-modal-layout-grid">
+                <div className={`${desktopPreviewClass} flex min-w-0 justify-center 2xl:justify-start`}>
                   {desktopPreviewPanel}
                 </div>
 
-                <div className="flex min-w-0 flex-col gap-5">
+                <div className="card-modal-area-hero min-w-0">
                   {desktopHeroPanel}
+                </div>
+
+                <div className="card-modal-area-owned min-w-0">
                   <CardModalOwnedCopyPanel
                     card={modalCard}
                     collectionItem={collectionItem}
-                    className="2xl:min-h-[11rem]"
+                    className="h-full"
                     onAddedToCollection={refreshModalCardFromServer}
                   />
+                </div>
+
+                <div className="card-modal-area-details min-w-0">
                   {desktopDetailsPanel}
                 </div>
 
-                <div className="flex min-w-0 flex-col gap-5 xl:col-start-2 2xl:col-start-auto">
+                <div className="card-modal-area-history min-w-0">
                   {desktopHistoryPanel}
-                  <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+                </div>
+
+                <div className="card-modal-area-support grid min-w-0 items-start gap-5 lg:grid-cols-2">
                     <CardModalRecentPricesPanel
                       card={modalCard}
-                      className="min-h-[10rem]"
+                      className="h-full min-h-[10rem]"
                     />
                     <CardModalActiveListingsPanel
                       card={modalCard}
                       storedCardMarketUrl={storedCardMarketUrl}
-                      className="min-h-[10rem]"
+                      className="h-full min-h-[10rem]"
                       onOpenCardMarket={openCardMarket}
                     />
-                  </div>
-                  <CardModalBuySignalPanel signal={modalCard.buy_signal} compact />
                 </div>
+
+                {modalCard.buy_signal ? (
+                  <div className="card-modal-area-signal min-w-0">
+                    <CardModalBuySignalPanel signal={modalCard.buy_signal} compact />
+                  </div>
+                ) : null}
               </div>
               </div>
             </div>

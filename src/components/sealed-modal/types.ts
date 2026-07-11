@@ -4,6 +4,7 @@ export interface SealedEpisodeRef {
   id: string;
   name: string;
   code: string | null;
+  release_date?: string | null;
 }
 
 export interface SealedPriceData {
@@ -17,6 +18,22 @@ export interface SealedPriceData {
   cm_avg_30d: number | null;
 }
 
+export interface SealedFeaturedCard {
+  id: string;
+  name: string;
+  card_number: string | null;
+  rarity: string | null;
+  image_url: string | null;
+  market_price: number | null;
+  market_currency: "EUR" | "USD";
+  pull_rate_info: {
+    rarity_name: string;
+    pull_rate_odds: string | null;
+    specific_pull_odds: string | null;
+    source: string;
+  } | null;
+}
+
 export interface SealedModalProductData {
   id: string;
   name: string;
@@ -24,6 +41,10 @@ export interface SealedModalProductData {
   tcggo_url?: string | null;
   cardmarket_url: string | null;
   cardmarket_id?: string | null;
+  release_date?: string | null;
+  release_date_source?: string | null;
+  release_date_source_url?: string | null;
+  release_date_confidence?: number | null;
   price: SealedPriceData;
   episode?: SealedEpisodeRef | null;
 }
@@ -32,7 +53,12 @@ export interface SealedDetailResponse extends SealedModalProductData {
   cardmarket_id: string | null;
   price_fetched_at: string | null;
   history_synced_at: string | null;
+  release_date: string | null;
+  release_date_source: string | null;
+  release_date_source_url: string | null;
+  release_date_confidence: number | null;
   price_history: SealedPriceHistoryPoint[];
+  featured_cards: SealedFeaturedCard[];
   collection_item?: {
     id: string;
     quantity: number;

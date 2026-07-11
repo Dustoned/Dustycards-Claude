@@ -401,7 +401,7 @@ export function HeaderMobileMenu() {
   }, [open]);
 
   return (
-    <div className="shrink-0 2xl:hidden">
+    <div className="hidden shrink-0 md:block xl:hidden">
       <button
         ref={buttonRef}
         type="button"
@@ -417,7 +417,7 @@ export function HeaderMobileMenu() {
 
       {open && (
         <div
-          className="fixed inset-0 z-[80] 2xl:hidden"
+          className="fixed inset-0 z-[80] xl:hidden"
           role="presentation"
           onClick={() => setOpen(false)}
         >

@@ -292,7 +292,7 @@ export default async function AccountPage() {
   ] satisfies HeaderStat[];
 
   return (
-    <div className="page-container binder-bottom-safe mx-auto max-w-6xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
+    <div className="page-container page-readable binder-bottom-safe mx-auto max-w-6xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
       <PageHeroHeader
         eyebrow="DustyCards Account"
         title="Account"

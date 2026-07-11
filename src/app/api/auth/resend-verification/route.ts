@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
 import { getMailPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getSafeNextPath } from "@/lib/safe-next-path";
 
 export const runtime = "nodejs";
 
@@ -12,8 +13,9 @@ const RESEND_RATE_LIMIT_PER_IP = 5;
 const RESEND_RATE_LIMIT_PER_EMAIL = 3;
 
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { email?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { email?: unknown; next?: unknown };
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
+  const nextPath = getSafeNextPath(body.next);
 
   if (!email || !isValidEmail(email)) {
     return NextResponse.json({ ok: true });
@@ -52,6 +54,7 @@ export async function POST(req: NextRequest) {
     await sendVerificationEmailForUser({
       baseUrl: getMailPublicOrigin(),
       email: user.email,
+      nextPath,
       userId: user.id,
     });
   } catch (error) {

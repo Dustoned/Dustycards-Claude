@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ChevronRight,
   LoaderCircle,
   MailCheck,
   MailWarning,
@@ -12,6 +13,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
+import useModalA11y from "@/lib/useModalA11y";
 
 export type AdminUserSummary = {
   id: string;
@@ -31,6 +33,16 @@ export type AdminUserSummary = {
 
 type PendingAction = {
   action: "disabled" | "password" | "role";
+  userId: string;
+} | null;
+
+type ConfirmAction = {
+  action: NonNullable<PendingAction>["action"];
+  body: Record<string, unknown>;
+  confirmLabel: string;
+  description: string;
+  email: string;
+  title: string;
   userId: string;
 } | null;
 
@@ -64,10 +76,21 @@ export default function AdminUsersPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
+  const [passwordEditorUserId, setPasswordEditorUserId] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
+  const confirmationRef = useRef<HTMLDivElement | null>(null);
+  useModalA11y({
+    dialogRef: confirmationRef,
+    enabled: Boolean(confirmAction),
+    onClose: () => setConfirmAction(null),
+  });
   const normalizedQuery = query.trim().toLowerCase();
   const filteredUsers = normalizedQuery
     ? users.filter((user) => user.email.toLowerCase().includes(normalizedQuery))
     : users;
+  const selectedUser =
+    filteredUsers.find((user) => user.id === selectedUserId) ?? filteredUsers[0] ?? null;
   const activeUsers = users.filter((user) => !user.disabled).length;
   const adminUsers = users.filter((user) => user.role === "admin").length;
   const verifiedUsers = users.filter((user) => Boolean(user.emailVerifiedAt)).length;
@@ -100,6 +123,8 @@ export default function AdminUsersPanel({
       }
       setMessage("User updated.");
       router.refresh();
+    } catch {
+      setError("Could not update this user. Check your connection and try again.");
     } finally {
       setPending(null);
     }
@@ -169,16 +194,48 @@ export default function AdminUsersPanel({
         </div>
       </div>
 
-      {message && <p className="text-sm font-medium text-emerald-600 dark:text-emerald-300">{message}</p>}
-      {error && <p className="text-sm font-medium text-red-600 dark:text-red-300">{error}</p>}
+      {message && <p role="status" aria-live="polite" className="text-sm font-medium text-emerald-600 dark:text-emerald-300">{message}</p>}
+      {error && <p role="alert" className="text-sm font-medium text-red-600 dark:text-red-300">{error}</p>}
 
-      <div className="grid min-w-0 gap-3">
-        {filteredUsers.length === 0 ? (
-          <p className="rounded-xl border border-black/6 px-3 py-2 text-sm text-gray-500 dark:border-white/8 dark:text-white/45">
-            No users match this search.
-          </p>
-        ) : null}
-        {filteredUsers.map((user) => {
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[22rem_minmax(0,1fr)] lg:items-start">
+        <div className="grid max-h-[42rem] min-w-0 gap-1.5 overflow-y-auto rounded-2xl border border-white/8 bg-black/15 p-2 [scrollbar-width:thin]">
+          {filteredUsers.length === 0 ? (
+            <p className="rounded-xl px-3 py-4 text-sm text-gray-500 dark:text-white/45">
+              No users match this search.
+            </p>
+          ) : null}
+          {filteredUsers.map((user) => {
+            const active = selectedUser?.id === user.id;
+            return (
+              <button
+                key={user.id}
+                type="button"
+                onClick={() => setSelectedUserId(user.id)}
+                aria-pressed={active}
+                className={`grid min-h-14 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-xl px-3 py-2 text-left transition-colors ${
+                  active
+                    ? "bg-violet-500/16 text-white shadow-[inset_2px_0_0_rgba(179,155,255,0.68)]"
+                    : "text-white/68 hover:bg-white/[0.055] hover:text-white"
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{user.email}</span>
+                  <span className="mt-1 flex items-center gap-2 text-[11px] font-medium text-white/38">
+                    <span className={user.disabled ? "text-rose-300" : "text-emerald-300"}>
+                      {user.disabled ? "Disabled" : "Active"}
+                    </span>
+                    <span>{user.role}</span>
+                    <span>{formatCount(user.counts.cards)} cards</span>
+                  </span>
+                </span>
+                <ChevronRight className={`h-4 w-4 shrink-0 ${active ? "text-violet-200" : "text-white/24"}`} />
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid min-w-0 gap-3">
+        {selectedUser ? [selectedUser].map((user) => {
           const isSelf = user.id === currentUserId;
           const role = draftRoles[user.id] ?? user.role;
           const password = passwords[user.id] ?? { first: "", second: "" };
@@ -249,8 +306,16 @@ export default function AdminUsersPanel({
                   <button
                     type="button"
                     disabled={busy || role === user.role || (isSelf && role !== "admin")}
-                    onClick={() => updateUser(user.id, "role", { role })}
-                    className="self-end rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-gray-900 transition hover:border-black/20 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
+                    onClick={() => setConfirmAction({
+                      action: "role",
+                      body: { role },
+                      confirmLabel: "Change role",
+                      description: `Change access from ${user.role} to ${role}. The new permissions apply immediately.`,
+                      email: user.email,
+                      title: "Confirm role change",
+                      userId: user.id,
+                    })}
+                    className="min-h-11 self-end rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:border-black/20 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
                   >
                     Save role
                   </button>
@@ -259,45 +324,73 @@ export default function AdminUsersPanel({
                 <button
                   type="button"
                   disabled={busy || isSelf}
-                  onClick={() => updateUser(user.id, "disabled", { disabled: !user.disabled })}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-gray-900 transition hover:border-black/20 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
+                  onClick={() => setConfirmAction({
+                    action: "disabled",
+                    body: { disabled: !user.disabled },
+                    confirmLabel: user.disabled ? "Enable user" : "Disable user",
+                    description: user.disabled
+                      ? "Restore account access. The user can sign in again immediately."
+                      : "Block account access and end all active sessions for this user.",
+                    email: user.email,
+                    title: user.disabled ? "Confirm account enable" : "Confirm account disable",
+                    userId: user.id,
+                  })}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:border-black/20 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
                 >
                   {busy && pending?.action === "disabled" && <LoaderCircle className="h-4 w-4 animate-spin" />}
                   {user.disabled ? "Enable user" : "Disable user"}
                 </button>
 
-                <div className="grid gap-2">
+                {passwordEditorUserId === user.id ? (
+                <div className="grid gap-2 rounded-2xl border border-white/8 bg-black/16 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/42">
+                      Password reset
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setPasswordEditorUserId(null)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-white/42 hover:bg-white/[0.06] hover:text-white"
+                      aria-label="Close password reset"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <input
-                      type="password"
-                      name={`admin-new-password-${user.id}`}
-                      autoComplete="new-password"
-                      minLength={8}
-                      placeholder="New password"
-                      value={password.first}
-                      onChange={(event) =>
-                        setPasswords((current) => ({
-                          ...current,
-                          [user.id]: { ...password, first: event.target.value },
-                        }))
-                      }
-                      className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-gray-950 outline-none transition placeholder:text-gray-400 focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
-                    />
-                    <input
-                      type="password"
-                      name={`admin-confirm-password-${user.id}`}
-                      autoComplete="new-password"
-                      minLength={8}
-                      placeholder="Confirm password"
-                      value={password.second}
-                      onChange={(event) =>
-                        setPasswords((current) => ({
-                          ...current,
-                          [user.id]: { ...password, second: event.target.value },
-                        }))
-                      }
-                      className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-gray-950 outline-none transition placeholder:text-gray-400 focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
-                    />
+                    <label className="grid gap-1.5 text-xs font-semibold text-white/58">
+                      New password
+                      <input
+                        type="password"
+                        name={`admin-new-password-${user.id}`}
+                        autoComplete="new-password"
+                        minLength={8}
+                        value={password.first}
+                        onChange={(event) =>
+                          setPasswords((current) => ({
+                            ...current,
+                            [user.id]: { ...password, first: event.target.value },
+                          }))
+                        }
+                        className="min-h-11 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-gray-950 outline-none transition placeholder:text-gray-400 focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs font-semibold text-white/58">
+                      Confirm password
+                      <input
+                        type="password"
+                        name={`admin-confirm-password-${user.id}`}
+                        autoComplete="new-password"
+                        minLength={8}
+                        value={password.second}
+                        onChange={(event) =>
+                          setPasswords((current) => ({
+                            ...current,
+                            [user.id]: { ...password, second: event.target.value },
+                          }))
+                        }
+                        className="min-h-11 rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm text-gray-950 outline-none transition placeholder:text-gray-400 focus:border-gray-400 dark:border-white/10 dark:bg-white/8 dark:text-white"
+                      />
+                    </label>
                   </div>
                   {passwordMismatch && (
                     <p className="text-xs font-medium text-red-600 dark:text-red-300">
@@ -307,23 +400,85 @@ export default function AdminUsersPanel({
                   <button
                     type="button"
                     disabled={busy || password.first.length < 8 || passwordMismatch}
-                    onClick={() =>
-                      updateUser(user.id, "password", {
+                    onClick={() => setConfirmAction({
+                      action: "password",
+                      body: {
                         newPassword: password.first,
                         newPasswordConfirm: password.second,
-                      })
-                    }
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-950 dark:hover:bg-white/90"
+                      },
+                      confirmLabel: "Reset password",
+                      description: "Set the new password and end all active sessions for this user.",
+                      email: user.email,
+                      title: "Confirm password reset",
+                      userId: user.id,
+                    })}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-gray-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-950 dark:hover:bg-white/90"
                   >
                     {busy && pending?.action === "password" && <LoaderCircle className="h-4 w-4 animate-spin" />}
                     Reset password
                   </button>
                 </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setPasswordEditorUserId(user.id)}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] px-4 text-sm font-semibold text-white/68 transition-colors hover:border-white/18 hover:bg-white/[0.075] hover:text-white"
+                  >
+                    Reset password...
+                  </button>
+                )}
               </div>
             </div>
           );
-        })}
+        }) : (
+          <p className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-8 text-center text-sm text-white/42">
+            Select a user to manage access and security.
+          </p>
+        )}
+        </div>
       </div>
+
+      {confirmAction ? (
+        <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/72 p-4 backdrop-blur-sm">
+          <div
+            ref={confirmationRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="admin-confirm-title"
+            aria-describedby="admin-confirm-description"
+            tabIndex={-1}
+            className="w-full max-w-md rounded-3xl border border-white/12 bg-[#101218] p-5 shadow-[0_28px_90px_rgba(0,0,0,0.6)]"
+          >
+            <h3 id="admin-confirm-title" className="text-lg font-semibold text-white">
+              {confirmAction.title}
+            </h3>
+            <p className="mt-2 break-all text-sm font-semibold text-white/72">{confirmAction.email}</p>
+            <p id="admin-confirm-description" className="mt-2 text-sm leading-6 text-white/52">
+              {confirmAction.description}
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmAction(null)}
+                className="min-h-11 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/72 hover:bg-white/[0.08]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const action = confirmAction;
+                  setConfirmAction(null);
+                  void updateUser(action.userId, action.action, action.body);
+                }}
+                className="min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-500"
+              >
+                {confirmAction.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
