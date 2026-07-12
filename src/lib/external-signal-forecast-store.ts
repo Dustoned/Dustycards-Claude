@@ -5,6 +5,10 @@ import {
   type ForecastCohortSummary,
   type WilsonInterval,
 } from "@/lib/external-signal-forecast";
+import {
+  getCardmarketMedianLow,
+  getSaneCardmarketAverage7d,
+} from "@/lib/market-price-sanity";
 
 const DAY_MS = 24 * 60 * 60_000;
 const OUTCOME_EVALUATION_BATCH_SIZE = 500;
@@ -105,20 +109,6 @@ export interface ForecastSignalContext {
   observedAt: Date;
 }
 
-function finitePositiveValues(values: Array<number | null>): number[] {
-  return values.filter(
-    (value): value is number => value != null && Number.isFinite(value) && value > 0
-  );
-}
-
-function median(values: Array<number | null>): number | null {
-  const sorted = finitePositiveValues(values).sort((left, right) => left - right);
-  if (sorted.length === 0) return null;
-  const middle = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) return sorted[middle] ?? null;
-  return ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
-}
-
 /**
  * Resolves the exact CardMarket reference family fixed when an episode starts.
  * TCGPlayer and unknown references deliberately return null so currencies and
@@ -129,18 +119,10 @@ export function getSameSourceCardmarketValue(
   row: Omit<CardmarketPriceRow, "card_id" | "fetched_at">
 ): number | null {
   if (referenceSource === "cardmarket:avg7d") {
-    return row.cm_en_avg_7d != null && Number.isFinite(row.cm_en_avg_7d) && row.cm_en_avg_7d > 0
-      ? row.cm_en_avg_7d
-      : null;
+    return getSaneCardmarketAverage7d(row);
   }
   if (referenceSource === "cardmarket:median-low") {
-    return median([
-      row.cm_en_lowest_nm,
-      row.cm_de_lowest_nm,
-      row.cm_fr_lowest_nm,
-      row.cm_es_lowest_nm,
-      row.cm_it_lowest_nm,
-    ]);
+    return getCardmarketMedianLow(row);
   }
   return null;
 }

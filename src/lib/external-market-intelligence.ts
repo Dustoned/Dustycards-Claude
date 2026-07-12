@@ -19,6 +19,7 @@ import type {
   ExternalSealedIntelligence,
 } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
+import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { createSwrCache } from "@/lib/server-swr-cache";
 
@@ -38,14 +39,7 @@ function euroCardValue(price: {
   cm_es_lowest_nm: number | null;
   cm_it_lowest_nm: number | null;
 }): number | null {
-  return firstPositive([
-    price.cm_en_avg_7d,
-    price.cm_en_lowest_nm,
-    price.cm_de_lowest_nm,
-    price.cm_fr_lowest_nm,
-    price.cm_es_lowest_nm,
-    price.cm_it_lowest_nm,
-  ]);
+  return getCurrentRawCardmarketValue(price);
 }
 
 function sealedValue(product: {
@@ -127,12 +121,12 @@ async function loadArtistDemand(artists: string[]): Promise<Map<string, number>>
           c.id AS card_id,
           c.artist,
           COALESCE(
-            p.cm_en_avg_7d,
             p.cm_en_lowest_nm,
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
             p.cm_es_lowest_nm,
             p.cm_it_lowest_nm,
+            p.cm_en_avg_7d,
             p.tcp_market
           ) AS value,
           ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY p.fetched_at DESC, p.id DESC) AS row_number
@@ -182,8 +176,9 @@ export async function loadCollectorDemandScores(
     `
       SELECT c.game, c.name,
         COALESCE(
-          p.cm_en_avg_7d, p.cm_en_lowest_nm, p.cm_de_lowest_nm,
-          p.cm_fr_lowest_nm, p.cm_es_lowest_nm, p.cm_it_lowest_nm, p.tcp_market
+          p.cm_en_lowest_nm, p.cm_de_lowest_nm,
+          p.cm_fr_lowest_nm, p.cm_es_lowest_nm, p.cm_it_lowest_nm,
+          p.tcp_market, p.cm_en_avg_7d
         ) AS value
       FROM "Card" c
       INNER JOIN "Price" p ON p.id = (
