@@ -5,6 +5,7 @@ const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-passwor
 const PUBLIC_API_PREFIXES = [
   "/api/app-version",
   "/api/health",
+  "/api/image-cache",
   "/api/auth",
   "/api/internal/sync-scheduler",
   "/api/internal/sync-pricedex-pull-rates",

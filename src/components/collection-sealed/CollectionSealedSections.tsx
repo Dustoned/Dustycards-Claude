@@ -1,7 +1,7 @@
 "use client";
 
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
-import Image from "next/image";
+import CachedImage from "@/components/CachedImage";
 import Link from "next/link";
 import { Minus, Package, X } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
@@ -34,7 +34,6 @@ import {
 } from "@/components/sealed-tile-styles";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { getExpansionHref } from "@/lib/games";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CardSize } from "@/lib/user-settings";
 import type { CollectionSealedViewItem, RemoveDialogState } from "./types";
 import {
@@ -248,14 +247,14 @@ function CollectionSealedTile({
     >
       <div className={sealedTileImageClass(cardSize, isSelected)}>
         {item.image_url ? (
-          <Image
-            src={getCachedImageUrl(item.image_url) ?? item.image_url}
+          <CachedImage
+            sourceUrl={item.image_url}
             alt={item.name}
             fill
             className={`object-contain ${sealedTileImagePaddingClass(cardSize)}`}
             sizes={imageSizes}
-            loading={index < 16 ? "eager" : undefined}
-            unoptimized
+            loading={index < 4 ? "eager" : undefined}
+            fetchPriority={index < 4 ? "high" : "auto"}
           />
         ) : (
           <div className="flex h-full items-center justify-center">

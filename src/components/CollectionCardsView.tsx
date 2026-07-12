@@ -2,7 +2,6 @@
 
 import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Minus, TrendingDown, TrendingUp, X } from "lucide-react";
@@ -14,6 +13,7 @@ import CardBrowserToolbar, {
 } from "@/components/CardBrowserToolbar";
 import { cardMatchesSearchQuery } from "@/lib/card-search";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
+import CachedImage from "@/components/CachedImage";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import EmptyState from "@/components/EmptyState";
 import { SectionHeader } from "@/components/PageHeader";
@@ -22,7 +22,6 @@ import { formatCollectionCurrency } from "@/lib/collection";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 import {
   useSettings,
@@ -162,7 +161,7 @@ type CollectionView = Exclude<CardView, "binder">;
 
 const INITIAL_COLLECTION_RENDER_COUNT = 72;
 const COLLECTION_RENDER_BATCH_SIZE = 96;
-const INITIAL_COLLECTION_EAGER_IMAGE_COUNT = 12;
+const INITIAL_COLLECTION_EAGER_IMAGE_COUNT = 4;
 
 function getTileTrendPercent(currentValue: number | null | undefined, costBasis: number | null): number | null {
   if (currentValue == null || costBasis == null || costBasis <= 0) return null;
@@ -1763,8 +1762,8 @@ export default function CollectionCardsView({
                       <div className="flex gap-3">
                         <div className="relative h-24 w-[4.25rem] shrink-0 bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]">
                           {item.image_url ? (
-                            <Image
-                              src={getCachedImageUrl(item.image_url) ?? item.image_url}
+                            <CachedImage
+                              sourceUrl={item.image_url}
                               alt={item.name}
                               fill
                               className={`object-contain ${
@@ -1772,7 +1771,7 @@ export default function CollectionCardsView({
                               }`}
                               sizes="68px"
                               loading={index < eagerImageCount ? "eager" : undefined}
-                              unoptimized
+                              fetchPriority={index < 4 ? "high" : "auto"}
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
@@ -1962,8 +1961,8 @@ export default function CollectionCardsView({
                             <div className="flex items-center gap-3">
                               <div className="relative h-16 w-12 shrink-0 bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.16)]">
                                 {item.image_url ? (
-                                  <Image
-                                    src={getCachedImageUrl(item.image_url) ?? item.image_url}
+                                  <CachedImage
+                                    sourceUrl={item.image_url}
                                     alt={item.name}
                                     fill
                                     className={`object-contain ${
@@ -1973,7 +1972,7 @@ export default function CollectionCardsView({
                                     }`}
                                     sizes="48px"
                                     loading={index < eagerImageCount ? "eager" : undefined}
-                                    unoptimized
+                                    fetchPriority={index < 4 ? "high" : "auto"}
                                   />
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
@@ -2258,14 +2257,14 @@ export default function CollectionCardsView({
                             loading={index < eagerImageCount ? "eager" : undefined}
                           />
                         ) : item.image_url ? (
-                          <Image
-                            src={getCachedImageUrl(item.image_url) ?? item.image_url}
+                          <CachedImage
+                            sourceUrl={item.image_url}
                             alt={item.name}
                             fill
                             className={imageClass}
                             sizes={cardTrackWidth}
                             loading={index < eagerImageCount ? "eager" : undefined}
-                            unoptimized
+                            fetchPriority={index < 4 ? "high" : "auto"}
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center bg-black/6 text-xs text-gray-300 dark:bg-white/6">

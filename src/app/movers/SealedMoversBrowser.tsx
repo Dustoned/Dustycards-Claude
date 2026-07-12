@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import {
   type KeyboardEvent,
   memo,
@@ -14,10 +13,10 @@ import {
 } from "react";
 import { CalendarDays, Clock3, ExternalLink, Package, Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
+import CachedImage from "@/components/CachedImage";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import { buildSealedEbaySearchUrl } from "@/lib/ebay-search-url";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import { formatCurrency } from "@/lib/format";
 import type {
   SealedMoverItem,
@@ -211,8 +210,8 @@ function UpcomingReleaseCard({
     <article className="group flex min-w-0 items-center gap-3.5 rounded-2xl border border-white/8 bg-white/[0.035] p-3.5 transition-colors hover:border-violet-400/22 hover:bg-violet-400/[0.045] sm:gap-4 sm:p-4">
       <div className="relative h-[5.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl border border-white/8 bg-black/20 sm:h-24 sm:w-24">
         {release.imageUrl ? (
-          <Image
-            src={getCachedImageUrl(release.imageUrl) ?? release.imageUrl}
+          <CachedImage
+            sourceUrl={release.imageUrl}
             alt={release.name}
             fill
             sizes="(max-width: 640px) 88px, 96px"
@@ -301,8 +300,8 @@ const SealedMoverTile = memo(function SealedMoverTile({
       <div className="flex min-w-0 items-start gap-2.5 text-left sm:gap-3">
         <span className="relative aspect-square w-[3.5rem] shrink-0 overflow-hidden rounded-lg bg-black/20 sm:w-[4.25rem]">
           {item.imageUrl ? (
-            <Image
-              src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
+            <CachedImage
+              sourceUrl={item.imageUrl}
               alt={item.name}
               fill
               sizes="(max-width: 640px) 56px, 68px"

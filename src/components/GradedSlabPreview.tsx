@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import Image from "next/image";
+import CachedImage from "@/components/CachedImage";
 import {
   BGS_SUBGRADE_KEYS,
   createSlabCertNumber,
@@ -15,7 +15,6 @@ import {
   type BgsSubgrades,
   type SupportedGradedSlabCompany,
 } from "@/lib/graded-slabs";
-import { getCachedImageUrl } from "@/lib/image-cache";
 
 type GradedPreviewTileSize = "xsmall" | "small" | "medium" | "large";
 
@@ -334,7 +333,6 @@ function GradedSlabPreview({
     : null;
   const psaNameLine = isPsa ? formatPsaNameLine(name) : null;
   const psaSetLine = isPsa ? formatPsaSetLine(episodeName, null) : null;
-  const cachedImageUrl = getCachedImageUrl(imageUrl);
   const slabSubtitle = [episodeCode ?? episodeName, cardNumber ? `#${cardNumber}` : null]
     .filter(Boolean)
     .join(" ");
@@ -537,16 +535,16 @@ function GradedSlabPreview({
           <div className={`absolute border border-black/42 dark:border-white/20 ${M.cardBorderOuter}`} />
           <div className={`absolute border border-white/14 dark:border-black/20 ${M.cardBorderInner}`} />
           <div className={`absolute overflow-hidden ${M.cardImageInset}`}>
-            {cachedImageUrl ? (
-              <Image
-                src={cachedImageUrl}
+            {imageUrl ? (
+              <CachedImage
+                sourceUrl={imageUrl}
                 alt={alt}
                 fill
                 className={imageClassName}
                 sizes={sizes}
                 loading={loading}
                 priority={priority}
-                unoptimized
+                fetchPriority={priority ? "high" : "auto"}
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-black/6 text-xs text-gray-300 dark:bg-white/6">
