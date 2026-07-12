@@ -2,7 +2,10 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { getExternalEntityKey } from "@/lib/external-event-candidates";
-import { enrichSignalsWithMarketIntelligence } from "@/lib/external-market-intelligence";
+import {
+  enrichSignalsWithMarketIntelligence,
+  loadCollectorDemandScores,
+} from "@/lib/external-market-intelligence";
 import { getExternalForecastSummaries } from "@/lib/external-signal-forecast-store";
 import type {
   ExternalCardSignal,
@@ -382,7 +385,7 @@ async function loadStructuralSignalSeedsUncached(
         },
       })
     )),
-    loadEntityDemandScores(games),
+    loadCollectorDemandScores(games),
   ]);
   const candidates = candidateBatches.flat();
   const scored = candidates.flatMap((card) => {
@@ -498,68 +501,6 @@ async function loadStructuralSignalSeedsUncached(
         archetypeCount: 0,
       } satisfies ExternalCardSignal;
     });
-}
-
-interface EntityDemandRow {
-  game: string;
-  name: string;
-  value: number | null;
-}
-
-async function loadEntityDemandScores(games: TradingCardGame[]): Promise<Map<string, number>> {
-  const placeholders = games.map(() => "?").join(",");
-  const rows = await db.$queryRawUnsafe<EntityDemandRow[]>(
-    `
-      SELECT
-        c.game,
-        c.name,
-        COALESCE(
-          p.cm_en_avg_7d,
-          p.cm_en_lowest_nm,
-          p.cm_de_lowest_nm,
-          p.cm_fr_lowest_nm,
-          p.cm_es_lowest_nm,
-          p.cm_it_lowest_nm,
-          p.tcp_market
-        ) AS value
-      FROM "Card" c
-      INNER JOIN "Price" p ON p.id = (
-        SELECT latest.id
-        FROM "Price" latest
-        WHERE latest.card_id = c.id
-        ORDER BY latest.fetched_at DESC, latest.id DESC
-        LIMIT 1
-      )
-      WHERE c.game IN (${placeholders})
-    `,
-    ...games
-  );
-  const pricesByEntity = new Map<string, number[]>();
-  for (const row of rows) {
-    if (row.value == null || row.value <= 0) continue;
-    const game: TradingCardGame = row.game === "one-piece" ? "one-piece" : "pokemon";
-    const key = getExternalEntityKey(game, row.name);
-    const prices = pricesByEntity.get(key) ?? [];
-    prices.push(Number(row.value));
-    pricesByEntity.set(key, prices);
-  }
-  return new Map(
-    [...pricesByEntity].map(([key, prices]) => {
-      prices.sort((left, right) => right - left);
-      const top = prices.slice(0, 5);
-      const topAverage = top.reduce((sum, value) => sum + value, 0) / top.length;
-      const valuableVariants = prices.filter((value) => value >= 25).length;
-      return [
-        key,
-        Math.round(
-          Math.min(
-            100,
-            12 + Math.log10(topAverage + 1) * 30 + Math.min(28, valuableVariants * 3.5)
-          )
-        ),
-      ];
-    })
-  );
 }
 
 function structuralRarityStrength(normalizedRarity: string | null, rarityIndex: number): number {

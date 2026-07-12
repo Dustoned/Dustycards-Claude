@@ -1,8 +1,10 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { getExternalEntityKey } from "@/lib/external-event-candidates";
 import {
   buildPriceScenario,
+  calculateGoldMineConfluence,
   calculateOpportunityScores,
   calculateScarcityScore,
   calculateSealedPressure,
@@ -16,6 +18,7 @@ import type {
   ExternalMarketIntelligence,
   ExternalSealedIntelligence,
 } from "@/lib/external-signal-radar";
+import type { TradingCardGame } from "@/lib/games";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { createSwrCache } from "@/lib/server-swr-cache";
 
@@ -164,6 +167,57 @@ async function loadArtistDemand(artists: string[]): Promise<Map<string, number>>
   );
 }
 
+interface CollectorDemandRow {
+  game: string;
+  name: string;
+  value: number | null;
+}
+
+export async function loadCollectorDemandScores(
+  games: TradingCardGame[]
+): Promise<Map<string, number>> {
+  if (games.length === 0) return new Map();
+  const placeholders = games.map(() => "?").join(",");
+  const rows = await db.$queryRawUnsafe<CollectorDemandRow[]>(
+    `
+      SELECT c.game, c.name,
+        COALESCE(
+          p.cm_en_avg_7d, p.cm_en_lowest_nm, p.cm_de_lowest_nm,
+          p.cm_fr_lowest_nm, p.cm_es_lowest_nm, p.cm_it_lowest_nm, p.tcp_market
+        ) AS value
+      FROM "Card" c
+      INNER JOIN "Price" p ON p.id = (
+        SELECT latest.id FROM "Price" latest
+        WHERE latest.card_id = c.id
+        ORDER BY latest.fetched_at DESC, latest.id DESC LIMIT 1
+      )
+      WHERE c.game IN (${placeholders})
+    `,
+    ...games
+  );
+  const pricesByEntity = new Map<string, number[]>();
+  for (const row of rows) {
+    if (row.value == null || row.value <= 0) continue;
+    const game: TradingCardGame = row.game === "one-piece" ? "one-piece" : "pokemon";
+    const key = getExternalEntityKey(game, row.name);
+    const prices = pricesByEntity.get(key) ?? [];
+    prices.push(Number(row.value));
+    pricesByEntity.set(key, prices);
+  }
+  return new Map(
+    [...pricesByEntity].map(([key, prices]) => {
+      prices.sort((left, right) => right - left);
+      const top = prices.slice(0, 5);
+      const topAverage = top.reduce((sum, value) => sum + value, 0) / top.length;
+      const valuableVariants = prices.filter((value) => value >= 25).length;
+      return [
+        key,
+        Math.round(Math.min(100, 12 + Math.log10(topAverage + 1) * 30 + Math.min(28, valuableVariants * 3.5))),
+      ];
+    })
+  );
+}
+
 function emptySealed(ageYears: number | null): ExternalSealedIntelligence {
   return {
     productCount: 0,
@@ -208,7 +262,8 @@ async function enrichSignalsWithMarketIntelligenceUncached(
   const setCodes = [...new Set(cards.map((card) => card.episode.code).filter((code): code is string => Boolean(code)))];
   const artists = [...new Set(cards.map((card) => card.artist).filter((artist): artist is string => Boolean(artist)))];
 
-  const [products, pullRates, artistDemand] = await Promise.all([
+  const games = [...new Set(signals.map((signal) => signal.game))];
+  const [products, pullRates, artistDemand, collectorDemand] = await Promise.all([
     db.sealedProduct.findMany({
       where: {
         OR: [
@@ -245,6 +300,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         })
       : Promise.resolve([]),
     loadArtistDemand(artists),
+    loadCollectorDemandScores(games),
   ]);
 
   const productIds = products.map((product) => product.id);
@@ -395,6 +451,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         ].filter((value) => value != null && value > 0).length
       : 0;
     const artistScore = card.artist ? artistDemand.get(card.artist) ?? null : null;
+    const collectorScore = collectorDemand.get(getExternalEntityKey(signal.game, signal.name)) ?? 50;
     const scarcityBase = calculateScarcityScore({
       ageYears,
       specificPullDenominator: pull?.specific_pull_denominator ?? null,
@@ -410,11 +467,27 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       rawTrend90dPct,
       artist: card.artist,
       artistDemandScore: artistScore,
+      collectorDemandScore: collectorScore,
     };
+    const hasFreshChaseCatalyst = (signal.catalysts ?? []).some(
+      (catalyst) =>
+        catalyst.direction === "positive" &&
+        ["reveal", "product", "localization", "hype"].includes(catalyst.kind)
+    );
+    const confluence = calculateGoldMineConfluence({
+      artistDemandScore: artistScore,
+      collectorDemandScore: collectorScore,
+      specificPullDenominator: pull?.specific_pull_denominator ?? null,
+      scarcityScore: scarcity.score,
+      gemRatePct,
+      hasFreshChaseCatalyst,
+      ageYears,
+    });
     const opportunity = calculateOpportunityScores({
       externalScore: signal.externalScore,
       sealedPressureScore: sealed.pressureScore,
       scarcityScore: scarcity.score,
+      confluenceScore: confluence.score,
       rawTrend90dPct,
       gradePremiumPct,
       gemRatePct,
@@ -429,6 +502,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       sealed,
       graded,
       scarcity,
+      confluence,
       rawScenario: buildPriceScenario({
         marketMode: "raw",
         currentPrice: signal.currentPrice,

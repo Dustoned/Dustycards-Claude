@@ -88,6 +88,14 @@ export interface ExternalScarcityIntelligence {
   rawTrend90dPct: number | null;
   artist: string | null;
   artistDemandScore: number | null;
+  collectorDemandScore: number;
+}
+
+export interface ExternalGoldMineConfluence {
+  score: number;
+  label: "Single signal" | "Building" | "Strong setup" | "Gold mine setup";
+  drivers: string[];
+  freshChase: boolean;
 }
 
 export interface ExternalMarketIntelligence {
@@ -96,6 +104,7 @@ export interface ExternalMarketIntelligence {
   sealed: ExternalSealedIntelligence;
   graded: ExternalGradedIntelligence;
   scarcity: ExternalScarcityIntelligence;
+  confluence: ExternalGoldMineConfluence;
   rawScenario: ExternalPriceScenario | null;
   gradedScenario: ExternalPriceScenario | null;
 }
