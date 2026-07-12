@@ -104,6 +104,7 @@ describe("getFastSuddenDropsData", () => {
     insertCard.run("new-drop", "New Drop", "001", "Rare", "episode-1", "pokemon");
     insertCard.run("old-drop", "Old Drop", "002", "Rare", "episode-1", "pokemon");
     insertCard.run("moderate-drop", "Moderate Drop", "003", "Rare", "episode-1", "pokemon");
+    insertCard.run("absolute-drop", "Absolute Drop", "004", "Rare", "episode-1", "pokemon");
 
     const insertPrice = sqlite.prepare(
       `INSERT INTO "Price" (id, card_id, fetched_at, changed_at, cm_en_lowest_nm)
@@ -115,6 +116,8 @@ describe("getFastSuddenDropsData", () => {
     insertPrice.run("old-low", "old-drop", currentSnapshotAt, staleChangedAt, 90);
     insertPrice.run("moderate-before", "moderate-drop", previousSnapshotAt, previousSnapshotAt, 40);
     insertPrice.run("moderate-after", "moderate-drop", currentSnapshotAt, currentSnapshotAt, 32);
+    insertPrice.run("absolute-before", "absolute-drop", previousSnapshotAt, previousSnapshotAt, 1000);
+    insertPrice.run("absolute-after", "absolute-drop", currentSnapshotAt, currentSnapshotAt, 994);
 
     dbMock.$queryRawUnsafe.mockImplementation((sql: string, ...params: unknown[]) =>
       sqlite.prepare(sql).all(...params)
@@ -123,7 +126,11 @@ describe("getFastSuddenDropsData", () => {
     try {
       const result = await getFastSuddenDropsData("cm_en", "pokemon");
 
-      expect(result.items.map((item) => item.cardId)).toEqual(["new-drop", "moderate-drop"]);
+      expect(result.items.map((item) => item.cardId)).toEqual([
+        "new-drop",
+        "moderate-drop",
+        "absolute-drop",
+      ]);
       expect(result.items[0]?.change7d).toBe(-60);
       expect(result.preview.threshold).toBe(5);
       expect(result.refresh?.status).toBe("rolling");

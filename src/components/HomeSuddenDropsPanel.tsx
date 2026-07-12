@@ -14,7 +14,7 @@ type LoadState =
   | { status: "ready"; apiHref: string; data: HomeSuddenDropsResponse }
   | { status: "error"; apiHref: string };
 
-const DEFAULT_THRESHOLD = 50;
+const DEFAULT_THRESHOLD = 5;
 const EMPTY_DATA: HomeSuddenDropsResponse = {
   items: [],
   total: 0,
@@ -31,14 +31,6 @@ function buildHighlightedHref(baseHref: string, cardId: string): string {
   const params = new URLSearchParams(query);
   params.set("highlight", cardId);
   return `${pathname}?${params.toString()}`;
-}
-
-function formatSignedPercent(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return "--";
-
-  const absolute = Math.abs(value);
-  const decimals = absolute >= 10 || absolute === 0 ? 0 : 1;
-  return `${value > 0 ? "+" : ""}${value.toFixed(decimals)}%`;
 }
 
 function HomeSuddenDropRow({
@@ -80,8 +72,7 @@ function HomeSuddenDropRow({
           -{formatCurrency(item.dropAmount, item.currency)}
         </span>
         <span className="mt-0.5 block text-[10.5px] font-bold tabular-nums text-white/42">
-          {formatSignedPercent(item.dropPercent)} / now{" "}
-          {formatCurrency(item.currentPrice, item.currency)}
+          Now {formatCurrency(item.currentPrice, item.currency)}
         </span>
       </span>
     </Link>
