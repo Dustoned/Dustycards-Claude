@@ -311,6 +311,7 @@ async function getCardDetailPayload(id: string, userId: string) {
         take: 1,
         select: { relation_type: true },
       },
+      _count: { select: { contentSets: true } },
     },
   });
   const sealedProductCount = await db.sealedProduct.count({
@@ -476,9 +477,9 @@ async function getCardDetailPayload(id: string, userId: string) {
       match_type:
         product.includedCards.length > 0
           ? "included_promo"
-          : product.episode_id === card.episode.id
-          ? "set_product"
-          : "mixed_pack",
+          : product._count.contentSets > 1 || product.episode_id !== card.episode.id
+            ? "mixed_pack"
+            : "set_product",
       price: {
         cm_lowest: product.cm_lowest,
         cm_lowest_eu: product.cm_lowest_eu,

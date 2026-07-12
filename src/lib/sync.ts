@@ -4678,6 +4678,25 @@ async function persistEpisodeSealedProducts(
           synced_at: syncedAt,
         },
       });
+
+      await tx.sealedProductContentSet.upsert({
+        where: {
+          product_id_episode_id: {
+            product_id: product.id,
+            episode_id: episodeId,
+          },
+        },
+        create: {
+          product_id: product.id,
+          episode_id: episodeId,
+          source_name: "TCGGO episode catalog",
+          confidence: 0.9,
+        },
+        update: {
+          source_name: "TCGGO episode catalog",
+          confidence: 0.9,
+        },
+      });
     }
 
     await tx.sealedPriceSnapshot.createMany({

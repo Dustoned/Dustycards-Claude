@@ -77,6 +77,7 @@ export default async function CardSealedProductsPage({
           confidence: true,
         },
       },
+      _count: { select: { contentSets: true } },
     },
   });
 
@@ -84,9 +85,9 @@ export default async function CardSealedProductsPage({
     const includedCard = product.includedCards[0] ?? null;
     const matchType = includedCard
       ? "included_promo"
-      : product.episode_id === card.episode.id
-        ? "set_product"
-        : "mixed_pack";
+      : product._count.contentSets > 1 || product.episode_id !== card.episode.id
+        ? "mixed_pack"
+        : "set_product";
 
     return {
       id: product.id,
