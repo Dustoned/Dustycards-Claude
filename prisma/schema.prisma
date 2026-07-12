@@ -238,6 +238,7 @@ model SealedProduct {
   episode         Episode  @relation(fields: [episode_id], references: [id])
   collectionItems CollectionSealed[]
   contentSets     SealedProductContentSet[]
+  includedCards   CardSealedProduct[]
 
   @@index([episode_id])
   @@index([game, episode_id])
@@ -262,6 +263,26 @@ model SealedProductContentSet {
   @@id([product_id, episode_id])
   @@index([episode_id])
   @@index([product_id])
+}
+
+model CardSealedProduct {
+  card_id       String
+  product_id    String
+  relation_type String   @default("included_promo")
+  source_name   String?
+  source_url    String?
+  confidence    Float?
+  notes         String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  card          Card          @relation(fields: [card_id], references: [id], onDelete: Cascade)
+  product       SealedProduct @relation(fields: [product_id], references: [id], onDelete: Cascade)
+
+  @@id([card_id, product_id])
+  @@index([card_id])
+  @@index([product_id])
+  @@index([relation_type])
 }
 
 model SealedReleaseWatch {
@@ -355,6 +376,7 @@ model Card {
   ebayListingOverrides EbayListingCardOverride[]
   ebayWatchedListings EbayWatchedListing[]
   prices          Price[]
+  sealedProducts  CardSealedProduct[]
   cardSubmissions CardSubmission[] @relation("SubmissionCreatedCard")
   officialCardSubmissions CardSubmission[] @relation("SubmissionOfficialCard")
 

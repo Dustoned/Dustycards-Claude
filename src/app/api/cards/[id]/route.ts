@@ -280,6 +280,7 @@ async function getCardDetailPayload(id: string, userId: string) {
       OR: [
         { episode_id: card.episode.id },
         { contentSets: { some: { episode_id: card.episode.id } } },
+        { includedCards: { some: { card_id: card.id } } },
       ],
     },
     orderBy: [{ cm_lowest: "desc" }, { name: "asc" }],
@@ -299,11 +300,27 @@ async function getCardDetailPayload(id: string, userId: string) {
       cm_avg_7d: true,
       cm_avg_30d: true,
       episode_id: true,
+      episode: { select: { id: true, name: true, code: true } },
       contentSets: {
         where: { episode_id: card.episode.id },
         take: 1,
         select: { episode_id: true },
       },
+      includedCards: {
+        where: { card_id: card.id },
+        take: 1,
+        select: { relation_type: true },
+      },
+    },
+  });
+  const sealedProductCount = await db.sealedProduct.count({
+    where: {
+      game: card.game,
+      OR: [
+        { episode_id: card.episode.id },
+        { contentSets: { some: { episode_id: card.episode.id } } },
+        { includedCards: { some: { card_id: card.id } } },
+      ],
     },
   });
 
@@ -449,6 +466,7 @@ async function getCardDetailPayload(id: string, userId: string) {
     episode_code: card.episode.code,
     episode_series: card.episode.series,
     episode_release_date: card.episode.release_date,
+    sealed_product_count: sealedProductCount,
     sealed_products: sealedProducts.map((product) => ({
       id: product.id,
       name: product.name,
@@ -456,7 +474,9 @@ async function getCardDetailPayload(id: string, userId: string) {
       cardmarket_url: product.cardmarket_url,
       release_date: product.release_date ? product.release_date.toISOString() : null,
       match_type:
-        product.episode_id === card.episode.id && product.contentSets.length === 0
+        product.includedCards.length > 0
+          ? "included_promo"
+          : product.episode_id === card.episode.id
           ? "set_product"
           : "mixed_pack",
       price: {
@@ -470,9 +490,9 @@ async function getCardDetailPayload(id: string, userId: string) {
         cm_avg_30d: product.cm_avg_30d,
       },
       episode: {
-        id: card.episode.id,
-        name: card.episode.name,
-        code: card.episode.code,
+        id: product.episode.id,
+        name: product.episode.name,
+        code: product.episode.code,
       },
     })),
     collection_item: collectionItemPayload,
