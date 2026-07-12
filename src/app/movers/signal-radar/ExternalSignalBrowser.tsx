@@ -459,16 +459,19 @@ function CompactSignalCard({
   const effectiveScore = score ?? signal.externalScore;
   const tier = effectiveScore >= 80 ? "Breakout" : effectiveScore >= 60 ? "Strong" : "Watch";
   const confluence = signal.marketIntelligence?.confluence;
-  const drivers = confluence?.drivers.slice(0, 3) ?? signal.reasons.slice(0, 3);
+  const drivers = confluence?.drivers.length
+    ? confluence.drivers.slice(0, 3)
+    : signal.reasons.slice(0, 3);
+  const base90 = scenario?.points.find((point) => point.days === 90)?.base ?? null;
   const detailHref = `/movers/signal-radar/${encodeURIComponent(signal.cardId)}?game=${signal.game}`;
 
   return (
-    <article className="group relative min-w-0 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_14px_42px_rgba(0,0,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/24">
+    <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_14px_42px_rgba(0,0,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/24 sm:p-3.5">
       <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-65" />
-      <div className="flex min-w-0 items-start gap-3">
+      <div className="grid min-w-0 grid-cols-[6.25rem_minmax(0,1fr)] items-start gap-3">
         <Link
           href={detailHref}
-          className="relative aspect-[63/88] w-[5.5rem] shrink-0 overflow-hidden rounded-[0.65rem] border border-white/10 bg-black/25 shadow-lg shadow-black/25 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:w-[6.25rem]"
+          className="relative aspect-[63/88] w-[6.25rem] shrink-0 overflow-hidden rounded-[0.7rem] border border-white/10 bg-black/25 shadow-lg shadow-black/25 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           aria-label={`Open full analysis for ${signal.name}`}
         >
           {signal.imageUrl ? (
@@ -490,7 +493,7 @@ function CompactSignalCard({
         </Link>
 
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="flex min-h-[7.8rem] min-w-0 items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]", getConfidenceClasses(signal.confidence))}>
@@ -501,10 +504,10 @@ function CompactSignalCard({
                 </span>
               </div>
               <Link href={detailHref} className="mt-2 block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">
-                <h3 className="truncate text-base font-bold tracking-tight text-white transition group-hover:text-violet-100">{signal.name}</h3>
+                <h3 className="line-clamp-2 min-h-10 text-base font-bold leading-5 tracking-tight text-white transition group-hover:text-violet-100">{signal.name}</h3>
               </Link>
-              <p className="mt-0.5 truncate text-[10px] text-white/42">
-                {signal.episodeName}{signal.cardNumber ? ` / ${signal.cardNumber}` : ""}
+              <p className="mt-1 line-clamp-2 min-h-8 text-[10px] leading-4 text-white/42">
+                {signal.episodeName}{signal.cardNumber ? ` / ${signal.cardNumber}` : ""}{signal.rarity ? ` / ${signal.rarity}` : ""}
               </p>
             </div>
             <div className="shrink-0 text-right">
@@ -515,34 +518,40 @@ function CompactSignalCard({
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-1.5">
-            <div className="rounded-lg border border-violet-300/14 bg-violet-400/[0.07] px-2 py-1.5">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-violet-200/58">Opportunity</p>
-              <p className="mt-0.5 text-sm font-black text-violet-100">{effectiveScore}<span className="text-[9px] text-white/30">/100</span></p>
-            </div>
-            <div className="rounded-lg border border-fuchsia-300/12 bg-fuchsia-400/[0.05] px-2 py-1.5">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-fuchsia-100/55">Confluence</p>
-              <p className="mt-0.5 text-sm font-black text-fuchsia-100">{confluence?.score ?? "--"}<span className="text-[9px] text-white/30">/100</span></p>
-            </div>
-            <div className="rounded-lg border border-emerald-300/12 bg-emerald-400/[0.05] px-2 py-1.5">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-emerald-100/55">Tier</p>
-              <p className="mt-0.5 truncate text-sm font-black text-emerald-100">{tier}</p>
-            </div>
-          </div>
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/35">
-            <div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-400 to-sky-400" style={{ width: `${effectiveScore}%` }} />
-          </div>
         </div>
       </div>
 
-      <div className="mt-3 flex min-h-6 flex-wrap gap-1.5">
+      <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-violet-300/14 bg-violet-400/[0.07] px-2 py-1.5">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-violet-200/58">Opportunity score</p>
+              <p className="mt-1 text-base font-black text-violet-100">{effectiveScore}<span className="text-[9px] text-white/30">/100</span></p>
+            </div>
+            <div className="rounded-lg border border-fuchsia-300/12 bg-fuchsia-400/[0.05] px-2 py-1.5">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-fuchsia-100/55">Gold mine setup</p>
+              <p className="mt-1 text-base font-black text-fuchsia-100">{confluence?.score ?? "--"}<span className="text-[9px] text-white/30">/100</span></p>
+            </div>
+            <div className="rounded-lg border border-emerald-300/12 bg-emerald-400/[0.05] px-2 py-1.5">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-emerald-100/55">Signal tier</p>
+              <p className="mt-1 text-base font-black text-emerald-100">{tier}</p>
+            </div>
+            <div className="rounded-lg border border-sky-300/12 bg-sky-400/[0.05] px-2 py-1.5">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-sky-100/55">90-day base</p>
+              <p className="mt-1 text-base font-black text-sky-100">{base90 == null || !scenario ? "--" : formatCurrency(base90, scenario.currency)}</p>
+            </div>
+      </div>
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/35">
+        <div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-400 to-sky-400" style={{ width: `${effectiveScore}%` }} />
+      </div>
+
+      <div className="mt-3 grid h-32 content-start gap-1.5 overflow-hidden rounded-xl border border-white/7 bg-black/14 p-2.5">
         {drivers.map((driver) => (
-          <span key={driver} className="max-w-full truncate rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] text-white/48">
-            {driver}
-          </span>
+          <div key={driver} className="flex min-w-0 items-start gap-2 text-[10px] leading-4 text-white/52">
+            <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-300/65" />
+            <span className="line-clamp-2">{driver}</span>
+          </div>
         ))}
       </div>
-      <Link href={detailHref} className="mt-3 flex h-9 items-center justify-between rounded-xl border border-violet-300/14 bg-violet-400/[0.065] px-3 text-[10px] font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.11]">
+      <Link href={detailHref} className="mt-3 flex h-10 items-center justify-between rounded-xl border border-violet-300/14 bg-violet-400/[0.065] px-3 text-[10px] font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.11]">
         View full analysis
         <ArrowUpRight className="h-3.5 w-3.5" />
       </Link>
@@ -983,7 +992,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           <div
             className="grid min-w-0 gap-3"
             style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 22rem), 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 25rem), 1fr))",
             }}
           >
             {visibleSignals.slice(0, visibleLimit).map((signal) => (
