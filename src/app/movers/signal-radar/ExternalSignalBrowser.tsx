@@ -39,7 +39,7 @@ const CardModal = dynamic(() => import("@/components/CardModal"), {
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
-type SortKey = "opportunity" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
+type SortKey = "opportunity" | "confluence" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
 
 interface Props {
   signals: ExternalCardSignal[];
@@ -56,6 +56,7 @@ const CONFIDENCE_OPTIONS: Array<{ value: ConfidenceFilter; label: string }> = [
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: "opportunity", label: "Opportunity" },
+  { value: "confluence", label: "Gold mine setup" },
   { value: "signal", label: "Signal strength" },
   { value: "sealed", label: "Sealed pressure" },
   { value: "scarcity", label: "Scarcity" },
@@ -241,6 +242,30 @@ function MarketIntelligencePanel({
         )}
       </div>
       <div className="grid grid-cols-2 gap-2">
+        <div className={cx(
+          "col-span-2 rounded-xl border p-2.5",
+          market.confluence.score >= 85
+            ? "border-fuchsia-300/24 bg-gradient-to-r from-fuchsia-400/[0.1] to-amber-300/[0.06]"
+            : market.confluence.score >= 70
+              ? "border-violet-300/18 bg-violet-400/[0.06]"
+              : "border-white/8 bg-white/[0.025]"
+        )}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-fuchsia-100/70">
+              <Sparkles className="h-3 w-3" /> Factor confluence
+            </div>
+            <span className="text-[10px] font-black text-fuchsia-100">{market.confluence.score}/100</span>
+          </div>
+          <p className="mt-1 text-sm font-black text-white/88">{market.confluence.label}</p>
+          <p className="mt-1 text-[9px] leading-4 text-white/42">
+            {market.confluence.drivers.length > 0
+              ? market.confluence.drivers.join(" · ")
+              : "No multi-factor setup yet"}
+          </p>
+          <p className="mt-0.5 text-[8px] leading-3 text-white/28">
+            Strong only when artist, character demand, pull difficulty and scarcity reinforce each other.
+          </p>
+        </div>
         <div className="rounded-xl border border-amber-300/12 bg-amber-400/[0.045] p-2.5">
           <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-100/62">
             <PackageSearch className="h-3 w-3" /> Sealed
@@ -257,7 +282,9 @@ function MarketIntelligencePanel({
           <p className="mt-1 text-[9px] leading-4 text-white/38">
             Pull {market.scarcity.pullOdds ?? "unknown"} · {market.scarcity.rawMarketBreadth} markets
           </p>
-          <p className="text-[8px] text-white/28">Artist {market.scarcity.artistDemandScore ?? "--"}/100</p>
+          <p className="text-[8px] text-white/28">
+            Artist {market.scarcity.artistDemandScore ?? "--"}/100 · character {market.scarcity.collectorDemandScore}/100
+          </p>
         </div>
         <div className="col-span-2 rounded-xl border border-emerald-300/12 bg-emerald-400/[0.04] p-2.5">
           <div className="flex items-center justify-between gap-2">
@@ -706,6 +733,12 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           return (
             (right.marketIntelligence?.sealed.pressureScore ?? 0) -
             (left.marketIntelligence?.sealed.pressureScore ?? 0)
+          );
+        }
+        if (sortKey === "confluence") {
+          return (
+            (right.marketIntelligence?.confluence.score ?? 0) -
+            (left.marketIntelligence?.confluence.score ?? 0)
           );
         }
         if (sortKey === "scarcity") {

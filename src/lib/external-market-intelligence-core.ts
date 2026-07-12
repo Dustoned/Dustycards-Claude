@@ -1,5 +1,6 @@
 import type {
   ExternalGradedIntelligence,
+  ExternalGoldMineConfluence,
   ExternalMarketMode,
   ExternalPriceScenario,
   ExternalScarcityIntelligence,
@@ -89,10 +90,84 @@ export function calculateScarcityScore(input: {
   };
 }
 
+export function calculateGoldMineConfluence(input: {
+  artistDemandScore: number | null;
+  collectorDemandScore: number;
+  specificPullDenominator: number | null;
+  scarcityScore: number;
+  gemRatePct: number | null;
+  hasFreshChaseCatalyst: boolean;
+  ageYears: number | null;
+}): ExternalGoldMineConfluence {
+  const normalized = (value: number, floor: number, ceiling: number) =>
+    Math.min(1, Math.max(0, (value - floor) / (ceiling - floor)));
+  const artist = input.artistDemandScore == null ? 0.22 : normalized(input.artistDemandScore, 42, 92);
+  const collector = normalized(input.collectorDemandScore, 42, 92);
+  const pull =
+    input.specificPullDenominator == null
+      ? normalized(input.scarcityScore, 48, 92) * 0.62
+      : normalized(Math.log10(Math.max(1, input.specificPullDenominator)), 1.7, 3.15);
+  const scarcity = normalized(input.scarcityScore, 40, 92);
+  const freshness = input.hasFreshChaseCatalyst
+    ? 1
+    : input.ageYears != null && input.ageYears <= 1.5
+      ? 0.72
+      : 0.18;
+  const gradingScarcity =
+    input.gemRatePct == null ? 0.35 : normalized(55 - input.gemRatePct, 0, 38);
+
+  // A geometric mean deliberately punishes a missing leg: one fashionable
+  // illustrator or one rare pull cannot create a "gold mine" by itself.
+  const core = Math.pow(
+    Math.max(0.04, artist) *
+      Math.max(0.04, collector) *
+      Math.max(0.04, pull) *
+      Math.max(0.04, scarcity),
+    0.25
+  );
+  const strongFactors = [artist, collector, pull, scarcity].filter((value) => value >= 0.58).length;
+  let score = clampMarketScore(core * 76 + freshness * 16 + gradingScarcity * 8);
+  if (strongFactors < 3) score = Math.min(score, 54);
+  else if (strongFactors < 4) score = Math.min(score, 79);
+
+  const drivers = [
+    input.artistDemandScore != null && input.artistDemandScore >= 65
+      ? `illustrator demand ${input.artistDemandScore}/100`
+      : null,
+    input.collectorDemandScore >= 65
+      ? `collector demand ${input.collectorDemandScore}/100`
+      : null,
+    input.specificPullDenominator != null && input.specificPullDenominator >= 100
+      ? `about 1/${Math.round(input.specificPullDenominator)} pull`
+      : input.scarcityScore >= 65
+        ? "scarce supply"
+        : null,
+    input.hasFreshChaseCatalyst ? "fresh chase catalyst" : null,
+    input.gemRatePct != null && input.gemRatePct <= 35
+      ? `${input.gemRatePct.toFixed(1)}% gem-rate`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return {
+    score,
+    label:
+      score >= 85
+        ? "Gold mine setup"
+        : score >= 70
+          ? "Strong setup"
+          : score >= 50
+            ? "Building"
+            : "Single signal",
+    drivers,
+    freshChase: input.hasFreshChaseCatalyst,
+  };
+}
+
 export function calculateOpportunityScores(input: {
   externalScore: number;
   sealedPressureScore: number;
   scarcityScore: number;
+  confluenceScore: number;
   rawTrend90dPct: number | null;
   gradePremiumPct: number | null;
   gemRatePct: number | null;
@@ -102,9 +177,10 @@ export function calculateOpportunityScores(input: {
   const sealedAdjustment = (input.sealedPressureScore - 50) * 0.16;
   const scarcityAdjustment = (input.scarcityScore - 50) * 0.18;
   const trendAdjustment = Math.min(6, Math.max(-6, (input.rawTrend90dPct ?? 0) * 0.08));
+  const confluenceAdjustment = Math.min(13, Math.max(0, input.confluenceScore - 55) * 0.3);
   const riskAdjustment = Math.max(0, input.riskScore) * 15;
   const raw = clampMarketScore(
-    input.externalScore + sealedAdjustment + scarcityAdjustment + trendAdjustment - riskAdjustment
+    input.externalScore + sealedAdjustment + scarcityAdjustment + trendAdjustment + confluenceAdjustment - riskAdjustment
   );
   if (!input.gradedAvailable) return { raw, graded: null };
   const premium = Math.min(8, Math.max(-4, (input.gradePremiumPct ?? 0) * 0.035));

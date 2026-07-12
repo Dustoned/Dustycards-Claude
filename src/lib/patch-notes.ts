@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.20",
+    releasedAt: "July 12, 2026",
+    title: "Gold mine confluence",
+    summary:
+      "Signal Radar now recognizes when illustrator demand, collector demand, chase timing, pull difficulty, scarcity, and grading supply reinforce each other.",
+    tone: "new",
+    highlights: [
+      "A popular illustrator alone no longer produces a top setup: at least three strong factors must align before a card can reach Strong setup.",
+      "Gold mine setup is reserved for the rare combination of a proven illustrator, an in-demand character, a difficult chase, and scarce supply.",
+      "Fresh reveals and product catalysts strengthen the combination, while reprint and other risk signals still reduce the final opportunity score.",
+      "Each card explains the exact supporting factors and can be sorted by Gold mine setup.",
+      "Collector and illustrator demand reuse the existing catalog and price database, so this scoring adds no Firecrawl usage.",
+    ],
+  },
+  {
     version: "3.6.19",
     releasedAt: "July 12, 2026",
     title: "Raw, graded & scarcity intelligence",
