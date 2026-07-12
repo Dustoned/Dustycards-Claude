@@ -130,7 +130,9 @@ export async function getPersistedExternalSignalRadarData(
           row.card_name
         ),
         sourceMode:
-          row.competitive_score <= 0
+          row.competitive_score < 0
+            ? "structural"
+            : row.competitive_score === 0
             ? "event"
             : row.catalyst_score !== 0 || row.hype_score !== 0 || row.risk_score !== 0
               ? "hybrid"

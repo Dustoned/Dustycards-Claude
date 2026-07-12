@@ -1,0 +1,506 @@
+import "server-only";
+
+import { db } from "@/lib/db";
+import {
+  buildPriceScenario,
+  calculateOpportunityScores,
+  calculateScarcityScore,
+  calculateSealedPressure,
+  classifySealedProduct,
+  getGradedSupplyLabel,
+  percentChange,
+} from "@/lib/external-market-intelligence-core";
+import type {
+  ExternalCardSignal,
+  ExternalGradedIntelligence,
+  ExternalMarketIntelligence,
+  ExternalSealedIntelligence,
+} from "@/lib/external-signal-radar";
+import { normalizeRarityLabel } from "@/lib/rarity";
+import { createSwrCache } from "@/lib/server-swr-cache";
+
+const DAY_MS = 86_400_000;
+const CARD_CHUNK_SIZE = 50;
+const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
+
+function firstPositive(values: Array<number | null | undefined>): number | null {
+  return values.find((value): value is number => value != null && Number.isFinite(value) && value > 0) ?? null;
+}
+
+function euroCardValue(price: {
+  cm_en_avg_7d: number | null;
+  cm_en_lowest_nm: number | null;
+  cm_de_lowest_nm: number | null;
+  cm_fr_lowest_nm: number | null;
+  cm_es_lowest_nm: number | null;
+  cm_it_lowest_nm: number | null;
+}): number | null {
+  return firstPositive([
+    price.cm_en_avg_7d,
+    price.cm_en_lowest_nm,
+    price.cm_de_lowest_nm,
+    price.cm_fr_lowest_nm,
+    price.cm_es_lowest_nm,
+    price.cm_it_lowest_nm,
+  ]);
+}
+
+function sealedValue(product: {
+  cm_avg_7d: number | null;
+  cm_lowest: number | null;
+  cm_lowest_eu: number | null;
+  cm_lowest_de: number | null;
+  cm_lowest_fr: number | null;
+  cm_lowest_es: number | null;
+  cm_lowest_it: number | null;
+}): number | null {
+  return firstPositive([
+    product.cm_avg_7d,
+    product.cm_lowest,
+    product.cm_lowest_eu,
+    product.cm_lowest_de,
+    product.cm_lowest_fr,
+    product.cm_lowest_es,
+    product.cm_lowest_it,
+  ]);
+}
+
+function releaseAgeYears(value: string | null, now: Date): number | null {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  return Number((Math.max(0, now.getTime() - timestamp) / (DAY_MS * 365.25)).toFixed(1));
+}
+
+function historyTrend(
+  points: Array<{ fetchedAt: Date; value: number | null }>,
+  days: number
+): number | null {
+  const valid = points
+    .filter((point): point is { fetchedAt: Date; value: number } => point.value != null && point.value > 0)
+    .sort((left, right) => left.fetchedAt.getTime() - right.fetchedAt.getTime());
+  if (valid.length < 2) return null;
+  const latest = valid[valid.length - 1];
+  const cutoff = latest.fetchedAt.getTime() - days * DAY_MS;
+  const previous = [...valid].reverse().find((point) => point.fetchedAt.getTime() <= cutoff) ?? valid[0];
+  if (latest.fetchedAt.getTime() - previous.fetchedAt.getTime() < Math.min(days, 14) * DAY_MS) return null;
+  const change = percentChange(latest.value, previous.value);
+  return change != null && Math.abs(change) <= 300 ? change : null;
+}
+
+function chooseLatestGrade<T extends { company: string; grade: string; fetched_at: Date }>(
+  rows: T[],
+  grade: "9" | "10"
+): T | null {
+  return (
+    rows
+      .filter((row) => row.company.toUpperCase() === "PSA" && Number.parseFloat(row.grade) === Number(grade))
+      .sort((left, right) => right.fetched_at.getTime() - left.fetched_at.getTime())[0] ?? null
+  );
+}
+
+function chooseCardMarketPsa10<T extends { label: string; fetched_at: Date }>(rows: T[]): T | null {
+  return (
+    rows
+      .filter((row) => /\bPSA\s*10\b/i.test(row.label))
+      .sort((left, right) => right.fetched_at.getTime() - left.fetched_at.getTime())[0] ?? null
+  );
+}
+
+interface ArtistDemandRow {
+  artist: string;
+  priced_cards: number;
+  average_value: number;
+  valuable_cards: number;
+}
+
+async function loadArtistDemand(artists: string[]): Promise<Map<string, number>> {
+  if (artists.length === 0) return new Map();
+  const placeholders = artists.map(() => "?").join(",");
+  const rows = await db.$queryRawUnsafe<ArtistDemandRow[]>(
+    `
+      WITH latest AS (
+        SELECT
+          c.id AS card_id,
+          c.artist,
+          COALESCE(
+            p.cm_en_avg_7d,
+            p.cm_en_lowest_nm,
+            p.cm_de_lowest_nm,
+            p.cm_fr_lowest_nm,
+            p.cm_es_lowest_nm,
+            p.cm_it_lowest_nm,
+            p.tcp_market
+          ) AS value,
+          ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY p.fetched_at DESC, p.id DESC) AS row_number
+        FROM "Card" c
+        INNER JOIN "Price" p ON p.card_id = c.id
+        WHERE c.artist IN (${placeholders})
+      )
+      SELECT
+        artist,
+        COUNT(*) AS priced_cards,
+        AVG(value) AS average_value,
+        SUM(CASE WHEN value >= 25 THEN 1 ELSE 0 END) AS valuable_cards
+      FROM latest
+      WHERE row_number = 1 AND value > 0
+      GROUP BY artist
+    `,
+    ...artists
+  );
+  return new Map(
+    rows.map((row) => [
+      row.artist,
+      Math.round(
+        Math.min(
+          100,
+          25 +
+            Math.log10(Number(row.average_value) + 1) * 24 +
+            Math.min(20, Number(row.valuable_cards) * 2) +
+            Math.min(8, Number(row.priced_cards) * 0.1)
+        )
+      ),
+    ])
+  );
+}
+
+function emptySealed(ageYears: number | null): ExternalSealedIntelligence {
+  return {
+    productCount: 0,
+    packProductCount: 0,
+    packName: null,
+    packPrice: null,
+    boxName: null,
+    boxPrice: null,
+    trend30dPct: null,
+    trend90dPct: null,
+    ageYears,
+    pressureScore: 28,
+    pressureLabel: "Low",
+  };
+}
+
+export async function enrichSignalsWithMarketIntelligence(
+  signals: ExternalCardSignal[],
+  now = new Date()
+): Promise<ExternalCardSignal[]> {
+  const cacheKey = signals
+    .map((signal) => `${signal.cardId}:${signal.externalScore}:${signal.riskScore ?? 0}`)
+    .sort()
+    .join("|");
+  return marketIntelligenceCache.get(cacheKey, () =>
+    enrichSignalsWithMarketIntelligenceUncached(signals, now)
+  );
+}
+
+async function enrichSignalsWithMarketIntelligenceUncached(
+  signals: ExternalCardSignal[],
+  now: Date
+): Promise<ExternalCardSignal[]> {
+  if (signals.length === 0) return signals;
+  const cardIds = [...new Set(signals.map((signal) => signal.cardId))];
+  const cards = [] as Awaited<ReturnType<typeof loadCards>>;
+  for (let index = 0; index < cardIds.length; index += CARD_CHUNK_SIZE) {
+    cards.push(...(await loadCards(cardIds.slice(index, index + CARD_CHUNK_SIZE))));
+  }
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  const episodeIds = [...new Set(cards.map((card) => card.episode.id))];
+  const setCodes = [...new Set(cards.map((card) => card.episode.code).filter((code): code is string => Boolean(code)))];
+  const artists = [...new Set(cards.map((card) => card.artist).filter((artist): artist is string => Boolean(artist)))];
+
+  const [products, pullRates, artistDemand] = await Promise.all([
+    db.sealedProduct.findMany({
+      where: {
+        OR: [
+          { contentSets: { some: { episode_id: { in: episodeIds } } } },
+          { includedCards: { some: { card_id: { in: cardIds } } } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        cm_avg_7d: true,
+        cm_lowest: true,
+        cm_lowest_eu: true,
+        cm_lowest_de: true,
+        cm_lowest_fr: true,
+        cm_lowest_es: true,
+        cm_lowest_it: true,
+        contentSets: { select: { episode_id: true } },
+        includedCards: { select: { card_id: true } },
+      },
+    }),
+    setCodes.length
+      ? db.setPullRateRarity.findMany({
+          where: { set_code: { in: setCodes.map((code) => code.toUpperCase()) } },
+          orderBy: { imported_at: "desc" },
+          select: {
+            source: true,
+            set_code: true,
+            normalized_rarity: true,
+            pull_rate_odds: true,
+            specific_pull_denominator: true,
+            psa_avg_gem_pct: true,
+          },
+        })
+      : Promise.resolve([]),
+    loadArtistDemand(artists),
+  ]);
+
+  const productIds = products.map((product) => product.id);
+  const sealedSnapshots = [] as Array<{
+    product_id: string;
+    fetched_at: Date;
+    cm_avg_7d: number | null;
+    cm_lowest: number | null;
+    cm_lowest_eu: number | null;
+    cm_lowest_de: number | null;
+    cm_lowest_fr: number | null;
+    cm_lowest_es: number | null;
+    cm_lowest_it: number | null;
+  }>;
+  for (let index = 0; index < productIds.length; index += 200) {
+    sealedSnapshots.push(
+      ...(await db.sealedPriceSnapshot.findMany({
+        where: { product_id: { in: productIds.slice(index, index + 200) } },
+        orderBy: { fetched_at: "desc" },
+        select: {
+          product_id: true,
+          fetched_at: true,
+          cm_avg_7d: true,
+          cm_lowest: true,
+          cm_lowest_eu: true,
+          cm_lowest_de: true,
+          cm_lowest_fr: true,
+          cm_lowest_es: true,
+          cm_lowest_it: true,
+        },
+      }))
+    );
+  }
+  const snapshotsByProduct = new Map<string, typeof sealedSnapshots>();
+  for (const snapshot of sealedSnapshots) {
+    const existing = snapshotsByProduct.get(snapshot.product_id) ?? [];
+    existing.push(snapshot);
+    snapshotsByProduct.set(snapshot.product_id, existing);
+  }
+  const pullByKey = new Map<string, (typeof pullRates)[number]>();
+  for (const pull of pullRates) {
+    const key = `${pull.set_code.toUpperCase()}::${pull.normalized_rarity}`;
+    if (!pullByKey.has(key) || pull.source === "pricedex") pullByKey.set(key, pull);
+  }
+
+  return signals.map((signal) => {
+    const card = cardById.get(signal.cardId);
+    if (!card) return signal;
+    const ageYears = releaseAgeYears(card.episode.release_date, now);
+    const relevantProducts = products.filter(
+      (product) =>
+        product.contentSets.some((set) => set.episode_id === card.episode.id) ||
+        product.includedCards.some((included) => included.card_id === card.id)
+    );
+    const pricedProducts = relevantProducts
+      .map((product) => ({ product, value: sealedValue(product), kind: classifySealedProduct(product.name) }))
+      .filter((item): item is typeof item & { value: number } => item.value != null)
+      .sort((left, right) => left.value - right.value);
+    const pack = pricedProducts.find((item) => item.kind === "pack") ?? null;
+    const box = pricedProducts.find((item) => item.kind === "box") ?? null;
+    const representative = pack ?? box ?? pricedProducts[0] ?? null;
+    const representativeHistory = representative
+      ? (snapshotsByProduct.get(representative.product.id) ?? []).map((snapshot) => ({
+          fetchedAt: snapshot.fetched_at,
+          value: sealedValue(snapshot),
+        }))
+      : [];
+    const trend30dPct = historyTrend(representativeHistory, 30);
+    const trend90dPct = historyTrend(representativeHistory, 90);
+    const hasReprintRisk = (signal.catalysts ?? []).some(
+      (catalyst) => catalyst.kind === "reprint" && catalyst.direction !== "negative"
+    );
+    const sealedPressure = calculateSealedPressure({
+      ageYears,
+      packPrice: pack?.value ?? null,
+      rawCardPrice: signal.currency === "EUR" ? signal.currentPrice : null,
+      trend30dPct,
+      trend90dPct,
+      packProductCount: pricedProducts.filter((item) => item.kind === "pack").length,
+      hasReprintRisk,
+    });
+    const sealed: ExternalSealedIntelligence = representative
+      ? {
+          productCount: relevantProducts.length,
+          packProductCount: pricedProducts.filter((item) => item.kind === "pack").length,
+          packName: pack?.product.name ?? null,
+          packPrice: pack?.value ?? null,
+          boxName: box?.product.name ?? null,
+          boxPrice: box?.value ?? null,
+          trend30dPct,
+          trend90dPct,
+          ageYears,
+          ...sealedPressure,
+        }
+      : emptySealed(ageYears);
+
+    const normalizedRarity = normalizeRarityLabel(card.rarity);
+    const pull =
+      card.episode.code && normalizedRarity
+        ? pullByKey.get(`${card.episode.code.toUpperCase()}::${normalizedRarity}`) ?? null
+        : null;
+    const gemRatePct =
+      pull?.psa_avg_gem_pct == null
+        ? null
+        : pull.psa_avg_gem_pct <= 1
+          ? Number((pull.psa_avg_gem_pct * 100).toFixed(1))
+          : Number(pull.psa_avg_gem_pct.toFixed(1));
+    const psa10 = chooseLatestGrade(card.ebaySoldGradedPrices, "10");
+    const psa9 = chooseLatestGrade(card.ebaySoldGradedPrices, "9");
+    const cardMarketPsa10 = chooseCardMarketPsa10(card.gradedPrices);
+    const gradedCurrent = psa10?.median_price ?? cardMarketPsa10?.price ?? null;
+    const gradedCurrency = psa10 ? (psa10.currency === "EUR" ? "EUR" : "USD") : "EUR";
+    const comparableRaw = signal.currency === gradedCurrency ? signal.currentPrice : null;
+    const gradePremiumPct =
+      gradedCurrent != null && comparableRaw != null && comparableRaw > 0
+        ? Number((((gradedCurrent - comparableRaw) / comparableRaw) * 100).toFixed(1))
+        : null;
+    const graded: ExternalGradedIntelligence = {
+      available: gradedCurrent != null,
+      label: psa10?.label ?? cardMarketPsa10?.label ?? null,
+      currentPrice: gradedCurrent,
+      currency: gradedCurrency,
+      sampleSize: psa10?.sample_size ?? null,
+      psa9Price: psa9?.median_price ?? null,
+      psa10Price: psa10?.median_price ?? cardMarketPsa10?.price ?? null,
+      gradePremiumPct,
+      gemRatePct,
+      population10: null,
+      populationTotal: null,
+      populationStatus: gemRatePct == null ? "unavailable" : "set-rarity-estimate",
+      supplyLabel: getGradedSupplyLabel(psa10?.sample_size ?? null),
+    };
+
+    const rawHistory = card.prices.map((price) => ({
+      fetchedAt: price.fetched_at,
+      value: signal.currency === "EUR" ? euroCardValue(price) : firstPositive([price.tcp_market]),
+    }));
+    const rawTrend90dPct = historyTrend(rawHistory, 90);
+    const latestRaw = card.prices[0];
+    const rawMarketBreadth = latestRaw
+      ? [
+          latestRaw.cm_en_lowest_nm,
+          latestRaw.cm_de_lowest_nm,
+          latestRaw.cm_fr_lowest_nm,
+          latestRaw.cm_es_lowest_nm,
+          latestRaw.cm_it_lowest_nm,
+          latestRaw.tcp_market,
+        ].filter((value) => value != null && value > 0).length
+      : 0;
+    const artistScore = card.artist ? artistDemand.get(card.artist) ?? null : null;
+    const scarcityBase = calculateScarcityScore({
+      ageYears,
+      specificPullDenominator: pull?.specific_pull_denominator ?? null,
+      gemRatePct,
+      rawMarketBreadth,
+      artistDemandScore: artistScore,
+    });
+    const scarcity = {
+      ...scarcityBase,
+      pullOdds: pull?.pull_rate_odds ?? null,
+      specificPullDenominator: pull?.specific_pull_denominator ?? null,
+      rawMarketBreadth,
+      rawTrend90dPct,
+      artist: card.artist,
+      artistDemandScore: artistScore,
+    };
+    const opportunity = calculateOpportunityScores({
+      externalScore: signal.externalScore,
+      sealedPressureScore: sealed.pressureScore,
+      scarcityScore: scarcity.score,
+      rawTrend90dPct,
+      gradePremiumPct,
+      gemRatePct,
+      gradedAvailable: graded.available,
+      riskScore: signal.riskScore ?? 0,
+    });
+    const evidenceCount =
+      signal.evidence.length + new Set((signal.catalysts ?? []).map((item) => item.sourceUrl)).size;
+    const intelligence: ExternalMarketIntelligence = {
+      rawOpportunityScore: opportunity.raw,
+      gradedOpportunityScore: opportunity.graded,
+      sealed,
+      graded,
+      scarcity,
+      rawScenario: buildPriceScenario({
+        marketMode: "raw",
+        currentPrice: signal.currentPrice,
+        currency: signal.currency,
+        opportunityScore: opportunity.raw,
+        sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
+        rawTrend90dPct,
+        scarcityScore: scarcity.score,
+        gemRatePct,
+        riskScore: signal.riskScore ?? 0,
+        evidenceCount,
+        historyPoints: rawHistory.length,
+      }),
+      gradedScenario: buildPriceScenario({
+        marketMode: "graded",
+        currentPrice: graded.currentPrice,
+        currency: graded.currency,
+        opportunityScore: opportunity.graded,
+        sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
+        rawTrend90dPct,
+        scarcityScore: scarcity.score,
+        gemRatePct,
+        riskScore: signal.riskScore ?? 0,
+        evidenceCount: evidenceCount + (graded.sampleSize != null ? 1 : 0),
+        historyPoints: card.ebaySoldGradedPriceSnapshots.length,
+      }),
+    };
+    return { ...signal, marketIntelligence: intelligence };
+  });
+}
+
+function loadCards(cardIds: string[]) {
+  return db.card.findMany({
+    where: { id: { in: cardIds } },
+    select: {
+      id: true,
+      rarity: true,
+      artist: true,
+      episode: { select: { id: true, code: true, release_date: true } },
+      prices: {
+        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
+        take: 40,
+        select: {
+          fetched_at: true,
+          cm_en_avg_7d: true,
+          cm_en_lowest_nm: true,
+          cm_de_lowest_nm: true,
+          cm_fr_lowest_nm: true,
+          cm_es_lowest_nm: true,
+          cm_it_lowest_nm: true,
+          tcp_market: true,
+        },
+      },
+      gradedPrices: {
+        select: { label: true, price: true, fetched_at: true },
+      },
+      ebaySoldGradedPrices: {
+        select: {
+          label: true,
+          company: true,
+          grade: true,
+          median_price: true,
+          currency: true,
+          sample_size: true,
+          fetched_at: true,
+        },
+      },
+      ebaySoldGradedPriceSnapshots: {
+        orderBy: { fetched_at: "desc" },
+        take: 60,
+        select: { fetched_at: true },
+      },
+    },
+  });
+}

@@ -67,6 +67,9 @@ export default async function SignalRadarPage({
   const eventDrivenCount = data.signals.filter(
     (signal) => signal.sourceMode === "event" || signal.sourceMode === "hybrid"
   ).length;
+  const structuralCount = data.signals.filter(
+    (signal) => signal.sourceMode === "structural"
+  ).length;
   const healthySourceCount = data.sources.filter((source) => source.ok).length;
   const updatedLabel = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
@@ -98,9 +101,9 @@ export default async function SignalRadarPage({
       tone: "violet",
     },
     {
-      label: "High Confidence",
-      value: highConfidenceCount.toLocaleString("en-US"),
-      hint: "Strongest external pressure",
+      label: "Scarcity Setups",
+      value: structuralCount.toLocaleString("en-US"),
+      hint: `${highConfidenceCount} high-confidence signals`,
       Icon: ShieldCheck,
       tone: "emerald",
     },
@@ -126,7 +129,7 @@ export default async function SignalRadarPage({
         <PageHeroHeader
           eyebrow="External market intelligence"
           title="Signal Radar"
-          description="Cards that may attract more demand soon from two independent paths: tournament adoption or fresh set, booklet, reveal, product, localization and reprint intelligence. Historical outcomes teach the 1.5x, 2x and 3x model without using DustyCards price momentum to pick candidates."
+          description="Cards that may attract more demand through tournament adoption, fresh set and product events, or structural scarcity. Sealed prices, pull difficulty, market depth, artist demand and graded value now shape separate raw and graded opportunity views."
           stats={stats}
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-white/46">
@@ -183,13 +186,15 @@ export default async function SignalRadarPage({
               <div className="min-w-0">
                 <h2 className="font-bold text-white">How a card enters the radar</h2>
                 <p className="mt-1 text-xs leading-5 text-white/48">
-                  A card can enter through tournament demand or through a trusted set event. Japanese reveals, leaked booklets, English-set mappings, promos and product announcements are matched to every related card variant; local price momentum never selects or boosts it.
+                  A card can enter through tournament demand, a trusted set event, or a structural scarcity setup. Older sets, expensive packs, difficult pulls, thin raw supply and strong graded premiums can now surface cards even without current news.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.11em] text-white/50">
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Meta share</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Core inclusion</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Set & booklet leaks</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Japan → English</span>
+                  <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Sealed pressure</span>
+                  <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Raw / graded</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Bulk noise suppressed</span>
                 </div>
               </div>

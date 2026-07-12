@@ -29,8 +29,76 @@ const SOURCE_CONFIG = {
 } as const;
 
 export type ExternalSignalConfidence = "High" | "Medium" | "Emerging";
-export type ExternalSignalSourceMode = "competitive" | "event" | "hybrid";
+export type ExternalSignalSourceMode = "competitive" | "event" | "hybrid" | "structural";
 export type ExternalEvidenceLevel = "Confirmed" | "Strong evidence" | "Credible leak" | "Rumour";
+export type ExternalMarketMode = "raw" | "graded";
+
+export interface ExternalPriceScenarioPoint {
+  days: 30 | 90 | 180;
+  low: number;
+  base: number;
+  high: number;
+}
+
+export interface ExternalPriceScenario {
+  marketMode: ExternalMarketMode;
+  currentPrice: number;
+  currency: "EUR" | "USD";
+  confidence: "High" | "Medium" | "Low";
+  points: ExternalPriceScenarioPoint[];
+  drivers: string[];
+}
+
+export interface ExternalSealedIntelligence {
+  productCount: number;
+  packProductCount: number;
+  packName: string | null;
+  packPrice: number | null;
+  boxName: string | null;
+  boxPrice: number | null;
+  trend30dPct: number | null;
+  trend90dPct: number | null;
+  ageYears: number | null;
+  pressureScore: number;
+  pressureLabel: "Low" | "Building" | "High" | "Extreme";
+}
+
+export interface ExternalGradedIntelligence {
+  available: boolean;
+  label: string | null;
+  currentPrice: number | null;
+  currency: "EUR" | "USD";
+  sampleSize: number | null;
+  psa9Price: number | null;
+  psa10Price: number | null;
+  gradePremiumPct: number | null;
+  gemRatePct: number | null;
+  population10: number | null;
+  populationTotal: number | null;
+  populationStatus: "verified" | "set-rarity-estimate" | "unavailable";
+  supplyLabel: "Deep" | "Balanced" | "Thin" | "Unknown";
+}
+
+export interface ExternalScarcityIntelligence {
+  score: number;
+  label: "Common supply" | "Watch" | "Scarce" | "Very scarce";
+  pullOdds: string | null;
+  specificPullDenominator: number | null;
+  rawMarketBreadth: number;
+  rawTrend90dPct: number | null;
+  artist: string | null;
+  artistDemandScore: number | null;
+}
+
+export interface ExternalMarketIntelligence {
+  rawOpportunityScore: number;
+  gradedOpportunityScore: number | null;
+  sealed: ExternalSealedIntelligence;
+  graded: ExternalGradedIntelligence;
+  scarcity: ExternalScarcityIntelligence;
+  rawScenario: ExternalPriceScenario | null;
+  gradedScenario: ExternalPriceScenario | null;
+}
 
 export interface LimitlessMetaDeck {
   id: string;
@@ -110,6 +178,7 @@ export interface ExternalCardSignal {
   catalystScore?: number;
   hypeScore?: number;
   riskScore?: number;
+  marketIntelligence?: ExternalMarketIntelligence;
 }
 
 export interface ExternalSignalSourceStatus {

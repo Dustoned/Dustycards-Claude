@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.19",
+    releasedAt: "July 12, 2026",
+    title: "Raw, graded & scarcity intelligence",
+    summary:
+      "DustyCards 3.6.19 adds structural scarcity candidates, sealed-market pressure, graded opportunity views, and transparent 30/90/180-day price scenarios to Signal Radar.",
+    tone: "new",
+    highlights: [
+      "Cards can now enter through Scarcity & value without needing a tournament result or current news catalyst.",
+      "Sealed pack and box prices, sealed trends, set age, pull difficulty, market breadth, artist track record, and collector demand feed a separate opportunity score.",
+      "A Raw / Graded switch reuses existing CardMarket and eBay sold data, so changing views adds no Firecrawl usage.",
+      "Each card receives a low, base, and high 30/90/180-day scenario graph; these ranges are explicitly separated from the historically calibrated 1.5x, 2x, and 3x probabilities.",
+      "PSA 10 prices, sold depth, grade premium, and set-rarity gem-rate are shown now; exact card-level PSA population remains labelled as API pending until a verified partner feed is configured.",
+    ],
+  },
+  {
     version: "3.6.18",
     releasedAt: "July 12, 2026",
     title: "Set & Event Intelligence",
