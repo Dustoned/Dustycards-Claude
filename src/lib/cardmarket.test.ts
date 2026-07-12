@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCardMarketProxyUrl,
   getSafeDirectCardMarketCardUrl,
   isCardMarketProductIdUrl,
   resolveCardMarketCardUrl,
@@ -7,6 +8,19 @@ import {
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 
 describe("CardMarket card URL resolution", () => {
+  it("removes the DustyCards One Piece scope from TCGGO redirect URLs", () => {
+    expect(buildCardMarketProxyUrl("one-piece:48399")).toBe(
+      "https://www.tcggo.com/external/cm/48399"
+    );
+    expect(
+      resolveCardMarketCardUrl({
+        id: "one-piece:48399",
+        game: ONE_PIECE_GAME,
+        cardmarket_url: null,
+      })
+    ).toBe("https://www.tcggo.com/external/cm/48399");
+  });
+
   it("treats idProduct card URLs as unsafe direct links", () => {
     const url = "https://www.cardmarket.com/Pokemon/Products?idProduct=775295&language=1";
 

@@ -16,10 +16,7 @@ function toneClasses(tone: PatchNoteTone): string {
 }
 
 function statusClasses(status: string): string {
-  if (status === "Completed") return "border-emerald-400/24 bg-emerald-400/[0.1] text-emerald-700 dark:text-emerald-200";
   if (status === "Next") return "border-emerald-400/22 bg-emerald-400/[0.08] text-emerald-700 dark:text-emerald-200";
-  if (status === "In progress") return "border-sky-400/22 bg-sky-400/[0.08] text-sky-700 dark:text-sky-200";
-  if (status === "Waiting") return "border-violet-400/22 bg-violet-400/[0.08] text-violet-700 dark:text-violet-200";
   return "border-white/10 bg-white/[0.04] text-gray-500 dark:text-white/55";
 }
 
@@ -171,11 +168,11 @@ export default function SettingsUpdatesPanel() {
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-gray-950 dark:text-white">Roadmap</h3>
             <p className="mt-0.5 text-xs text-gray-500 dark:text-white/45">
-              Short list of planned polish, kept intentionally compact.
+              Only concrete features that are not already live.
             </p>
           </div>
 
-          <div className="max-h-[38rem] space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-2">
             {roadmapItems.map((item) => (
               <div
                 key={item.title}
