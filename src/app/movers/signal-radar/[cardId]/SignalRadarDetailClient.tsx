@@ -302,10 +302,10 @@ export default function SignalRadarDetailClient({
         </div>
       </div>
 
-    <div className="hidden items-start gap-5 lg:grid lg:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] 2xl:grid-cols-[clamp(21rem,26vw,32rem)_minmax(0,1fr)] 2xl:gap-6">
+    <div className="hidden items-start gap-5 lg:grid lg:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] 2xl:grid-cols-[clamp(20rem,22vw,28rem)_minmax(0,1fr)] 2xl:gap-5">
       <aside className="2xl:sticky 2xl:top-5">
         <div className="p-1 [&>div:nth-child(n+3)]:hidden">
-          <div className="relative mx-auto aspect-[63/88] w-full max-w-[32rem] overflow-hidden rounded-[1.15rem] border border-white/12 bg-black/28 shadow-[0_28px_80px_rgba(0,0,0,0.46)]">
+          <div className="relative mx-auto aspect-[63/88] w-full max-w-[28rem] overflow-hidden rounded-[1.15rem] border border-white/12 bg-black/28 shadow-[0_28px_80px_rgba(0,0,0,0.46)]">
             {signal.imageUrl ? (
               <CachedImage
                 sourceUrl={signal.imageUrl}
@@ -405,8 +405,8 @@ export default function SignalRadarDetailClient({
         </div>
       </aside>
 
-      <div className="grid min-w-0 gap-4 2xl:grid-cols-12 2xl:items-start">
-        <section className="2xl:col-span-5 2xl:col-start-1 2xl:row-start-1 [@media(min-width:2200px)]:col-span-4">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-12 2xl:items-stretch">
+        <section className="flex h-full flex-col rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] p-4 2xl:col-span-5 2xl:col-start-1 2xl:row-start-1 [@media(min-width:2200px)]:col-span-4">
           <div className="flex flex-wrap gap-1.5">
             <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">#{signal.rank} Radar</span>
             <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">{signal.game === "one-piece" ? "One Piece" : "Pokemon"}</span>
@@ -424,7 +424,7 @@ export default function SignalRadarDetailClient({
             <MetricRow label="Type" value={[cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"} />
             <MetricRow label="Release" value={releaseLabel} />
           </div>
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(10rem,0.72fr)] gap-2">
+          <div className="mt-auto grid grid-cols-[minmax(0,1fr)_minmax(10rem,0.72fr)] gap-2 pt-3">
             <div className="rounded-xl border border-violet-300/12 bg-violet-400/[0.055] p-3">
               <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/30">Current {marketMode} market</p>
               <p className="mt-1 text-2xl font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
@@ -473,7 +473,7 @@ export default function SignalRadarDetailClient({
           </div>
         </section>
 
-        <AnalysisSection className="2xl:col-span-7 2xl:col-start-6 2xl:row-span-2 2xl:row-start-1 [@media(min-width:2200px)]:col-span-8 [@media(min-width:2200px)]:col-start-5" eyebrow="Price model" title={`${marketMode === "graded" ? "Graded" : "Raw"} value scenario${scenarioUsesAverageBaseline ? " · 7d avg baseline" : ""}`} icon={<BarChart3 className="h-4 w-4" />} aside={scenario ? <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/42">{scenario.confidence} confidence</span> : null}>
+        <AnalysisSection className="2xl:col-span-7 2xl:col-start-6 2xl:row-start-1 [@media(min-width:2200px)]:col-span-8 [@media(min-width:2200px)]:col-start-5" eyebrow="Price model" title={`${marketMode === "graded" ? "Graded" : "Raw"} value scenario${scenarioUsesAverageBaseline ? " · 7d avg baseline" : ""}`} icon={<BarChart3 className="h-4 w-4" />} aside={scenario ? <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/42">{scenario.confidence} confidence</span> : null}>
           {scenario ? (
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
               <div className="min-w-0 rounded-xl border border-violet-300/10 bg-violet-400/[0.035] p-3">
@@ -497,7 +497,7 @@ export default function SignalRadarDetailClient({
           ) : <p className="text-xs text-white/38">Not enough reliable market history for a price scenario.</p>}
         </AnalysisSection>
 
-          <AnalysisSection className="2xl:col-span-6 [@media(min-width:2200px)]:col-span-4" eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
+          <AnalysisSection className="2xl:col-span-7 2xl:col-start-6 2xl:row-start-2 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-5" eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-amber-300/10 bg-amber-400/[0.025]">
                 <MetricRow label="Sealed pressure" value={`${market?.sealed.pressureLabel ?? "--"} · ${market?.sealed.pressureScore ?? "--"}/100`} />
@@ -514,7 +514,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-          <AnalysisSection className="2xl:col-span-6 [@media(min-width:2200px)]:col-span-4" eyebrow="Demand quality" title="Collector, artist and grading" icon={<Sparkles className="h-4 w-4" />}>
+          <AnalysisSection className="2xl:col-span-6 2xl:col-start-1 2xl:row-start-3 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-9 [@media(min-width:2200px)]:row-start-2" eyebrow="Demand quality" title="Collector, artist and grading" icon={<Sparkles className="h-4 w-4" />}>
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.025]">
                 <MetricRow label="Confluence" value={`${market?.confluence.label ?? "--"} · ${market?.confluence.score ?? "--"}/100`} />
@@ -531,7 +531,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-        <AnalysisSection className="2xl:col-span-12 [@media(min-width:2200px)]:col-span-4" eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
+        <AnalysisSection className="2xl:col-span-6 2xl:col-start-7 2xl:row-start-3 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-1" eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
           <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
             <div className="grid grid-cols-[0.55fr_0.65fr_0.7fr_1.4fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">
               <span>Target</span><span>Horizon</span><span>Probability</span><span>Model progress</span>
@@ -551,7 +551,7 @@ export default function SignalRadarDetailClient({
           </div>
         </AnalysisSection>
 
-          <AnalysisSection className="2xl:col-span-6 [@media(min-width:2200px)]:hidden" eyebrow="Investment thesis" title="Why it is on the radar" icon={<Radar className="h-4 w-4" />}>
+          <AnalysisSection className="2xl:col-span-6 2xl:col-start-1 2xl:row-start-4 [@media(min-width:2200px)]:hidden" eyebrow="Investment thesis" title="Why it is on the radar" icon={<Radar className="h-4 w-4" />}>
             <div className="space-y-2">
               {explanations.map((item) => (
                 <div key={item.label} className="flex gap-3 rounded-xl border border-white/7 bg-black/16 p-3">
@@ -562,7 +562,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-          <AnalysisSection className="2xl:col-span-6 [@media(min-width:2200px)]:col-span-6" eyebrow="Source evidence" title="External proof" icon={<ArrowUpRight className="h-4 w-4" />} aside={<span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/28">{signal.horizon}</span>}>
+          <AnalysisSection className="2xl:col-span-6 2xl:col-start-7 2xl:row-start-4 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-5 [@media(min-width:2200px)]:row-start-3" eyebrow="Source evidence" title="External proof" icon={<ArrowUpRight className="h-4 w-4" />} aside={<span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/28">{signal.horizon}</span>}>
             <div className="space-y-2">
               {signal.evidence.length ? signal.evidence.map((item) => (
                 <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border border-white/7 bg-black/16 px-3 py-3 transition hover:border-violet-300/20">
@@ -574,7 +574,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-        <AnalysisSection className="2xl:col-span-12 [@media(min-width:2200px)]:col-span-6" eyebrow="Daily external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
+        <AnalysisSection className="2xl:col-span-12 2xl:col-start-1 2xl:row-start-5 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-9 [@media(min-width:2200px)]:row-start-3" eyebrow="Daily external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
           {catalysts.length ? (
             <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
               <div className="grid grid-cols-[0.55fr_1.5fr_0.65fr_0.6fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28"><span>Type</span><span>Catalyst</span><span>Evidence</span><span>Direction</span></div>
