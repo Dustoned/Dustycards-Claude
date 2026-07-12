@@ -290,4 +290,39 @@ describe("external catalyst discovery orchestration", () => {
     expect(scrapeReservations).toHaveLength(2);
     expect(new Set(scrapeReservations).size).toBe(2);
   });
+
+  it("analyzes social search snippets without spending a scrape credit", async () => {
+    const store = makeStore();
+    const deps = dependencies({
+      store,
+      searchResults: {
+        pokemon: {
+          results: [
+            {
+              title: "Meowth ex is going viral after major new support",
+              description: "Players report surging demand for Meowth ex.",
+              url: "https://reddit.com/r/PokemonTCG/comments/example/meowth_ex_hype",
+            },
+          ],
+          creditsUsed: 1,
+          warning: null,
+        },
+      },
+    });
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates: [candidates[0]], now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(deps.scrapePage).not.toHaveBeenCalled();
+    expect(result.sourcesScraped).toBe(0);
+    expect(result.catalystsPersisted).toBeGreaterThan(0);
+    expect(result.matches[0]).toMatchObject({
+      cardId: "pokemon-meowth",
+      sourceKind: "social",
+    });
+    expect(result.creditsUsed).toBe(1);
+    expect(result.errors).toEqual([]);
+  });
 });

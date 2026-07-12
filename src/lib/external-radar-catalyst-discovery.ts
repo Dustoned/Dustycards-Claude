@@ -448,6 +448,41 @@ function selectUnseenSourcesFairly(
   return selected.slice(0, EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN);
 }
 
+function buildSocialSnippetEvidence(
+  source: DiscoveredCatalystSource
+): FirecrawlPageScrapeResult {
+  return {
+    title: source.title,
+    sourceUrl: source.canonicalUrl,
+    markdown: [source.title, source.description].filter(Boolean).join("\n\n"),
+    html: "",
+    links: [],
+    creditsUsed: 0,
+    metadata: { evidenceMode: "search-snippet" },
+  };
+}
+
+function analyzeScrapedCatalystSource(
+  source: DiscoveredCatalystSource,
+  scrape: FirecrawlPageScrapeResult,
+  candidates: readonly CatalystCandidate[]
+): CatalystCardMatch[] {
+  const publishedAt = parsePublishedAt(scrape.metadata);
+  return dedupeCatalystCardMatches(
+    analyzeCatalystDocument(
+      {
+        url: source.canonicalUrl,
+        game: source.game,
+        title: scrape.title ?? source.title,
+        description: source.description,
+        body: scrape.markdown || scrape.html,
+        publishedAt: publishedAt?.toISOString() ?? null,
+      },
+      candidates
+    )
+  );
+}
+
 function baseResult(due: boolean): ExternalCatalystDiscoveryResult {
   return {
     status: due ? "success" : "skipped",
@@ -580,6 +615,28 @@ export async function runExternalCatalystDiscovery(
     }
     result.sourcesCreated += 1;
 
+    if (source.sourceKind === "social") {
+      const snippet = buildSocialSnippetEvidence(source);
+      const snippetMatches = analyzeScrapedCatalystSource(source, snippet, candidates);
+      result.matches.push(...snippetMatches);
+      try {
+        result.catalystsPersisted += await dependencies.store.persistScrapedSource({
+          sourceId: sourceRow.id,
+          source,
+          scrape: snippet,
+          matches: snippetMatches,
+          now,
+        });
+      } catch (error) {
+        result.errors.push({
+          stage: "persist",
+          message: errorMessage(error),
+          url: source.canonicalUrl,
+        });
+      }
+      continue;
+    }
+
     try {
       const budgeted = await dependencies.runBudgetedRequest<FirecrawlPageScrapeResult>({
         consumer: FIRECRAWL_CONSUMER,
@@ -593,19 +650,11 @@ export async function runExternalCatalystDiscovery(
       if (!budgeted.executed || !budgeted.result) continue;
       result.creditsUsed += budgeted.creditsUsed;
       result.sourcesScraped += 1;
-      const publishedAt = parsePublishedAt(budgeted.result.metadata);
-      const sourceMatches = analyzeCatalystDocument(
-        {
-          url: source.canonicalUrl,
-          game: source.game,
-          title: budgeted.result.title ?? source.title,
-          description: source.description,
-          body: budgeted.result.markdown || budgeted.result.html,
-          publishedAt: publishedAt?.toISOString() ?? null,
-        },
+      const dedupedMatches = analyzeScrapedCatalystSource(
+        source,
+        budgeted.result,
         candidates
       );
-      const dedupedMatches = dedupeCatalystCardMatches(sourceMatches);
       result.matches.push(...dedupedMatches);
 
       try {
