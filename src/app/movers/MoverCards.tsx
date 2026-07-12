@@ -151,6 +151,7 @@ function handleOpenKey(event: KeyboardEvent<HTMLElement>, onOpen: () => void) {
 
 
 type MoverDisplayMode = "raw" | "graded" | "target";
+type MoverChangeDisplay = "percent" | "amount";
 
 type MoverReasonTone = "emerald" | "rose" | "amber" | "sky" | "violet";
 
@@ -224,7 +225,8 @@ function MoverBuySignalChip({
  */
 export function getMoverReasons(
   item: CollectionMoverItem,
-  mode: MoverDisplayMode
+  mode: MoverDisplayMode,
+  changeDisplay: MoverChangeDisplay = "percent"
 ): MoverReason[] {
   const reasons: MoverReason[] = [];
 
@@ -276,6 +278,12 @@ export function getMoverReasons(
 
   // raw or graded
   const recentDropAmount = getRecentDropAmount(item);
+  if (changeDisplay === "amount") {
+    return recentDropAmount > 0
+      ? [{ label: `${formatTileDelta(-recentDropAmount, item.currency)} drop`, tone: "rose" }]
+      : [];
+  }
+
   if (recentDropAmount >= 50) {
     reasons.push({
       label: `-${formatCurrency(recentDropAmount, item.currency)} drop`,
@@ -330,11 +338,13 @@ export function getMoverReasons(
 function MoverReasonChips({
   item,
   mode,
+  changeDisplay,
 }: {
   item: CollectionMoverItem;
   mode: MoverDisplayMode;
+  changeDisplay: MoverChangeDisplay;
 }) {
-  const reasons = getMoverReasons(item, mode);
+  const reasons = getMoverReasons(item, mode, changeDisplay);
   if (reasons.length === 0) return null;
 
   return (
@@ -384,7 +394,8 @@ function CompactMetric({
 function buildCompactMetrics(
   item: CollectionMoverItem,
   mode: MoverDisplayMode,
-  metricWindowLabel = "7D"
+  metricWindowLabel = "7D",
+  changeDisplay: MoverChangeDisplay = "percent"
 ): Array<{
   label: string;
   value: string;
@@ -448,7 +459,13 @@ function buildCompactMetrics(
       item.tcggoScore?.score != null
         ? { label: "TCGGO", value: formatOptionalScore(item.tcggoScore.score) }
         : null,
-      item.change7dPct != null
+      changeDisplay === "amount" && item.change7d != null
+        ? {
+            label: metricWindowLabel,
+            value: formatTileDelta(item.change7d, item.currency),
+            toneValue: item.change7d,
+          }
+        : item.change7dPct != null
         ? {
             label: metricWindowLabel,
             value: formatPercent(item.change7dPct),
@@ -480,6 +497,7 @@ const MoverTile = memo(function MoverTile({
   displayMode,
   isHighlighted,
   metricWindowLabel,
+  changeDisplay,
   onOpen,
 }: {
   item: CollectionMoverItem;
@@ -487,12 +505,13 @@ const MoverTile = memo(function MoverTile({
   displayMode: MoverDisplayMode;
   isHighlighted: boolean;
   metricWindowLabel?: string;
+  changeDisplay: MoverChangeDisplay;
   onOpen: (cardId: string) => void;
 }) {
   const open = () => onOpen(item.cardId);
   const mode = displayMode;
   const isTarget = mode === "target";
-  const compactMetrics = buildCompactMetrics(item, mode, metricWindowLabel);
+  const compactMetrics = buildCompactMetrics(item, mode, metricWindowLabel, changeDisplay);
   const primaryLabel = isTarget ? "Grade score" : item.gradedLabel ?? "Current";
   const primaryValue = isTarget
     ? formatScoreValue(item.moverScore)
@@ -582,7 +601,7 @@ const MoverTile = memo(function MoverTile({
               </span>
             ) : null}
             <MoverBuySignalChip signal={item.buySignal} />
-            <MoverReasonChips item={item} mode={mode} />
+            <MoverReasonChips item={item} mode={mode} changeDisplay={changeDisplay} />
             {mode === "target" ? (
               <span className="inline-flex rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/45">
                 Target
@@ -907,6 +926,7 @@ export function MoverGrid({
   displayMode,
   highlightedCardId,
   metricWindowLabel,
+  changeDisplay = "percent",
   onOpenCard,
 }: {
   movers: readonly CollectionMoverItem[];
@@ -915,6 +935,7 @@ export function MoverGrid({
   displayMode: MoverDisplayMode;
   highlightedCardId?: string | null;
   metricWindowLabel?: string;
+  changeDisplay?: MoverChangeDisplay;
   onOpenCard: (cardId: string) => void;
 }) {
   return (
@@ -933,6 +954,7 @@ export function MoverGrid({
           displayMode={displayMode}
           isHighlighted={item.cardId === highlightedCardId}
           metricWindowLabel={metricWindowLabel}
+          changeDisplay={changeDisplay}
           onOpen={onOpenCard}
         />
       ))}

@@ -310,7 +310,6 @@ export default function MoversBrowser({
     if (isSuddenDropMode) {
       return [
         { key: "move" as const, label: "Fresh biggest drop" },
-        { key: "7d" as const, label: "Fresh drop %" },
         { key: "price_low" as const, label: "Price low" },
         { key: "name" as const, label: "Name" },
       ];
@@ -741,6 +740,7 @@ export default function MoversBrowser({
               displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
               highlightedCardId={activeHighlightedCardId}
               metricWindowLabel={metricWindowLabel}
+              changeDisplay={isSuddenDropMode ? "amount" : "percent"}
               onOpenCard={handleOpenMoverCard}
             />
             {hasMoreMovers ? (
