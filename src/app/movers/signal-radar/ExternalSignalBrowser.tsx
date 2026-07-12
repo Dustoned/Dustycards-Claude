@@ -78,7 +78,7 @@ function getConfidenceClasses(confidence: ExternalSignalConfidence): string {
   return "border-amber-300/20 bg-amber-400/[0.09] text-amber-200";
 }
 
-function getSignalExplanations(signal: ExternalCardSignal) {
+export function getSignalExplanations(signal: ExternalCardSignal) {
   if (signal.sourceMode === "structural") {
     const market = signal.marketIntelligence;
     return [
@@ -151,7 +151,7 @@ function formatSignedPercent(value: number | null): string {
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
-function PriceScenarioChart({ scenario }: { scenario: ExternalPriceScenario }) {
+export function PriceScenarioChart({ scenario }: { scenario: ExternalPriceScenario }) {
   const values = [
     scenario.currentPrice,
     ...scenario.points.flatMap((point) => [point.low, point.base, point.high]),

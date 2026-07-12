@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.22",
+    releasedAt: "July 12, 2026",
+    title: "Full card-style radar analysis",
+    summary:
+      "Radar analysis pages now follow the regular card-detail structure with a dedicated card column and clearly separated analysis tables.",
+    tone: "improved",
+    highlights: [
+      "The card image, identity, current price, Raw / Graded switch, expansion, illustrator, and core card details now live in a dedicated left column.",
+      "Expansion and illustrator labels are clickable, while CardMarket and eBay Deals have their own permanent market buttons.",
+      "Price scenarios, sealed and scarcity, collector and grading demand, historical calibration, thesis, evidence, and catalyst risk each have a separate large section.",
+      "Structured table rows replace the previous single stretched panel, making ultrawide analysis easier to scan.",
+      "The side-by-side card-detail layout starts at 1536px; smaller desktops and mobile devices keep spacious stacked sections.",
+    ],
+  },
+  {
     version: "3.6.21",
     releasedAt: "July 12, 2026",
     title: "Focused Signal Radar cards",
