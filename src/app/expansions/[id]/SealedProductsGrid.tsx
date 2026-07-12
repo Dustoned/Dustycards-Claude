@@ -1,11 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Package } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import CachedImage from "@/components/CachedImage";
 import { SectionHeader } from "@/components/PageHeader";
 import { useSettings } from "@/components/SettingsProvider";
 import {
@@ -28,7 +28,6 @@ import {
   getSealedProductImageSizes,
 } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CardSize } from "@/lib/user-settings";
 import {
   getActiveSealedGroup,
@@ -79,8 +78,8 @@ function SealedProductCard({
     >
       <div className={sealedTileImageClass(cardSize)}>
         {product.image_url ? (
-          <Image
-            src={getCachedImageUrl(product.image_url) ?? product.image_url}
+          <CachedImage
+            sourceUrl={product.image_url}
             alt={product.name}
             fill
             className={`object-contain ${sealedTileImagePaddingClass(cardSize)}`}

@@ -34,6 +34,7 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import CachedImage from "@/components/CachedImage";
 import {
   clearRecentSearches,
   readRecentSearches,
@@ -703,8 +704,8 @@ function SearchPageContent({
                         )}
                       >
                         {card.image_url ? (
-                          <Image
-                            src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                          <CachedImage
+                            sourceUrl={card.image_url}
                             alt={card.name}
                             fill
                             className={getCardImageClassName(
@@ -712,8 +713,8 @@ function SearchPageContent({
                               "rounded-[4.75%] object-fill"
                             )}
                             sizes={minWidth}
-                            loading={index < 18 ? "eager" : undefined}
-                            unoptimized
+                            loading={index < 4 ? "eager" : undefined}
+                            fetchPriority={index < 4 ? "high" : "auto"}
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center rounded-xl bg-white/6 text-xs text-white/35">
@@ -850,14 +851,14 @@ function SearchPageContent({
                   >
                     <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-white/8 bg-black/24 shadow-md shadow-black/20">
                       {product.image_url ? (
-                        <Image
-                          src={getCachedImageUrl(product.image_url) ?? product.image_url}
+                        <CachedImage
+                          sourceUrl={product.image_url}
                           alt={product.name}
                           fill
                           className="scale-[1.25] object-contain p-2"
                           sizes={sealedImageSizes}
-                          loading={index < 18 ? "eager" : undefined}
-                          unoptimized
+                          loading={index < 4 ? "eager" : undefined}
+                          fetchPriority={index < 4 ? "high" : "auto"}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">

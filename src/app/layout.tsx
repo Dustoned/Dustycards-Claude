@@ -192,6 +192,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <head>
+        <link rel="preconnect" href="https://assets.tcgdex.net" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://images.tcggo.com" />
         <script dangerouslySetInnerHTML={{ __html: initialBrowserSettingsScript }} />
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
       </head>

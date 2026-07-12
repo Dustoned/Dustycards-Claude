@@ -1,7 +1,6 @@
 import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import { NextRequest, NextResponse } from "next/server";
-import { authErrorResponse, requireUser } from "@/lib/auth";
 import {
   ensureImageCached,
   parseCacheableImageUrl,
@@ -12,19 +11,15 @@ export const dynamic = "force-dynamic";
 
 function imageHeaders(contentType: string, cacheState: "HIT" | "MISS"): HeadersInit {
   return {
-    "Cache-Control": "public, max-age=31536000, immutable",
+    "Cache-Control": "public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400, immutable",
     "Content-Type": contentType,
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "X-Content-Type-Options": "nosniff",
     "X-DustyCards-Image-Cache": cacheState,
   };
 }
 
 export async function GET(request: NextRequest) {
-  try {
-    await requireUser();
-  } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json({ error: "Authentication failed" }, { status: 500 });
-  }
-
   const sourceUrl = parseCacheableImageUrl(request.nextUrl.searchParams.get("url"));
   if (!sourceUrl) {
     return NextResponse.json({ error: "Unsupported image URL" }, { status: 400 });

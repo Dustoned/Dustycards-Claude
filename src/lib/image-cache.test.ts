@@ -15,13 +15,11 @@ describe("image cache", () => {
     );
   });
 
-  it("leaves regular cacheable images on the original cache variant", () => {
+  it("loads optimized TCGdex images directly for a faster cold start", () => {
     const sourceUrl = "https://assets.tcgdex.net/en/sv/sv01/1/high.webp";
 
     expect(getImageCacheVariantForSourceUrl(sourceUrl)).toBeNull();
-    expect(getCachedImageUrl(sourceUrl)).toBe(
-      `/api/image-cache?url=${encodeURIComponent(sourceUrl)}`
-    );
+    expect(getCachedImageUrl(sourceUrl)).toBe(sourceUrl);
   });
 
   it.each([

@@ -2,14 +2,13 @@
 
 import dynamic from "next/dynamic";
 import { type ReactNode, useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight, ExternalLink, LineChart, Package, RefreshCw } from "lucide-react";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
+import CachedImage from "@/components/CachedImage";
 import { DETAIL_MARKET_LINK_CLASS } from "@/components/detail-market-link-style";
 import { buildSealedEbaySearchUrl } from "@/lib/ebay-search-url";
 import { getExpansionHref } from "@/lib/games";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import type { SealedMarketHistorySeriesKey } from "@/lib/price-history";
 import { formatCurrency } from "./utils";
 import type { SealedDetailResponse, SealedFeaturedCard } from "./types";
@@ -417,13 +416,15 @@ export function SealedModalPreview({
     >
       <div className="relative aspect-square w-full overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] shadow-[0_18px_50px_rgba(0,0,0,0.35)] max-[640px]:rounded-2xl">
         {product.image_url ? (
-          <Image
-            src={getCachedImageUrl(product.image_url) ?? product.image_url}
+          <CachedImage
+            sourceUrl={product.image_url}
             alt={product.name}
             fill
             className={`object-contain ${imagePadding}`}
             sizes={imageSize}
             loading="eager"
+            fetchPriority="high"
+            priority
             unoptimized
           />
         ) : (
@@ -458,8 +459,8 @@ function FeaturedCardTile({
     >
       <div className="relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-black/22 shadow-[0_10px_24px_rgba(0,0,0,0.25)]">
         {card.image_url ? (
-          <Image
-            src={getCachedImageUrl(card.image_url) ?? card.image_url}
+          <CachedImage
+            sourceUrl={card.image_url}
             alt={card.name}
             fill
             className="object-fill"

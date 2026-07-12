@@ -1,9 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Boxes, Gift, Package } from "lucide-react";
 import { db } from "@/lib/db";
-import { getCachedImageUrl } from "@/lib/image-cache";
+import CachedImage from "@/components/CachedImage";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { ONE_PIECE_GAME } from "@/lib/games";
@@ -133,13 +132,14 @@ export default async function CardSealedProductsPage({
           <div className="flex min-w-0 items-center gap-4">
             <div className="relative h-28 w-20 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/20 sm:h-32 sm:w-24">
               {card.image_url ? (
-                <Image
-                  src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                <CachedImage
+                  sourceUrl={card.image_url}
                   alt={card.name}
                   fill
                   sizes="96px"
                   className="object-contain"
-                  unoptimized
+                  loading="eager"
+                  fetchPriority="high"
                 />
               ) : null}
             </div>

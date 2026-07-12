@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import Image from "next/image";
+import CachedImage from "@/components/CachedImage";
 import Link from "next/link";
 import { memo } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
@@ -9,7 +9,6 @@ import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionMoverItem } from "@/lib/movers";
 
 interface PreviewCardConfig {
@@ -527,13 +526,12 @@ const MoverTile = memo(function MoverTile({
           )}
         >
           {item.imageUrl ? (
-            <Image
-              src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
+            <CachedImage
+              sourceUrl={item.imageUrl}
               alt={item.name}
               fill
               className={getCardImageClassName(item.imageUrl, "rounded-[4.75%] object-fill")}
               sizes="(max-width: 640px) 52px, 64px"
-              unoptimized
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-white/35">
@@ -669,13 +667,12 @@ function MoverSpotlightCard({
             )}
           >
             {item.imageUrl ? (
-              <Image
-                src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
+              <CachedImage
+                sourceUrl={item.imageUrl}
                 alt={item.name}
                 fill
                 className={getCardImageClassName(item.imageUrl, "rounded-[4.75%] object-fill")}
                 sizes="48px"
-                unoptimized
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xs text-white/35">

@@ -17,9 +17,9 @@ function resolveImageCacheDir() {
 export const IMAGE_CACHE_DIR = resolveImageCacheDir();
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 30_000;
-// The card image hosts are fast CDNs and accept many parallel connections;
-// bumping from 3 to 10 cuts image-warm time roughly 3x.
-const MAX_REMOTE_IMAGE_FETCHES = 10;
+// The remaining proxied image hosts accept parallel connections. Keep enough
+// slots available for one visible row without flooding the upstream CDNs.
+const MAX_REMOTE_IMAGE_FETCHES = 16;
 
 let activeRemoteImageFetches = 0;
 const remoteImageFetchQueue: Array<() => void> = [];
@@ -358,7 +358,7 @@ async function trimTransparentImagePadding(buffer: Buffer): Promise<Buffer | nul
 
   return sharp(buffer, { limitInputPixels: false })
     .extract({ left, top, width: trimWidth, height: trimHeight })
-    .png({ compressionLevel: 9, effort: 10 })
+    .png({ compressionLevel: 6, effort: 3 })
     .toBuffer();
 }
 

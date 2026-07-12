@@ -2,7 +2,6 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -25,6 +24,7 @@ import {
   UserRound,
 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CachedImage from "@/components/CachedImage";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import { DETAIL_MARKET_LINK_CLASS } from "@/components/detail-market-link-style";
@@ -49,7 +49,6 @@ import {
 } from "@/lib/price-refresh";
 import type { CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { formatCurrency } from "./utils";
@@ -1483,13 +1482,15 @@ export function CardModalPreview({
                 tileSize={gradedTileSize}
               />
             ) : (
-              <Image
-                src={getCachedImageUrl(card.image_url) ?? card.image_url}
+              <CachedImage
+                sourceUrl={card.image_url}
                 alt={card.name}
                 fill
                 className={getCardImageClassName(card.image_url, "rounded-[4.75%] object-fill")}
                 sizes={imageSize}
                 loading="eager"
+                fetchPriority="high"
+                priority
                 unoptimized
               />
             )}
@@ -1863,8 +1864,8 @@ export function CardModalMobileShowcase({
                   tileSize={gradedTileSize}
                 />
               ) : (
-                <Image
-                  src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                <CachedImage
+                  sourceUrl={card.image_url}
                   alt={card.name}
                   fill
                   className={getCardImageClassName(card.image_url, "rounded-[4.75%] object-fill")}
@@ -2805,8 +2806,8 @@ export function CardModalOwnedCopyPanel({
               "relative aspect-[63/88] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]"
             )}
           >
-            <Image
-              src={getCachedImageUrl(card.image_url) ?? card.image_url}
+            <CachedImage
+              sourceUrl={card.image_url}
               alt={card.name}
               fill
               sizes="64px"
@@ -2944,8 +2945,8 @@ export function CardModalActiveListingsPanel({
               >
                 <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20 2xl:h-[4.5rem] 2xl:w-[4.5rem]">
                   {product.image_url ? (
-                    <Image
-                      src={getCachedImageUrl(product.image_url) ?? product.image_url}
+                    <CachedImage
+                      sourceUrl={product.image_url}
                       alt={product.name}
                       fill
                       sizes="(max-width: 1536px) 64px, 72px"

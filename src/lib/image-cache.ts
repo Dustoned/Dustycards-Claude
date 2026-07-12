@@ -14,6 +14,14 @@ export const CACHEABLE_IMAGE_HOSTS = new Set([
   "icv2.com",
 ]);
 
+// These hosts are already optimized card-image CDNs. Sending them through the
+// application server makes a first visit slower and adds no visual processing.
+export const DIRECT_BROWSER_IMAGE_HOSTS = new Set([
+  "assets.tcgdex.net",
+  "pokemoncardimages.pokedata.io",
+  "product-images.tcgplayer.com",
+]);
+
 export const TCGGO_CARD_TRANSPARENT_TRIM_VARIANT = "tcggo-card-transparent-trim-v3";
 
 export type ImageCacheVariant = typeof TCGGO_CARD_TRANSPARENT_TRIM_VARIANT;
@@ -53,6 +61,9 @@ export function isCacheableRemoteImageUrl(value: string | null | undefined): val
 export function getCachedImageUrl(value: string | null | undefined): string | null {
   if (!value) return null;
   if (!isCacheableRemoteImageUrl(value)) return value;
+
+  const sourceUrl = new URL(value);
+  if (DIRECT_BROWSER_IMAGE_HOSTS.has(sourceUrl.hostname)) return value;
 
   const variant = getImageCacheVariantForSourceUrl(value);
   const variantParam = variant ? `&variant=${encodeURIComponent(variant)}` : "";

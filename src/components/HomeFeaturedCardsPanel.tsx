@@ -1,11 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
+import CachedImage from "@/components/CachedImage";
 import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import {
@@ -35,7 +35,6 @@ import {
   getCardGridTrackWidth,
 } from "@/lib/display-scale";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
 const DEFAULT_DESKTOP_FEATURED_COLUMNS = 8;
@@ -103,11 +102,13 @@ function FeaturedCardTile({
   opening,
   onOpen,
   imageSizes,
+  priority,
 }: {
   item: CollectionCardViewItem;
   opening: boolean;
   onOpen: (item: CollectionCardViewItem) => void;
   imageSizes: string;
+  priority: boolean;
 }) {
   const { settings, displaySettings } = useSettings();
   const gradingCompanyLabel = normalizeGradingCompanyLabel(item.grading_company);
@@ -167,13 +168,14 @@ function FeaturedCardTile({
             </div>
           </div>
         ) : item.image_url ? (
-          <Image
-            src={getCachedImageUrl(item.image_url) ?? item.image_url}
+          <CachedImage
+            sourceUrl={item.image_url}
             alt={item.name}
             fill
             className={imageClass}
             sizes={imageSizes}
-            unoptimized
+            loading={priority ? "eager" : undefined}
+            fetchPriority={priority ? "high" : "auto"}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-black/6 text-xs text-gray-300 dark:bg-white/6">
@@ -343,7 +345,7 @@ export default function HomeFeaturedCardsPanel({
           justifyContent: "stretch",
         }}
       >
-        {visibleCards.map((item) => {
+        {visibleCards.map((item, index) => {
           const key = getOpeningItemKey(item);
           return (
             <FeaturedCardTile
@@ -352,6 +354,7 @@ export default function HomeFeaturedCardsPanel({
               opening={openingItemKey === key}
               onOpen={(target) => void openCard(target)}
               imageSizes={imageSizes}
+              priority={index < 4}
             />
           );
         })}

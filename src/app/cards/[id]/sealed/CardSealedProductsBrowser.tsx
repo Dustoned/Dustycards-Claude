@@ -1,11 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Boxes, Gift, Package, Search } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
-import { getCachedImageUrl } from "@/lib/image-cache";
+import CachedImage from "@/components/CachedImage";
 import {
   getCardSealedProductPrice,
   type CardSealedMatchType,
@@ -151,13 +150,12 @@ export default function CardSealedProductsBrowser({
               >
                 <span className="relative min-h-28 overflow-hidden rounded-xl border border-white/8 bg-black/22">
                   {item.imageUrl ? (
-                    <Image
-                      src={getCachedImageUrl(item.imageUrl) ?? item.imageUrl}
+                    <CachedImage
+                      sourceUrl={item.imageUrl}
                       alt={item.name}
                       fill
                       sizes="120px"
                       className="object-contain p-2"
-                      unoptimized
                     />
                   ) : (
                     <span className="flex h-full items-center justify-center text-white/24">

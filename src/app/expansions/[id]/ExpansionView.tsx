@@ -2,11 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
+import CachedImage from "@/components/CachedImage";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
@@ -62,14 +62,14 @@ export type { CardData } from "@/types/card-data";
 type CardDetailData = ModalCardData;
 
 const KNOWN_SUPERTYPE_ORDER = ["Pokémon", "Trainer", "Energy"];
-const INITIAL_IMAGE_PRELOAD_COUNT = 8;
-const DESKTOP_BACKGROUND_IMAGE_PRELOAD_LIMIT = 24;
-const BACKGROUND_IMAGE_PRELOAD_BATCH = 8;
-const BACKGROUND_IMAGE_PRELOAD_DELAY_MS = 900;
+const INITIAL_IMAGE_PRELOAD_COUNT = 4;
+const DESKTOP_BACKGROUND_IMAGE_PRELOAD_LIMIT = 12;
+const BACKGROUND_IMAGE_PRELOAD_BATCH = 4;
+const BACKGROUND_IMAGE_PRELOAD_DELAY_MS = 1500;
 const WARMED_CARD_IMAGE_CACHE_LIMIT = 600;
 const INITIAL_RENDERED_CARDS = 36;
 const RENDERED_CARD_BATCH_SIZE = 36;
-const EAGER_IMAGE_COUNT = 8;
+const EAGER_IMAGE_COUNT = 4;
 const warmedCardImageUrls = new Set<string>();
 const warmedCardImageQueue: string[] = [];
 
@@ -1057,8 +1057,8 @@ export default function ExpansionView({
                       )}
                     >
                       {card.image_url ? (
-                        <Image
-                          src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                        <CachedImage
+                          sourceUrl={card.image_url}
                           alt={card.name}
                           fill
                           className={getCardImageClassName(
@@ -1067,7 +1067,7 @@ export default function ExpansionView({
                           )}
                           sizes="68px"
                           loading={index < eagerImageCount ? "eager" : undefined}
-                          unoptimized
+                          fetchPriority={index < 4 ? "high" : "auto"}
                         />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
@@ -1198,8 +1198,8 @@ export default function ExpansionView({
                             )}
                           >
                             {card.image_url ? (
-                              <Image
-                                src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                              <CachedImage
+                                sourceUrl={card.image_url}
                                 alt={card.name}
                                 fill
                                 className={getCardImageClassName(
@@ -1208,7 +1208,7 @@ export default function ExpansionView({
                                 )}
                                 sizes="48px"
                                 loading={index < eagerImageCount ? "eager" : undefined}
-                                unoptimized
+                                fetchPriority={index < 4 ? "high" : "auto"}
                               />
                             ) : (
                               <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
@@ -1349,8 +1349,8 @@ export default function ExpansionView({
                   )}
                 >
                   {card.image_url ? (
-                    <Image
-                      src={getCachedImageUrl(card.image_url) ?? card.image_url}
+                    <CachedImage
+                      sourceUrl={card.image_url}
                       alt={card.name}
                       fill
                       className={getCardImageClassName(
@@ -1359,7 +1359,7 @@ export default function ExpansionView({
                       )}
                       sizes={cardTrackWidth}
                       loading={index < eagerImageCount ? "eager" : undefined}
-                      unoptimized
+                      fetchPriority={index < 4 ? "high" : "auto"}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center rounded-[4.75%] bg-black/6 text-xs text-gray-300 dark:bg-white/6">
