@@ -7,7 +7,6 @@ import {
   Radar,
   ShieldCheck,
   Sparkles,
-  Trophy,
 } from "lucide-react";
 import BackNavigationLink from "@/components/BackNavigationLink";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
@@ -65,6 +64,9 @@ export default async function SignalRadarPage({
   const highConfidenceCount = data.signals.filter(
     (signal) => signal.confidence === "High"
   ).length;
+  const eventDrivenCount = data.signals.filter(
+    (signal) => signal.sourceMode === "event" || signal.sourceMode === "hybrid"
+  ).length;
   const healthySourceCount = data.sources.filter((source) => source.ok).length;
   const updatedLabel = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
@@ -103,10 +105,10 @@ export default async function SignalRadarPage({
       tone: "emerald",
     },
     {
-      label: "Archetypes Read",
-      value: data.scannedDeckCount.toLocaleString("en-US"),
-      hint: "Leading competitive decks",
-      Icon: Trophy,
+      label: "Event-linked",
+      value: eventDrivenCount.toLocaleString("en-US"),
+      hint: "Set, reveal or product evidence",
+      Icon: Sparkles,
       tone: "amber",
     },
     {
@@ -124,7 +126,7 @@ export default async function SignalRadarPage({
         <PageHeroHeader
           eyebrow="External market intelligence"
           title="Signal Radar"
-          description="Cards that may attract more demand soon, ranked from external tournament adoption and checked against trusted support, product, supply, reprint and hype sources. Historical outcomes teach the 1.5x, 2x and 3x model without using DustyCards price momentum to pick candidates."
+          description="Cards that may attract more demand soon from two independent paths: tournament adoption or fresh set, booklet, reveal, product, localization and reprint intelligence. Historical outcomes teach the 1.5x, 2x and 3x model without using DustyCards price momentum to pick candidates."
           stats={stats}
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-white/46">
@@ -165,7 +167,7 @@ export default async function SignalRadarPage({
                 </HeaderPill>
                 <HeaderPill tone="slate">
                   <Clock3 className="h-3.5 w-3.5" />
-                  72h catalyst scan
+                  72h set & event scan
                 </HeaderPill>
               </div>
             </HeaderAction>
@@ -181,13 +183,13 @@ export default async function SignalRadarPage({
               <div className="min-w-0">
                 <h2 className="font-bold text-white">How a card enters the radar</h2>
                 <p className="mt-1 text-xs leading-5 text-white/48">
-                  Tournament share, core inclusion and use across several leading decks create the base score. Trusted support, product, reprint, ban and social-hype evidence can then adjust it; local price momentum never selects or boosts a card.
+                  A card can enter through tournament demand or through a trusted set event. Japanese reveals, leaked booklets, English-set mappings, promos and product announcements are matched to every related card variant; local price momentum never selects or boosts it.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.11em] text-white/50">
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Meta share</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Core inclusion</span>
-                  <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Cross-deck reach</span>
-                  <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Catalyst adjustment</span>
+                  <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Set & booklet leaks</span>
+                  <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Japan → English</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Bulk noise suppressed</span>
                 </div>
               </div>

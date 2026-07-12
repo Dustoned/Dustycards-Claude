@@ -77,6 +77,8 @@ describe("catalyst classification", () => {
     ["The card survives rotation", "rotation", "positive"],
     ["A viral buyout causes surging demand", "hype", "positive"],
     ["Hype is fading amid cooling demand", "hype", "negative"],
+    ["Leaked booklet shows a chase card revealed", "reveal", "positive"],
+    ["Japanese set coming to English", "localization", "positive"],
   ] as const)("classifies %s", (title, expectedKind, expectedDirection) => {
     const result = classifyCatalystDocument({
       url: "https://www.pokebeach.com/example",
@@ -182,6 +184,59 @@ describe("candidate matching and deduplication", () => {
     expect(deduped.map((match) => match.cardId).sort()).toEqual(["meowth", "mew"]);
     expect(deduped.every((match) => match.url === "https://pokebeach.com/story")).toBe(true);
   });
+
+  it("fans a set-level reveal out to cards from that set", () => {
+    const matches = analyzeCatalystDocument(
+      {
+        url: "https://pokebeach.com/news/prismatic-booklet",
+        game: "pokemon",
+        title: "Prismatic Evolutions set booklet leaked",
+      },
+      [
+        {
+          cardId: "umbreon",
+          game: "pokemon",
+          name: "Umbreon ex",
+          setName: "Prismatic Evolutions",
+        },
+        {
+          cardId: "zoro",
+          game: "one-piece",
+          name: "Roronoa Zoro",
+          setName: "Romance Dawn",
+        },
+      ]
+    );
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ cardId: "umbreon", matchedBy: ["set-name"] });
+  });
+
+  it("can match a reveal against an all-card-sized candidate universe", () => {
+    const universe: CatalystCandidate[] = Array.from({ length: 24_000 }, (_, index) => ({
+      cardId: `bulk-${index}`,
+      game: "pokemon",
+      name: `Unrelated Card ${index}`,
+      setName: `Archive Set ${index % 200}`,
+    }));
+    universe.push({
+      cardId: "mega-gengar",
+      game: "pokemon",
+      name: "Mega Gengar ex",
+      aliases: ["Mega Gengar", "Gengar"],
+    });
+
+    const matches = analyzeCatalystDocument(
+      {
+        url: "https://pokebeach.com/news/mega-gengar",
+        game: "pokemon",
+        title: "Leaked booklet: Mega Gengar chase card revealed",
+      },
+      universe
+    );
+
+    expect(matches.map((match) => match.cardId)).toEqual(["mega-gengar"]);
+  });
 });
 
 describe("bounded Firecrawl query planning", () => {
@@ -201,7 +256,12 @@ describe("bounded Firecrawl query planning", () => {
     );
 
     expect(queries).toHaveLength(MAX_CATALYST_SEARCH_QUERIES);
-    expect(queries.map((query) => query.cardId)).toEqual(["p1", "o1", "p2", "o2"]);
+    expect(queries.map((query) => query.cardId)).toEqual([
+      "set-intelligence:pokemon",
+      "set-intelligence:one-piece",
+      "p1",
+      "o1",
+    ]);
     expect(queries.map((query) => query.game)).toEqual([
       "pokemon",
       "one-piece",
@@ -213,6 +273,12 @@ describe("bounded Firecrawl query planning", () => {
       true
     );
     expect(queries.every((query) => query.allowedDomains.length > 0)).toBe(true);
+    expect(queries.map((query) => query.mode)).toEqual([
+      "set-intelligence",
+      "set-intelligence",
+      "candidate",
+      "candidate",
+    ]);
   });
 
   it("honors a lower maximum, sanitizes operators and never emits empty names", () => {
@@ -227,13 +293,14 @@ describe("bounded Firecrawl query planning", () => {
         { cardId: "empty", game: "pokemon", name: "   ", rank: 2 },
       ],
       new Date("2026-01-01T00:00:00.000Z"),
-      { maxQueries: 1 }
+      { maxQueries: 2 }
     );
 
-    expect(queries).toHaveLength(1);
-    expect(queries[0]?.candidateName).not.toContain('"');
-    expect(queries[0]?.candidateName).not.toMatch(/\bOR\b/);
-    expect(queries[0]?.query).toContain("January 2026");
-    expect(queries[0]?.query.length).toBeLessThanOrEqual(MAX_CATALYST_SEARCH_QUERY_LENGTH);
+    expect(queries).toHaveLength(2);
+    const candidateQuery = queries.find((query) => query.mode === "candidate");
+    expect(candidateQuery?.candidateName).not.toContain('"');
+    expect(candidateQuery?.candidateName).not.toMatch(/\bOR\b/);
+    expect(candidateQuery?.query).toContain("January 2026");
+    expect(candidateQuery?.query.length).toBeLessThanOrEqual(MAX_CATALYST_SEARCH_QUERY_LENGTH);
   });
 });

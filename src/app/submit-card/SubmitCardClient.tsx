@@ -128,6 +128,9 @@ interface FirecrawlUsage {
   monthlyRemaining: number;
   dailyAttemptLimit: number;
   dailyAttemptsUsed: number;
+  providerAuthoritative: boolean;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
 }
 
 function uniqueImageSources(sources: Array<string | null | undefined>): string[] {
@@ -447,11 +450,17 @@ export default function SubmitCardClient() {
         }`
       : null;
   const usageMonthlyBudget = firecrawlUsage?.monthlyBudget ?? preview?.firecrawl.monthlyBudget ?? 1000;
-  const usageMonthlyOffset = firecrawlUsage?.monthlyOffset ?? 0;
   const usageMonthlyUsed = firecrawlUsage?.monthlyUsed ?? preview?.firecrawl.monthlyUsed ?? 0;
   const usageMonthlyRemaining =
     firecrawlUsage?.monthlyRemaining ?? Math.max(0, usageMonthlyBudget - usageMonthlyUsed);
   const usageDailyLimit = firecrawlUsage?.dailyAttemptLimit ?? 0;
+  const usageResetLabel = firecrawlUsage?.billingPeriodEnd
+    ? new Intl.DateTimeFormat("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: "Europe/Amsterdam",
+      }).format(new Date(firecrawlUsage.billingPeriodEnd))
+    : "Calendar month";
   const usageDailyUsed = firecrawlUsage?.dailyAttemptsUsed ?? preview?.firecrawl.dailyAttemptsUsed ?? 0;
   const usageDailyValue =
     usageDailyLimit > 0
@@ -585,7 +594,7 @@ export default function SubmitCardClient() {
           <div>
             <h2 className="text-base font-semibold text-white">Firecrawl credits</h2>
             <p className="mt-1 text-sm leading-5 text-white/45">
-              Monthly submit usage for CardMarket previews.
+              Live provider balance across previews, automatic refreshes and Signal Radar.
             </p>
           </div>
           <button
@@ -601,7 +610,7 @@ export default function SubmitCardClient() {
 
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
           <StatPill
-            label="This month"
+            label={firecrawlUsage?.providerAuthoritative ? "Provider cycle" : "Tracked month"}
             value={
               usageLoading && !firecrawlUsage
                 ? "Loading..."
@@ -609,12 +618,8 @@ export default function SubmitCardClient() {
             }
           />
           <StatPill
-            label="Offset"
-            value={
-              usageLoading && !firecrawlUsage
-                ? "Loading..."
-                : usageMonthlyOffset.toLocaleString("en-US")
-            }
+            label="Cycle resets"
+            value={usageLoading && !firecrawlUsage ? "Loading..." : usageResetLabel}
           />
           <StatPill
             label="Remaining"

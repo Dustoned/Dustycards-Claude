@@ -12,6 +12,17 @@ export interface FirecrawlConfigSnapshot {
   }>;
 }
 
+export interface FirecrawlProviderCreditUsage {
+  remainingCredits: number;
+  planCredits: number;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
+}
+
+let providerCreditCache:
+  | { expiresAt: number; value: FirecrawlProviderCreditUsage | null }
+  | null = null;
+
 export interface FirecrawlDocsSearchResult {
   answer: string;
   citations: Array<{
@@ -103,6 +114,55 @@ export function getFirecrawlConfigSnapshot(): FirecrawlConfigSnapshot {
     monthlyCreditOffset: getFirecrawlMonthlyCreditOffset(),
     creditGuide: getFirecrawlCreditGuide(),
   };
+}
+
+export interface FirecrawlPageScrapeOptions {
+  onlyMainContent?: boolean;
+  fastMode?: boolean;
+  maxAge?: number;
+}
+
+export function parseFirecrawlProviderCreditUsage(
+  value: unknown
+): FirecrawlProviderCreditUsage | null {
+  const container = isRecord(value) && isRecord(value.data) ? value.data : value;
+  if (!isRecord(container)) return null;
+  const remaining = Number(container.remainingCredits ?? container.remaining_credits);
+  const plan = Number(container.planCredits ?? container.plan_credits);
+  if (!Number.isFinite(remaining) || !Number.isFinite(plan) || plan <= 0) return null;
+  const periodStart = container.billingPeriodStart ?? container.billing_period_start;
+  const periodEnd = container.billingPeriodEnd ?? container.billing_period_end;
+  return {
+    remainingCredits: Math.max(0, Math.floor(remaining)),
+    planCredits: Math.max(1, Math.floor(plan)),
+    billingPeriodStart: typeof periodStart === "string" ? periodStart : null,
+    billingPeriodEnd: typeof periodEnd === "string" ? periodEnd : null,
+  };
+}
+
+/** Provider-authoritative balance; this endpoint does not consume credits. */
+export async function getFirecrawlProviderCreditUsage(options?: {
+  fresh?: boolean;
+}): Promise<FirecrawlProviderCreditUsage | null> {
+  const now = Date.now();
+  if (!options?.fresh && providerCreditCache && providerCreditCache.expiresAt > now) {
+    return providerCreditCache.value;
+  }
+  const apiKey = getFirecrawlApiKey();
+  if (!apiKey) return null;
+  try {
+    const response = await fetch(`${getFirecrawlApiUrl()}/team/credit-usage`, {
+      headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const parsed = parseFirecrawlProviderCreditUsage(await response.json().catch(() => null));
+    providerCreditCache = { expiresAt: now + 30_000, value: parsed };
+    return parsed;
+  } catch {
+    providerCreditCache = { expiresAt: now + 10_000, value: null };
+    return null;
+  }
 }
 
 async function postFirecrawl(path: string, payload: Record<string, unknown>): Promise<unknown> {
@@ -262,7 +322,10 @@ export async function searchFirecrawlWeb(input: {
   };
 }
 
-export async function scrapeFirecrawlPage(rawUrl: string): Promise<FirecrawlPageScrapeResult> {
+export async function scrapeFirecrawlPage(
+  rawUrl: string,
+  options: FirecrawlPageScrapeOptions = {}
+): Promise<FirecrawlPageScrapeResult> {
   const url = normalizeHttpUrl(rawUrl);
   if (!url) {
     throw new FirecrawlRequestError("Use a valid http(s) URL.", 400);
@@ -271,7 +334,11 @@ export async function scrapeFirecrawlPage(rawUrl: string): Promise<FirecrawlPage
   const data = await postFirecrawl("/scrape", {
     url,
     formats: ["markdown", "html", "links"],
-    onlyMainContent: false,
+    onlyMainContent: options.onlyMainContent ?? false,
+    fastMode: options.fastMode,
+    maxAge: options.maxAge,
+    removeBase64Images: true,
+    blockAds: true,
     timeout: 60000,
   });
   const container = isRecord(data) && isRecord(data.data) ? data.data : data;

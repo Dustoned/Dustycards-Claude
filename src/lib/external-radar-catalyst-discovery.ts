@@ -27,8 +27,9 @@ import {
 } from "@/lib/firecrawl";
 
 export const EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS = 72 * 60 * 60_000;
+export const EXTERNAL_CATALYST_QUERY_VERSION = 2;
 export const EXTERNAL_CATALYST_SEARCH_LIMIT = 5;
-export const EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN = 2;
+export const EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN = 4;
 export const EXTERNAL_CATALYST_RETRY_BACKOFF_MS = 72 * 60 * 60_000;
 
 // Reserve the documented search-unit maximum even when requesting five
@@ -43,6 +44,8 @@ export interface ExternalCatalystDiscoveryCandidate {
   name: string;
   /** Accepted for callers that already expose a generic set code. */
   setCode?: string | null;
+  /** Human-readable set matching lets one set-level event reach its cards. */
+  episodeName?: string | null;
   /** Makes ExternalCardSignal[] structurally compatible without remapping. */
   episodeCode?: string | null;
   aliases?: readonly string[] | null;
@@ -58,6 +61,7 @@ export interface ExternalCatalystDiscoveryError {
 }
 
 export interface ExternalCatalystDiscoveryResult {
+  queryVersion: number;
   status: "skipped" | "success" | "partial";
   due: boolean;
   queriesPlanned: number;
@@ -172,7 +176,7 @@ function expiryForClassification(classification: CatalystClassification, now: Da
   const days =
     classification.kind === "hype"
       ? 14
-      : classification.kind === "support" || classification.kind === "product"
+      : ["support", "product", "reveal", "localization"].includes(classification.kind)
         ? 90
         : 180;
   return new Date(now.getTime() + days * 24 * 60 * 60_000);
@@ -180,23 +184,33 @@ function expiryForClassification(classification: CatalystClassification, now: Da
 
 function headlineForClassification(
   cardName: string,
-  classification: CatalystClassification
+  classification: CatalystClassification,
+  sourceTitle?: string | null
 ): string {
   const label: Record<CatalystClassification["kind"], string> = {
     support: "New support signal",
     product: "Product announcement",
+    reveal: "New card reveal",
+    localization: "Japan-to-English signal",
     reprint: classification.direction === "positive" ? "Scarcity signal" : "Reprint risk",
     ban: classification.direction === "positive" ? "Legality restored" : "Ban risk",
     rotation:
       classification.direction === "positive" ? "Rotation resilience" : "Rotation risk",
     hype: classification.direction === "negative" ? "Cooling attention" : "Rising attention",
   };
+  if (
+    sourceTitle &&
+    ["product", "reveal", "localization"].includes(classification.kind)
+  ) {
+    return `${label[classification.kind]}: ${sourceTitle}`.slice(0, 300);
+  }
   return `${label[classification.kind]} for ${cardName}`.slice(0, 300);
 }
 
 function explanationForClassification(
   classification: CatalystClassification,
-  sourceKind: CatalystSourceKind
+  sourceKind: CatalystSourceKind,
+  match: CatalystCardMatch
 ): string {
   const direction =
     classification.direction === "positive"
@@ -205,10 +219,22 @@ function explanationForClassification(
         ? "can reduce demand or cap price upside"
         : "needs more confirmation before it is directional";
   const terms = classification.matchedTerms.slice(0, 3).join(", ");
-  return `A ${sourceKind} source matched ${classification.kind}${terms ? ` (${terms})` : ""}. This ${direction}; it is evidence, not a guaranteed price move.`.slice(
+  const relation = match.matchedBy.includes("name")
+    ? "The exact card name appears in the source."
+    : match.matchedBy.includes("alias")
+      ? "The same character or Pokémon is named, so older variants can receive spillover demand."
+      : "The source concerns this card's set, so the connection is broader and less specific.";
+  return `A ${sourceKind} source matched ${classification.kind}${terms ? ` (${terms})` : ""}. ${relation} This ${direction}; it is evidence, not a guaranteed price move.`.slice(
     0,
     1_000
   );
+}
+
+function matchStrengthMultiplier(match: CatalystCardMatch): number {
+  if (match.matchedBy.includes("name")) return 1;
+  if (match.matchedBy.includes("alias")) return 0.78;
+  if (match.matchedBy.includes("set-name")) return 0.56;
+  return 0.6;
 }
 
 function evidenceExcerpt(scrape: FirecrawlPageScrapeResult, cardName: string): string | null {
@@ -307,6 +333,7 @@ const prismaCatalystStore: ExternalCatalystDiscoveryStore = {
     const metadataJson = JSON.stringify({
       query: input.source.query.query,
       queryCardId: input.source.query.cardId,
+      queryMode: input.source.query.mode,
       sourceUrl: input.scrape.sourceUrl,
       metadata: input.scrape.metadata,
     }).slice(0, 8_000);
@@ -345,11 +372,16 @@ const prismaCatalystStore: ExternalCatalystDiscoveryStore = {
               game: match.game,
               catalyst_type: classification.kind,
               direction: classification.direction,
-              strength: Math.abs(classification.signedImpact),
-              headline: headlineForClassification(match.cardName, classification),
+              strength: Math.abs(classification.signedImpact) * matchStrengthMultiplier(match),
+              headline: headlineForClassification(
+                match.cardName,
+                classification,
+                input.scrape.title ?? input.source.title
+              ),
               explanation: explanationForClassification(
                 classification,
-                match.sourceKind
+                match.sourceKind,
+                match
               ),
               evidence_excerpt: evidenceExcerpt(input.scrape, match.cardName),
               observed_at: input.now,
@@ -357,11 +389,16 @@ const prismaCatalystStore: ExternalCatalystDiscoveryStore = {
             },
             update: {
               direction: classification.direction,
-              strength: Math.abs(classification.signedImpact),
-              headline: headlineForClassification(match.cardName, classification),
+              strength: Math.abs(classification.signedImpact) * matchStrengthMultiplier(match),
+              headline: headlineForClassification(
+                match.cardName,
+                classification,
+                input.scrape.title ?? input.source.title
+              ),
               explanation: explanationForClassification(
                 classification,
-                match.sourceKind
+                match.sourceKind,
+                match
               ),
               evidence_excerpt: evidenceExcerpt(input.scrape, match.cardName),
               observed_at: input.now,
@@ -403,6 +440,7 @@ function normalizeCandidates(
     cardId: candidate.cardId,
     game: candidate.game,
     name: candidate.name,
+    setName: candidate.episodeName,
     setCode: candidate.setCode ?? candidate.episodeCode,
     aliases: candidate.aliases,
     rank: candidate.rank,
@@ -485,6 +523,7 @@ function analyzeScrapedCatalystSource(
 
 function baseResult(due: boolean): ExternalCatalystDiscoveryResult {
   return {
+    queryVersion: EXTERNAL_CATALYST_QUERY_VERSION,
     status: due ? "success" : "skipped",
     due,
     queriesPlanned: 0,
@@ -644,7 +683,12 @@ export async function runExternalCatalystDiscovery(
         idempotencyKey: `external-catalyst:scrape:${discoveryBucket(now)}:${source.urlHash}`,
         estimatedCredits: SCRAPE_ESTIMATED_CREDITS,
         sourceUrl: source.canonicalUrl,
-        request: () => dependencies.scrapePage(source.canonicalUrl),
+        request: () =>
+          dependencies.scrapePage(source.canonicalUrl, {
+            onlyMainContent: true,
+            fastMode: true,
+            maxAge: 6 * 60 * 60_000,
+          }),
         getCreditsUsed: (scrape) => scrape.creditsUsed,
       });
       if (!budgeted.executed || !budgeted.result) continue;

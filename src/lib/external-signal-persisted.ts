@@ -1,6 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import { getExternalEntityKey } from "@/lib/external-event-candidates";
 import {
   ALL_GAMES,
   ONE_PIECE_GAME,
@@ -124,6 +125,16 @@ export async function getPersistedExternalSignalRadarData(
       return {
         rank: 0,
         cardId: row.card_id,
+        entityKey: getExternalEntityKey(
+          row.game === ONE_PIECE_GAME ? ONE_PIECE_GAME : POKEMON_GAME,
+          row.card_name
+        ),
+        sourceMode:
+          row.competitive_score <= 0
+            ? "event"
+            : row.catalyst_score !== 0 || row.hype_score !== 0 || row.risk_score !== 0
+              ? "hybrid"
+              : "competitive",
         game: row.game === ONE_PIECE_GAME ? ONE_PIECE_GAME : POKEMON_GAME,
         name: row.card_name,
         imageUrl: card?.imageUrl ?? null,

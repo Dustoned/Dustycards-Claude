@@ -29,6 +29,8 @@ const SOURCE_CONFIG = {
 } as const;
 
 export type ExternalSignalConfidence = "High" | "Medium" | "Emerging";
+export type ExternalSignalSourceMode = "competitive" | "event" | "hybrid";
+export type ExternalEvidenceLevel = "Confirmed" | "Strong evidence" | "Credible leak" | "Rumour";
 
 export interface LimitlessMetaDeck {
   id: string;
@@ -56,7 +58,15 @@ export interface ExternalSignalEvidence {
 
 export interface ExternalSignalCatalyst {
   id: string;
-  kind: "support" | "product" | "reprint" | "ban" | "rotation" | "hype";
+  kind:
+    | "support"
+    | "product"
+    | "reveal"
+    | "localization"
+    | "reprint"
+    | "ban"
+    | "rotation"
+    | "hype";
   direction: "positive" | "negative" | "neutral";
   strength: number;
   headline: string;
@@ -64,6 +74,8 @@ export interface ExternalSignalCatalyst {
   sourceUrl: string;
   sourceDomain: string;
   sourceKind: "official" | "community" | "social";
+  evidenceLevel: ExternalEvidenceLevel;
+  contextLabel: string | null;
   observedAt: string;
   expiresAt: string | null;
 }
@@ -71,6 +83,8 @@ export interface ExternalSignalCatalyst {
 export interface ExternalCardSignal {
   rank: number;
   cardId: string;
+  entityKey?: string;
+  sourceMode?: ExternalSignalSourceMode;
   game: TradingCardGame;
   name: string;
   imageUrl: string | null;

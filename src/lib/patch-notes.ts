@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.18",
+    releasedAt: "July 12, 2026",
+    title: "Set & Event Intelligence",
+    summary:
+      "DustyCards 3.6.18 broadens Signal Radar from tournament demand to set reveals, Japanese-to-English links, promos, products, hype, supply, and reprint risk.",
+    tone: "new",
+    highlights: [
+      "A bounded 72-hour research scan now checks Japanese reveals, leaked booklets, English localization clues, chase characters, promos, products, supply changes, and reprint risk.",
+      "New event signals can surface any priced card in the catalog, including related character variants, instead of requiring a tournament result first.",
+      "Every event card explains what happened, why the card is connected, whether the evidence is confirmed or speculative, and which source supports it.",
+      "Tournament and event evidence are kept distinct with Set & reveal, Tournament, and Hybrid filters, while forecasts continue to learn only from observed price outcomes.",
+      "Firecrawl limits now use the provider's real live balance, keep a safety reserve, and show the actual billing-cycle reset instead of relying only on DustyCards' local counter.",
+    ],
+  },
+  {
     version: "3.6.17",
     releasedAt: "July 12, 2026",
     title: "Lean social catalyst checks",

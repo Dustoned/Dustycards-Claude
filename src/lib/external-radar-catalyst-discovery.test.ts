@@ -176,8 +176,9 @@ describe("external catalyst discovery orchestration", () => {
     );
 
     expect(result.queriesPlanned).toBeLessThanOrEqual(4);
-    expect(result.sourcesScraped).toBe(EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN);
-    expect(deps.searchWeb).toHaveBeenCalledTimes(2);
+    expect(result.sourcesScraped).toBeLessThanOrEqual(EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN);
+    expect(result.sourcesScraped).toBe(2);
+    expect(deps.searchWeb).toHaveBeenCalledTimes(4);
     expect(deps.searchWeb).toHaveBeenCalledWith(
       expect.objectContaining({ limit: EXTERNAL_CATALYST_SEARCH_LIMIT })
     );
@@ -188,7 +189,7 @@ describe("external catalyst discovery orchestration", () => {
     ]);
     expect(result.matches.map((match) => match.cardId)).toContain("pokemon-meowth");
     expect(result.catalystsPersisted).toBeGreaterThan(0);
-    expect(result.creditsUsed).toBe(4); // 2 searches + 2 scrapes.
+    expect(result.creditsUsed).toBe(6); // 4 searches + 2 scrapes in this mock.
     expect(result.errors).toEqual([]);
   });
 
@@ -223,7 +224,7 @@ describe("external catalyst discovery orchestration", () => {
     expect(result.knownUrlsSkipped).toBe(1);
     expect(deps.scrapePage).not.toHaveBeenCalled();
     expect(store.created).toEqual([]);
-    expect(result.creditsUsed).toBe(1);
+    expect(result.creditsUsed).toBe(2);
   });
 
   it("returns provider errors and continues with the remaining queries", async () => {
@@ -248,8 +249,8 @@ describe("external catalyst discovery orchestration", () => {
     expect(result.errors).toEqual([
       expect.objectContaining({ stage: "search", message: "temporary provider failure" }),
     ]);
-    expect(deps.searchWeb).toHaveBeenCalledTimes(2);
-    expect(result.creditsUsed).toBe(3); // failed 2-credit search estimate + successful search actual.
+    expect(deps.searchWeb).toHaveBeenCalledTimes(4);
+    expect(result.creditsUsed).toBe(5); // failed estimate plus three successful mock searches.
   });
 
   it("uses a new scrape reservation bucket so a failed source can retry later", async () => {
@@ -322,7 +323,7 @@ describe("external catalyst discovery orchestration", () => {
       cardId: "pokemon-meowth",
       sourceKind: "social",
     });
-    expect(result.creditsUsed).toBe(1);
+    expect(result.creditsUsed).toBe(2);
     expect(result.errors).toEqual([]);
   });
 });

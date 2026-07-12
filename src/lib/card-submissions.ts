@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma";
 import { db } from "@/lib/db";
 import {
   getFirecrawlConfigSnapshot,
+  getFirecrawlProviderCreditUsage,
   scrapeFirecrawlPage,
   searchFirecrawlWeb,
   toFirecrawlApiError,
@@ -177,6 +178,9 @@ export interface CardSubmissionFirecrawlUsage {
   monthlyRemaining: number;
   dailyAttemptLimit: number;
   dailyAttemptsUsed: number;
+  providerAuthoritative: boolean;
+  billingPeriodStart: string | null;
+  billingPeriodEnd: string | null;
 }
 
 interface NormalizedSubmissionInput {
@@ -1260,25 +1264,42 @@ export async function getCardSubmissionFirecrawlUsage(
   userId: string
 ): Promise<CardSubmissionFirecrawlUsage> {
   const config = getFirecrawlConfigSnapshot();
-  const usage = await getFirecrawlUsage(userId);
+  const [usage, provider] = await Promise.all([
+    getFirecrawlUsage(userId),
+    getFirecrawlProviderCreditUsage(),
+  ]);
+  const providerUsed = provider ? provider.planCredits - provider.remainingCredits : null;
 
   return {
     configured: config.configured,
-    monthlyBudget: config.monthlyCreditBudget,
+    monthlyBudget: provider?.planCredits ?? config.monthlyCreditBudget,
     monthlyOffset: config.monthlyCreditOffset,
-    monthlyUsed: usage.monthlyUsed,
-    monthlyRemaining: Math.max(0, config.monthlyCreditBudget - usage.monthlyUsed),
+    monthlyUsed: providerUsed ?? usage.monthlyUsed,
+    monthlyRemaining:
+      provider?.remainingCredits ?? Math.max(0, config.monthlyCreditBudget - usage.monthlyUsed),
     dailyAttemptLimit: USER_DAILY_ATTEMPT_LIMIT,
     dailyAttemptsUsed: usage.dailyAttemptsUsed,
+    providerAuthoritative: Boolean(provider),
+    billingPeriodStart: provider?.billingPeriodStart ?? null,
+    billingPeriodEnd: provider?.billingPeriodEnd ?? null,
   };
 }
 
 async function assertFirecrawlBudget(userId: string, estimatedCredits: number) {
   const config = getFirecrawlConfigSnapshot();
-  const usage = await getFirecrawlUsage(userId);
+  const [usage, provider] = await Promise.all([
+    getFirecrawlUsage(userId),
+    getFirecrawlProviderCreditUsage(),
+  ]);
 
   if (usage.monthlyUsed + estimatedCredits > config.monthlyCreditBudget) {
     throw new CardSubmissionError("Firecrawl monthly budget is reached.", 429);
+  }
+  if (provider && provider.remainingCredits - estimatedCredits < 25) {
+    throw new CardSubmissionError(
+      `Firecrawl provider balance is too low; ${provider.remainingCredits} credits remain and 25 are kept in reserve.`,
+      429
+    );
   }
 
   if (USER_DAILY_ATTEMPT_LIMIT > 0 && usage.dailyAttemptsUsed >= USER_DAILY_ATTEMPT_LIMIT) {
