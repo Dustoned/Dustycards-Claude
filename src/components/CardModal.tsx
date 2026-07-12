@@ -564,8 +564,14 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                 </div>
 
               <div className="card-modal-layout-grid">
-                <div className={`${desktopPreviewClass} flex min-w-0 justify-center 2xl:justify-start`}>
-                  {desktopPreviewPanel}
+                <div className={`${desktopPreviewClass} flex min-w-0 flex-col justify-start gap-4`}>
+                  <div className="flex justify-center 2xl:justify-start">{desktopPreviewPanel}</div>
+                  <CardModalCardLinksPanel
+                    card={modalCard}
+                    storedCardMarketUrl={storedCardMarketUrl}
+                    className="w-full"
+                    onOpenCardMarket={openCardMarket}
+                  />
                 </div>
 
                 <div className="card-modal-area-hero min-w-0">
@@ -589,7 +595,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                   {desktopHistoryPanel}
                 </div>
 
-                <div className="card-modal-area-support grid min-w-0 items-stretch gap-5 2xl:grid-cols-[minmax(16rem,0.9fr)_minmax(28rem,1.55fr)_minmax(15rem,0.75fr)]">
+                <div className="card-modal-area-support grid min-w-0 items-stretch gap-5 2xl:grid-cols-[minmax(16rem,0.8fr)_minmax(28rem,1.7fr)]">
                     <CardModalRecentPricesPanel
                       card={modalCard}
                       className="h-full min-h-[10rem]"
@@ -599,12 +605,6 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                       className="h-full min-h-[10rem]"
                       onOpenSealedProduct={setSelectedSealedProduct}
                       onClose={onClose}
-                    />
-                    <CardModalCardLinksPanel
-                      card={modalCard}
-                      storedCardMarketUrl={storedCardMarketUrl}
-                      className="h-full min-h-[10rem]"
-                      onOpenCardMarket={openCardMarket}
                     />
                 </div>
 

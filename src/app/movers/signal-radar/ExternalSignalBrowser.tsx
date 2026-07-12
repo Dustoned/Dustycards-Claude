@@ -151,16 +151,33 @@ function formatSignedPercent(value: number | null): string {
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
-export function PriceScenarioChart({ scenario }: { scenario: ExternalPriceScenario }) {
+export function PriceScenarioChart({
+  scenario,
+  detailed = false,
+}: {
+  scenario: ExternalPriceScenario;
+  detailed?: boolean;
+}) {
   const values = [
     scenario.currentPrice,
     ...scenario.points.flatMap((point) => [point.low, point.base, point.high]),
   ];
-  const minimum = Math.min(...values);
-  const maximum = Math.max(...values);
+  const rawMinimum = Math.min(...values);
+  const rawMaximum = Math.max(...values);
+  const rawSpread = Math.max(1, rawMaximum - rawMinimum);
+  const minimum = Math.max(0, rawMinimum - rawSpread * 0.12);
+  const maximum = rawMaximum + rawSpread * 0.12;
   const spread = Math.max(1, maximum - minimum);
-  const x = [4, 35, 66, 96];
-  const y = (value: number) => 48 - ((value - minimum) / spread) * 40;
+  const width = detailed ? 720 : 100;
+  const height = detailed ? 190 : 54;
+  const plot = detailed
+    ? { left: 58, right: 704, top: 15, bottom: 153 }
+    : { left: 4, right: 96, top: 8, bottom: 48 };
+  const x = [0, 1, 2, 3].map(
+    (index) => plot.left + ((plot.right - plot.left) * index) / 3
+  );
+  const y = (value: number) =>
+    plot.bottom - ((value - minimum) / spread) * (plot.bottom - plot.top);
   const baseValues = [scenario.currentPrice, ...scenario.points.map((point) => point.base)];
   const highValues = [scenario.currentPrice, ...scenario.points.map((point) => point.high)];
   const lowValues = [scenario.currentPrice, ...scenario.points.map((point) => point.low)];
@@ -169,22 +186,55 @@ export function PriceScenarioChart({ scenario }: { scenario: ExternalPriceScenar
     ...lowValues.map((value, index) => `${x[lowValues.length - 1 - index]},${y(lowValues[lowValues.length - 1 - index])}`),
   ].join(" ");
   const line = baseValues.map((value, index) => `${x[index]},${y(value)}`).join(" ");
+  const tickValues = [maximum, minimum + spread / 2, minimum];
+  const horizonLabels = ["Now", ...scenario.points.map((point) => `${point.days}d`)];
+  const compactPrice = (value: number) =>
+    new Intl.NumberFormat("en", {
+      style: "currency",
+      currency: scenario.currency,
+      notation: "compact",
+      maximumFractionDigits: value < 10 ? 2 : 0,
+    }).format(value);
+
   return (
-    <svg viewBox="0 0 100 54" className="h-20 w-full overflow-visible" role="img" aria-label="Predicted low, base and high price path">
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className={detailed ? "h-40 w-full lg:h-44 [@media(min-width:2200px)]:h-48" : "h-20 w-full"}
+      role="img"
+      aria-label="Predicted low, base and high price path"
+    >
       <defs>
-        <linearGradient id={`scenario-${scenario.marketMode}`} x1="0" x2="1">
-          <stop offset="0" stopColor="#8b5cf6" stopOpacity="0.22" />
+        <linearGradient id={`scenario-${scenario.marketMode}-${detailed ? "detail" : "compact"}`} x1="0" x2="1">
+          <stop offset="0" stopColor="#8b5cf6" stopOpacity="0.28" />
+          <stop offset="0.55" stopColor="#7c3aed" stopOpacity="0.18" />
           <stop offset="1" stopColor="#38bdf8" stopOpacity="0.08" />
         </linearGradient>
+        <linearGradient id={`scenario-line-${scenario.marketMode}-${detailed ? "detail" : "compact"}`} x1="0" x2="1">
+          <stop offset="0" stopColor="#c4b5fd" />
+          <stop offset="1" stopColor="#38bdf8" />
+        </linearGradient>
       </defs>
-      {[12, 28, 44].map((gridY) => (
-        <line key={gridY} x1="2" x2="98" y1={gridY} y2={gridY} stroke="rgba(255,255,255,0.07)" strokeWidth="0.5" />
+      {tickValues.map((tick) => (
+        <g key={tick}>
+          <line x1={plot.left} x2={plot.right} y1={y(tick)} y2={y(tick)} stroke="rgba(255,255,255,0.075)" strokeWidth={detailed ? 1 : 0.5} strokeDasharray={detailed ? "4 5" : undefined} />
+          {detailed ? <text x={plot.left - 10} y={y(tick) + 4} textAnchor="end" fill="rgba(255,255,255,0.34)" fontSize="10">{compactPrice(tick)}</text> : null}
+        </g>
       ))}
-      <polygon points={band} fill={`url(#scenario-${scenario.marketMode})`} />
-      <polyline points={line} fill="none" stroke="#a78bfa" strokeWidth="1.5" strokeLinejoin="round" />
+      <polygon points={band} fill={`url(#scenario-${scenario.marketMode}-${detailed ? "detail" : "compact"})`} />
+      {detailed ? (
+        <>
+          <polyline points={highValues.map((value, index) => `${x[index]},${y(value)}`).join(" ")} fill="none" stroke="rgba(56,189,248,0.42)" strokeWidth="1.25" strokeDasharray="5 5" />
+          <polyline points={lowValues.map((value, index) => `${x[index]},${y(value)}`).join(" ")} fill="none" stroke="rgba(251,113,133,0.36)" strokeWidth="1.25" strokeDasharray="5 5" />
+        </>
+      ) : null}
+      <polyline points={line} fill="none" stroke={`url(#scenario-line-${scenario.marketMode}-${detailed ? "detail" : "compact"})`} strokeWidth={detailed ? 3 : 1.5} strokeLinecap="round" strokeLinejoin="round" />
       {baseValues.map((value, index) => (
-        <circle key={x[index]} cx={x[index]} cy={y(value)} r="1.5" fill={index === 0 ? "#f8fafc" : "#7dd3fc"} />
+        <g key={x[index]}>
+          <circle cx={x[index]} cy={y(value)} r={detailed ? 6 : 1.5} fill="rgba(5,7,12,0.9)" stroke={index === 0 ? "#f8fafc" : "#7dd3fc"} strokeWidth={detailed ? 2.5 : 0} />
+          {detailed ? <text x={x[index]} y={Math.max(11, y(value) - 11)} textAnchor="middle" fill="rgba(255,255,255,0.78)" fontSize="10" fontWeight="700">{compactPrice(value)}</text> : null}
+        </g>
       ))}
+      {detailed ? horizonLabels.map((label, index) => <text key={label} x={x[index]} y={176} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="10" fontWeight="600">{label}</text>) : null}
     </svg>
   );
 }
@@ -388,7 +438,7 @@ function CatalystPanel({ signal }: { signal: ExternalCardSignal }) {
           News, supply & hype check
         </div>
         <span className="text-[8px] font-semibold uppercase tracking-[0.1em] text-white/28">
-          72h scan
+          Daily scan
         </span>
       </div>
       {catalysts.length ? (
@@ -459,9 +509,16 @@ function CompactSignalCard({
   const effectiveScore = score ?? signal.externalScore;
   const tier = effectiveScore >= 80 ? "Breakout" : effectiveScore >= 60 ? "Strong" : "Watch";
   const confluence = signal.marketIntelligence?.confluence;
-  const drivers = confluence?.drivers.length
-    ? confluence.drivers.slice(0, 3)
-    : signal.reasons.slice(0, 3);
+  const launchWindow = scenario?.drivers.includes("launch price discovery") ?? false;
+  const releaseStabilization = scenario?.drivers.includes("post-release stabilization") ?? false;
+  const drivers = [
+    ...(launchWindow
+      ? ["Launch window: more upside potential with substantially higher uncertainty"]
+      : releaseStabilization
+        ? ["New-set stabilization is tempering the short-term forecast"]
+        : []),
+    ...(confluence?.drivers.length ? confluence.drivers : signal.reasons),
+  ].slice(0, 3);
   const base90 = scenario?.points.find((point) => point.days === 90)?.base ?? null;
   const detailHref = `/movers/signal-radar/${encodeURIComponent(signal.cardId)}?game=${signal.game}`;
 

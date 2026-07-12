@@ -19,6 +19,7 @@ import {
   persistExternalCompetitiveScan,
 } from "@/lib/sync/external-signal-persistence";
 import { evaluatePendingExternalSignalOutcomes } from "@/lib/external-signal-forecast-store";
+import { sendHighPotentialSignalAlerts } from "@/lib/signal-radar-email-alerts";
 
 const EXTERNAL_SIGNAL_JOB_TYPE = "external-signal-radar";
 const EXTERNAL_SIGNAL_CATALYST_RUN_KIND = "catalyst";
@@ -167,6 +168,16 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
     );
     const competitive = await persistExternalCompetitiveScan(radarData, requestedAt);
     const outcomes = await evaluatePendingExternalSignalOutcomes(new Date());
+    const emailAlerts = await sendHighPotentialSignalAlerts(radarData, requestedAt).catch(
+      (error: unknown) => ({
+        configured: true,
+        subscribers: 0,
+        candidates: 0,
+        emailsSent: 0,
+        cardsSent: 0,
+        errors: [error instanceof Error ? error.message : String(error)],
+      })
+    );
     const eventUniverse = state.catalystDue
       ? await loadExternalEventCandidates(radarData.sources.map((source) => source.game))
       : [];
@@ -189,9 +200,12 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
           kind: EXTERNAL_SIGNAL_JOB_TYPE,
           competitive,
           outcomes,
+          emailAlerts,
           catalyst: {
             status: catalyst.status,
             due: catalyst.due,
+            searchProvider: catalyst.searchProvider,
+            tavilyCreditsUsed: catalyst.tavilyCreditsUsed,
             creditsUsed: catalyst.creditsUsed,
             sourcesScraped: catalyst.sourcesScraped,
             catalystsPersisted: catalyst.catalystsPersisted,

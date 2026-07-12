@@ -36,6 +36,14 @@ export interface SignalRadarCardBasics {
   subtypes: string | null;
   artist: string | null;
   cardmarket_url: string | null;
+  prices: Array<{
+    cm_en_lowest_nm: number | null;
+    cm_de_lowest_nm: number | null;
+    cm_fr_lowest_nm: number | null;
+    cm_es_lowest_nm: number | null;
+    cm_it_lowest_nm: number | null;
+    cm_jp_lowest_nm: number | null;
+  }>;
   episode: {
     id: string;
     name: string;
@@ -76,8 +84,8 @@ function AnalysisSection({
   className?: string;
 }) {
   return (
-    <section className={cx("overflow-hidden rounded-[1.35rem] border border-white/9 bg-[rgba(16,19,29,0.88)]", className)}>
-      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-white/7 px-4 py-3 sm:px-5">
+    <section className={cx("overflow-hidden rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)]", className)}>
+      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-white/7 px-4 py-3 sm:px-5 [@media(min-width:2200px)]:min-h-12 [@media(min-width:2200px)]:py-2.5">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-300/12 bg-violet-400/[0.065] text-violet-200/75">
             {icon}
@@ -89,14 +97,14 @@ function AnalysisSection({
         </div>
         {aside}
       </div>
-      <div className="p-4 sm:p-5">{children}</div>
+      <div className="p-4 sm:p-5 [@media(min-width:2200px)]:p-3.5">{children}</div>
     </section>
   );
 }
 
 function MetricRow({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
-    <div className="grid min-h-12 grid-cols-[minmax(7rem,0.65fr)_minmax(0,1fr)] items-center gap-3 border-b border-white/6 px-3 py-2.5 last:border-b-0">
+    <div className="grid min-h-12 grid-cols-[minmax(7rem,0.65fr)_minmax(0,1fr)] items-center gap-3 border-b border-white/6 px-3 py-2.5 last:border-b-0 [@media(min-width:2200px)]:min-h-10 [@media(min-width:2200px)]:py-2">
       <span className="text-[10px] font-medium text-white/38">{label}</span>
       <span className="min-w-0 text-right text-xs font-semibold text-white/78">
         {value}
@@ -114,6 +122,7 @@ export default function SignalRadarDetailClient({
   cardBasics: SignalRadarCardBasics;
 }) {
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
+  const [mobileTab, setMobileTab] = useState<"info" | "forecast" | "evidence">("info");
   const market = signal.marketIntelligence;
   const gradedAvailable = market?.graded.available ?? false;
   const scenario = marketMode === "graded" ? market?.gradedScenario : market?.rawScenario;
@@ -123,8 +132,32 @@ export default function SignalRadarDetailClient({
   const tier = score >= 80 ? "Breakout" : score >= 60 ? "Strong" : "Watch";
   const explanations = getSignalExplanations(signal);
   const catalysts = signal.catalysts ?? [];
-  const displayPrice = scenario?.currentPrice ?? signal.currentPrice;
-  const displayCurrency = scenario?.currency ?? signal.currency;
+  const latestRawPrice = cardBasics.prices[0];
+  const rawMarketPrice = latestRawPrice
+    ? [
+        latestRawPrice.cm_en_lowest_nm,
+        latestRawPrice.cm_de_lowest_nm,
+        latestRawPrice.cm_fr_lowest_nm,
+        latestRawPrice.cm_es_lowest_nm,
+        latestRawPrice.cm_it_lowest_nm,
+        latestRawPrice.cm_jp_lowest_nm,
+      ].find((value): value is number => value != null && Number.isFinite(value) && value > 0) ?? null
+    : null;
+  const displayPrice =
+    marketMode === "graded"
+      ? scenario?.currentPrice ?? market?.graded.currentPrice ?? null
+      : rawMarketPrice ?? signal.currentPrice;
+  const displayCurrency =
+    marketMode === "graded" ? scenario?.currency ?? market?.graded.currency ?? "EUR" : signal.currency;
+  const scenarioUsesAverageBaseline =
+    marketMode === "raw" &&
+    rawMarketPrice != null &&
+    scenario?.currentPrice != null &&
+    Math.abs(rawMarketPrice - scenario.currentPrice) >= 0.01;
+  const scenarioUsesReleaseStabilization =
+    scenario?.drivers.includes("post-release stabilization") ?? false;
+  const scenarioUsesLaunchWindow =
+    scenario?.drivers.includes("launch price discovery") ?? false;
   const cardMarketHref =
     getSafeDirectCardMarketCardUrl(cardBasics.cardmarket_url, signal.game) ??
     buildCardMarketProxyUrl(signal.cardId);
@@ -139,21 +172,173 @@ export default function SignalRadarDetailClient({
     : "Unknown";
 
   return (
-    <div className="grid items-start gap-5 2xl:grid-cols-[minmax(16rem,21rem)_minmax(0,1fr)] 2xl:gap-6">
-      <aside className="2xl:sticky 2xl:top-5">
-        <div className="rounded-[1.5rem] border border-white/9 bg-[linear-gradient(155deg,rgba(22,25,37,0.96),rgba(10,12,19,0.98))] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
-          <div className="relative mx-auto aspect-[63/88] w-full max-w-[18rem] overflow-hidden rounded-[1rem] border border-white/12 bg-black/28 shadow-2xl shadow-black/35">
+    <>
+      <div className="relative overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#090a0f] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.35)] lg:hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_18%,rgba(124,92,255,0.24),transparent_36%),radial-gradient(circle_at_22%_16%,rgba(56,189,248,0.10),transparent_32%)]" />
+
+        <div className="relative flex flex-col items-center">
+          <div className="relative aspect-[63/88] w-[min(58vw,15rem)] overflow-hidden rounded-[1rem] border border-white/12 bg-black/28 shadow-[0_26px_70px_rgba(0,0,0,0.52)]">
             {signal.imageUrl ? (
               <CachedImage
                 sourceUrl={signal.imageUrl}
                 alt={signal.name}
                 fill
                 priority
-                sizes="(max-width: 1280px) 288px, 336px"
+                sizes="58vw"
                 className="object-contain"
               />
             ) : null}
           </div>
+          <div className="mt-3 grid w-full grid-cols-2 gap-2">
+            <a href={cardMarketHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.055] text-[12px] font-bold text-white/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.10]">
+              CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+            <a href={ebayHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.055] text-[12px] font-bold text-white/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.10]">
+              eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
+
+        <div className="relative mt-5">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="rounded-full border border-violet-300/18 bg-violet-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] text-violet-100/78">#{signal.rank} radar</span>
+            <span className="rounded-full border border-emerald-300/16 bg-emerald-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100/70">{signal.confidence}</span>
+            <span className="rounded-full border border-white/9 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/48">{tier}</span>
+          </div>
+          <h1 className="mt-3 text-[1.85rem] font-black leading-[1.02] tracking-tight text-white">{signal.name}</h1>
+          <p className="mt-1.5 text-[13px] font-medium text-white/48">{signal.episodeName}{signal.cardNumber ? ` · ${signal.cardNumber}` : ""}{signal.rarity ? ` · ${signal.rarity}` : ""}</p>
+
+          <div className="mt-4 grid grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-2.5">
+            <div className="rounded-[1.15rem] border border-violet-300/14 bg-violet-400/[0.07] p-3.5">
+              <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-violet-100/45">Current {marketMode}</p>
+              <p className="mt-1.5 text-[1.55rem] font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
+              <p className="mt-1 text-[9px] text-white/32">{signal.horizon}</p>
+            </div>
+            <div className="rounded-[1.15rem] border border-white/9 bg-black/22 p-3.5">
+              <div className="flex items-center justify-between gap-2 border-b border-white/7 pb-2">
+                <span className="text-[10px] text-white/38">Opportunity</span><strong className="text-sm text-white/88">{score}/100</strong>
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <span className="text-[10px] text-white/38">Setup</span><strong className="text-sm text-fuchsia-100/82">{market?.confluence.score ?? "--"}/100</strong>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex rounded-2xl border border-white/8 bg-black/24 p-1">
+            {(["raw", "graded"] as const).map((mode) => {
+              const disabled = mode === "graded" && !gradedAvailable;
+              return <button key={mode} type="button" disabled={disabled} onClick={() => setMarketMode(mode)} className={cx("min-h-10 flex-1 rounded-xl text-[12px] font-bold capitalize transition", marketMode === mode ? "bg-violet-600 text-white" : disabled ? "cursor-not-allowed text-white/18" : "text-white/45 hover:bg-white/[0.055]")}>{mode}</button>;
+            })}
+          </div>
+
+          <nav className="mt-4 grid grid-cols-3 gap-1 rounded-2xl border border-white/8 bg-black/25 p-1">
+            {([
+              ["info", "Info"],
+              ["forecast", "Forecast"],
+              ["evidence", "Evidence"],
+            ] as const).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setMobileTab(key)} className={cx("min-h-10 rounded-xl px-2 text-[12px] font-bold transition", mobileTab === key ? "bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,92,255,0.22)]" : "text-white/44 hover:bg-white/[0.055]")}>{label}</button>
+            ))}
+          </nav>
+
+          {mobileTab === "info" ? (
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-2 rounded-[1.35rem] border border-white/9 bg-black/18 p-2">
+                {[
+                  ["Expansion", cardBasics.episode.name],
+                  ["Illustrator", cardBasics.artist ?? "Unknown"],
+                  ["Card number", cardBasics.printed_card_number ?? cardBasics.card_number ?? "--"],
+                  ["Release", releaseLabel],
+                  ["Type", [cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"],
+                  ["HP", cardBasics.hp ?? "--"],
+                ].map(([label, value]) => (
+                  <div key={label} className="min-w-0 rounded-xl border border-white/7 bg-white/[0.025] p-3">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/28">{label}</p>
+                    <p className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-4 text-white/76">{value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link href={getExpansionHref(cardBasics.episode.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-3 text-[10px] font-semibold text-violet-100/72"><Tag className="h-3.5 w-3.5" />{cardBasics.episode.name}</Link>
+                {cardBasics.artist ? <Link href={`/illustrators/${encodeURIComponent(cardBasics.artist)}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/9 bg-white/[0.035] px-3 text-[10px] font-semibold text-white/56"><UserRound className="h-3.5 w-3.5" />{cardBasics.artist}</Link> : null}
+              </div>
+              <div className="space-y-2">
+                {explanations.slice(0, 3).map((item) => <div key={item.label} className="flex gap-3 rounded-2xl border border-white/8 bg-white/[0.025] p-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300/72" /><div><p className="text-[12px] font-bold text-white/78">{item.label}</p><p className="mt-1 text-[10px] leading-4 text-white/40">{item.text}</p></div></div>)}
+              </div>
+            </div>
+          ) : null}
+
+          {mobileTab === "forecast" ? (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-[1.35rem] border border-white/9 bg-black/18 p-3">
+                <div className="mb-2 flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/48">Price model</p><h2 className="mt-1 text-sm font-bold text-white/84">{marketMode === "graded" ? "Graded" : "Raw"} scenario{scenarioUsesAverageBaseline ? " · 7d average baseline" : ""}</h2></div>{scenario ? <span className="rounded-full border border-white/8 px-2 py-1 text-[9px] text-white/40">{scenario.confidence}</span> : null}</div>
+                {scenario ? <><PriceScenarioChart scenario={scenario} detailed /><div className="mt-2 grid grid-cols-3 gap-2">{scenario.points.map((point) => <div key={point.days} className="rounded-xl border border-white/7 bg-white/[0.025] p-2.5 text-center"><p className="text-[9px] text-white/32">{point.days} days</p><p className="mt-1 text-[12px] font-black text-white/80">{formatCurrency(point.base, scenario.currency)}</p><p className="mt-1 text-[8px] text-white/28">{formatCurrency(point.low, scenario.currency)}–{formatCurrency(point.high, scenario.currency)}</p></div>)}</div>{scenarioUsesLaunchWindow ? <p className="mt-2 rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active: upside potential is higher during the first 6–8 weeks, but the forecast range is deliberately much wider.</p> : scenarioUsesReleaseStabilization ? <p className="mt-2 rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active: positive short-term growth is deliberately tempered during the first year after release.</p> : null}</> : <p className="py-5 text-center text-xs text-white/38">Not enough reliable history.</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ["Sealed pressure", `${market?.sealed.pressureScore ?? "--"}/100`],
+                  ["Cheapest pack", market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")],
+                  ["Scarcity", `${market?.scarcity.score ?? "--"}/100`],
+                  ["Pull odds", market?.scarcity.pullOdds ?? "Unknown"],
+                  ["Character demand", `${market?.scarcity.collectorDemandScore ?? "--"}/100`],
+                  ["Gem rate", market?.graded.gemRatePct == null ? "--" : `${market.graded.gemRatePct.toFixed(1)}%`],
+                ].map(([label, value]) => <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.025] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/28">{label}</p><p className="mt-1.5 text-sm font-bold text-white/76">{value}</p></div>)}
+              </div>
+            </div>
+          ) : null}
+
+          {mobileTab === "evidence" ? (
+            <div className="mt-3 space-y-3">
+              <div className="rounded-[1.35rem] border border-white/9 bg-black/18 p-3">
+                <div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/48">Source evidence</p><h2 className="mt-1 text-sm font-bold text-white/84">External proof</h2></div><span className="text-[9px] text-white/30">{signal.horizon}</span></div>
+                <div className="mt-3 space-y-2">{signal.evidence.length ? signal.evidence.map((item) => <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-xl border border-white/7 bg-white/[0.025] p-3"><span className="truncate text-[11px] font-semibold text-white/72">{item.deckName}</span><span className="text-[10px] font-bold text-violet-200/72">{item.inclusionPercent.toFixed(0)}%</span><span className="text-[9px] text-white/34">{item.deckSharePercent.toFixed(1)}% meta</span><span className="text-[9px] text-white/34">inclusion</span></Link>) : <p className="text-[10px] leading-4 text-white/38">This setup uses sealed, CardMarket and eBay evidence instead of tournament decks.</p>}</div>
+              </div>
+              <div className="rounded-[1.35rem] border border-white/9 bg-black/18 p-3">
+                <div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/48">Daily scan</p><h2 className="mt-1 text-sm font-bold text-white/84">News, catalysts and risk</h2></div><span className={cx("rounded-full border px-2 py-1 text-[9px]", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 text-rose-100/68" : "border-emerald-300/14 text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk" : "Clear"}</span></div>
+                <div className="mt-3 space-y-2">{catalysts.length ? catalysts.map((catalyst) => <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="block rounded-xl border border-white/7 bg-white/[0.025] p-3"><div className="flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase text-white/34">{catalyst.kind}</span><span className={catalyst.direction === "negative" ? "text-[9px] text-rose-200/72" : "text-[9px] text-emerald-200/72"}>{catalyst.direction}</span></div><p className="mt-1.5 line-clamp-2 text-[11px] font-semibold leading-4 text-white/72">{catalyst.headline}</p></Link>) : <div className="flex gap-3 rounded-xl border border-white/7 bg-white/[0.025] p-3"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300/65" /><p className="text-[10px] leading-4 text-white/40">No fresh trusted catalyst is linked to this card yet.</p></div>}</div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+    <div className="hidden items-start gap-5 lg:grid lg:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] 2xl:grid-cols-[clamp(21rem,26vw,32rem)_minmax(0,1fr)] 2xl:gap-6">
+      <aside className="2xl:sticky 2xl:top-5">
+        <div className="p-1 [&>div:nth-child(n+3)]:hidden">
+          <div className="relative mx-auto aspect-[63/88] w-full max-w-[32rem] overflow-hidden rounded-[1.15rem] border border-white/12 bg-black/28 shadow-[0_28px_80px_rgba(0,0,0,0.46)]">
+            {signal.imageUrl ? (
+              <CachedImage
+                sourceUrl={signal.imageUrl}
+                alt={signal.name}
+                fill
+                priority
+                sizes="(max-width: 1535px) 336px, min(26vw, 512px)"
+                className="object-contain"
+              />
+            ) : null}
+          </div>
+          <section className="mt-3 rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] p-3">
+            <h2 className="text-sm font-bold text-white/88">Card Links</h2>
+            <p className="mt-1 text-[10px] font-medium text-white/36">Compare this card on external markets.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+            <a
+              href={cardMarketHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-[10px] font-bold text-white/72 transition hover:border-violet-300/28 hover:bg-violet-400/[0.09] hover:text-white"
+            >
+              CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+            <a
+              href={ebayHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-[10px] font-bold text-white/72 transition hover:border-violet-300/28 hover:bg-violet-400/[0.09] hover:text-white"
+            >
+              eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+            </div>
+          </section>
           <div className="mt-4">
             <div className="flex flex-wrap gap-1.5">
               <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">#{signal.rank} Radar</span>
@@ -217,29 +402,43 @@ export default function SignalRadarDetailClient({
               );
             })}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <a
-              href={cardMarketHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-sky-300/16 bg-sky-400/[0.07] text-[10px] font-bold text-sky-100/78 transition hover:border-sky-300/30 hover:bg-sky-400/[0.12]"
-            >
-              CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-            <a
-              href={ebayHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-emerald-300/16 bg-emerald-400/[0.07] text-[10px] font-bold text-emerald-100/78 transition hover:border-emerald-300/30 hover:bg-emerald-400/[0.12]"
-            >
-              eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-          </div>
         </div>
       </aside>
 
-      <div className="grid min-w-0 gap-4 [@media(min-width:2200px)]:grid-cols-12 [@media(min-width:2200px)]:items-start">
-        <section className="rounded-[1.5rem] border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5 [@media(min-width:2200px)]:col-span-5">
+      <div className="grid min-w-0 gap-4 2xl:grid-cols-12 2xl:items-start">
+        <section className="2xl:col-span-5 2xl:col-start-1 2xl:row-start-1 [@media(min-width:2200px)]:col-span-4">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">#{signal.rank} Radar</span>
+            <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">{signal.game === "one-piece" ? "One Piece" : "Pokemon"}</span>
+            {signal.rarity ? <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold text-white/45">{signal.rarity}</span> : null}
+          </div>
+          <h1 className="mt-3 text-[1.7rem] font-black tracking-tight text-white">{signal.name}</h1>
+          <p className="mt-1 text-xs text-white/42">{signal.episodeName}{signal.cardNumber ? ` · ${signal.cardNumber}` : ""}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link href={getExpansionHref(cardBasics.episode.id)} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-3 py-1.5 text-[10px] font-semibold text-violet-100/72 transition hover:border-violet-300/28 hover:text-white"><Tag className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{cardBasics.episode.name}</span></Link>
+            {cardBasics.artist ? <Link href={`/illustrators/${encodeURIComponent(cardBasics.artist)}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/9 bg-white/[0.035] px-3 py-1.5 text-[10px] font-semibold text-white/56 transition hover:border-violet-300/20 hover:text-white"><UserRound className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{cardBasics.artist}</span></Link> : null}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-x-4 rounded-xl border border-white/8 bg-black/16 px-3">
+            <MetricRow label="Card number" value={cardBasics.printed_card_number ?? cardBasics.card_number ?? "--"} />
+            <MetricRow label="Rarity" value={cardBasics.rarity ?? "--"} />
+            <MetricRow label="Type" value={[cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"} />
+            <MetricRow label="Release" value={releaseLabel} />
+          </div>
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(10rem,0.72fr)] gap-2">
+            <div className="rounded-xl border border-violet-300/12 bg-violet-400/[0.055] p-3">
+              <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/30">Current {marketMode} market</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
+            </div>
+            <div className="flex rounded-xl border border-white/8 bg-black/24 p-1">
+              {(["raw", "graded"] as const).map((mode) => {
+                const disabled = mode === "graded" && !gradedAvailable;
+                return <button key={mode} type="button" disabled={disabled} onClick={() => setMarketMode(mode)} className={cx("flex-1 rounded-lg text-[11px] font-semibold capitalize transition", marketMode === mode ? "bg-violet-500 text-white shadow-sm" : disabled ? "cursor-not-allowed text-white/20" : "text-white/48 hover:bg-white/[0.06] hover:text-white")}>{mode}</button>;
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5 2xl:col-span-5 2xl:col-start-1 2xl:row-start-2 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-violet-200/55">Signal summary</p>
@@ -261,13 +460,24 @@ export default function SignalRadarDetailClient({
               </div>
             ))}
           </div>
+          <div className="mt-3 hidden grid-cols-3 gap-2 [@media(min-width:2200px)]:grid">
+            {explanations.slice(0, 3).map((item) => (
+              <div key={item.label} className="min-w-0 rounded-xl border border-white/7 bg-black/14 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300/70" />
+                  <p className="truncate text-[10px] font-bold text-white/72">{item.label}</p>
+                </div>
+                <p className="mt-1 line-clamp-2 text-[9px] leading-3.5 text-white/34">{item.text}</p>
+              </div>
+            ))}
+          </div>
         </section>
 
-        <AnalysisSection className="[@media(min-width:2200px)]:col-span-7" eyebrow="Price model" title={`${marketMode === "graded" ? "Graded" : "Raw"} value scenario`} icon={<BarChart3 className="h-4 w-4" />} aside={scenario ? <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/42">{scenario.confidence} confidence</span> : null}>
+        <AnalysisSection className="2xl:col-span-7 2xl:col-start-6 2xl:row-span-2 2xl:row-start-1 [@media(min-width:2200px)]:col-span-8 [@media(min-width:2200px)]:col-start-5" eyebrow="Price model" title={`${marketMode === "graded" ? "Graded" : "Raw"} value scenario${scenarioUsesAverageBaseline ? " · 7d avg baseline" : ""}`} icon={<BarChart3 className="h-4 w-4" />} aside={scenario ? <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/42">{scenario.confidence} confidence</span> : null}>
           {scenario ? (
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
               <div className="min-w-0 rounded-xl border border-violet-300/10 bg-violet-400/[0.035] p-3">
-                <PriceScenarioChart scenario={scenario} />
+                <PriceScenarioChart scenario={scenario} detailed />
               </div>
               <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
                 <div className="grid grid-cols-4 border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">
@@ -282,12 +492,12 @@ export default function SignalRadarDetailClient({
                   </div>
                 ))}
               </div>
+              {scenarioUsesLaunchWindow ? <p className="xl:col-span-2 rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active: upside potential is higher during the first 6–8 weeks, but the forecast band is deliberately much wider because supply and demand are still forming.</p> : scenarioUsesReleaseStabilization ? <p className="xl:col-span-2 rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active: positive short-term growth is deliberately tempered during the first year after release while supply and grading populations settle.</p> : null}
             </div>
           ) : <p className="text-xs text-white/38">Not enough reliable market history for a price scenario.</p>}
         </AnalysisSection>
 
-        <div className="grid gap-4 2xl:grid-cols-2 [@media(min-width:2200px)]:col-span-8">
-          <AnalysisSection eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
+          <AnalysisSection className="2xl:col-span-6 [@media(min-width:2200px)]:col-span-4" eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-amber-300/10 bg-amber-400/[0.025]">
                 <MetricRow label="Sealed pressure" value={`${market?.sealed.pressureLabel ?? "--"} · ${market?.sealed.pressureScore ?? "--"}/100`} />
@@ -304,7 +514,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-          <AnalysisSection eyebrow="Demand quality" title="Collector, artist and grading" icon={<Sparkles className="h-4 w-4" />}>
+          <AnalysisSection className="2xl:col-span-6 [@media(min-width:2200px)]:col-span-4" eyebrow="Demand quality" title="Collector, artist and grading" icon={<Sparkles className="h-4 w-4" />}>
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.025]">
                 <MetricRow label="Confluence" value={`${market?.confluence.label ?? "--"} · ${market?.confluence.score ?? "--"}/100`} />
@@ -320,9 +530,8 @@ export default function SignalRadarDetailClient({
               </div>
             </div>
           </AnalysisSection>
-        </div>
 
-        <AnalysisSection className="[@media(min-width:2200px)]:col-span-4" eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
+        <AnalysisSection className="2xl:col-span-12 [@media(min-width:2200px)]:col-span-4" eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
           <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
             <div className="grid grid-cols-[0.55fr_0.65fr_0.7fr_1.4fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">
               <span>Target</span><span>Horizon</span><span>Probability</span><span>Model progress</span>
@@ -342,8 +551,7 @@ export default function SignalRadarDetailClient({
           </div>
         </AnalysisSection>
 
-        <div className="grid gap-4 2xl:grid-cols-2 [@media(min-width:2200px)]:col-span-7">
-          <AnalysisSection eyebrow="Investment thesis" title="Why it is on the radar" icon={<Radar className="h-4 w-4" />}>
+          <AnalysisSection className="2xl:col-span-6 [@media(min-width:2200px)]:hidden" eyebrow="Investment thesis" title="Why it is on the radar" icon={<Radar className="h-4 w-4" />}>
             <div className="space-y-2">
               {explanations.map((item) => (
                 <div key={item.label} className="flex gap-3 rounded-xl border border-white/7 bg-black/16 p-3">
@@ -354,7 +562,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-          <AnalysisSection eyebrow="Source evidence" title="External proof" icon={<ArrowUpRight className="h-4 w-4" />} aside={<span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/28">{signal.horizon}</span>}>
+          <AnalysisSection className="2xl:col-span-6 [@media(min-width:2200px)]:col-span-6" eyebrow="Source evidence" title="External proof" icon={<ArrowUpRight className="h-4 w-4" />} aside={<span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/28">{signal.horizon}</span>}>
             <div className="space-y-2">
               {signal.evidence.length ? signal.evidence.map((item) => (
                 <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border border-white/7 bg-black/16 px-3 py-3 transition hover:border-violet-300/20">
@@ -365,9 +573,8 @@ export default function SignalRadarDetailClient({
               )) : <p className="rounded-xl border border-white/7 bg-black/16 p-3 text-[10px] leading-4 text-white/38">This structural setup uses DustyCards sealed history, CardMarket and eBay sold evidence instead of tournament decks.</p>}
             </div>
           </AnalysisSection>
-        </div>
 
-        <AnalysisSection className="[@media(min-width:2200px)]:col-span-5" eyebrow="72-hour external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
+        <AnalysisSection className="2xl:col-span-12 [@media(min-width:2200px)]:col-span-6" eyebrow="Daily external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
           {catalysts.length ? (
             <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
               <div className="grid grid-cols-[0.55fr_1.5fr_0.65fr_0.6fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28"><span>Type</span><span>Catalyst</span><span>Evidence</span><span>Direction</span></div>
@@ -383,5 +590,6 @@ export default function SignalRadarDetailClient({
         </AnalysisSection>
       </div>
     </div>
+    </>
   );
 }

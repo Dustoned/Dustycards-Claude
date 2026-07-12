@@ -239,8 +239,8 @@ describe("candidate matching and deduplication", () => {
   });
 });
 
-describe("bounded Firecrawl query planning", () => {
-  it("creates at most four fair, ranked and date-bounded searches", () => {
+describe("bounded external query planning", () => {
+  it("creates a broad, fair, ranked and date-bounded daily search plan", () => {
     const candidates: CatalystCandidate[] = [
       { cardId: "p3", game: "pokemon", name: "Third Pokemon", rank: 3 },
       { cardId: "o2", game: "one-piece", name: "Second Pirate", rank: 2, setCode: "OP14" },
@@ -257,28 +257,32 @@ describe("bounded Firecrawl query planning", () => {
 
     expect(queries).toHaveLength(MAX_CATALYST_SEARCH_QUERIES);
     expect(queries.map((query) => query.cardId)).toEqual([
-      "set-intelligence:pokemon",
-      "set-intelligence:one-piece",
+      "set-intelligence:pokemon:releases",
+      "set-intelligence:one-piece:releases",
       "p1",
       "o1",
+      "set-intelligence:pokemon:products",
+      "set-intelligence:one-piece:products",
+      "set-intelligence:pokemon:competitive",
+      "set-intelligence:one-piece:competitive",
+      "set-intelligence:pokemon:collector",
+      "set-intelligence:one-piece:collector",
+      "p2",
+      "p3",
+      "o2",
+      "o3",
     ]);
-    expect(queries.map((query) => query.game)).toEqual([
-      "pokemon",
-      "one-piece",
-      "pokemon",
-      "one-piece",
-    ]);
+    expect(queries.filter((query) => query.game === "pokemon")).toHaveLength(7);
+    expect(queries.filter((query) => query.game === "one-piece")).toHaveLength(7);
     expect(queries.every((query) => query.query.includes("July 2026"))).toBe(true);
     expect(queries.every((query) => query.query.length <= MAX_CATALYST_SEARCH_QUERY_LENGTH)).toBe(
       true
     );
     expect(queries.every((query) => query.allowedDomains.length > 0)).toBe(true);
-    expect(queries.map((query) => query.mode)).toEqual([
-      "set-intelligence",
-      "set-intelligence",
-      "candidate",
-      "candidate",
-    ]);
+    expect(queries.filter((query) => query.mode === "set-intelligence")).toHaveLength(8);
+    expect(queries.filter((query) => query.mode === "candidate")).toHaveLength(6);
+    expect(queries.some((query) => query.topic === "general")).toBe(true);
+    expect(queries.some((query) => query.topic === "news")).toBe(true);
   });
 
   it("honors a lower maximum, sanitizes operators and never emits empty names", () => {

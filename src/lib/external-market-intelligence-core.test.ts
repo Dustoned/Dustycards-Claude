@@ -74,6 +74,7 @@ describe("external market intelligence", () => {
       marketMode: "graded",
       currentPrice: 500,
       currency: "USD",
+      ageYears: 8,
       opportunityScore: scores.graded,
       sealedTrendPct: 12,
       rawTrend90dPct: 8,
@@ -86,6 +87,51 @@ describe("external market intelligence", () => {
     expect(scenario?.points).toHaveLength(3);
     expect(scenario?.points.every((point) => point.low <= point.base && point.base <= point.high)).toBe(true);
     expect(scenario?.confidence).toBe("High");
+  });
+
+  it("keeps optimistic scenarios for new releases close to flat during stabilization", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      opportunityScore: 88,
+      sealedTrendPct: 15,
+      rawTrend90dPct: 18,
+      scarcityScore: 76,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 4,
+      historyPoints: 12,
+    };
+    const newRelease = buildPriceScenario({ ...shared, ageYears: 0.45 });
+    const matureSet = buildPriceScenario({ ...shared, ageYears: 4 });
+
+    expect(newRelease?.confidence).toBe("Medium");
+    expect(newRelease?.points[1].base).toBeLessThanOrEqual(103);
+    expect(matureSet?.points[1].base).toBeGreaterThan(newRelease?.points[1].base ?? 0);
+    expect(newRelease?.drivers).toContain("post-release stabilization");
+  });
+
+  it("keeps the launch window opportunistic but visibly uncertain", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      opportunityScore: 88,
+      sealedTrendPct: 15,
+      rawTrend90dPct: 18,
+      scarcityScore: 76,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 4,
+      historyPoints: 12,
+    };
+    const launch = buildPriceScenario({ ...shared, ageYears: 0.08 });
+    const stabilized = buildPriceScenario({ ...shared, ageYears: 0.45 });
+
+    expect(launch?.points[1].base).toBeGreaterThan(stabilized?.points[1].base ?? 0);
+    expect(launch?.points[1].high).toBeGreaterThan(stabilized?.points[1].high ?? 0);
+    expect(launch?.drivers).toContain("launch price discovery");
   });
 
   it("only calls a multi-factor chase a gold mine setup", () => {
