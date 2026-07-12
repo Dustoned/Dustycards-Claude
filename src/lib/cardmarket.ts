@@ -164,7 +164,12 @@ export function resolveCardMarketSealedProductUrl(product: {
 }
 
 export function buildCardMarketProxyUrl(cardId: string): string {
-  return `https://www.tcggo.com/external/cm/${encodeURIComponent(cardId)}`;
+  // DustyCards scopes One Piece IDs to avoid collisions with Pokemon IDs,
+  // while TCGGO's external CardMarket redirect expects its original ID.
+  const tcggoCardId = cardId.startsWith("one-piece:")
+    ? cardId.slice("one-piece:".length)
+    : cardId;
+  return `https://www.tcggo.com/external/cm/${encodeURIComponent(tcggoCardId)}`;
 }
 
 export function isDirectCardMarketUrl(url: string | null | undefined): url is string {

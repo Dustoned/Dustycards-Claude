@@ -11,7 +11,7 @@ export interface PatchNoteEntry {
 
 export interface RoadmapItem {
   title: string;
-  status: "Completed" | "Planned" | "In progress" | "Next" | "Waiting";
+  status: "Planned" | "Next";
   summary: string;
 }
 
@@ -1654,88 +1654,28 @@ export const patchNotes: PatchNoteEntry[] = [
 
 export const roadmapItems: RoadmapItem[] = [
   {
-    title: "Heavy-page performance",
-    status: "Completed",
-    summary: "Binder, expansion, catalog, Wants, and auto-price status paths now use bounded history, caches, and lighter render-time work.",
-  },
-  {
-    title: "Social collections",
-    status: "Completed",
-    summary: "Friends, collector discovery, collection overviews, and mutual Full Access are now live.",
-  },
-  {
-    title: "Japanese card support",
-    status: "Waiting",
-    summary: "Add Japanese library and price flows when TCGGO exposes reliable Japanese data.",
-  },
-  {
-    title: "Price intelligence layer",
-    status: "Completed",
-    summary: "Source confidence, eBay sold sample context, currency conversion, stale-price handling, and thin-data warnings are now visible in card and sealed detail.",
-  },
-  {
-    title: "Admin data quality center",
-    status: "Completed",
-    summary: "Admin-only diagnostics for missing images, missing source URLs, stale prices, empty histories, and unavailable price states are available in Settings.",
-  },
-  {
-    title: "Price alerts and watch rules",
-    status: "Planned",
-    summary: "Let users watch cards, binders, sealed, and wants for target prices or sudden movement.",
-  },
-  {
-    title: "Portfolio analytics",
-    status: "Planned",
-    summary: "Track allocation by set, era, rarity, language, graded/raw, sealed, and total exposure.",
-  },
-  {
-    title: "Binder goals",
-    status: "Planned",
-    summary: "Rank missing cards by price, rarity, completion impact, and best next buys for each binder.",
-  },
-  {
-    title: "Grading decision helper",
-    status: "Planned",
-    summary: "Compare raw value, graded comps, expected grade upside, fees, and likely ROI.",
-  },
-  {
-    title: "Deal Radar v2",
+    title: "Collection import and export",
     status: "Next",
-    summary: "Add match confidence, risk flags, shipping impact, seller context, and target-margin presets.",
+    summary: "Import CSV or pasted lists with matching and duplicate review, and export collection, binders, sealed, and wants.",
   },
   {
-    title: "Wantlist planner",
-    status: "Completed",
-    summary: "Missing cards from linked binders are now automatically grouped into Wants.",
-  },
-  {
-    title: "Sealed portfolio tools",
+    title: "Target price alerts",
     status: "Planned",
-    summary: "Track sealed entry price, market movement, position size, ROI, and product-level liquidity.",
+    summary: "Set useful price targets for cards, sealed products, wants, and binders without noisy notifications.",
   },
   {
-    title: "Market timeline",
+    title: "Binder next-buy guidance",
     status: "Planned",
-    summary: "Create a clean timeline of collection value changes, biggest movers, buys, and sold/listing events.",
+    summary: "Rank missing cards by price, rarity, completion impact, and affordability.",
   },
   {
-    title: "Smart collection import",
+    title: "eBay watch countdowns",
     status: "Planned",
-    summary: "Import CSV or pasted lists, auto-match cards, detect duplicates, and preview changes before saving.",
+    summary: "Show time remaining, ended state, and the final known result for watched listings.",
   },
   {
-    title: "Collection export center",
+    title: "Shareable binder links",
     status: "Planned",
-    summary: "Export collection, binders, sealed, wants, and valuation snapshots for backup or spreadsheets.",
-  },
-  {
-    title: "Shareable binder pages",
-    status: "Planned",
-    summary: "Generate read-only public or private links for selected binders and portfolio views.",
-  },
-  {
-    title: "Personal dashboard widgets",
-    status: "Planned",
-    summary: "Let users choose which overview modules appear first, with compact cards for their workflow.",
+    summary: "Create revocable read-only links for selected binders without granting collection access.",
   },
 ];
