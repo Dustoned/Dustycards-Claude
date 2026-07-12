@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.23",
+    releasedAt: "July 12, 2026",
+    title: "Clearer aligned radar previews",
+    summary:
+      "Signal Radar previews now show more decision-making information while keeping every card on the same visual grid.",
+    tone: "improved",
+    highlights: [
+      "Preview width increased so names, set, card number, and rarity can use two readable lines instead of a single truncated line.",
+      "The core preview is now a consistent 2x2 block for Opportunity, Gold mine setup, full signal tier, and the 90-day base scenario.",
+      "Supporting reasons use a fixed-height checklist instead of differently sized chips.",
+      "All preview cards use identical internal rows, heights, progress bars, and button positions.",
+      "The responsive grid uses a wider minimum card size, reducing cramped three-column layouts on smaller desktops while still scaling across ultrawide screens.",
+    ],
+  },
+  {
     version: "3.6.22",
     releasedAt: "July 12, 2026",
     title: "Full card-style radar analysis",
