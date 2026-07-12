@@ -5,7 +5,7 @@ import type {
 } from "@/lib/external-signal-radar";
 
 export const EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
-export const EXTERNAL_CATALYST_REFRESH_INTERVAL_MS = 72 * 60 * 60_000;
+export const EXTERNAL_CATALYST_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
 export const EXTERNAL_SIGNAL_MODEL_VERSION = "v5-gold-mine-confluence";
 export const EXTERNAL_SIGNAL_OUTCOME_HORIZONS = [30, 90, 180] as const;
 const INDEPENDENT_ENTRY_GAP_MS = 14 * 24 * 60 * 60_000;

@@ -175,10 +175,10 @@ describe("external catalyst discovery orchestration", () => {
       deps
     );
 
-    expect(result.queriesPlanned).toBeLessThanOrEqual(4);
+    expect(result.queriesPlanned).toBeLessThanOrEqual(14);
     expect(result.sourcesScraped).toBeLessThanOrEqual(EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN);
     expect(result.sourcesScraped).toBe(2);
-    expect(deps.searchWeb).toHaveBeenCalledTimes(4);
+    expect(deps.searchWeb).toHaveBeenCalledTimes(10);
     expect(deps.searchWeb).toHaveBeenCalledWith(
       expect.objectContaining({ limit: EXTERNAL_CATALYST_SEARCH_LIMIT })
     );
@@ -189,7 +189,7 @@ describe("external catalyst discovery orchestration", () => {
     ]);
     expect(result.matches.map((match) => match.cardId)).toContain("pokemon-meowth");
     expect(result.catalystsPersisted).toBeGreaterThan(0);
-    expect(result.creditsUsed).toBe(6); // 4 searches + 2 scrapes in this mock.
+    expect(result.creditsUsed).toBe(12); // 10 searches + 2 scrapes in this mock.
     expect(result.errors).toEqual([]);
   });
 
@@ -224,7 +224,7 @@ describe("external catalyst discovery orchestration", () => {
     expect(result.knownUrlsSkipped).toBe(1);
     expect(deps.scrapePage).not.toHaveBeenCalled();
     expect(store.created).toEqual([]);
-    expect(result.creditsUsed).toBe(2);
+    expect(result.creditsUsed).toBe(5);
   });
 
   it("returns provider errors and continues with the remaining queries", async () => {
@@ -249,8 +249,64 @@ describe("external catalyst discovery orchestration", () => {
     expect(result.errors).toEqual([
       expect.objectContaining({ stage: "search", message: "temporary provider failure" }),
     ]);
-    expect(deps.searchWeb).toHaveBeenCalledTimes(4);
-    expect(result.creditsUsed).toBe(5); // failed estimate plus three successful mock searches.
+    expect(deps.searchWeb).toHaveBeenCalledTimes(10);
+    expect(result.creditsUsed).toBe(11); // failed estimate plus nine successful mock searches.
+  });
+
+  it("uses Tavily for discovery without charging the Firecrawl ledger", async () => {
+    const deps = dependencies({
+      store: makeStore(),
+      searchResults: {
+        pokemon: {
+          results: [],
+          creditsUsed: 1,
+          warning: null,
+        },
+      },
+    });
+    deps.searchProvider = "tavily";
+    const budgeted = vi.spyOn(deps, "runBudgetedRequest");
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates: [candidates[0]], now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(result).toMatchObject({
+      searchProvider: "tavily",
+      tavilyCreditsUsed: 5,
+      creditsUsed: 0,
+      searchesExecuted: 5,
+    });
+    expect(budgeted).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a budgeted Firecrawl search when Tavily fails", async () => {
+    const deps = dependencies({
+      store: makeStore(),
+      searchResults: {},
+    });
+    deps.searchProvider = "tavily";
+    deps.searchWeb.mockRejectedValue(new Error("temporary Tavily failure"));
+    deps.fallbackSearchWeb = vi.fn(async () => ({
+      results: [],
+      creditsUsed: 1,
+      warning: null,
+    }));
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates: [candidates[0]], now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(result).toMatchObject({
+      status: "success",
+      searchProvider: "tavily",
+      tavilyCreditsUsed: 0,
+      creditsUsed: 5,
+      searchesExecuted: 5,
+    });
+    expect(deps.fallbackSearchWeb).toHaveBeenCalledTimes(5);
   });
 
   it("uses a new scrape reservation bucket so a failed source can retry later", async () => {
@@ -323,7 +379,7 @@ describe("external catalyst discovery orchestration", () => {
       cardId: "pokemon-meowth",
       sourceKind: "social",
     });
-    expect(result.creditsUsed).toBe(2);
+    expect(result.creditsUsed).toBe(5);
     expect(result.errors).toEqual([]);
   });
 });

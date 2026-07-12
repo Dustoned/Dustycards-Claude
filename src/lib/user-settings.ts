@@ -17,6 +17,7 @@ export interface UserSettings {
   uiScale: UiScale;
   mobileUiScale: UiScale;
   autoPriceRefresh: boolean;
+  signalRadarEmailAlerts: boolean;
   binderWatchMinPrice: number;
   defaultView: CardView;
   mobileDefaultView: CardView;
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   uiScale: "medium",
   mobileUiScale: "small",
   autoPriceRefresh: false,
+  signalRadarEmailAlerts: false,
   binderWatchMinPrice: 50,
   defaultView: "table",
   mobileDefaultView: "grid",
@@ -110,6 +112,10 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       typeof source.autoPriceRefresh === "boolean"
         ? source.autoPriceRefresh
         : DEFAULT_SETTINGS.autoPriceRefresh,
+    signalRadarEmailAlerts:
+      typeof source.signalRadarEmailAlerts === "boolean"
+        ? source.signalRadarEmailAlerts
+        : DEFAULT_SETTINGS.signalRadarEmailAlerts,
     binderWatchMinPrice: pickNonNegativeNumber(
       source.binderWatchMinPrice,
       DEFAULT_SETTINGS.binderWatchMinPrice

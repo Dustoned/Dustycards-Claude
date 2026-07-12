@@ -193,6 +193,7 @@ export function buildPriceScenario(input: {
   marketMode: ExternalMarketMode;
   currentPrice: number | null;
   currency: "EUR" | "USD";
+  ageYears: number | null;
   opportunityScore: number | null;
   sealedTrendPct: number | null;
   rawTrend90dPct: number | null;
@@ -219,21 +220,60 @@ export function buildPriceScenario(input: {
       ? Math.max(0, 45 - input.gemRatePct) * 0.00018
       : 0;
   const riskMonthly = Math.max(0, input.riskScore) * 0.025;
-  const monthlyRate = Math.min(
+  const unconstrainedMonthlyRate = Math.min(
     0.075,
     Math.max(-0.05, scoreMonthly + sealedMonthly + rawMomentumMonthly + scarcityMonthly + gemMonthly - riskMonthly)
   );
-  const confidence: ExternalPriceScenario["confidence"] =
+  // Fresh sets usually spend their first year in price discovery: supply is still
+  // opening, grading populations are growing and most chases trade sideways even
+  // when their long-term collector setup is strong. Only damp optimistic growth;
+  // genuine negative momentum and risk must remain visible.
+  const releaseStabilityFactor =
+    input.ageYears == null || input.ageYears >= 2
+      ? 1
+      : input.ageYears < 0.18
+        ? 0.35
+        : input.ageYears < 1
+          ? 0.16
+          : input.ageYears < 1.5
+            ? 0.4
+            : 0.7;
+  const releaseSupplyDrag =
+    input.ageYears == null || input.ageYears >= 1
+      ? 0
+      : input.ageYears < 0.18
+        ? 0
+        : 0.004;
+  const monthlyRate =
+    unconstrainedMonthlyRate > 0
+      ? Math.max(-0.01, unconstrainedMonthlyRate * releaseStabilityFactor - releaseSupplyDrag)
+      : unconstrainedMonthlyRate;
+  const calculatedConfidence: ExternalPriceScenario["confidence"] =
     input.evidenceCount >= 3 && input.historyPoints >= 8
       ? "High"
       : input.evidenceCount >= 2 || input.historyPoints >= 5
         ? "Medium"
         : "Low";
+  const confidence: ExternalPriceScenario["confidence"] =
+    input.ageYears != null && input.ageYears < 1 && calculatedConfidence === "High"
+      ? "Medium"
+      : calculatedConfidence;
   const uncertaintyMultiplier = confidence === "High" ? 0.75 : confidence === "Medium" ? 1 : 1.3;
+  const releaseUncertaintyMultiplier =
+    input.ageYears == null || input.ageYears >= 1
+      ? 1
+      : input.ageYears < 0.18
+        ? 1.65
+        : input.ageYears < 0.5
+          ? 1.2
+        : 1.1;
   const points = SCENARIO_DAYS.map((days) => {
     const months = days / 30;
     const base = currentPrice * (1 + monthlyRate) ** months;
-    const spread = Math.min(0.48, (0.055 + Math.sqrt(months) * 0.045) * uncertaintyMultiplier);
+    const spread = Math.min(
+      0.48,
+      (0.055 + Math.sqrt(months) * 0.045) * uncertaintyMultiplier * releaseUncertaintyMultiplier
+    );
     return {
       days,
       low: roundMoney(Math.max(currentPrice * 0.35, base * (1 - spread))),
@@ -246,6 +286,11 @@ export function buildPriceScenario(input: {
     input.rawTrend90dPct != null ? "market history" : null,
     input.scarcityScore >= 60 ? "structural scarcity" : null,
     input.marketMode === "graded" && input.gemRatePct != null ? "gem-rate" : null,
+    input.ageYears != null && input.ageYears < 0.18
+      ? "launch price discovery"
+      : input.ageYears != null && input.ageYears < 1
+        ? "post-release stabilization"
+        : null,
   ].filter((value): value is string => Boolean(value));
   return {
     marketMode: input.marketMode,

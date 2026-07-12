@@ -170,7 +170,7 @@ export default async function SignalRadarPage({
                 </HeaderPill>
                 <HeaderPill tone="slate">
                   <Clock3 className="h-3.5 w-3.5" />
-                  72h set & event scan
+                  Daily set & event scan
                 </HeaderPill>
               </div>
             </HeaderAction>

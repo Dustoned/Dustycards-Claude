@@ -25,9 +25,10 @@ import {
   type FirecrawlPageScrapeResult,
   type FirecrawlWebSearchResponse,
 } from "@/lib/firecrawl";
+import { getTavilyConfigSnapshot, searchTavilyWeb } from "@/lib/tavily";
 
-export const EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS = 72 * 60 * 60_000;
-export const EXTERNAL_CATALYST_QUERY_VERSION = 2;
+export const EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS = 24 * 60 * 60_000;
+export const EXTERNAL_CATALYST_QUERY_VERSION = 3;
 export const EXTERNAL_CATALYST_SEARCH_LIMIT = 5;
 export const EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN = 4;
 export const EXTERNAL_CATALYST_RETRY_BACKOFF_MS = 72 * 60 * 60_000;
@@ -73,6 +74,8 @@ export interface ExternalCatalystDiscoveryResult {
   sourcesScraped: number;
   catalystsPersisted: number;
   matches: CatalystCardMatch[];
+  searchProvider: "tavily" | "firecrawl";
+  tavilyCreditsUsed: number;
   creditsUsed: number;
   errors: ExternalCatalystDiscoveryError[];
 }
@@ -136,7 +139,15 @@ export type BudgetedRequestRunner = <T>(
 }>;
 
 export interface ExternalCatalystDiscoveryDependencies {
-  searchWeb: typeof searchFirecrawlWeb;
+  searchWeb: (input: {
+    query: string;
+    limit?: number;
+    includeDomains?: string[];
+    tbs?: string;
+    topic?: "news" | "general";
+  }) => Promise<FirecrawlWebSearchResponse>;
+  searchProvider?: "tavily" | "firecrawl";
+  fallbackSearchWeb?: ExternalCatalystDiscoveryDependencies["searchWeb"];
   scrapePage: typeof scrapeFirecrawlPage;
   runBudgetedRequest: BudgetedRequestRunner;
   store: ExternalCatalystDiscoveryStore;
@@ -426,8 +437,11 @@ const prismaCatalystStore: ExternalCatalystDiscoveryStore = {
   },
 };
 
+const tavilyConfigured = getTavilyConfigSnapshot().configured;
 const DEFAULT_DEPENDENCIES: ExternalCatalystDiscoveryDependencies = {
-  searchWeb: searchFirecrawlWeb,
+  searchWeb: tavilyConfigured ? searchTavilyWeb : searchFirecrawlWeb,
+  searchProvider: tavilyConfigured ? "tavily" : "firecrawl",
+  fallbackSearchWeb: tavilyConfigured ? searchFirecrawlWeb : undefined,
   scrapePage: scrapeFirecrawlPage,
   runBudgetedRequest: runBudgetedFirecrawlRequest,
   store: prismaCatalystStore,
@@ -535,6 +549,8 @@ function baseResult(due: boolean): ExternalCatalystDiscoveryResult {
     sourcesScraped: 0,
     catalystsPersisted: 0,
     matches: [],
+    searchProvider: tavilyConfigured ? "tavily" : "firecrawl",
+    tavilyCreditsUsed: 0,
     creditsUsed: 0,
     errors: [],
   };
@@ -555,6 +571,8 @@ export async function runExternalCatalystDiscovery(
   if (!due) return result;
 
   const candidates = normalizeCandidates(input.candidates);
+  const searchProvider = dependencies.searchProvider ?? "firecrawl";
+  result.searchProvider = searchProvider;
   const queries = buildFirecrawlCatalystSearchQueries(candidates, now, {
     maxQueries: MAX_CATALYST_SEARCH_QUERIES,
   });
@@ -563,24 +581,62 @@ export async function runExternalCatalystDiscovery(
 
   for (const query of queries) {
     try {
-      const budgeted = await dependencies.runBudgetedRequest<FirecrawlWebSearchResponse>({
-        consumer: FIRECRAWL_CONSUMER,
-        operation: "catalyst-search",
-        idempotencyKey: `external-catalyst:search:${discoveryBucket(now)}:${hash(`${query.game}\u0000${query.query}`)}`,
-        estimatedCredits: SEARCH_ESTIMATED_CREDITS,
-        request: () =>
-          dependencies.searchWeb({
+      let searchResponse: FirecrawlWebSearchResponse | null = null;
+      if (searchProvider === "tavily") {
+        try {
+          searchResponse = await dependencies.searchWeb({
             query: query.query,
             limit: EXTERNAL_CATALYST_SEARCH_LIMIT,
             includeDomains: query.allowedDomains,
             tbs: "sbd:1,qdr:m",
-          }),
-        getCreditsUsed: (response) => response.creditsUsed,
-      });
-      if (!budgeted.executed || !budgeted.result) continue;
+            topic: query.topic,
+          });
+          result.tavilyCreditsUsed += searchResponse.creditsUsed ?? 1;
+        } catch (tavilyError) {
+          if (!dependencies.fallbackSearchWeb) throw tavilyError;
+          const fallback = await dependencies.runBudgetedRequest<FirecrawlWebSearchResponse>({
+            consumer: FIRECRAWL_CONSUMER,
+            operation: "catalyst-search-fallback",
+            idempotencyKey: `external-catalyst:search-fallback:${discoveryBucket(now)}:${hash(`${query.game}\u0000${query.query}`)}`,
+            estimatedCredits: SEARCH_ESTIMATED_CREDITS,
+            request: () =>
+              dependencies.fallbackSearchWeb!({
+                query: query.query,
+                limit: EXTERNAL_CATALYST_SEARCH_LIMIT,
+                includeDomains: query.allowedDomains,
+                tbs: "sbd:1,qdr:m",
+                topic: query.topic,
+              }),
+            getCreditsUsed: (response) => response.creditsUsed,
+          });
+          if (!fallback.executed || !fallback.result) continue;
+          searchResponse = fallback.result;
+          result.creditsUsed += fallback.creditsUsed;
+        }
+      } else {
+        const budgeted = await dependencies.runBudgetedRequest<FirecrawlWebSearchResponse>({
+          consumer: FIRECRAWL_CONSUMER,
+          operation: "catalyst-search",
+          idempotencyKey: `external-catalyst:search:${discoveryBucket(now)}:${hash(`${query.game}\u0000${query.query}`)}`,
+          estimatedCredits: SEARCH_ESTIMATED_CREDITS,
+          request: () =>
+            dependencies.searchWeb({
+              query: query.query,
+              limit: EXTERNAL_CATALYST_SEARCH_LIMIT,
+              includeDomains: query.allowedDomains,
+              tbs: "sbd:1,qdr:m",
+              topic: query.topic,
+            }),
+          getCreditsUsed: (response) => response.creditsUsed,
+        });
+        if (!budgeted.executed || !budgeted.result) continue;
+        searchResponse = budgeted.result;
+        result.creditsUsed += budgeted.creditsUsed;
+      }
+
+      if (!searchResponse) continue;
       result.searchesExecuted += 1;
-      result.creditsUsed += budgeted.creditsUsed;
-      const searchResults = budgeted.result.results.slice(0, EXTERNAL_CATALYST_SEARCH_LIMIT);
+      const searchResults = searchResponse.results.slice(0, EXTERNAL_CATALYST_SEARCH_LIMIT);
       result.searchResultsSeen += searchResults.length;
 
       for (const searchResult of searchResults) {
@@ -601,7 +657,7 @@ export async function runExternalCatalystDiscovery(
     } catch (error) {
       // The budget layer counts a failed provider request conservatively. A
       // budget rejection itself did not consume credits.
-      if (!(error instanceof FirecrawlBudgetError)) {
+      if (searchProvider === "firecrawl" && !(error instanceof FirecrawlBudgetError)) {
         result.creditsUsed += SEARCH_ESTIMATED_CREDITS;
       }
       result.errors.push({ stage: "search", message: errorMessage(error), query: query.query });

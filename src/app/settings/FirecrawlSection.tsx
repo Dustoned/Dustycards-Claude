@@ -617,7 +617,7 @@ export default function FirecrawlSection({ config, isAdmin }: FirecrawlSectionPr
         <StatusTile
           label="Mode"
           value="Bounded radar"
-          hint="Catalysts every 72h; hard sub-budget"
+          hint="Daily catalysts; hard Firecrawl sub-budget"
         />
       </div>
 

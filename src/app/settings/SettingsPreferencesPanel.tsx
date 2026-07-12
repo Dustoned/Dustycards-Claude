@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import type { ReactNode } from "react";
-import { Library, Maximize2, Moon, Smartphone } from "lucide-react";
+import { Library, Mail, Maximize2, Moon, Smartphone } from "lucide-react";
 import {
   type Card3dSize,
   type CardSize,
@@ -228,6 +228,13 @@ export default function SettingsPreferencesPanel() {
               checked={settings.onePieceLibraryEnabled}
               onChange={(value) => set("onePieceLibraryEnabled", value)}
               icon={<Library className="h-4 w-4" />}
+            />
+            <ToggleRow
+              title="High-potential email alerts"
+              description="Email my verified account when Signal Radar finds a new strongly confirmed opportunity. Alerts are deduplicated and grouped."
+              checked={settings.signalRadarEmailAlerts}
+              onChange={(value) => set("signalRadarEmailAlerts", value)}
+              icon={<Mail className="h-4 w-4" />}
             />
           </div>
         </div>

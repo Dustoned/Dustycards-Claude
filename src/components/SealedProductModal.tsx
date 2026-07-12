@@ -279,12 +279,23 @@ export default function SealedProductModal({ product, onClose }: Props) {
             style={desktopWorkspaceStyle}
           >
             <div className={desktopGridClass}>
-              <SealedModalPreview
-                product={modalProduct}
-                mediaWidth="clamp(20rem, 18vw, 36rem)"
-                imageSize={layout.imageSize}
-                imagePadding={layout.imagePadding}
-              />
+              <div className="min-w-0">
+                <SealedModalPreview
+                  product={modalProduct}
+                  mediaWidth="clamp(20rem, 18vw, 36rem)"
+                  imageSize={layout.imageSize}
+                  imagePadding={layout.imagePadding}
+                />
+                <div className="mt-4 hidden md:block">
+                  <SealedModalFooter
+                    product={modalProduct}
+                    footerGridClass="grid gap-3"
+                    cardMarketUrl={cardMarketUrl}
+                    onAddedToCollection={refreshModalProductFromServer}
+                    onClose={onClose}
+                  />
+                </div>
+              </div>
 
               <div className="flex min-w-0 flex-col gap-5">
                 <SealedModalHeroSection
@@ -302,15 +313,6 @@ export default function SealedProductModal({ product, onClose }: Props) {
                   onAddedToCollection={refreshModalProductFromServer}
                   onClose={onClose}
                 />
-                <div className="hidden md:block">
-                  <SealedModalFooter
-                    product={modalProduct}
-                    footerGridClass="grid gap-3 sm:grid-cols-2"
-                    cardMarketUrl={cardMarketUrl}
-                    onAddedToCollection={refreshModalProductFromServer}
-                    onClose={onClose}
-                  />
-                </div>
               </div>
 
               <div className={desktopHistoryClass}>

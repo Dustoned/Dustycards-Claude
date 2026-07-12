@@ -85,6 +85,48 @@ export const TRUSTED_CATALYST_DOMAINS: readonly TrustedCatalystDomain[] = [
     credibility: 0.78,
   },
   {
+    domain: "icv2.com",
+    sourceKind: "community",
+    games: ["pokemon", "one-piece"],
+    credibility: 0.84,
+  },
+  {
+    domain: "pokellector.com",
+    sourceKind: "community",
+    games: ["pokemon"],
+    credibility: 0.74,
+  },
+  {
+    domain: "pokemonblog.com",
+    sourceKind: "community",
+    games: ["pokemon"],
+    credibility: 0.7,
+  },
+  {
+    domain: "elitefourum.com",
+    sourceKind: "community",
+    games: ["pokemon"],
+    credibility: 0.68,
+  },
+  {
+    domain: "egmanevents.com",
+    sourceKind: "community",
+    games: ["one-piece"],
+    credibility: 0.76,
+  },
+  {
+    domain: "onepiece.gg",
+    sourceKind: "community",
+    games: ["one-piece"],
+    credibility: 0.72,
+  },
+  {
+    domain: "gumgum.gg",
+    sourceKind: "community",
+    games: ["one-piece"],
+    credibility: 0.7,
+  },
+  {
     domain: "tcgplayer.com",
     sourceKind: "community",
     games: ["pokemon", "one-piece"],
@@ -185,7 +227,7 @@ export interface CatalystCardMatch {
   classifications: CatalystClassification[];
 }
 
-export const MAX_CATALYST_SEARCH_QUERIES = 4;
+export const MAX_CATALYST_SEARCH_QUERIES = 14;
 export const MAX_CATALYST_SEARCH_QUERY_LENGTH = 220;
 
 export interface CatalystSearchQuery {
@@ -193,6 +235,7 @@ export interface CatalystSearchQuery {
   cardId: string;
   candidateName: string;
   mode: "set-intelligence" | "candidate";
+  topic: "news" | "general";
   query: string;
   allowedDomains: string[];
 }
@@ -701,7 +744,7 @@ function topSearchCandidates(
       seenNames.add(key);
       return true;
     })
-    .slice(0, 1);
+    .slice(0, 3);
 }
 
 function monthAndYear(now: Date): string {
@@ -728,23 +771,30 @@ export function buildFirecrawlCatalystSearchQueries(
   const games = (["pokemon", "one-piece"] as const).filter((game) =>
     candidates.some((candidate) => candidate.game === game)
   );
-  const genericQueries = games.map((game): CatalystSearchQuery => {
+  const genericQueries = games.flatMap((game): CatalystSearchQuery[] => {
     const gameLabel = game === "pokemon" ? "Pokemon TCG" : "One Piece Card Game";
-    const regionTerms =
-      game === "pokemon"
-        ? "Japanese set English set leaked booklet card list reveal promo reprint"
-        : "Japanese set English release leaked booklet card list reveal promo reprint";
-    return {
+    const lenses = game === "pokemon"
+      ? [
+          ["releases", "Japanese set English set leaked booklet card list chase reveal localization", "news"],
+          ["products", "sealed product promo collection box restock reprint out of print supply", "news"],
+          ["competitive", "tournament results deck support rotation ban new archetype", "news"],
+          ["collector", "trending buyout scarcity grading population illustrator chase demand", "general"],
+        ] as const
+      : [
+          ["releases", "Japanese set English release leaked card list manga rare reveal localization", "news"],
+          ["products", "sealed product promo starter deck restock reprint supply", "news"],
+          ["competitive", "tournament results deck support restriction ban meta archetype", "news"],
+          ["collector", "trending buyout scarcity grading population manga rare chase demand", "general"],
+        ] as const;
+    return lenses.map(([lens, terms, topic]) => ({
       game,
-      cardId: `set-intelligence:${game}`,
-      candidateName: "Set intelligence",
+      cardId: `set-intelligence:${game}:${lens}`,
+      candidateName: `${lens[0].toUpperCase()}${lens.slice(1)} intelligence`,
       mode: "set-intelligence",
-      query: `${gameLabel} ${regionTerms} ${dateLabel}`.slice(
-        0,
-        MAX_CATALYST_SEARCH_QUERY_LENGTH
-      ),
+      topic,
+      query: `${gameLabel} ${terms} ${dateLabel}`.slice(0, MAX_CATALYST_SEARCH_QUERY_LENGTH),
       allowedDomains: getTrustedCatalystDomains(game),
-    };
+    }));
   });
   const selected = games.flatMap((game) => topSearchCandidates(candidates, game));
   const candidateQueries = selected.map((candidate): CatalystSearchQuery => {
@@ -763,10 +813,35 @@ export function buildFirecrawlCatalystSearchQueries(
       cardId: candidate.cardId,
       candidateName,
       mode: "candidate",
+      topic: "general",
       query,
       allowedDomains: getTrustedCatalystDomains(candidate.game),
     };
   });
-  return [...genericQueries, ...candidateQueries].slice(0, maximum);
+  const ordered: CatalystSearchQuery[] = [];
+  // Keep small custom budgets useful too: first cover each game, then its top
+  // candidate, before widening into the remaining research lenses.
+  for (const game of games) {
+    const primary = genericQueries.find(
+      (query) => query.game === game && query.cardId.endsWith(":releases")
+    );
+    if (primary) ordered.push(primary);
+  }
+  for (const game of games) {
+    const primary = candidateQueries.find((query) => query.game === game);
+    if (primary) ordered.push(primary);
+  }
+  for (const lens of ["products", "competitive", "collector"] as const) {
+    for (const game of games) {
+      const query = genericQueries.find(
+        (candidate) => candidate.game === game && candidate.cardId.endsWith(`:${lens}`)
+      );
+      if (query) ordered.push(query);
+    }
+  }
+  for (const game of games) {
+    ordered.push(...candidateQueries.filter((query) => query.game === game).slice(1));
+  }
+  return ordered.slice(0, maximum);
 }
 
