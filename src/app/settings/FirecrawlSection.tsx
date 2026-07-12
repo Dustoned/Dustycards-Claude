@@ -596,7 +596,7 @@ export default function FirecrawlSection({ config, isAdmin }: FirecrawlSectionPr
             Firecrawl Tools
           </h2>
           <p className="mt-0.5 text-sm text-gray-400">
-            Admin-only web context, docs diagnostics, and single-page checks for repair work.
+            Admin web tools plus the tightly bounded Signal Radar catalyst scan.
           </p>
         </div>
         <Flame className="h-5 w-5 shrink-0 text-orange-500 dark:text-orange-300" />
@@ -614,7 +614,11 @@ export default function FirecrawlSection({ config, isAdmin }: FirecrawlSectionPr
           value={`${config.monthlyCreditBudget.toLocaleString("en-US")} credits`}
           hint="Free monthly guardrail"
         />
-        <StatusTile label="Mode" value="Manual only" hint="No background Firecrawl jobs" />
+        <StatusTile
+          label="Mode"
+          value="Bounded radar"
+          hint="Catalysts every 72h; hard sub-budget"
+        />
       </div>
 
       <div className="mt-5">

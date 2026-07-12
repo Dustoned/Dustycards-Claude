@@ -27,6 +27,11 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { getExternalSignalRadarData } from "@/lib/external-signal-radar";
+import { enrichExternalSignalRadarData } from "@/lib/external-signal-intelligence";
+import {
+  getPersistedExternalSignalRadarData,
+  mergeExternalSignalRadarWithFallback,
+} from "@/lib/external-signal-persisted";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
@@ -50,7 +55,13 @@ export default async function SignalRadarPage({
   const activeGame = parseVisibleGameFilter(game, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const data = await getExternalSignalRadarData(activeGame);
+  const [liveData, persistedData] = await Promise.all([
+    getExternalSignalRadarData(activeGame),
+    getPersistedExternalSignalRadarData(activeGame),
+  ]);
+  const data = await enrichExternalSignalRadarData(
+    mergeExternalSignalRadarWithFallback(liveData, persistedData, activeGame)
+  );
   const highConfidenceCount = data.signals.filter(
     (signal) => signal.confidence === "High"
   ).length;
@@ -113,7 +124,7 @@ export default async function SignalRadarPage({
         <PageHeroHeader
           eyebrow="External market intelligence"
           title="Signal Radar"
-          description="Cards that may attract more demand soon, ranked from competitive adoption outside DustyCards — not from our own price changes. Every candidate shows the evidence, horizon and risk label behind it."
+          description="Cards that may attract more demand soon, ranked from external tournament adoption and checked against trusted support, product, supply, reprint and hype sources. Historical outcomes teach the 1.5x, 2x and 3x model without using DustyCards price momentum to pick candidates."
           stats={stats}
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-white/46">
@@ -150,7 +161,11 @@ export default async function SignalRadarPage({
                 </HeaderPill>
                 <HeaderPill tone="slate">
                   <Clock3 className="h-3.5 w-3.5" />
-                  6h shared cache
+                  6h competitive scan
+                </HeaderPill>
+                <HeaderPill tone="slate">
+                  <Clock3 className="h-3.5 w-3.5" />
+                  72h catalyst scan
                 </HeaderPill>
               </div>
             </HeaderAction>
@@ -166,12 +181,13 @@ export default async function SignalRadarPage({
               <div className="min-w-0">
                 <h2 className="font-bold text-white">How a card enters the radar</h2>
                 <p className="mt-1 text-xs leading-5 text-white/48">
-                  The score combines current archetype share, how often the card is a core inclusion and whether it appears across several leading decks. Bulk-only noise is suppressed; local price never boosts the score or order.
+                  Tournament share, core inclusion and use across several leading decks create the base score. Trusted support, product, reprint, ban and social-hype evidence can then adjust it; local price momentum never selects or boosts a card.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold uppercase tracking-[0.11em] text-white/50">
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Meta share</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Core inclusion</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Cross-deck reach</span>
+                  <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Catalyst adjustment</span>
                   <span className="rounded-full border border-white/8 bg-black/18 px-2.5 py-1.5">Bulk noise suppressed</span>
                 </div>
               </div>

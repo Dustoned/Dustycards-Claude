@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.16",
+    releasedAt: "July 12, 2026",
+    title: "Signal Radar learns over time",
+    summary:
+      "DustyCards 3.6.16 turns Signal Radar into a persistent external research pipeline with clearer cards and honest historical growth calibration.",
+    tone: "improved",
+    highlights: [
+      "Card artwork now stays in its true 63:88 frame, while the three tournament signals are explained per card in plain language.",
+      "Competitive evidence refreshes every six hours without visitor traffic; a separate 72-hour catalyst scan checks trusted support, product, supply, reprint, ban, rotation, community, and social-hype sources.",
+      "The catalyst scan is URL-deduplicated, limited to four searches and two new pages per run, and protected by both the shared Firecrawl budget and a 120-credit monthly radar cap.",
+      "Independent signal episodes are followed for 30, 90, and 180 days using one recent CardMarket EUR reference; a growth target requires two separate price days and weak history is marked insufficient rather than counted as a failure.",
+      "The 1.5x, 2x, and 3x panels show Learning until strict sample, unique-card, confidence-range, and chronological calibration gates pass, so One Piece never receives a made-up probability while its history is still thin.",
+      "If an external tournament source is temporarily unavailable, the page falls back to the last successful background snapshot instead of showing an empty radar.",
+    ],
+  },
+  {
     version: "3.6.15",
     releasedAt: "July 12, 2026",
     title: "External Signal Radar",

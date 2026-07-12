@@ -8,6 +8,7 @@ import {
   type FirecrawlPageScrapeResult,
   type FirecrawlWebSearchResponse,
 } from "@/lib/firecrawl";
+import { getFirecrawlMonthWindow } from "@/lib/firecrawl-budget";
 import {
   getGameLabel,
   normalizeTradingCardGame,
@@ -1213,16 +1214,28 @@ function startOfDay(value: Date): Date {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
 }
 
-function startOfMonth(value: Date): Date {
-  return new Date(value.getFullYear(), value.getMonth(), 1);
-}
-
 async function getFirecrawlUsage(userId: string, now = new Date()) {
   const config = getFirecrawlConfigSnapshot();
-  const [monthly, dailyAttempts] = await Promise.all([
+  const month = getFirecrawlMonthWindow(now);
+  const [monthly, ledgerCompleted, ledgerReserved, dailyAttempts] = await Promise.all([
     db.cardSubmission.aggregate({
-      where: { created_at: { gte: startOfMonth(now) } },
+      where: { created_at: { gte: month.startsAt, lt: month.endsAt } },
       _sum: { credits_used: true },
+    }),
+    db.firecrawlCreditLedger.aggregate({
+      where: {
+        period_key: month.periodKey,
+        status: { in: ["completed", "failed"] },
+      },
+      _sum: { credits_used: true },
+    }),
+    db.firecrawlCreditLedger.aggregate({
+      where: {
+        period_key: month.periodKey,
+        status: "reserved",
+        expires_at: { gt: now },
+      },
+      _sum: { estimated_credits: true },
     }),
     db.cardSubmission.count({
       where: {
@@ -1234,7 +1247,11 @@ async function getFirecrawlUsage(userId: string, now = new Date()) {
   ]);
 
   return {
-    monthlyUsed: config.monthlyCreditOffset + (monthly._sum.credits_used ?? 0),
+    monthlyUsed:
+      config.monthlyCreditOffset +
+      (monthly._sum.credits_used ?? 0) +
+      (ledgerCompleted._sum.credits_used ?? 0) +
+      (ledgerReserved._sum.estimated_credits ?? 0),
     dailyAttemptsUsed: dailyAttempts,
   };
 }
