@@ -16,6 +16,7 @@ import type {
 import { getPressureTierForScore } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
+import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import { createSwrCache } from "@/lib/server-swr-cache";
 
 const SQLITE_SAFE_CARD_CHUNK_SIZE = 50;
@@ -253,14 +254,7 @@ async function loadEventSignalSeeds(
     for (const row of rows) {
       const price = row.prices[0];
       const eur = price
-        ? firstPositivePrice([
-            price.cm_en_avg_7d,
-            price.cm_en_lowest_nm,
-            price.cm_de_lowest_nm,
-            price.cm_fr_lowest_nm,
-            price.cm_es_lowest_nm,
-            price.cm_it_lowest_nm,
-          ])
+        ? getCurrentRawCardmarketValue(price)
         : null;
       const usd = eur == null ? firstPositivePrice([price?.tcp_market]) : null;
       if (eur == null && usd == null) continue;
@@ -391,14 +385,7 @@ async function loadStructuralSignalSeedsUncached(
   const scored = candidates.flatMap((card) => {
     const price = card.prices[0];
     if (!price) return [];
-    const eur = firstPositivePrice([
-      price.cm_en_avg_7d,
-      price.cm_en_lowest_nm,
-      price.cm_de_lowest_nm,
-      price.cm_fr_lowest_nm,
-      price.cm_es_lowest_nm,
-      price.cm_it_lowest_nm,
-    ]);
+    const eur = getCurrentRawCardmarketValue(price);
     const usd = eur == null ? firstPositivePrice([price.tcp_market]) : null;
     const currentPrice = eur ?? usd;
     if (currentPrice == null || currentPrice < 3) return [];

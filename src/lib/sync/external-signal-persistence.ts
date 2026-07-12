@@ -3,10 +3,14 @@ import type {
   ExternalCardSignal,
   ExternalSignalRadarData,
 } from "@/lib/external-signal-radar";
+import {
+  getCardmarketMedianLow,
+  getSaneCardmarketAverage7d,
+} from "@/lib/market-price-sanity";
 
 export const EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 export const EXTERNAL_CATALYST_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
-export const EXTERNAL_SIGNAL_MODEL_VERSION = "v5-gold-mine-confluence";
+export const EXTERNAL_SIGNAL_MODEL_VERSION = "v6-price-sanity";
 export const EXTERNAL_SIGNAL_OUTCOME_HORIZONS = [30, 90, 180] as const;
 const INDEPENDENT_ENTRY_GAP_MS = 14 * 24 * 60 * 60_000;
 const REFERENCE_PRICE_MAX_AGE_MS = 72 * 60 * 60_000;
@@ -48,15 +52,6 @@ export function getCompleteExternalSignalGames(
   );
 }
 
-function median(values: number[]): number | null {
-  const sorted = values.filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
-  if (sorted.length === 0) return null;
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
-    : (sorted[middle] ?? null);
-}
-
 async function loadFreshCardmarketReferences(
   signals: ExternalCardSignal[],
   now: Date
@@ -88,21 +83,16 @@ async function loadFreshCardmarketReferences(
     for (const card of cards) {
       const price = card.prices[0];
       if (!price || price.fetched_at < oldestAllowed) continue;
-      if (price.cm_en_avg_7d != null && price.cm_en_avg_7d >= 1) {
+      const saneAverage = getSaneCardmarketAverage7d(price);
+      if (saneAverage != null) {
         references.set(card.id, {
-          price: price.cm_en_avg_7d,
+          price: saneAverage,
           source: "cardmarket:avg7d",
           fetchedAt: price.fetched_at,
         });
         continue;
       }
-      const medianLow = median([
-        price.cm_en_lowest_nm,
-        price.cm_de_lowest_nm,
-        price.cm_fr_lowest_nm,
-        price.cm_es_lowest_nm,
-        price.cm_it_lowest_nm,
-      ].filter((value): value is number => value != null));
+      const medianLow = getCardmarketMedianLow(price);
       if (medianLow != null) {
         references.set(card.id, {
           price: medianLow,
