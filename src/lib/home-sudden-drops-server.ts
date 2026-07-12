@@ -22,6 +22,7 @@ export const FAST_SUDDEN_DROP_FEED_LIMIT = 50;
 export const FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS = 1;
 export const FAST_SUDDEN_DROP_WINDOW_HOURS = 24;
 export const FAST_SUDDEN_DROP_MIN_AMOUNT = 5;
+export const FAST_SUDDEN_DROP_STRONG_AMOUNT = 25;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
 type FastSuddenDropSnapshotPrefix = "latest" | "anchor";
@@ -215,7 +216,11 @@ function normalizeDropRow(row: FastSuddenDropRow, source: PriceSource): FastSudd
     old30Price: null,
   });
 
-  if (dropAmount < FAST_SUDDEN_DROP_MIN_AMOUNT) {
+  if (
+    dropAmount < FAST_SUDDEN_DROP_MIN_AMOUNT ||
+    (dropAmount < FAST_SUDDEN_DROP_STRONG_AMOUNT &&
+      Math.abs(dropPercent ?? 0) < 10)
+  ) {
     return null;
   }
 
@@ -516,6 +521,7 @@ async function getFastSuddenDropRows(
       SELECT *
       FROM scored
       WHERE drop_amount >= ?
+        AND (drop_amount >= ? OR ABS(COALESCE(drop_percent, 0)) >= 10)
     )
     SELECT *, COUNT(*) OVER() AS total_count
     FROM filtered
@@ -531,6 +537,7 @@ async function getFastSuddenDropRows(
     refreshStartedAt,
     refreshEndedAt,
     FAST_SUDDEN_DROP_MIN_AMOUNT,
+    FAST_SUDDEN_DROP_STRONG_AMOUNT,
     limit
   );
 }
