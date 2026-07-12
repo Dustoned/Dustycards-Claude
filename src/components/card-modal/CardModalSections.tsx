@@ -2906,6 +2906,7 @@ export function CardModalActiveListingsPanel({
   className?: string;
 }) {
   const sealedProducts = (card.sealed_products ?? []).slice(0, 4);
+  const sealedProductCount = card.sealed_product_count ?? card.sealed_products?.length ?? 0;
 
   return (
     <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
@@ -2918,7 +2919,7 @@ export function CardModalActiveListingsPanel({
         </div>
         <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-400/16 bg-violet-400/[0.07] px-2 py-1 text-[10px] font-semibold text-violet-200/80">
           <Package className="h-3 w-3" />
-          {sealedProducts.length}
+          {sealedProductCount}
         </span>
       </div>
 
@@ -2968,6 +2969,10 @@ export function CardModalActiveListingsPanel({
                     <span className="mt-1 inline-flex rounded-full border border-amber-300/14 bg-amber-300/[0.06] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-amber-100/70">
                       Mixed packs
                     </span>
+                  ) : product.match_type === "included_promo" ? (
+                    <span className="mt-1 inline-flex rounded-full border border-sky-300/14 bg-sky-300/[0.06] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.1em] text-sky-100/70">
+                      Included promo
+                    </span>
                   ) : null}
                 </span>
               </button>
@@ -2983,16 +2988,16 @@ export function CardModalActiveListingsPanel({
       )}
 
       <Link
-        href={`${getExpansionHref(card.episode_id)}?tab=sealed`}
+        href={`/cards/${encodeURIComponent(card.id)}/sealed`}
         prefetch={false}
         onClick={onClose}
         className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/22 bg-violet-500/[0.10] px-3 text-sm font-semibold text-violet-100 transition-colors hover:border-violet-300/35 hover:bg-violet-500/[0.16] hover:text-white"
       >
-        View all sealed from this set
+        View every product containing this card
         <ChevronRight className="h-4 w-4" />
       </Link>
       <p className="mt-2 text-[10px] font-medium leading-relaxed text-white/28">
-        Set-linked products; exact pack contents and pull results can vary.
+        Includes set packs, verified mixed products and directly included promos.
       </p>
     </section>
   );

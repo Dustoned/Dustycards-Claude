@@ -76,13 +76,14 @@ export interface ModalCardData {
   episode_code: string | null;
   episode_series?: string | null;
   episode_release_date?: string | null;
+  sealed_product_count?: number;
   sealed_products?: Array<{
     id: string;
     name: string;
     image_url: string | null;
     cardmarket_url: string | null;
     release_date: string | null;
-    match_type: "set_product" | "mixed_pack";
+    match_type: "set_product" | "mixed_pack" | "included_promo";
     price: {
       cm_lowest: number | null;
       cm_lowest_eu: number | null;

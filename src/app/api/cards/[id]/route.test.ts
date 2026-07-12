@@ -6,6 +6,10 @@ const { dbMock, exchangeMock, pullRatesMock } = vi.hoisted(() => ({
     card: {
       findUnique: vi.fn(),
     },
+    sealedProduct: {
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
     collectionCard: {
       findMany: vi.fn(),
     },
@@ -137,6 +141,8 @@ function makeCardRecord() {
 describe("GET /api/cards/[id]", () => {
   beforeEach(() => {
     dbMock.card.findUnique.mockReset();
+    dbMock.sealedProduct.findMany.mockReset().mockResolvedValue([]);
+    dbMock.sealedProduct.count.mockReset().mockResolvedValue(0);
     dbMock.collectionCard.findMany.mockReset();
     exchangeMock.convertUsdToEur.mockClear();
     exchangeMock.getUsdToEurRate.mockClear();
