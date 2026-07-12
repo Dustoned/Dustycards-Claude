@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.24",
+    releasedAt: "July 12, 2026",
+    title: "Ultrawide radar dashboard",
+    summary:
+      "The fullscreen radar analysis now turns into a multi-column dashboard on ultrawide displays instead of stretching every section across a separate row.",
+    tone: "improved",
+    highlights: [
+      "At 2200px and wider, the analysis uses a 12-column dashboard while the card remains in its dedicated left column.",
+      "Signal summary and price scenario now share the first row.",
+      "Supply, collector and grading intelligence share the second row with historical growth calibration.",
+      "Thesis, evidence, news and risk are grouped across the third row, substantially reducing vertical scrolling on 5120x1440.",
+      "Normal 1920x1080 and smaller layouts keep the existing spacious single-column flow.",
+    ],
+  },
+  {
     version: "3.6.23",
     releasedAt: "July 12, 2026",
     title: "Clearer aligned radar previews",

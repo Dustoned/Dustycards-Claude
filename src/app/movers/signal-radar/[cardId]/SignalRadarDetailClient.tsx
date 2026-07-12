@@ -238,8 +238,8 @@ export default function SignalRadarDetailClient({
         </div>
       </aside>
 
-      <div className="min-w-0 space-y-4">
-        <section className="rounded-[1.5rem] border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5">
+      <div className="grid min-w-0 gap-4 [@media(min-width:2200px)]:grid-cols-12 [@media(min-width:2200px)]:items-start">
+        <section className="rounded-[1.5rem] border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5 [@media(min-width:2200px)]:col-span-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-violet-200/55">Signal summary</p>
@@ -263,7 +263,7 @@ export default function SignalRadarDetailClient({
           </div>
         </section>
 
-        <AnalysisSection eyebrow="Price model" title={`${marketMode === "graded" ? "Graded" : "Raw"} value scenario`} icon={<BarChart3 className="h-4 w-4" />} aside={scenario ? <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/42">{scenario.confidence} confidence</span> : null}>
+        <AnalysisSection className="[@media(min-width:2200px)]:col-span-7" eyebrow="Price model" title={`${marketMode === "graded" ? "Graded" : "Raw"} value scenario`} icon={<BarChart3 className="h-4 w-4" />} aside={scenario ? <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/42">{scenario.confidence} confidence</span> : null}>
           {scenario ? (
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
               <div className="min-w-0 rounded-xl border border-violet-300/10 bg-violet-400/[0.035] p-3">
@@ -286,7 +286,7 @@ export default function SignalRadarDetailClient({
           ) : <p className="text-xs text-white/38">Not enough reliable market history for a price scenario.</p>}
         </AnalysisSection>
 
-        <div className="grid gap-4 2xl:grid-cols-2">
+        <div className="grid gap-4 2xl:grid-cols-2 [@media(min-width:2200px)]:col-span-8">
           <AnalysisSection eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-amber-300/10 bg-amber-400/[0.025]">
@@ -322,7 +322,7 @@ export default function SignalRadarDetailClient({
           </AnalysisSection>
         </div>
 
-        <AnalysisSection eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
+        <AnalysisSection className="[@media(min-width:2200px)]:col-span-4" eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
           <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
             <div className="grid grid-cols-[0.55fr_0.65fr_0.7fr_1.4fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">
               <span>Target</span><span>Horizon</span><span>Probability</span><span>Model progress</span>
@@ -342,7 +342,7 @@ export default function SignalRadarDetailClient({
           </div>
         </AnalysisSection>
 
-        <div className="grid gap-4 2xl:grid-cols-2">
+        <div className="grid gap-4 2xl:grid-cols-2 [@media(min-width:2200px)]:col-span-7">
           <AnalysisSection eyebrow="Investment thesis" title="Why it is on the radar" icon={<Radar className="h-4 w-4" />}>
             <div className="space-y-2">
               {explanations.map((item) => (
@@ -367,7 +367,7 @@ export default function SignalRadarDetailClient({
           </AnalysisSection>
         </div>
 
-        <AnalysisSection eyebrow="72-hour external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
+        <AnalysisSection className="[@media(min-width:2200px)]:col-span-5" eyebrow="72-hour external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
           {catalysts.length ? (
             <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
               <div className="grid grid-cols-[0.55fr_1.5fr_0.65fr_0.6fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28"><span>Type</span><span>Catalyst</span><span>Evidence</span><span>Direction</span></div>
