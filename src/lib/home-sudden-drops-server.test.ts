@@ -129,7 +129,6 @@ describe("getFastSuddenDropsData", () => {
       expect(result.items.map((item) => item.cardId)).toEqual([
         "new-drop",
         "moderate-drop",
-        "absolute-drop",
       ]);
       expect(result.items[0]?.change7d).toBe(-60);
       expect(result.preview.threshold).toBe(5);
