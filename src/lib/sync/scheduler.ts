@@ -11,6 +11,7 @@ import {
   startAutoPriceRefreshJob,
 } from "@/lib/sync/auto-price-refresh-job";
 import { maybeStartCardHistoryQuotaDrainJob } from "@/lib/sync/card-history-auto-drain";
+import { maybeStartExternalSignalRadarJob } from "@/lib/sync/external-signal-radar-job";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
@@ -37,6 +38,18 @@ export interface SyncSchedulerTickResult {
     startedAt: string | null;
     skippedReason: string | null;
   };
+  externalRadar: {
+    started: boolean;
+    running: boolean;
+    status: string | null;
+    competitiveDue: boolean;
+    catalystDue: boolean;
+    lastCompetitiveAt: string | null;
+    lastCatalystAt: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+    error: string | null;
+  };
   quota: {
     requestsRemaining: number | null;
     requestsLimit: number | null;
@@ -50,7 +63,8 @@ export interface SyncSchedulerTickResult {
 
 async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<void> {
   const now = new Date(result.checkedAt);
-  const hasRunningWork = result.priceRefresh.running || result.historyDrain.running;
+  const hasRunningWork =
+    result.priceRefresh.running || result.historyDrain.running || result.externalRadar.running;
   const status = result.scraperDisabled ? "paused" : hasRunningWork ? "running" : "success";
 
   await db.syncJob.upsert({
@@ -116,6 +130,10 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
             ? "scraper-disabled"
             : "waiting-for-price-refresh",
         };
+  const externalRadar = await maybeStartExternalSignalRadarJob({
+    skip: scraperDisabled,
+    now: checkedAt,
+  });
 
   const result: SyncSchedulerTickResult = {
     ok: true,
@@ -133,6 +151,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
       status: priceRefresh.status,
     },
     historyDrain,
+    externalRadar,
     quota: {
       requestsRemaining: quota.requestsRemaining,
       requestsLimit: quota.requestsLimit,

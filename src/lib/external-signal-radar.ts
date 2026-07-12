@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
+import type { ExternalCardForecastSummary } from "@/lib/external-signal-forecast-store";
 import { db } from "@/lib/db";
 import {
   ALL_GAMES,
@@ -53,6 +54,20 @@ export interface ExternalSignalEvidence {
   sourceLabel: string;
 }
 
+export interface ExternalSignalCatalyst {
+  id: string;
+  kind: "support" | "product" | "reprint" | "ban" | "rotation" | "hype";
+  direction: "positive" | "negative" | "neutral";
+  strength: number;
+  headline: string;
+  explanation: string;
+  sourceUrl: string;
+  sourceDomain: string;
+  sourceKind: "official" | "community" | "social";
+  observedAt: string;
+  expiresAt: string | null;
+}
+
 export interface ExternalCardSignal {
   rank: number;
   cardId: string;
@@ -66,6 +81,7 @@ export interface ExternalCardSignal {
   currentPrice: number | null;
   currency: "EUR" | "USD";
   externalScore: number;
+  competitiveScore?: number;
   confidence: ExternalSignalConfidence;
   horizon: "30-90 day watch";
   pressureLabel: "Breakout" | "Strong" | "Watch";
@@ -75,6 +91,11 @@ export interface ExternalCardSignal {
   maxDeckSharePercent: number;
   maxInclusionPercent: number;
   archetypeCount: number;
+  forecast?: ExternalCardForecastSummary | null;
+  catalysts?: ExternalSignalCatalyst[];
+  catalystScore?: number;
+  hypeScore?: number;
+  riskScore?: number;
 }
 
 export interface ExternalSignalSourceStatus {
@@ -589,10 +610,15 @@ async function loadLatestPrices(cardIds: string[]): Promise<Map<string, RadarPri
   return priceMap;
 }
 
-async function buildRadarData(gameFilter: TradingCardGameFilter): Promise<ExternalSignalRadarData> {
+async function buildRadarData(
+  gameFilter: TradingCardGameFilter,
+  options?: { fresh?: boolean }
+): Promise<ExternalSignalRadarData> {
   const games: TradingCardGame[] =
     gameFilter === ALL_GAMES ? [POKEMON_GAME, ONE_PIECE_GAME] : [gameFilter];
-  const scans = await Promise.all(games.map(getCachedGameScan));
+  const scans = await Promise.all(
+    games.map((game) => (options?.fresh ? scanGame(game) : getCachedGameScan(game)))
+  );
   const aggregatedCards = scans.flatMap((scan) => scan.cards);
   const localCards = await loadLocalCards(aggregatedCards);
   let unmatchedCount = 0;
@@ -634,6 +660,7 @@ async function buildRadarData(gameFilter: TradingCardGameFilter): Promise<Extern
         currentPrice: price.value,
         currency: price.currency,
         externalScore: score,
+        competitiveScore: score,
         confidence,
         horizon: "30-90 day watch",
         pressureLabel: pressure.label,
@@ -687,4 +714,15 @@ export function getExternalSignalRadarData(
   gameFilter: TradingCardGameFilter = ALL_GAMES
 ): Promise<ExternalSignalRadarData> {
   return buildRadarData(gameFilter);
+}
+
+/**
+ * Scheduler-only refresh that bypasses the process-local SWR cache. Page loads
+ * continue to use the shared six-hour cache; the fixed background job uses
+ * this path so a quiet site still records a fresh observation.
+ */
+export function refreshExternalSignalRadarData(
+  gameFilter: TradingCardGameFilter = ALL_GAMES
+): Promise<ExternalSignalRadarData> {
+  return buildRadarData(gameFilter, { fresh: true });
 }

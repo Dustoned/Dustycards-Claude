@@ -224,6 +224,8 @@ export async function searchFirecrawlWeb(input: {
   query: string;
   limit?: number;
   includeDomains?: string[];
+  /** Firecrawl time filter, for example `sbd:1,qdr:w`. */
+  tbs?: string;
 }): Promise<FirecrawlWebSearchResponse> {
   const query = input.query.trim();
   if (query.length < 3) {
@@ -235,6 +237,7 @@ export async function searchFirecrawlWeb(input: {
     limit: Math.min(Math.max(input.limit ?? 3, 1), 10),
     sources: ["web"],
     includeDomains: input.includeDomains?.filter(Boolean),
+    tbs: input.tbs?.trim() || undefined,
     ignoreInvalidURLs: true,
     timeout: 60000,
   });

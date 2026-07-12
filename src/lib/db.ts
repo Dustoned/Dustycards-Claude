@@ -107,6 +107,31 @@ const REQUIRED_RUNTIME_FIELDS = {
   CollectionSealed: ["user_id"],
   SyncLog: ["details_json"],
   SyncJob: ["details_json", "heartbeat_at"],
+  FirecrawlCreditLedger: ["period_key", "idempotency_key", "estimated_credits", "credits_used"],
+  ExternalSignalRun: ["kind", "status", "generated_at", "credits_used"],
+  ExternalSignalObservation: [
+    "run_id",
+    "card_id",
+    "external_score",
+    "competitive_score",
+    "catalyst_score",
+    "hype_score",
+    "risk_score",
+    "hit_rate_2x_90",
+    "model_version",
+    "reference_price",
+    "is_episode_entry",
+    "observed_at",
+  ],
+  ExternalSignalOutcome: [
+    "entry_observation_id",
+    "horizon_days",
+    "status",
+    "coverage_ratio",
+    "max_multiplier",
+  ],
+  ExternalCatalystSource: ["canonical_url", "url_hash", "scrape_status", "last_seen_at"],
+  ExternalCardCatalyst: ["source_id", "entity_key", "catalyst_type", "direction"],
 } as const;
 
 function hasRuntimeField(

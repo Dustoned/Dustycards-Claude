@@ -7,8 +7,10 @@ import {
   ArrowUpRight,
   BarChart3,
   Boxes,
+  BrainCircuit,
   CheckCircle2,
   LoaderCircle,
+  Newspaper,
   Radar,
   Search,
   ShieldAlert,
@@ -68,6 +70,166 @@ function getConfidenceClasses(confidence: ExternalSignalConfidence): string {
   return "border-amber-300/20 bg-amber-400/[0.09] text-amber-200";
 }
 
+function getSignalExplanations(signal: ExternalCardSignal) {
+  const leadingDeck = signal.evidence[0]?.deckName ?? "its leading deck";
+  const inclusion = signal.maxInclusionPercent.toFixed(0);
+  const metaShare = signal.maxDeckSharePercent.toFixed(1);
+  const archetypeReach = signal.archetypeCount;
+
+  return [
+    {
+      label: "Used by players",
+      text: `${inclusion}% of tracked ${leadingDeck} lists use it. That makes it a staple rather than a fringe choice.`,
+    },
+    {
+      label: "Size of the opportunity",
+      text: `${leadingDeck} is ${metaShare}% of the tracked field. More players on that deck can mean more buyers for its staples.`,
+    },
+    {
+      label: "Demand spread",
+      text:
+        archetypeReach > 1
+          ? `It is core in ${archetypeReach} leading deck types, so demand is not tied to one strategy.`
+          : "It is currently core in one leading deck type, so this signal depends more on that strategy staying popular.",
+    },
+  ];
+}
+
+const FORECAST_TARGETS = [
+  { key: "1.5x-90d", label: "1.5x", horizon: "90 days", minimum: 50 },
+  { key: "2x-90d", label: "2x", horizon: "90 days", minimum: 100 },
+  { key: "3x-180d", label: "3x", horizon: "180 days", minimum: 200 },
+] as const;
+
+function formatProbability(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
+  const referenceReady = signal.forecast
+    ? Boolean(signal.forecast.priceBand)
+    : signal.currency === "EUR" && signal.currentPrice != null && signal.currentPrice >= 1;
+  const waitingLabel =
+    signal.currentPrice != null && signal.currentPrice < 1
+      ? "Below €1 model floor"
+      : "Waiting for EUR reference";
+  return (
+    <div className="mt-3 rounded-xl border border-sky-300/12 bg-sky-400/[0.045] p-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-sky-200/68">
+            <BrainCircuit className="h-3 w-3" />
+            Historical growth model
+          </div>
+          <p className="mt-1 text-[10px] leading-4 text-white/42">
+            Comparable radar signals are followed forward; a target only counts after two separate price days.
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full border border-sky-300/12 bg-sky-400/[0.06] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.11em] text-sky-100/62">
+          {signal.forecast?.modelVersion ?? "learning"}
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        {FORECAST_TARGETS.map((target) => {
+          const summary = signal.forecast?.targets[target.key];
+          const interval = summary?.status === "calibrated" ? summary.interval : null;
+          const calibrated = Boolean(interval);
+          const mainValue = interval
+            ? formatProbability(interval.estimate)
+            : referenceReady
+              ? "Learning"
+              : "Waiting";
+          const progress = summary?.samples ?? 0;
+          return (
+            <div
+              key={target.key}
+              className="min-w-0 rounded-lg border border-white/7 bg-black/20 px-2 py-2"
+              title={
+                referenceReady
+                  ? summary?.reason ?? summary?.cohortLabel ?? "Collecting comparable signals"
+                  : waitingLabel
+              }
+            >
+              <div className="flex items-baseline justify-between gap-1">
+                <span className="text-[11px] font-black text-white/82">{target.label}</span>
+                <span className="text-[8px] font-semibold uppercase text-white/30">
+                  {target.horizon}
+                </span>
+              </div>
+              <p
+                className={cx(
+                  "mt-1 truncate text-[11px] font-bold",
+                  calibrated ? "text-emerald-200" : "text-sky-100/72"
+                )}
+              >
+                {mainValue}
+              </p>
+              <p className="mt-0.5 truncate text-[8px] tabular-nums text-white/32">
+                {interval && summary
+                  ? `${summary.hits}/${summary.samples} hits · ${formatProbability(interval.lower)}–${formatProbability(interval.upper)}`
+                  : referenceReady
+                    ? `${progress}/${target.minimum} completed signals`
+                    : waitingLabel}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CatalystPanel({ signal }: { signal: ExternalCardSignal }) {
+  const catalysts = signal.catalysts ?? [];
+  return (
+    <div className="mt-2 rounded-xl border border-white/8 bg-black/18 p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-white/38">
+          <Newspaper className="h-3 w-3" />
+          News, supply & hype check
+        </div>
+        <span className="text-[8px] font-semibold uppercase tracking-[0.1em] text-white/28">
+          72h scan
+        </span>
+      </div>
+      {catalysts.length ? (
+        <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+          {catalysts.slice(0, 2).map((catalyst) => (
+            <Link
+              key={catalyst.id}
+              href={catalyst.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={cx(
+                "min-w-0 rounded-lg border px-2.5 py-2 transition hover:bg-white/[0.05]",
+                catalyst.direction === "positive"
+                  ? "border-emerald-300/12 bg-emerald-400/[0.045]"
+                  : catalyst.direction === "negative"
+                    ? "border-rose-300/12 bg-rose-400/[0.045]"
+                    : "border-white/7 bg-white/[0.02]"
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[10px] font-semibold text-white/72">
+                  {catalyst.headline}
+                </span>
+                <ArrowUpRight className="h-3 w-3 shrink-0 text-white/32" />
+              </div>
+              <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-white/38">
+                {catalyst.explanation}
+              </p>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1.5 text-[10px] leading-4 text-white/38">
+          No fresh trusted support, product, reprint, ban or social-hype catalyst is linked to this card yet. Its ranking currently comes from tournament demand only.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SignalCard({
   signal,
   loading,
@@ -78,16 +240,17 @@ function SignalCard({
   onOpen: (cardId: string) => void;
 }) {
   const primaryEvidence = signal.evidence.slice(0, 2);
+  const explanations = getSignalExplanations(signal);
 
   return (
     <article className="group relative min-w-0 overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.22)] transition duration-200 hover:border-violet-300/22 sm:p-4">
       <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-65" />
-      <div className="flex min-w-0 gap-3 sm:gap-4">
+      <div className="flex min-w-0 items-start gap-3 sm:gap-4">
         <button
           type="button"
           onClick={() => onOpen(signal.cardId)}
           disabled={loading}
-          className="relative aspect-[0.715] w-[5.8rem] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/25 text-left shadow-lg shadow-black/25 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:w-[7rem] 2xl:w-[7.5rem]"
+          className="relative aspect-[63/88] w-[5.8rem] shrink-0 self-start overflow-hidden rounded-[0.7rem] border border-white/10 bg-black/25 text-left shadow-lg shadow-black/25 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:w-[7rem] 2xl:w-[7.5rem]"
           aria-label={`Open ${signal.name} card details`}
         >
           {signal.imageUrl ? (
@@ -164,6 +327,10 @@ function SignalCard({
               <p className="mt-1 text-base font-black tabular-nums text-violet-100">
                 {signal.externalScore}<span className="text-xs text-white/32">/100</span>
               </p>
+              <p className="mt-0.5 text-[8px] text-white/32">
+                Tournament {signal.competitiveScore ?? signal.externalScore}
+                {(signal.catalysts?.length ?? 0) > 0 ? " + catalyst adjustment" : ""}
+              </p>
             </div>
             <div className="rounded-xl border border-emerald-300/14 bg-emerald-400/[0.065] px-2.5 py-2">
               <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-emerald-200/68">
@@ -182,6 +349,7 @@ function SignalCard({
               style={{ width: `${signal.externalScore}%` }}
             />
           </div>
+          <ForecastPanel signal={signal} />
         </div>
       </div>
 
@@ -190,11 +358,17 @@ function SignalCard({
           <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/34">
             Why it is on the radar
           </p>
-          <ul className="mt-2 space-y-1.5">
-            {signal.reasons.map((reason) => (
-              <li key={reason} className="flex items-start gap-2 text-[11px] leading-4 text-white/63">
+          <ul className="mt-2 space-y-2">
+            {explanations.map((explanation) => (
+              <li
+                key={explanation.label}
+                className="flex items-start gap-2 text-[11px] leading-[1.45] text-white/63"
+              >
                 <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-300/75" />
-                <span>{reason}</span>
+                <span>
+                  <span className="font-semibold text-white/80">{explanation.label}:</span>{" "}
+                  {explanation.text}
+                </span>
               </li>
             ))}
           </ul>
@@ -228,6 +402,8 @@ function SignalCard({
           </div>
         </div>
       </div>
+
+      <CatalystPanel signal={signal} />
 
       <p className="mt-2.5 text-[9px] leading-4 text-white/28">
         {signal.pressureExplanation}. Competitive demand can change quickly after bans,
@@ -366,6 +542,37 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         </div>
       </section>
 
+      <section className="rounded-[1.35rem] border border-violet-300/10 bg-violet-400/[0.035] p-3 sm:p-4">
+        <div className="grid gap-3 lg:grid-cols-[minmax(10rem,0.65fr)_repeat(3,minmax(0,1fr))] lg:items-start">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-violet-200/58">
+              How to read this
+            </p>
+            <p className="mt-1 text-xs leading-5 text-white/52">
+              The base score measures competitive demand; trusted catalysts can adjust it. The growth model learns from later outcomes, never from price momentum used to pick a card.
+            </p>
+          </div>
+          <div className="border-white/8 lg:border-l lg:pl-3">
+            <p className="text-[11px] font-semibold text-white/78">Deck inclusion</p>
+            <p className="mt-1 text-[10px] leading-4 text-white/42">
+              The percentage of tracked lists for one deck that use the card. 99% means almost every list plays it.
+            </p>
+          </div>
+          <div className="border-white/8 lg:border-l lg:pl-3">
+            <p className="text-[11px] font-semibold text-white/78">Meta share</p>
+            <p className="mt-1 text-[10px] leading-4 text-white/42">
+              The share of tracked tournament decks using that strategy. A larger share means more potential buyers need its core cards.
+            </p>
+          </div>
+          <div className="border-white/8 lg:border-l lg:pl-3">
+            <p className="text-[11px] font-semibold text-white/78">Archetype reach</p>
+            <p className="mt-1 text-[10px] leading-4 text-white/42">
+              The number of different leading deck types where the card is core. More reach makes the signal less dependent on one deck.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {detailError ? (
         <div className="flex items-center gap-2 rounded-xl border border-rose-400/18 bg-rose-400/[0.07] px-3 py-2 text-xs text-rose-100/80">
           <ShieldAlert className="h-4 w-4 shrink-0" />
@@ -378,7 +585,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           eyebrow="External demand"
           title="Signal candidates"
           count={visibleSignals.length}
-          description="Actionable prints ranked on tournament meta share, core-deck inclusion and use across leading archetypes — never on DustyCards price momentum."
+          description="External candidates ranked from tournament demand and fresh catalyst evidence — never from DustyCards price momentum."
           actions={
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/32">
               Updated {new Intl.DateTimeFormat("en-GB", {

@@ -741,6 +741,175 @@ model SyncJob {
   @@index([type, status])
 }
 
+model FirecrawlCreditLedger {
+  id                String    @id @default(cuid())
+  period_key        String
+  consumer          String
+  operation         String
+  idempotency_key   String    @unique
+  status            String    @default("reserved")
+  estimated_credits Int
+  credits_used      Int       @default(0)
+  source_url        String?
+  details_json      String?
+  reserved_at       DateTime  @default(now())
+  expires_at        DateTime
+  finished_at       DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  @@index([period_key, status])
+  @@index([consumer, period_key, status])
+  @@index([status, expires_at])
+}
+
+// A run is the durable boundary for either a competitive scan or a daily
+// catalyst discovery pass. Keeping every successful scan makes future 30/90/
+// 180-day forecast calibration possible instead of inventing probabilities.
+model ExternalSignalRun {
+  id           String    @id @default(cuid())
+  kind         String
+  status       String
+  requested_at DateTime  @default(now())
+  generated_at DateTime?
+  finished_at  DateTime?
+  source_count Int       @default(0)
+  item_count   Int       @default(0)
+  credits_used Int       @default(0)
+  details_json String?
+  error        String?
+  created_at   DateTime  @default(now())
+
+  observations ExternalSignalObservation[]
+
+  @@unique([kind, generated_at])
+  @@index([kind, status, requested_at])
+  @@index([kind, finished_at])
+}
+
+model ExternalSignalObservation {
+  id                     String    @id @default(cuid())
+  run_id                 String
+  card_id                String
+  game                   String
+  card_name              String
+  episode_code           String?
+  card_number            String?
+  model_version          String    @default("v1")
+  price_band             String?
+  reference_source       String?
+  reference_price        Float?
+  reference_price_at     DateTime?
+  is_episode_entry       Boolean   @default(false)
+  external_score         Float
+  competitive_score      Float     @default(0)
+  confidence             String
+  pressure_label         String
+  current_price          Float?
+  currency               String
+  max_deck_share_percent Float
+  max_inclusion_percent  Float
+  archetype_count        Int
+  catalyst_score         Float     @default(0)
+  hype_score             Float     @default(0)
+  risk_score             Float     @default(0)
+  hit_rate_15x_90        Float?
+  hit_rate_2x_90         Float?
+  hit_rate_3x_180        Float?
+  sample_size_90         Int?
+  sample_size_180        Int?
+  reasons_json           String
+  evidence_json          String
+  observed_at            DateTime  @default(now())
+
+  run      ExternalSignalRun       @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  outcomes ExternalSignalOutcome[]
+
+  @@unique([run_id, card_id])
+  @@index([card_id, observed_at])
+  @@index([game, external_score])
+  @@index([observed_at])
+}
+
+model ExternalSignalOutcome {
+  id                   String    @id @default(cuid())
+  entry_observation_id String
+  horizon_days         Int
+  status               String    @default("pending")
+  evaluated_at         DateTime?
+  observed_days        Int       @default(0)
+  coverage_ratio       Float     @default(0)
+  max_reference_price  Float?
+  max_multiplier       Float?
+  end_reference_price  Float?
+  hit_15x              Boolean?
+  hit_2x               Boolean?
+  hit_3x               Boolean?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  entry_observation ExternalSignalObservation @relation(fields: [entry_observation_id], references: [id], onDelete: Cascade)
+
+  @@unique([entry_observation_id, horizon_days])
+  @@index([horizon_days, status, evaluated_at])
+  @@index([entry_observation_id])
+}
+
+// Search results are canonicalized before insert. A source can therefore be
+// discovered every day for free without being scraped twice.
+model ExternalCatalystSource {
+  id              String    @id @default(cuid())
+  canonical_url   String    @unique
+  url_hash        String    @unique
+  domain          String
+  game            String
+  source_type     String
+  title           String?
+  description     String?
+  published_at    DateTime?
+  first_seen_at   DateTime  @default(now())
+  last_seen_at    DateTime  @default(now())
+  last_scraped_at DateTime?
+  scrape_status   String    @default("pending")
+  content_hash    String?
+  content_excerpt String?
+  metadata_json   String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  catalysts ExternalCardCatalyst[]
+
+  @@index([game, last_seen_at])
+  @@index([source_type, last_seen_at])
+  @@index([scrape_status, last_seen_at])
+}
+
+model ExternalCardCatalyst {
+  id               String    @id @default(cuid())
+  source_id        String
+  entity_key       String
+  card_id          String?
+  game             String
+  catalyst_type    String
+  direction        String
+  strength         Float
+  headline         String
+  explanation      String
+  evidence_excerpt String?
+  observed_at      DateTime  @default(now())
+  expires_at       DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  source ExternalCatalystSource @relation(fields: [source_id], references: [id], onDelete: Cascade)
+
+  @@unique([source_id, entity_key, catalyst_type])
+  @@index([card_id, observed_at])
+  @@index([game, observed_at])
+  @@index([catalyst_type, direction, observed_at])
+  @@index([expires_at])
+}
+
 model ApiQuotaSnapshot {
   source             String   @id
   requests_limit     Int?
