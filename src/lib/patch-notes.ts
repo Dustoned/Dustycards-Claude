@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.21",
+    releasedAt: "July 12, 2026",
+    title: "Focused Signal Radar cards",
+    summary:
+      "Signal Radar now uses compact comparison cards and gives every candidate a dedicated fullscreen analysis page.",
+    tone: "improved",
+    highlights: [
+      "Overview cards show only the image, market price, opportunity score, confluence score, tier, and up to three short drivers.",
+      "The denser responsive grid fits more candidates per row without turning every result into a wall of text.",
+      "Each candidate opens a dedicated analysis page with a larger card image and all market, forecast, evidence, catalyst, scarcity, sealed, and grading details.",
+      "The fullscreen analysis includes one Raw / Graded switch that updates the complete value view.",
+      "Back navigation returns directly to the matching Pokemon or One Piece Signal Radar view.",
+    ],
+  },
+  {
     version: "3.6.20",
     releasedAt: "July 12, 2026",
     title: "Gold mine confluence",
