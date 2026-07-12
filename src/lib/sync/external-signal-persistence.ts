@@ -6,7 +6,7 @@ import type {
 
 export const EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 export const EXTERNAL_CATALYST_REFRESH_INTERVAL_MS = 72 * 60 * 60_000;
-export const EXTERNAL_SIGNAL_MODEL_VERSION = "v2-catalysts";
+export const EXTERNAL_SIGNAL_MODEL_VERSION = "v3-market-events";
 export const EXTERNAL_SIGNAL_OUTCOME_HORIZONS = [30, 90, 180] as const;
 const INDEPENDENT_ENTRY_GAP_MS = 14 * 24 * 60 * 60_000;
 const REFERENCE_PRICE_MAX_AGE_MS = 72 * 60 * 60_000;
@@ -174,7 +174,14 @@ export async function persistExternalCompetitiveScan(
     throw new Error("External signal scan has an invalid generatedAt value.");
   }
   const completeGames = getCompleteExternalSignalGames(data);
-  const persistableSignals = data.signals.filter((signal) => completeGames.has(signal.game));
+  const eventGames = new Set(
+    data.signals
+      .filter((signal) => signal.sourceMode === "event" && (signal.catalysts?.length ?? 0) > 0)
+      .map((signal) => signal.game)
+  );
+  const persistableSignals = data.signals.filter(
+    (signal) => completeGames.has(signal.game) || signal.sourceMode === "event"
+  );
   if (persistableSignals.length === 0) {
     throw new Error(
       "External signal scan returned no complete game source; previous cohorts were preserved."
@@ -220,7 +227,7 @@ export async function persistExternalCompetitiveScan(
         requested_at: now,
         generated_at: generatedAt,
         finished_at: now,
-        source_count: completeGames.size,
+          source_count: new Set([...completeGames, ...eventGames]).size,
         item_count: persistableSignals.length,
         details_json: JSON.stringify({
           scannedDeckCount: data.scannedDeckCount,

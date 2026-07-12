@@ -1,10 +1,14 @@
 import type { Prisma } from "@/generated/prisma";
 import { db } from "@/lib/db";
-import { getFirecrawlConfigSnapshot } from "@/lib/firecrawl";
+import {
+  getFirecrawlConfigSnapshot,
+  getFirecrawlProviderCreditUsage,
+} from "@/lib/firecrawl";
 
 const DEFAULT_SIGNAL_MONTHLY_CREDITS = 120;
 const RESERVATION_TTL_MS = 30 * 60_000;
 const EXTERNAL_SIGNAL_CONSUMER = "external-signal-catalysts";
+const PROVIDER_SAFETY_RESERVE_CREDITS = 25;
 
 type BudgetClient = Pick<
   Prisma.TransactionClient,
@@ -31,6 +35,10 @@ export interface FirecrawlBudgetSnapshot {
   consumerBudget: number;
   consumerUsed: number;
   consumerRemaining: number;
+  providerRemaining: number | null;
+  providerPlan: number | null;
+  providerBillingPeriodStart: string | null;
+  providerBillingPeriodEnd: string | null;
 }
 
 export interface FirecrawlCreditReservation {
@@ -98,7 +106,16 @@ async function readBudgetUsage(
   client: BudgetClient,
   consumer: string,
   now: Date
-): Promise<Omit<FirecrawlBudgetSnapshot, "configured">> {
+): Promise<
+  Omit<
+    FirecrawlBudgetSnapshot,
+    | "configured"
+    | "providerRemaining"
+    | "providerPlan"
+    | "providerBillingPeriodStart"
+    | "providerBillingPeriodEnd"
+  >
+> {
   const config = getFirecrawlConfigSnapshot();
   const window = getFirecrawlMonthWindow(now);
   const [submitted, completed, reserved, consumerCompleted, consumerReserved] =
@@ -175,10 +192,17 @@ export async function getFirecrawlBudgetSnapshot(
   now = new Date()
 ): Promise<FirecrawlBudgetSnapshot> {
   await expireStaleReservations(db, now);
-  const usage = await readBudgetUsage(db, consumer, now);
+  const [usage, provider] = await Promise.all([
+    readBudgetUsage(db, consumer, now),
+    getFirecrawlProviderCreditUsage(),
+  ]);
   return {
     configured: getFirecrawlConfigSnapshot().configured,
     ...usage,
+    providerRemaining: provider?.remainingCredits ?? null,
+    providerPlan: provider?.planCredits ?? null,
+    providerBillingPeriodStart: provider?.billingPeriodStart ?? null,
+    providerBillingPeriodEnd: provider?.billingPeriodEnd ?? null,
   };
 }
 
@@ -220,6 +244,15 @@ export async function reserveFirecrawlCredits(input: {
   }
   if (!operation || !idempotencyKey) {
     throw new FirecrawlBudgetError("A Firecrawl operation and idempotency key are required.", 400);
+  }
+  const provider = await getFirecrawlProviderCreditUsage();
+  if (
+    provider &&
+    provider.remainingCredits - estimatedCredits < PROVIDER_SAFETY_RESERVE_CREDITS
+  ) {
+    throw new FirecrawlBudgetError(
+      `Firecrawl provider balance is too low (${provider.remainingCredits}/${provider.planCredits}); ${PROVIDER_SAFETY_RESERVE_CREDITS} credits are kept in reserve.`
+    );
   }
 
   try {

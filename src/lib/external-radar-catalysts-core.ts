@@ -11,12 +11,14 @@ export type CatalystSourceKind = "official" | "community" | "social";
 export type CatalystKind =
   | "support"
   | "product"
+  | "reveal"
+  | "localization"
   | "reprint"
   | "ban"
   | "rotation"
   | "hype";
 export type CatalystDirection = "positive" | "negative" | "neutral";
-export type CatalystMatchReason = "name" | "alias" | "set-code";
+export type CatalystMatchReason = "name" | "alias" | "set-name" | "set-code";
 
 export interface TrustedCatalystDomain {
   domain: string;
@@ -162,6 +164,7 @@ export interface CatalystCandidate {
   cardId: string;
   game: ExternalRadarGame;
   name: string;
+  setName?: string | null;
   setCode?: string | null;
   aliases?: readonly string[] | null;
   rank?: number | null;
@@ -184,12 +187,12 @@ export interface CatalystCardMatch {
 
 export const MAX_CATALYST_SEARCH_QUERIES = 4;
 export const MAX_CATALYST_SEARCH_QUERY_LENGTH = 220;
-const MAX_SEARCH_CANDIDATES_PER_GAME = 2;
 
 export interface CatalystSearchQuery {
   game: ExternalRadarGame;
   cardId: string;
   candidateName: string;
+  mode: "set-intelligence" | "candidate";
   query: string;
   allowedDomains: string[];
 }
@@ -201,6 +204,8 @@ interface CatalystPattern {
 
 const CATALYST_KIND_ORDER: readonly CatalystKind[] = [
   "support",
+  "reveal",
+  "localization",
   "product",
   "reprint",
   "ban",
@@ -219,6 +224,30 @@ const CATALYST_PATTERNS: Record<CatalystKind, readonly CatalystPattern[]> = {
     { phrase: "new engine", impact: 0.62 },
     { phrase: "new synergy", impact: 0.58 },
     { phrase: "direct support", impact: 0.7 },
+  ],
+  reveal: [
+    { phrase: "chase card revealed", impact: 0.96 },
+    { phrase: "leaked booklet", impact: 0.95 },
+    { phrase: "booklet leaked", impact: 0.95 },
+    { phrase: "card list leaked", impact: 0.92 },
+    { phrase: "set list leaked", impact: 0.92 },
+    { phrase: "card list revealed", impact: 0.88 },
+    { phrase: "set list revealed", impact: 0.88 },
+    { phrase: "new cards revealed", impact: 0.82 },
+    { phrase: "new card revealed", impact: 0.8 },
+    { phrase: "card reveal", impact: 0.74 },
+    { phrase: "set booklet", impact: 0.72 },
+    { phrase: "first look", impact: 0.48 },
+  ],
+  localization: [
+    { phrase: "english set combines", impact: 0.92 },
+    { phrase: "international set combines", impact: 0.92 },
+    { phrase: "coming to english", impact: 0.86 },
+    { phrase: "released in english", impact: 0.78 },
+    { phrase: "english release", impact: 0.66 },
+    { phrase: "international release", impact: 0.66 },
+    { phrase: "japanese sets", impact: 0.54 },
+    { phrase: "japanese set", impact: 0.46 },
   ],
   product: [
     { phrase: "new product announced", impact: 0.7 },
@@ -409,10 +438,6 @@ function findTokenSequence(tokens: readonly string[], phraseTokens: readonly str
   return -1;
 }
 
-function containsExactPhrase(text: string, phrase: string): boolean {
-  return findTokenSequence(toTokens(text), toTokens(phrase)) >= 0;
-}
-
 function selectNonOverlappingPatternHits(
   text: string,
   patterns: readonly CatalystPattern[]
@@ -540,6 +565,18 @@ function combinedDocumentText(input: CatalystDocumentInput): string {
   return [input.title, input.description, input.body].filter(Boolean).join("\n");
 }
 
+function containsNormalizedPhrase(
+  normalizedDocument: string,
+  documentTokens: ReadonlySet<string>,
+  rawPhrase: string
+): boolean {
+  const phrase = normalizeCatalystText(rawPhrase);
+  if (!phrase) return false;
+  const firstToken = phrase.split(" ", 1)[0];
+  if (!firstToken || !documentTokens.has(firstToken)) return false;
+  return ` ${normalizedDocument} `.includes(` ${phrase} `);
+}
+
 export function analyzeCatalystDocument(
   input: CatalystDocumentInput,
   candidates: readonly CatalystCandidate[]
@@ -548,18 +585,33 @@ export function analyzeCatalystDocument(
   if (!classified) return [];
 
   const prose = combinedDocumentText(input);
+  const normalizedProse = normalizeCatalystText(prose);
+  const documentTokens = new Set(normalizedProse.split(" ").filter(Boolean));
   const matches: CatalystCardMatch[] = [];
   for (const candidate of candidates) {
     if (classified.game && candidate.game !== classified.game) continue;
     const matchedBy = new Set<CatalystMatchReason>();
 
-    if (isUsableCandidatePhrase(candidate.name) && containsExactPhrase(prose, candidate.name)) {
+    if (
+      isUsableCandidatePhrase(candidate.name) &&
+      containsNormalizedPhrase(normalizedProse, documentTokens, candidate.name)
+    ) {
       matchedBy.add("name");
     }
     for (const alias of candidate.aliases ?? []) {
-      if (isUsableCandidatePhrase(alias) && containsExactPhrase(prose, alias)) {
+      if (
+        isUsableCandidatePhrase(alias) &&
+        containsNormalizedPhrase(normalizedProse, documentTokens, alias)
+      ) {
         matchedBy.add("alias");
       }
+    }
+    if (
+      candidate.setName &&
+      isUsableCandidatePhrase(candidate.setName) &&
+      containsNormalizedPhrase(normalizedProse, documentTokens, candidate.setName)
+    ) {
+      matchedBy.add("set-name");
     }
     if (containsExactSetCode(prose, candidate.setCode)) matchedBy.add("set-code");
     if (!matchedBy.size) continue;
@@ -649,7 +701,7 @@ function topSearchCandidates(
       seenNames.add(key);
       return true;
     })
-    .slice(0, MAX_SEARCH_CANDIDATES_PER_GAME);
+    .slice(0, 1);
 }
 
 function monthAndYear(now: Date): string {
@@ -672,16 +724,30 @@ export function buildFirecrawlCatalystSearchQueries(
   const maximum = clamp(requestedMaximum, 0, MAX_CATALYST_SEARCH_QUERIES);
   if (maximum === 0) return [];
 
-  const pokemon = topSearchCandidates(candidates, "pokemon");
-  const onePiece = topSearchCandidates(candidates, "one-piece");
-  const selected: CatalystCandidate[] = [];
-  for (let index = 0; index < MAX_SEARCH_CANDIDATES_PER_GAME; index += 1) {
-    if (pokemon[index]) selected.push(pokemon[index]);
-    if (onePiece[index]) selected.push(onePiece[index]);
-  }
-
   const dateLabel = monthAndYear(now);
-  return selected.slice(0, maximum).map((candidate) => {
+  const games = (["pokemon", "one-piece"] as const).filter((game) =>
+    candidates.some((candidate) => candidate.game === game)
+  );
+  const genericQueries = games.map((game): CatalystSearchQuery => {
+    const gameLabel = game === "pokemon" ? "Pokemon TCG" : "One Piece Card Game";
+    const regionTerms =
+      game === "pokemon"
+        ? "Japanese set English set leaked booklet card list reveal promo reprint"
+        : "Japanese set English release leaked booklet card list reveal promo reprint";
+    return {
+      game,
+      cardId: `set-intelligence:${game}`,
+      candidateName: "Set intelligence",
+      mode: "set-intelligence",
+      query: `${gameLabel} ${regionTerms} ${dateLabel}`.slice(
+        0,
+        MAX_CATALYST_SEARCH_QUERY_LENGTH
+      ),
+      allowedDomains: getTrustedCatalystDomains(game),
+    };
+  });
+  const selected = games.flatMap((game) => topSearchCandidates(candidates, game));
+  const candidateQueries = selected.map((candidate): CatalystSearchQuery => {
     const candidateName = sanitizeSearchPhrase(candidate.name);
     const gameLabel = candidate.game === "pokemon" ? "Pokemon TCG" : "One Piece Card Game";
     const setCode = normalizeSetCode(candidate.setCode);
@@ -696,9 +762,11 @@ export function buildFirecrawlCatalystSearchQueries(
       game: candidate.game,
       cardId: candidate.cardId,
       candidateName,
+      mode: "candidate",
       query,
       allowedDomains: getTrustedCatalystDomains(candidate.game),
     };
   });
+  return [...genericQueries, ...candidateQueries].slice(0, maximum);
 }
 

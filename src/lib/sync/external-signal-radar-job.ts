@@ -1,14 +1,20 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { runExternalCatalystDiscovery } from "@/lib/external-radar-catalyst-discovery";
+import {
+  EXTERNAL_CATALYST_QUERY_VERSION,
+  runExternalCatalystDiscovery,
+} from "@/lib/external-radar-catalyst-discovery";
+import {
+  loadExternalEventCandidates,
+  mergeExternalEventCandidates,
+} from "@/lib/external-event-candidates";
 import { refreshExternalSignalRadarData } from "@/lib/external-signal-radar";
 import { enrichExternalSignalRadarData } from "@/lib/external-signal-intelligence";
 import { ALL_GAMES } from "@/lib/games";
 import {
   EXTERNAL_CATALYST_REFRESH_INTERVAL_MS,
   EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS,
-  getCompleteExternalSignalGames,
   isExternalRefreshDue,
   persistExternalCompetitiveScan,
 } from "@/lib/sync/external-signal-persistence";
@@ -64,6 +70,17 @@ function readJobError(detailsJson: string | null | undefined): string | null {
   }
 }
 
+function readCatalystQueryVersion(detailsJson: string | null | undefined): number {
+  if (!detailsJson) return 0;
+  try {
+    const parsed = JSON.parse(detailsJson) as { queryVersion?: unknown };
+    const version = Number(parsed.queryVersion);
+    return Number.isFinite(version) ? version : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function getRunState(now: Date) {
   const [job, lastCompetitive, lastCatalyst] = await Promise.all([
     db.syncJob.findUnique({ where: { type: EXTERNAL_SIGNAL_JOB_TYPE } }),
@@ -75,11 +92,14 @@ async function getRunState(now: Date) {
     db.externalSignalRun.findFirst({
       where: { kind: EXTERNAL_SIGNAL_CATALYST_RUN_KIND, status: { in: ["success", "partial"] } },
       orderBy: { finished_at: "desc" },
-      select: { finished_at: true },
+      select: { finished_at: true, details_json: true },
     }),
   ]);
   const lastCompetitiveAt = lastCompetitive?.finished_at ?? null;
-  const lastCatalystAt = lastCatalyst?.finished_at ?? null;
+  const lastCatalystAt =
+    readCatalystQueryVersion(lastCatalyst?.details_json) >= EXTERNAL_CATALYST_QUERY_VERSION
+      ? lastCatalyst?.finished_at ?? null
+      : null;
   return {
     job,
     lastCompetitiveAt,
@@ -146,10 +166,12 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
       requestedAt
     );
     const competitive = await persistExternalCompetitiveScan(radarData, requestedAt);
-    const completeGames = getCompleteExternalSignalGames(radarData);
     const outcomes = await evaluatePendingExternalSignalOutcomes(new Date());
+    const eventUniverse = state.catalystDue
+      ? await loadExternalEventCandidates(radarData.sources.map((source) => source.game))
+      : [];
     const catalyst = await runExternalCatalystDiscovery({
-      candidates: radarData.signals.filter((signal) => completeGames.has(signal.game)),
+      candidates: mergeExternalEventCandidates(radarData.signals, eventUniverse),
       lastRunAt: state.lastCatalystAt,
       now: requestedAt,
     });

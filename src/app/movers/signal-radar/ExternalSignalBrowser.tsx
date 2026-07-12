@@ -35,6 +35,7 @@ const CardModal = dynamic(() => import("@/components/CardModal"), {
 });
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
+type OriginFilter = "all" | "event" | "competitive" | "hybrid";
 type SortKey = "signal" | "meta" | "reach";
 
 interface Props {
@@ -56,6 +57,13 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: "reach", label: "Archetype reach" },
 ];
 
+const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
+  { value: "all", label: "All origins" },
+  { value: "event", label: "Set & reveal" },
+  { value: "competitive", label: "Tournament" },
+  { value: "hybrid", label: "Hybrid" },
+];
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -71,6 +79,28 @@ function getConfidenceClasses(confidence: ExternalSignalConfidence): string {
 }
 
 function getSignalExplanations(signal: ExternalCardSignal) {
+  if (signal.sourceMode === "event") {
+    const catalyst = signal.catalysts?.[0];
+    const sourceCount = new Set((signal.catalysts ?? []).map((item) => item.sourceUrl)).size;
+    return [
+      {
+        label: "What happened",
+        text: catalyst?.headline ?? "A fresh set, reveal or character event was detected.",
+      },
+      {
+        label: "Why this card is connected",
+        text:
+          catalyst?.explanation ??
+          "The card shares the named Pokémon, character or set with the external event.",
+      },
+      {
+        label: "Evidence quality",
+        text: catalyst
+          ? `${catalyst.evidenceLevel}${catalyst.contextLabel ? ` · ${catalyst.contextLabel}` : ""}. ${sourceCount} independent source${sourceCount === 1 ? "" : "s"} currently support this link.`
+          : "The event is still collecting source confirmation.",
+      },
+    ];
+  }
   const leadingDeck = signal.evidence[0]?.deckName ?? "its leading deck";
   const inclusion = signal.maxInclusionPercent.toFixed(0);
   const metaShare = signal.maxDeckSharePercent.toFixed(1);
@@ -215,6 +245,16 @@ function CatalystPanel({ signal }: { signal: ExternalCardSignal }) {
                 </span>
                 <ArrowUpRight className="h-3 w-3 shrink-0 text-white/32" />
               </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5 text-[8px] font-bold uppercase tracking-[0.09em]">
+                <span className="rounded-full border border-white/8 bg-black/18 px-1.5 py-0.5 text-white/48">
+                  {catalyst.evidenceLevel}
+                </span>
+                {catalyst.contextLabel ? (
+                  <span className="rounded-full border border-violet-300/12 bg-violet-400/[0.06] px-1.5 py-0.5 text-violet-100/62">
+                    {catalyst.contextLabel}
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-white/38">
                 {catalyst.explanation}
               </p>
@@ -291,6 +331,13 @@ function SignalCard({
                 <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">
                   {signal.game === "one-piece" ? "One Piece" : "Pokemon"}
                 </span>
+                <span className="rounded-full border border-violet-300/12 bg-violet-400/[0.06] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-violet-100/62">
+                  {signal.sourceMode === "event"
+                    ? "Set & reveal"
+                    : signal.sourceMode === "hybrid"
+                      ? "Hybrid"
+                      : "Tournament"}
+                </span>
               </div>
               <button
                 type="button"
@@ -328,8 +375,11 @@ function SignalCard({
                 {signal.externalScore}<span className="text-xs text-white/32">/100</span>
               </p>
               <p className="mt-0.5 text-[8px] text-white/32">
-                Tournament {signal.competitiveScore ?? signal.externalScore}
-                {(signal.catalysts?.length ?? 0) > 0 ? " + catalyst adjustment" : ""}
+                {signal.sourceMode === "event"
+                  ? "Event strength + source confidence"
+                  : `Tournament ${signal.competitiveScore ?? signal.externalScore}${
+                      (signal.catalysts?.length ?? 0) > 0 ? " + catalyst adjustment" : ""
+                    }`}
               </p>
             </div>
             <div className="rounded-xl border border-emerald-300/14 bg-emerald-400/[0.065] px-2.5 py-2">
@@ -399,6 +449,25 @@ function SignalCard({
                 </span>
               </Link>
             ))}
+            {primaryEvidence.length === 0
+              ? (signal.catalysts ?? []).slice(0, 2).map((catalyst) => (
+                  <Link
+                    key={catalyst.id}
+                    href={catalyst.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-white/7 bg-white/[0.025] px-2.5 py-2 text-[10px] transition hover:border-violet-300/20 hover:bg-violet-400/[0.06]"
+                  >
+                    <span className="min-w-0 truncate font-semibold text-white/68">
+                      {catalyst.sourceDomain}
+                    </span>
+                    <span className="inline-flex shrink-0 items-center gap-1 text-violet-200/75">
+                      {catalyst.evidenceLevel}
+                      <ArrowUpRight className="h-3 w-3" />
+                    </span>
+                  </Link>
+                ))
+              : null}
           </div>
         </div>
       </div>
@@ -416,6 +485,7 @@ function SignalCard({
 export default function ExternalSignalBrowser({ signals, sources, generatedAt }: Props) {
   const [search, setSearch] = useState("");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("all");
+  const [origin, setOrigin] = useState<OriginFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("signal");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
@@ -429,6 +499,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
     return signals
       .filter((signal) => {
         if (confidence !== "all" && signal.confidence.toLowerCase() !== confidence) return false;
+        if (origin !== "all" && signal.sourceMode !== origin) return false;
         if (!query) return true;
         return textMatchesSearchQuery(
           `${signal.name} ${signal.episodeName} ${signal.episodeCode ?? ""} ${signal.cardNumber ?? ""} ${signal.rarity ?? ""}`,
@@ -444,7 +515,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         }
         return right.externalScore - left.externalScore || left.rank - right.rank;
       });
-  }, [confidence, deferredSearch, signals, sortKey]);
+  }, [confidence, deferredSearch, origin, signals, sortKey]);
 
   const openCard = useCallback(
     async (cardId: string) => {
@@ -484,7 +555,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
   return (
     <div className="space-y-4 sm:space-y-5">
       <section className="binder-panel rounded-[1.5rem] p-3 sm:p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_auto_auto] lg:items-center">
+        <div className="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto] lg:items-center">
           <label className="relative block min-w-0">
             <span className="sr-only">Search signal cards</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
@@ -525,6 +596,22 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           </div>
 
           <label className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
+            <Newspaper className="h-4 w-4 text-white/32" />
+            <span className="sr-only">Filter signal origin</span>
+            <select
+              value={origin}
+              onChange={(event) => setOrigin(event.target.value as OriginFilter)}
+              className="h-10 min-w-0 bg-transparent pr-2 text-[11px] font-semibold text-white/62 outline-none [color-scheme:dark]"
+            >
+              {ORIGIN_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
             <BarChart3 className="h-4 w-4 text-white/32" />
             <span className="sr-only">Sort signals</span>
             <select
@@ -549,25 +636,25 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
               How to read this
             </p>
             <p className="mt-1 text-xs leading-5 text-white/52">
-              The base score measures competitive demand; trusted catalysts can adjust it. The growth model learns from later outcomes, never from price momentum used to pick a card.
+              Tournament and set-event signals are independent entry paths. The growth model follows both forward and never uses local price momentum to select a card.
             </p>
           </div>
           <div className="border-white/8 lg:border-l lg:pl-3">
-            <p className="text-[11px] font-semibold text-white/78">Deck inclusion</p>
+            <p className="text-[11px] font-semibold text-white/78">Event connection</p>
             <p className="mt-1 text-[10px] leading-4 text-white/42">
-              The percentage of tracked lists for one deck that use the card. 99% means almost every list plays it.
+              Exact card names rank strongest. Character or Pokémon matches spread the signal to older variants; set-only matches are deliberately weaker.
             </p>
           </div>
           <div className="border-white/8 lg:border-l lg:pl-3">
-            <p className="text-[11px] font-semibold text-white/78">Meta share</p>
+            <p className="text-[11px] font-semibold text-white/78">Evidence grade</p>
             <p className="mt-1 text-[10px] leading-4 text-white/42">
-              The share of tracked tournament decks using that strategy. A larger share means more potential buyers need its core cards.
+              Official news is confirmed, established reporting is strong evidence, leaks remain labelled, and social-only claims stay rumours.
             </p>
           </div>
           <div className="border-white/8 lg:border-l lg:pl-3">
-            <p className="text-[11px] font-semibold text-white/78">Archetype reach</p>
+            <p className="text-[11px] font-semibold text-white/78">Tournament demand</p>
             <p className="mt-1 text-[10px] leading-4 text-white/42">
-              The number of different leading deck types where the card is core. More reach makes the signal less dependent on one deck.
+              Deck inclusion, meta share and cross-deck reach remain a separate signal that can confirm or stand apart from collector events.
             </p>
           </div>
         </div>
@@ -585,7 +672,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           eyebrow="External demand"
           title="Signal candidates"
           count={visibleSignals.length}
-          description="External candidates ranked from tournament demand and fresh catalyst evidence — never from DustyCards price momentum."
+          description="External candidates from tournament demand and set, reveal, localization, product and reprint intelligence — never from DustyCards price momentum."
           actions={
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/32">
               Updated {new Intl.DateTimeFormat("en-GB", {
