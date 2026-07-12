@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   LoaderCircle,
   Newspaper,
+  PackageSearch,
   Radar,
   Search,
   ShieldAlert,
@@ -25,6 +26,8 @@ import { textMatchesSearchQuery } from "@/lib/card-search";
 import { formatCurrency } from "@/lib/format";
 import type {
   ExternalCardSignal,
+  ExternalMarketMode,
+  ExternalPriceScenario,
   ExternalSignalConfidence,
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
@@ -35,8 +38,8 @@ const CardModal = dynamic(() => import("@/components/CardModal"), {
 });
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
-type OriginFilter = "all" | "event" | "competitive" | "hybrid";
-type SortKey = "signal" | "meta" | "reach";
+type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
+type SortKey = "opportunity" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
 
 interface Props {
   signals: ExternalCardSignal[];
@@ -52,7 +55,10 @@ const CONFIDENCE_OPTIONS: Array<{ value: ConfidenceFilter; label: string }> = [
 ];
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: "opportunity", label: "Opportunity" },
   { value: "signal", label: "Signal strength" },
+  { value: "sealed", label: "Sealed pressure" },
+  { value: "scarcity", label: "Scarcity" },
   { value: "meta", label: "Meta share" },
   { value: "reach", label: "Archetype reach" },
 ];
@@ -62,6 +68,7 @@ const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
   { value: "event", label: "Set & reveal" },
   { value: "competitive", label: "Tournament" },
   { value: "hybrid", label: "Hybrid" },
+  { value: "structural", label: "Scarcity & value" },
 ];
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -79,6 +86,27 @@ function getConfidenceClasses(confidence: ExternalSignalConfidence): string {
 }
 
 function getSignalExplanations(signal: ExternalCardSignal) {
+  if (signal.sourceMode === "structural") {
+    const market = signal.marketIntelligence;
+    return [
+      {
+        label: "Structural setup",
+        text: signal.reasons[0] ?? "Older, harder-to-replace supply is priced below its structural profile.",
+      },
+      {
+        label: "Sealed pressure",
+        text: market
+          ? `${market.sealed.pressureLabel} (${market.sealed.pressureScore}/100). ${market.sealed.packPrice != null ? `Cheapest linked pack is about €${market.sealed.packPrice.toFixed(2)}.` : "No reliable single-pack price is stored yet."}`
+          : "Sealed context is still loading.",
+      },
+      {
+        label: "Grade potential",
+        text: market?.graded.available
+          ? `${market.graded.label ?? "Top grade"} market is ${market.graded.supplyLabel.toLowerCase()} with ${market.graded.sampleSize ?? "an unknown number of"} recent sold samples.`
+          : "No reliable graded market match is stored for this card yet.",
+      },
+    ];
+  }
   if (signal.sourceMode === "event") {
     const catalyst = signal.catalysts?.[0];
     const sourceCount = new Set((signal.catalysts ?? []).map((item) => item.sourceUrl)).size;
@@ -123,6 +151,128 @@ function getSignalExplanations(signal: ExternalCardSignal) {
           : "It is currently core in one leading deck type, so this signal depends more on that strategy staying popular.",
     },
   ];
+}
+
+function formatSignedPercent(value: number | null): string {
+  if (value == null) return "--";
+  return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function PriceScenarioChart({ scenario }: { scenario: ExternalPriceScenario }) {
+  const values = [
+    scenario.currentPrice,
+    ...scenario.points.flatMap((point) => [point.low, point.base, point.high]),
+  ];
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const spread = Math.max(1, maximum - minimum);
+  const x = [4, 35, 66, 96];
+  const y = (value: number) => 48 - ((value - minimum) / spread) * 40;
+  const baseValues = [scenario.currentPrice, ...scenario.points.map((point) => point.base)];
+  const highValues = [scenario.currentPrice, ...scenario.points.map((point) => point.high)];
+  const lowValues = [scenario.currentPrice, ...scenario.points.map((point) => point.low)];
+  const band = [
+    ...highValues.map((value, index) => `${x[index]},${y(value)}`),
+    ...lowValues.map((value, index) => `${x[lowValues.length - 1 - index]},${y(lowValues[lowValues.length - 1 - index])}`),
+  ].join(" ");
+  const line = baseValues.map((value, index) => `${x[index]},${y(value)}`).join(" ");
+  return (
+    <svg viewBox="0 0 100 54" className="h-20 w-full overflow-visible" role="img" aria-label="Predicted low, base and high price path">
+      <defs>
+        <linearGradient id={`scenario-${scenario.marketMode}`} x1="0" x2="1">
+          <stop offset="0" stopColor="#8b5cf6" stopOpacity="0.22" />
+          <stop offset="1" stopColor="#38bdf8" stopOpacity="0.08" />
+        </linearGradient>
+      </defs>
+      {[12, 28, 44].map((gridY) => (
+        <line key={gridY} x1="2" x2="98" y1={gridY} y2={gridY} stroke="rgba(255,255,255,0.07)" strokeWidth="0.5" />
+      ))}
+      <polygon points={band} fill={`url(#scenario-${scenario.marketMode})`} />
+      <polyline points={line} fill="none" stroke="#a78bfa" strokeWidth="1.5" strokeLinejoin="round" />
+      {baseValues.map((value, index) => (
+        <circle key={x[index]} cx={x[index]} cy={y(value)} r="1.5" fill={index === 0 ? "#f8fafc" : "#7dd3fc"} />
+      ))}
+    </svg>
+  );
+}
+
+function MarketIntelligencePanel({
+  signal,
+  marketMode,
+}: {
+  signal: ExternalCardSignal;
+  marketMode: ExternalMarketMode;
+}) {
+  const market = signal.marketIntelligence;
+  if (!market) return null;
+  const scenario = marketMode === "graded" ? market.gradedScenario : market.rawScenario;
+  const score =
+    marketMode === "graded" ? market.gradedOpportunityScore : market.rawOpportunityScore;
+  if (marketMode === "graded" && !market.graded.available) return null;
+  return (
+    <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(13rem,0.85fr)]">
+      <div className="rounded-xl border border-violet-300/12 bg-violet-400/[0.045] p-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-violet-200/68">
+              {marketMode === "graded" ? "Graded value path" : "Raw value path"}
+            </p>
+            <p className="mt-0.5 text-[9px] text-white/35">Model range · not a guaranteed target</p>
+          </div>
+          <span className="rounded-full border border-violet-300/14 bg-violet-400/[0.08] px-2 py-1 text-[10px] font-black text-violet-100">
+            {score ?? "--"}/100
+          </span>
+        </div>
+        {scenario ? (
+          <>
+            <PriceScenarioChart scenario={scenario} />
+            <div className="grid grid-cols-3 gap-1.5">
+              {scenario.points.map((point) => (
+                <div key={point.days} className="rounded-lg border border-white/7 bg-black/18 px-2 py-1.5 text-center">
+                  <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/32">{point.days}d</p>
+                  <p className="mt-0.5 text-[10px] font-black text-white/76">{formatCurrency(point.base, scenario.currency)}</p>
+                  <p className="text-[8px] text-white/30">{formatCurrency(point.low, scenario.currency)}–{formatCurrency(point.high, scenario.currency)}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="mt-3 text-[10px] text-white/38">Not enough price data for a scenario yet.</p>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-amber-300/12 bg-amber-400/[0.045] p-2.5">
+          <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-100/62">
+            <PackageSearch className="h-3 w-3" /> Sealed
+          </div>
+          <p className="mt-1 text-sm font-black text-amber-100">{market.sealed.pressureLabel}</p>
+          <p className="mt-1 text-[9px] leading-4 text-white/38">
+            Pack {market.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")} · {formatSignedPercent(market.sealed.trend30dPct ?? market.sealed.trend90dPct)}
+          </p>
+          <p className="text-[8px] text-white/28">{market.sealed.productCount} linked products</p>
+        </div>
+        <div className="rounded-xl border border-sky-300/12 bg-sky-400/[0.045] p-2.5">
+          <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-sky-100/62">Scarcity</p>
+          <p className="mt-1 text-sm font-black text-sky-100">{market.scarcity.label}</p>
+          <p className="mt-1 text-[9px] leading-4 text-white/38">
+            Pull {market.scarcity.pullOdds ?? "unknown"} · {market.scarcity.rawMarketBreadth} markets
+          </p>
+          <p className="text-[8px] text-white/28">Artist {market.scarcity.artistDemandScore ?? "--"}/100</p>
+        </div>
+        <div className="col-span-2 rounded-xl border border-emerald-300/12 bg-emerald-400/[0.04] p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-emerald-100/62">Grading supply</p>
+            <span className="text-[9px] font-bold text-emerald-100/70">{market.graded.supplyLabel}</span>
+          </div>
+          <div className="mt-1 grid grid-cols-3 gap-2 text-[9px]">
+            <span className="text-white/38">PSA 10 <strong className="block text-white/74">{market.graded.psa10Price == null ? "--" : formatCurrency(market.graded.psa10Price, market.graded.currency)}</strong></span>
+            <span className="text-white/38">Gem-rate <strong className="block text-white/74">{market.graded.gemRatePct == null ? "--" : `${market.graded.gemRatePct.toFixed(1)}%`}</strong></span>
+            <span className="text-white/38">PSA pop <strong className="block text-white/74">API pending</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const FORECAST_TARGETS = [
@@ -263,7 +413,9 @@ function CatalystPanel({ signal }: { signal: ExternalCardSignal }) {
         </div>
       ) : (
         <p className="mt-1.5 text-[10px] leading-4 text-white/38">
-          No fresh trusted support, product, reprint, ban or social-hype catalyst is linked to this card yet. Its ranking currently comes from tournament demand only.
+          {signal.sourceMode === "structural"
+            ? "No fresh news catalyst is required for this setup. Its ranking comes from sealed pressure, age, rarity, collector demand and grading context."
+            : "No fresh trusted support, product, reprint, ban or social-hype catalyst is linked to this card yet. Its ranking currently comes from tournament demand only."}
         </p>
       )}
     </div>
@@ -272,15 +424,31 @@ function CatalystPanel({ signal }: { signal: ExternalCardSignal }) {
 
 function SignalCard({
   signal,
+  marketMode,
   loading,
   onOpen,
 }: {
   signal: ExternalCardSignal;
+  marketMode: ExternalMarketMode;
   loading: boolean;
   onOpen: (cardId: string) => void;
 }) {
   const primaryEvidence = signal.evidence.slice(0, 2);
   const explanations = getSignalExplanations(signal);
+  const selectedScenario =
+    marketMode === "graded"
+      ? signal.marketIntelligence?.gradedScenario
+      : signal.marketIntelligence?.rawScenario;
+  const selectedScore =
+    marketMode === "graded"
+      ? signal.marketIntelligence?.gradedOpportunityScore
+      : signal.marketIntelligence?.rawOpportunityScore;
+  const selectedTier =
+    (selectedScore ?? signal.externalScore) >= 80
+      ? "Breakout"
+      : (selectedScore ?? signal.externalScore) >= 60
+        ? "Strong"
+        : "Watch";
 
   return (
     <article className="group relative min-w-0 overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.22)] transition duration-200 hover:border-violet-300/22 sm:p-4">
@@ -334,6 +502,8 @@ function SignalCard({
                 <span className="rounded-full border border-violet-300/12 bg-violet-400/[0.06] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-violet-100/62">
                   {signal.sourceMode === "event"
                     ? "Set & reveal"
+                    : signal.sourceMode === "structural"
+                      ? "Scarcity & value"
                     : signal.sourceMode === "hybrid"
                       ? "Hybrid"
                       : "Tournament"}
@@ -357,10 +527,12 @@ function SignalCard({
             </div>
             <div className="shrink-0 text-right">
               <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-white/32">
-                Market context
+                {marketMode === "graded" ? signal.marketIntelligence?.graded.label ?? "Graded market" : "Raw market"}
               </p>
               <p className="mt-0.5 text-sm font-bold tabular-nums text-white sm:text-base">
-                {formatCurrency(signal.currentPrice, signal.currency)}
+                {selectedScenario
+                  ? formatCurrency(selectedScenario.currentPrice, selectedScenario.currency)
+                  : formatCurrency(signal.currentPrice, signal.currency)}
               </p>
             </div>
           </div>
@@ -369,17 +541,14 @@ function SignalCard({
             <div className="rounded-xl border border-violet-300/14 bg-violet-400/[0.07] px-2.5 py-2">
               <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-violet-200/68">
                 <Radar className="h-3 w-3" />
-                External score
+                Opportunity score
               </div>
               <p className="mt-1 text-base font-black tabular-nums text-violet-100">
-                {signal.externalScore}<span className="text-xs text-white/32">/100</span>
+                {selectedScore ?? signal.externalScore}<span className="text-xs text-white/32">/100</span>
               </p>
               <p className="mt-0.5 text-[8px] text-white/32">
-                {signal.sourceMode === "event"
-                  ? "Event strength + source confidence"
-                  : `Tournament ${signal.competitiveScore ?? signal.externalScore}${
-                      (signal.catalysts?.length ?? 0) > 0 ? " + catalyst adjustment" : ""
-                    }`}
+                {`External ${signal.externalScore} + sealed, rarity & supply`}
+                {signal.sourceMode === "event" ? " · event-linked" : ""}
               </p>
             </div>
             <div className="rounded-xl border border-emerald-300/14 bg-emerald-400/[0.065] px-2.5 py-2">
@@ -388,7 +557,7 @@ function SignalCard({
                 Signal tier
               </div>
               <p className="mt-1 text-base font-black tabular-nums text-emerald-100">
-                {signal.pressureLabel}
+                {selectedTier}
               </p>
             </div>
           </div>
@@ -396,10 +565,11 @@ function SignalCard({
           <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-black/35">
             <div
               className="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-400 to-sky-400 shadow-[0_0_16px_rgba(139,92,246,0.38)]"
-              style={{ width: `${signal.externalScore}%` }}
+              style={{ width: `${selectedScore ?? signal.externalScore}%` }}
             />
           </div>
-          <ForecastPanel signal={signal} />
+          <MarketIntelligencePanel signal={signal} marketMode={marketMode} />
+          {marketMode === "raw" ? <ForecastPanel signal={signal} /> : null}
         </div>
       </div>
 
@@ -468,6 +638,16 @@ function SignalCard({
                   </Link>
                 ))
               : null}
+            {primaryEvidence.length === 0 && (signal.catalysts?.length ?? 0) === 0 ? (
+              <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+                <span className="rounded-lg border border-white/7 bg-white/[0.025] px-2.5 py-2 text-white/48">
+                  DustyCards sealed history
+                </span>
+                <span className="rounded-lg border border-white/7 bg-white/[0.025] px-2.5 py-2 text-white/48">
+                  CardMarket + eBay sold
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -475,8 +655,9 @@ function SignalCard({
       <CatalystPanel signal={signal} />
 
       <p className="mt-2.5 text-[9px] leading-4 text-white/28">
-        {signal.pressureExplanation}. Competitive demand can change quickly after bans,
-        reprints or new releases.
+        {signal.pressureExplanation}. {signal.sourceMode === "structural"
+          ? "Older supply can stay illiquid for long periods; confirm condition and real sold listings before buying."
+          : "Competitive demand can change quickly after bans, reprints or new releases."}
       </p>
     </article>
   );
@@ -486,7 +667,9 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
   const [search, setSearch] = useState("");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("all");
   const [origin, setOrigin] = useState<OriginFilter>("all");
-  const [sortKey, setSortKey] = useState<SortKey>("signal");
+  const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
+  const [sortKey, setSortKey] = useState<SortKey>("opportunity");
+  const [visibleLimit, setVisibleLimit] = useState(24);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [detailCache, setDetailCache] = useState<Record<string, ModalCardData>>({});
@@ -500,6 +683,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
       .filter((signal) => {
         if (confidence !== "all" && signal.confidence.toLowerCase() !== confidence) return false;
         if (origin !== "all" && signal.sourceMode !== origin) return false;
+        if (marketMode === "graded" && !signal.marketIntelligence?.graded.available) return false;
         if (!query) return true;
         return textMatchesSearchQuery(
           `${signal.name} ${signal.episodeName} ${signal.episodeCode ?? ""} ${signal.cardNumber ?? ""} ${signal.rarity ?? ""}`,
@@ -507,6 +691,29 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         );
       })
       .sort((left, right) => {
+        if (sortKey === "opportunity") {
+          const leftScore =
+            marketMode === "graded"
+              ? left.marketIntelligence?.gradedOpportunityScore
+              : left.marketIntelligence?.rawOpportunityScore;
+          const rightScore =
+            marketMode === "graded"
+              ? right.marketIntelligence?.gradedOpportunityScore
+              : right.marketIntelligence?.rawOpportunityScore;
+          return (rightScore ?? right.externalScore) - (leftScore ?? left.externalScore);
+        }
+        if (sortKey === "sealed") {
+          return (
+            (right.marketIntelligence?.sealed.pressureScore ?? 0) -
+            (left.marketIntelligence?.sealed.pressureScore ?? 0)
+          );
+        }
+        if (sortKey === "scarcity") {
+          return (
+            (right.marketIntelligence?.scarcity.score ?? 0) -
+            (left.marketIntelligence?.scarcity.score ?? 0)
+          );
+        }
         if (sortKey === "meta") {
           return right.maxDeckSharePercent - left.maxDeckSharePercent;
         }
@@ -515,7 +722,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         }
         return right.externalScore - left.externalScore || left.rank - right.rank;
       });
-  }, [confidence, deferredSearch, origin, signals, sortKey]);
+  }, [confidence, deferredSearch, marketMode, origin, signals, sortKey]);
 
   const openCard = useCallback(
     async (cardId: string) => {
@@ -555,7 +762,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
   return (
     <div className="space-y-4 sm:space-y-5">
       <section className="binder-panel rounded-[1.5rem] p-3 sm:p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto] lg:items-center">
+        <div className="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto] lg:items-center">
           <label className="relative block min-w-0">
             <span className="sr-only">Search signal cards</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
@@ -591,6 +798,27 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
                 )}
               >
                 {option.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex min-w-0 gap-1 rounded-xl border border-white/8 bg-black/20 p-1" aria-label="Market mode">
+            {(["raw", "graded"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  setMarketMode(mode);
+                  setVisibleLimit(24);
+                }}
+                className={cx(
+                  "h-8 rounded-lg px-3 text-[11px] font-semibold capitalize transition",
+                  marketMode === mode
+                    ? "bg-violet-500 text-white shadow-sm"
+                    : "text-white/48 hover:bg-white/[0.06] hover:text-white"
+                )}
+              >
+                {mode}
               </button>
             ))}
           </div>
@@ -636,7 +864,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
               How to read this
             </p>
             <p className="mt-1 text-xs leading-5 text-white/52">
-              Tournament and set-event signals are independent entry paths. The growth model follows both forward and never uses local price momentum to select a card.
+              Tournament, set-event and structural scarcity are separate entry paths. Raw and graded opportunity scores then add sealed, pull, supply and grading context.
             </p>
           </div>
           <div className="border-white/8 lg:border-l lg:pl-3">
@@ -646,15 +874,15 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
             </p>
           </div>
           <div className="border-white/8 lg:border-l lg:pl-3">
-            <p className="text-[11px] font-semibold text-white/78">Evidence grade</p>
+            <p className="text-[11px] font-semibold text-white/78">Scarcity setup</p>
             <p className="mt-1 text-[10px] leading-4 text-white/42">
-              Official news is confirmed, established reporting is strong evidence, leaks remain labelled, and social-only claims stay rumours.
+              Set age, pack cost, pull difficulty, market breadth, gem-rate and artist track record identify hard-to-replace cards without needing current hype.
             </p>
           </div>
           <div className="border-white/8 lg:border-l lg:pl-3">
-            <p className="text-[11px] font-semibold text-white/78">Tournament demand</p>
+            <p className="text-[11px] font-semibold text-white/78">Price scenario</p>
             <p className="mt-1 text-[10px] leading-4 text-white/42">
-              Deck inclusion, meta share and cross-deck reach remain a separate signal that can confirm or stand apart from collector events.
+              The 30, 90 and 180-day graph is a low/base/high model range. It responds to evidence and supply but remains a scenario, never a promised price.
             </p>
           </div>
         </div>
@@ -672,7 +900,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           eyebrow="External demand"
           title="Signal candidates"
           count={visibleSignals.length}
-          description="External candidates from tournament demand and set, reveal, localization, product and reprint intelligence — never from DustyCards price momentum."
+          description="Candidates from tournament demand, set and product events, plus structural scarcity. Use Raw or Graded to compare their separate opportunity paths."
           actions={
             <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/32">
               Updated {new Intl.DateTimeFormat("en-GB", {
@@ -691,10 +919,11 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
               gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 28rem), 1fr))",
             }}
           >
-            {visibleSignals.map((signal) => (
+            {visibleSignals.slice(0, visibleLimit).map((signal) => (
               <SignalCard
                 key={signal.cardId}
                 signal={signal}
+                marketMode={marketMode}
                 loading={loadingCardId === signal.cardId}
                 onOpen={(cardId) => void openCard(cardId)}
               />
@@ -708,6 +937,17 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
             actionHref={null}
           />
         )}
+        {visibleSignals.length > visibleLimit ? (
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setVisibleLimit((current) => current + 24)}
+              className="rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-5 py-2.5 text-xs font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.12]"
+            >
+              Show 24 more · {visibleSignals.length - visibleLimit} remaining
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-3 rounded-[1.5rem] border border-white/8 bg-white/[0.025] p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
@@ -716,7 +956,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           <div>
             <p className="text-sm font-semibold text-white/78">Signal, not a promise</p>
             <p className="mt-1 max-w-4xl text-xs leading-5 text-white/42">
-              Breakout tiers describe observed external demand pressure, not a price target or guarantee. An exact x-prediction is deliberately withheld until enough historical signals can be backtested. Bans, rotation, supply and reprints can reverse the setup.
+              Scenario lines are modelled ranges, not guarantees or listing valuations. The separate 1.5x, 2x and 3x probabilities remain hidden until enough completed historical signals exist. Bans, rotation, supply and reprints can reverse any setup.
             </p>
           </div>
         </div>
