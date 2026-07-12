@@ -307,25 +307,30 @@ export default function HomeValueDriversPanel({
           <h2 className="mt-0.5 text-base font-black tracking-tight text-white">
             Collection Value Drivers
           </h2>
-          <p className="mt-0.5 text-[12px] font-semibold text-white/42">
-            {getDriverRangeLabel(data)}
-          </p>
-          {data.sourceBreakdown.length > 0 && (
-            <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-bold text-white/45">
-              {data.sourceBreakdown.map((entry) => (
-                <span key={entry.source} className="inline-flex items-center gap-1">
-                  {entry.source}
-                  <span
-                    className={`tabular-nums ${
-                      entry.change >= 0 ? "text-emerald-300/90" : "text-rose-300/90"
-                    }`}
-                  >
-                    {formatSignedCurrency(entry.change)}
+          <p className="mt-0.5 flex min-h-4 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] font-semibold text-white/42">
+            <span>{getDriverRangeLabel(data)}</span>
+            {data.sourceBreakdown.length > 0 && (
+              <span className="text-white/22" aria-hidden="true">
+                /
+              </span>
+            )}
+            {data.sourceBreakdown.length > 0 && (
+              <span className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] font-bold text-white/45">
+                {data.sourceBreakdown.map((entry) => (
+                  <span key={entry.source} className="inline-flex items-center gap-1">
+                    {entry.source}
+                    <span
+                      className={`tabular-nums ${
+                        entry.change >= 0 ? "text-emerald-300/90" : "text-rose-300/90"
+                      }`}
+                    >
+                      {formatSignedCurrency(entry.change)}
+                    </span>
                   </span>
-                </span>
-              ))}
-            </p>
-          )}
+                ))}
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
           <span className="inline-flex h-8 items-center rounded-full border border-white/8 bg-black/18 px-2.5 text-[12px] font-black tabular-nums text-white">
