@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.17",
+    releasedAt: "July 12, 2026",
+    title: "Lean social catalyst checks",
+    summary:
+      "DustyCards 3.6.17 keeps social-hype evidence in Signal Radar without paying for unsupported social page scrapes.",
+    tone: "improved",
+    highlights: [
+      "Trusted social results are analyzed from the already-paid search title and description with a deliberately lower credibility weight.",
+      "Reddit, YouTube, and X results no longer trigger a separate Firecrawl scrape that the provider may refuse, saving up to one catalyst credit per run.",
+      "Official and community sources still receive the deeper page-level check when they are new and supported.",
+    ],
+  },
+  {
     version: "3.6.16",
     releasedAt: "July 12, 2026",
     title: "Signal Radar learns over time",
