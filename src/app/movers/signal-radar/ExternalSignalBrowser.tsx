@@ -1,15 +1,13 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
   Boxes,
   BrainCircuit,
   CheckCircle2,
-  LoaderCircle,
   Newspaper,
   PackageSearch,
   Radar,
@@ -21,7 +19,6 @@ import {
 import CachedImage from "@/components/CachedImage";
 import EmptyState from "@/components/EmptyState";
 import { SectionHeader } from "@/components/PageHeader";
-import type { ModalCardData } from "@/components/card-modal/types";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import { formatCurrency } from "@/lib/format";
 import type {
@@ -31,11 +28,6 @@ import type {
   ExternalSignalConfidence,
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
-
-const CardModal = dynamic(() => import("@/components/CardModal"), {
-  ssr: false,
-  loading: () => null,
-});
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
@@ -449,16 +441,121 @@ function CatalystPanel({ signal }: { signal: ExternalCardSignal }) {
   );
 }
 
-function SignalCard({
+function CompactSignalCard({
   signal,
   marketMode,
-  loading,
-  onOpen,
 }: {
   signal: ExternalCardSignal;
   marketMode: ExternalMarketMode;
-  loading: boolean;
-  onOpen: (cardId: string) => void;
+}) {
+  const scenario =
+    marketMode === "graded"
+      ? signal.marketIntelligence?.gradedScenario
+      : signal.marketIntelligence?.rawScenario;
+  const score =
+    marketMode === "graded"
+      ? signal.marketIntelligence?.gradedOpportunityScore
+      : signal.marketIntelligence?.rawOpportunityScore;
+  const effectiveScore = score ?? signal.externalScore;
+  const tier = effectiveScore >= 80 ? "Breakout" : effectiveScore >= 60 ? "Strong" : "Watch";
+  const confluence = signal.marketIntelligence?.confluence;
+  const drivers = confluence?.drivers.slice(0, 3) ?? signal.reasons.slice(0, 3);
+  const detailHref = `/movers/signal-radar/${encodeURIComponent(signal.cardId)}?game=${signal.game}`;
+
+  return (
+    <article className="group relative min-w-0 overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_14px_42px_rgba(0,0,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/24">
+      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-65" />
+      <div className="flex min-w-0 items-start gap-3">
+        <Link
+          href={detailHref}
+          className="relative aspect-[63/88] w-[5.5rem] shrink-0 overflow-hidden rounded-[0.65rem] border border-white/10 bg-black/25 shadow-lg shadow-black/25 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:w-[6.25rem]"
+          aria-label={`Open full analysis for ${signal.name}`}
+        >
+          {signal.imageUrl ? (
+            <CachedImage
+              sourceUrl={signal.imageUrl}
+              alt={signal.name}
+              fill
+              sizes="(max-width: 640px) 88px, 100px"
+              className="object-contain"
+            />
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center text-white/22">
+              <Boxes className="h-7 w-7" />
+            </span>
+          )}
+          <span className="absolute left-1.5 top-1.5 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/75 px-1.5 text-[10px] font-black text-white">
+            #{signal.rank}
+          </span>
+        </Link>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]", getConfidenceClasses(signal.confidence))}>
+                  {signal.confidence}
+                </span>
+                <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/45">
+                  {signal.sourceMode === "structural" ? "Scarcity" : signal.sourceMode === "event" ? "Event" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament"}
+                </span>
+              </div>
+              <Link href={detailHref} className="mt-2 block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">
+                <h3 className="truncate text-base font-bold tracking-tight text-white transition group-hover:text-violet-100">{signal.name}</h3>
+              </Link>
+              <p className="mt-0.5 truncate text-[10px] text-white/42">
+                {signal.episodeName}{signal.cardNumber ? ` / ${signal.cardNumber}` : ""}
+              </p>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-white/30">{marketMode}</p>
+              <p className="mt-0.5 text-sm font-bold tabular-nums text-white">
+                {scenario ? formatCurrency(scenario.currentPrice, scenario.currency) : formatCurrency(signal.currentPrice, signal.currency)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-1.5">
+            <div className="rounded-lg border border-violet-300/14 bg-violet-400/[0.07] px-2 py-1.5">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-violet-200/58">Opportunity</p>
+              <p className="mt-0.5 text-sm font-black text-violet-100">{effectiveScore}<span className="text-[9px] text-white/30">/100</span></p>
+            </div>
+            <div className="rounded-lg border border-fuchsia-300/12 bg-fuchsia-400/[0.05] px-2 py-1.5">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-fuchsia-100/55">Confluence</p>
+              <p className="mt-0.5 text-sm font-black text-fuchsia-100">{confluence?.score ?? "--"}<span className="text-[9px] text-white/30">/100</span></p>
+            </div>
+            <div className="rounded-lg border border-emerald-300/12 bg-emerald-400/[0.05] px-2 py-1.5">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-emerald-100/55">Tier</p>
+              <p className="mt-0.5 truncate text-sm font-black text-emerald-100">{tier}</p>
+            </div>
+          </div>
+          <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/35">
+            <div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-400 to-sky-400" style={{ width: `${effectiveScore}%` }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex min-h-6 flex-wrap gap-1.5">
+        {drivers.map((driver) => (
+          <span key={driver} className="max-w-full truncate rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] text-white/48">
+            {driver}
+          </span>
+        ))}
+      </div>
+      <Link href={detailHref} className="mt-3 flex h-9 items-center justify-between rounded-xl border border-violet-300/14 bg-violet-400/[0.065] px-3 text-[10px] font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.11]">
+        View full analysis
+        <ArrowUpRight className="h-3.5 w-3.5" />
+      </Link>
+    </article>
+  );
+}
+
+export function ExternalSignalDetailCard({
+  signal,
+  marketMode,
+}: {
+  signal: ExternalCardSignal;
+  marketMode: ExternalMarketMode;
 }) {
   const primaryEvidence = signal.evidence.slice(0, 2);
   const explanations = getSignalExplanations(signal);
@@ -481,13 +578,7 @@ function SignalCard({
     <article className="group relative min-w-0 overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.22)] transition duration-200 hover:border-violet-300/22 sm:p-4">
       <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-65" />
       <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-        <button
-          type="button"
-          onClick={() => onOpen(signal.cardId)}
-          disabled={loading}
-          className="relative aspect-[63/88] w-[5.8rem] shrink-0 self-start overflow-hidden rounded-[0.7rem] border border-white/10 bg-black/25 text-left shadow-lg shadow-black/25 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 sm:w-[7rem] 2xl:w-[7.5rem]"
-          aria-label={`Open ${signal.name} card details`}
-        >
+        <div className="relative aspect-[63/88] w-[8rem] shrink-0 self-start overflow-hidden rounded-[0.85rem] border border-white/10 bg-black/25 shadow-lg shadow-black/25 sm:w-[11rem] xl:w-[14rem]">
           {signal.imageUrl ? (
             <CachedImage
               sourceUrl={signal.imageUrl}
@@ -501,15 +592,10 @@ function SignalCard({
               <Boxes className="h-7 w-7" />
             </span>
           )}
-          {loading ? (
-            <span className="absolute inset-0 flex items-center justify-center bg-black/65">
-              <LoaderCircle className="h-5 w-5 animate-spin text-violet-200" />
-            </span>
-          ) : null}
           <span className="absolute left-1.5 top-1.5 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/75 px-1.5 text-[10px] font-black tabular-nums text-white shadow-sm">
             #{signal.rank}
           </span>
-        </button>
+        </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -536,16 +622,11 @@ function SignalCard({
                       : "Tournament"}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => onOpen(signal.cardId)}
-                disabled={loading}
-                className="mt-2 block max-w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-              >
+              <div className="mt-2 block max-w-full text-left">
                 <h3 className="truncate text-base font-bold tracking-tight text-white transition group-hover:text-violet-100 sm:text-lg">
                   {signal.name}
                 </h3>
-              </button>
+              </div>
               <p className="mt-0.5 truncate text-[11px] text-white/42 sm:text-xs">
                 {signal.episodeName}
                 {signal.cardNumber ? ` / ${signal.cardNumber}` : ""}
@@ -697,11 +778,6 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
   const [sortKey, setSortKey] = useState<SortKey>("opportunity");
   const [visibleLimit, setVisibleLimit] = useState(24);
-  const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
-  const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
-  const [detailCache, setDetailCache] = useState<Record<string, ModalCardData>>({});
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const activeCardRequestRef = useRef(0);
   const deferredSearch = useDeferredValue(search);
 
   const visibleSignals = useMemo(() => {
@@ -756,41 +832,6 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         return right.externalScore - left.externalScore || left.rank - right.rank;
       });
   }, [confidence, deferredSearch, marketMode, origin, signals, sortKey]);
-
-  const openCard = useCallback(
-    async (cardId: string) => {
-      const requestId = activeCardRequestRef.current + 1;
-      activeCardRequestRef.current = requestId;
-      const cached = detailCache[cardId];
-      if (cached) {
-        setLoadingCardId(null);
-        setSelectedCard(cached);
-        setDetailError(null);
-        return;
-      }
-
-      setLoadingCardId(cardId);
-      setDetailError(null);
-      try {
-        const response = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
-          cache: "no-store",
-        });
-        if (!response.ok) throw new Error("Could not load card details");
-        const data = (await response.json()) as ModalCardData;
-        if (activeCardRequestRef.current !== requestId) return;
-        setDetailCache((current) => ({ ...current, [cardId]: data }));
-        setSelectedCard(data);
-      } catch (error) {
-        if (activeCardRequestRef.current !== requestId) return;
-        setDetailError(error instanceof Error ? error.message : "Could not load card details");
-      } finally {
-        if (activeCardRequestRef.current === requestId) {
-          setLoadingCardId((current) => (current === cardId ? null : current));
-        }
-      }
-    },
-    [detailCache]
-  );
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -921,13 +962,6 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         </div>
       </section>
 
-      {detailError ? (
-        <div className="flex items-center gap-2 rounded-xl border border-rose-400/18 bg-rose-400/[0.07] px-3 py-2 text-xs text-rose-100/80">
-          <ShieldAlert className="h-4 w-4 shrink-0" />
-          {detailError}
-        </div>
-      ) : null}
-
       <section>
         <SectionHeader
           eyebrow="External demand"
@@ -949,16 +983,14 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           <div
             className="grid min-w-0 gap-3"
             style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 28rem), 1fr))",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 22rem), 1fr))",
             }}
           >
             {visibleSignals.slice(0, visibleLimit).map((signal) => (
-              <SignalCard
+              <CompactSignalCard
                 key={signal.cardId}
                 signal={signal}
                 marketMode={marketMode}
-                loading={loadingCardId === signal.cardId}
-                onOpen={(cardId) => void openCard(cardId)}
               />
             ))}
           </div>
@@ -1015,13 +1047,6 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         </div>
       </section>
 
-      {selectedCard ? (
-        <CardModal
-          key={`${selectedCard.id}:${selectedCard.price_fetched_at ?? "none"}`}
-          card={selectedCard}
-          onClose={() => setSelectedCard(null)}
-        />
-      ) : null}
     </div>
   );
 }
