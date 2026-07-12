@@ -16,6 +16,7 @@ import {
   LibraryBig,
   LogOut,
   PackageOpen,
+  Radar,
   Search,
   Settings,
   ShoppingBag,
@@ -80,6 +81,7 @@ const NAV_SECTIONS = [
       { href: "/movers?scope=graded", label: "Graded", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
       { href: "/movers?scope=grading", label: "Targets", icon: Sparkles, badge: null, key: "market-targets", marketMode: "targets" },
       { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
+      { href: "/movers/signal-radar", label: "Signal Radar", icon: Radar, badge: null, key: "market-radar" },
       { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
     ],
   },
@@ -118,11 +120,16 @@ function isActive(
   if (key === "graded") return pathname === "/" && tab === "graded";
   if (key === "selling") return pathname === "/" && tab === "selling";
   if (key === "market-raw") {
-    return pathname.startsWith("/movers") && !["graded", "grading", "sealed", "value"].includes(moverScope ?? "");
+    return (
+      pathname.startsWith("/movers") &&
+      !pathname.startsWith("/movers/signal-radar") &&
+      !["graded", "grading", "sealed", "value"].includes(moverScope ?? "")
+    );
   }
   if (key === "market-graded") return pathname.startsWith("/movers") && moverScope === "graded";
   if (key === "market-targets") return pathname.startsWith("/movers") && moverScope === "grading";
   if (key === "market-sealed") return pathname.startsWith("/movers") && moverScope === "sealed";
+  if (key === "market-radar") return pathname.startsWith("/movers/signal-radar");
   if (key === "expansions") return pathname.startsWith("/expansions");
   if (key === "one-piece") return pathname.startsWith("/one-piece");
   if (key === "categories") return pathname.startsWith("/categories");

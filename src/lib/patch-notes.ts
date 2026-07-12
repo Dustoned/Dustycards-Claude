@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.6.15",
+    releasedAt: "July 12, 2026",
+    title: "External Signal Radar",
+    summary:
+      "DustyCards 3.6.15 adds a separate market radar for cards gaining competitive attention outside DustyCards.",
+    tone: "new",
+    highlights: [
+      "Pokemon and One Piece candidates are ranked from current tournament meta share, core-deck inclusion, and adoption across leading archetypes.",
+      "Every signal shows its source evidence, confidence, 30-90 day watch window, current price context, and a breakout tier without inventing an exact price target.",
+      "The responsive editorial grid keeps normal card sizing from mobile through ultrawide, opens full card details, and uses a six-hour shared cache without spending Firecrawl credits during normal browsing.",
+    ],
+  },
+  {
     version: "3.6.14",
     releasedAt: "July 11, 2026",
     title: "Sudden Drops now rolls over 24 hours",

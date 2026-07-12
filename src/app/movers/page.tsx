@@ -343,11 +343,16 @@ export default async function MoversPage({
     return query ? `/movers?${query}` : "/movers";
   }
 
+  const radarGameValue = getGameFilterSearchParamValue(activeGame);
+  const signalRadarHref = radarGameValue
+    ? `/movers/signal-radar?${GAME_SEARCH_PARAM}=${radarGameValue}`
+    : "/movers/signal-radar";
   const marketSwitchItems = [
     { href: buildMoversHref({ mode: "raw" }), active: activeMode === "raw", label: "Raw" },
     { href: buildMoversHref({ mode: "graded" }), active: activeMode === "graded", label: "Graded" },
     { href: buildMoversHref({ mode: "targets" }), active: activeMode === "targets", label: "Targets" },
     { href: buildMoversHref({ mode: "sealed" }), active: activeMode === "sealed", label: "Sealed" },
+    { href: signalRadarHref, active: false, label: "Radar" },
   ];
   const movementSwitchItems = [
     { href: buildMoversHref({ trend: "all" }), active: activeTrend === "all", label: "All" },

@@ -12,6 +12,8 @@ interface NavItem {
   label: string;
   /** Pathname prefixes that should mark this link active. */
   matches: ReadonlyArray<string>;
+  /** Descendants that belong to a separate child navigation item. */
+  excludeMatches?: ReadonlyArray<string>;
 }
 
 interface NavGroup {
@@ -84,6 +86,13 @@ const MARKET_ITEM: NavItem = {
   href: "/movers",
   label: "Market",
   matches: ["/movers"],
+  excludeMatches: ["/movers/signal-radar"],
+};
+
+const SIGNAL_RADAR_ITEM: NavItem = {
+  href: "/movers/signal-radar",
+  label: "Signal Radar",
+  matches: ["/movers/signal-radar"],
 };
 
 const MARKET_TOP_ITEM: NavItem = {
@@ -136,7 +145,16 @@ const ACCOUNT_ITEM: NavItem = {
   matches: ["/account"],
 };
 
-function isActive(pathname: string, matches: ReadonlyArray<string>): boolean {
+function isActive(
+  pathname: string,
+  matches: ReadonlyArray<string>,
+  excludeMatches: ReadonlyArray<string> = []
+): boolean {
+  const excluded = excludeMatches.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+  if (excluded) return false;
+
   return matches.some((prefix) =>
     prefix === "/" ? pathname === "/" : pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
@@ -170,9 +188,11 @@ function isTopLevelActive(pathname: string, tab: string | null, item: NavItem): 
     );
   }
 
-  if (item.href === "/movers") return pathname.startsWith("/movers");
+  if (item.href === "/movers") {
+    return isActive(pathname, item.matches, item.excludeMatches);
+  }
 
-  return isActive(pathname, item.matches);
+  return isActive(pathname, item.matches, item.excludeMatches);
 }
 
 function desktopLinkClasses(active: boolean): string {
@@ -218,7 +238,7 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
         : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
     },
-    { label: "Market", items: [MARKET_ITEM, COLLECTION_SELLING_ITEM] },
+    { label: "Market", items: [MARKET_ITEM, SIGNAL_RADAR_ITEM, COLLECTION_SELLING_ITEM] },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
   ];
 }
@@ -322,7 +342,7 @@ export function HeaderNav() {
                   className="rounded-2xl border border-white/10 bg-zinc-950/96 p-2 shadow-xl shadow-black/45 backdrop-blur-xl"
                 >
                   {group.items.map((item) => {
-                    const itemActive = isActive(pathname, item.matches);
+                    const itemActive = isActive(pathname, item.matches, item.excludeMatches);
                     return (
                       <Link
                         key={item.href}
