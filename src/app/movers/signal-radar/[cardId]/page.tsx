@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Radar, Sparkles } from "lucide-react";
 import SignalRadarDetailClient from "@/app/movers/signal-radar/[cardId]/SignalRadarDetailClient";
+import { db } from "@/lib/db";
 import { enrichExternalSignalRadarData } from "@/lib/external-signal-intelligence";
 import {
   getPersistedExternalSignalRadarData,
@@ -24,15 +25,32 @@ export default async function SignalRadarCardPage({
   const user = await requirePageUser(requestedPath);
   const settings = await getServerUserSettings(user.id);
   const activeGame = settings.onePieceLibraryEnabled ? ALL_GAMES : POKEMON_GAME;
-  const [liveData, persistedData] = await Promise.all([
+  const [liveData, persistedData, cardBasics] = await Promise.all([
     getExternalSignalRadarData(activeGame),
     getPersistedExternalSignalRadarData(activeGame),
+    db.card.findUnique({
+      where: { id: cardId },
+      select: {
+        id: true,
+        card_number: true,
+        printed_card_number: true,
+        rarity: true,
+        hp: true,
+        supertype: true,
+        subtypes: true,
+        artist: true,
+        cardmarket_url: true,
+        episode: {
+          select: { id: true, name: true, code: true, series: true, release_date: true },
+        },
+      },
+    }),
   ]);
   const data = await enrichExternalSignalRadarData(
     mergeExternalSignalRadarWithFallback(liveData, persistedData, activeGame)
   );
   const signal = data.signals.find((candidate) => candidate.cardId === cardId);
-  if (!signal) notFound();
+  if (!signal || !cardBasics) notFound();
 
   const confluence = signal.marketIntelligence?.confluence;
   return (
@@ -56,7 +74,7 @@ export default async function SignalRadarCardPage({
           ) : null}
         </div>
       </div>
-      <SignalRadarDetailClient signal={signal} />
+      <SignalRadarDetailClient signal={signal} cardBasics={cardBasics} />
     </div>
   );
 }
