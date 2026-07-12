@@ -15,6 +15,7 @@ import {
   Mail,
   MoreHorizontal,
   PackageOpen,
+  Radar,
   Search,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -31,7 +32,7 @@ import type { DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
-const PRIMARY_NAV_ITEMS = [
+const PRIMARY_NAV_ITEMS: readonly MobileNavItem[] = [
   { href: "/", label: "Home", icon: Home, matches: ["home"] },
   {
     href: "/?tab=complete",
@@ -48,6 +49,7 @@ type MobileNavItem = {
   label: string;
   icon: LucideIcon;
   matches: readonly string[];
+  excludeMatches?: readonly string[];
   shortLabel?: string;
 };
 
@@ -96,7 +98,19 @@ function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSectio
       label: "Market",
       items: [
         { href: "/wants", label: "Wants", icon: Heart, matches: ["/wants"] },
-        { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers"] },
+        {
+          href: "/movers",
+          label: "Market",
+          icon: TrendingUp,
+          matches: ["/movers"],
+          excludeMatches: ["/movers/signal-radar"],
+        },
+        {
+          href: "/movers/signal-radar",
+          label: "Signal Radar",
+          icon: Radar,
+          matches: ["/movers/signal-radar"],
+        },
         { href: "/?tab=selling", label: "For Sale", shortLabel: "Sell", icon: ShoppingBag, matches: ["tab:selling"] },
       ],
     },
@@ -132,7 +146,17 @@ function isActive(pathname: string, matches: readonly string[]) {
   });
 }
 
-function isNavItemActive(pathname: string, collectionTab: string | null, matches: readonly string[]) {
+function isNavItemActive(
+  pathname: string,
+  collectionTab: string | null,
+  matches: readonly string[],
+  excludeMatches: readonly string[] = []
+) {
+  const excluded = excludeMatches.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+  if (excluded) return false;
+
   const tabMatches = matches
     .filter((match) => match.startsWith("tab:"))
     .map((match) => match.slice(4));
@@ -169,7 +193,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const moreScrollRef = useRef<HTMLDivElement | null>(null);
   const moreSections = getMoreMenuSections(settings.onePieceLibraryEnabled);
   const primaryActive = PRIMARY_NAV_ITEMS.some((item) =>
-    isNavItemActive(pathname, collectionTab, item.matches)
+    isNavItemActive(pathname, collectionTab, item.matches, item.excludeMatches)
   );
   const moreActive = moreOpen || !primaryActive;
   useBodyScrollLock(moreOpen);
@@ -178,7 +202,9 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const activeMoreEntry =
     moreSections
       .flatMap((section) => section.items.map((item) => ({ section: section.label, item })))
-      .find(({ item }) => isNavItemActive(pathname, collectionTab, item.matches)) ?? null;
+      .find(({ item }) =>
+        isNavItemActive(pathname, collectionTab, item.matches, item.excludeMatches)
+      ) ?? null;
   function closeMoreMenu() {
     setMoreOpen(false);
     setAccountPopupOpen(false);
@@ -402,7 +428,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
 
                     <div className="grid gap-0.5">
                       {section.items.map((item) => {
-                        const active = isNavItemActive(pathname, collectionTab, item.matches);
+                        const active = isNavItemActive(
+                          pathname,
+                          collectionTab,
+                          item.matches,
+                          item.excludeMatches
+                        );
                         const Icon = item.icon;
 
                         return (
@@ -588,7 +619,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {PRIMARY_NAV_ITEMS.map((item) => {
-            const active = isNavItemActive(pathname, collectionTab, item.matches);
+            const active = isNavItemActive(
+              pathname,
+              collectionTab,
+              item.matches,
+              item.excludeMatches
+            );
             const Icon = item.icon;
 
             return (
