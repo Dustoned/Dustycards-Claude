@@ -249,7 +249,7 @@ mkdir -p "$RemoteAppPath"
 # Replace only source-controlled app paths so deleted/renamed files do not linger
 # on the server. Persistent runtime data (.env, dustycards.db, node_modules, .next)
 # is intentionally left in place.
-for path in src prisma scripts tests public; do
+for path in src prisma scripts tests public docs; do
   rm -rf "$RemoteAppPath/$path"
 done
 
