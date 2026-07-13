@@ -66,7 +66,8 @@ async function loadFreshCardmarketReferences(
       select: {
         id: true,
         prices: {
-          orderBy: { fetched_at: "desc" },
+          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
           take: 1,
           select: {
             fetched_at: true,

@@ -350,6 +350,7 @@ else
   echo "No definite pending migrations ($PENDING_MIGRATIONS); skipping prisma migrate deploy."
 fi
 
+npx prisma generate
 npm run build
 cleanup_remote_junk
 systemctl restart dustycards

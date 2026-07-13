@@ -2,6 +2,7 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import type { ExternalCatalystDiscoveryCandidate } from "@/lib/external-radar-catalyst-discovery";
+import type { CatalystWatchTopic } from "@/lib/external-radar-catalysts-core";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 
@@ -82,6 +83,36 @@ export async function loadExternalEventCandidates(
       row.name
     ),
   }));
+}
+
+export async function loadExternalEventWatchTopics(
+  games: readonly TradingCardGame[],
+  now = new Date()
+): Promise<CatalystWatchTopic[]> {
+  if (!games.length) return [];
+  const from = new Date(now.getTime() - 45 * 24 * 60 * 60_000)
+    .toISOString()
+    .slice(0, 10);
+  const through = new Date(now.getTime() + 400 * 24 * 60 * 60_000)
+    .toISOString()
+    .slice(0, 10);
+  const rows = await db.episode.findMany({
+    where: {
+      game: { in: [...games] },
+      release_date: { gte: from, lte: through },
+    },
+    orderBy: [{ release_date: "asc" }, { name: "asc" }],
+    take: 24,
+    select: { game: true, name: true, code: true },
+  });
+  const seen = new Set<string>();
+  return rows.flatMap((row) => {
+    const game: TradingCardGame = row.game === "one-piece" ? "one-piece" : "pokemon";
+    const key = `${game}:${row.name.trim().toLowerCase()}`;
+    if (!row.name.trim() || seen.has(key)) return [];
+    seen.add(key);
+    return [{ game, name: row.name.trim(), setCode: row.code }];
+  });
 }
 
 export function mergeExternalEventCandidates(

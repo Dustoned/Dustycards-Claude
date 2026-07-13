@@ -73,7 +73,8 @@ export default async function OnePieceExpansionDetailPage({
       orderBy: [{ card_number: "asc" }, { name: "asc" }],
       include: {
         prices: {
-          orderBy: { fetched_at: "desc" },
+          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
           take: 1,
         },
       },

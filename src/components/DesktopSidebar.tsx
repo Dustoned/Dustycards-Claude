@@ -211,7 +211,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
         <Link href="/" prefetch={false} className="mb-5 flex shrink-0 items-center gap-2.5 px-1">
           <span className="relative h-9 w-9 shrink-0 drop-shadow-[0_0_11px_rgba(124,92,255,0.72)]">
             <Image
-              src="/assets/dustycards-master-ball.webp"
+              src="/assets/dustycards-master-ball-d.webp"
               alt=""
               fill
               priority

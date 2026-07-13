@@ -1,6 +1,7 @@
 ﻿import { describe, expect, it } from "vitest";
 import {
   buildCardEbaySoldGradedPriceHistory,
+  buildCardPriceHistory,
   buildCardGradedPriceHistory,
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
@@ -9,6 +10,61 @@ import {
   getSealedMarketHistorySeriesValue,
   getSaneCardMarketHistorySeriesCurrentValue,
 } from "@/lib/price-history";
+
+describe("card price history source isolation", () => {
+  it("keeps the latest valid EN/NM point when a later same-day snapshot only has another source", () => {
+    const history = buildCardPriceHistory([
+      {
+        fetched_at: "2026-07-12T08:00:00.000Z",
+        cm_en_lowest_nm: 300,
+        cm_de_lowest_nm: 280,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+        cm_jp_lowest_nm: null,
+        tcp_market: null,
+        cm_en_avg_7d: 295,
+        cm_en_avg_30d: 290,
+      },
+      {
+        fetched_at: "2026-07-12T20:00:00.000Z",
+        cm_en_lowest_nm: null,
+        cm_de_lowest_nm: 285,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+        cm_jp_lowest_nm: null,
+        tcp_market: 39.87,
+        cm_en_avg_7d: null,
+        cm_en_avg_30d: null,
+      },
+      {
+        fetched_at: "2026-07-12T21:00:00.000Z",
+        cm_en_lowest_nm: 9001,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+        cm_jp_lowest_nm: null,
+        tcp_market: null,
+        cm_en_avg_7d: null,
+        cm_en_avg_30d: null,
+      },
+    ]);
+
+    expect(history).toEqual([
+      expect.objectContaining({
+        date: "2026-07-12",
+        cm_market: 300,
+        cm_market_en: 300,
+        cm_market_de: 285,
+        tcp_market: 39.87,
+        cm_avg_7d: 295,
+        cm_avg_30d: 290,
+      }),
+    ]);
+  });
+});
 
 describe("daily set price history", () => {
   it("uses the latest card snapshot per card per day for set totals", () => {
@@ -234,6 +290,44 @@ describe("sealed price history series", () => {
     expect(getSealedMarketHistorySeriesValue(history[0], "cm_market_fr")).toBe(169);
   });
 
+  it("does not erase a valid EN/NM set value with a later source-only or sentinel row", () => {
+    const history = buildEpisodeSetPriceHistory([
+      {
+        card_id: "card-1",
+        fetched_at: "2026-04-25T09:00:00.000Z",
+        cm_en_lowest_nm: 300,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+      },
+      {
+        card_id: "card-1",
+        fetched_at: "2026-04-25T20:00:00.000Z",
+        cm_en_lowest_nm: null,
+        cm_de_lowest_nm: 45,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+      },
+      {
+        card_id: "card-1",
+        fetched_at: "2026-04-25T22:00:00.000Z",
+        cm_en_lowest_nm: 9001,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+      },
+    ]);
+
+    expect(history[0]).toMatchObject({
+      date: "2026-04-25",
+      total_market: 300,
+      priced_cards: 1,
+    });
+  });
+
   it("reads current values for sealed language series", () => {
     expect(
       getSealedMarketHistorySeriesCurrentValue(
@@ -252,6 +346,82 @@ describe("sealed price history series", () => {
 });
 
 describe("sane cardmarket current values", () => {
+  it("uses the last known English value when the newest English quote is missing", () => {
+    const current = getSaneCardMarketHistorySeriesCurrentValue(
+      {
+        cm_en_lowest_nm: null,
+        cm_de_lowest_nm: 200,
+        cm_fr_lowest_nm: 150,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: 169.99,
+      },
+      "cm_market_en",
+      [
+        {
+          date: "2026-06-16",
+          label: "16 jun",
+          cm_market: 478.95,
+          cm_market_en: 478.95,
+          cm_market_de: 200,
+          cm_market_fr: 150,
+          cm_market_es: null,
+          cm_market_it: 169.99,
+          cm_market_jp: null,
+          tcp_market: null,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        },
+        {
+          date: "2026-07-12",
+          label: "12 jul",
+          cm_market: null,
+          cm_market_en: null,
+          cm_market_de: 200,
+          cm_market_fr: 150,
+          cm_market_es: null,
+          cm_market_it: 169.99,
+          cm_market_jp: null,
+          tcp_market: null,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        },
+      ]
+    );
+
+    expect(current).toEqual({ value: 478.95, ignoredValue: null });
+  });
+
+  it("ignores the provider no-listing sentinel", () => {
+    const current = getSaneCardMarketHistorySeriesCurrentValue(
+      {
+        cm_en_lowest_nm: 9001,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+      },
+      "cm_market_en",
+      [
+        {
+          date: "2026-07-11",
+          label: "11 jul",
+          cm_market: 47.5,
+          cm_market_en: 47.5,
+          cm_market_de: null,
+          cm_market_fr: null,
+          cm_market_es: null,
+          cm_market_it: null,
+          cm_market_jp: null,
+          tcp_market: null,
+          cm_avg_7d: null,
+          cm_avg_30d: null,
+        },
+      ]
+    );
+
+    expect(current).toEqual({ value: 47.5, ignoredValue: null });
+  });
+
   it("ignores extreme low current outliers when recent history is much higher", () => {
     const current = getSaneCardMarketHistorySeriesCurrentValue(
       {

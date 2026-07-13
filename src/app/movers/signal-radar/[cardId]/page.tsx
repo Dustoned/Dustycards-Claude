@@ -3,13 +3,22 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Radar, Sparkles } from "lucide-react";
 import SignalRadarDetailClient from "@/app/movers/signal-radar/[cardId]/SignalRadarDetailClient";
 import { db } from "@/lib/db";
-import { enrichExternalSignalRadarData } from "@/lib/external-signal-intelligence";
+import { getCachedExternalCardResearch } from "@/lib/external-card-research";
+import {
+  buildOnDemandExternalCardSignal,
+  enrichExternalSignalRadarData,
+} from "@/lib/external-signal-intelligence";
 import {
   getPersistedExternalSignalRadarData,
   mergeExternalSignalRadarWithFallback,
 } from "@/lib/external-signal-persisted";
 import { getExternalSignalRadarData } from "@/lib/external-signal-radar";
-import { ALL_GAMES, POKEMON_GAME } from "@/lib/games";
+import {
+  ALL_GAMES,
+  normalizeTradingCardGame,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+} from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
@@ -32,6 +41,9 @@ export default async function SignalRadarCardPage({
       where: { id: cardId },
       select: {
         id: true,
+        game: true,
+        name: true,
+        image_url: true,
         card_number: true,
         printed_card_number: true,
         rarity: true,
@@ -41,6 +53,7 @@ export default async function SignalRadarCardPage({
         artist: true,
         cardmarket_url: true,
         prices: {
+          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
           orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
           take: 1,
           select: {
@@ -58,11 +71,38 @@ export default async function SignalRadarCardPage({
       },
     }),
   ]);
+  if (!cardBasics) notFound();
+  if (cardBasics.game === ONE_PIECE_GAME && !settings.onePieceLibraryEnabled) notFound();
   const data = await enrichExternalSignalRadarData(
     mergeExternalSignalRadarWithFallback(liveData, persistedData, activeGame)
   );
-  const signal = data.signals.find((candidate) => candidate.cardId === cardId);
-  if (!signal || !cardBasics) notFound();
+  const game = normalizeTradingCardGame(cardBasics.game);
+  const initialResearch = await getCachedExternalCardResearch({
+    cardId: cardBasics.id,
+    game,
+    name: cardBasics.name,
+    cardNumber: cardBasics.printed_card_number ?? cardBasics.card_number,
+    episodeName: cardBasics.episode.name,
+    episodeCode: cardBasics.episode.code,
+    artist: cardBasics.artist,
+    rarity: cardBasics.rarity,
+  });
+  let signal = data.signals.find((candidate) => candidate.cardId === cardId);
+  if (!signal) {
+    const rawPrice = cardBasics.prices[0]?.cm_en_lowest_nm ?? null;
+    signal = await buildOnDemandExternalCardSignal({
+      id: cardBasics.id,
+      game,
+      name: cardBasics.name,
+      imageUrl: cardBasics.image_url,
+      cardNumber: cardBasics.printed_card_number ?? cardBasics.card_number,
+      episodeName: cardBasics.episode.name,
+      episodeCode: cardBasics.episode.code,
+      rarity: cardBasics.rarity,
+      currentPrice: rawPrice,
+    });
+  }
+  if (!signal) notFound();
 
   const confluence = signal.marketIntelligence?.confluence;
   return (
@@ -79,7 +119,7 @@ export default async function SignalRadarCardPage({
         </Link>
         <div className="hidden flex-wrap items-center gap-2 sm:flex">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-300/14 bg-violet-400/[0.07] px-3 py-1.5 text-[10px] font-semibold text-violet-100/72">
-            <Radar className="h-3.5 w-3.5" /> #{signal.rank} radar candidate
+            <Radar className="h-3.5 w-3.5" /> {signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} radar candidate`}
           </span>
           {confluence ? (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-300/14 bg-fuchsia-400/[0.07] px-3 py-1.5 text-[10px] font-semibold text-fuchsia-100/72">
@@ -88,7 +128,11 @@ export default async function SignalRadarCardPage({
           ) : null}
         </div>
       </div>
-      <SignalRadarDetailClient signal={signal} cardBasics={cardBasics} />
+      <SignalRadarDetailClient
+        signal={signal}
+        cardBasics={cardBasics}
+        initialResearch={initialResearch}
+      />
     </div>
   );
 }

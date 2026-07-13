@@ -7,6 +7,7 @@ import {
 } from "@/lib/external-radar-catalyst-discovery";
 import {
   loadExternalEventCandidates,
+  loadExternalEventWatchTopics,
   mergeExternalEventCandidates,
 } from "@/lib/external-event-candidates";
 import { refreshExternalSignalRadarData } from "@/lib/external-signal-radar";
@@ -20,6 +21,10 @@ import {
 } from "@/lib/sync/external-signal-persistence";
 import { evaluatePendingExternalSignalOutcomes } from "@/lib/external-signal-forecast-store";
 import { sendHighPotentialSignalAlerts } from "@/lib/signal-radar-email-alerts";
+import {
+  refreshSignalRadarEbayDemand,
+  type SignalRadarEbayDemandRefreshResult,
+} from "@/lib/sync/signal-radar-ebay-demand";
 
 const EXTERNAL_SIGNAL_JOB_TYPE = "external-signal-radar";
 const EXTERNAL_SIGNAL_CATALYST_RUN_KIND = "catalyst";
@@ -162,10 +167,38 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
 
   try {
     const state = await getRunState(requestedAt);
-    const radarData = await enrichExternalSignalRadarData(
-      await refreshExternalSignalRadarData(ALL_GAMES),
-      requestedAt
-    );
+    const baseRadarData = await refreshExternalSignalRadarData(ALL_GAMES);
+    const eventUniverse = state.catalystDue
+      ? await loadExternalEventCandidates(baseRadarData.sources.map((source) => source.game))
+      : [];
+    const watchTopics = state.catalystDue
+      ? await loadExternalEventWatchTopics(
+          baseRadarData.sources.map((source) => source.game),
+          requestedAt
+        )
+      : [];
+    const catalyst = await runExternalCatalystDiscovery({
+      candidates: mergeExternalEventCandidates(baseRadarData.signals, eventUniverse),
+      watchTopics,
+      lastRunAt: state.lastCatalystAt,
+      now: requestedAt,
+    });
+    if (catalyst.due) {
+      await recordCatalystRun({ requestedAt, finishedAt: new Date(), result: catalyst });
+    }
+    // Discovery runs first so a newly found leak/reveal can participate in the
+    // same persisted radar snapshot and alert pass instead of waiting a day.
+    let ebayDemand: SignalRadarEbayDemandRefreshResult | null = null;
+    let ebayDemandError: string | null = null;
+    const radarData = await enrichExternalSignalRadarData(baseRadarData, requestedAt, {
+      beforeMarketEnrichment: async (signals) => {
+        try {
+          ebayDemand = await refreshSignalRadarEbayDemand(signals, requestedAt);
+        } catch (error) {
+          ebayDemandError = error instanceof Error ? error.message : String(error);
+        }
+      },
+    });
     const competitive = await persistExternalCompetitiveScan(radarData, requestedAt);
     const outcomes = await evaluatePendingExternalSignalOutcomes(new Date());
     const emailAlerts = await sendHighPotentialSignalAlerts(radarData, requestedAt).catch(
@@ -178,29 +211,29 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
         errors: [error instanceof Error ? error.message : String(error)],
       })
     );
-    const eventUniverse = state.catalystDue
-      ? await loadExternalEventCandidates(radarData.sources.map((source) => source.game))
-      : [];
-    const catalyst = await runExternalCatalystDiscovery({
-      candidates: mergeExternalEventCandidates(radarData.signals, eventUniverse),
-      lastRunAt: state.lastCatalystAt,
-      now: requestedAt,
-    });
-    if (catalyst.due) {
-      await recordCatalystRun({ requestedAt, finishedAt: new Date(), result: catalyst });
-    }
 
     const finishedAt = new Date();
     await db.syncJob.update({
       where: { id: jobId },
       data: {
-        status: catalyst.status === "partial" ? "partial" : "success",
+        status:
+          catalyst.status === "partial" ||
+          ebayDemandError != null ||
+          Boolean(
+            (ebayDemand as SignalRadarEbayDemandRefreshResult | null)?.stoppedForQuota
+          )
+            ? "partial"
+            : "success",
         details_json: JSON.stringify({
-          version: 1,
+          version: 2,
           kind: EXTERNAL_SIGNAL_JOB_TYPE,
           competitive,
           outcomes,
           emailAlerts,
+          ebayDemand: ebayDemand ?? {
+            configured: false,
+            error: ebayDemandError,
+          },
           catalyst: {
             status: catalyst.status,
             due: catalyst.due,

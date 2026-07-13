@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { collectionMock, dbMock, ebayMock, exchangeMock, priceHistoryMock } =
+const { collectionMock, dbMock, demandMock, ebayMock, exchangeMock, priceHistoryMock } =
   vi.hoisted(() => ({
     collectionMock: {
       getCollectionMatchedGradedPrice: vi.fn(),
@@ -18,6 +18,9 @@ const { collectionMock, dbMock, ebayMock, exchangeMock, priceHistoryMock } =
         findUnique: vi.fn(),
       },
     },
+    demandMock: {
+      recordEbayDemandScan: vi.fn(),
+    },
     ebayMock: {
       buildEbayCardSearchQuery: vi.fn(),
       buildEbayManualSearchQuery: vi.fn(),
@@ -25,6 +28,7 @@ const { collectionMock, dbMock, ebayMock, exchangeMock, priceHistoryMock } =
       buildEbaySealedManualSearchQuery: vi.fn(),
       buildEbaySealedSearchQuery: vi.fn(),
       compareListingToReference: vi.fn(),
+      getEbayDemandRuntimeConfig: vi.fn(),
       getEbayRuntimeConfig: vi.fn(),
       searchEbayDeals: vi.fn(),
     },
@@ -63,8 +67,13 @@ vi.mock("@/lib/ebay", () => ({
   buildEbaySealedManualSearchQuery: ebayMock.buildEbaySealedManualSearchQuery,
   buildEbaySealedSearchQuery: ebayMock.buildEbaySealedSearchQuery,
   compareListingToReference: ebayMock.compareListingToReference,
+  getEbayDemandRuntimeConfig: ebayMock.getEbayDemandRuntimeConfig,
   getEbayRuntimeConfig: ebayMock.getEbayRuntimeConfig,
   searchEbayDeals: ebayMock.searchEbayDeals,
+}));
+
+vi.mock("@/lib/ebay-demand", () => ({
+  recordEbayDemandScan: demandMock.recordEbayDemandScan,
 }));
 
 vi.mock("@/lib/exchange-rates", () => ({
@@ -257,6 +266,15 @@ describe("GET /api/ebay/deals", () => {
       clientId: "client-id",
       clientSecret: "client-secret",
     });
+    ebayMock.getEbayDemandRuntimeConfig.mockReturnValue({
+      configured: true,
+      environment: "production",
+      marketplaceId: "EBAY_US",
+      deliveryCountry: "NL",
+      categoryId: "183454",
+      clientId: "client-id",
+      clientSecret: "client-secret",
+    });
     ebayMock.buildEbayManualSearchQuery.mockImplementation((query: string) =>
       /\bpokemon\b/i.test(query) ? query : `${query} Pokemon`
     );
@@ -304,6 +322,25 @@ describe("GET /api/ebay/deals", () => {
       (price: { cm_en_lowest_nm?: number | null } | null) =>
         price?.cm_en_lowest_nm ?? null
     );
+    demandMock.recordEbayDemandScan.mockResolvedValue({
+      updatedAt: "2026-07-13T12:00:00.000Z",
+      marketplaceId: "EBAY_US",
+      mode: "raw",
+      sample: { observed: 1, clean: 1, capped: false },
+      summary: {
+        activeCount: 1,
+        new7d: 1,
+        removed7d: 0,
+        removalPressure7d: 0,
+        baseline30d: 0,
+        pressureChangePercent: 0,
+        medianAskEur: 100,
+        lowestAskEur: 100,
+        auctionCount: 0,
+        fixedCount: 1,
+      },
+      history: [],
+    });
   });
 
   it("adds card matches and per-listing references to manual eBay searches", async () => {
@@ -350,6 +387,51 @@ describe("GET /api/ebay/deals", () => {
     expect(body.listings[0].differenceEur).toBe(399);
     expect(promoListing.cardMatch.status).toBe("unmatched");
     expect(promoListing.reference.valueEur).toBeNull();
+  });
+
+  it("uses the strict US NM English demand profile and persists only that scan", async () => {
+    const card = makeUmbreonCard();
+    dbMock.card.findUnique.mockResolvedValue(card);
+    mockSearchResults([
+      makeListing({
+        itemId: "demand-1",
+        title: "Umbreon ex 161/131 Prismatic Evolutions English NM Pokemon Card",
+        totalEur: 500,
+      }),
+      makeListing({
+        itemId: "review-only",
+        title: "Umbreon ex Prismatic Evolutions English NM Pokemon Card",
+        totalEur: 25,
+      }),
+    ]);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3000/api/ebay/deals?cardId=21554&mode=raw&buying=all&profile=demand&limit=50"
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(ebayMock.getEbayDemandRuntimeConfig).toHaveBeenCalledTimes(1);
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledTimes(1);
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ marketplaceId: "EBAY_US" }),
+        buyingMode: "all",
+        strictEnglish: true,
+        strictNearMint: true,
+        excludeGraded: true,
+        listingKind: "card",
+      })
+    );
+    expect(demandMock.recordEbayDemandScan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cardId: "21554",
+        marketplaceId: "EBAY_US",
+        mode: "raw",
+        listings: [expect.objectContaining({ itemId: "demand-1" })],
+      })
+    );
   });
 
   it("adds graded context to manual graded searches", async () => {

@@ -67,6 +67,12 @@ export const TRUSTED_CATALYST_DOMAINS: readonly TrustedCatalystDomain[] = [
     credibility: 0.8,
   },
   {
+    domain: "vice.com",
+    sourceKind: "community",
+    games: ["pokemon"],
+    credibility: 0.78,
+  },
+  {
     domain: "pokeguardian.com",
     sourceKind: "community",
     games: ["pokemon"],
@@ -240,6 +246,12 @@ export interface CatalystSearchQuery {
   allowedDomains: string[];
 }
 
+export interface CatalystWatchTopic {
+  game: ExternalRadarGame;
+  name: string;
+  setCode?: string | null;
+}
+
 interface CatalystPattern {
   phrase: string;
   impact: number;
@@ -273,7 +285,13 @@ const CATALYST_PATTERNS: Record<CatalystKind, readonly CatalystPattern[]> = {
     { phrase: "leaked booklet", impact: 0.95 },
     { phrase: "booklet leaked", impact: 0.95 },
     { phrase: "card list leaked", impact: 0.92 },
+    { phrase: "card list leaks", impact: 0.92 },
+    { phrase: "leaked card list", impact: 0.92 },
     { phrase: "set list leaked", impact: 0.92 },
+    { phrase: "set list leaks", impact: 0.92 },
+    { phrase: "leaked set list", impact: 0.92 },
+    { phrase: "cards have reportedly leaked", impact: 0.9 },
+    { phrase: "cards reportedly leaked", impact: 0.88 },
     { phrase: "card list revealed", impact: 0.88 },
     { phrase: "set list revealed", impact: 0.88 },
     { phrase: "new cards revealed", impact: 0.82 },
@@ -296,6 +314,10 @@ const CATALYST_PATTERNS: Record<CatalystKind, readonly CatalystPattern[]> = {
     { phrase: "new product announced", impact: 0.7 },
     { phrase: "product announcement", impact: 0.65 },
     { phrase: "product reveal", impact: 0.62 },
+    { phrase: "products revealed", impact: 0.62 },
+    { phrase: "products just revealed", impact: 0.66 },
+    { phrase: "product lineup revealed", impact: 0.66 },
+    { phrase: "promos revealed", impact: 0.58 },
     { phrase: "new expansion", impact: 0.62 },
     { phrase: "new booster set", impact: 0.62 },
     { phrase: "new set", impact: 0.5 },
@@ -759,7 +781,7 @@ function monthAndYear(now: Date): string {
 export function buildFirecrawlCatalystSearchQueries(
   candidates: readonly CatalystCandidate[],
   now: Date,
-  options?: { maxQueries?: number }
+  options?: { maxQueries?: number; watchTopics?: readonly CatalystWatchTopic[] }
 ): CatalystSearchQuery[] {
   const requestedMaximum = Number.isFinite(options?.maxQueries)
     ? Math.floor(Number(options?.maxQueries))
@@ -796,6 +818,36 @@ export function buildFirecrawlCatalystSearchQueries(
       allowedDomains: getTrustedCatalystDomains(game),
     }));
   });
+  const watchQueries = games.flatMap((game) => {
+    const gameLabel = game === "pokemon" ? "Pokemon TCG" : "One Piece Card Game";
+    const seen = new Set<string>();
+    return (options?.watchTopics ?? [])
+      .filter((topic) => topic.game === game)
+      .map((topic) => ({ topic, name: sanitizeSearchPhrase(topic.name) }))
+      .filter(({ name }) => {
+        const key = normalizeCatalystText(name);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, 3)
+      .map(({ topic, name }): CatalystSearchQuery => {
+        const setCode = normalizeSetCode(topic.setCode);
+        const setFragment = setCode ? ` "${setCode.slice(0, 16)}"` : "";
+        return {
+          game,
+          cardId: `watch-topic:${game}:${normalizeCatalystText(name).replace(/\s+/g, "-")}`,
+          candidateName: name,
+          mode: "set-intelligence",
+          topic: "news",
+          query: `${gameLabel} "${name}"${setFragment} leaked booklet card list cards revealed chase ${dateLabel}`.slice(
+            0,
+            MAX_CATALYST_SEARCH_QUERY_LENGTH
+          ),
+          allowedDomains: getTrustedCatalystDomains(game),
+        };
+      });
+  });
   const selected = games.flatMap((game) => topSearchCandidates(candidates, game));
   const candidateQueries = selected.map((candidate): CatalystSearchQuery => {
     const candidateName = sanitizeSearchPhrase(candidate.name);
@@ -819,6 +871,9 @@ export function buildFirecrawlCatalystSearchQueries(
     };
   });
   const ordered: CatalystSearchQuery[] = [];
+  for (const game of games) {
+    ordered.push(...watchQueries.filter((query) => query.game === game));
+  }
   // Keep small custom budgets useful too: first cover each game, then its top
   // candidate, before widening into the remaining research lenses.
   for (const game of games) {

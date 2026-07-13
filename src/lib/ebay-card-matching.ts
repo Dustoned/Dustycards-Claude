@@ -254,6 +254,27 @@ function getListingSignals(title: string, condition: string | null | undefined):
   };
 }
 
+export function listingHasExactCardIdentity(input: {
+  title: string;
+  condition?: string | null;
+  card: EbayMatchCard;
+}): boolean {
+  const signals = getListingSignals(input.title, input.condition);
+  const cardNumber = canonicalCardNumber(input.card.card_number);
+  if (cardNumber) {
+    return (
+      signals.tokens.has(cardNumber) ||
+      signals.numbers.has(cardNumber) ||
+      signals.codedRefNumbers.has(cardNumber) ||
+      signals.hashRefNumbers.has(cardNumber) ||
+      signals.slashRefs.some((reference) => reference.left === cardNumber)
+    );
+  }
+
+  const nameTokens = getCardNameTokens(input.card);
+  return nameTokens.length > 0 && nameTokens.every((token) => signals.tokens.has(token));
+}
+
 function hasSetHint(signals: ListingTextSignals, card: EbayMatchCard): boolean {
   const code = normalizeEbayMatchText(card.episode.code ?? "");
   if (code && signals.tokens.has(code)) return true;

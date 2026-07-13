@@ -7,10 +7,17 @@ const EBAY_SEARCH_TIMEOUT_MS = 12_000;
 const EBAY_TOKEN_EXPIRY_SKEW_MS = 60_000;
 const EBAY_MAX_SEARCH_QUERY_LENGTH = 100;
 const EBAY_SEARCH_PAGE_SIZE = 100;
+// Browse search supports 200 rows per page and a 10,000-row result window.
+// Demand scans use that complete official window instead of a UI-sized sample.
+const EBAY_DEMAND_SEARCH_PAGE_SIZE = 200;
+const EBAY_DEMAND_MAX_FETCHED_LISTINGS = 10_000;
 const EBAY_MAX_FETCHED_LISTINGS = 300;
-const EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT = 80;
+const EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT = 300;
+const EBAY_ITEM_DETAILS_TIMEOUT_MS = 4_000;
 const EBAY_SEARCH_CACHE_TTL_MS = 30 * 60 * 1000;
 const EBAY_SEARCH_CACHE_MAX_ENTRIES = 120;
+const EBAY_ITEM_DETAILS_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const EBAY_ITEM_DETAILS_CACHE_MAX_ENTRIES = 5_000;
 const EBAY_RATE_LIMIT_CACHE_TTL_MS = 5 * 60 * 1000;
 const EBAY_BROWSE_QUOTA_BACKOFF_FALLBACK_MS = 5 * 60 * 1000;
 const DEFAULT_EBAY_CATEGORY_ID = "183454";
@@ -71,8 +78,20 @@ interface EbayItemAspect {
   localizedValue?: string | null;
 }
 
+interface EbayConditionDescriptorValue {
+  content?: string | null;
+  value?: string | null;
+  additionalInfo?: string[] | string | null;
+}
+
+interface EbayConditionDescriptor {
+  name?: string | null;
+  values?: EbayConditionDescriptorValue[] | null;
+}
+
 interface EbayItemDetailsResponse {
   localizedAspects?: EbayItemAspect[] | null;
+  conditionDescriptors?: EbayConditionDescriptor[] | null;
 }
 
 interface EbaySearchResponse {
@@ -103,6 +122,7 @@ interface EbayAnalyticsRateLimitsResponse {
 
 export interface EbayCardSearchInput {
   name: string;
+  game?: "pokemon" | "one-piece" | null;
   episodeName?: string | null;
   episodeCode?: string | null;
   cardNumber?: string | null;
@@ -190,6 +210,11 @@ export interface EbayDealListing {
   locationCountry: string | null;
   itemCreationDate: string | null;
   itemEndDate: string | null;
+  demandVerification?: {
+    english: boolean;
+    nearMint: boolean;
+    source: "ebay_item" | "ebay_search_filter";
+  };
   discountPercent: number | null;
   differenceEur: number | null;
   dealScore: number | null;
@@ -204,6 +229,11 @@ export interface EbayDealSearchResult {
   total: number;
   listings: EbayDealListing[];
   directSearchUrl: string;
+  scan?: {
+    fetchedCount: number;
+    availableTotal: number | null;
+    capped: boolean;
+  };
 }
 
 export interface EbayRateLimitRate {
@@ -248,6 +278,13 @@ const rateLimitCache = new Map<
   {
     expiresAt: number;
     status: EbayRateLimitStatus;
+  }
+>();
+const itemDetailsCache = new Map<
+  string,
+  {
+    expiresAt: number;
+    details: EbayItemDetailsResponse | null;
   }
 >();
 let browseQuotaBackoff: { expiresAt: number; message: string } | null = null;
@@ -694,6 +731,43 @@ function detectEbayListingCardConditionFromAspects(
   return null;
 }
 
+function detectEbayListingCardConditionFromDescriptors(
+  descriptors: EbayConditionDescriptor[] | null | undefined
+): EbayListingCardCondition | null {
+  for (const descriptor of descriptors ?? []) {
+    const name = normalizeListingFilterText(descriptor.name);
+    if (!/card\s*condition|kartenzustand|kaartconditie/i.test(name)) continue;
+
+    for (const value of descriptor.values ?? []) {
+      const content = normalizeListingFilterText(value.content ?? value.value);
+      if (!content) continue;
+      const detected = detectEbayListingCardCondition({ title: content });
+      if (detected.code !== "near_mint") continue;
+
+      return {
+        ...detected,
+        reason: `eBay Condition descriptor: ${content}`,
+      };
+    }
+  }
+
+  return null;
+}
+
+function moreConservativeCardCondition(
+  summaryCondition: EbayListingCardCondition,
+  verifiedCondition: EbayListingCardCondition | null
+): EbayListingCardCondition {
+  if (!verifiedCondition) return summaryCondition;
+  if (
+    summaryCondition.code !== "unknown" &&
+    summaryCondition.rank < verifiedCondition.rank
+  ) {
+    return summaryCondition;
+  }
+  return verifiedCondition;
+}
+
 export function detectEbayListingLanguage(input: {
   title: string;
   condition?: string | null;
@@ -896,13 +970,14 @@ export function buildEbayCardSearchQuery(input: EbayCardSearchInput): string {
   const cardNumber = normalizeQueryToken(input.cardNumber);
   const episodeCode = normalizeQueryToken(input.episodeCode);
   const episodeName = normalizeQueryToken(input.episodeName);
+  const gameLabel = input.game === "one-piece" ? "One Piece" : "Pokemon";
   const tokens = uniqueTokens([
     ...gradeTokens,
     input.name,
     cardNumber,
     episodeName,
     episodeCode,
-    "Pokemon",
+    gameLabel,
   ]);
   let query = tokens.join(" ");
 
@@ -915,7 +990,7 @@ export function buildEbayCardSearchQuery(input: EbayCardSearchInput): string {
     input.name,
     cardNumber,
     episodeCode,
-    "Pokemon",
+    gameLabel,
   ]).join(" ");
 
   if (query.length <= EBAY_MAX_SEARCH_QUERY_LENGTH) {
@@ -942,6 +1017,23 @@ export function buildEbayManualSearchQuery(value: string): string {
 
 export function buildEbaySealedSearchQuery(input: EbaySealedSearchInput): string {
   return buildEbaySealedProductSearchQuery(input);
+}
+
+/**
+ * Demand intelligence intentionally uses the English-speaking US market. The
+ * EBAY_NL trading-card taxonomy does not expose Language/Card Condition
+ * refinements, while EBAY_US does. USD asks are already normalized to EUR.
+ */
+export function getEbayDemandRuntimeConfig(): EbayRuntimeConfig {
+  const config = getEbayRuntimeConfig();
+  return {
+    ...config,
+    marketplaceId:
+      normalizeEnvValue(process.env.EBAY_DEMAND_MARKETPLACE_ID) ?? "EBAY_US",
+    deliveryCountry:
+      normalizeEnvValue(process.env.EBAY_DEMAND_DELIVERY_COUNTRY) ??
+      "US",
+  };
 }
 
 export function buildEbaySealedManualSearchQuery(value: string): string {
@@ -1046,21 +1138,58 @@ async function getEbayItemDetails(
   token: string,
   itemId: string
 ): Promise<EbayItemDetailsResponse | null> {
-  const response = await fetch(
-    `${getEbayApiBaseUrl(config.environment)}/buy/browse/v1/item/${encodeURIComponent(itemId)}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-        "X-EBAY-C-MARKETPLACE-ID": config.marketplaceId,
-      },
-      cache: "no-store",
-    }
-  );
+  const cacheKey = `${config.environment}|${config.marketplaceId}|${itemId}`;
+  const cached = itemDetailsCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.details;
+  }
+  if (cached) itemDetailsCache.delete(cacheKey);
 
-  if (!response.ok) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), EBAY_ITEM_DETAILS_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(
+      `${getEbayApiBaseUrl(config.environment)}/buy/browse/v1/item/${encodeURIComponent(itemId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "X-EBAY-C-MARKETPLACE-ID": config.marketplaceId,
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      }
+    );
+  } catch {
+    itemDetailsCache.set(cacheKey, {
+      expiresAt: Date.now() + 30 * 60 * 1000,
+      details: null,
+    });
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 
-  return (await response.json().catch(() => null)) as EbayItemDetailsResponse | null;
+  if (!response.ok) {
+    itemDetailsCache.set(cacheKey, {
+      expiresAt: Date.now() + Math.min(EBAY_ITEM_DETAILS_CACHE_TTL_MS, 6 * 60 * 60 * 1000),
+      details: null,
+    });
+    return null;
+  }
+
+  const details = (await response.json().catch(() => null)) as EbayItemDetailsResponse | null;
+  itemDetailsCache.set(cacheKey, {
+    expiresAt: Date.now() + EBAY_ITEM_DETAILS_CACHE_TTL_MS,
+    details,
+  });
+  while (itemDetailsCache.size > EBAY_ITEM_DETAILS_CACHE_MAX_ENTRIES) {
+    const oldestKey = itemDetailsCache.keys().next().value;
+    if (!oldestKey) break;
+    itemDetailsCache.delete(oldestKey);
+  }
+  return details;
 }
 
 async function enrichListingsWithItemDetails(input: {
@@ -1070,16 +1199,60 @@ async function enrichListingsWithItemDetails(input: {
   strictEnglish?: boolean;
   checkLanguageDetails?: boolean;
   requireGraded?: boolean;
+  strictNearMint?: boolean;
+  englishAspectFiltered?: boolean;
+  nearMintAspectFiltered?: boolean;
   detailFetchLimit?: number;
 }): Promise<EbayDealListing[]> {
   let detailFetches = 0;
 
   return mapWithConcurrency(input.listings, 6, async (listing) => {
     const shouldFetchDetails =
-      (input.strictEnglish && listing.language.code === "UNKNOWN") ||
+      (input.strictEnglish &&
+        listing.language.code === "UNKNOWN" &&
+        !input.englishAspectFiltered) ||
       (input.checkLanguageDetails && listing.language.code === "UNKNOWN") ||
-      (input.requireGraded && !listing.isGradedListing);
-    if (!shouldFetchDetails) return listing;
+      (input.requireGraded && !listing.isGradedListing) ||
+      (input.strictNearMint && !input.nearMintAspectFiltered);
+    if (!shouldFetchDetails) {
+      if (
+        input.strictNearMint &&
+        input.englishAspectFiltered &&
+        input.nearMintAspectFiltered
+      ) {
+        const filteredCondition: EbayListingCardCondition = {
+          code: "near_mint",
+          label: "NM",
+          rank: 6,
+          confidence: "explicit",
+          reason: "eBay search aspect filter: Card Condition Near Mint or Better",
+        };
+        const cardCondition = moreConservativeCardCondition(
+          listing.cardCondition,
+          filteredCondition
+        );
+        const language =
+          listing.language.code === "UNKNOWN"
+            ? {
+                code: "ENG" as const,
+                label: "ENG",
+                confidence: "explicit" as const,
+                reason: "eBay search aspect filter: Language English",
+              }
+            : listing.language;
+        return {
+          ...listing,
+          language,
+          cardCondition,
+          demandVerification: {
+            english: language.code === "ENG",
+            nearMint: cardCondition.code === "near_mint",
+            source: "ebay_search_filter" as const,
+          },
+        };
+      }
+      return listing;
+    }
     if (input.detailFetchLimit != null && detailFetches >= input.detailFetchLimit) {
       return listing;
     }
@@ -1088,9 +1261,33 @@ async function enrichListingsWithItemDetails(input: {
 
     const detail = await getEbayItemDetails(input.config, input.token, listing.itemId);
     const aspects = detail?.localizedAspects ?? null;
-    const language = detectEbayListingLanguageFromAspects(aspects) ?? listing.language;
-    const cardCondition =
-      detectEbayListingCardConditionFromAspects(aspects) ?? listing.cardCondition;
+    const aspectLanguage = detectEbayListingLanguageFromAspects(aspects);
+    const englishVerified = Boolean(
+      aspectLanguage?.code === "ENG" ||
+      (input.englishAspectFiltered &&
+        (listing.language.code === "ENG" || listing.language.code === "UNKNOWN"))
+    );
+    const language =
+      listing.language.code !== "UNKNOWN"
+        ? listing.language
+        : aspectLanguage ??
+          (englishVerified
+            ? {
+                code: "ENG" as const,
+                label: "ENG",
+                confidence: "explicit" as const,
+                reason: "eBay search aspect filter: Language English",
+              }
+            : listing.language);
+    const descriptorCondition = detectEbayListingCardConditionFromDescriptors(
+      detail?.conditionDescriptors
+    );
+    const verifiedCondition =
+      descriptorCondition ?? detectEbayListingCardConditionFromAspects(aspects);
+    const cardCondition = moreConservativeCardCondition(
+      listing.cardCondition,
+      verifiedCondition
+    );
     const gradingReason =
       getEbayListingGradingReason({
         title: listing.title,
@@ -1104,6 +1301,13 @@ async function enrichListingsWithItemDetails(input: {
       cardCondition,
       gradingReason,
       isGradedListing: Boolean(gradingReason),
+      demandVerification: input.strictNearMint
+        ? {
+            english: englishVerified,
+            nearMint: descriptorCondition?.code === "near_mint",
+            source: "ebay_item" as const,
+          }
+        : listing.demandVerification,
     };
   });
 }
@@ -1144,7 +1348,11 @@ export function compareListingToReference(input: {
   };
 }
 
-function buildEbaySearchFilters(config: EbayRuntimeConfig, buyingMode: EbayBuyingMode): string[] {
+function buildEbaySearchFilters(
+  config: EbayRuntimeConfig,
+  buyingMode: EbayBuyingMode,
+  strictNearMint = false
+): string[] {
   const filters: string[] = [];
   if (config.deliveryCountry) {
     filters.push(`deliveryCountry:${config.deliveryCountry}`);
@@ -1156,7 +1364,27 @@ function buildEbaySearchFilters(config: EbayRuntimeConfig, buyingMode: EbayBuyin
     filters.push("buyingOptions:{FIXED_PRICE|AUCTION}");
   }
 
+  // For trading cards 4000 means "Ungraded". Near Mint itself is verified
+  // from getItem.conditionDescriptors after this coarse server-side filter.
+  if (strictNearMint) {
+    filters.push("conditionIds:{4000}");
+  }
+
   return filters;
+}
+
+function buildStrictEnglishNearMintAspectFilter(config: EbayRuntimeConfig): string | null {
+  if (!config.categoryId) return null;
+
+  if (config.marketplaceId === "EBAY_US" || config.marketplaceId === "EBAY_GB") {
+    return `categoryId:${config.categoryId},Language:{English},Card Condition:{Near Mint or Better},Graded:{No}`;
+  }
+
+  if (config.marketplaceId === "EBAY_DE") {
+    return `categoryId:${config.categoryId},Sprache:{Englisch},Kartenzustand:{Nahezu neuwertig oder besser (Near Mint or Better)},Bewertet:{Nein}`;
+  }
+
+  return null;
 }
 
 function cloneEbayDealSearchResult(result: EbayDealSearchResult): EbayDealSearchResult {
@@ -1171,6 +1399,9 @@ function cloneEbayDealSearchResult(result: EbayDealSearchResult): EbayDealSearch
       shipping: { ...listing.shipping },
       total: { ...listing.total },
       seller: { ...listing.seller },
+      demandVerification: listing.demandVerification
+        ? { ...listing.demandVerification }
+        : undefined,
     })),
   };
 }
@@ -1184,6 +1415,7 @@ function getSearchCacheKey(input: {
   reference: EbayDealReference;
   requireGraded?: boolean;
   strictEnglish?: boolean;
+  strictNearMint?: boolean;
   listingKind?: "card" | "graded" | "sealed";
 }): string {
   return JSON.stringify({
@@ -1200,6 +1432,7 @@ function getSearchCacheKey(input: {
     referenceValueEur: input.reference.valueEur,
     requireGraded: Boolean(input.requireGraded),
     strictEnglish: Boolean(input.strictEnglish),
+    strictNearMint: Boolean(input.strictNearMint),
   });
 }
 
@@ -1332,7 +1565,10 @@ function getEbayBrowseQuotaBackoffMessage(): string | null {
   return browseQuotaBackoff.message;
 }
 
-async function assertEbayBrowseQuotaAvailable(config: EbayRuntimeConfig): Promise<void> {
+async function assertEbayBrowseQuotaAvailable(
+  config: EbayRuntimeConfig,
+  requiredCalls = 1
+): Promise<void> {
   const backoffMessage = getEbayBrowseQuotaBackoffMessage();
   if (backoffMessage) {
     throw new Error(backoffMessage);
@@ -1341,8 +1577,22 @@ async function assertEbayBrowseQuotaAvailable(config: EbayRuntimeConfig): Promis
   try {
     const status = await getEbayBrowseRateLimitStatus(config);
     const remaining = status.summary?.remaining;
-    if (remaining != null && remaining <= 0) {
+    if (remaining != null && remaining < Math.max(1, requiredCalls)) {
       throw new Error(rememberEbayBrowseQuotaBackoff(status.summary?.reset));
+    }
+    if (status.summary && remaining != null && requiredCalls > 0) {
+      const reserved = Math.min(remaining, Math.max(1, requiredCalls));
+      setCachedRateLimitStatus(getRateLimitCacheKey(config), {
+        ...status,
+        summary: {
+          ...status.summary,
+          remaining: Math.max(0, remaining - reserved),
+          count:
+            status.summary.count == null
+              ? null
+              : status.summary.count + reserved,
+        },
+      });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -1447,7 +1697,10 @@ function buildListing(
   usdToEurRate: CurrencyExchangeRate | null
 ): EbayDealListing | null {
   const price = getListingAmount(item);
-  const itemId = normalizeQueryToken(item.itemId);
+  // Browse item IDs contain structural separators such as `v1|...|0`.
+  // They must stay byte-for-byte intact for the getItem endpoint and stable
+  // lifecycle tracking; query normalization would turn the pipes into spaces.
+  const itemId = item.itemId?.trim();
   const title = item.title?.trim();
   const itemWebUrl = item.itemWebUrl?.trim();
 
@@ -1566,6 +1819,7 @@ export async function searchEbayDeals(input: {
   buyingMode?: EbayBuyingMode;
   config?: EbayRuntimeConfig;
   strictEnglish?: boolean;
+  strictNearMint?: boolean;
   excludeGraded?: boolean;
   requireGraded?: boolean;
   listingKind?: "card" | "graded" | "sealed";
@@ -1603,7 +1857,12 @@ export async function searchEbayDeals(input: {
     };
   }
 
-  const requestedLimit = Math.min(Math.max(input.limit ?? 24, 1), 50);
+  // A strict demand scan returns every verified listing from its bounded
+  // inventory window. The API route can still render a smaller preview, while
+  // persistence receives the complete cohort needed for lifecycle tracking.
+  const requestedLimit = input.strictNearMint
+    ? EBAY_DEMAND_MAX_FETCHED_LISTINGS
+    : Math.min(Math.max(input.limit ?? 24, 1), 50);
   const cacheKey = getSearchCacheKey({
     buyingMode,
     config,
@@ -1613,14 +1872,13 @@ export async function searchEbayDeals(input: {
     reference: input.reference,
     requireGraded: input.requireGraded,
     strictEnglish: input.strictEnglish,
+    strictNearMint: input.strictNearMint,
     listingKind: input.listingKind,
   });
   const cachedResult = getCachedSearchResult(cacheKey);
   if (cachedResult) {
     return cachedResult;
   }
-
-  await assertEbayBrowseQuotaAvailable(config);
 
   const token = await getEbayApplicationToken(config);
   const baseUrl = new URL(`${getEbayApiBaseUrl(config.environment)}/buy/browse/v1/item_summary/search`);
@@ -1629,23 +1887,48 @@ export async function searchEbayDeals(input: {
     baseUrl.searchParams.set("category_ids", config.categoryId);
   }
 
-  const filters = buildEbaySearchFilters(config, buyingMode);
+  const filters = buildEbaySearchFilters(config, buyingMode, input.strictNearMint);
   if (filters.length > 0) {
     baseUrl.searchParams.set("filter", filters.join(","));
   }
+  const strictAspectFilter =
+    input.strictEnglish && input.strictNearMint
+      ? buildStrictEnglishNearMintAspectFilter(config)
+      : null;
+  if (strictAspectFilter) {
+    baseUrl.searchParams.set("aspect_filter", strictAspectFilter);
+  }
+  const reservedBrowseCalls = input.strictNearMint
+    ? strictAspectFilter
+      ? Math.ceil(EBAY_DEMAND_MAX_FETCHED_LISTINGS / EBAY_DEMAND_SEARCH_PAGE_SIZE)
+      : Math.ceil(EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT / EBAY_DEMAND_SEARCH_PAGE_SIZE) +
+        EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT
+    : 1;
+  await assertEbayBrowseQuotaAvailable(config, reservedBrowseCalls);
 
   const fetchedItems = new Map<string, EbaySearchItemSummary>();
   let totalAvailable: number | null = null;
+  let paginationUnstable = false;
+  let verificationIncomplete = false;
   let offset = 0;
   let listings: EbayDealListing[] = [];
 
-  while (offset < EBAY_MAX_FETCHED_LISTINGS) {
+  const maximumFetchedListings = input.strictNearMint
+    ? strictAspectFilter
+      ? EBAY_DEMAND_MAX_FETCHED_LISTINGS
+      : EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT
+    : EBAY_MAX_FETCHED_LISTINGS;
+  while (offset < maximumFetchedListings) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), EBAY_SEARCH_TIMEOUT_MS);
 
     try {
       const pageUrl = new URL(baseUrl);
-      pageUrl.searchParams.set("limit", String(EBAY_SEARCH_PAGE_SIZE));
+      const pageSize = input.strictNearMint
+        ? EBAY_DEMAND_SEARCH_PAGE_SIZE
+        : EBAY_SEARCH_PAGE_SIZE;
+      const pageLimit = Math.min(pageSize, maximumFetchedListings - offset);
+      pageUrl.searchParams.set("limit", String(pageLimit));
       pageUrl.searchParams.set("offset", String(offset));
 
       const response = await fetch(pageUrl, {
@@ -1672,13 +1955,22 @@ export async function searchEbayDeals(input: {
         throw new Error(message);
       }
 
-      totalAvailable = data.total ?? totalAvailable;
+      if (data.total != null) {
+        if (totalAvailable != null && data.total !== totalAvailable) {
+          paginationUnstable = true;
+        }
+        totalAvailable = Math.max(totalAvailable ?? 0, data.total);
+      }
       const pageItems = data.itemSummaries ?? [];
       for (const [index, item] of pageItems.entries()) {
         const key =
           normalizeQueryToken(item.itemId) ||
           `${normalizeQueryToken(item.title)}-${offset + index}`;
-        if (!key || fetchedItems.has(key)) continue;
+        if (!key) continue;
+        if (fetchedItems.has(key)) {
+          paginationUnstable = true;
+          continue;
+        }
         fetchedItems.set(key, item);
       }
 
@@ -1704,6 +1996,20 @@ export async function searchEbayDeals(input: {
         .filter((listing) => !input.excludeGraded || !listing.isGradedListing)
         .filter((listing) => !input.requireGraded || listing.isGradedListing);
 
+      if (input.strictNearMint) {
+        const completeInventory =
+          totalAvailable != null && fetchedItems.size >= totalAvailable;
+        if (
+          completeInventory ||
+          fetchedItems.size >= maximumFetchedListings ||
+          pageItems.length < pageLimit
+        ) {
+          break;
+        }
+        offset += pageLimit;
+        continue;
+      }
+
       if (
         !needsFollowUpSearchPage({
           filteredListings: preliminaryModeMatches,
@@ -1715,11 +2021,11 @@ export async function searchEbayDeals(input: {
         break;
       }
 
-      if (pageItems.length < EBAY_SEARCH_PAGE_SIZE) {
+      if (pageItems.length < pageLimit) {
         break;
       }
 
-      offset += EBAY_SEARCH_PAGE_SIZE;
+      offset += pageLimit;
     } finally {
       clearTimeout(timeout);
     }
@@ -1727,21 +2033,41 @@ export async function searchEbayDeals(input: {
 
   const shouldCheckLanguageDetails = input.listingKind === "sealed";
 
-  if (input.strictEnglish || input.requireGraded || shouldCheckLanguageDetails) {
+  if (
+    input.strictEnglish ||
+    input.strictNearMint ||
+    input.requireGraded ||
+    shouldCheckLanguageDetails
+  ) {
     listings = await enrichListingsWithItemDetails({
       listings,
       config,
       token,
       strictEnglish: input.strictEnglish,
+      strictNearMint: input.strictNearMint,
+      englishAspectFiltered: Boolean(strictAspectFilter),
+      nearMintAspectFiltered: Boolean(strictAspectFilter),
       checkLanguageDetails: shouldCheckLanguageDetails,
       requireGraded: input.requireGraded,
       detailFetchLimit: EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT,
     });
+    verificationIncomplete = Boolean(
+      input.strictNearMint &&
+        !strictAspectFilter &&
+        listings.some((listing) => listing.demandVerification == null)
+    );
   }
 
   listings = listings
     .filter((listing) => !getEbayListingRejectionReason({ ...listing, listingKind: input.listingKind }))
     .filter((listing) => !input.strictEnglish || listing.language.code === "ENG")
+    .filter(
+      (listing) =>
+        !input.strictNearMint ||
+        (listing.cardCondition.code === "near_mint" &&
+          listing.demandVerification?.english === true &&
+          listing.demandVerification.nearMint === true)
+    )
     .filter((listing) => !input.excludeGraded || !listing.isGradedListing)
     .filter((listing) => !input.requireGraded || listing.isGradedListing)
     .sort(sortListings)
@@ -1755,6 +2081,19 @@ export async function searchEbayDeals(input: {
     total: listings.length,
     listings,
     directSearchUrl,
+    scan: {
+      fetchedCount: fetchedItems.size,
+      availableTotal: totalAvailable,
+      capped:
+        paginationUnstable ||
+        verificationIncomplete ||
+        (totalAvailable != null
+          ? fetchedItems.size < totalAvailable
+          : Boolean(
+              input.strictNearMint &&
+                fetchedItems.size >= maximumFetchedListings
+            )),
+    },
   };
   setCachedSearchResult(cacheKey, result);
   return cloneEbayDealSearchResult(result);
@@ -1768,5 +2107,6 @@ export function __resetEbayTokenCacheForTests() {
   tokenCache = null;
   browseQuotaBackoff = null;
   searchCache.clear();
+  itemDetailsCache.clear();
   rateLimitCache.clear();
 }

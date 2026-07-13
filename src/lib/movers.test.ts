@@ -15,7 +15,19 @@ const TEST_USER_ID = `${TEST_PREFIX}-user`;
 const TEST_EPISODE_ID = `${TEST_PREFIX}-episode`;
 const TEST_OWNED_CARD_ID = `${TEST_PREFIX}-owned-card`;
 const TEST_NON_OWNED_CARD_ID = `${TEST_PREFIX}-non-owned-card`;
+const TEST_MIXED_LANGUAGE_CARD_ID = `${TEST_PREFIX}-mixed-language-card`;
+const TEST_SENTINEL_CARD_ID = `${TEST_PREFIX}-sentinel-card`;
+const TEST_SOLD_CARD_ID = `${TEST_PREFIX}-sold-card`;
 const TEST_COLLECTION_ITEM_ID = `${TEST_PREFIX}-collection-item`;
+const TEST_SOLD_COLLECTION_ITEM_ID = `${TEST_PREFIX}-sold-collection-item`;
+
+const TEST_CARD_IDS = [
+  TEST_OWNED_CARD_ID,
+  TEST_NON_OWNED_CARD_ID,
+  TEST_MIXED_LANGUAGE_CARD_ID,
+  TEST_SENTINEL_CARD_ID,
+  TEST_SOLD_CARD_ID,
+];
 
 function daysAgo(days: number): Date {
   const date = new Date();
@@ -25,16 +37,22 @@ function daysAgo(days: number): Date {
 
 async function cleanupMoverFixtures() {
   await db.collectionCard.deleteMany({
-    where: { OR: [{ id: TEST_COLLECTION_ITEM_ID }, { user_id: TEST_USER_ID }] },
+    where: {
+      OR: [
+        { id: TEST_COLLECTION_ITEM_ID },
+        { id: TEST_SOLD_COLLECTION_ITEM_ID },
+        { user_id: TEST_USER_ID },
+      ],
+    },
   });
   await db.cardGradedPrice.deleteMany({
-    where: { card_id: { in: [TEST_OWNED_CARD_ID, TEST_NON_OWNED_CARD_ID] } },
+    where: { card_id: { in: TEST_CARD_IDS } },
   });
   await db.price.deleteMany({
-    where: { card_id: { in: [TEST_OWNED_CARD_ID, TEST_NON_OWNED_CARD_ID] } },
+    where: { card_id: { in: TEST_CARD_IDS } },
   });
   await db.card.deleteMany({
-    where: { id: { in: [TEST_OWNED_CARD_ID, TEST_NON_OWNED_CARD_ID] } },
+    where: { id: { in: TEST_CARD_IDS } },
   });
   await db.episode.deleteMany({ where: { id: TEST_EPISODE_ID } });
   await db.user.deleteMany({ where: { id: TEST_USER_ID } });
@@ -77,6 +95,30 @@ beforeAll(async () => {
         card_number: "2",
         rarity: "Secret Rare",
       },
+      {
+        id: TEST_MIXED_LANGUAGE_CARD_ID,
+        game: POKEMON_GAME,
+        episode_id: TEST_EPISODE_ID,
+        name: "Mover Fixture English Only",
+        card_number: "3",
+        rarity: "Secret Rare",
+      },
+      {
+        id: TEST_SENTINEL_CARD_ID,
+        game: POKEMON_GAME,
+        episode_id: TEST_EPISODE_ID,
+        name: "Mover Fixture Sentinel",
+        card_number: "4",
+        rarity: "Secret Rare",
+      },
+      {
+        id: TEST_SOLD_CARD_ID,
+        game: POKEMON_GAME,
+        episode_id: TEST_EPISODE_ID,
+        name: "Mover Fixture Sold",
+        card_number: "5",
+        rarity: "Secret Rare",
+      },
     ],
   });
   await db.price.createMany({
@@ -109,6 +151,59 @@ beforeAll(async () => {
         cm_en_avg_7d: 90,
         cm_en_avg_30d: 90,
       },
+      {
+        card_id: TEST_MIXED_LANGUAGE_CARD_ID,
+        fetched_at: daysAgo(10),
+        cm_en_lowest_nm: 20,
+        cm_en_avg_7d: 20,
+        cm_en_avg_30d: 20,
+      },
+      {
+        card_id: TEST_MIXED_LANGUAGE_CARD_ID,
+        fetched_at: daysAgo(2),
+        cm_en_lowest_nm: 55,
+        cm_en_avg_7d: 55,
+        cm_en_avg_30d: 55,
+      },
+      {
+        card_id: TEST_MIXED_LANGUAGE_CARD_ID,
+        fetched_at: daysAgo(1),
+        cm_de_lowest_nm: 999,
+        tcp_market: 60,
+      },
+      {
+        card_id: TEST_SENTINEL_CARD_ID,
+        fetched_at: daysAgo(10),
+        cm_en_lowest_nm: 20,
+        cm_en_avg_7d: 20,
+        cm_en_avg_30d: 20,
+      },
+      {
+        card_id: TEST_SENTINEL_CARD_ID,
+        fetched_at: daysAgo(2),
+        cm_en_lowest_nm: 50,
+        cm_en_avg_7d: 50,
+        cm_en_avg_30d: 50,
+      },
+      {
+        card_id: TEST_SENTINEL_CARD_ID,
+        fetched_at: daysAgo(1),
+        cm_en_lowest_nm: 9001,
+      },
+      {
+        card_id: TEST_SOLD_CARD_ID,
+        fetched_at: daysAgo(10),
+        cm_en_lowest_nm: 15,
+        cm_en_avg_7d: 15,
+        cm_en_avg_30d: 15,
+      },
+      {
+        card_id: TEST_SOLD_CARD_ID,
+        fetched_at: daysAgo(1),
+        cm_en_lowest_nm: 45,
+        cm_en_avg_7d: 45,
+        cm_en_avg_30d: 45,
+      },
     ],
   });
   await db.cardGradedPrice.create({
@@ -124,6 +219,15 @@ beforeAll(async () => {
       user_id: TEST_USER_ID,
       card_id: TEST_OWNED_CARD_ID,
       for_sale: false,
+    },
+  });
+  await db.collectionCard.create({
+    data: {
+      id: TEST_SOLD_COLLECTION_ITEM_ID,
+      user_id: TEST_USER_ID,
+      card_id: TEST_SOLD_CARD_ID,
+      for_sale: false,
+      sold_at: daysAgo(1),
     },
   });
 });
@@ -166,6 +270,38 @@ describe("mover pull-rate weighting", () => {
 });
 
 describe("mover scopes", () => {
+  it(
+    "keeps CardMarket on valid English NM data and excludes sold or sentinel ownership data",
+    async () => {
+      const [collectionData, allData] = await Promise.all([
+        getMovers("cm_en", "collection", "collection", TEST_USER_ID),
+        getMovers("cm_en", "all", "all", TEST_USER_ID),
+      ]);
+      const mixedLanguage = allData.movers.find(
+        (item) => item.cardId === TEST_MIXED_LANGUAGE_CARD_ID
+      );
+      const sentinel = allData.movers.find((item) => item.cardId === TEST_SENTINEL_CARD_ID);
+      const sold = allData.movers.find((item) => item.cardId === TEST_SOLD_CARD_ID);
+
+      expect(mixedLanguage).toMatchObject({
+        source: "cardmarket",
+        currency: "EUR",
+        currentPrice: 55,
+        cardmarketPrice: 55,
+        tcgplayerPrice: 60,
+      });
+      expect(sentinel).toMatchObject({
+        currentPrice: 50,
+        cardmarketPrice: 50,
+        highPrice: 50,
+      });
+      expect(sentinel?.cardmarketHistoryPoints).toBe(2);
+      expect(sold?.ownedCount).toBe(0);
+      expect(collectionData.movers.some((item) => item.cardId === TEST_SOLD_CARD_ID)).toBe(false);
+    },
+    30000
+  );
+
   it(
     "keeps collection movers collection-only and includes non-owned cards in all-card movers",
     async () => {

@@ -137,7 +137,9 @@ async function getUserConnections(userId: string) {
 
 async function getFriendStats(userId: string) {
   const [cards, binders, sealed] = await Promise.all([
-    db.collectionCard.count({ where: { user_id: userId, for_sale: false } }),
+    db.collectionCard.count({
+      where: { user_id: userId, for_sale: false, sold_at: null },
+    }),
     db.collectionBinder.count({ where: { user_id: userId } }),
     db.collectionSealed.aggregate({
       where: { user_id: userId },
@@ -167,7 +169,7 @@ async function getDiscoverableCollectors(
       disabled: false,
       email_verified_at: { not: null },
       collectionCards: {
-        some: { for_sale: false },
+        some: { for_sale: false, sold_at: null },
       },
     },
     select: {
@@ -175,7 +177,9 @@ async function getDiscoverableCollectors(
       email: true,
       _count: {
         select: {
-          collectionCards: true,
+          collectionCards: {
+            where: { for_sale: false, sold_at: null },
+          },
           binders: true,
         },
       },

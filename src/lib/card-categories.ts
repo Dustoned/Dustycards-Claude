@@ -31,6 +31,11 @@ export type CardCategoryGroup =
 
 export type CardCategoryTone = "slate" | "emerald" | "amber" | "sky" | "rose" | "violet" | "blue";
 
+export const ACTIVE_CATEGORY_OWNERSHIP_FILTER = {
+  for_sale: false,
+  sold_at: null,
+} satisfies Prisma.CollectionCardWhereInput;
+
 export interface CardCategoryDefinition {
   slug: string;
   title: string;
@@ -106,7 +111,8 @@ const CATEGORY_CARD_SELECT = {
   rarity: true,
   supertype: true,
   prices: {
-    orderBy: { fetched_at: "desc" },
+    where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+    orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
     take: 1,
     select: PRICE_SELECT,
   },
@@ -1049,7 +1055,7 @@ async function getOwnedCategoryRecords(
       db.collectionCard.findMany({
         where: {
           user_id: userId,
-          for_sale: false,
+          ...ACTIVE_CATEGORY_OWNERSHIP_FILTER,
           card_id: { in: chunk },
         },
         select: {
@@ -1148,7 +1154,7 @@ function getCachedCategoryCards(input: {
   );
 }
 
-async function getCategoryPriceSnapshots(
+export async function getCategoryPriceSnapshots(
   cardIds: string[],
   since: string
 ): Promise<EpisodePriceHistorySnapshot[]> {
@@ -1180,6 +1186,8 @@ async function getCategoryPriceSnapshots(
             ) AS row_num
           FROM "Price" p
           WHERE p.card_id IN (${placeholdersFor(chunk)})
+            AND p.cm_en_lowest_nm > 0
+            AND p.cm_en_lowest_nm <> 9001
             AND p.fetched_at >= ?
         )
         WHERE row_num = 1

@@ -14,8 +14,10 @@ import {
   Globe2,
   Info,
   LineChart,
+  Loader2,
   MoreHorizontal,
   Package,
+  Radar,
   RefreshCw,
   ShoppingCart,
   Sparkles,
@@ -27,6 +29,7 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CachedImage from "@/components/CachedImage";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
+import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import { DETAIL_MARKET_LINK_CLASS } from "@/components/detail-market-link-style";
 import type { CardSize } from "@/components/SettingsProvider";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
@@ -159,15 +162,7 @@ function getRecentPricePoints(card: ModalCardData, limit = 6): RecentPricePoint[
   return card.price_history
     .map((point) => ({
       label: point.label,
-      value:
-        point.cm_market_en ??
-        point.cm_market ??
-        point.cm_market_de ??
-        point.cm_market_fr ??
-        point.cm_market_es ??
-        point.cm_market_it ??
-        point.tcp_market ??
-        null,
+      value: point.cm_market_en ?? null,
     }))
     .filter((point): point is RecentPricePoint => point.value != null)
     .slice(-limit)
@@ -694,6 +689,110 @@ export function CardModalBuySignalPanel({
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+export function CardModalSignalSummaryPanel({
+  signal,
+  cardId,
+  game,
+  onNavigate,
+}: {
+  signal: ModalCardData["signal_summary"] | null | undefined;
+  cardId: string;
+  game: ModalCardData["game"];
+  onNavigate: () => void;
+}) {
+  if (!signal) return null;
+  const market = signal.marketIntelligence;
+  const opportunity = market?.rawOpportunityScore ?? signal.externalScore;
+  const tier = opportunity >= 80 ? "Breakout" : opportunity >= 60 ? "Strong" : "Watch";
+  const interesting = [
+    signal.catalysts?.[0]
+      ? { label: "Catalyst", value: signal.catalysts[0].headline }
+      : null,
+    market?.scarcity.setRarityScore != null
+      ? { label: "Set rarity", value: `${market.scarcity.setRarityLabel} · ${market.scarcity.setRarityScore}/100` }
+      : null,
+    market?.scarcity
+      ? { label: "Scarcity", value: `${market.scarcity.label} · ${market.scarcity.score}/100` }
+      : null,
+    market?.sealed && (market.sealed.productCount > 0 || market.sealed.pressureScore >= 45)
+      ? { label: "Sealed", value: `${market.sealed.pressureLabel} · ${market.sealed.pressureScore}/100` }
+      : null,
+    market?.graded.available
+      ? {
+          label: "Grading",
+          value: market.graded.psa10Price == null
+            ? market.graded.supplyLabel
+            : `PSA 10 ${formatCurrency(market.graded.psa10Price, market.graded.currency)}`,
+        }
+      : null,
+  ].filter((item): item is { label: string; value: string } => Boolean(item));
+
+  return (
+    <section
+      data-signal-summary-panel
+      className="min-w-0 rounded-2xl border border-violet-300/14 bg-[linear-gradient(135deg,rgba(124,92,255,0.11),rgba(14,18,29,0.92)_48%,rgba(56,189,248,0.045))] p-3.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.07)]"
+    >
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.09] text-violet-100/78">
+            <Radar className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-100/42">Signal summary</p>
+            <h3 className="mt-0.5 truncate text-sm font-bold text-white/88">{tier} setup</h3>
+          </div>
+        </div>
+        <span className="shrink-0 rounded-full border border-violet-300/16 bg-violet-400/[0.08] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-violet-100/72">
+          {signal.confidence}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
+          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Opportunity</p>
+          <p className="mt-1 text-base font-black tabular-nums text-white">{opportunity}/100</p>
+        </div>
+        <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
+          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Setup</p>
+          <p className="mt-1 truncate text-sm font-black text-emerald-100/84">{market?.confluence.label ?? tier}</p>
+        </div>
+        <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
+          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Origin</p>
+          <p className="mt-1 truncate text-sm font-black text-sky-100/82">{(signal.catalysts?.length ?? 0) > 0 ? "External event" : "Market & rarity"}</p>
+        </div>
+      </div>
+
+      <div className="mt-2.5 rounded-xl border border-white/7 bg-black/14 px-3 py-2.5">
+        <p className="text-[8px] font-bold uppercase tracking-[0.11em] text-white/28">Why it matters</p>
+        <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/64">
+          {signal.reasons[0] ?? signal.pressureExplanation}
+        </p>
+      </div>
+
+      {interesting.length ? (
+        <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5">
+          {interesting.slice(0, 3).map((item) => (
+            <span key={item.label} className="max-w-full truncate rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 text-[9px] font-semibold text-white/58" title={`${item.label}: ${item.value}`}>
+              <span className="text-white/32">{item.label}</span> · {item.value}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      <Link
+        href={`/movers/signal-radar/${encodeURIComponent(cardId)}?game=${encodeURIComponent(game)}`}
+        prefetch={false}
+        onClick={onNavigate}
+        className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/22 bg-violet-500/[0.13] px-3 text-[11px] font-bold text-violet-50/90 transition hover:border-violet-200/36 hover:bg-violet-500/[0.20] disabled:cursor-wait disabled:opacity-60"
+      >
+        <Radar className="h-4 w-4" />
+        View full signal analysis
+        <ChevronRight className="h-3.5 w-3.5" />
+      </Link>
     </section>
   );
 }
@@ -1617,6 +1716,11 @@ export function CardModalMobileShowcase({
   onSyncHistory,
   onRemoveCollectionItem,
   onAddedToCollection,
+  onResearchSignal,
+  researchingSignal,
+  signalResearchError,
+  signalSummary,
+  signalSummaryLoading,
 }: {
   card: ModalCardData;
   collectionItem: ModalCardData["collection_item"] | null;
@@ -1641,6 +1745,11 @@ export function CardModalMobileShowcase({
   onSyncHistory: () => void;
   onRemoveCollectionItem: () => void;
   onAddedToCollection?: () => void | Promise<void>;
+  onResearchSignal: () => void;
+  researchingSignal: boolean;
+  signalResearchError: string | null;
+  signalSummary: ModalCardData["signal_summary"] | null | undefined;
+  signalSummaryLoading: boolean;
 }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -1650,7 +1759,7 @@ export function CardModalMobileShowcase({
   const metaPrefix = [card.episode_code, card.card_number ? `#${card.card_number}` : null]
     .filter(Boolean)
     .join(" ");
-  const language = collectionItem?.language?.trim() || "English";
+  const language = collectionItem?.language?.trim() || "Market: English NM";
   const savedLabel = readOnlyCollectionItem
     ? "Shared"
     : collectionItem?.for_sale
@@ -1662,7 +1771,7 @@ export function CardModalMobileShowcase({
     collectionItem?.condition ||
     (gradingCompanyLabel && gradingGradeLabel
       ? `${gradingCompanyLabel} ${gradingGradeLabel}`
-      : "Near Mint");
+      : "Raw market");
   const showGradedTab = hasGradedDetailContent(
     card,
     collectionItem,
@@ -1697,12 +1806,14 @@ export function CardModalMobileShowcase({
     { key: "overview", label: "Info" },
     { key: "history", label: "Price" },
     ...(showGradedTab ? [{ key: "graded", label: "Graded" }] : []),
+    { key: "demand", label: "Demand" },
     { key: "previous-prices", label: "History" },
   ];
   const effectiveActiveTab = showGradedTab || activeTab !== "graded" ? activeTab : "overview";
   const showOverview = effectiveActiveTab === "overview";
   const showChart = effectiveActiveTab === "history";
   const showGraded = effectiveActiveTab === "graded";
+  const showDemand = effectiveActiveTab === "demand";
   const showPreviousPrices = effectiveActiveTab === "previous-prices";
   const floatingButtonClass =
     "!h-11 !w-11 !rounded-full !border-white/12 !bg-[#101218]/82 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-violet-300/24 hover:!bg-[#1D2130]";
@@ -1955,7 +2066,7 @@ export function CardModalMobileShowcase({
         <nav
           data-mobile-showcase-tabs
           className={`mt-5 grid min-w-0 ${
-            showGradedTab ? "grid-cols-4" : "grid-cols-3"
+            showGradedTab ? "grid-cols-5" : "grid-cols-4"
           } gap-1 rounded-2xl border border-white/8 bg-black/22 p-1 text-[13px] font-bold text-white/48`}
         >
           {tabs.map((tab) => (
@@ -2108,11 +2219,24 @@ export function CardModalMobileShowcase({
         )}
       </div>
 
-      {card.buy_signal && (
+      {showDemand ? (
         <div className="relative z-10 mt-4">
-          <CardModalBuySignalPanel signal={card.buy_signal} compact />
+          <EbayCardDemandPanel cardId={card.id} compact />
         </div>
-      )}
+      ) : null}
+
+      <div className="relative z-10 mt-4">
+        {signalSummary ? (
+          <CardModalSignalSummaryPanel
+            signal={signalSummary}
+            cardId={card.id}
+            game={card.game}
+            onNavigate={onClose}
+          />
+        ) : signalSummaryLoading ? (
+          <div className="h-40 animate-pulse rounded-2xl border border-white/8 bg-white/[0.025]" />
+        ) : null}
+      </div>
 
       <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(179,155,255,0.05)]">
         <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
@@ -2154,6 +2278,20 @@ export function CardModalMobileShowcase({
             </button>
           )}
         </div>
+        <button
+          type="button"
+          onClick={onResearchSignal}
+          disabled={researchingSignal}
+          className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/24 bg-[linear-gradient(135deg,rgba(124,92,255,0.24),rgba(56,189,248,0.08))] px-3 text-[13px] font-bold text-violet-50 transition hover:border-violet-200/38 hover:bg-violet-500/[0.20] disabled:cursor-wait disabled:opacity-60"
+        >
+          {researchingSignal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
+          {researchingSignal ? "Building signal analysis..." : "Research this card"}
+        </button>
+        {signalResearchError ? (
+          <p className="px-2 pt-2 text-center text-[10px] font-medium text-rose-200/72">
+            {signalResearchError}
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -2738,11 +2876,7 @@ function getOwnedCopyPrice(
     collectionItem?.cost_basis_value ??
     collectionItem?.purchase_price ??
     card.price?.cm_en_lowest_nm ??
-    card.price?.cm_de_lowest_nm ??
-    card.price?.cm_fr_lowest_nm ??
-    card.price?.cm_es_lowest_nm ??
-    card.price?.cm_it_lowest_nm ??
-    card.price?.cm_jp_lowest_nm ??
+    [...card.price_history].reverse().find((point) => point.cm_market_en != null)?.cm_market_en ??
     null
   );
 }
@@ -2752,14 +2886,7 @@ function getRecentDesktopPricePoints(card: ModalCardData): Array<{ label: string
     .map((point) => ({
       label: point.label,
       value:
-        point.cm_market_en ??
-        point.cm_market ??
-        point.cm_market_de ??
-        point.cm_market_fr ??
-        point.cm_market_es ??
-        point.cm_market_it ??
-        point.tcp_market ??
-        null,
+        point.cm_market_en ?? null,
     }))
     .filter((point): point is { label: string; value: number } => point.value != null)
     .slice(-5)
@@ -2778,8 +2905,50 @@ export function CardModalOwnedCopyPanel({
   className?: string;
 }) {
   const collectionCard = buildCollectionCard(card);
+  if (!collectionItem) {
+    return (
+      <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/52">
+            <Package className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Collection status</h3>
+            <p className="mt-0.5 text-xs text-white/46">Not in your collection</p>
+          </div>
+        </div>
+        <p className="mt-4 text-sm leading-relaxed text-white/52">
+          Add a copy to save its condition, language and purchase price.
+        </p>
+        <div className="mt-auto grid gap-2 pt-4 sm:grid-cols-2">
+          <CollectionAddCardButton
+            card={collectionCard}
+            mode="button"
+            theme="dark"
+            label="Add to Collection"
+            className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-600/22 !text-sm !font-semibold !text-violet-50 hover:!border-violet-200/38 hover:!bg-violet-500/30"
+            onAdded={onAddedToCollection}
+          />
+          <CollectionWantButton
+            card={collectionCard}
+            mode="button"
+            theme="dark"
+            label="Want"
+            initialWanted={Boolean(card.want_item)}
+            wantItemId={card.want_item?.id ?? null}
+            className="!min-h-10 !rounded-xl !border-violet-300/20 !bg-violet-600/18 !text-sm !font-semibold !text-violet-50 hover:!border-violet-200/36 hover:!bg-violet-500/28"
+          />
+        </div>
+      </section>
+    );
+  }
   const ownedPrice = getOwnedCopyPrice(card, collectionItem);
   const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
+  const priceLabel = collectionItem?.cost_basis_value != null
+    ? "Cost basis"
+    : collectionItem?.purchase_price != null
+      ? "Purchase price"
+      : "English NM market";
 
   return (
     <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
@@ -2789,7 +2958,9 @@ export function CardModalOwnedCopyPanel({
             ? "Shared Copy"
             : collectionItem?.for_sale
               ? "For Sale Copy"
-              : "Owned Copy"}
+              : collectionItem
+                ? "Owned Copy"
+                : "Add to Collection"}
         </h3>
         {collectionItem && (
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-white">
@@ -2818,12 +2989,15 @@ export function CardModalOwnedCopyPanel({
         )}
         <div className="min-w-0">
           <p className="text-sm font-semibold text-white/88">
-            {collectionItem?.condition ?? "Not saved yet"}
+            {collectionItem?.condition ?? "Not owned"}
           </p>
           <p className="mt-1 text-xs text-white/46">
-            {collectionItem?.language ?? "English"}
+            {collectionItem?.language ?? "This card is not in your collection"}
           </p>
-          <p className="mt-3 text-lg font-semibold tabular-nums text-white">
+          <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/34">
+            {priceLabel}
+          </p>
+          <p className="mt-1 text-lg font-semibold tabular-nums text-white">
             {formatCurrency(ownedPrice, "EUR")}
           </p>
           {collectionItem?.for_sale ? (
@@ -3008,11 +3182,17 @@ export function CardModalCardLinksPanel({
   card,
   storedCardMarketUrl,
   onOpenCardMarket,
+  onResearchSignal,
+  researchingSignal = false,
+  signalResearchError = null,
   className = "",
 }: {
   card: ModalCardData;
   storedCardMarketUrl: string | null;
   onOpenCardMarket: () => void;
+  onResearchSignal?: () => void;
+  researchingSignal?: boolean;
+  signalResearchError?: string | null;
   className?: string;
 }) {
   return (
@@ -3056,7 +3236,25 @@ export function CardModalCardLinksPanel({
           eBay Deals
           <ExternalLink className="h-4 w-4" />
         </a>
+
+        {onResearchSignal ? (
+          <button
+            type="button"
+            onClick={onResearchSignal}
+            disabled={researchingSignal}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/24 bg-[linear-gradient(135deg,rgba(124,92,255,0.22),rgba(56,189,248,0.07))] px-3 text-sm font-semibold text-violet-50 transition hover:border-violet-200/38 hover:bg-violet-500/[0.18] disabled:cursor-wait disabled:opacity-60"
+          >
+            {researchingSignal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
+            {researchingSignal ? "Building signal analysis..." : "Research this card"}
+          </button>
+        ) : null}
       </div>
+
+      {signalResearchError ? (
+        <p className="mt-2 text-[10px] font-medium leading-4 text-rose-200/72">
+          {signalResearchError}
+        </p>
+      ) : null}
 
       <p className="mt-auto pt-4 text-[10px] font-medium leading-relaxed text-white/28">
         Opens in a new tab; sealed-product links are kept in their own panel.

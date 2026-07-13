@@ -63,13 +63,7 @@ export async function getExpansionsOverviewHistory(episodeIds: string[]) {
       FROM (
         SELECT
           p.card_id,
-          COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
-          ) AS cm_market,
+          p.cm_en_lowest_nm AS cm_market,
           ROW_NUMBER() OVER (
             PARTITION BY p.card_id
             ORDER BY p.fetched_at DESC, p.id DESC
@@ -77,6 +71,8 @@ export async function getExpansionsOverviewHistory(episodeIds: string[]) {
         FROM "Price" p
         INNER JOIN visible_cards vc ON vc.card_id = p.card_id
         WHERE p.fetched_at < ?
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
       )
       WHERE row_num = 1
     ),
@@ -90,13 +86,7 @@ export async function getExpansionsOverviewHistory(episodeIds: string[]) {
         SELECT
           p.card_id,
           p.fetched_at,
-          COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm
-          ) AS cm_market,
+          p.cm_en_lowest_nm AS cm_market,
           ROW_NUMBER() OVER (
             PARTITION BY p.card_id, DATE(p.fetched_at)
             ORDER BY p.fetched_at DESC, p.id DESC
@@ -104,6 +94,8 @@ export async function getExpansionsOverviewHistory(episodeIds: string[]) {
         FROM "Price" p
         INNER JOIN visible_cards vc ON vc.card_id = p.card_id
         WHERE p.fetched_at >= ?
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
       )
       WHERE row_num = 1
     ),
@@ -191,19 +183,15 @@ export async function getExpansionCurrentValues(episodeIds: string[]) {
     WITH latest_card_prices AS (
       SELECT
         c.episode_id,
-        COALESCE(
-          p.cm_en_lowest_nm,
-          p.cm_de_lowest_nm,
-          p.cm_fr_lowest_nm,
-          p.cm_es_lowest_nm,
-          p.cm_it_lowest_nm
-        ) AS cm_market
+        p.cm_en_lowest_nm AS cm_market
       FROM "Card" c
       LEFT JOIN "Price" p
         ON p.id = (
           SELECT p2.id
           FROM "Price" p2
           WHERE p2.card_id = c.id
+            AND p2.cm_en_lowest_nm > 0
+            AND p2.cm_en_lowest_nm <> 9001
           ORDER BY p2.fetched_at DESC, p2.id DESC
           LIMIT 1
         )

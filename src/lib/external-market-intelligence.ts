@@ -1,6 +1,11 @@
 import "server-only";
 
 import { db } from "@/lib/db";
+import {
+  deriveEbayDemandIntelligence,
+  type EbayDemandSignalSnapshot,
+} from "@/lib/ebay-demand-signal";
+import { getEbayDemandRuntimeConfig } from "@/lib/ebay";
 import { getExternalEntityKey } from "@/lib/external-event-candidates";
 import {
   buildPriceScenario,
@@ -8,6 +13,7 @@ import {
   calculateOpportunityScores,
   calculateScarcityScore,
   calculateSealedPressure,
+  calculateSetRarityPosition,
   classifySealedProduct,
   getGradedSupplyLabel,
   percentChange,
@@ -26,6 +32,24 @@ import { createSwrCache } from "@/lib/server-swr-cache";
 const DAY_MS = 86_400_000;
 const CARD_CHUNK_SIZE = 50;
 const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
+
+async function loadEbayDemandCacheVersion(cardIds: string[]): Promise<string> {
+  if (cardIds.length === 0) return "none";
+  const marketplaceId = getEbayDemandRuntimeConfig().marketplaceId;
+  const rows = await db.cardEbayDemandSnapshot.findMany({
+    where: { card_id: { in: cardIds }, marketplace_id: marketplaceId, mode: "raw" },
+    orderBy: [{ updated_at: "desc" }, { id: "desc" }],
+    select: { card_id: true, updated_at: true },
+  });
+  const latestByCard = new Map<string, number>();
+  for (const row of rows) {
+    if (!latestByCard.has(row.card_id)) latestByCard.set(row.card_id, row.updated_at.getTime());
+  }
+  return [...latestByCard]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([cardId, updatedAt]) => `${cardId}:${updatedAt}`)
+    .join("|") || "none";
+}
 
 function firstPositive(values: Array<number | null | undefined>): number | null {
   return values.find((value): value is number => value != null && Number.isFinite(value) && value > 0) ?? null;
@@ -120,19 +144,13 @@ async function loadArtistDemand(artists: string[]): Promise<Map<string, number>>
         SELECT
           c.id AS card_id,
           c.artist,
-          COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm,
-            p.cm_en_avg_7d,
-            p.tcp_market
-          ) AS value,
+          p.cm_en_lowest_nm AS value,
           ROW_NUMBER() OVER (PARTITION BY c.id ORDER BY p.fetched_at DESC, p.id DESC) AS row_number
         FROM "Card" c
         INNER JOIN "Price" p ON p.card_id = c.id
         WHERE c.artist IN (${placeholders})
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
       )
       SELECT
         artist,
@@ -175,15 +193,13 @@ export async function loadCollectorDemandScores(
   const rows = await db.$queryRawUnsafe<CollectorDemandRow[]>(
     `
       SELECT c.game, c.name,
-        COALESCE(
-          p.cm_en_lowest_nm, p.cm_de_lowest_nm,
-          p.cm_fr_lowest_nm, p.cm_es_lowest_nm, p.cm_it_lowest_nm,
-          p.tcp_market, p.cm_en_avg_7d
-        ) AS value
+        p.cm_en_lowest_nm AS value
       FROM "Card" c
       INNER JOIN "Price" p ON p.id = (
         SELECT latest.id FROM "Price" latest
         WHERE latest.card_id = c.id
+          AND latest.cm_en_lowest_nm > 0
+          AND latest.cm_en_lowest_nm <> 9001
         ORDER BY latest.fetched_at DESC, latest.id DESC LIMIT 1
       )
       WHERE c.game IN (${placeholders})
@@ -233,10 +249,15 @@ export async function enrichSignalsWithMarketIntelligence(
   signals: ExternalCardSignal[],
   now = new Date()
 ): Promise<ExternalCardSignal[]> {
+  const cardIds = [...new Set(signals.map((signal) => signal.cardId))];
+  const ebayDemandVersion = await loadEbayDemandCacheVersion(cardIds);
   const cacheKey = signals
-    .map((signal) => `${signal.cardId}:${signal.externalScore}:${signal.riskScore ?? 0}`)
+    .map(
+      (signal) =>
+        `${signal.cardId}:${signal.externalScore}:${signal.riskScore ?? 0}:${signal.currency}:${signal.currentPrice ?? "none"}`
+    )
     .sort()
-    .join("|");
+    .join("|") + `::ebay:${ebayDemandVersion}`;
   return marketIntelligenceCache.get(cacheKey, () =>
     enrichSignalsWithMarketIntelligenceUncached(signals, now)
   );
@@ -258,7 +279,9 @@ async function enrichSignalsWithMarketIntelligenceUncached(
   const artists = [...new Set(cards.map((card) => card.artist).filter((artist): artist is string => Boolean(artist)))];
 
   const games = [...new Set(signals.map((signal) => signal.game))];
-  const [products, pullRates, artistDemand, collectorDemand] = await Promise.all([
+  const ebayDemandMarketplaceId = getEbayDemandRuntimeConfig().marketplaceId;
+  const demandHistoryStart = new Date(now.getTime() - 30 * DAY_MS);
+  const [products, pullRates, artistDemand, collectorDemand, episodeRarities, ebayDemandSnapshots] = await Promise.all([
     db.sealedProduct.findMany({
       where: {
         OR: [
@@ -296,7 +319,51 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       : Promise.resolve([]),
     loadArtistDemand(artists),
     loadCollectorDemandScores(games),
+    db.card.groupBy({
+      by: ["episode_id", "rarity"],
+      where: { episode_id: { in: episodeIds }, rarity: { not: null } },
+    }),
+    db.cardEbayDemandSnapshot.findMany({
+      where: {
+        card_id: { in: cardIds },
+        marketplace_id: ebayDemandMarketplaceId,
+        mode: "raw",
+        snapshot_date: { gte: demandHistoryStart },
+      },
+      orderBy: [{ card_id: "asc" }, { snapshot_date: "asc" }, { updated_at: "asc" }],
+      select: {
+        card_id: true,
+        snapshot_date: true,
+        updated_at: true,
+        capped: true,
+        observed_count: true,
+        clean_count: true,
+        active_count: true,
+        new_count: true,
+        removed_count: true,
+        median_ask_eur: true,
+        lowest_ask_eur: true,
+      },
+    }),
   ]);
+
+  const ebayDemandByCard = new Map<string, EbayDemandSignalSnapshot[]>();
+  for (const snapshot of ebayDemandSnapshots) {
+    const rows = ebayDemandByCard.get(snapshot.card_id) ?? [];
+    rows.push({
+      snapshotDate: snapshot.snapshot_date,
+      updatedAt: snapshot.updated_at,
+      capped: snapshot.capped,
+      observedCount: snapshot.observed_count,
+      cleanCount: snapshot.clean_count,
+      activeCount: snapshot.active_count,
+      newCount: snapshot.new_count,
+      removedCount: snapshot.removed_count,
+      medianAskEur: snapshot.median_ask_eur,
+      lowestAskEur: snapshot.lowest_ask_eur,
+    });
+    ebayDemandByCard.set(snapshot.card_id, rows);
+  }
 
   const productIds = products.map((product) => product.id);
   const sealedSnapshots = [] as Array<{
@@ -339,6 +406,13 @@ async function enrichSignalsWithMarketIntelligenceUncached(
   for (const pull of pullRates) {
     const key = `${pull.set_code.toUpperCase()}::${pull.normalized_rarity}`;
     if (!pullByKey.has(key) || pull.source === "pricedex") pullByKey.set(key, pull);
+  }
+  const raritiesByEpisode = new Map<string, string[]>();
+  for (const row of episodeRarities) {
+    if (!row.rarity) continue;
+    const rarities = raritiesByEpisode.get(row.episode_id) ?? [];
+    rarities.push(row.rarity);
+    raritiesByEpisode.set(row.episode_id, rarities);
   }
 
   return signals.map((signal) => {
@@ -393,6 +467,10 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       : emptySealed(ageYears);
 
     const normalizedRarity = normalizeRarityLabel(card.rarity);
+    const setRarity = calculateSetRarityPosition(
+      card.rarity,
+      raritiesByEpisode.get(card.episode.id) ?? []
+    );
     const pull =
       card.episode.code && normalizedRarity
         ? pullByKey.get(`${card.episode.code.toUpperCase()}::${normalizedRarity}`) ?? null
@@ -445,6 +523,12 @@ async function enrichSignalsWithMarketIntelligenceUncached(
           latestRaw.tcp_market,
         ].filter((value) => value != null && value > 0).length
       : 0;
+    const ebayDemand = deriveEbayDemandIntelligence({
+      marketplaceId: ebayDemandMarketplaceId,
+      snapshots: ebayDemandByCard.get(signal.cardId) ?? [],
+      currentMarketPriceEur: signal.currency === "EUR" ? signal.currentPrice : null,
+      now,
+    });
     const artistScore = card.artist ? artistDemand.get(card.artist) ?? null : null;
     const collectorScore = collectorDemand.get(getExternalEntityKey(signal.game, signal.name)) ?? 50;
     const scarcityBase = calculateScarcityScore({
@@ -452,10 +536,14 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       specificPullDenominator: pull?.specific_pull_denominator ?? null,
       gemRatePct,
       rawMarketBreadth,
+      verifiedActiveListings:
+        ebayDemand.status === "ready" ? ebayDemand.activeCount : null,
       artistDemandScore: artistScore,
+      setRarityScore: setRarity.setRarityScore,
     });
     const scarcity = {
       ...scarcityBase,
+      ...setRarity,
       pullOdds: pull?.pull_rate_odds ?? null,
       specificPullDenominator: pull?.specific_pull_denominator ?? null,
       rawMarketBreadth,
@@ -483,17 +571,22 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       sealedPressureScore: sealed.pressureScore,
       scarcityScore: scarcity.score,
       confluenceScore: confluence.score,
+      ebayDemandAdjustment: ebayDemand.scoreAdjustment,
       rawTrend90dPct,
       gradePremiumPct,
       gemRatePct,
       gradedAvailable: graded.available,
       riskScore: signal.riskScore ?? 0,
+      setRarityScore: setRarity.setRarityScore,
     });
     const evidenceCount =
-      signal.evidence.length + new Set((signal.catalysts ?? []).map((item) => item.sourceUrl)).size;
+      signal.evidence.length +
+      new Set((signal.catalysts ?? []).map((item) => item.sourceUrl)).size +
+      (ebayDemand.status === "ready" ? 1 : 0);
     const intelligence: ExternalMarketIntelligence = {
       rawOpportunityScore: opportunity.raw,
       gradedOpportunityScore: opportunity.graded,
+      ebayDemand,
       sealed,
       graded,
       scarcity,
@@ -511,6 +604,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         riskScore: signal.riskScore ?? 0,
         evidenceCount,
         historyPoints: rawHistory.length,
+        ebayDemandAdjustment: ebayDemand.scoreAdjustment,
       }),
       gradedScenario: buildPriceScenario({
         marketMode: "graded",
@@ -525,6 +619,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         riskScore: signal.riskScore ?? 0,
         evidenceCount: evidenceCount + (graded.sampleSize != null ? 1 : 0),
         historyPoints: card.ebaySoldGradedPriceSnapshots.length,
+        ebayDemandAdjustment: ebayDemand.scoreAdjustment,
       }),
     };
     return { ...signal, marketIntelligence: intelligence };

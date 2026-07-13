@@ -40,13 +40,7 @@ export function chooseRawMoverSource(input: {
   preferred: RawMoverSourceKey;
   available: Record<RawMoverSourceKey, boolean>;
 }): RawMoverSourceKey | null {
-  if (input.available[input.preferred]) {
-    return input.preferred;
-  }
-
-  const fallback: RawMoverSourceKey =
-    input.preferred === "cardmarket" ? "tcgplayer" : "cardmarket";
-  return input.available[fallback] ? fallback : null;
+  return input.available[input.preferred] ? input.preferred : null;
 }
 
 function round(value: number, decimals = 2): number {

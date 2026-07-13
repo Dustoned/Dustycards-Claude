@@ -27,16 +27,9 @@ function getFeaturedCardMarketPrice(price: {
 } | undefined): { value: number | null; currency: "EUR" | "USD" } {
   if (!price) return { value: null, currency: "EUR" };
 
-  const euroValue =
-    price.cm_en_lowest_nm ??
-    price.cm_de_lowest_nm ??
-    price.cm_fr_lowest_nm ??
-    price.cm_es_lowest_nm ??
-    price.cm_it_lowest_nm ??
-    price.cm_jp_lowest_nm;
-
+  const euroValue = price.cm_en_lowest_nm;
   if (euroValue != null) return { value: euroValue, currency: "EUR" };
-  return { value: price.tcp_market, currency: "USD" };
+  return { value: null, currency: "EUR" };
 }
 
 async function getSealedDetailPayload(id: string, userId: string) {
@@ -104,6 +97,9 @@ async function getSealedDetailPayload(id: string, userId: string) {
       rarity: true,
       image_url: true,
       prices: {
+        // Featured-card prices follow the same contract as every other main
+        // card price: latest usable English/NM CardMarket quote only.
+        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {

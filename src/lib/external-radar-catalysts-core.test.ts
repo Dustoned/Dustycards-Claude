@@ -28,6 +28,16 @@ describe("trusted catalyst sources", () => {
       sourceKind: "social",
       credibility: 0.48,
     });
+    expect(
+      getTrustedCatalystSource(
+        "https://www.vice.com/en/article/pokemon-tcg-30th-celebration-card-leak/",
+        "pokemon"
+      )
+    ).toMatchObject({
+      domain: "vice.com",
+      sourceKind: "community",
+      credibility: 0.78,
+    });
   });
 
   it("rejects lookalike, credentialed, non-web and wrong-game sources", () => {
@@ -78,6 +88,8 @@ describe("catalyst classification", () => {
     ["A viral buyout causes surging demand", "hype", "positive"],
     ["Hype is fading amid cooling demand", "hype", "negative"],
     ["Leaked booklet shows a chase card revealed", "reveal", "positive"],
+    ["Pokemon TCG 30th Celebration Card List Leaks Early Online", "reveal", "positive"],
+    ["30th Anniversary Products Just Revealed", "product", "positive"],
     ["Japanese set coming to English", "localization", "positive"],
   ] as const)("classifies %s", (title, expectedKind, expectedDirection) => {
     const result = classifyCatalystDocument({
@@ -306,5 +318,36 @@ describe("bounded external query planning", () => {
     expect(candidateQuery?.candidateName).not.toMatch(/\bOR\b/);
     expect(candidateQuery?.query).toContain("January 2026");
     expect(candidateQuery?.query.length).toBeLessThanOrEqual(MAX_CATALYST_SEARCH_QUERY_LENGTH);
+  });
+
+  it("puts upcoming 30th Celebration watch queries ahead of generic research", () => {
+    const queries = buildFirecrawlCatalystSearchQueries(
+      [
+        { cardId: "p1", game: "pokemon", name: "Pikachu ex", rank: 1 },
+        { cardId: "o1", game: "one-piece", name: "Monkey.D.Luffy", rank: 1 },
+      ],
+      new Date("2026-07-13T12:00:00.000Z"),
+      {
+        watchTopics: [
+          { game: "pokemon", name: "30th Celebration", setCode: "30C" },
+        ],
+      }
+    );
+
+    expect(queries).toHaveLength(11);
+    expect(queries[0]).toMatchObject({
+      cardId: "watch-topic:pokemon:30th-celebration",
+      candidateName: "30th Celebration",
+      game: "pokemon",
+      mode: "set-intelligence",
+      topic: "news",
+    });
+    expect(queries[0]?.query).toContain('Pokemon TCG "30th Celebration" "30C"');
+    expect(queries[0]?.query).toContain("leaked booklet card list cards revealed chase");
+    expect(queries[0]?.query).toContain("July 2026");
+    expect(queries[1]?.cardId).toBe("set-intelligence:pokemon:releases");
+    expect(queries.every((query) => query.query.length <= MAX_CATALYST_SEARCH_QUERY_LENGTH)).toBe(
+      true
+    );
   });
 });

@@ -165,7 +165,7 @@ describe("mover scoring", () => {
     expect(older.rankingScore).toBeGreaterThan(modern.rankingScore);
   });
 
-  it("uses the selected raw source and falls back only when it is missing", () => {
+  it("uses only the explicitly selected raw source", () => {
     expect(
       chooseRawMoverSource({
         preferred: "cardmarket",
@@ -177,12 +177,12 @@ describe("mover scoring", () => {
         preferred: "cardmarket",
         available: { cardmarket: false, tcgplayer: true },
       })
-    ).toBe("tcgplayer");
+    ).toBeNull();
     expect(
       chooseRawMoverSource({
         preferred: "tcgplayer",
         available: { cardmarket: true, tcgplayer: false },
       })
-    ).toBe("cardmarket");
+    ).toBeNull();
   });
 });

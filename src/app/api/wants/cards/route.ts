@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     const owned = await db.collectionCard.findFirst({
-      where: { user_id: user.id, card_id: cardId, for_sale: false },
+      where: { user_id: user.id, card_id: cardId, for_sale: false, sold_at: null },
       select: { id: true },
     });
 
@@ -158,7 +158,7 @@ export async function DELETE(req: NextRequest) {
           select: {
             episode_id: true,
             collectionItems: {
-              where: { user_id: user.id, for_sale: false },
+              where: { user_id: user.id, for_sale: false, sold_at: null },
               select: { id: true },
               take: 1,
             },

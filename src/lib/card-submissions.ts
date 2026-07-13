@@ -2575,7 +2575,12 @@ async function ensureSubmittedCollectionCopy(
   }
 ): Promise<string | null> {
   const existing = await tx.collectionCard.findFirst({
-    where: { user_id: input.userId, card_id: input.cardId, for_sale: false },
+    where: {
+      user_id: input.userId,
+      card_id: input.cardId,
+      for_sale: false,
+      sold_at: null,
+    },
     select: { id: true },
   });
   if (existing) return existing.id;

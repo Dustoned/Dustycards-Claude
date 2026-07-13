@@ -37,7 +37,7 @@ describe("getCardMarketPrice", () => {
     expect(getCardMarketPrice(makeCard())).toBeNull();
   });
 
-  it("walks fallback chain en -> de -> fr -> es -> it", () => {
+  it("does not substitute another language when English Near Mint is unavailable", () => {
     expect(
       getCardMarketPrice(
         makeCard({
@@ -49,7 +49,7 @@ describe("getCardMarketPrice", () => {
           } as CardData["price"],
         })
       )
-    ).toBe(12.5);
+    ).toBeNull();
   });
 
   it("prefers en when present", () => {
@@ -75,7 +75,7 @@ describe("getSortPrice", () => {
     expect(getSortPrice(card, "tcp")).toBe(22);
   });
 
-  it("falls back to cm chain for sortBy=cm_en", () => {
+  it("uses English Near Mint for sortBy=cm_en", () => {
     expect(getSortPrice(card, "cm_en")).toBe(10);
   });
 
