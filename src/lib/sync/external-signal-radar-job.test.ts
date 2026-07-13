@@ -29,6 +29,9 @@ vi.mock("@/lib/external-signal-intelligence", () => ({
 vi.mock("@/lib/external-signal-forecast-store", () => ({
   evaluatePendingExternalSignalOutcomes: vi.fn(),
 }));
+vi.mock("@/lib/sync/signal-radar-ebay-demand", () => ({
+  refreshSignalRadarEbayDemand: vi.fn(),
+}));
 vi.mock("@/lib/sync/external-signal-persistence", () => ({
   EXTERNAL_CATALYST_REFRESH_INTERVAL_MS: 72 * 60 * 60_000,
   EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS: 6 * 60 * 60_000,

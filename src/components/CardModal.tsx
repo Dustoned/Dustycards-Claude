@@ -24,9 +24,9 @@ import {
 } from "@/lib/price-history";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import useModalA11y from "@/lib/useModalA11y";
+import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import {
   CardModalActiveListingsPanel,
-  CardModalBuySignalPanel,
   CardModalCardLinksPanel,
   CardModalDesktopActionGroup,
   CardModalHeroSection,
@@ -35,6 +35,7 @@ import {
   CardModalOwnedCopyPanel,
   CardModalPreview,
   CardModalRecentPricesPanel,
+  CardModalSignalSummaryPanel,
 } from "./card-modal/CardModalSections";
 import type { ModalCardData } from "./card-modal/types";
 import type { SealedModalProductData } from "./sealed-modal/types";
@@ -98,15 +99,7 @@ function getLatestSeriesValue(points: Array<{ value: number | null }>): number |
 }
 
 function getInitialCardMarketFloorValue(card: ModalCardData): number | null {
-  return (
-    card.price?.cm_en_lowest_nm ??
-    card.price?.cm_de_lowest_nm ??
-    card.price?.cm_fr_lowest_nm ??
-    card.price?.cm_es_lowest_nm ??
-    card.price?.cm_it_lowest_nm ??
-    card.price?.cm_jp_lowest_nm ??
-    null
-  );
+  return card.price?.cm_en_lowest_nm ?? null;
 }
 
 function getEbaySoldDisplayValueEur(
@@ -166,6 +159,17 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [removingCollectionItem, setRemovingCollectionItem] = useState(false);
+  const [researchingSignal, setResearchingSignal] = useState(false);
+  const [signalResearchError, setSignalResearchError] = useState<string | null>(null);
+  const [signalSummaryState, setSignalSummaryState] = useState<{
+    cardId: string;
+    signal: ModalCardData["signal_summary"];
+    loading: boolean;
+  }>({
+    cardId: card.id,
+    signal: card.signal_summary ?? null,
+    loading: !card.signal_summary,
+  });
   const [historyChartMode, setHistoryChartMode] = useState<"market" | "graded">(() =>
     defaultToRawMarket || (!savedCardMarketGradedLabel && !savedEbaySoldGradedLabel)
       ? "market"
@@ -204,24 +208,51 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     : RAW_CARD_ASPECT_CLASS;
   const isBusy = refreshing || syncingHistory;
   const canManageCardPrices = currentUserRole === "admin";
-  const availableCardMarketHistorySeries = CARD_MARKET_HISTORY_SERIES.filter((series) =>
-    hasCardMarketHistorySeries(modalCard.price_history, series.key)
+  const signalSummary =
+    signalSummaryState.cardId === modalCard.id ? signalSummaryState.signal : null;
+  const signalSummaryLoading =
+    signalSummaryState.cardId !== modalCard.id || signalSummaryState.loading;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`/api/cards/${encodeURIComponent(modalCard.id)}/signal-preview`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as
+          | { ok: true; signal: NonNullable<ModalCardData["signal_summary"]> }
+          | { ok: false }
+          | null;
+        setSignalSummaryState({
+          cardId: modalCard.id,
+          signal: response.ok && payload?.ok ? payload.signal : null,
+          loading: false,
+        });
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.error("[card signal preview]", error);
+          setSignalSummaryState({ cardId: modalCard.id, signal: null, loading: false });
+        }
+      });
+    return () => controller.abort();
+  }, [modalCard.id]);
+  const availableCardMarketHistorySeries = CARD_MARKET_HISTORY_SERIES.filter(
+    (series) =>
+      series.key === "cm_market_en" ||
+      hasCardMarketHistorySeries(modalCard.price_history, series.key)
   );
-  const activeCardMarketHistorySeries = availableCardMarketHistorySeries.some(
-    (series) => series.key === cardMarketHistorySeries
-  )
-    ? cardMarketHistorySeries
-    : availableCardMarketHistorySeries[0]?.key ?? "cm_market_en";
+  // Never silently switch the main graph to another language. EN Near Mint is
+  // the default; DE/FR/ES/IT/JP only become active after an explicit selection.
+  const activeCardMarketHistorySeries = cardMarketHistorySeries;
   const activeCardMarketSeriesLabel =
     availableCardMarketHistorySeries.find((series) => series.key === activeCardMarketHistorySeries)
       ?.label ?? "EN";
   const cardMarketHistory = modalCard.price_history.map((point) => ({
     date: point.date,
     label: point.label,
-    value:
-      availableCardMarketHistorySeries.length > 0
-        ? getCardMarketHistorySeriesValue(point, activeCardMarketHistorySeries)
-        : point.cm_market,
+    value: getCardMarketHistorySeriesValue(point, activeCardMarketHistorySeries),
   }));
   const tcgPlayerHistory = modalCard.price_history.map((point) => ({
     date: point.date,
@@ -233,24 +264,11 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
       (value) => value != null
     ) || tcgPlayerHistory.some((point) => point.value != null);
   const effectiveMarketDataSource = hasTcgPlayerData ? marketDataSource : "cardmarket";
-  const saneActiveCardMarketCurrent =
-    availableCardMarketHistorySeries.length > 0
-      ? getSaneCardMarketHistorySeriesCurrentValue(
-          modalCard.price,
-          activeCardMarketHistorySeries,
-          modalCard.price_history
-        )
-      : {
-          value:
-            modalCard.price?.cm_en_lowest_nm ??
-            modalCard.price?.cm_de_lowest_nm ??
-            modalCard.price?.cm_fr_lowest_nm ??
-            modalCard.price?.cm_es_lowest_nm ??
-            modalCard.price?.cm_it_lowest_nm ??
-            modalCard.price?.cm_jp_lowest_nm ??
-            null,
-          ignoredValue: null,
-        };
+  const saneActiveCardMarketCurrent = getSaneCardMarketHistorySeriesCurrentValue(
+    modalCard.price,
+    activeCardMarketHistorySeries,
+    modalCard.price_history
+  );
   const activeCardMarketCurrentValue = saneActiveCardMarketCurrent.value;
   const hasGradedData =
     gradedPrices.length > 0 ||
@@ -312,10 +330,12 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
         );
       }
 
-      setModalCard((prev) => ({
+      // The server response is authoritative. In particular, a null value must
+      // clear a stale local owned-copy state after a refresh.
+      setModalCard({
         ...data,
-        collection_item: data.collection_item ?? prev.collection_item ?? null,
-      }));
+        collection_item: data.collection_item ?? null,
+      });
       setResolvedUrl(null);
     } catch (error) {
       setRefreshError(
@@ -345,6 +365,37 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
       setResolvedUrl(null);
     } catch {
       // The page refresh still updates the backing data; keep the modal usable if this request fails.
+    }
+  }
+
+  async function researchSignalCard() {
+    if (researchingSignal) return;
+    setResearchingSignal(true);
+    setSignalResearchError(null);
+    try {
+      const response = await fetch(
+        `/api/movers/signal-radar/${encodeURIComponent(modalCard.id)}/research`,
+        { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { ok: true; detailUrl: string }
+        | { ok: false; error?: string }
+        | null;
+      if (!response.ok || !payload?.ok) {
+        throw new Error(
+          payload && "error" in payload && payload.error
+            ? payload.error
+            : "Could not build the signal analysis."
+        );
+      }
+      onClose();
+      router.push(payload.detailUrl);
+    } catch (error) {
+      setSignalResearchError(
+        error instanceof Error ? error.message : "Could not build the signal analysis."
+      );
+    } finally {
+      setResearchingSignal(false);
     }
   }
 
@@ -520,6 +571,11 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                 onSyncHistory={() => void runCardAction("sync-history")}
                 onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
                 onAddedToCollection={refreshModalCardFromServer}
+                onResearchSignal={() => void researchSignalCard()}
+                researchingSignal={researchingSignal}
+                signalResearchError={signalResearchError}
+                signalSummary={signalSummary}
+                signalSummaryLoading={signalSummaryLoading}
               />
             </div>
 
@@ -571,6 +627,9 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                     storedCardMarketUrl={storedCardMarketUrl}
                     className="w-full"
                     onOpenCardMarket={openCardMarket}
+                    onResearchSignal={() => void researchSignalCard()}
+                    researchingSignal={researchingSignal}
+                    signalResearchError={signalResearchError}
                   />
                 </div>
 
@@ -606,13 +665,24 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                       onOpenSealedProduct={setSelectedSealedProduct}
                       onClose={onClose}
                     />
+                    <EbayCardDemandPanel
+                      cardId={modalCard.id}
+                      className="2xl:col-span-2"
+                    />
                 </div>
 
-                {modalCard.buy_signal ? (
-                  <div className="card-modal-area-signal min-w-0">
-                    <CardModalBuySignalPanel signal={modalCard.buy_signal} compact />
-                  </div>
-                ) : null}
+                <div className="card-modal-area-signal min-w-0">
+                  {signalSummary ? (
+                    <CardModalSignalSummaryPanel
+                      signal={signalSummary}
+                      cardId={modalCard.id}
+                      game={modalCard.game}
+                      onNavigate={onClose}
+                    />
+                  ) : signalSummaryLoading ? (
+                    <div className="h-40 animate-pulse rounded-2xl border border-white/8 bg-white/[0.025]" />
+                  ) : null}
+                </div>
               </div>
               </div>
             </div>

@@ -1,25 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   BarChart3,
   BrainCircuit,
   CheckCircle2,
+  Loader2,
   Newspaper,
   PackageSearch,
   Radar,
+  RefreshCw,
+  Search,
   ShieldAlert,
   Sparkles,
   Tag,
   UserRound,
+  X,
 } from "lucide-react";
 import {
   getSignalExplanations,
   PriceScenarioChart,
 } from "@/app/movers/signal-radar/ExternalSignalBrowser";
 import CachedImage from "@/components/CachedImage";
+import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import { formatCurrency } from "@/lib/format";
 import type { ExternalCardSignal, ExternalMarketMode } from "@/lib/external-signal-radar";
 import { buildCardMarketProxyUrl, getSafeDirectCardMarketCardUrl } from "@/lib/cardmarket";
@@ -51,6 +56,27 @@ export interface SignalRadarCardBasics {
     series: string | null;
     release_date: string | null;
   };
+}
+
+interface CardResearchResult {
+  url: string;
+  title: string;
+  description: string | null;
+  domain: string;
+  sourceTier: "trusted" | "discovery";
+  category: string;
+  reason: string | null;
+  direction: "positive" | "negative" | "neutral" | null;
+}
+
+interface CardResearchSnapshot {
+  cardId: string;
+  generatedAt: string;
+  cached: boolean;
+  provider: string;
+  creditsUsed: number;
+  queriesRun: number;
+  results: CardResearchResult[];
 }
 
 const FORECAST_TARGETS = [
@@ -104,9 +130,9 @@ function AnalysisSection({
 
 function MetricRow({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
-    <div className="grid min-h-12 grid-cols-[minmax(7rem,0.65fr)_minmax(0,1fr)] items-center gap-3 border-b border-white/6 px-3 py-2.5 last:border-b-0 [@media(min-width:2200px)]:min-h-10 [@media(min-width:2200px)]:py-2">
-      <span className="text-[10px] font-medium text-white/38">{label}</span>
-      <span className="min-w-0 text-right text-xs font-semibold text-white/78">
+    <div className="grid min-h-12 grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] items-center gap-3 border-b border-white/6 px-3 py-2.5 last:border-b-0 [@media(min-width:2200px)]:min-h-10 [@media(min-width:2200px)]:py-2">
+      <span className="min-w-0 break-words text-[10px] font-medium leading-tight text-white/38">{label}</span>
+      <span className="min-w-0 break-words text-right text-xs font-semibold leading-tight text-white/78">
         {value}
         {hint ? <span className="mt-0.5 block text-[9px] font-normal text-white/28">{hint}</span> : null}
       </span>
@@ -117,12 +143,20 @@ function MetricRow({ label, value, hint }: { label: string; value: ReactNode; hi
 export default function SignalRadarDetailClient({
   signal,
   cardBasics,
+  initialResearch = null,
 }: {
   signal: ExternalCardSignal;
   cardBasics: SignalRadarCardBasics;
+  initialResearch?: CardResearchSnapshot | null;
 }) {
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
-  const [mobileTab, setMobileTab] = useState<"info" | "forecast" | "evidence">("info");
+  const [mobileTab, setMobileTab] = useState<"info" | "forecast" | "demand" | "evidence">("info");
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [researchStatus, setResearchStatus] = useState<"idle" | "loading" | "success" | "error">(
+    initialResearch ? "success" : "idle"
+  );
+  const [research, setResearch] = useState<CardResearchSnapshot | null>(initialResearch);
+  const [researchError, setResearchError] = useState<string | null>(null);
   const market = signal.marketIntelligence;
   const gradedAvailable = market?.graded.available ?? false;
   const scenario = marketMode === "graded" ? market?.gradedScenario : market?.rawScenario;
@@ -132,16 +166,10 @@ export default function SignalRadarDetailClient({
   const tier = score >= 80 ? "Breakout" : score >= 60 ? "Strong" : "Watch";
   const explanations = getSignalExplanations(signal);
   const catalysts = signal.catalysts ?? [];
+  const researchResults = research?.results ?? [];
   const latestRawPrice = cardBasics.prices[0];
   const rawMarketPrice = latestRawPrice
-    ? [
-        latestRawPrice.cm_en_lowest_nm,
-        latestRawPrice.cm_de_lowest_nm,
-        latestRawPrice.cm_fr_lowest_nm,
-        latestRawPrice.cm_es_lowest_nm,
-        latestRawPrice.cm_it_lowest_nm,
-        latestRawPrice.cm_jp_lowest_nm,
-      ].find((value): value is number => value != null && Number.isFinite(value) && value > 0) ?? null
+    ? latestRawPrice.cm_en_lowest_nm
     : null;
   const displayPrice =
     marketMode === "graded"
@@ -171,6 +199,73 @@ export default function SignalRadarDetailClient({
       )
     : "Unknown";
 
+  useEffect(() => {
+    if (!researchOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setResearchOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [researchOpen]);
+
+  async function runCardResearch() {
+    setResearchOpen(true);
+    setResearchStatus("loading");
+    setResearchError(null);
+
+    try {
+      const response = await fetch(
+        `/api/movers/signal-radar/${encodeURIComponent(signal.cardId)}/research`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({}),
+        }
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | { ok: true; research: CardResearchSnapshot }
+        | { ok: false; error?: string }
+        | null;
+
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload && "error" in payload && payload.error ? payload.error : "Card research could not be completed.");
+      }
+
+      setResearch(payload.research);
+      setResearchStatus("success");
+    } catch (error) {
+      setResearchError(error instanceof Error ? error.message : "Card research could not be completed.");
+      setResearchStatus("error");
+    }
+  }
+
+  const researchGeneratedLabel = research?.generatedAt
+    ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(
+        new Date(research.generatedAt)
+      )
+    : null;
+
+  const researchButton = (
+    <button
+      type="button"
+      onClick={() => void runCardResearch()}
+      disabled={researchStatus === "loading"}
+      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.20),rgba(56,189,248,0.08))] px-3 text-[12px] font-bold text-violet-50/90 shadow-[0_12px_32px_rgba(83,54,180,0.12)] transition hover:border-violet-200/34 hover:bg-violet-400/[0.16] disabled:cursor-wait disabled:opacity-65 lg:min-h-10 lg:rounded-xl lg:text-[10px]"
+    >
+      {researchStatus === "loading" ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Search className="h-4 w-4" />
+      )}
+      {researchStatus === "loading" ? "Researching this card..." : "Research this card"}
+    </button>
+  );
+
   return (
     <>
       <div className="relative overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#090a0f] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.35)] lg:hidden">
@@ -196,12 +291,13 @@ export default function SignalRadarDetailClient({
             <a href={ebayHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.055] text-[12px] font-bold text-white/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.10]">
               eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
             </a>
+            <div className="col-span-2">{researchButton}</div>
           </div>
         </div>
 
         <div className="relative mt-5">
           <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-full border border-violet-300/18 bg-violet-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] text-violet-100/78">#{signal.rank} radar</span>
+            <span className="rounded-full border border-violet-300/18 bg-violet-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] text-violet-100/78">{signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} radar`}</span>
             <span className="rounded-full border border-emerald-300/16 bg-emerald-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100/70">{signal.confidence}</span>
             <span className="rounded-full border border-white/9 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/48">{tier}</span>
           </div>
@@ -231,10 +327,11 @@ export default function SignalRadarDetailClient({
             })}
           </div>
 
-          <nav className="mt-4 grid grid-cols-3 gap-1 rounded-2xl border border-white/8 bg-black/25 p-1">
+          <nav className="mt-4 grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-black/25 p-1">
             {([
               ["info", "Info"],
               ["forecast", "Forecast"],
+              ["demand", "Demand"],
               ["evidence", "Evidence"],
             ] as const).map(([key, label]) => (
               <button key={key} type="button" onClick={() => setMobileTab(key)} className={cx("min-h-10 rounded-xl px-2 text-[12px] font-bold transition", mobileTab === key ? "bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,92,255,0.22)]" : "text-white/44 hover:bg-white/[0.055]")}>{label}</button>
@@ -279,11 +376,18 @@ export default function SignalRadarDetailClient({
                   ["Sealed pressure", `${market?.sealed.pressureScore ?? "--"}/100`],
                   ["Cheapest pack", market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")],
                   ["Scarcity", `${market?.scarcity.score ?? "--"}/100`],
+                  ["Set rarity", market?.scarcity.setRarityLabel ?? "Unknown"],
                   ["Pull odds", market?.scarcity.pullOdds ?? "Unknown"],
                   ["Character demand", `${market?.scarcity.collectorDemandScore ?? "--"}/100`],
                   ["Gem rate", market?.graded.gemRatePct == null ? "--" : `${market.graded.gemRatePct.toFixed(1)}%`],
                 ].map(([label, value]) => <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.025] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/28">{label}</p><p className="mt-1.5 text-sm font-bold text-white/76">{value}</p></div>)}
               </div>
+            </div>
+          ) : null}
+
+          {mobileTab === "demand" ? (
+            <div className="mt-3">
+              <EbayCardDemandPanel cardId={signal.cardId} compact />
             </div>
           ) : null}
 
@@ -295,7 +399,7 @@ export default function SignalRadarDetailClient({
               </div>
               <div className="rounded-[1.35rem] border border-white/9 bg-black/18 p-3">
                 <div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/48">Daily scan</p><h2 className="mt-1 text-sm font-bold text-white/84">News, catalysts and risk</h2></div><span className={cx("rounded-full border px-2 py-1 text-[9px]", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 text-rose-100/68" : "border-emerald-300/14 text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk" : "Clear"}</span></div>
-                <div className="mt-3 space-y-2">{catalysts.length ? catalysts.map((catalyst) => <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="block rounded-xl border border-white/7 bg-white/[0.025] p-3"><div className="flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase text-white/34">{catalyst.kind}</span><span className={catalyst.direction === "negative" ? "text-[9px] text-rose-200/72" : "text-[9px] text-emerald-200/72"}>{catalyst.direction}</span></div><p className="mt-1.5 line-clamp-2 text-[11px] font-semibold leading-4 text-white/72">{catalyst.headline}</p></Link>) : <div className="flex gap-3 rounded-xl border border-white/7 bg-white/[0.025] p-3"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300/65" /><p className="text-[10px] leading-4 text-white/40">No fresh trusted catalyst is linked to this card yet.</p></div>}</div>
+                <div className="mt-3 space-y-2">{catalysts.length ? catalysts.map((catalyst) => <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="block rounded-xl border border-white/7 bg-white/[0.025] p-3"><div className="flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase text-white/34">{catalyst.kind}</span><span className={catalyst.direction === "negative" ? "text-[9px] text-rose-200/72" : "text-[9px] text-emerald-200/72"}>{catalyst.direction}</span></div><p className="mt-1.5 line-clamp-2 text-[11px] font-semibold leading-4 text-white/72">{catalyst.headline}</p></Link>) : researchResults.length ? researchResults.slice(0, 4).map((result) => <Link key={result.url} href={result.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-white/7 bg-white/[0.025] p-3"><div className="flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase text-white/34">{result.category}</span><span className="text-[9px] text-violet-200/64">{result.domain}</span></div><p className="mt-1.5 line-clamp-2 text-[11px] font-semibold leading-4 text-white/72">{result.title}</p></Link>) : <div className="flex gap-3 rounded-xl border border-white/7 bg-white/[0.025] p-3"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300/65" /><p className="text-[10px] leading-4 text-white/40">No fresh trusted catalyst is linked to this card yet.</p></div>}</div>
               </div>
             </div>
           ) : null}
@@ -338,10 +442,11 @@ export default function SignalRadarDetailClient({
               eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
             </a>
             </div>
+            <div className="mt-2">{researchButton}</div>
           </section>
           <div className="mt-4">
             <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">#{signal.rank} Radar</span>
+              <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">{signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} Radar`}</span>
               <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">{signal.game === "one-piece" ? "One Piece" : "Pokemon"}</span>
             </div>
             <h1 className="mt-3 text-xl font-black tracking-tight text-white sm:text-2xl">{signal.name}</h1>
@@ -405,10 +510,10 @@ export default function SignalRadarDetailClient({
         </div>
       </aside>
 
-      <div className="grid min-w-0 gap-4 2xl:grid-cols-12 2xl:items-stretch">
-        <section className="flex h-full flex-col rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] p-4 2xl:col-span-5 2xl:col-start-1 2xl:row-start-1 [@media(min-width:2200px)]:col-span-4">
+      <div className="signal-radar-detail-grid grid min-w-0 gap-4 [@media(min-width:1900px)]:grid-cols-12 [@media(min-width:1900px)]:items-stretch">
+        <section className="flex h-full min-w-0 flex-col rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] p-4 [@media(min-width:1900px)]:col-span-5 [@media(min-width:1900px)]:col-start-1 [@media(min-width:1900px)]:row-start-1 [@media(min-width:2200px)]:col-span-4">
           <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">#{signal.rank} Radar</span>
+            <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">{signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} Radar`}</span>
             <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">{signal.game === "one-piece" ? "One Piece" : "Pokemon"}</span>
             {signal.rarity ? <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold text-white/45">{signal.rarity}</span> : null}
           </div>
@@ -424,21 +529,23 @@ export default function SignalRadarDetailClient({
             <MetricRow label="Type" value={[cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"} />
             <MetricRow label="Release" value={releaseLabel} />
           </div>
-          <div className="mt-auto grid grid-cols-[minmax(0,1fr)_minmax(10rem,0.72fr)] gap-2 pt-3">
-            <div className="rounded-xl border border-violet-300/12 bg-violet-400/[0.055] p-3">
+          <div className="mt-auto pt-3">
+            <div className="flex items-end justify-between gap-4 rounded-xl border border-violet-300/12 bg-violet-400/[0.055] p-3">
+              <div className="min-w-0">
               <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/30">Current {marketMode} market</p>
               <p className="mt-1 text-2xl font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
-            </div>
-            <div className="flex rounded-xl border border-white/8 bg-black/24 p-1">
-              {(["raw", "graded"] as const).map((mode) => {
-                const disabled = mode === "graded" && !gradedAvailable;
-                return <button key={mode} type="button" disabled={disabled} onClick={() => setMarketMode(mode)} className={cx("flex-1 rounded-lg text-[11px] font-semibold capitalize transition", marketMode === mode ? "bg-violet-500 text-white shadow-sm" : disabled ? "cursor-not-allowed text-white/20" : "text-white/48 hover:bg-white/[0.06] hover:text-white")}>{mode}</button>;
-              })}
+              </div>
+              <div className="grid h-9 w-[11.5rem] shrink-0 grid-cols-2 rounded-lg border border-white/8 bg-black/30 p-1">
+                {(["raw", "graded"] as const).map((mode) => {
+                  const disabled = mode === "graded" && !gradedAvailable;
+                  return <button key={mode} type="button" disabled={disabled} onClick={() => setMarketMode(mode)} className={cx("rounded-md px-3 text-[10px] font-semibold capitalize transition", marketMode === mode ? "bg-violet-500 text-white shadow-sm" : disabled ? "cursor-not-allowed text-white/20" : "text-white/48 hover:bg-white/[0.06] hover:text-white")}>{mode}</button>;
+                })}
+              </div>
             </div>
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5 2xl:col-span-5 2xl:col-start-1 2xl:row-start-2 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:p-4">
+        <section className="min-w-0 rounded-2xl border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5 [@media(min-width:1900px)]:col-span-5 [@media(min-width:1900px)]:col-start-1 [@media(min-width:1900px)]:row-start-2 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-violet-200/55">Signal summary</p>
@@ -447,7 +554,7 @@ export default function SignalRadarDetailClient({
             </div>
             <span className="rounded-full border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.11em] text-emerald-100/75">{signal.confidence} confidence</span>
           </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 [@media(min-width:2200px)]:grid-cols-4">
             {[
               ["Opportunity", `${score}/100`, "violet"],
               ["Gold mine setup", `${market?.confluence.score ?? "--"}/100`, "fuchsia"],
@@ -475,7 +582,7 @@ export default function SignalRadarDetailClient({
 
         <AnalysisSection className="2xl:col-span-7 2xl:col-start-6 2xl:row-start-1 [@media(min-width:2200px)]:col-span-8 [@media(min-width:2200px)]:col-start-5" eyebrow="Price model" title={`${marketMode === "graded" ? "Graded" : "Raw"} value scenario${scenarioUsesAverageBaseline ? " · 7d avg baseline" : ""}`} icon={<BarChart3 className="h-4 w-4" />} aside={scenario ? <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/42">{scenario.confidence} confidence</span> : null}>
           {scenario ? (
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
+            <div className="grid gap-5 [@media(min-width:2200px)]:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
               <div className="min-w-0 rounded-xl border border-violet-300/10 bg-violet-400/[0.035] p-3">
                 <PriceScenarioChart scenario={scenario} detailed />
               </div>
@@ -497,8 +604,14 @@ export default function SignalRadarDetailClient({
           ) : <p className="text-xs text-white/38">Not enough reliable market history for a price scenario.</p>}
         </AnalysisSection>
 
+          <EbayCardDemandPanel
+            cardId={signal.cardId}
+            compact
+            className="[@media(min-width:1900px)]:col-span-5 [@media(min-width:1900px)]:col-start-1 [@media(min-width:1900px)]:row-start-2 [@media(min-width:2200px)]:col-span-4"
+          />
+
           <AnalysisSection className="2xl:col-span-7 2xl:col-start-6 2xl:row-start-2 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-5" eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3 [@media(min-width:2200px)]:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-amber-300/10 bg-amber-400/[0.025]">
                 <MetricRow label="Sealed pressure" value={`${market?.sealed.pressureLabel ?? "--"} · ${market?.sealed.pressureScore ?? "--"}/100`} />
                 <MetricRow label="Cheapest pack" value={market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")} hint={market?.sealed.packName ?? undefined} />
@@ -507,15 +620,15 @@ export default function SignalRadarDetailClient({
               </div>
               <div className="overflow-hidden rounded-xl border border-sky-300/10 bg-sky-400/[0.025]">
                 <MetricRow label="Scarcity" value={`${market?.scarcity.label ?? "--"} · ${market?.scarcity.score ?? "--"}/100`} />
+                <MetricRow label="Set rarity" value={market?.scarcity.setRarityLabel ?? "Unknown"} hint={market?.scarcity.setRarityScore == null ? undefined : `${market.scarcity.setRarityScore}/100 within this set`} />
                 <MetricRow label="Pull odds" value={market?.scarcity.pullOdds ?? "Unknown"} />
-                <MetricRow label="Raw markets" value={market?.scarcity.rawMarketBreadth ?? 0} />
                 <MetricRow label="90-day raw trend" value={signedPercent(market?.scarcity.rawTrend90dPct ?? null)} />
               </div>
             </div>
           </AnalysisSection>
 
           <AnalysisSection className="2xl:col-span-6 2xl:col-start-1 2xl:row-start-3 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-9 [@media(min-width:2200px)]:row-start-2" eyebrow="Demand quality" title="Collector, artist and grading" icon={<Sparkles className="h-4 w-4" />}>
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid gap-3 [@media(min-width:2200px)]:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.025]">
                 <MetricRow label="Confluence" value={`${market?.confluence.label ?? "--"} · ${market?.confluence.score ?? "--"}/100`} />
                 <MetricRow label="Illustrator" value={market?.scarcity.artist ?? "Unknown"} hint={market?.scarcity.artistDemandScore == null ? undefined : `${market.scarcity.artistDemandScore}/100 demand`} />
@@ -584,12 +697,152 @@ export default function SignalRadarDetailClient({
                 </Link>
               ))}
             </div>
+          ) : researchResults.length ? (
+            <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
+              {researchResults.slice(0, 5).map((result) => (
+                <Link key={result.url} href={result.url} target="_blank" rel="noreferrer" className="grid min-h-14 grid-cols-[0.65fr_1.8fr_0.8fr] items-center gap-3 border-b border-white/6 px-3 text-[10px] transition last:border-b-0 hover:bg-white/[0.025]">
+                  <span className="text-white/42">{result.category}</span>
+                  <span className="truncate font-semibold text-white/72">{result.title}</span>
+                  <span className="truncate text-right text-violet-200/58">{result.domain}</span>
+                </Link>
+              ))}
+            </div>
           ) : (
             <div className="flex gap-3 rounded-xl border border-white/7 bg-black/16 p-4"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300/65" /><p className="text-[10px] leading-4 text-white/42">No fresh trusted news catalyst is linked to this card. The ranking currently comes from {signal.sourceMode === "structural" ? "structural scarcity and market context" : "competitive demand"}.</p></div>
           )}
         </AnalysisSection>
       </div>
     </div>
+      {researchOpen ? (
+        <div
+          className="fixed inset-0 z-[230] flex items-end justify-center bg-black/76 px-0 pt-12 backdrop-blur-md sm:items-center sm:p-5"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setResearchOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="card-research-title"
+            className="flex max-h-[88dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[1.65rem] border border-white/12 bg-[linear-gradient(150deg,rgba(20,22,34,0.99),rgba(8,10,16,0.99))] shadow-[0_30px_100px_rgba(0,0,0,0.72)] sm:max-h-[82dvh] sm:rounded-[1.65rem]"
+          >
+            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/8 px-4 py-4 sm:px-5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.09] text-violet-100/80">
+                    <Search className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[8px] font-bold uppercase tracking-[0.16em] text-violet-200/48">Focused web research</p>
+                    <h2 id="card-research-title" className="mt-0.5 truncate text-base font-black text-white/92 sm:text-lg">
+                      {signal.name}
+                    </h2>
+                  </div>
+                </div>
+                <p className="mt-2 max-w-xl text-[10px] leading-4 text-white/40">
+                  Searches specifically for this printing, its set, market catalysts, reprints, grading and collector demand.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setResearchOpen(false)}
+                aria-label="Close card research"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/9 bg-white/[0.035] text-white/50 transition hover:border-white/18 hover:bg-white/[0.075] hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </header>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+              {researchStatus === "loading" ? (
+                <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-violet-300/12 bg-violet-400/[0.035] px-6 text-center">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-300/16 bg-violet-400/[0.09] text-violet-100/80">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  </span>
+                  <h3 className="mt-4 text-sm font-bold text-white/82">Researching this exact card</h3>
+                  <p className="mt-1.5 max-w-sm text-[10px] leading-4 text-white/38">Checking trusted news, set information, reprint signals and relevant market context.</p>
+                </div>
+              ) : null}
+
+              {researchStatus === "error" ? (
+                <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-rose-300/12 bg-rose-400/[0.035] px-6 text-center">
+                  <ShieldAlert className="h-7 w-7 text-rose-200/72" />
+                  <h3 className="mt-3 text-sm font-bold text-white/82">Research could not be completed</h3>
+                  <p className="mt-1.5 max-w-md text-[10px] leading-4 text-white/42">{researchError}</p>
+                  <button type="button" onClick={() => void runCardResearch()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-[11px] font-bold text-white/72 transition hover:border-violet-300/24 hover:bg-violet-400/[0.09]">
+                    <RefreshCw className="h-3.5 w-3.5" /> Try again
+                  </button>
+                </div>
+              ) : null}
+
+              {researchStatus === "success" && research ? (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/8 bg-black/18 px-3.5 py-3">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-semibold text-white/38">
+                      <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 uppercase">{research.provider}</span>
+                      <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1">{research.queriesRun} {research.queriesRun === 1 ? "query" : "queries"}</span>
+                      <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1">{research.creditsUsed} {research.provider === "firecrawl" ? "Firecrawl" : "Tavily"} credits</span>
+                      {research.cached ? <span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2 py-1 text-sky-100/58">Cached</span> : null}
+                      {researchGeneratedLabel ? <span>{researchGeneratedLabel}</span> : null}
+                    </div>
+                    <span className="text-[9px] text-white/28">Shared for 24 hours to save credits</span>
+                  </div>
+
+                  {research.results.length ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {research.results.map((result, index) => (
+                        <a
+                          key={`${result.url}:${index}`}
+                          href={result.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group flex min-w-0 flex-col rounded-2xl border border-white/8 bg-white/[0.025] p-3.5 transition hover:border-violet-300/22 hover:bg-violet-400/[0.055]"
+                        >
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.09em]", result.sourceTier === "trusted" ? "border-emerald-300/13 bg-emerald-400/[0.055] text-emerald-100/68" : "border-sky-300/12 bg-sky-400/[0.05] text-sky-100/58")}>{result.sourceTier}</span>
+                            <span className="rounded-full border border-white/8 bg-black/18 px-2 py-1 text-[8px] font-semibold capitalize text-white/42">{result.category}</span>
+                            {result.direction ? <span className={cx("ml-auto text-[8px] font-bold capitalize", result.direction === "positive" ? "text-emerald-200/68" : result.direction === "negative" ? "text-rose-200/68" : "text-white/34")}>{result.direction}</span> : null}
+                          </div>
+                          <h3 className="mt-3 line-clamp-2 text-[12px] font-bold leading-4 text-white/80 transition group-hover:text-white">{result.title}</h3>
+                          {result.reason ? <p className="mt-2 flex items-start gap-1.5 text-[9px] font-semibold leading-4 text-violet-100/62"><CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-300/65" />{result.reason}</p> : null}
+                          {result.description ? <p className="mt-1.5 line-clamp-2 text-[10px] leading-4 text-white/38">{result.description}</p> : null}
+                          <div className="mt-auto flex items-center justify-between gap-2 pt-3 text-[9px] text-white/30">
+                            <span className="truncate">{result.domain}</span>
+                            <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-violet-200/58">Open source <ArrowUpRight className="h-3 w-3" /></span>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex min-h-52 flex-col items-center justify-center rounded-2xl border border-white/8 bg-black/18 px-6 text-center">
+                      <Search className="h-7 w-7 text-white/24" />
+                      <h3 className="mt-3 text-sm font-bold text-white/76">No card-specific sources found yet</h3>
+                      <p className="mt-1.5 max-w-md text-[10px] leading-4 text-white/38">The search completed, but no reliable new result could be tied to this exact printing. This empty result is cached to avoid wasting search credits.</p>
+                    </div>
+                  )}
+
+                  {catalysts.length ? (
+                    <div className="rounded-2xl border border-white/8 bg-black/18 p-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div><p className="text-[8px] font-bold uppercase tracking-[0.14em] text-violet-200/44">Already on the radar</p><h3 className="mt-1 text-xs font-bold text-white/74">Existing linked catalysts</h3></div>
+                        <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 text-[9px] font-bold text-white/42">{catalysts.length}</span>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {catalysts.slice(0, 4).map((catalyst) => (
+                          <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-white/7 bg-white/[0.025] p-3 transition hover:border-violet-300/20">
+                            <div className="flex items-center justify-between gap-2"><span className="text-[8px] font-bold uppercase text-white/32">{catalyst.kind}</span><span className="text-[8px] text-white/30">{catalyst.evidenceLevel}</span></div>
+                            <p className="mt-1.5 line-clamp-2 text-[10px] font-semibold leading-4 text-white/66">{catalyst.headline}</p>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }

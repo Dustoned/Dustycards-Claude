@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   getCurrentRawCardmarketValue,
+  getLatestAvailableEnglishNmValue,
   getSaneCardmarketAverage7d,
 } from "@/lib/market-price-sanity";
 
 describe("CardMarket raw price sanity", () => {
+  it("keeps the latest available English NM quote when a newer row only has TCGPlayer", () => {
+    expect(
+      getLatestAvailableEnglishNmValue([
+        { cm_en_lowest_nm: null },
+        { cm_en_lowest_nm: 300 },
+      ])
+    ).toBe(300);
+  });
+
   it("rejects a corrupted 7-day average against several language anchors", () => {
     const price = {
       cm_en_avg_7d: 4507.66,
@@ -19,7 +29,7 @@ describe("CardMarket raw price sanity", () => {
     expect(getCurrentRawCardmarketValue(price)).toBe(604.15);
   });
 
-  it("keeps a plausible average available as a fallback", () => {
+  it("does not substitute an average when English Near Mint is unavailable", () => {
     const price = {
       cm_en_avg_7d: 49.49,
       cm_en_lowest_nm: null,
@@ -30,6 +40,6 @@ describe("CardMarket raw price sanity", () => {
     };
 
     expect(getSaneCardmarketAverage7d(price)).toBe(49.49);
-    expect(getCurrentRawCardmarketValue(price)).toBe(49.49);
+    expect(getCurrentRawCardmarketValue(price)).toBeNull();
   });
 });

@@ -174,5 +174,46 @@ describe("GET /api/cards/[id]", () => {
         expect.objectContaining({ label: "eBay sold", value: "Graded only" }),
       ])
     );
+    expect(dbMock.card.findUnique.mock.calls[0]?.[0]?.select?.collectionItems?.where).toEqual({
+      user_id: "user-1",
+      for_sale: false,
+      sold_at: null,
+    });
+  });
+
+  it("keeps the newest usable English NM quote when the latest source snapshot has none", async () => {
+    const card = makeCardRecord();
+    card.prices.push({
+      cm_en_lowest_nm: null,
+      cm_de_lowest_nm: 54,
+      cm_fr_lowest_nm: null,
+      cm_es_lowest_nm: null,
+      cm_it_lowest_nm: null,
+      cm_jp_lowest_nm: null,
+      tcp_market: 39.87,
+      tcp_mid: 41,
+      tcp_low: 37,
+      cm_en_avg_7d: null,
+      cm_en_avg_30d: null,
+      fetched_at: new Date("2026-05-24T10:00:00.000Z"),
+    } as unknown as (typeof card.prices)[number]);
+    dbMock.card.findUnique.mockResolvedValue(card);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/cards/card-1"), {
+      params: Promise.resolve({ id: "card-1" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.price).toEqual(
+      expect.objectContaining({
+        cm_en_lowest_nm: 82,
+        cm_de_lowest_nm: 54,
+        tcp_market: 39.87,
+        cm_en_avg_7d: 88,
+      })
+    );
+    expect(body.price_fetched_at).toBe("2026-05-22T10:00:00.000Z");
+    expect(body.buy_signal.context).toBe("market");
   });
 });

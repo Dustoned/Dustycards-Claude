@@ -7,15 +7,7 @@ import type { CardData } from "@/types/card-data";
 export { CARD_NUMBER_FALLBACK, cardNumberCollator };
 
 export function getCardMarketPrice(card: CardData): number | null {
-  return (
-    card.price?.cm_en_lowest_nm ??
-    card.price?.cm_de_lowest_nm ??
-    card.price?.cm_fr_lowest_nm ??
-    card.price?.cm_es_lowest_nm ??
-    card.price?.cm_it_lowest_nm ??
-    card.price?.cm_jp_lowest_nm ??
-    null
-  );
+  return card.price?.cm_en_lowest_nm ?? null;
 }
 
 export function getSortPrice(card: CardData, sortBy: SortBy): number | null {

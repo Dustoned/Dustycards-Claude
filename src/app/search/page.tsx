@@ -402,8 +402,8 @@ function SearchPageContent({
       const direction = sortMode === "price_asc" ? 1 : -1;
       copy.sort((a, b) =>
         compareNullablePrice(
-          a.cm_en_lowest_nm ?? a.tcp_market,
-          b.cm_en_lowest_nm ?? b.tcp_market,
+          a.cm_en_lowest_nm,
+          b.cm_en_lowest_nm,
           direction
         )
       );

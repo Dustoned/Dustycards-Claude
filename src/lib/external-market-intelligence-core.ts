@@ -6,6 +6,7 @@ import type {
   ExternalScarcityIntelligence,
   ExternalSealedIntelligence,
 } from "@/lib/external-signal-radar";
+import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 
 const SCENARIO_DAYS = [30, 90, 180] as const;
 
@@ -71,7 +72,9 @@ export function calculateScarcityScore(input: {
   specificPullDenominator: number | null;
   gemRatePct: number | null;
   rawMarketBreadth: number;
+  verifiedActiveListings?: number | null;
   artistDemandScore: number | null;
+  setRarityScore?: number | null;
 }): Pick<ExternalScarcityIntelligence, "score" | "label"> {
   const age = input.ageYears == null ? 0 : Math.min(26, Math.max(0, (input.ageYears - 1) * 2.8));
   const pull =
@@ -80,13 +83,67 @@ export function calculateScarcityScore(input: {
       : Math.min(30, Math.max(0, Math.log10(Math.max(1, input.specificPullDenominator)) * 13 - 13));
   const gem =
     input.gemRatePct == null ? 0 : Math.min(20, Math.max(0, (55 - input.gemRatePct) * 0.45));
-  const breadth = Math.min(14, Math.max(0, (4 - input.rawMarketBreadth) * 4.5));
+  const verifiedListings = input.verifiedActiveListings;
+  const breadth =
+    verifiedListings != null
+      ? verifiedListings <= 0
+        ? 14
+        : verifiedListings === 1
+          ? 13
+          : verifiedListings <= 2
+            ? 11
+            : verifiedListings <= 3
+              ? 9
+              : verifiedListings <= 6
+                ? 6
+                : verifiedListings <= 12
+                  ? 3
+                  : 0
+      : Math.min(14, Math.max(0, (4 - input.rawMarketBreadth) * 4.5));
   const artist = input.artistDemandScore == null ? 0 : Math.max(0, input.artistDemandScore - 55) * 0.18;
-  const score = clampMarketScore(20 + age + pull + gem + breadth + artist);
+  const setRarity = input.setRarityScore == null ? 0 : (input.setRarityScore - 50) * 0.22;
+  const score = clampMarketScore(20 + age + pull + gem + breadth + artist + setRarity);
   return {
     score,
     label:
       score >= 80 ? "Very scarce" : score >= 63 ? "Scarce" : score >= 43 ? "Watch" : "Common supply",
+  };
+}
+
+export function calculateSetRarityPosition(
+  rarity: string | null | undefined,
+  setRarities: Array<string | null | undefined>
+): Pick<ExternalScarcityIntelligence, "setRarityScore" | "setRarityLabel"> {
+  const normalized = normalizeRarityLabel(rarity);
+  const rarityWeight = (value: string): number => {
+    const lower = value.toLowerCase();
+    if (/manga|shining|rare holo star|special illustration|special art|mega hyper|hyper rare|black white rare/.test(lower)) return 100;
+    if (/alternate art|secret rare|rare ultra|ultra rare|rare rainbow|shiny ultra|rare shiny gx|treasure rare/.test(lower)) return 85;
+    if (/illustration rare|art rare|holo ex|holo gx|holo v|vstar|lv\.x|prime|radiant|amazing|legend/.test(lower)) return 60;
+    if (/double rare|super rare|leader|rare holo|ace spec|rare break|prism star/.test(lower)) return 25;
+    if (/promo/.test(lower)) return 40;
+    if (/common|uncommon|^rare$/.test(lower)) return 10;
+    const knownIndex = KNOWN_RARITY_ORDER.indexOf(value as (typeof KNOWN_RARITY_ORDER)[number]);
+    return knownIndex < 0 ? 30 : Math.min(75, 15 + knownIndex * 2);
+  };
+  const cardWeight = normalized == null ? null : rarityWeight(normalized);
+  const setWeights = [...new Set(
+    setRarities
+      .map((value) => normalizeRarityLabel(value))
+      .map((value) => (value == null ? undefined : rarityWeight(value)))
+      .filter((value): value is number => value != null)
+  )];
+
+  const highestWeight = Math.max(...setWeights, 0);
+  if (cardWeight == null || highestWeight <= 0) {
+    return { setRarityScore: null, setRarityLabel: "Unknown" };
+  }
+
+  const score = Math.round(Math.min(1, cardWeight / highestWeight) * 100);
+  return {
+    setRarityScore: score,
+    setRarityLabel:
+      score >= 85 ? "Chase tier" : score >= 60 ? "Upper tier" : score >= 35 ? "Mid tier" : "Entry tier",
   };
 }
 
@@ -168,25 +225,48 @@ export function calculateOpportunityScores(input: {
   sealedPressureScore: number;
   scarcityScore: number;
   confluenceScore: number;
+  ebayDemandAdjustment?: number;
   rawTrend90dPct: number | null;
   gradePremiumPct: number | null;
   gemRatePct: number | null;
   gradedAvailable: boolean;
   riskScore: number;
+  setRarityScore?: number | null;
 }): { raw: number; graded: number | null } {
   const sealedAdjustment = (input.sealedPressureScore - 50) * 0.16;
   const scarcityAdjustment = (input.scarcityScore - 50) * 0.18;
   const trendAdjustment = Math.min(6, Math.max(-6, (input.rawTrend90dPct ?? 0) * 0.08));
   const confluenceAdjustment = Math.min(13, Math.max(0, input.confluenceScore - 55) * 0.3);
   const riskAdjustment = Math.max(0, input.riskScore) * 15;
+  const rarityAdjustment = input.setRarityScore == null ? 0 : (input.setRarityScore - 50) * 0.18;
+  const ebayDemandAdjustment = Math.min(6, Math.max(-4, input.ebayDemandAdjustment ?? 0));
   const raw = clampMarketScore(
-    input.externalScore + sealedAdjustment + scarcityAdjustment + trendAdjustment + confluenceAdjustment - riskAdjustment
+    input.externalScore + sealedAdjustment + scarcityAdjustment + trendAdjustment + confluenceAdjustment + rarityAdjustment + ebayDemandAdjustment - riskAdjustment
   );
   if (!input.gradedAvailable) return { raw, graded: null };
   const premium = Math.min(8, Math.max(-4, (input.gradePremiumPct ?? 0) * 0.035));
   const gemScarcity =
     input.gemRatePct == null ? 0 : Math.min(8, Math.max(-2, (45 - input.gemRatePct) * 0.16));
   return { raw, graded: clampMarketScore(raw + premium + gemScarcity) };
+}
+
+export function isActionablePriceScenario(scenario: ExternalPriceScenario | null | undefined): boolean {
+  if (!scenario || scenario.currentPrice <= 0) return false;
+  const horizon = scenario.points.find((point) => point.days === 180) ?? scenario.points.at(-1);
+  if (!horizon) return false;
+
+  const absoluteGain = horizon.base - scenario.currentPrice;
+  const gainPct = (absoluteGain / scenario.currentPrice) * 100;
+  const minimum =
+    scenario.currentPrice < 5
+      ? { absolute: 0.5, percent: 20 }
+      : scenario.currentPrice < 25
+        ? { absolute: 1.5, percent: 15 }
+        : scenario.currentPrice < 100
+          ? { absolute: 5, percent: 12 }
+          : { absolute: 10, percent: 10 };
+
+  return absoluteGain >= minimum.absolute && gainPct >= minimum.percent;
 }
 
 export function buildPriceScenario(input: {
@@ -202,6 +282,7 @@ export function buildPriceScenario(input: {
   riskScore: number;
   evidenceCount: number;
   historyPoints: number;
+  ebayDemandAdjustment?: number;
 }): ExternalPriceScenario | null {
   if (
     input.currentPrice == null ||
@@ -286,6 +367,9 @@ export function buildPriceScenario(input: {
     input.rawTrend90dPct != null ? "market history" : null,
     input.scarcityScore >= 60 ? "structural scarcity" : null,
     input.marketMode === "graded" && input.gemRatePct != null ? "gem-rate" : null,
+    input.ebayDemandAdjustment != null && input.ebayDemandAdjustment !== 0
+      ? "eBay demand"
+      : null,
     input.ageYears != null && input.ageYears < 0.18
       ? "launch price discovery"
       : input.ageYears != null && input.ageYears < 1

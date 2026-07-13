@@ -5,7 +5,9 @@ import {
   calculateOpportunityScores,
   calculateScarcityScore,
   calculateSealedPressure,
+  calculateSetRarityPosition,
   classifySealedProduct,
+  isActionablePriceScenario,
 } from "@/lib/external-market-intelligence-core";
 
 describe("external market intelligence", () => {
@@ -55,6 +57,87 @@ describe("external market intelligence", () => {
     });
     expect(scarce.score).toBeGreaterThan(common.score);
     expect(scarce.label).toBe("Very scarce");
+  });
+
+  it("prefers verified complete eBay listing supply over broad source breadth", () => {
+    const shared = {
+      ageYears: 4,
+      specificPullDenominator: 120,
+      gemRatePct: 45,
+      rawMarketBreadth: 6,
+      artistDemandScore: 60,
+    };
+    const broadFallback = calculateScarcityScore(shared);
+    const oneVerifiedListing = calculateScarcityScore({
+      ...shared,
+      verifiedActiveListings: 1,
+    });
+
+    expect(oneVerifiedListing.score).toBeGreaterThan(broadFallback.score);
+  });
+
+  it("judges rarity relative to the other rarities in the same set", () => {
+    const setRarities = [
+      "Common",
+      "Uncommon",
+      "Rare",
+      "Double Rare",
+      "Illustration Rare",
+      "Special Illustration Rare",
+      "Hyper Rare",
+    ];
+
+    expect(calculateSetRarityPosition("Double Rare", setRarities)).toEqual({
+      setRarityScore: 25,
+      setRarityLabel: "Entry tier",
+    });
+    expect(calculateSetRarityPosition("Special Illustration Rare", setRarities)).toEqual({
+      setRarityScore: 100,
+      setRarityLabel: "Chase tier",
+    });
+  });
+
+  it("rejects scenarios whose projected gain is too small to be useful", () => {
+    expect(isActionablePriceScenario({
+      marketMode: "raw",
+      currentPrice: 2,
+      currency: "EUR",
+      confidence: "Medium",
+      drivers: ["post-release stabilization"],
+      points: [
+        { days: 30, low: 1.76, base: 2, high: 2.28 },
+        { days: 90, low: 1.69, base: 2.01, high: 2.38 },
+        { days: 180, low: 1.62, base: 2.02, high: 2.49 },
+      ],
+    })).toBe(false);
+
+    expect(isActionablePriceScenario({
+      marketMode: "raw",
+      currentPrice: 0.65,
+      currency: "EUR",
+      confidence: "Medium",
+      drivers: [],
+      points: [
+        { days: 30, low: 0.62, base: 0.69, high: 0.77 },
+        { days: 90, low: 0.68, base: 0.79, high: 0.91 },
+        { days: 180, low: 0.8, base: 0.96, high: 1.14 },
+      ],
+    })).toBe(false);
+  });
+
+  it("keeps cheap cards when the forecasted move is materially large", () => {
+    expect(isActionablePriceScenario({
+      marketMode: "raw",
+      currentPrice: 2,
+      currency: "EUR",
+      confidence: "Medium",
+      drivers: ["launch price discovery"],
+      points: [
+        { days: 30, low: 1.8, base: 2.2, high: 2.7 },
+        { days: 90, low: 1.7, base: 2.5, high: 3.4 },
+        { days: 180, low: 1.6, base: 3, high: 4.2 },
+      ],
+    })).toBe(true);
   });
 
   it("keeps graded scoring separate and creates bounded price scenarios", () => {
@@ -182,5 +265,25 @@ describe("external market intelligence", () => {
       riskScore: 1,
     });
     expect(risky.raw).toBeLessThan(safe.raw);
+  });
+
+  it("bounds eBay demand to a small opportunity-score modifier", () => {
+    const shared = {
+      externalScore: 65,
+      sealedPressureScore: 60,
+      scarcityScore: 60,
+      confluenceScore: 60,
+      rawTrend90dPct: 0,
+      gradePremiumPct: null,
+      gemRatePct: null,
+      gradedAvailable: false,
+      riskScore: 0,
+    };
+    const neutral = calculateOpportunityScores(shared);
+    const supported = calculateOpportunityScores({ ...shared, ebayDemandAdjustment: 99 });
+    const soft = calculateOpportunityScores({ ...shared, ebayDemandAdjustment: -99 });
+
+    expect(supported.raw - neutral.raw).toBeLessThanOrEqual(6);
+    expect(neutral.raw - soft.raw).toBeLessThanOrEqual(4);
   });
 });

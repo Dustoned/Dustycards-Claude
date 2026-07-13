@@ -529,6 +529,242 @@ describe("ebay deal helpers", () => {
     ).toBe(true);
   });
 
+  it("keeps strict raw demand limited to eBay-verified English Near Mint listings", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return new Response(JSON.stringify({ access_token: "token", expires_in: 7200 }));
+      }
+
+      if (url.includes("/developer/analytics")) {
+        return new Response(
+          JSON.stringify({
+            rateLimits: [{
+              apiContext: "buy",
+              apiName: "browse",
+              resources: [{
+                name: "item_summary_search",
+                rates: [{ remaining: 1000, limit: 5000, timeWindow: 86400 }],
+              }],
+            }],
+          })
+        );
+      }
+
+      if (url.includes("/buy/browse/v1/item/v1%7Cstrict-nm%7C0")) {
+        return new Response(
+          JSON.stringify({
+            conditionDescriptors: [{
+              name: "Card Condition",
+              values: [{ content: "Near mint or better" }],
+            }],
+          })
+        );
+      }
+
+      if (url.includes("/buy/browse/v1/item/strict-lp")) {
+        return new Response(
+          JSON.stringify({
+            conditionDescriptors: [{
+              name: "Card Condition",
+              values: [{ content: "Near mint or better" }],
+            }],
+          })
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          total: 2,
+          itemSummaries: [
+            {
+              itemId: "v1|strict-nm|0",
+              title: "Umbreon ex 161/131 Prismatic Evolutions Pokemon Card",
+              itemWebUrl: "https://www.ebay.com/itm/strict-nm",
+              condition: "Ungraded",
+              price: { value: "500", currency: "EUR" },
+              buyingOptions: ["FIXED_PRICE"],
+            },
+            {
+              itemId: "strict-lp",
+              title: "Umbreon ex 161/131 Prismatic Evolutions LP Pokemon Card",
+              itemWebUrl: "https://www.ebay.com/itm/strict-lp",
+              condition: "Ungraded",
+              price: { value: "450", currency: "EUR" },
+              buyingOptions: ["FIXED_PRICE"],
+            },
+          ],
+        })
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchEbayDeals({
+      query: "Umbreon ex 161/131 Prismatic Evolutions Pokemon",
+      reference: { label: "CardMarket raw", valueEur: 899, source: "cardmarket" },
+      limit: 24,
+      buyingMode: "all",
+      strictEnglish: true,
+      strictNearMint: true,
+      excludeGraded: true,
+      listingKind: "card",
+      config: {
+        configured: true,
+        environment: "production",
+        marketplaceId: "EBAY_US",
+        deliveryCountry: "NL",
+        categoryId: "183454",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+      },
+    });
+
+    expect(result.listings.map((listing) => listing.itemId)).toEqual(["v1|strict-nm|0"]);
+    expect(result.listings[0]).toMatchObject({
+      language: { code: "ENG", confidence: "explicit" },
+      cardCondition: { code: "near_mint" },
+      demandVerification: { english: true, nearMint: true, source: "ebay_search_filter" },
+    });
+
+    const searchCall = fetchMock.mock.calls.find(([input]) =>
+      String(input).includes("/buy/browse/v1/item_summary/search")
+    );
+    expect(searchCall).toBeTruthy();
+    const searchUrl = new URL(String(searchCall?.[0]));
+    expect(searchUrl.searchParams.get("filter")).toContain("conditionIds:{4000}");
+    expect(searchUrl.searchParams.get("aspect_filter")).toContain("Language:{English}");
+    expect(searchUrl.searchParams.get("aspect_filter")).toContain("Card Condition:{Near Mint or Better}");
+  });
+
+  it("paginates the complete strict NM-English inventory when eBay exposes it", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return new Response(JSON.stringify({ access_token: "token", expires_in: 7200 }));
+      }
+      if (url.includes("/developer/analytics")) {
+        return new Response(JSON.stringify({
+          rateLimits: [{
+            apiContext: "buy",
+            apiName: "browse",
+            resources: [{
+              name: "item_summary_search",
+              rates: [{ remaining: 5000, limit: 5000, timeWindow: 86400 }],
+            }],
+          }],
+        }));
+      }
+      const parsed = new URL(url);
+      const offset = Number(parsed.searchParams.get("offset") ?? 0);
+      const count = Math.min(200, 250 - offset);
+      return new Response(JSON.stringify({
+        total: 250,
+        itemSummaries: Array.from({ length: count }, (_, index) => ({
+          itemId: `complete-${offset + index}`,
+          title: `Shining Kabutops 108/105 Neo Destiny Pokemon Card ${offset + index}`,
+          itemWebUrl: `https://www.ebay.com/itm/complete-${offset + index}`,
+          condition: "Ungraded",
+          price: { value: "400", currency: "EUR" },
+          buyingOptions: ["FIXED_PRICE"],
+        })),
+      }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchEbayDeals({
+      query: "Shining Kabutops 108/105 Neo Destiny Pokemon complete inventory",
+      reference: { label: "CardMarket raw", valueEur: 440, source: "cardmarket" },
+      buyingMode: "all",
+      strictEnglish: true,
+      strictNearMint: true,
+      excludeGraded: true,
+      listingKind: "card",
+      config: {
+        configured: true,
+        environment: "production",
+        marketplaceId: "EBAY_US",
+        deliveryCountry: "NL",
+        categoryId: "183454",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+      },
+    });
+
+    expect(result.listings).toHaveLength(250);
+    expect(result.scan).toMatchObject({ fetchedCount: 250, availableTotal: 250, capped: false });
+    expect(fetchMock.mock.calls.filter(([request]) =>
+      String(request).includes("/item_summary/search")
+    )).toHaveLength(2);
+    expect(fetchMock.mock.calls.some(([request]) =>
+      String(request).includes("/buy/browse/v1/item/")
+    )).toBe(false);
+  });
+
+  it("marks the official 10,000-result window as capped when eBay reports more", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return new Response(JSON.stringify({ access_token: "token", expires_in: 7200 }));
+      }
+      if (url.includes("/developer/analytics")) {
+        return new Response(JSON.stringify({
+          rateLimits: [{
+            apiContext: "buy",
+            apiName: "browse",
+            resources: [{
+              name: "item_summary_search",
+              rates: [{ remaining: 5000, limit: 5000, timeWindow: 86400 }],
+            }],
+          }],
+        }));
+      }
+      const parsed = new URL(url);
+      const offset = Number(parsed.searchParams.get("offset") ?? 0);
+      return new Response(JSON.stringify({
+        total: 10_050,
+        itemSummaries: Array.from({ length: 200 }, (_, index) => ({
+          itemId: `capped-${offset + index}`,
+          title: `Pikachu 58/102 Base Set Pokemon Card ${offset + index}`,
+          itemWebUrl: `https://www.ebay.com/itm/capped-${offset + index}`,
+          condition: "Ungraded",
+          price: { value: "50", currency: "EUR" },
+          buyingOptions: ["FIXED_PRICE"],
+        })),
+      }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchEbayDeals({
+      query: "Pikachu 58/102 Base Set Pokemon full official window",
+      reference: { label: "CardMarket raw", valueEur: 50, source: "cardmarket" },
+      buyingMode: "all",
+      strictEnglish: true,
+      strictNearMint: true,
+      excludeGraded: true,
+      listingKind: "card",
+      config: {
+        configured: true,
+        environment: "production",
+        marketplaceId: "EBAY_US",
+        deliveryCountry: "US",
+        categoryId: "183454",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+      },
+    });
+
+    expect(result.listings).toHaveLength(10_000);
+    expect(result.scan).toMatchObject({
+      fetchedCount: 10_000,
+      availableTotal: 10_050,
+      capped: true,
+    });
+    expect(fetchMock.mock.calls.filter(([request]) =>
+      String(request).includes("/item_summary/search")
+    )).toHaveLength(50);
+  });
+
   it("uses eBay language aspects to filter non-English sealed listings", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

@@ -66,6 +66,8 @@ export function getEpisodeSetPriceSnapshotRows(
         INNER JOIN "Card" c ON c.id = p.card_id
         WHERE c.episode_id = ${episodeId}
           AND p.fetched_at >= ${cutoff}
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
       )
       WHERE row_num = 1
       ORDER BY fetched_at ASC, card_id ASC

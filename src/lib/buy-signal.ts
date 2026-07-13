@@ -174,16 +174,7 @@ function parseTimestamp(value: string | Date | null | undefined): number | null 
 
 function getRawCardMarketValue(price: BuySignalPriceSnapshot | null): number | null {
   if (!price) return null;
-
-  return (
-    price.cm_en_lowest_nm ??
-    price.cm_de_lowest_nm ??
-    price.cm_fr_lowest_nm ??
-    price.cm_es_lowest_nm ??
-    price.cm_it_lowest_nm ??
-    price.cm_jp_lowest_nm ??
-    null
-  );
+  return price.cm_en_lowest_nm ?? null;
 }
 
 function median(values: number[]): number | null {

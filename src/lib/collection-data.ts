@@ -42,6 +42,11 @@ export interface CollectionSummaryMetric {
   pnl: number;
 }
 
+export const ACTIVE_COLLECTION_CARD_FILTER = {
+  for_sale: false,
+  sold_at: null,
+} satisfies Prisma.CollectionCardWhereInput;
+
 export interface CollectionValueDriverItem {
   id: string;
   kind: "card" | "sealed";
@@ -286,7 +291,8 @@ const collectionCardSelect = {
       supertype: true,
       episode_id: true,
       prices: {
-        orderBy: { fetched_at: "desc" },
+        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
           cm_en_lowest_nm: true,
@@ -343,7 +349,8 @@ const collectionCardMetricSelect = {
       id: true,
       episode_id: true,
       prices: {
-        orderBy: { fetched_at: "desc" },
+        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
           cm_en_lowest_nm: true,
@@ -392,7 +399,8 @@ const collectionWantSelect = {
       rarity: true,
       supertype: true,
       prices: {
-        orderBy: { fetched_at: "desc" },
+        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
           cm_en_lowest_nm: true,
@@ -621,7 +629,7 @@ async function fetchCollectionCardsPage(
     where: {
       user_id: options.userId,
       for_sale: options.forSale ?? false,
-      ...(options.forSale ? { sold_at: options.sold ? { not: null } : null } : {}),
+      sold_at: options.forSale && options.sold ? { not: null } : null,
       ...(isSpecificTradingCardGame(options.game) ? { card: { game: options.game } } : {}),
       ...(options.binderId ? { binder_id: options.binderId } : {}),
     },
@@ -869,7 +877,7 @@ async function getCollectionWants(userId: string, game: TradingCardGameFilter = 
       card: {
         ...(isSpecificTradingCardGame(game) ? { game } : {}),
         collectionItems: {
-          none: { user_id: userId, for_sale: false },
+          none: { user_id: userId, ...ACTIVE_COLLECTION_CARD_FILTER },
         },
       },
     },
@@ -908,11 +916,11 @@ function buildCollectionBinderGameWhere(
 
   const gameConditions: Prisma.CollectionBinderWhereInput[] = [
     { episode: { game } },
-    { cards: { some: { for_sale: false, card: { game } } } },
+    { cards: { some: { ...ACTIVE_COLLECTION_CARD_FILTER, card: { game } } } },
   ];
 
   if (game === POKEMON_GAME) {
-    gameConditions.push({ episode_id: null, cards: { none: { for_sale: false } } });
+    gameConditions.push({ episode_id: null, cards: { none: ACTIVE_COLLECTION_CARD_FILTER } });
   }
 
   return {
@@ -947,7 +955,7 @@ function placeholdersFor(values: unknown[]): string {
   return values.map(() => "?").join(", ");
 }
 
-async function getCardHistoryRows(cardIds: string[], since?: string) {
+export async function getCardHistoryRows(cardIds: string[], since?: string) {
   if (cardIds.length === 0) return [];
 
   const rows = await Promise.all(
@@ -978,6 +986,8 @@ async function getCardHistoryRows(cardIds: string[], since?: string) {
             ) AS row_num
           FROM "Price" p
           WHERE p.card_id IN (${placeholdersFor(chunk)})
+            AND p.cm_en_lowest_nm > 0
+            AND p.cm_en_lowest_nm <> 9001
             ${since ? "AND p.fetched_at >= ?" : ""}
         )
         WHERE row_num = 1
@@ -2145,38 +2155,8 @@ interface AllCardValueDriverRow {
   currentFetchedAt: Date | string | null;
   previousFetchedAt: Date | string | null;
   currentCmEnLowestNm: number | null;
-  currentCmDeLowestNm: number | null;
-  currentCmFrLowestNm: number | null;
-  currentCmEsLowestNm: number | null;
-  currentCmItLowestNm: number | null;
-  currentCmJpLowestNm: number | null;
   previousCmEnLowestNm: number | null;
-  previousCmDeLowestNm: number | null;
-  previousCmFrLowestNm: number | null;
-  previousCmEsLowestNm: number | null;
-  previousCmItLowestNm: number | null;
-  previousCmJpLowestNm: number | null;
-  currentFallbackValue: number | null;
-  previousFallbackValue: number | null;
   valueHistoryPoints: number;
-}
-
-function getSaneAllCardRawValue(
-  value: number | null,
-  fallbackValue: number | null
-): number | null {
-  if (value == null) return null;
-
-  if (
-    fallbackValue != null &&
-    fallbackValue >= 10 &&
-    value < 1 &&
-    value < fallbackValue * 0.15
-  ) {
-    return fallbackValue;
-  }
-
-  return value;
 }
 
 function combineCollectionValueDriversData(
@@ -2228,14 +2208,8 @@ async function getAllCardValueDriversData(
     FROM "Price" p
     INNER JOIN "Card" c ON c.id = p.card_id
     WHERE c.game = ${game}
-      AND (
-        p.cm_en_lowest_nm IS NOT NULL
-        OR p.cm_de_lowest_nm IS NOT NULL
-        OR p.cm_fr_lowest_nm IS NOT NULL
-        OR p.cm_es_lowest_nm IS NOT NULL
-        OR p.cm_it_lowest_nm IS NOT NULL
-        OR p.cm_jp_lowest_nm IS NOT NULL
-      )
+      AND p.cm_en_lowest_nm > 0
+      AND p.cm_en_lowest_nm <> 9001
     GROUP BY DATE(p.fetched_at)
     ORDER BY date DESC
     LIMIT 2
@@ -2260,25 +2234,14 @@ async function getAllCardValueDriversData(
           p.card_id,
           p.fetched_at,
           p.cm_en_lowest_nm,
-          p.cm_de_lowest_nm,
-          p.cm_fr_lowest_nm,
-          p.cm_es_lowest_nm,
-          p.cm_it_lowest_nm,
-          p.cm_jp_lowest_nm,
           ROW_NUMBER() OVER (
             PARTITION BY p.card_id
             ORDER BY p.fetched_at DESC, p.id DESC
           ) AS row_num
         FROM "Price" p
         WHERE DATE(p.fetched_at) <= ${latestDate}
-          AND (
-            p.cm_en_lowest_nm IS NOT NULL
-            OR p.cm_de_lowest_nm IS NOT NULL
-            OR p.cm_fr_lowest_nm IS NOT NULL
-            OR p.cm_es_lowest_nm IS NOT NULL
-            OR p.cm_it_lowest_nm IS NOT NULL
-            OR p.cm_jp_lowest_nm IS NOT NULL
-          )
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
       )
       WHERE row_num = 1
     ),
@@ -2289,85 +2252,14 @@ async function getAllCardValueDriversData(
           p.card_id,
           p.fetched_at,
           p.cm_en_lowest_nm,
-          p.cm_de_lowest_nm,
-          p.cm_fr_lowest_nm,
-          p.cm_es_lowest_nm,
-          p.cm_it_lowest_nm,
-          p.cm_jp_lowest_nm,
           ROW_NUMBER() OVER (
             PARTITION BY p.card_id
             ORDER BY p.fetched_at DESC, p.id DESC
           ) AS row_num
         FROM "Price" p
         WHERE DATE(p.fetched_at) <= ${previousDate}
-          AND (
-            p.cm_en_lowest_nm IS NOT NULL
-            OR p.cm_de_lowest_nm IS NOT NULL
-            OR p.cm_fr_lowest_nm IS NOT NULL
-            OR p.cm_es_lowest_nm IS NOT NULL
-            OR p.cm_it_lowest_nm IS NOT NULL
-            OR p.cm_jp_lowest_nm IS NOT NULL
-          )
-      )
-      WHERE row_num = 1
-    ),
-    current_fallback_prices AS (
-      SELECT card_id, value
-      FROM (
-        SELECT
-          p.card_id,
-          COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm,
-            p.cm_jp_lowest_nm
-          ) AS value,
-          ROW_NUMBER() OVER (
-            PARTITION BY p.card_id
-            ORDER BY p.fetched_at DESC, p.id DESC
-          ) AS row_num
-        FROM "Price" p
-        WHERE DATE(p.fetched_at) <= ${latestDate}
-          AND COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm,
-            p.cm_jp_lowest_nm
-          ) >= 1
-      )
-      WHERE row_num = 1
-    ),
-    previous_fallback_prices AS (
-      SELECT card_id, value
-      FROM (
-        SELECT
-          p.card_id,
-          COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm,
-            p.cm_jp_lowest_nm
-          ) AS value,
-          ROW_NUMBER() OVER (
-            PARTITION BY p.card_id
-            ORDER BY p.fetched_at DESC, p.id DESC
-          ) AS row_num
-        FROM "Price" p
-        WHERE DATE(p.fetched_at) <= ${previousDate}
-          AND COALESCE(
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm,
-            p.cm_jp_lowest_nm
-          ) >= 1
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
       )
       WHERE row_num = 1
     ),
@@ -2376,12 +2268,8 @@ async function getAllCardValueDriversData(
         card_id,
         COUNT(*) AS value_history_points
       FROM "Price"
-      WHERE cm_en_lowest_nm IS NOT NULL
-         OR cm_de_lowest_nm IS NOT NULL
-         OR cm_fr_lowest_nm IS NOT NULL
-         OR cm_es_lowest_nm IS NOT NULL
-         OR cm_it_lowest_nm IS NOT NULL
-         OR cm_jp_lowest_nm IS NOT NULL
+      WHERE cm_en_lowest_nm > 0
+        AND cm_en_lowest_nm <> 9001
       GROUP BY card_id
     )
     SELECT
@@ -2395,26 +2283,12 @@ async function getAllCardValueDriversData(
       cp.fetched_at AS "currentFetchedAt",
       pp.fetched_at AS "previousFetchedAt",
       cp.cm_en_lowest_nm AS "currentCmEnLowestNm",
-      cp.cm_de_lowest_nm AS "currentCmDeLowestNm",
-      cp.cm_fr_lowest_nm AS "currentCmFrLowestNm",
-      cp.cm_es_lowest_nm AS "currentCmEsLowestNm",
-      cp.cm_it_lowest_nm AS "currentCmItLowestNm",
-      cp.cm_jp_lowest_nm AS "currentCmJpLowestNm",
       pp.cm_en_lowest_nm AS "previousCmEnLowestNm",
-      pp.cm_de_lowest_nm AS "previousCmDeLowestNm",
-      pp.cm_fr_lowest_nm AS "previousCmFrLowestNm",
-      pp.cm_es_lowest_nm AS "previousCmEsLowestNm",
-      pp.cm_it_lowest_nm AS "previousCmItLowestNm",
-      pp.cm_jp_lowest_nm AS "previousCmJpLowestNm",
-      cfp.value AS "currentFallbackValue",
-      pfp.value AS "previousFallbackValue",
       COALESCE(hc.value_history_points, 0) AS "valueHistoryPoints"
     FROM current_prices cp
     INNER JOIN previous_prices pp ON pp.card_id = cp.card_id
     INNER JOIN "Card" c ON c.id = cp.card_id
     INNER JOIN "Episode" e ON e.id = c.episode_id
-    LEFT JOIN current_fallback_prices cfp ON cfp.card_id = c.id
-    LEFT JOIN previous_fallback_prices pfp ON pfp.card_id = c.id
     LEFT JOIN history_counts hc ON hc.card_id = c.id
     WHERE c.game = ${game}
   `;
@@ -2434,28 +2308,20 @@ async function getAllCardValueDriversData(
     const baselineDate = row.previousFetchedAt ? toHistoryDateKey(row.previousFetchedAt) : null;
     if (!baselineDate || isValueDriverBaselineTooOld(baselineDate, minBaselineDate)) continue;
 
-    const currentValue = getSaneAllCardRawValue(
-      getCardMarketValue({
-        cm_en_lowest_nm: row.currentCmEnLowestNm,
-        cm_de_lowest_nm: row.currentCmDeLowestNm,
-        cm_fr_lowest_nm: row.currentCmFrLowestNm,
-        cm_es_lowest_nm: row.currentCmEsLowestNm,
-        cm_it_lowest_nm: row.currentCmItLowestNm,
-        cm_jp_lowest_nm: row.currentCmJpLowestNm,
-      }),
-      row.currentFallbackValue
-    );
-    const previousValue = getSaneAllCardRawValue(
-      getCardMarketValue({
-        cm_en_lowest_nm: row.previousCmEnLowestNm,
-        cm_de_lowest_nm: row.previousCmDeLowestNm,
-        cm_fr_lowest_nm: row.previousCmFrLowestNm,
-        cm_es_lowest_nm: row.previousCmEsLowestNm,
-        cm_it_lowest_nm: row.previousCmItLowestNm,
-        cm_jp_lowest_nm: row.previousCmJpLowestNm,
-      }),
-      row.previousFallbackValue
-    );
+    const currentValue = getCardMarketValue({
+      cm_en_lowest_nm: row.currentCmEnLowestNm,
+      cm_de_lowest_nm: null,
+      cm_fr_lowest_nm: null,
+      cm_es_lowest_nm: null,
+      cm_it_lowest_nm: null,
+    });
+    const previousValue = getCardMarketValue({
+      cm_en_lowest_nm: row.previousCmEnLowestNm,
+      cm_de_lowest_nm: null,
+      cm_fr_lowest_nm: null,
+      cm_es_lowest_nm: null,
+      cm_it_lowest_nm: null,
+    });
 
     if (currentValue == null || previousValue == null || currentValue <= 0 || previousValue <= 0) {
       continue;
@@ -2672,7 +2538,7 @@ export async function getWantsPageData(
           db.collectionCard.findMany({
             where: {
               user_id: userId,
-              for_sale: false,
+              ...ACTIVE_COLLECTION_CARD_FILTER,
               card: { episode_id: { in: linkedEpisodeIds } },
             },
             select: { card_id: true },
@@ -2866,7 +2732,9 @@ export async function getWantBinderPageData(
         dismissed_at: null,
         card: {
           episode_id: binder.episode.id,
-          collectionItems: { none: { user_id: userId, for_sale: false } },
+          collectionItems: {
+            none: { user_id: userId, ...ACTIVE_COLLECTION_CARD_FILTER },
+          },
         },
       },
       orderBy: { created_at: "desc" },
@@ -2875,7 +2743,7 @@ export async function getWantBinderPageData(
     db.collectionCard.findMany({
       where: {
         user_id: userId,
-        for_sale: false,
+        ...ACTIVE_COLLECTION_CARD_FILTER,
         card: { episode_id: binder.episode.id },
       },
       select: { card_id: true },
@@ -2887,7 +2755,9 @@ export async function getWantBinderPageData(
         source_episode_id: binder.episode.id,
         dismissed_at: { not: null },
         card: {
-          collectionItems: { none: { user_id: userId, for_sale: false } },
+          collectionItems: {
+            none: { user_id: userId, ...ACTIVE_COLLECTION_CARD_FILTER },
+          },
         },
       },
     }),
@@ -2991,7 +2861,8 @@ export async function getBinderPageData(
           supertype: true,
           episode_id: true,
           prices: {
-            orderBy: { fetched_at: "desc" },
+            where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
             take: 1,
             select: {
               cm_en_lowest_nm: true,
@@ -3026,7 +2897,11 @@ export async function getBinderPageData(
         },
       }),
       db.collectionCard.findMany({
-        where: { binder_id: binder.id, user_id: userId, for_sale: false },
+        where: {
+          binder_id: binder.id,
+          user_id: userId,
+          ...ACTIVE_COLLECTION_CARD_FILTER,
+        },
         select: {
           id: true,
           purchase_price: true,

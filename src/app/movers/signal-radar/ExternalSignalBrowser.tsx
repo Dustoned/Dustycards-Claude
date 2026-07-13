@@ -8,6 +8,7 @@ import {
   Boxes,
   BrainCircuit,
   CheckCircle2,
+  ChevronRight,
   Newspaper,
   PackageSearch,
   Radar,
@@ -28,6 +29,7 @@ import type {
   ExternalSignalConfidence,
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
+import { isActionablePriceScenario } from "@/lib/external-market-intelligence-core";
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
@@ -40,16 +42,16 @@ interface Props {
 }
 
 const CONFIDENCE_OPTIONS: Array<{ value: ConfidenceFilter; label: string }> = [
-  { value: "all", label: "All signals" },
+  { value: "all", label: "All" },
   { value: "high", label: "High" },
   { value: "medium", label: "Medium" },
   { value: "emerging", label: "Emerging" },
 ];
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
-  { value: "opportunity", label: "Opportunity" },
-  { value: "confluence", label: "Gold mine setup" },
-  { value: "signal", label: "Signal strength" },
+  { value: "opportunity", label: "Best match" },
+  { value: "confluence", label: "Setup" },
+  { value: "signal", label: "Signal" },
   { value: "sealed", label: "Sealed pressure" },
   { value: "scarcity", label: "Scarcity" },
   { value: "meta", label: "Meta share" },
@@ -57,8 +59,8 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
 ];
 
 const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
-  { value: "all", label: "All origins" },
-  { value: "event", label: "Set & reveal" },
+  { value: "all", label: "All sources" },
+  { value: "event", label: "Leaks & reveals" },
   { value: "competitive", label: "Tournament" },
   { value: "hybrid", label: "Hybrid" },
   { value: "structural", label: "Scarcity & value" },
@@ -100,7 +102,7 @@ export function getSignalExplanations(signal: ExternalCardSignal) {
       },
     ];
   }
-  if (signal.sourceMode === "event") {
+  if (signal.sourceMode === "event" || signal.sourceMode === "hybrid") {
     const catalyst = signal.catalysts?.[0];
     const sourceCount = new Set((signal.catalysts ?? []).map((item) => item.sourceUrl)).size;
     return [
@@ -507,19 +509,33 @@ function CompactSignalCard({
       ? signal.marketIntelligence?.gradedOpportunityScore
       : signal.marketIntelligence?.rawOpportunityScore;
   const effectiveScore = score ?? signal.externalScore;
-  const tier = effectiveScore >= 80 ? "Breakout" : effectiveScore >= 60 ? "Strong" : "Watch";
   const confluence = signal.marketIntelligence?.confluence;
+  const scarcity = signal.marketIntelligence?.scarcity;
+  const ebayDemand = signal.marketIntelligence?.ebayDemand;
   const launchWindow = scenario?.drivers.includes("launch price discovery") ?? false;
   const releaseStabilization = scenario?.drivers.includes("post-release stabilization") ?? false;
-  const drivers = [
+  const primaryCatalyst = signal.catalysts?.[0];
+  const eventLinked = signal.sourceMode === "event" || signal.sourceMode === "hybrid";
+  const primaryReason = [
+    ...(eventLinked && primaryCatalyst ? [primaryCatalyst.headline] : []),
+    ...(ebayDemand?.status === "ready" && ebayDemand.scoreAdjustment !== 0 && ebayDemand.reason
+      ? [`eBay NM-English: ${ebayDemand.reason}`]
+      : []),
+    ...(scarcity?.setRarityScore != null
+      ? [`${signal.rarity ?? "Card rarity"} is ${scarcity.setRarityLabel.toLowerCase()} in this set (${scarcity.setRarityScore}/100)`]
+      : []),
     ...(launchWindow
       ? ["Launch window: more upside potential with substantially higher uncertainty"]
       : releaseStabilization
         ? ["New-set stabilization is tempering the short-term forecast"]
         : []),
     ...(confluence?.drivers.length ? confluence.drivers : signal.reasons),
-  ].slice(0, 3);
-  const base90 = scenario?.points.find((point) => point.days === 90)?.base ?? null;
+  ][0] ?? "Market evidence is still developing.";
+  const base180 = scenario?.points.find((point) => point.days === 180)?.base ?? null;
+  const scenarioChangePercent =
+    scenario && base180 != null && scenario.currentPrice > 0
+      ? ((base180 - scenario.currentPrice) / scenario.currentPrice) * 100
+      : null;
   const detailHref = `/movers/signal-radar/${encodeURIComponent(signal.cardId)}?game=${signal.game}`;
 
   return (
@@ -550,7 +566,7 @@ function CompactSignalCard({
         </Link>
 
         <div className="min-w-0 flex-1">
-          <div className="flex min-h-[7.8rem] min-w-0 items-start justify-between gap-2">
+          <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]", getConfidenceClasses(signal.confidence))}>
@@ -559,11 +575,16 @@ function CompactSignalCard({
                 <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/45">
                   {signal.sourceMode === "structural" ? "Scarcity" : signal.sourceMode === "event" ? "Event" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament"}
                 </span>
+                {eventLinked && primaryCatalyst ? (
+                  <span className="max-w-full truncate rounded-full border border-amber-300/15 bg-amber-400/[0.07] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-amber-100/70">
+                    {primaryCatalyst.evidenceLevel} source
+                  </span>
+                ) : null}
               </div>
               <Link href={detailHref} className="mt-2 block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">
-                <h3 className="line-clamp-2 min-h-10 text-base font-bold leading-5 tracking-tight text-white transition group-hover:text-violet-100">{signal.name}</h3>
+                <h3 className="line-clamp-2 text-base font-bold leading-5 tracking-tight text-white transition group-hover:text-violet-100">{signal.name}</h3>
               </Link>
-              <p className="mt-1 line-clamp-2 min-h-8 text-[10px] leading-4 text-white/42">
+              <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-white/42">
                 {signal.episodeName}{signal.cardNumber ? ` / ${signal.cardNumber}` : ""}{signal.rarity ? ` / ${signal.rarity}` : ""}
               </p>
             </div>
@@ -578,39 +599,29 @@ function CompactSignalCard({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg border border-violet-300/14 bg-violet-400/[0.07] px-2 py-1.5">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-violet-200/58">Opportunity score</p>
-              <p className="mt-1 text-base font-black text-violet-100">{effectiveScore}<span className="text-[9px] text-white/30">/100</span></p>
-            </div>
-            <div className="rounded-lg border border-fuchsia-300/12 bg-fuchsia-400/[0.05] px-2 py-1.5">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-fuchsia-100/55">Gold mine setup</p>
-              <p className="mt-1 text-base font-black text-fuchsia-100">{confluence?.score ?? "--"}<span className="text-[9px] text-white/30">/100</span></p>
-            </div>
-            <div className="rounded-lg border border-emerald-300/12 bg-emerald-400/[0.05] px-2 py-1.5">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-emerald-100/55">Signal tier</p>
-              <p className="mt-1 text-base font-black text-emerald-100">{tier}</p>
-            </div>
-            <div className="rounded-lg border border-sky-300/12 bg-sky-400/[0.05] px-2 py-1.5">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-sky-100/55">90-day base</p>
-              <p className="mt-1 text-base font-black text-sky-100">{base90 == null || !scenario ? "--" : formatCurrency(base90, scenario.currency)}</p>
-            </div>
+      <div className="mt-3 border-t border-white/8 pt-2.5">
+        <p
+          className="text-[10px] font-semibold tabular-nums text-violet-100/72"
+          title="Score combines the selected market scenario with the available demand and supply evidence."
+        >
+          Score {effectiveScore}
+          {scenario && base180 != null && scenarioChangePercent != null ? (
+            <>
+              {" · "}{formatCurrency(scenario.currentPrice, scenario.currency)} → {formatCurrency(base180, scenario.currency)} ({scenarioChangePercent >= 0 ? "+" : ""}{scenarioChangePercent.toFixed(0)}%)
+            </>
+          ) : null}
+        </p>
+        <div className="mt-2 flex min-w-0 items-start gap-2 text-[10px] leading-4 text-white/48">
+          <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-300/62" />
+          <span className="line-clamp-2">{primaryReason}</span>
+        </div>
       </div>
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-black/35">
-        <div className="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-400 to-sky-400" style={{ width: `${effectiveScore}%` }} />
-      </div>
-
-      <div className="mt-3 grid h-32 content-start gap-1.5 overflow-hidden rounded-xl border border-white/7 bg-black/14 p-2.5">
-        {drivers.map((driver) => (
-          <div key={driver} className="flex min-w-0 items-start gap-2 text-[10px] leading-4 text-white/52">
-            <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-300/65" />
-            <span className="line-clamp-2">{driver}</span>
-          </div>
-        ))}
-      </div>
-      <Link href={detailHref} className="mt-3 flex h-10 items-center justify-between rounded-xl border border-violet-300/14 bg-violet-400/[0.065] px-3 text-[10px] font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.11]">
-        View full analysis
-        <ArrowUpRight className="h-3.5 w-3.5" />
+      <Link
+        href={detailHref}
+        className="mt-2.5 inline-flex items-center justify-end gap-1 self-end text-[10px] font-semibold text-violet-200/62 transition hover:text-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+      >
+        Analysis
+        <ChevronRight className="h-3.5 w-3.5" />
       </Link>
     </article>
   );
@@ -851,11 +862,24 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
     return signals
       .filter((signal) => {
         if (confidence !== "all" && signal.confidence.toLowerCase() !== confidence) return false;
-        if (origin !== "all" && signal.sourceMode !== origin) return false;
+        if (
+          origin !== "all" &&
+          (origin === "event"
+            ? signal.sourceMode !== "event" && signal.sourceMode !== "hybrid"
+            : signal.sourceMode !== origin)
+        ) return false;
         if (marketMode === "graded" && !signal.marketIntelligence?.graded.available) return false;
+        const selectedScenario =
+          marketMode === "graded"
+            ? signal.marketIntelligence?.gradedScenario
+            : signal.marketIntelligence?.rawScenario;
+        const eventLinked =
+          (signal.sourceMode === "event" || signal.sourceMode === "hybrid") &&
+          (signal.catalysts?.length ?? 0) > 0;
+        if (!eventLinked && !isActionablePriceScenario(selectedScenario)) return false;
         if (!query) return true;
         return textMatchesSearchQuery(
-          `${signal.name} ${signal.episodeName} ${signal.episodeCode ?? ""} ${signal.cardNumber ?? ""} ${signal.rarity ?? ""}`,
+          `${signal.name} ${signal.episodeName} ${signal.episodeCode ?? ""} ${signal.cardNumber ?? ""} ${signal.rarity ?? ""} ${(signal.catalysts ?? []).map((catalyst) => `${catalyst.headline} ${catalyst.contextLabel ?? ""}`).join(" ")}`,
           query
         );
       })
@@ -901,15 +925,15 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      <section className="binder-panel rounded-[1.5rem] p-3 sm:p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto] lg:items-center">
-          <label className="relative block min-w-0">
+      <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto] lg:items-center">
+          <label className="relative col-span-2 block min-w-0 lg:col-span-1">
             <span className="sr-only">Search signal cards</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search card, set or rarity..."
+              placeholder="Search cards..."
               className="h-10 w-full rounded-xl border border-white/9 bg-black/24 pl-10 pr-9 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-violet-400/35 focus:ring-2 focus:ring-violet-500/12"
             />
             {search ? (
@@ -924,7 +948,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
             ) : null}
           </label>
 
-          <div className="flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1">
+          <div className="col-span-2 flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 lg:col-span-1">
             {CONFIDENCE_OPTIONS.map((option) => (
               <button
                 key={option.value}
@@ -952,7 +976,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
                   setVisibleLimit(24);
                 }}
                 className={cx(
-                  "h-8 rounded-lg px-3 text-[11px] font-semibold capitalize transition",
+                  "h-8 min-w-0 flex-1 rounded-lg px-3 text-[11px] font-semibold capitalize transition lg:flex-none",
                   marketMode === mode
                     ? "bg-violet-500 text-white shadow-sm"
                     : "text-white/48 hover:bg-white/[0.06] hover:text-white"
@@ -963,7 +987,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
             ))}
           </div>
 
-          <label className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
+          <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
             <Newspaper className="h-4 w-4 text-white/32" />
             <span className="sr-only">Filter signal origin</span>
             <select
@@ -979,7 +1003,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
             </select>
           </label>
 
-          <label className="flex items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
+          <label className="col-span-2 flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3 lg:col-span-1">
             <BarChart3 className="h-4 w-4 text-white/32" />
             <span className="sr-only">Sort signals</span>
             <select
@@ -997,46 +1021,16 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         </div>
       </section>
 
-      <section className="rounded-[1.35rem] border border-violet-300/10 bg-violet-400/[0.035] p-3 sm:p-4">
-        <div className="grid gap-3 lg:grid-cols-[minmax(10rem,0.65fr)_repeat(3,minmax(0,1fr))] lg:items-start">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-violet-200/58">
-              How to read this
-            </p>
-            <p className="mt-1 text-xs leading-5 text-white/52">
-              Tournament, set-event and structural scarcity are separate entry paths. Raw and graded opportunity scores then add sealed, pull, supply and grading context.
-            </p>
-          </div>
-          <div className="border-white/8 lg:border-l lg:pl-3">
-            <p className="text-[11px] font-semibold text-white/78">Event connection</p>
-            <p className="mt-1 text-[10px] leading-4 text-white/42">
-              Exact card names rank strongest. Character or Pokémon matches spread the signal to older variants; set-only matches are deliberately weaker.
-            </p>
-          </div>
-          <div className="border-white/8 lg:border-l lg:pl-3">
-            <p className="text-[11px] font-semibold text-white/78">Scarcity setup</p>
-            <p className="mt-1 text-[10px] leading-4 text-white/42">
-              Set age, pack cost, pull difficulty, market breadth, gem-rate and artist track record identify hard-to-replace cards without needing current hype.
-            </p>
-          </div>
-          <div className="border-white/8 lg:border-l lg:pl-3">
-            <p className="text-[11px] font-semibold text-white/78">Price scenario</p>
-            <p className="mt-1 text-[10px] leading-4 text-white/42">
-              The 30, 90 and 180-day graph is a low/base/high model range. It responds to evidence and supply but remains a scenario, never a promised price.
-            </p>
-          </div>
-        </div>
-      </section>
-
       <section>
         <SectionHeader
-          eyebrow="External demand"
-          title="Signal candidates"
+          title="Radar cards"
           count={visibleSignals.length}
-          description="Candidates from tournament demand, set and product events, plus structural scarcity. Use Raw or Graded to compare their separate opportunity paths."
           actions={
-            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/32">
-              Updated {new Intl.DateTimeFormat("en-GB", {
+            <span
+              className="text-[10px] font-medium text-white/32"
+              title="Time of the latest shared radar update"
+            >
+              {new Intl.DateTimeFormat("en-GB", {
                 dateStyle: "medium",
                 timeStyle: "short",
                 timeZone: "Europe/Amsterdam",
@@ -1064,7 +1058,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           <EmptyState
             icon={Radar}
             title="No signals match these filters"
-            description="Clear the search or choose another confidence level. If a source is temporarily unavailable, the last successful shared result remains cached."
+            description="Clear the search or change a filter."
             actionHref={null}
           />
         )}
@@ -1075,21 +1069,18 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
               onClick={() => setVisibleLimit((current) => current + 24)}
               className="rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-5 py-2.5 text-xs font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.12]"
             >
-              Show 24 more · {visibleSignals.length - visibleLimit} remaining
+              Show more ({visibleSignals.length - visibleLimit})
             </button>
           </div>
         ) : null}
       </section>
 
-      <section className="grid gap-3 rounded-[1.5rem] border border-white/8 bg-white/[0.025] p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <div className="flex min-w-0 gap-3">
-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-300/72" />
-          <div>
-            <p className="text-sm font-semibold text-white/78">Signal, not a promise</p>
-            <p className="mt-1 max-w-4xl text-xs leading-5 text-white/42">
-              Scenario lines are modelled ranges, not guarantees or listing valuations. The separate 1.5x, 2x and 3x probabilities remain hidden until enough completed historical signals exist. Bans, rotation, supply and reprints can reverse any setup.
-            </p>
-          </div>
+      <section className="flex flex-wrap items-center justify-between gap-2 border-t border-white/7 pt-3">
+        <div className="flex min-w-0 items-center gap-2 text-[10px] text-white/34">
+          <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-amber-300/62" />
+          <span title="Prices are modelled ranges. Supply, reprints, bans and market conditions can change any setup.">
+            Model signal, not a guarantee.
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {sources.map((source) => (
@@ -1099,7 +1090,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
               target="_blank"
               rel="noreferrer"
               className={cx(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-semibold transition hover:bg-white/[0.07]",
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-semibold transition hover:bg-white/[0.07]",
                 source.ok
                   ? "border-emerald-300/14 bg-emerald-400/[0.055] text-emerald-100/70"
                   : "border-rose-300/14 bg-rose-400/[0.055] text-rose-100/70"

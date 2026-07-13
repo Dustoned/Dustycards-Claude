@@ -157,6 +157,8 @@ ${visibleEpisodeWhereSql}
           SELECT p2.id
           FROM "Price" p2
           WHERE p2.card_id = ac.id
+            AND p2.cm_en_lowest_nm > 0
+            AND p2.cm_en_lowest_nm <> 9001
           ORDER BY p2.fetched_at DESC, p2.id DESC
           LIMIT 1
         )
@@ -212,6 +214,8 @@ async function getIllustratorPriceSnapshotsUncached(
         WHERE c.artist = ?
 ${visibleEpisodeWhereSql}
           AND p.fetched_at >= ?
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
       )
       SELECT
         card_id,

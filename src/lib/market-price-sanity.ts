@@ -9,7 +9,9 @@ export interface CardmarketRawPriceFields {
 }
 
 function positive(value: number | null | undefined): number | null {
-  return value != null && Number.isFinite(value) && value > 0 ? value : null;
+  return value != null && Number.isFinite(value) && value > 0 && value !== 9001
+    ? value
+    : null;
 }
 
 export function medianPositive(values: Array<number | null | undefined>): number | null {
@@ -44,15 +46,18 @@ export function getSaneCardmarketAverage7d(price: CardmarketRawPriceFields): num
   return ratio >= 0.2 && ratio <= 3 ? average : null;
 }
 
-/**
- * The visible raw price is a current Near Mint listing, matching normal card detail.
- * A 7-day average is only a last-resort fallback and must agree with independent
- * language listing anchors first.
- */
+/** The default visible raw price is always the current English Near Mint listing. */
 export function getCurrentRawCardmarketValue(price: CardmarketRawPriceFields): number | null {
-  return (
-    positive(price.cm_en_lowest_nm) ??
-    getCardmarketMedianLow(price) ??
-    getSaneCardmarketAverage7d(price)
-  );
+  return positive(price.cm_en_lowest_nm);
+}
+
+/** Returns the newest usable English Near Mint quote from a newest-first list. */
+export function getLatestAvailableEnglishNmValue(
+  prices: readonly CardmarketRawPriceFields[]
+): number | null {
+  for (const price of prices) {
+    const value = getCurrentRawCardmarketValue(price);
+    if (value != null) return value;
+  }
+  return null;
 }

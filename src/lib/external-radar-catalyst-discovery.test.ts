@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS,
   EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN,
+  EXTERNAL_CATALYST_QUERY_VERSION,
   EXTERNAL_CATALYST_SEARCH_LIMIT,
   isExternalCatalystDiscoveryDue,
   runExternalCatalystDiscovery,
@@ -99,6 +100,10 @@ const candidates = [
 ];
 
 describe("external catalyst cadence", () => {
+  it("invalidates the previous discovery query plan after adding watch topics", () => {
+    expect(EXTERNAL_CATALYST_QUERY_VERSION).toBe(4);
+  });
+
   it("is caller-controlled and due only after 72 hours", () => {
     const now = new Date("2026-07-12T12:00:00Z");
     expect(isExternalCatalystDiscoveryDue(null, now)).toBe(true);

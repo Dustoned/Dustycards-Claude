@@ -136,6 +136,7 @@ export async function syncMissingBinderWantsForUser(
           where: {
             user_id: userId,
             for_sale: false,
+            sold_at: null,
             card: { episode_id: { in: linkedEpisodeIds } },
           },
           select: { card_id: true },

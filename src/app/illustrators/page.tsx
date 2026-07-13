@@ -120,19 +120,15 @@ ${visibleEpisodeWhereSql}
         vc.episode_id,
         vc.episode_name,
         vc.episode_code,
-        COALESCE(
-          lp.cm_en_lowest_nm,
-          lp.cm_de_lowest_nm,
-          lp.cm_fr_lowest_nm,
-          lp.cm_es_lowest_nm,
-          lp.cm_it_lowest_nm
-        ) AS market_price
+        lp.cm_en_lowest_nm AS market_price
       FROM visible_card_base vc
       LEFT JOIN "Price" lp
         ON lp.id = (
           SELECT p2.id
           FROM "Price" p2
           WHERE p2.card_id = vc.id
+            AND p2.cm_en_lowest_nm > 0
+            AND p2.cm_en_lowest_nm <> 9001
           ORDER BY p2.fetched_at DESC, p2.id DESC
           LIMIT 1
         )

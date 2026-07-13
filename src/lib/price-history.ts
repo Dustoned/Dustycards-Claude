@@ -99,6 +99,15 @@ export interface SealedMarketPriceSnapshot {
   cm_lowest_it: number | null;
 }
 
+/** TCGGo uses 9001 as a no-listing sentinel; it is never a real market quote. */
+export function normalizeCardMarketListingValue(
+  value: number | null | undefined
+): number | null {
+  return value != null && Number.isFinite(value) && value > 0 && value !== 9001
+    ? value
+    : null;
+}
+
 export interface SealedPriceHistorySnapshot extends SealedMarketPriceSnapshot {
   fetched_at: Date | string;
   cm_avg_7d: number | null;
@@ -155,42 +164,62 @@ function toDateLabel(dateKey: string): string {
 
 export function getCardMarketValue(snapshot: CardMarketPriceSnapshot | null | undefined): number | null {
   if (!snapshot) return null;
-
-  return (
-    snapshot.cm_en_lowest_nm ??
-    snapshot.cm_de_lowest_nm ??
-    snapshot.cm_fr_lowest_nm ??
-    snapshot.cm_es_lowest_nm ??
-    snapshot.cm_it_lowest_nm ??
-    snapshot.cm_jp_lowest_nm ??
-    null
-  );
+  return normalizeCardMarketListingValue(snapshot.cm_en_lowest_nm);
 }
 
 export function buildCardPriceHistory(
   prices: CardPriceHistorySnapshot[]
 ): CardPriceHistoryPoint[] {
-  const byDay = new Map<string, CardPriceHistorySnapshot>();
+  const byDay = new Map<string, CardPriceHistoryPoint>();
   const sorted = [...prices].sort((a, b) => toMillis(a.fetched_at) - toMillis(b.fetched_at));
 
   for (const price of sorted) {
-    byDay.set(toDateKey(price.fetched_at), price);
+    const date = toDateKey(price.fetched_at);
+    const point = byDay.get(date) ?? {
+      date,
+      label: toDateLabel(date),
+      cm_market: null,
+      cm_market_en: null,
+      cm_market_de: null,
+      cm_market_fr: null,
+      cm_market_es: null,
+      cm_market_it: null,
+      cm_market_jp: null,
+      tcp_market: null,
+      cm_avg_7d: null,
+      cm_avg_30d: null,
+    };
+
+    // Price providers can write separate source snapshots on the same day.
+    // Merge each series independently so a later TCG-only or other-language
+    // row never erases the latest usable English/NM point in the default graph.
+    const english = normalizeCardMarketListingValue(price.cm_en_lowest_nm);
+    if (english != null) {
+      point.cm_market = english;
+      point.cm_market_en = english;
+    }
+    const german = normalizeCardMarketListingValue(price.cm_de_lowest_nm);
+    if (german != null) point.cm_market_de = german;
+    const french = normalizeCardMarketListingValue(price.cm_fr_lowest_nm);
+    if (french != null) point.cm_market_fr = french;
+    const spanish = normalizeCardMarketListingValue(price.cm_es_lowest_nm);
+    if (spanish != null) point.cm_market_es = spanish;
+    const italian = normalizeCardMarketListingValue(price.cm_it_lowest_nm);
+    if (italian != null) point.cm_market_it = italian;
+    const japanese = normalizeCardMarketListingValue(price.cm_jp_lowest_nm);
+    if (japanese != null) point.cm_market_jp = japanese;
+    if (price.tcp_market != null && Number.isFinite(price.tcp_market) && price.tcp_market > 0) {
+      point.tcp_market = price.tcp_market;
+    }
+    const average7d = normalizeCardMarketListingValue(price.cm_en_avg_7d);
+    if (average7d != null) point.cm_avg_7d = average7d;
+    const average30d = normalizeCardMarketListingValue(price.cm_en_avg_30d);
+    if (average30d != null) point.cm_avg_30d = average30d;
+
+    byDay.set(date, point);
   }
 
-  return [...byDay.entries()].map(([date, price]) => ({
-    date,
-    label: toDateLabel(date),
-    cm_market: getCardMarketValue(price),
-    cm_market_en: price.cm_en_lowest_nm ?? null,
-    cm_market_de: price.cm_de_lowest_nm ?? null,
-    cm_market_fr: price.cm_fr_lowest_nm ?? null,
-    cm_market_es: price.cm_es_lowest_nm ?? null,
-    cm_market_it: price.cm_it_lowest_nm ?? null,
-    cm_market_jp: price.cm_jp_lowest_nm ?? null,
-    tcp_market: price.tcp_market ?? null,
-    cm_avg_7d: price.cm_en_avg_7d ?? null,
-    cm_avg_30d: price.cm_en_avg_30d ?? null,
-  }));
+  return [...byDay.values()];
 }
 
 export function buildCardGradedPriceHistory(
@@ -327,17 +356,17 @@ export function getCardMarketHistorySeriesValue(
 ): number | null {
   switch (key) {
     case "cm_market_en":
-      return point.cm_market_en ?? null;
+      return normalizeCardMarketListingValue(point.cm_market_en);
     case "cm_market_de":
-      return point.cm_market_de ?? null;
+      return normalizeCardMarketListingValue(point.cm_market_de);
     case "cm_market_fr":
-      return point.cm_market_fr ?? null;
+      return normalizeCardMarketListingValue(point.cm_market_fr);
     case "cm_market_es":
-      return point.cm_market_es ?? null;
+      return normalizeCardMarketListingValue(point.cm_market_es);
     case "cm_market_it":
-      return point.cm_market_it ?? null;
+      return normalizeCardMarketListingValue(point.cm_market_it);
     case "cm_market_jp":
-      return point.cm_market_jp ?? null;
+      return normalizeCardMarketListingValue(point.cm_market_jp);
   }
 }
 
@@ -349,17 +378,17 @@ export function getCardMarketHistorySeriesCurrentValue(
 
   switch (key) {
     case "cm_market_en":
-      return snapshot.cm_en_lowest_nm ?? null;
+      return normalizeCardMarketListingValue(snapshot.cm_en_lowest_nm);
     case "cm_market_de":
-      return snapshot.cm_de_lowest_nm ?? null;
+      return normalizeCardMarketListingValue(snapshot.cm_de_lowest_nm);
     case "cm_market_fr":
-      return snapshot.cm_fr_lowest_nm ?? null;
+      return normalizeCardMarketListingValue(snapshot.cm_fr_lowest_nm);
     case "cm_market_es":
-      return snapshot.cm_es_lowest_nm ?? null;
+      return normalizeCardMarketListingValue(snapshot.cm_es_lowest_nm);
     case "cm_market_it":
-      return snapshot.cm_it_lowest_nm ?? null;
+      return normalizeCardMarketListingValue(snapshot.cm_it_lowest_nm);
     case "cm_market_jp":
-      return snapshot.cm_jp_lowest_nm ?? null;
+      return normalizeCardMarketListingValue(snapshot.cm_jp_lowest_nm);
   }
 }
 
@@ -395,7 +424,11 @@ export function getSaneCardMarketHistorySeriesCurrentValue(
 ): SaneCardMarketCurrentValue {
   const currentValue = getCardMarketHistorySeriesCurrentValue(snapshot, key);
   if (currentValue == null) {
-    return { value: null, ignoredValue: null };
+    const lastKnownValue = [...history]
+      .reverse()
+      .map((point) => getCardMarketHistorySeriesValue(point, key))
+      .find((value): value is number => value != null);
+    return { value: lastKnownValue ?? null, ignoredValue: null };
   }
 
   const historyValues = history
@@ -453,15 +486,15 @@ export function buildEpisodeSetPriceHistory(
 
     currentDay = day;
 
+    const nextValue = getCardMarketValue(price);
+    // A source-only or sentinel snapshot is not evidence that the last valid
+    // English/NM quote disappeared; it must not erase that card from the set
+    // total until another valid English/NM quote arrives.
+    if (nextValue == null) continue;
+
     const previousValue = latestByCard.get(price.card_id);
     if (previousValue != null) {
       total -= previousValue;
-    }
-
-    const nextValue = getCardMarketValue(price);
-    if (nextValue == null) {
-      latestByCard.delete(price.card_id);
-      continue;
     }
 
     latestByCard.set(price.card_id, nextValue);

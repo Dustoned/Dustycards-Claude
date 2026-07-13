@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma";
 import type { ExternalCardForecastSummary } from "@/lib/external-signal-forecast-store";
+import type { ExternalEbayDemandIntelligence } from "@/lib/ebay-demand-signal";
 import { db } from "@/lib/db";
 import {
   ALL_GAMES,
@@ -82,6 +83,8 @@ export interface ExternalGradedIntelligence {
 export interface ExternalScarcityIntelligence {
   score: number;
   label: "Common supply" | "Watch" | "Scarce" | "Very scarce";
+  setRarityScore: number | null;
+  setRarityLabel: "Entry tier" | "Mid tier" | "Upper tier" | "Chase tier" | "Unknown";
   pullOdds: string | null;
   specificPullDenominator: number | null;
   rawMarketBreadth: number;
@@ -101,6 +104,7 @@ export interface ExternalGoldMineConfluence {
 export interface ExternalMarketIntelligence {
   rawOpportunityScore: number;
   gradedOpportunityScore: number | null;
+  ebayDemand?: ExternalEbayDemandIntelligence;
   sealed: ExternalSealedIntelligence;
   graded: ExternalGradedIntelligence;
   scarcity: ExternalScarcityIntelligence;
@@ -162,6 +166,7 @@ export interface ExternalCardSignal {
   cardId: string;
   entityKey?: string;
   sourceMode?: ExternalSignalSourceMode;
+  manualResearch?: boolean;
   game: TradingCardGame;
   name: string;
   imageUrl: string | null;
@@ -561,14 +566,9 @@ function getRadarCardPrice(price: RadarPriceRecord | null | undefined): {
   currency: "EUR" | "USD";
 } {
   if (!price) return { value: null, currency: "EUR" };
-  const euroPrice =
-    price.cm_en_lowest_nm ??
-    price.cm_de_lowest_nm ??
-    price.cm_fr_lowest_nm ??
-    price.cm_es_lowest_nm ??
-    price.cm_it_lowest_nm;
+  const euroPrice = price.cm_en_lowest_nm;
   if (euroPrice != null) return { value: euroPrice, currency: "EUR" };
-  return { value: price.tcp_market ?? null, currency: "USD" };
+  return { value: null, currency: "EUR" };
 }
 
 function chooseCollectorVariant(cards: RadarCardRecord[]): RadarCardRecord | null {
@@ -681,7 +681,8 @@ async function loadLatestPrices(cardIds: string[]): Promise<Map<string, RadarPri
       select: {
         id: true,
         prices: {
-          orderBy: { fetched_at: "desc" },
+          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
           take: 1,
           select: {
             cm_en_lowest_nm: true,

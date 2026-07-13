@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { matchEbayListingToCard, type EbayMatchCard } from "@/lib/ebay-card-matching";
+import {
+  listingHasExactCardIdentity,
+  matchEbayListingToCard,
+  type EbayMatchCard,
+} from "@/lib/ebay-card-matching";
 
 const umbreonEx161: EbayMatchCard = {
   id: "21554",
@@ -228,5 +232,20 @@ describe("eBay card matching", () => {
 
     expect(match.status).toBe("review");
     expect(match.reason).toBe("Accessory-looking listing");
+  });
+
+  it("requires the exact card number for demand-inventory identity", () => {
+    expect(listingHasExactCardIdentity({
+      title: "Umbreon ex 161/131 Prismatic Evolutions English NM",
+      card: umbreonEx161,
+    })).toBe(true);
+    expect(listingHasExactCardIdentity({
+      title: "Umbreon ex Prismatic Evolutions English NM",
+      card: umbreonEx161,
+    })).toBe(false);
+    expect(listingHasExactCardIdentity({
+      title: "Umbreon ex 059/131 Prismatic Evolutions English NM",
+      card: umbreonEx161,
+    })).toBe(false);
   });
 });

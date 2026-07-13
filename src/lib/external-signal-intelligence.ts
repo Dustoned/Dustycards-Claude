@@ -6,26 +6,32 @@ import {
   enrichSignalsWithMarketIntelligence,
   loadCollectorDemandScores,
 } from "@/lib/external-market-intelligence";
+import { isActionablePriceScenario } from "@/lib/external-market-intelligence-core";
 import { getExternalForecastSummaries } from "@/lib/external-signal-forecast-store";
 import type {
   ExternalCardSignal,
   ExternalEvidenceLevel,
+  ExternalSignalEvidence,
   ExternalSignalCatalyst,
   ExternalSignalRadarData,
 } from "@/lib/external-signal-radar";
 import { getPressureTierForScore } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
-import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
+import {
+  getCurrentRawCardmarketValue,
+  getLatestAvailableEnglishNmValue,
+} from "@/lib/market-price-sanity";
 import { createSwrCache } from "@/lib/server-swr-cache";
 
 const SQLITE_SAFE_CARD_CHUNK_SIZE = 50;
 const MAX_CATALYSTS_PER_CARD = 3;
 const MAX_EVENT_ONLY_SIGNALS = 30;
 const MAX_EVENT_VARIANTS_PER_ENTITY = 3;
-const MIN_EVENT_ONLY_SCORE = 40;
+const MIN_EVENT_ONLY_SCORE = 38;
 const MAX_STRUCTURAL_SIGNALS = 45;
 const structuralSignalCache = createSwrCache<ExternalCardSignal[]>(6 * 60 * 60_000, 24 * 60 * 60_000);
+const onDemandSignalCache = createSwrCache<ExternalCardSignal>(5 * 60_000, 30 * 60_000);
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -216,8 +222,37 @@ async function loadActiveCatalystCardIds(now: Date): Promise<string[]> {
   return rows.map((row) => row.card_id).filter((cardId): cardId is string => Boolean(cardId));
 }
 
-function firstPositivePrice(values: Array<number | null | undefined>): number | null {
-  return values.find((value): value is number => value != null && Number.isFinite(value) && value > 0) ?? null;
+async function rebaseSignalsToEnglishNm(
+  signals: readonly ExternalCardSignal[]
+): Promise<ExternalCardSignal[]> {
+  if (signals.length === 0) return [];
+  const pricesByCard = new Map<string, number>();
+  const cardIds = [...new Set(signals.map((signal) => signal.cardId))];
+
+  for (let index = 0; index < cardIds.length; index += SQLITE_SAFE_CARD_CHUNK_SIZE) {
+    const cards = await db.card.findMany({
+      where: { id: { in: cardIds.slice(index, index + SQLITE_SAFE_CARD_CHUNK_SIZE) } },
+      select: {
+        id: true,
+        prices: {
+          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
+          take: 1,
+          select: { cm_en_lowest_nm: true },
+        },
+      },
+    });
+    for (const card of cards) {
+      const value = getLatestAvailableEnglishNmValue(card.prices);
+      if (value != null) pricesByCard.set(card.id, value);
+    }
+  }
+
+  return signals.map((signal) => ({
+    ...signal,
+    currentPrice: pricesByCard.get(signal.cardId) ?? null,
+    currency: "EUR",
+  }));
 }
 
 async function loadEventSignalSeeds(
@@ -237,6 +272,7 @@ async function loadEventSignalSeeds(
         rarity: true,
         episode: { select: { name: true, code: true } },
         prices: {
+          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
           orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
           take: 1,
           select: {
@@ -256,8 +292,7 @@ async function loadEventSignalSeeds(
       const eur = price
         ? getCurrentRawCardmarketValue(price)
         : null;
-      const usd = eur == null ? firstPositivePrice([price?.tcp_market]) : null;
-      if (eur == null && usd == null) continue;
+      if (eur == null) continue;
       const game = row.game === "one-piece" ? "one-piece" : "pokemon";
       seeds.push({
         rank: 0,
@@ -271,8 +306,8 @@ async function loadEventSignalSeeds(
         episodeName: row.episode.name,
         episodeCode: row.episode.code,
         rarity: row.rarity,
-        currentPrice: eur ?? usd,
-        currency: eur != null ? "EUR" : "USD",
+        currentPrice: eur,
+        currency: "EUR",
         externalScore: 0,
         competitiveScore: 0,
         confidence: "Emerging",
@@ -313,7 +348,7 @@ async function loadStructuralSignalSeeds(
   games: TradingCardGame[],
   now: Date
 ): Promise<ExternalCardSignal[]> {
-  const cacheKey = `structural-v5:${[...games].sort().join(",")}`;
+  const cacheKey = `structural-v6-en-nm:${[...games].sort().join(",")}`;
   return structuralSignalCache.get(cacheKey, () => loadStructuralSignalSeedsUncached(games, now));
 }
 
@@ -340,7 +375,7 @@ async function loadStructuralSignalSeedsUncached(
         where: {
           game: { in: games },
           rarity: { not: null },
-          prices: { some: {} },
+          prices: { some: { cm_en_lowest_nm: { gt: 0, not: 9001 } } },
           episode: { release_date: { gte: era.gte, lte: era.lte } },
           NOT: { rarity: { in: ["Common", "Uncommon", "Rare", "C", "UC", "R"] } },
         },
@@ -358,8 +393,9 @@ async function loadStructuralSignalSeedsUncached(
           rarity: true,
           episode: { select: { name: true, code: true, release_date: true } },
           prices: {
+            where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
             orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-            take: 8,
+            take: 1,
             select: {
               cm_en_avg_7d: true,
               cm_en_lowest_nm: true,
@@ -386,8 +422,7 @@ async function loadStructuralSignalSeedsUncached(
     const price = card.prices[0];
     if (!price) return [];
     const eur = getCurrentRawCardmarketValue(price);
-    const usd = eur == null ? firstPositivePrice([price.tcp_market]) : null;
-    const currentPrice = eur ?? usd;
+    const currentPrice = eur;
     if (currentPrice == null || currentPrice < 3) return [];
     const releaseTimestamp = Date.parse(card.episode.release_date ?? "");
     const ageYears = Number.isFinite(releaseTimestamp)
@@ -399,10 +434,7 @@ async function loadStructuralSignalSeedsUncached(
       : -1;
     const rarityStrength = structuralRarityStrength(normalizedRarity, rarityIndex);
     const psa10 = card.ebaySoldGradedPrices[0];
-    const comparablePsa10 =
-      psa10 && ((psa10.currency === "EUR" && eur != null) || (psa10.currency !== "EUR" && usd != null))
-        ? psa10.median_price
-        : null;
+    const comparablePsa10 = psa10?.currency === "EUR" ? psa10.median_price : null;
     const gradeMultiple = comparablePsa10 == null ? null : comparablePsa10 / currentPrice;
     const valueWindow = currentPrice <= 25 ? 5 : currentPrice <= 100 ? 3 : currentPrice <= 300 ? 1 : 0;
     // A high raw market on an old card is useful collector-demand evidence,
@@ -427,7 +459,7 @@ async function loadStructuralSignalSeedsUncached(
     const releaseYear = Number.parseInt((card.episode.release_date ?? "").slice(0, 4), 10);
     const eraKey =
       eras.find((era) => releaseYear >= Number(era.gte.slice(0, 4)) && releaseYear <= Number(era.lte.slice(0, 4)))?.key ?? "recent";
-    return [{ card, currentPrice, currency: eur != null ? ("EUR" as const) : ("USD" as const), ageYears, gradeMultiple, score, eraKey, collectorDemand }];
+    return [{ card, currentPrice, currency: "EUR" as const, ageYears, gradeMultiple, score, eraKey, collectorDemand }];
   });
   const perEra = new Map<string, number>();
   const perEntity = new Map<string, number>();
@@ -504,9 +536,151 @@ function structuralRarityStrength(normalizedRarity: string | null, rarityIndex: 
     : Math.min(0.75, rarityIndex / Math.max(1, KNOWN_RARITY_ORDER.length - 1));
 }
 
+export interface OnDemandExternalSignalCard {
+  id: string;
+  game: TradingCardGame;
+  name: string;
+  imageUrl: string | null;
+  cardNumber: string | null;
+  episodeName: string;
+  episodeCode: string | null;
+  rarity: string | null;
+  currentPrice: number | null;
+}
+
+/**
+ * Builds a single-card analysis without adding it to the ranked Radar cohort.
+ * It uses local market/sealed/grading data and already-persisted catalysts only;
+ * it never starts a web crawl or writes a forecast observation.
+ */
+export async function buildOnDemandExternalCardSignal(
+  card: OnDemandExternalSignalCard,
+  now = new Date()
+): Promise<ExternalCardSignal> {
+  const cacheKey = `${card.id}:${card.currentPrice ?? "none"}`;
+  return onDemandSignalCache.get(cacheKey, () =>
+    buildOnDemandExternalCardSignalUncached(card, now)
+  );
+}
+
+function parseObservationArray<T>(value: string | null): T[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function buildOnDemandExternalCardSignalUncached(
+  card: OnDemandExternalSignalCard,
+  now: Date
+): Promise<ExternalCardSignal> {
+  const [catalystsByCard, observation] = await Promise.all([
+    loadActiveCatalysts([card.id], now),
+    db.externalSignalObservation.findFirst({
+      where: { card_id: card.id },
+      orderBy: [{ observed_at: "desc" }, { id: "desc" }],
+      select: {
+        external_score: true,
+        competitive_score: true,
+        confidence: true,
+        pressure_label: true,
+        max_deck_share_percent: true,
+        max_inclusion_percent: true,
+        archetype_count: true,
+        catalyst_score: true,
+        hype_score: true,
+        risk_score: true,
+        reasons_json: true,
+        evidence_json: true,
+      },
+    }),
+  ]);
+  const catalysts = catalystsByCard.get(card.id) ?? [];
+  const catalystScores = calculateCatalystScores(catalysts);
+  const hasCatalysts = catalysts.length > 0;
+  const externalScore = observation?.external_score ??
+    (hasCatalysts ? calculateExternalEventScore(catalysts, catalystScores) : 50);
+  const pressure = getPressureTierForScore(externalScore);
+  const observedReasons = parseObservationArray<string>(observation?.reasons_json ?? null);
+  const observedEvidence = parseObservationArray<ExternalSignalEvidence>(
+    observation?.evidence_json ?? null
+  );
+  const sourceMode = observation
+    ? observation.competitive_score < 0
+      ? "structural"
+      : observation.competitive_score === 0
+        ? "event"
+        : hasCatalysts
+          ? "hybrid"
+          : "competitive"
+    : hasCatalysts
+      ? "event"
+      : "structural";
+  const seed = {
+    rank: 0,
+    cardId: card.id,
+    entityKey: getExternalEntityKey(card.game, card.name),
+    sourceMode,
+    manualResearch: !observation,
+    game: card.game,
+    name: card.name,
+    imageUrl: card.imageUrl,
+    cardNumber: card.cardNumber,
+    episodeName: card.episodeName,
+    episodeCode: card.episodeCode,
+    rarity: card.rarity,
+    currentPrice: card.currentPrice,
+    currency: "EUR",
+    externalScore,
+    competitiveScore: observation?.competitive_score ?? (hasCatalysts ? 0 : -1),
+    confidence:
+      observation?.confidence === "High" || observation?.confidence === "Medium"
+        ? observation.confidence
+        : hasCatalysts
+          ? getEventConfidence(catalysts)
+          : "Emerging",
+    horizon: "30-90 day watch",
+    pressureLabel:
+      observation?.pressure_label === "Breakout" || observation?.pressure_label === "Strong"
+        ? observation.pressure_label
+        : pressure.label,
+    pressureExplanation: hasCatalysts
+      ? pressure.explanation
+      : "Focused per-card signal summary",
+    reasons: observedReasons.length
+      ? observedReasons
+      : hasCatalysts
+        ? catalysts.slice(0, 3).map((catalyst) => catalyst.headline)
+        : [
+          "Focused local signal analysis for this exact printing",
+          "Market, sealed, rarity, artist and grading context are analysed together",
+        ],
+    evidence: observedEvidence,
+    maxDeckSharePercent: observation?.max_deck_share_percent ?? 0,
+    maxInclusionPercent: observation?.max_inclusion_percent ?? 0,
+    archetypeCount: observation?.archetype_count ?? 0,
+    catalysts,
+    catalystScore: hasCatalysts ? catalystScores.catalystScore : observation?.catalyst_score ?? 0,
+    hypeScore: hasCatalysts ? catalystScores.hypeScore : observation?.hype_score ?? 0,
+    riskScore: hasCatalysts ? catalystScores.riskScore : observation?.risk_score ?? 0,
+  } satisfies ExternalCardSignal;
+  const [enriched] = await enrichSignalsWithMarketIntelligence([seed], now);
+  if (!enriched) return seed;
+  const forecasts = await getExternalForecastSummaries([card.id]);
+  return { ...enriched, forecast: forecasts.get(card.id) ?? null };
+}
+
 export async function enrichExternalSignalRadarData(
   data: ExternalSignalRadarData,
-  now = new Date()
+  now = new Date(),
+  options?: {
+    beforeMarketEnrichment?: (
+      signals: readonly ExternalCardSignal[]
+    ) => Promise<void>;
+  }
 ): Promise<ExternalSignalRadarData> {
   const existingCardIds = new Set(data.signals.map((signal) => signal.cardId));
   const games = [...new Set(data.sources.map((source) => source.game))];
@@ -518,7 +692,7 @@ export async function enrichExternalSignalRadarData(
   const structuralSeeds = structuralCandidates.filter(
     (signal) => !existingCardIds.has(signal.cardId) && !activeCatalystCardIds.includes(signal.cardId)
   );
-  const seeds = [
+  const seedCandidates = [
     ...data.signals.map((signal) => ({
       ...signal,
       entityKey: signal.entityKey ?? getExternalEntityKey(signal.game, signal.name),
@@ -527,6 +701,9 @@ export async function enrichExternalSignalRadarData(
     ...eventSeeds,
     ...structuralSeeds,
   ];
+  // Reprice every path, including persisted fallback observations, from the
+  // same latest valid English NM series used by the normal card detail page.
+  const seeds = await rebaseSignalsToEnglishNm(seedCandidates);
   const catalystsByCard = await loadActiveCatalysts(
     [...new Set(seeds.map((signal) => signal.cardId))],
     now
@@ -587,8 +764,10 @@ export async function enrichExternalSignalRadarData(
       (signal) => signal.sourceMode === "event" && signal.externalScore >= MIN_EVENT_ONLY_SCORE
     )
   );
+  const marketCandidates = [...competitiveSignals, ...eventSignals];
+  await options?.beforeMarketEnrichment?.(marketCandidates);
   const selected = await enrichSignalsWithMarketIntelligence(
-    [...competitiveSignals, ...eventSignals],
+    marketCandidates,
     now
   );
   const forecasts = await getExternalForecastSummaries(selected.map((signal) => signal.cardId));
@@ -597,6 +776,18 @@ export async function enrichExternalSignalRadarData(
       ...signal,
       forecast: forecasts.get(signal.cardId) ?? null,
     }))
+    .filter(
+      (signal) => {
+        const eventLinked =
+          (signal.sourceMode === "event" || signal.sourceMode === "hybrid") &&
+          (signal.catalysts?.length ?? 0) > 0;
+        return (
+          eventLinked ||
+          isActionablePriceScenario(signal.marketIntelligence?.rawScenario) ||
+          isActionablePriceScenario(signal.marketIntelligence?.gradedScenario)
+        );
+      }
+    )
     .sort(
       (left, right) =>
         (right.marketIntelligence?.rawOpportunityScore ?? right.externalScore) -

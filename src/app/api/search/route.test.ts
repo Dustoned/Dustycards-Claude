@@ -76,6 +76,12 @@ describe("GET /api/search", () => {
       rawCardRef: "swsh001",
     });
     expect(body.singles).toHaveLength(1);
+    expect(dbMock.card.findMany.mock.calls[0]?.[0]?.select?.prices).toEqual(
+      expect.objectContaining({
+        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        take: 1,
+      })
+    );
     expect(dbMock.card.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({

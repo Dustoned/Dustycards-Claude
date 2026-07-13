@@ -26,6 +26,7 @@ import { getServerUserSettings } from "@/lib/user-settings-server";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
 import { parseBgsSubgrades } from "@/lib/graded-slabs";
 import { buildBuySignal } from "@/lib/buy-signal";
+import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 
 type CardAction = "refresh" | "sync-history";
 
@@ -65,7 +66,7 @@ async function getCardDetailCostBasis(
   const binder = collectionItem.binder;
   if (binder?.type === "linked_set" && binder.episode_id) {
     const binderCards = await db.collectionCard.findMany({
-      where: { binder_id: binder.id, user_id: userId, for_sale: false },
+      where: { binder_id: binder.id, user_id: userId, for_sale: false, sold_at: null },
       select: {
         id: true,
         purchase_price: true,
@@ -75,7 +76,8 @@ async function getCardDetailCostBasis(
           select: {
             episode_id: true,
             prices: {
-              orderBy: { fetched_at: "desc" },
+              where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+              orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
               take: 1,
               select: {
                 cm_en_lowest_nm: true,
@@ -167,7 +169,7 @@ async function getCardDetailPayload(id: string, userId: string) {
         select: { id: true, name: true, code: true, series: true, release_date: true },
       },
       collectionItems: {
-        where: { user_id: userId, for_sale: false },
+        where: { user_id: userId, for_sale: false, sold_at: null },
         orderBy: { updated_at: "desc" },
         take: 1,
         select: {
@@ -244,7 +246,7 @@ async function getCardDetailPayload(id: string, userId: string) {
         },
       },
       prices: {
-        orderBy: { fetched_at: "asc" },
+        orderBy: [{ fetched_at: "asc" }, { id: "asc" }],
         select: {
           cm_en_lowest_nm: true,
           cm_de_lowest_nm: true,
@@ -325,7 +327,10 @@ async function getCardDetailPayload(id: string, userId: string) {
     },
   });
 
-  const latestPrice = card.prices[card.prices.length - 1] ?? null;
+  const latestSourceSnapshot = card.prices[card.prices.length - 1] ?? null;
+  const latestEnglishNmSnapshot = [...card.prices]
+    .reverse()
+    .find((price) => getCurrentRawCardmarketValue(price) != null) ?? null;
   const priceHistory = buildCardPriceHistory(card.prices);
   const gradedPriceHistory = buildCardGradedPriceHistory(card.gradedPriceSnapshots);
   const pullRateInfo = await getPullRateInfoForSetRarity({
@@ -371,19 +376,22 @@ async function getCardDetailPayload(id: string, userId: string) {
       fetched_at: price.fetched_at ? price.fetched_at.toISOString() : null,
     };
   });
-  const latestPricePayload = latestPrice
+  const latestPricePayload = latestSourceSnapshot || latestEnglishNmSnapshot
     ? {
-        cm_en_lowest_nm: latestPrice.cm_en_lowest_nm,
-        cm_de_lowest_nm: latestPrice.cm_de_lowest_nm,
-        cm_fr_lowest_nm: latestPrice.cm_fr_lowest_nm,
-        cm_es_lowest_nm: latestPrice.cm_es_lowest_nm,
-        cm_it_lowest_nm: latestPrice.cm_it_lowest_nm,
-        cm_jp_lowest_nm: latestPrice.cm_jp_lowest_nm,
-        tcp_market: latestPrice.tcp_market,
-        tcp_mid: latestPrice.tcp_mid,
-        tcp_low: latestPrice.tcp_low,
-        cm_en_avg_7d: latestPrice.cm_en_avg_7d,
-        cm_en_avg_30d: latestPrice.cm_en_avg_30d,
+        // The main/default market is always the newest usable English Near
+        // Mint quote. Other language and TCG fields remain from the newest
+        // general source snapshot and are only shown after explicit selection.
+        cm_en_lowest_nm: latestEnglishNmSnapshot?.cm_en_lowest_nm ?? null,
+        cm_de_lowest_nm: latestSourceSnapshot?.cm_de_lowest_nm ?? null,
+        cm_fr_lowest_nm: latestSourceSnapshot?.cm_fr_lowest_nm ?? null,
+        cm_es_lowest_nm: latestSourceSnapshot?.cm_es_lowest_nm ?? null,
+        cm_it_lowest_nm: latestSourceSnapshot?.cm_it_lowest_nm ?? null,
+        cm_jp_lowest_nm: latestSourceSnapshot?.cm_jp_lowest_nm ?? null,
+        tcp_market: latestSourceSnapshot?.tcp_market ?? null,
+        tcp_mid: latestSourceSnapshot?.tcp_mid ?? null,
+        tcp_low: latestSourceSnapshot?.tcp_low ?? null,
+        cm_en_avg_7d: latestEnglishNmSnapshot?.cm_en_avg_7d ?? null,
+        cm_en_avg_30d: latestEnglishNmSnapshot?.cm_en_avg_30d ?? null,
       }
     : null;
   const collectionItemPayload = collectionItem
@@ -412,7 +420,9 @@ async function getCardDetailPayload(id: string, userId: string) {
     episode_code: card.episode.code,
     episode_release_date: card.episode.release_date,
     price: latestPricePayload,
-    price_fetched_at: latestPrice ? latestPrice.fetched_at.toISOString() : null,
+    price_fetched_at: latestEnglishNmSnapshot
+      ? latestEnglishNmSnapshot.fetched_at.toISOString()
+      : null,
     price_source_checked_at: card.price_source_checked_at
       ? card.price_source_checked_at.toISOString()
       : null,
@@ -453,7 +463,9 @@ async function getCardDetailPayload(id: string, userId: string) {
     ebay_sold_graded_synced_at: card.ebay_sold_graded_synced_at
       ? card.ebay_sold_graded_synced_at.toISOString()
       : null,
-    price_fetched_at: latestPrice ? latestPrice.fetched_at.toISOString() : null,
+    price_fetched_at: latestEnglishNmSnapshot
+      ? latestEnglishNmSnapshot.fetched_at.toISOString()
+      : null,
     price: latestPricePayload,
     graded_prices: card.gradedPrices,
     ebay_sold_graded_prices: ebaySoldGradedPrices,

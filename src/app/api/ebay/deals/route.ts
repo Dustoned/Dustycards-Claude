@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import {
   extractUsefulEbayTitleTokens,
+  listingHasExactCardIdentity,
   matchEbayListingToCard,
   type EbayCardMatch,
   type EbayMatchCard,
@@ -15,6 +16,7 @@ import {
   buildEbaySealedManualSearchQuery,
   buildEbaySealedSearchQuery,
   compareListingToReference,
+  getEbayDemandRuntimeConfig,
   getEbayRuntimeConfig,
   searchEbayDeals,
   type EbayBuyingMode,
@@ -22,6 +24,7 @@ import {
   type EbayDealReference,
 } from "@/lib/ebay";
 import { convertUsdToEur, getUsdToEurRate } from "@/lib/exchange-rates";
+import { recordEbayDemandScan, type EbayDemandPayload } from "@/lib/ebay-demand";
 import { getCardMarketValue } from "@/lib/price-history";
 import { getSealedProductPrice } from "@/lib/sealed-products";
 import type { Prisma } from "@/generated/prisma";
@@ -82,6 +85,7 @@ async function getCardDealContext(cardId: string, userId: string) {
     where: { id: cardId },
     select: {
       id: true,
+      game: true,
       name: true,
       card_number: true,
       rarity: true,
@@ -94,7 +98,8 @@ async function getCardDealContext(cardId: string, userId: string) {
         },
       },
       prices: {
-        orderBy: { fetched_at: "desc" },
+        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
           cm_en_lowest_nm: true,
@@ -125,7 +130,7 @@ async function getCardDealContext(cardId: string, userId: string) {
         },
       },
       collectionItems: {
-        where: { user_id: userId, for_sale: false },
+        where: { user_id: userId, for_sale: false, sold_at: null },
         orderBy: { updated_at: "desc" },
         take: 1,
         select: {
@@ -230,45 +235,11 @@ function toMatchCard(card: CardDealContext): EbayMatchCard {
 }
 
 function listingHasPinnedCardHint(listing: EbayDealListing, card: CardDealContext): boolean {
-  const listingTokens = new Set(
-    extractUsefulEbayTitleTokens(`${listing.title} ${listing.condition ?? ""}`)
-  );
-  const cardNameTokens = extractUsefulEbayTitleTokens(card.name);
-  const hasNameHint = cardNameTokens.some((token) => listingTokens.has(token));
-  const cardNumberToken = getCandidateNumbers(card.card_number ?? "")[0] ?? null;
-  const listingText = `${listing.title} ${listing.condition ?? ""}`;
-  const slashRightNumbers = [
-    ...listingText.matchAll(/\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/gi),
-  ].map((match) => (match[2].replace(/^0+/, "") || match[2]).toLowerCase());
-  const listingNumbers = new Set(
-    getCandidateNumbers(listingText).filter(
-      (number) => !slashRightNumbers.includes(number.toLowerCase())
-    )
-  );
-  const slashNumbers = [
-    ...listingText.matchAll(/\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/gi),
-  ].map((match) => (match[1].replace(/^0+/, "") || match[1]).toLowerCase());
-  const codedRefNumbers = [
-    ...listingText.matchAll(/\b[a-z]{3,}0*(\d{2,3}[a-z]?)\b/gi),
-  ].map((match) => (match[1].replace(/^0+/, "") || match[1]).toLowerCase());
-  const hashRefNumbers = [
-    ...listingText.matchAll(/#\s*0*(\d{1,3}[a-z]?)\b/gi),
-  ].map((match) => (match[1].replace(/^0+/, "") || match[1]).toLowerCase());
-  const normalizedCardNumber = cardNumberToken?.toLowerCase() ?? null;
-  const hasMatchingCardNumber = Boolean(
-    cardNumberToken &&
-      normalizedCardNumber &&
-      (listingNumbers.has(cardNumberToken) ||
-        slashNumbers.includes(normalizedCardNumber) ||
-        codedRefNumbers.includes(normalizedCardNumber) ||
-        hashRefNumbers.includes(normalizedCardNumber))
-  );
-
-  if (cardNumberToken) {
-    return hasMatchingCardNumber;
-  }
-
-  return hasNameHint;
+  return listingHasExactCardIdentity({
+    title: listing.title,
+    condition: listing.condition,
+    card: toMatchCard(card),
+  });
 }
 
 function getPinnedReviewMatch(input: {
@@ -467,6 +438,7 @@ async function getCandidateCardContexts(input: {
     orderBy: [{ episode: { release_date: "desc" } }, { name: "asc" }, { card_number: "asc" }],
     select: {
       id: true,
+      game: true,
       name: true,
       card_number: true,
       rarity: true,
@@ -479,7 +451,8 @@ async function getCandidateCardContexts(input: {
         },
       },
       prices: {
-        orderBy: { fetched_at: "desc" },
+        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
           cm_en_lowest_nm: true,
@@ -510,7 +483,7 @@ async function getCandidateCardContexts(input: {
         },
       },
       collectionItems: {
-        where: { user_id: input.userId, for_sale: false },
+        where: { user_id: input.userId, for_sale: false, sold_at: null },
         orderBy: { updated_at: "desc" },
         take: 1,
         select: {
@@ -723,6 +696,37 @@ async function enrichListingsWithCardMatches(input: {
   return sorted;
 }
 
+async function enrichDemandListingsWithPinnedCard(input: {
+  listings: EbayDealListing[];
+  mode: Exclude<DealMode, "sealed">;
+  card: CardDealContext;
+}): Promise<EnrichedEbayDealListing[]> {
+  const candidate = toMatchCard(input.card);
+  const reference = await buildReferenceForCard(input.card, input.mode);
+
+  return input.listings.flatMap((listing): EnrichedEbayDealListing[] => {
+    const cardMatch = matchEbayListingToCard({
+      title: listing.title,
+      condition: listing.condition,
+      candidates: [candidate],
+      requestedMode: input.mode,
+    });
+    if (
+      cardMatch.status !== "matched" ||
+      cardMatch.card?.id !== input.card.id ||
+      !listingHasPinnedCardHint(listing, input.card)
+    ) {
+      return [];
+    }
+
+    const comparison = compareListingToReference({
+      totalPriceEur: listing.total.valueEur,
+      referencePriceEur: reference.valueEur,
+    });
+    return [{ ...listing, reference, cardMatch, ...comparison }];
+  }).sort(compareEnrichedListings);
+}
+
 function enrichListingsWithSealedReference(input: {
   listings: EbayDealListing[];
   reference: EbayDealReference;
@@ -855,7 +859,10 @@ function buildReferenceForSealed(product: SealedDealContext): EbayDealReference 
 export async function GET(req: NextRequest) {
   try {
     const user = await requireUser();
-    const config = getEbayRuntimeConfig();
+    const demandProfile = req.nextUrl.searchParams.get("profile") === "demand";
+    const config = demandProfile
+      ? getEbayDemandRuntimeConfig()
+      : getEbayRuntimeConfig();
     const cardId = req.nextUrl.searchParams.get("cardId")?.trim() ?? "";
     const productId = req.nextUrl.searchParams.get("productId")?.trim() ?? "";
     const q = cardId || productId ? "" : (req.nextUrl.searchParams.get("q")?.trim() ?? "");
@@ -895,6 +902,7 @@ export async function GET(req: NextRequest) {
       if (!query) {
         query = buildEbayCardSearchQuery({
           name: card.name,
+          game: card.game === "one-piece" ? "one-piece" : "pokemon",
           episodeName: card.episode.name,
           episodeCode: card.episode.code,
           cardNumber: card.card_number,
@@ -955,7 +963,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const searchConfig = mode === "graded" || mode === "sealed" ? { ...config, categoryId: null } : config;
+    const searchConfig =
+      !demandProfile && (mode === "graded" || mode === "sealed")
+        ? { ...config, categoryId: null }
+        : config;
     const searchListingKind = mode === "sealed" ? "sealed" : mode === "graded" ? "graded" : "card";
     const runDealSearch = (searchQuery: string) =>
       searchEbayDeals({
@@ -964,13 +975,17 @@ export async function GET(req: NextRequest) {
         limit,
         buyingMode,
         config: searchConfig,
+        strictEnglish: demandProfile && mode !== "sealed",
+        strictNearMint: demandProfile && mode === "raw",
         excludeGraded: mode === "raw",
         requireGraded: mode === "graded",
         listingKind: searchListingKind,
       });
 
     const searchQueries = card
-        ? buildCardDealSearchQueries({
+      ? demandProfile
+        ? [query]
+        : buildCardDealSearchQueries({
             card,
             mode: mode === "graded" ? "graded" : "raw",
             primaryQuery: query,
@@ -1004,7 +1019,13 @@ export async function GET(req: NextRequest) {
       total: mergedListingsByItemId.size,
     };
     const listings =
-      mode === "sealed"
+      demandProfile && card && mode !== "sealed"
+        ? await enrichDemandListingsWithPinnedCard({
+            listings: result.listings,
+            mode,
+            card,
+          })
+        : mode === "sealed"
         ? enrichListingsWithSealedReference({
             listings: result.listings,
             reference,
@@ -1018,6 +1039,29 @@ export async function GET(req: NextRequest) {
             pinnedCard: card,
           });
     const limitedListings = card || sealedProduct ? listings.slice(0, limit) : listings;
+    let demand: EbayDemandPayload | null = null;
+
+    if (demandProfile && card && (mode === "raw" || mode === "graded")) {
+      const exactCardListings = listings.filter(
+        (listing) =>
+          listing.cardMatch.status === "matched" && listing.cardMatch.card?.id === card.id
+      );
+
+      try {
+        demand = await recordEbayDemandScan({
+          cardId: card.id,
+          marketplaceId: result.marketplaceId,
+          mode,
+          listings: exactCardListings,
+          observedCount: result.scan?.fetchedCount ?? result.listings.length,
+          capped: result.scan?.capped ?? result.listings.length >= limit,
+        });
+      } catch (error) {
+        // eBay deals must remain usable if demand persistence is temporarily
+        // unavailable (for example while a migration is still rolling out).
+        console.error("[ebay-demand] could not record scan", error);
+      }
+    }
 
     return NextResponse.json({
       configured: config.configured,
@@ -1044,6 +1088,7 @@ export async function GET(req: NextRequest) {
       ...result,
       total: card || sealedProduct ? limitedListings.length : result.total,
       listings: limitedListings,
+      demand,
     });
   } catch (error) {
     const authResponse = authErrorResponse(error);

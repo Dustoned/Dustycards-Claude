@@ -969,7 +969,7 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
         episode_name: card.episode.name,
         episode_code: card.episode.code,
         episode_release_date: card.episode.release_date,
-        cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? card.prices[0]?.cm_jp_lowest_nm ?? null,
+        cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? null,
         tcp_market: card.prices[0]?.tcp_market ?? null,
         want_item: wantItem
           ? {
@@ -1176,7 +1176,11 @@ async function runFuzzyFallback(
             },
           },
           prices: {
-            orderBy: { fetched_at: "desc" },
+            // Search tiles must use the same latest usable English Near Mint
+            // quote as card detail and Signal Radar. The newest snapshot can
+            // legitimately contain only TCGPlayer or another language.
+            where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
             take: 1,
             select: { cm_en_lowest_nm: true, cm_jp_lowest_nm: true, tcp_market: true },
           },
@@ -1343,7 +1347,10 @@ async function runDirectSearch(
           },
         },
         prices: {
-          orderBy: { fetched_at: "desc" },
+          // Never turn an older valid EN/NM price into "No price" merely
+          // because the latest multi-source snapshot has no English listing.
+          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
           take: 1,
           select: { cm_en_lowest_nm: true, cm_jp_lowest_nm: true, tcp_market: true },
         },

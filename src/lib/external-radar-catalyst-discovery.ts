@@ -13,6 +13,7 @@ import {
   type CatalystClassification,
   type CatalystSearchQuery,
   type CatalystSourceKind,
+  type CatalystWatchTopic,
   type ExternalRadarGame,
 } from "@/lib/external-radar-catalysts-core";
 import {
@@ -28,7 +29,7 @@ import {
 import { getTavilyConfigSnapshot, searchTavilyWeb } from "@/lib/tavily";
 
 export const EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS = 24 * 60 * 60_000;
-export const EXTERNAL_CATALYST_QUERY_VERSION = 3;
+export const EXTERNAL_CATALYST_QUERY_VERSION = 4;
 export const EXTERNAL_CATALYST_SEARCH_LIMIT = 5;
 export const EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN = 4;
 export const EXTERNAL_CATALYST_RETRY_BACKOFF_MS = 72 * 60 * 60_000;
@@ -483,7 +484,22 @@ function selectUnseenSourcesFairly(
   sources: readonly DiscoveredCatalystSource[],
   knownUrls: ReadonlySet<string>
 ): DiscoveredCatalystSource[] {
-  const unseen = sources.filter((source) => !knownUrls.has(source.canonicalUrl));
+  const sourceKindPriority: Record<CatalystSourceKind, number> = {
+    official: 3,
+    community: 2,
+    social: 1,
+  };
+  const unseen = sources
+    .filter((source) => !knownUrls.has(source.canonicalUrl))
+    .sort(
+      (left, right) =>
+        sourceKindPriority[right.sourceKind] - sourceKindPriority[left.sourceKind] ||
+        Number(right.query.cardId.startsWith("watch-topic:")) -
+          Number(left.query.cardId.startsWith("watch-topic:")) ||
+        Number(right.query.cardId.endsWith(":releases")) -
+          Number(left.query.cardId.endsWith(":releases")) ||
+        left.canonicalUrl.localeCompare(right.canonicalUrl)
+    );
   const selected: DiscoveredCatalystSource[] = [];
 
   for (const game of ["pokemon", "one-piece"] as const) {
@@ -559,6 +575,7 @@ function baseResult(due: boolean): ExternalCatalystDiscoveryResult {
 export async function runExternalCatalystDiscovery(
   input: {
     candidates: readonly ExternalCatalystDiscoveryCandidate[];
+    watchTopics?: readonly CatalystWatchTopic[];
     /** Caller-owned cadence marker; no hidden scheduler or DB timing lookup occurs here. */
     lastRunAt?: Date | null;
     now?: Date;
@@ -575,6 +592,7 @@ export async function runExternalCatalystDiscovery(
   result.searchProvider = searchProvider;
   const queries = buildFirecrawlCatalystSearchQueries(candidates, now, {
     maxQueries: MAX_CATALYST_SEARCH_QUERIES,
+    watchTopics: input.watchTopics,
   });
   result.queriesPlanned = queries.length;
   const discoveredByUrl = new Map<string, DiscoveredCatalystSource>();
