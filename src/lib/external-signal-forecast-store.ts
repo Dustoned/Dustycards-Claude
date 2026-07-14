@@ -1,3 +1,4 @@
+import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import {
   evaluateSignalOutcome,
@@ -9,6 +10,7 @@ import {
   getCardmarketMedianLow,
   getSaneCardmarketAverage7d,
 } from "@/lib/market-price-sanity";
+import { normalizeCardMarketListingValue } from "@/lib/price-history";
 
 const DAY_MS = 24 * 60 * 60_000;
 const OUTCOME_EVALUATION_BATCH_SIZE = 500;
@@ -118,6 +120,9 @@ export function getSameSourceCardmarketValue(
   referenceSource: string | null,
   row: Omit<CardmarketPriceRow, "card_id" | "fetched_at">
 ): number | null {
+  if (referenceSource === "cardmarket:en-nm") {
+    return normalizeCardMarketListingValue(row.cm_en_lowest_nm);
+  }
   if (referenceSource === "cardmarket:avg7d") {
     return getSaneCardmarketAverage7d(row);
   }
@@ -179,30 +184,49 @@ async function loadPriceRowsForMaturedOutcomes(
           outcome.entry_observation.observed_at.getTime() + outcome.horizon_days * DAY_MS
       )
     );
-    const rows = await db.price.findMany({
-      where: {
-        card_id: { in: chunk },
-        fetched_at: {
-          gt: new Date(earliestEntryMs),
-          lte: new Date(latestHorizonMs),
-        },
-      },
-      orderBy: [{ card_id: "asc" }, { fetched_at: "asc" }],
+    const cards = await db.card.findMany({
+      where: { id: { in: chunk } },
       select: {
-        card_id: true,
-        fetched_at: true,
-        cm_en_avg_7d: true,
-        cm_en_lowest_nm: true,
-        cm_de_lowest_nm: true,
-        cm_fr_lowest_nm: true,
-        cm_es_lowest_nm: true,
-        cm_it_lowest_nm: true,
+        id: true,
+        game: true,
+        episode_id: true,
+        name: true,
+        card_number: true,
+        printed_card_number: true,
+        cardmarket_id: true,
+        cardmarket_url: true,
       },
     });
-    for (const row of rows) {
-      const existing = rowsByCardId.get(row.card_id);
-      if (existing) existing.push(row);
-      else rowsByCardId.set(row.card_id, [row]);
+    const historyByCardId = await loadSafeCardMarketHistoryRows(
+      cards.map((card) => ({
+        id: card.id,
+        game: card.game,
+        episodeId: card.episode_id,
+        name: card.name,
+        cardNumber: card.card_number,
+        printedCardNumber: card.printed_card_number,
+        cardmarketId: card.cardmarket_id,
+        cardmarketUrl: card.cardmarket_url,
+      })),
+      {
+        fetchedAtGte: new Date(earliestEntryMs + 1),
+        fetchedAtLte: new Date(latestHorizonMs),
+      }
+    );
+    for (const card of cards) {
+      rowsByCardId.set(
+        card.id,
+        (historyByCardId.get(card.id) ?? []).map((row) => ({
+          card_id: card.id,
+          fetched_at: row.fetched_at,
+          cm_en_avg_7d: row.cm_en_avg_7d,
+          cm_en_lowest_nm: row.cm_en_lowest_nm,
+          cm_de_lowest_nm: row.cm_de_lowest_nm,
+          cm_fr_lowest_nm: row.cm_fr_lowest_nm,
+          cm_es_lowest_nm: row.cm_es_lowest_nm,
+          cm_it_lowest_nm: row.cm_it_lowest_nm,
+        }))
+      );
     }
   }
 

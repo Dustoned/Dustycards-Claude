@@ -1,5 +1,6 @@
 import "server-only";
 
+import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import {
   deriveEbayDemandIntelligence,
@@ -40,7 +41,7 @@ import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 const DAY_MS = 86_400_000;
 const CARD_CHUNK_SIZE = 50;
 const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
-const FORECAST_MODEL_VERSION = "signed-market-v3";
+const FORECAST_MODEL_VERSION = "signed-market-v4-en-nm-aliases";
 
 const LIFECYCLE_COPY: Record<
   SetLifecycleStatus,
@@ -668,14 +669,14 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     const rawHistory = buildDailyMarketHistory(
       card.prices.map((price) => ({
         observedAt: price.fetched_at,
-        // Signal Radar's EUR baseline is always English NM. Prefer the
-        // steadier Cardmarket 7-day average and use the English NM listing
-        // floor only when that day's average is unavailable.
+        // A trend must stay inside one market series. Mixing CardMarket's
+        // 7-day average with the English-NM floor on sparse days fabricated
+        // large jumps (for example 20 -> 36.78) that were never in the chart.
         primaryValue:
-          signal.currency === "EUR" ? price.cm_en_avg_7d : price.tcp_market,
+          signal.currency === "EUR" ? price.cm_en_lowest_nm : price.tcp_market,
         fallbackValues:
           signal.currency === "EUR"
-            ? [price.cm_en_lowest_nm]
+            ? []
             : [price.tcp_mid, price.tcp_low],
       }))
     );
@@ -872,35 +873,25 @@ async function enrichSignalsWithMarketIntelligenceUncached(
   });
 }
 
-function loadCards(cardIds: string[], now: Date) {
+async function loadCards(cardIds: string[], now: Date) {
   // Fetch by calendar range rather than by refresh-row count: some cards have
   // many observations per day, so `take: 40` could represent less than a
   // month and was incorrectly presented as a 90-day history.
   const historyStart = new Date(now.getTime() - 220 * DAY_MS);
-  return db.card.findMany({
+  const cards = await db.card.findMany({
     where: { id: { in: cardIds } },
     select: {
       id: true,
+      game: true,
+      episode_id: true,
+      name: true,
+      card_number: true,
+      printed_card_number: true,
+      cardmarket_id: true,
+      cardmarket_url: true,
       rarity: true,
       artist: true,
       episode: { select: { id: true, code: true, release_date: true } },
-      prices: {
-        where: { fetched_at: { gte: historyStart } },
-        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-        select: {
-          fetched_at: true,
-          cm_en_avg_7d: true,
-          cm_en_avg_30d: true,
-          cm_en_lowest_nm: true,
-          cm_de_lowest_nm: true,
-          cm_fr_lowest_nm: true,
-          cm_es_lowest_nm: true,
-          cm_it_lowest_nm: true,
-          tcp_market: true,
-          tcp_mid: true,
-          tcp_low: true,
-        },
-      },
       gradedPrices: {
         select: { label: true, price: true, fetched_at: true },
       },
@@ -922,4 +913,24 @@ function loadCards(cardIds: string[], now: Date) {
       },
     },
   });
+  const historyByCardId = await loadSafeCardMarketHistoryRows(
+    cards.map((card) => ({
+      id: card.id,
+      game: card.game,
+      episodeId: card.episode_id,
+      name: card.name,
+      cardNumber: card.card_number,
+      printedCardNumber: card.printed_card_number,
+      cardmarketId: card.cardmarket_id,
+      cardmarketUrl: card.cardmarket_url,
+    })),
+    { fetchedAtGte: historyStart }
+  );
+
+  return cards.map((card) => ({
+    ...card,
+    prices: [...(historyByCardId.get(card.id) ?? [])].sort(
+      (left, right) => right.fetched_at.getTime() - left.fetched_at.getTime()
+    ),
+  }));
 }

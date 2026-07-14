@@ -59,6 +59,7 @@ describe("external signal forecast store helpers", () => {
 
     expect(getSameSourceCardmarketValue("cardmarket:avg7d", row)).toBe(12);
     expect(getSameSourceCardmarketValue("cardmarket:median-low", row)).toBe(4);
+    expect(getSameSourceCardmarketValue("cardmarket:en-nm", row)).toBe(2);
     expect(getSameSourceCardmarketValue("tcgplayer", row)).toBeNull();
     expect(getSameSourceCardmarketValue(null, row)).toBeNull();
   });

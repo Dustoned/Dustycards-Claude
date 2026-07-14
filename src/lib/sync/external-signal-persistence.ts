@@ -1,23 +1,21 @@
 import { db } from "@/lib/db";
+import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
 import type {
   ExternalCardSignal,
   ExternalSignalRadarData,
 } from "@/lib/external-signal-radar";
-import {
-  getCardmarketMedianLow,
-  getSaneCardmarketAverage7d,
-} from "@/lib/market-price-sanity";
+import { normalizeCardMarketListingValue } from "@/lib/price-history";
 
 export const EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 export const EXTERNAL_CATALYST_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
-export const EXTERNAL_SIGNAL_MODEL_VERSION = "v6-price-sanity";
+export const EXTERNAL_SIGNAL_MODEL_VERSION = "v7-en-nm-history";
 export const EXTERNAL_SIGNAL_OUTCOME_HORIZONS = [30, 90, 180] as const;
 const INDEPENDENT_ENTRY_GAP_MS = 14 * 24 * 60 * 60_000;
 const REFERENCE_PRICE_MAX_AGE_MS = 72 * 60 * 60_000;
 
 interface CardmarketReference {
   price: number;
-  source: "cardmarket:avg7d" | "cardmarket:median-low";
+  source: "cardmarket:en-nm";
   fetchedAt: Date;
 }
 
@@ -65,39 +63,38 @@ async function loadFreshCardmarketReferences(
       where: { id: { in: cardIds.slice(index, index + 50) } },
       select: {
         id: true,
-        prices: {
-          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-          take: 1,
-          select: {
-            fetched_at: true,
-            cm_en_avg_7d: true,
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-          },
-        },
+        game: true,
+        episode_id: true,
+        name: true,
+        card_number: true,
+        printed_card_number: true,
+        cardmarket_id: true,
+        cardmarket_url: true,
       },
     });
+    const historyByCardId = await loadSafeCardMarketHistoryRows(
+      cards.map((card) => ({
+        id: card.id,
+        game: card.game,
+        episodeId: card.episode_id,
+        name: card.name,
+        cardNumber: card.card_number,
+        printedCardNumber: card.printed_card_number,
+        cardmarketId: card.cardmarket_id,
+        cardmarketUrl: card.cardmarket_url,
+      })),
+      { fetchedAtGte: oldestAllowed }
+    );
     for (const card of cards) {
-      const price = card.prices[0];
-      if (!price || price.fetched_at < oldestAllowed) continue;
-      const saneAverage = getSaneCardmarketAverage7d(price);
-      if (saneAverage != null) {
+      const price = [...(historyByCardId.get(card.id) ?? [])]
+        .reverse()
+        .find((row) => normalizeCardMarketListingValue(row.cm_en_lowest_nm) != null);
+      if (!price) continue;
+      const englishNm = normalizeCardMarketListingValue(price.cm_en_lowest_nm);
+      if (englishNm != null) {
         references.set(card.id, {
-          price: saneAverage,
-          source: "cardmarket:avg7d",
-          fetchedAt: price.fetched_at,
-        });
-        continue;
-      }
-      const medianLow = getCardmarketMedianLow(price);
-      if (medianLow != null) {
-        references.set(card.id, {
-          price: medianLow,
-          source: "cardmarket:median-low",
+          price: englishNm,
+          source: "cardmarket:en-nm",
           fetchedAt: price.fetched_at,
         });
       }

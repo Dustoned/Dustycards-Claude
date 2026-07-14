@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Radar, Sparkles } from "lucide-react";
 import SignalRadarDetailClient from "@/app/movers/signal-radar/[cardId]/SignalRadarDetailClient";
+import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import { getCachedExternalCardResearch } from "@/lib/external-card-research";
 import {
@@ -43,7 +44,6 @@ export default async function SignalRadarCardPage({
     liveData,
     persistedData,
     cardBasics,
-    rawHistoryRows,
     ebayGradedHistoryRows,
     cardMarketGradedHistoryRows,
   ] = await Promise.all([
@@ -54,6 +54,7 @@ export default async function SignalRadarCardPage({
       select: {
         id: true,
         game: true,
+        episode_id: true,
         name: true,
         image_url: true,
         card_number: true,
@@ -63,6 +64,7 @@ export default async function SignalRadarCardPage({
         supertype: true,
         subtypes: true,
         artist: true,
+        cardmarket_id: true,
         cardmarket_url: true,
         prices: {
           where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
@@ -80,22 +82,6 @@ export default async function SignalRadarCardPage({
         episode: {
           select: { id: true, name: true, code: true, series: true, release_date: true },
         },
-      },
-    }),
-    db.price.findMany({
-      where: { card_id: cardId },
-      orderBy: [{ fetched_at: "asc" }, { id: "asc" }],
-      select: {
-        fetched_at: true,
-        cm_en_lowest_nm: true,
-        cm_de_lowest_nm: true,
-        cm_fr_lowest_nm: true,
-        cm_es_lowest_nm: true,
-        cm_it_lowest_nm: true,
-        cm_jp_lowest_nm: true,
-        tcp_market: true,
-        cm_en_avg_7d: true,
-        cm_en_avg_30d: true,
       },
     }),
     db.cardEbaySoldGradedPriceSnapshot.findMany({
@@ -121,6 +107,21 @@ export default async function SignalRadarCardPage({
   ]);
   if (!cardBasics) notFound();
   if (cardBasics.game === ONE_PIECE_GAME && !settings.onePieceLibraryEnabled) notFound();
+  const rawHistoryRows =
+    (
+      await loadSafeCardMarketHistoryRows([
+        {
+          id: cardBasics.id,
+          game: cardBasics.game,
+          episodeId: cardBasics.episode_id,
+          name: cardBasics.name,
+          cardNumber: cardBasics.card_number,
+          printedCardNumber: cardBasics.printed_card_number,
+          cardmarketId: cardBasics.cardmarket_id,
+          cardmarketUrl: cardBasics.cardmarket_url,
+        },
+      ])
+    ).get(cardBasics.id) ?? [];
   const data = await enrichExternalSignalRadarData(
     mergeExternalSignalRadarWithFallback(liveData, persistedData, activeGame)
   );
@@ -137,7 +138,15 @@ export default async function SignalRadarCardPage({
   });
   let signal = data.signals.find((candidate) => candidate.cardId === cardId);
   if (!signal) {
-    const rawPrice = cardBasics.prices[0]?.cm_en_lowest_nm ?? null;
+    const rawPrice =
+      [...rawHistoryRows]
+        .reverse()
+        .find(
+          (price) =>
+            price.cm_en_lowest_nm != null &&
+            price.cm_en_lowest_nm > 0 &&
+            price.cm_en_lowest_nm !== 9001
+        )?.cm_en_lowest_nm ?? cardBasics.prices[0]?.cm_en_lowest_nm ?? null;
     signal = await buildOnDemandExternalCardSignal({
       id: cardBasics.id,
       game,
