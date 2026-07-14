@@ -527,7 +527,7 @@ describe("external market intelligence", () => {
       collectorDemandScore: 100,
       catalystScore: 0.4,
       ebayDemandAdjustment: -4,
-      currentVsAverage30dPct: 50,
+      currentVsEnglishNmAverage30dPct: 50,
       gemRatePct: null,
       riskScore: 0,
       evidenceCount: 4,

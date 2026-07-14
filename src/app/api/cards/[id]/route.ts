@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin, requireUser } from "@/lib/auth";
+import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import {
   buildLinkedBinderCostBasis,
@@ -245,23 +246,6 @@ async function getCardDetailPayload(id: string, userId: string) {
           fetched_at: true,
         },
       },
-      prices: {
-        orderBy: [{ fetched_at: "asc" }, { id: "asc" }],
-        select: {
-          cm_en_lowest_nm: true,
-          cm_de_lowest_nm: true,
-          cm_fr_lowest_nm: true,
-          cm_es_lowest_nm: true,
-          cm_it_lowest_nm: true,
-          cm_jp_lowest_nm: true,
-          tcp_market: true,
-          tcp_mid: true,
-          tcp_low: true,
-          cm_en_avg_7d: true,
-          cm_en_avg_30d: true,
-          fetched_at: true,
-        },
-      },
     },
   });
 
@@ -327,11 +311,27 @@ async function getCardDetailPayload(id: string, userId: string) {
     },
   });
 
-  const latestSourceSnapshot = card.prices[card.prices.length - 1] ?? null;
-  const latestEnglishNmSnapshot = [...card.prices]
+  const safePriceRows =
+    (
+      await loadSafeCardMarketHistoryRows([
+        {
+          id: card.id,
+          game: card.game,
+          episodeId: card.episode.id,
+          name: card.name,
+          cardNumber: card.card_number,
+          printedCardNumber: card.printed_card_number,
+          cardmarketId: card.cardmarket_id,
+          cardmarketUrl: card.cardmarket_url,
+        },
+      ])
+    ).get(card.id) ?? [];
+
+  const latestSourceSnapshot = safePriceRows[safePriceRows.length - 1] ?? null;
+  const latestEnglishNmSnapshot = [...safePriceRows]
     .reverse()
     .find((price) => getCurrentRawCardmarketValue(price) != null) ?? null;
-  const priceHistory = buildCardPriceHistory(card.prices);
+  const priceHistory = buildCardPriceHistory(safePriceRows);
   const gradedPriceHistory = buildCardGradedPriceHistory(card.gradedPriceSnapshots);
   const pullRateInfo = await getPullRateInfoForSetRarity({
     setCode: card.episode.code,

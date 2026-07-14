@@ -29,6 +29,12 @@ export interface CardMarketHistoryPriceRow {
   tcp_low: number | null;
 }
 
+export interface LatestSafeEnglishNmPrice {
+  value: number;
+  fetchedAt: Date;
+  row: CardMarketHistoryPriceRow;
+}
+
 export interface CardMarketAliasCandidate {
   id: string;
   game: string;
@@ -129,31 +135,27 @@ export function isSafeCardMarketHistoryAlias(
   return true;
 }
 
-export async function loadSafeCardMarketHistoryRows(
-  identities: readonly CardMarketHistoryIdentity[],
-  options: { fetchedAtGte?: Date; fetchedAtLte?: Date } = {}
-): Promise<Map<string, CardMarketHistoryPriceRow[]>> {
-  const result = new Map<string, CardMarketHistoryPriceRow[]>();
-  if (identities.length === 0) return result;
+function uniqueHistoryIdentities(
+  identities: readonly CardMarketHistoryIdentity[]
+): CardMarketHistoryIdentity[] {
+  return [...new Map(identities.map((item) => [item.id, item])).values()];
+}
 
-  const uniqueIdentities = [...new Map(identities.map((item) => [item.id, item])).values()];
-  for (const identity of uniqueIdentities) {
-    result.set(identity.id, []);
-  }
-
+async function resolveSafeAliasIds(
+  identities: readonly CardMarketHistoryIdentity[]
+): Promise<Map<string, Set<string>>> {
   const candidates: CardMarketAliasCandidate[] = [];
-  const withMarketId = uniqueIdentities.filter((identity) => identity.cardmarketId);
-  for (let index = 0; index < withMarketId.length; index += 50) {
-    const chunk = withMarketId.slice(index, index + 50);
+  const marketIds = [
+    ...new Set(
+      identities
+        .map((identity) => identity.cardmarketId)
+        .filter((value): value is string => Boolean(value))
+    ),
+  ];
+  for (let index = 0; index < marketIds.length; index += SQLITE_SAFE_CHUNK_SIZE) {
     candidates.push(
       ...(await db.card.findMany({
-        where: {
-          OR: chunk.map((identity) => ({
-            game: identity.game,
-            episode_id: identity.episodeId,
-            cardmarket_id: identity.cardmarketId,
-          })),
-        },
+        where: { cardmarket_id: { in: marketIds.slice(index, index + SQLITE_SAFE_CHUNK_SIZE) } },
         select: {
           id: true,
           game: true,
@@ -168,14 +170,138 @@ export async function loadSafeCardMarketHistoryRows(
     );
   }
 
+  const candidatesByMarketId = new Map<string, CardMarketAliasCandidate[]>();
+  for (const candidate of candidates) {
+    if (!candidate.cardmarket_id) continue;
+    const matching = candidatesByMarketId.get(candidate.cardmarket_id) ?? [];
+    matching.push(candidate);
+    candidatesByMarketId.set(candidate.cardmarket_id, matching);
+  }
+
   const aliasIdsByIdentity = new Map<string, Set<string>>();
-  for (const identity of uniqueIdentities) {
+  for (const identity of identities) {
     const ids = new Set<string>([identity.id]);
-    for (const candidate of candidates) {
+    for (const candidate of
+      (identity.cardmarketId
+        ? candidatesByMarketId.get(identity.cardmarketId)
+        : null) ?? []) {
       if (isSafeCardMarketHistoryAlias(identity, candidate)) ids.add(candidate.id);
     }
     aliasIdsByIdentity.set(identity.id, ids);
   }
+  return aliasIdsByIdentity;
+}
+
+function isUsableEnglishNmValue(value: number | null): value is number {
+  return value != null && Number.isFinite(value) && value > 0 && value !== 9001;
+}
+
+/** Returns the newest usable EN/NM row from an ascending safe history. */
+export function getLatestSafeEnglishNmPrice(
+  rows: readonly CardMarketHistoryPriceRow[]
+): LatestSafeEnglishNmPrice | null {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows[index];
+    if (row && isUsableEnglishNmValue(row.cm_en_lowest_nm)) {
+      return {
+        value: row.cm_en_lowest_nm,
+        fetchedAt: row.fetched_at,
+        row,
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Loads one current EN/NM quote per card using the same guarded CardMarket
+ * identity rules as the full history loader. This keeps lists and snapshots
+ * aligned with the graph without loading every historical row.
+ */
+export async function loadLatestSafeEnglishNmPrices(
+  identities: readonly CardMarketHistoryIdentity[]
+): Promise<Map<string, LatestSafeEnglishNmPrice | null>> {
+  const result = new Map<string, LatestSafeEnglishNmPrice | null>();
+  if (identities.length === 0) return result;
+
+  const uniqueIdentities = uniqueHistoryIdentities(identities);
+  for (const identity of uniqueIdentities) result.set(identity.id, null);
+  const aliasIdsByIdentity = await resolveSafeAliasIds(uniqueIdentities);
+  const allCardIds = [
+    ...new Set([...aliasIdsByIdentity.values()].flatMap((ids) => [...ids])),
+  ];
+
+  const latestRowsByCardId = new Map<string, CardMarketHistoryPriceRow>();
+  for (let index = 0; index < allCardIds.length; index += SQLITE_SAFE_CHUNK_SIZE) {
+    const cards = await db.card.findMany({
+      where: { id: { in: allCardIds.slice(index, index + SQLITE_SAFE_CHUNK_SIZE) } },
+      select: {
+        id: true,
+        prices: {
+          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
+          take: 1,
+          select: {
+            fetched_at: true,
+            cm_en_lowest_nm: true,
+            cm_de_lowest_nm: true,
+            cm_fr_lowest_nm: true,
+            cm_es_lowest_nm: true,
+            cm_it_lowest_nm: true,
+            cm_jp_lowest_nm: true,
+            cm_en_avg_7d: true,
+            cm_en_avg_30d: true,
+            tcp_market: true,
+            tcp_mid: true,
+            tcp_low: true,
+          },
+        },
+      },
+    });
+    for (const card of cards) {
+      const row = card.prices[0];
+      if (!row || !isUsableEnglishNmValue(row.cm_en_lowest_nm)) continue;
+      latestRowsByCardId.set(card.id, { card_id: card.id, ...row });
+    }
+  }
+
+  for (const identity of uniqueIdentities) {
+    const aliases = aliasIdsByIdentity.get(identity.id) ?? new Set([identity.id]);
+    let latest: CardMarketHistoryPriceRow | null = null;
+    for (const aliasId of aliases) {
+      const source = latestRowsByCardId.get(aliasId);
+      if (!source) continue;
+      const row =
+        aliasId === identity.id
+          ? source
+          : { ...source, tcp_market: null, tcp_mid: null, tcp_low: null };
+      const isNewer = !latest || row.fetched_at.getTime() > latest.fetched_at.getTime();
+      const isExactTie =
+        latest &&
+        row.fetched_at.getTime() === latest.fetched_at.getTime() &&
+        row.card_id === identity.id &&
+        latest.card_id !== identity.id;
+      if (isNewer || isExactTie) latest = row;
+    }
+    result.set(identity.id, latest ? getLatestSafeEnglishNmPrice([latest]) : null);
+  }
+
+  return result;
+}
+
+export async function loadSafeCardMarketHistoryRows(
+  identities: readonly CardMarketHistoryIdentity[],
+  options: { fetchedAtGte?: Date; fetchedAtLte?: Date } = {}
+): Promise<Map<string, CardMarketHistoryPriceRow[]>> {
+  const result = new Map<string, CardMarketHistoryPriceRow[]>();
+  if (identities.length === 0) return result;
+
+  const uniqueIdentities = uniqueHistoryIdentities(identities);
+  for (const identity of uniqueIdentities) {
+    result.set(identity.id, []);
+  }
+
+  const aliasIdsByIdentity = await resolveSafeAliasIds(uniqueIdentities);
 
   const allCardIds = [
     ...new Set([...aliasIdsByIdentity.values()].flatMap((ids) => [...ids])),

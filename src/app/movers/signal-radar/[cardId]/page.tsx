@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Radar, Sparkles } from "lucide-react";
 import SignalRadarDetailClient from "@/app/movers/signal-radar/[cardId]/SignalRadarDetailClient";
-import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
+import {
+  getLatestSafeEnglishNmPrice,
+  loadSafeCardMarketHistoryRows,
+} from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import { getCachedExternalCardResearch } from "@/lib/external-card-research";
 import {
@@ -66,19 +69,6 @@ export default async function SignalRadarCardPage({
         artist: true,
         cardmarket_id: true,
         cardmarket_url: true,
-        prices: {
-          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-          take: 1,
-          select: {
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-            cm_jp_lowest_nm: true,
-          },
-        },
         episode: {
           select: { id: true, name: true, code: true, series: true, release_date: true },
         },
@@ -122,6 +112,7 @@ export default async function SignalRadarCardPage({
         },
       ])
     ).get(cardBasics.id) ?? [];
+  const latestRawPrice = getLatestSafeEnglishNmPrice(rawHistoryRows);
   const data = await enrichExternalSignalRadarData(
     mergeExternalSignalRadarWithFallback(liveData, persistedData, activeGame)
   );
@@ -138,15 +129,6 @@ export default async function SignalRadarCardPage({
   });
   let signal = data.signals.find((candidate) => candidate.cardId === cardId);
   if (!signal) {
-    const rawPrice =
-      [...rawHistoryRows]
-        .reverse()
-        .find(
-          (price) =>
-            price.cm_en_lowest_nm != null &&
-            price.cm_en_lowest_nm > 0 &&
-            price.cm_en_lowest_nm !== 9001
-        )?.cm_en_lowest_nm ?? cardBasics.prices[0]?.cm_en_lowest_nm ?? null;
     signal = await buildOnDemandExternalCardSignal({
       id: cardBasics.id,
       game,
@@ -156,7 +138,7 @@ export default async function SignalRadarCardPage({
       episodeName: cardBasics.episode.name,
       episodeCode: cardBasics.episode.code,
       rarity: cardBasics.rarity,
-      currentPrice: rawPrice,
+      currentPrice: latestRawPrice?.value ?? null,
     });
   }
   if (!signal) notFound();
@@ -183,6 +165,21 @@ export default async function SignalRadarCardPage({
         ) ?? null
       : null;
   const gradedHistory = ebayGradedSeries?.points ?? cardMarketGradedSeries?.points ?? [];
+  const displayCardBasics = {
+    ...cardBasics,
+    prices: latestRawPrice
+      ? [
+          {
+            cm_en_lowest_nm: latestRawPrice.row.cm_en_lowest_nm,
+            cm_de_lowest_nm: latestRawPrice.row.cm_de_lowest_nm,
+            cm_fr_lowest_nm: latestRawPrice.row.cm_fr_lowest_nm,
+            cm_es_lowest_nm: latestRawPrice.row.cm_es_lowest_nm,
+            cm_it_lowest_nm: latestRawPrice.row.cm_it_lowest_nm,
+            cm_jp_lowest_nm: latestRawPrice.row.cm_jp_lowest_nm,
+          },
+        ]
+      : [],
+  };
 
   const confluence = signal.marketIntelligence?.confluence;
   return (
@@ -210,7 +207,7 @@ export default async function SignalRadarCardPage({
       </div>
       <SignalRadarDetailClient
         signal={signal}
-        cardBasics={cardBasics}
+        cardBasics={displayCardBasics}
         priceHistory={{
           raw: rawHistory,
           rawCurrency: "EUR",

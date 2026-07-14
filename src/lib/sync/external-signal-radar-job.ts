@@ -16,6 +16,7 @@ import { ALL_GAMES } from "@/lib/games";
 import {
   EXTERNAL_CATALYST_REFRESH_INTERVAL_MS,
   EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS,
+  EXTERNAL_SIGNAL_MODEL_VERSION,
   isExternalRefreshDue,
   persistExternalCompetitiveScan,
 } from "@/lib/sync/external-signal-persistence";
@@ -87,13 +88,26 @@ function readCatalystQueryVersion(detailsJson: string | null | undefined): numbe
   }
 }
 
+export function isCurrentExternalSignalModel(
+  modelVersion: string | null | undefined
+): boolean {
+  return modelVersion === EXTERNAL_SIGNAL_MODEL_VERSION;
+}
+
 async function getRunState(now: Date) {
   const [job, lastCompetitive, lastCatalyst] = await Promise.all([
     db.syncJob.findUnique({ where: { type: EXTERNAL_SIGNAL_JOB_TYPE } }),
     db.externalSignalRun.findFirst({
       where: { kind: "competitive", status: "success" },
       orderBy: { finished_at: "desc" },
-      select: { finished_at: true },
+      select: {
+        finished_at: true,
+        observations: {
+          orderBy: { id: "asc" },
+          take: 1,
+          select: { model_version: true },
+        },
+      },
     }),
     db.externalSignalRun.findFirst({
       where: { kind: EXTERNAL_SIGNAL_CATALYST_RUN_KIND, status: { in: ["success", "partial"] } },
@@ -102,6 +116,7 @@ async function getRunState(now: Date) {
     }),
   ]);
   const lastCompetitiveAt = lastCompetitive?.finished_at ?? null;
+  const lastCompetitiveModel = lastCompetitive?.observations[0]?.model_version ?? null;
   const lastCatalystAt =
     readCatalystQueryVersion(lastCatalyst?.details_json) >= EXTERNAL_CATALYST_QUERY_VERSION
       ? lastCatalyst?.finished_at ?? null
@@ -110,11 +125,14 @@ async function getRunState(now: Date) {
     job,
     lastCompetitiveAt,
     lastCatalystAt,
-    competitiveDue: isExternalRefreshDue(
-      lastCompetitiveAt,
-      EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS,
-      now
-    ),
+    competitiveDue:
+      (lastCompetitiveModel != null &&
+        !isCurrentExternalSignalModel(lastCompetitiveModel)) ||
+      isExternalRefreshDue(
+        lastCompetitiveAt,
+        EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS,
+        now
+      ),
     catalystDue: isExternalRefreshDue(
       lastCatalystAt,
       EXTERNAL_CATALYST_REFRESH_INTERVAL_MS,

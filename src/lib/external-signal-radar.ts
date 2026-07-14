@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma";
+import { loadLatestSafeEnglishNmPrices } from "@/lib/card-market-history";
 import type { ExternalCardForecastSummary } from "@/lib/external-signal-forecast-store";
 import type { ExternalEbayDemandIntelligence } from "@/lib/ebay-demand-signal";
 import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
@@ -246,11 +247,14 @@ const gameScanCache = createSwrCache<GameSignalScan>(
 const RADAR_CARD_SELECT = {
   id: true,
   game: true,
+  episode_id: true,
   name: true,
   image_url: true,
   card_number: true,
   printed_card_number: true,
   rarity: true,
+  cardmarket_id: true,
+  cardmarket_url: true,
   episode: {
     select: {
       id: true,
@@ -564,25 +568,6 @@ export function getPressureTierForScore(score: number): {
   };
 }
 
-interface RadarPriceRecord {
-  cm_en_lowest_nm: number | null;
-  cm_de_lowest_nm: number | null;
-  cm_fr_lowest_nm: number | null;
-  cm_es_lowest_nm: number | null;
-  cm_it_lowest_nm: number | null;
-  tcp_market: number | null;
-}
-
-function getRadarCardPrice(price: RadarPriceRecord | null | undefined): {
-  value: number | null;
-  currency: "EUR" | "USD";
-} {
-  if (!price) return { value: null, currency: "EUR" };
-  const euroPrice = price.cm_en_lowest_nm;
-  if (euroPrice != null) return { value: euroPrice, currency: "EUR" };
-  return { value: null, currency: "EUR" };
-}
-
 function chooseCollectorVariant(cards: RadarCardRecord[]): RadarCardRecord | null {
   if (cards.length === 0) return null;
   // Variant selection only decides which local artwork is displayed. It never changes
@@ -685,36 +670,6 @@ async function loadLocalCards(
   return cardMap;
 }
 
-async function loadLatestPrices(cardIds: string[]): Promise<Map<string, RadarPriceRecord>> {
-  const priceMap = new Map<string, RadarPriceRecord>();
-  for (let index = 0; index < cardIds.length; index += 50) {
-    const rows = await db.card.findMany({
-      where: { id: { in: cardIds.slice(index, index + 50) } },
-      select: {
-        id: true,
-        prices: {
-          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-          take: 1,
-          select: {
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-            tcp_market: true,
-          },
-        },
-      },
-    });
-    for (const row of rows) {
-      const price = row.prices[0];
-      if (price) priceMap.set(row.id, price);
-    }
-  }
-  return priceMap;
-}
-
 async function buildRadarData(
   gameFilter: TradingCardGameFilter,
   options?: { fresh?: boolean }
@@ -741,8 +696,24 @@ async function buildRadarData(
 
     return [{ externalCard, localCard }];
   });
-  const priceMap = await loadLatestPrices(
-    [...new Set(matchedCards.map(({ localCard }) => localCard.id))]
+  const priceMap = await loadLatestSafeEnglishNmPrices(
+    [
+      ...new Map(
+        matchedCards.map(({ localCard }) => [
+          localCard.id,
+          {
+            id: localCard.id,
+            game: localCard.game,
+            episodeId: localCard.episode_id,
+            name: localCard.name,
+            cardNumber: localCard.card_number,
+            printedCardNumber: localCard.printed_card_number,
+            cardmarketId: localCard.cardmarket_id,
+            cardmarketUrl: localCard.cardmarket_url,
+          },
+        ])
+      ).values(),
+    ]
   );
 
   const matchedSignals = matchedCards.map(({ externalCard, localCard }) => {
@@ -750,7 +721,7 @@ async function buildRadarData(
     const score = calculateExternalSignalScore(externalCard.evidence);
     const confidence = getConfidence(score, externalCard.evidence.length);
     const pressure = getPressureTierForScore(score);
-    const price = getRadarCardPrice(priceMap.get(localCard.id));
+    const price = priceMap.get(localCard.id);
 
     return {
         rank: 0,
@@ -762,8 +733,8 @@ async function buildRadarData(
         episodeName: localCard.episode.name,
         episodeCode: localCard.episode.code,
         rarity: localCard.rarity,
-        currentPrice: price.value,
-        currency: price.currency,
+        currentPrice: price?.value ?? null,
+        currency: "EUR" as const,
         externalScore: score,
         competitiveScore: score,
         confidence,

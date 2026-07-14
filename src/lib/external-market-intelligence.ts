@@ -41,7 +41,7 @@ import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 const DAY_MS = 86_400_000;
 const CARD_CHUNK_SIZE = 50;
 const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
-const FORECAST_MODEL_VERSION = "signed-market-v4-en-nm-aliases";
+const FORECAST_MODEL_VERSION = "signed-market-v5-en-nm-only";
 
 const LIFECYCLE_COPY: Record<
   SetLifecycleStatus,
@@ -684,15 +684,27 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     const rawTrend90dPct = calculateRobustPriceTrend(rawHistory, 90)?.percent ?? null;
     const rawTrend180dPct = calculateRobustPriceTrend(rawHistory, 180)?.percent ?? null;
     const latestRaw = card.prices[0];
-    const currentVsAverage30dPct =
+    const latestRawDay = rawHistory.at(-1)?.day.getTime() ?? null;
+    const recentEnglishNmValues =
+      latestRawDay == null
+        ? []
+        : rawHistory
+            .filter((point) => point.day.getTime() >= latestRawDay - 30 * DAY_MS)
+            .map((point) => point.value);
+    const englishNmAverage30d =
+      recentEnglishNmValues.length >= 3
+        ? recentEnglishNmValues.reduce((sum, value) => sum + value, 0) /
+          recentEnglishNmValues.length
+        : null;
+    const currentVsEnglishNmAverage30dPct =
       signal.currency === "EUR" &&
       signal.currentPrice != null &&
-      latestRaw?.cm_en_avg_30d != null &&
-      latestRaw.cm_en_avg_30d > 0
+      englishNmAverage30d != null &&
+      englishNmAverage30d > 0
         ? Number(
             (
-              ((signal.currentPrice - latestRaw.cm_en_avg_30d) /
-                latestRaw.cm_en_avg_30d) *
+              ((signal.currentPrice - englishNmAverage30d) /
+                englishNmAverage30d) *
               100
             ).toFixed(1)
           )
@@ -810,7 +822,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       lifecycleStatus: sealed.lifecycleStatus,
       lifecycleConfidence: sealed.lifecycleConfidence,
       lifecycleOopProbability: sealed.lifecycleOopProbability,
-      currentVsAverage30dPct,
+      currentVsEnglishNmAverage30dPct,
     });
     const gradedScenario = buildPriceScenario({
       marketMode: "graded",

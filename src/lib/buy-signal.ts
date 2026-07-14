@@ -177,81 +177,6 @@ function getRawCardMarketValue(price: BuySignalPriceSnapshot | null): number | n
   return price.cm_en_lowest_nm ?? null;
 }
 
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const midpoint = Math.floor(sorted.length / 2);
-
-  return sorted.length % 2 === 0
-    ? round((sorted[midpoint - 1] + sorted[midpoint]) / 2, 2)
-    : sorted[midpoint];
-}
-
-function getRawLanguageValues(price: BuySignalPriceSnapshot | null): number[] {
-  if (!price) return [];
-
-  return [
-    price.cm_en_lowest_nm,
-    price.cm_de_lowest_nm,
-    price.cm_fr_lowest_nm,
-    price.cm_es_lowest_nm,
-    price.cm_it_lowest_nm,
-    price.cm_jp_lowest_nm,
-  ].filter(isFiniteNumber);
-}
-
-function getRawHistoryLanguageValues(point: CardPriceHistoryPoint): number[] {
-  return [
-    point.cm_market_en,
-    point.cm_market_de,
-    point.cm_market_fr,
-    point.cm_market_es,
-    point.cm_market_it,
-    point.cm_market_jp,
-  ].filter(isFiniteNumber);
-}
-
-function getRawSignalValue(input: {
-  primaryValue: number | null;
-  average7d: number | null | undefined;
-  average30d: number | null | undefined;
-  languageValues: number[];
-}): { value: number | null; adjusted: boolean; anchorLabel: string | null } {
-  const primaryValue = input.primaryValue;
-  if (primaryValue == null) {
-    return { value: null, adjusted: false, anchorLabel: null };
-  }
-
-  const average30d = input.average30d ?? null;
-  const average7d = input.average7d ?? null;
-  const marketMedian = median(input.languageValues);
-  const stableAnchor = average30d ?? average7d ?? marketMedian;
-  const hasAverageOutlier =
-    stableAnchor != null &&
-    stableAnchor > 0 &&
-    primaryValue >= stableAnchor * 2.8 &&
-    primaryValue - stableAnchor >= 30;
-  const hasLanguageOutlier =
-    marketMedian != null &&
-    marketMedian > 0 &&
-    primaryValue >= marketMedian * 3 &&
-    primaryValue - marketMedian >= 50;
-
-  if (hasAverageOutlier || hasLanguageOutlier) {
-    if (average30d != null && average30d > 0) {
-      return { value: average30d, adjusted: true, anchorLabel: "30d avg" };
-    }
-    if (average7d != null && average7d > 0) {
-      return { value: average7d, adjusted: true, anchorLabel: "7d avg" };
-    }
-    if (marketMedian != null) {
-      return { value: marketMedian, adjusted: true, anchorLabel: "raw median" };
-    }
-  }
-
-  return { value: primaryValue, adjusted: false, anchorLabel: null };
-}
-
 function normalizeGradedLookupValue(value: string | null | undefined): string {
   return value?.toUpperCase().replace(/[^A-Z0-9.]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
 }
@@ -350,45 +275,27 @@ function getEbaySoldValueEur(price: BuySignalEbaySoldGradedPrice | null): number
 function buildRawSelection(input: BuildBuySignalInput): MarketSelection {
   const cardMarketValue = getRawCardMarketValue(input.price);
   const tcgPlayerValue = input.price?.tcp_market ?? null;
-  const useCardMarket = cardMarketValue != null || tcgPlayerValue == null;
-  const rawSignalValue = getRawSignalValue({
-    primaryValue: cardMarketValue,
-    average7d: input.price?.cm_en_avg_7d,
-    average30d: input.price?.cm_en_avg_30d,
-    languageValues: getRawLanguageValues(input.price),
-  });
   const historyPoints = input.price_history.map((point) => ({
     date: point.date,
-    value: useCardMarket
-      ? getRawSignalValue({
-          primaryValue: point.cm_market,
-          average7d: point.cm_avg_7d,
-          average30d: point.cm_avg_30d,
-          languageValues: getRawHistoryLanguageValues(point),
-        }).value
-      : point.tcp_market,
+    value: point.cm_market_en,
   }));
 
   return {
     market_mode: "raw",
-    source_label: useCardMarket
-      ? rawSignalValue.adjusted && rawSignalValue.anchorLabel
-        ? `CardMarket ${rawSignalValue.anchorLabel}`
-        : "CardMarket raw"
-      : "TCGPlayer raw",
-    current_value: useCardMarket ? rawSignalValue.value : tcgPlayerValue,
-    currency: useCardMarket ? "EUR" : "USD",
+    source_label: "CardMarket EN NM",
+    current_value: cardMarketValue,
+    currency: "EUR",
     history_points: historyPoints,
-    average_7d: useCardMarket ? input.price?.cm_en_avg_7d ?? null : null,
-    average_30d: useCardMarket ? input.price?.cm_en_avg_30d ?? null : null,
-    comparison_value: useCardMarket ? tcgPlayerValue : cardMarketValue,
-    comparison_label: useCardMarket && tcgPlayerValue != null ? "TCGPlayer" : cardMarketValue != null ? "CardMarket" : null,
+    average_7d: input.price?.cm_en_avg_7d ?? null,
+    average_30d: input.price?.cm_en_avg_30d ?? null,
+    comparison_value: tcgPlayerValue,
+    comparison_label: tcgPlayerValue != null ? "TCGPlayer" : null,
     ebay_sample_size: null,
     ebay_fetched_at: null,
     data_fetched_at: input.price_fetched_at ?? input.price_source_checked_at ?? null,
     raw_has_secondary_source: cardMarketValue != null && tcgPlayerValue != null,
     matched_graded: false,
-    raw_active_listing_outlier: useCardMarket ? rawSignalValue.adjusted : false,
+    raw_active_listing_outlier: false,
   };
 }
 

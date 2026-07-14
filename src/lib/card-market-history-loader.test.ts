@@ -7,7 +7,10 @@ const dbMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 
-import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
+import {
+  loadLatestSafeEnglishNmPrices,
+  loadSafeCardMarketHistoryRows,
+} from "@/lib/card-market-history";
 
 const emptyMarketFields = {
   cm_de_lowest_nm: null,
@@ -98,5 +101,79 @@ describe("loadSafeCardMarketHistoryRows", () => {
       expect.objectContaining({ card_id: "9907", cm_en_lowest_nm: 21, tcp_market: null }),
       expect.objectContaining({ card_id: "9908", cm_en_lowest_nm: 20, tcp_market: 22 }),
     ]);
+  });
+
+  it("uses the newest guarded EN/NM quote and prefers the exact card on a tie", async () => {
+    dbMock.card.findMany
+      .mockResolvedValueOnce([
+        {
+          id: "old-printing",
+          game: "pokemon",
+          episode_id: "set-1",
+          name: "Example-GX",
+          card_number: "157",
+          printed_card_number: "157/145",
+          cardmarket_id: "cm-1",
+          cardmarket_url: "https://www.cardmarket.com/Pokemon/Products?idProduct=1",
+        },
+        {
+          id: "current-printing",
+          game: "pokemon",
+          episode_id: "set-1",
+          name: "Example-GX",
+          card_number: "157a",
+          printed_card_number: "157a",
+          cardmarket_id: "cm-1",
+          cardmarket_url: "https://www.cardmarket.com/Pokemon/Products?idProduct=1",
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "old-printing",
+          prices: [
+            {
+              fetched_at: new Date("2026-07-14T12:00:00.000Z"),
+              cm_en_lowest_nm: 21,
+              tcp_market: 90,
+              ...emptyMarketFields,
+            },
+          ],
+        },
+        {
+          id: "current-printing",
+          prices: [
+            {
+              fetched_at: new Date("2026-07-14T12:00:00.000Z"),
+              cm_en_lowest_nm: 20,
+              tcp_market: 22,
+              ...emptyMarketFields,
+            },
+          ],
+        },
+      ]);
+
+    const prices = await loadLatestSafeEnglishNmPrices([
+      {
+        id: "current-printing",
+        game: "pokemon",
+        episodeId: "set-1",
+        name: "Example-GX",
+        cardNumber: "157a",
+        printedCardNumber: "157a",
+        cardmarketId: "cm-1",
+        cardmarketUrl: "https://www.cardmarket.com/Pokemon/Products?idProduct=1",
+      },
+    ]);
+
+    expect(prices.get("current-printing")).toEqual(
+      expect.objectContaining({
+        value: 20,
+        row: expect.objectContaining({
+          card_id: "current-printing",
+          cm_en_lowest_nm: 20,
+          tcp_market: 22,
+        }),
+      })
+    );
   });
 });

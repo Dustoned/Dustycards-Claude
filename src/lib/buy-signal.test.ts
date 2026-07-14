@@ -274,7 +274,7 @@ describe("buy signal", () => {
     );
   });
 
-  it("does not turn an old promo into sell because of one raw active-listing outlier", () => {
+  it("never replaces the English NM market with an average or another language", () => {
     const outlierPoint = (
       date: string,
       en: number,
@@ -325,10 +325,10 @@ describe("buy signal", () => {
       })
     );
 
-    expect(signal.label).toBe("hold");
-    expect(signal.source_label).toBe("CardMarket 30d avg");
-    expect(signal.warnings).toContain("Active listing outlier");
-    expect(signal.metrics.raw_active_listing_outlier).toBe(true);
+    expect(signal.source_label).toBe("CardMarket EN NM");
+    expect(signal.current_value).toBe(600);
+    expect(signal.warnings).not.toContain("Active listing outlier");
+    expect(signal.metrics.raw_active_listing_outlier).toBe(false);
     expect(signal.metrics.long_term_score).toBeGreaterThanOrEqual(90);
   });
 

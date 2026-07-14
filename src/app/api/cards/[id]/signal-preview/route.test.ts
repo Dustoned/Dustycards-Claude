@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { authMock, dbMock, signalMock, settingsMock } = vi.hoisted(() => ({
+const { authMock, dbMock, historyMock, signalMock, settingsMock } = vi.hoisted(() => ({
   authMock: {
     requireUser: vi.fn(),
     authErrorResponse: vi.fn(),
   },
   dbMock: {
     card: { findUnique: vi.fn() },
+  },
+  historyMock: {
+    loadLatestSafeEnglishNmPrices: vi.fn(),
   },
   signalMock: {
     buildOnDemandExternalCardSignal: vi.fn(),
@@ -22,6 +25,10 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
+
+vi.mock("@/lib/card-market-history", () => ({
+  loadLatestSafeEnglishNmPrices: historyMock.loadLatestSafeEnglishNmPrices,
+}));
 
 vi.mock("@/lib/external-signal-intelligence", () => ({
   buildOnDemandExternalCardSignal: signalMock.buildOnDemandExternalCardSignal,
@@ -42,37 +49,40 @@ describe("GET /api/cards/[id]/signal-preview", () => {
     dbMock.card.findUnique.mockResolvedValue({
       id: "card-1",
       game: "pokemon",
+      episode_id: "episode-1",
       name: "Eevee",
       image_url: null,
       card_number: "11",
       printed_card_number: "11/53",
       rarity: "Promo",
+      cardmarket_id: "cm-1",
+      cardmarket_url: "https://www.cardmarket.com/Pokemon/Products?idProduct=1",
       episode: { name: "Wizards Black Star Promos", code: "PR" },
-      prices: [{ cm_en_lowest_nm: 300 }],
     });
+    historyMock.loadLatestSafeEnglishNmPrices.mockResolvedValue(
+      new Map([["card-1", { value: 275 }]])
+    );
     signalMock.buildOnDemandExternalCardSignal.mockResolvedValue({
       cardId: "card-1",
       externalScore: 60,
     });
   });
 
-  it("uses only the newest usable English NM quote for the local preview", async () => {
+  it("uses the shared safe English NM quote for the local preview", async () => {
     const response = await GET(new Request("http://localhost/api/cards/card-1/signal-preview"), {
       params: Promise.resolve({ id: "card-1" }),
     });
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(dbMock.card.findUnique.mock.calls[0]?.[0]?.select?.prices).toEqual(
-      expect.objectContaining({
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-        take: 1,
-      })
-    );
+    expect(dbMock.card.findUnique.mock.calls[0]?.[0]?.select?.prices).toBeUndefined();
+    expect(historyMock.loadLatestSafeEnglishNmPrices).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "card-1", cardmarketId: "cm-1" }),
+    ]);
     expect(signalMock.buildOnDemandExternalCardSignal).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "card-1",
-        currentPrice: 300,
+        currentPrice: 275,
       })
     );
     expect(body).toMatchObject({ ok: true, signal: { cardId: "card-1" } });
@@ -82,13 +92,15 @@ describe("GET /api/cards/[id]/signal-preview", () => {
     dbMock.card.findUnique.mockResolvedValue({
       id: "one-piece:1",
       game: "one-piece",
+      episode_id: "episode-op01",
       name: "Nami",
       image_url: null,
       card_number: "OP01-016",
       printed_card_number: "OP01-016",
       rarity: "Rare",
+      cardmarket_id: "cm-op-1",
+      cardmarket_url: null,
       episode: { name: "Romance Dawn", code: "OP01" },
-      prices: [{ cm_en_lowest_nm: 20 }],
     });
     settingsMock.getServerUserSettings.mockResolvedValue({ onePieceLibraryEnabled: false });
 

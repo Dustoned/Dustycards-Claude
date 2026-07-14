@@ -35,12 +35,16 @@ vi.mock("@/lib/sync/signal-radar-ebay-demand", () => ({
 vi.mock("@/lib/sync/external-signal-persistence", () => ({
   EXTERNAL_CATALYST_REFRESH_INTERVAL_MS: 72 * 60 * 60_000,
   EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS: 6 * 60 * 60_000,
+  EXTERNAL_SIGNAL_MODEL_VERSION: "v7-en-nm-history",
   getCompleteExternalSignalGames: vi.fn(),
   isExternalRefreshDue: vi.fn(),
   persistExternalCompetitiveScan: vi.fn(),
 }));
 
-import { claimExternalSignalJob } from "@/lib/sync/external-signal-radar-job";
+import {
+  claimExternalSignalJob,
+  isCurrentExternalSignalModel,
+} from "@/lib/sync/external-signal-radar-job";
 
 describe("external signal scheduler lease", () => {
   beforeEach(() => {
@@ -90,5 +94,11 @@ describe("external signal scheduler lease", () => {
 
     expect(claims.filter(Boolean)).toHaveLength(1);
     expect(mocks.updateMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("forces a refresh after the signal pricing model changes", () => {
+    expect(isCurrentExternalSignalModel("v6-price-sanity")).toBe(false);
+    expect(isCurrentExternalSignalModel("v7-en-nm-history")).toBe(true);
+    expect(isCurrentExternalSignalModel(null)).toBe(false);
   });
 });

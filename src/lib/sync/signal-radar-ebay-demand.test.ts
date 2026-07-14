@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   cardFindUnique: vi.fn(),
+  loadLatestSafeEnglishNmPrices: vi.fn(),
   snapshotFindMany: vi.fn(),
   buildEbayCardDemandSearchQuery: vi.fn(
     () => "Sylveon-GX 140/145 Pokemon"
@@ -20,6 +21,9 @@ vi.mock("@/lib/db", () => ({
     card: { findUnique: mocks.cardFindUnique },
     cardEbayDemandSnapshot: { findMany: mocks.snapshotFindMany },
   },
+}));
+vi.mock("@/lib/card-market-history", () => ({
+  loadLatestSafeEnglishNmPrices: mocks.loadLatestSafeEnglishNmPrices,
 }));
 vi.mock("@/lib/ebay", () => ({
   buildEbayCardDemandSearchQuery: mocks.buildEbayCardDemandSearchQuery,
@@ -53,6 +57,9 @@ describe("Signal Radar eBay demand refresh", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.recordEbayDemandScan.mockResolvedValue({});
+    mocks.loadLatestSafeEnglishNmPrices.mockResolvedValue(
+      new Map([["card-1", { value: 95 }]])
+    );
   });
 
   it("keeps a 1,000-call reserve and uses a three-card fail-safe when quota is unknown", () => {
@@ -131,13 +138,15 @@ describe("Signal Radar eBay demand refresh", () => {
     mocks.cardFindUnique.mockResolvedValue({
       id: "card-1",
       game: "pokemon",
+      episode_id: "set-1",
       name: "Sylveon-GX",
       card_number: "140/145",
       printed_card_number: "140/145",
       rarity: "Rare Ultra",
       image_url: null,
+      cardmarket_id: "cm-1",
+      cardmarket_url: null,
       episode: { id: "set-1", name: "Guardians Rising", code: "GRI" },
-      prices: [{ cm_en_lowest_nm: 95 }],
     });
     const exact = { itemId: "exact", title: "Sylveon GX 140/145 NM English" };
     const wrong = { itemId: "wrong", title: "Sylveon GX 92/145 NM English" };
@@ -164,6 +173,11 @@ describe("Signal Radar eBay demand refresh", () => {
     });
     expect(mocks.searchEbayDeals).toHaveBeenCalledWith(expect.objectContaining({
       query: "Sylveon-GX 140/145 Pokemon",
+      reference: {
+        label: "CardMarket NM English",
+        valueEur: 95,
+        source: "cardmarket",
+      },
       strictEnglish: true,
       strictNearMint: true,
       excludeGraded: true,

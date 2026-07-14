@@ -502,7 +502,7 @@ export function buildPriceScenario(input: {
   lifecycleStatus?: ExternalSealedIntelligence["lifecycleStatus"];
   lifecycleConfidence?: number | null;
   lifecycleOopProbability?: number | null;
-  currentVsAverage30dPct?: number | null;
+  currentVsEnglishNmAverage30dPct?: number | null;
 }): ExternalPriceScenario | null {
   if (
     input.currentPrice == null ||
@@ -621,13 +621,13 @@ export function buildPriceScenario(input: {
       : 0;
 
   const valuationContribution =
-    input.currentVsAverage30dPct == null
+    input.currentVsEnglishNmAverage30dPct == null
       ? 0
-      : input.currentVsAverage30dPct >= 40
+      : input.currentVsEnglishNmAverage30dPct >= 40
         ? -14
-        : input.currentVsAverage30dPct >= 20
+        : input.currentVsEnglishNmAverage30dPct >= 20
           ? -7
-          : input.currentVsAverage30dPct <= -20 && positiveConfirmations >= 1
+          : input.currentVsEnglishNmAverage30dPct <= -20 && positiveConfirmations >= 1
             ? 4
             : 0;
 

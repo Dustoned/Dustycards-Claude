@@ -1,5 +1,6 @@
 import "server-only";
 
+import { loadLatestSafeEnglishNmPrices } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import { getExternalEntityKey } from "@/lib/external-event-candidates";
 import {
@@ -18,10 +19,6 @@ import type {
 import { getPressureTierForScore } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
-import {
-  getCurrentRawCardmarketValue,
-  getLatestAvailableEnglishNmValue,
-} from "@/lib/market-price-sanity";
 import { createSwrCache } from "@/lib/server-swr-cache";
 
 const SQLITE_SAFE_CARD_CHUNK_SIZE = 50;
@@ -226,31 +223,51 @@ async function rebaseSignalsToEnglishNm(
   signals: readonly ExternalCardSignal[]
 ): Promise<ExternalCardSignal[]> {
   if (signals.length === 0) return [];
-  const pricesByCard = new Map<string, number>();
   const cardIds = [...new Set(signals.map((signal) => signal.cardId))];
+  const cards: Array<{
+    id: string;
+    game: string;
+    episode_id: string;
+    name: string;
+    card_number: string | null;
+    printed_card_number: string | null;
+    cardmarket_id: string | null;
+    cardmarket_url: string | null;
+  }> = [];
 
   for (let index = 0; index < cardIds.length; index += SQLITE_SAFE_CARD_CHUNK_SIZE) {
-    const cards = await db.card.findMany({
-      where: { id: { in: cardIds.slice(index, index + SQLITE_SAFE_CARD_CHUNK_SIZE) } },
-      select: {
-        id: true,
-        prices: {
-          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-          take: 1,
-          select: { cm_en_lowest_nm: true },
+    cards.push(
+      ...(await db.card.findMany({
+        where: { id: { in: cardIds.slice(index, index + SQLITE_SAFE_CARD_CHUNK_SIZE) } },
+        select: {
+          id: true,
+          game: true,
+          episode_id: true,
+          name: true,
+          card_number: true,
+          printed_card_number: true,
+          cardmarket_id: true,
+          cardmarket_url: true,
         },
-      },
-    });
-    for (const card of cards) {
-      const value = getLatestAvailableEnglishNmValue(card.prices);
-      if (value != null) pricesByCard.set(card.id, value);
-    }
+      }))
+    );
   }
+  const latestPrices = await loadLatestSafeEnglishNmPrices(
+    cards.map((card) => ({
+      id: card.id,
+      game: card.game,
+      episodeId: card.episode_id,
+      name: card.name,
+      cardNumber: card.card_number,
+      printedCardNumber: card.printed_card_number,
+      cardmarketId: card.cardmarket_id,
+      cardmarketUrl: card.cardmarket_url,
+    }))
+  );
 
   return signals.map((signal) => ({
     ...signal,
-    currentPrice: pricesByCard.get(signal.cardId) ?? null,
+    currentPrice: latestPrices.get(signal.cardId)?.value ?? null,
     currency: "EUR",
   }));
 }
@@ -265,33 +282,31 @@ async function loadEventSignalSeeds(
       select: {
         id: true,
         game: true,
+        episode_id: true,
         name: true,
         image_url: true,
         card_number: true,
         printed_card_number: true,
         rarity: true,
+        cardmarket_id: true,
+        cardmarket_url: true,
         episode: { select: { name: true, code: true } },
-        prices: {
-          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-          take: 1,
-          select: {
-            cm_en_avg_7d: true,
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-            tcp_market: true,
-          },
-        },
       },
     });
+    const latestPrices = await loadLatestSafeEnglishNmPrices(
+      rows.map((row) => ({
+        id: row.id,
+        game: row.game,
+        episodeId: row.episode_id,
+        name: row.name,
+        cardNumber: row.card_number,
+        printedCardNumber: row.printed_card_number,
+        cardmarketId: row.cardmarket_id,
+        cardmarketUrl: row.cardmarket_url,
+      }))
+    );
     for (const row of rows) {
-      const price = row.prices[0];
-      const eur = price
-        ? getCurrentRawCardmarketValue(price)
-        : null;
+      const eur = latestPrices.get(row.id)?.value ?? null;
       if (eur == null) continue;
       const game = row.game === "one-piece" ? "one-piece" : "pokemon";
       seeds.push({
@@ -348,7 +363,7 @@ async function loadStructuralSignalSeeds(
   games: TradingCardGame[],
   now: Date
 ): Promise<ExternalCardSignal[]> {
-  const cacheKey = `structural-v6-en-nm:${[...games].sort().join(",")}`;
+  const cacheKey = `structural-v7-safe-en-nm:${[...games].sort().join(",")}`;
   return structuralSignalCache.get(cacheKey, () => loadStructuralSignalSeedsUncached(games, now));
 }
 
@@ -375,7 +390,10 @@ async function loadStructuralSignalSeedsUncached(
         where: {
           game: { in: games },
           rarity: { not: null },
-          prices: { some: { cm_en_lowest_nm: { gt: 0, not: 9001 } } },
+          OR: [
+            { prices: { some: { cm_en_lowest_nm: { gt: 0, not: 9001 } } } },
+            { cardmarket_id: { not: null } },
+          ],
           episode: { release_date: { gte: era.gte, lte: era.lte } },
           NOT: { rarity: { in: ["Common", "Uncommon", "Rare", "C", "UC", "R"] } },
         },
@@ -386,26 +404,16 @@ async function loadStructuralSignalSeedsUncached(
         select: {
           id: true,
           game: true,
+          episode_id: true,
           name: true,
           image_url: true,
           card_number: true,
           printed_card_number: true,
           rarity: true,
+          cardmarket_id: true,
+          cardmarket_url: true,
           episode: { select: { name: true, code: true, release_date: true } },
-          prices: {
-            where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-            orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-            take: 1,
-            select: {
-              cm_en_avg_7d: true,
-              cm_en_lowest_nm: true,
-              cm_de_lowest_nm: true,
-              cm_fr_lowest_nm: true,
-              cm_es_lowest_nm: true,
-              cm_it_lowest_nm: true,
-              tcp_market: true,
-            },
-          },
+          _count: { select: { prices: true } },
           ebaySoldGradedPrices: {
             where: { company: "PSA", grade: "10" },
             orderBy: { fetched_at: "desc" },
@@ -418,11 +426,20 @@ async function loadStructuralSignalSeedsUncached(
     loadCollectorDemandScores(games),
   ]);
   const candidates = candidateBatches.flat();
+  const latestPrices = await loadLatestSafeEnglishNmPrices(
+    candidates.map((card) => ({
+      id: card.id,
+      game: card.game,
+      episodeId: card.episode_id,
+      name: card.name,
+      cardNumber: card.card_number,
+      printedCardNumber: card.printed_card_number,
+      cardmarketId: card.cardmarket_id,
+      cardmarketUrl: card.cardmarket_url,
+    }))
+  );
   const scored = candidates.flatMap((card) => {
-    const price = card.prices[0];
-    if (!price) return [];
-    const eur = getCurrentRawCardmarketValue(price);
-    const currentPrice = eur;
+    const currentPrice = latestPrices.get(card.id)?.value ?? null;
     if (currentPrice == null || currentPrice < 3) return [];
     const releaseTimestamp = Date.parse(card.episode.release_date ?? "");
     const ageYears = Number.isFinite(releaseTimestamp)
@@ -498,7 +515,7 @@ async function loadStructuralSignalSeedsUncached(
         currency,
         externalScore,
         competitiveScore: -1,
-        confidence: card.prices.length >= 5 ? "Medium" : "Emerging",
+        confidence: card._count.prices >= 5 ? "Medium" : "Emerging",
         horizon: "30-90 day watch",
         pressureLabel: pressure.label,
         pressureExplanation: "Structural scarcity and relative value, independent from a current news event",

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { dbMock, exchangeMock, pullRatesMock } = vi.hoisted(() => ({
+const { dbMock, exchangeMock, historyMock, pullRatesMock } = vi.hoisted(() => ({
   dbMock: {
     card: {
       findUnique: vi.fn(),
@@ -17,6 +17,9 @@ const { dbMock, exchangeMock, pullRatesMock } = vi.hoisted(() => ({
   exchangeMock: {
     convertUsdToEur: vi.fn((value: number) => Number((value * 0.9).toFixed(2))),
     getUsdToEurRate: vi.fn().mockResolvedValue({ rate: 0.9, date: "2026-05-24" }),
+  },
+  historyMock: {
+    loadSafeCardMarketHistoryRows: vi.fn(),
   },
   pullRatesMock: {
     getPullRateInfoForSetRarity: vi.fn().mockResolvedValue(null),
@@ -36,6 +39,10 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/db", () => ({
   db: dbMock,
+}));
+
+vi.mock("@/lib/card-market-history", () => ({
+  loadSafeCardMarketHistoryRows: historyMock.loadSafeCardMarketHistoryRows,
 }));
 
 vi.mock("@/lib/exchange-rates", () => ({
@@ -147,10 +154,15 @@ describe("GET /api/cards/[id]", () => {
     exchangeMock.convertUsdToEur.mockClear();
     exchangeMock.getUsdToEurRate.mockClear();
     pullRatesMock.getPullRateInfoForSetRarity.mockClear();
+    historyMock.loadSafeCardMarketHistoryRows.mockReset();
   });
 
   it("includes a safe buy_signal payload in card detail responses", async () => {
-    dbMock.card.findUnique.mockResolvedValue(makeCardRecord());
+    const card = makeCardRecord();
+    dbMock.card.findUnique.mockResolvedValue(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
+      new Map([[card.id, card.prices]])
+    );
 
     const response = await GET(new NextRequest("http://localhost:3000/api/cards/card-1"), {
       params: Promise.resolve({ id: "card-1" }),
@@ -179,6 +191,10 @@ describe("GET /api/cards/[id]", () => {
       for_sale: false,
       sold_at: null,
     });
+    expect(dbMock.card.findUnique.mock.calls[0]?.[0]?.select?.prices).toBeUndefined();
+    expect(historyMock.loadSafeCardMarketHistoryRows).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "card-1", cardmarketId: "123" }),
+    ]);
   });
 
   it("keeps the newest usable English NM quote when the latest source snapshot has none", async () => {
@@ -198,6 +214,9 @@ describe("GET /api/cards/[id]", () => {
       fetched_at: new Date("2026-05-24T10:00:00.000Z"),
     } as unknown as (typeof card.prices)[number]);
     dbMock.card.findUnique.mockResolvedValue(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
+      new Map([[card.id, card.prices]])
+    );
 
     const response = await GET(new NextRequest("http://localhost:3000/api/cards/card-1"), {
       params: Promise.resolve({ id: "card-1" }),

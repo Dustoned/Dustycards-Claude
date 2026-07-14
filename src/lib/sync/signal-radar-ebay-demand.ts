@@ -1,5 +1,6 @@
 import "server-only";
 
+import { loadLatestSafeEnglishNmPrices } from "@/lib/card-market-history";
 import {
   listingHasExactCardIdentity,
   matchEbayListingToCard,
@@ -135,18 +136,15 @@ async function loadDemandCard(cardId: string) {
     select: {
       id: true,
       game: true,
+      episode_id: true,
       name: true,
       card_number: true,
       printed_card_number: true,
       rarity: true,
       image_url: true,
+      cardmarket_id: true,
+      cardmarket_url: true,
       episode: { select: { id: true, name: true, code: true } },
-      prices: {
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-        take: 1,
-        select: { cm_en_lowest_nm: true },
-      },
     },
   });
 }
@@ -170,10 +168,24 @@ export async function scanSignalRadarCardEbayDemand(input: {
     image_url: card.image_url,
     episode: card.episode,
   };
+  const latestSafePrice = (
+    await loadLatestSafeEnglishNmPrices([
+      {
+        id: card.id,
+        game: card.game,
+        episodeId: card.episode_id,
+        name: card.name,
+        cardNumber: card.card_number,
+        printedCardNumber: card.printed_card_number,
+        cardmarketId: card.cardmarket_id,
+        cardmarketUrl: card.cardmarket_url,
+      },
+    ])
+  ).get(card.id);
   const reference: EbayDealReference = {
     label: "CardMarket NM English",
-    valueEur: card.prices[0]?.cm_en_lowest_nm ?? null,
-    source: card.prices[0]?.cm_en_lowest_nm != null ? "cardmarket" : "none",
+    valueEur: latestSafePrice?.value ?? null,
+    source: latestSafePrice?.value != null ? "cardmarket" : "none",
   };
   const query = buildEbayCardDemandSearchQuery({
     name: card.name,
