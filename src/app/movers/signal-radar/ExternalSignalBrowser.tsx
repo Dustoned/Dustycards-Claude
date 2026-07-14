@@ -897,7 +897,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
   const [origin, setOrigin] = useState<OriginFilter>("all");
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
   const [sortKey, setSortKey] = useState<SortKey>("opportunity");
-  const [visibleLimit, setVisibleLimit] = useState(24);
+  const [visibleLimit, setVisibleLimit] = useState(36);
   const deferredSearch = useDeferredValue(search);
 
   const visibleSignals = useMemo(() => {
@@ -1020,7 +1020,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
                 type="button"
                 onClick={() => {
                   setMarketMode(mode);
-                  setVisibleLimit(24);
+                  setVisibleLimit(36);
                 }}
                 className={cx(
                   "h-8 min-w-0 flex-1 rounded-lg px-3 text-[11px] font-semibold capitalize transition lg:flex-none",
@@ -1113,7 +1113,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           <div className="mt-3 flex justify-center">
             <button
               type="button"
-              onClick={() => setVisibleLimit((current) => current + 24)}
+              onClick={() => setVisibleLimit((current) => current + 36)}
               className="rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-5 py-2.5 text-xs font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.12]"
             >
               Show more ({visibleSignals.length - visibleLimit})

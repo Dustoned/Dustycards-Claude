@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  capCompetitiveSignalsPerGame,
   calculateExternalSignalScore,
   getPressureTierForScore,
   parseLimitlessCoreCards,
@@ -128,5 +129,20 @@ describe("external signal scoring", () => {
       label: "Watch",
       explanation: "Early external signal that needs more confirmation",
     });
+  });
+});
+
+describe("competitive signal coverage", () => {
+  it("caps each game independently instead of letting one game consume the cohort", () => {
+    const candidates = [
+      ...Array.from({ length: 60 }, (_, index) => ({ game: "pokemon" as const, index })),
+      ...Array.from({ length: 60 }, (_, index) => ({ game: "one-piece" as const, index })),
+    ];
+
+    const selected = capCompetitiveSignalsPerGame(candidates);
+
+    expect(selected).toHaveLength(90);
+    expect(selected.filter((candidate) => candidate.game === "pokemon")).toHaveLength(45);
+    expect(selected.filter((candidate) => candidate.game === "one-piece")).toHaveLength(45);
   });
 });

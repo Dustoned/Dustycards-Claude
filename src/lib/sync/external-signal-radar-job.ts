@@ -126,8 +126,7 @@ async function getRunState(now: Date) {
     lastCompetitiveAt,
     lastCatalystAt,
     competitiveDue:
-      (lastCompetitiveModel != null &&
-        !isCurrentExternalSignalModel(lastCompetitiveModel)) ||
+      !isCurrentExternalSignalModel(lastCompetitiveModel) ||
       isExternalRefreshDue(
         lastCompetitiveAt,
         EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS,

@@ -8,7 +8,7 @@ import { normalizeCardMarketListingValue } from "@/lib/price-history";
 
 export const EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 export const EXTERNAL_CATALYST_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
-export const EXTERNAL_SIGNAL_MODEL_VERSION = "v7-en-nm-history";
+export const EXTERNAL_SIGNAL_MODEL_VERSION = "v8-expanded-coverage";
 export const EXTERNAL_SIGNAL_OUTCOME_HORIZONS = [30, 90, 180] as const;
 const INDEPENDENT_ENTRY_GAP_MS = 14 * 24 * 60 * 60_000;
 const REFERENCE_PRICE_MAX_AGE_MS = 72 * 60 * 60_000;

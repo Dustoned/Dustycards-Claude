@@ -16,9 +16,9 @@ import { createSwrCache } from "@/lib/server-swr-cache";
 const SIGNAL_CACHE_FRESH_MS = 6 * 60 * 60_000;
 const SIGNAL_CACHE_STALE_MS = 24 * 60 * 60_000;
 const SOURCE_FETCH_TIMEOUT_MS = 8_000;
-const DECKS_PER_GAME = 6;
-const MIN_CORE_INCLUSION_PERCENT = 55;
-const MAX_SIGNAL_COUNT = 30;
+const DECKS_PER_GAME = 10;
+const MIN_CORE_INCLUSION_PERCENT = 45;
+const MAX_COMPETITIVE_SIGNALS_PER_GAME = 45;
 
 const SOURCE_CONFIG = {
   [POKEMON_GAME]: {
@@ -617,6 +617,18 @@ function isActionableCollectorSignal(signal: ExternalCardSignal): boolean {
   );
 }
 
+export function capCompetitiveSignalsPerGame<
+  T extends { game: TradingCardGame }
+>(signals: readonly T[], maxPerGame = MAX_COMPETITIVE_SIGNALS_PER_GAME): T[] {
+  const countByGame = new Map<TradingCardGame, number>();
+  return signals.filter((signal) => {
+    const count = countByGame.get(signal.game) ?? 0;
+    if (count >= maxPerGame) return false;
+    countByGame.set(signal.game, count + 1);
+    return true;
+  });
+}
+
 async function loadLocalCards(
   aggregatedCards: AggregatedExternalCard[]
 ): Promise<Map<string, RadarCardRecord[]>> {
@@ -757,15 +769,16 @@ async function buildRadarData(
       } satisfies ExternalCardSignal;
   });
 
-  const signals = matchedSignals
-    .filter(isActionableCollectorSignal)
-    .sort(
-      (left, right) =>
-        right.externalScore - left.externalScore ||
-        right.archetypeCount - left.archetypeCount ||
-        right.maxInclusionPercent - left.maxInclusionPercent
-    )
-    .slice(0, MAX_SIGNAL_COUNT)
+  const signals = capCompetitiveSignalsPerGame(
+    matchedSignals
+      .filter(isActionableCollectorSignal)
+      .sort(
+        (left, right) =>
+          right.externalScore - left.externalScore ||
+          right.archetypeCount - left.archetypeCount ||
+          right.maxInclusionPercent - left.maxInclusionPercent
+      )
+  )
     .map((signal, index) => ({ ...signal, rank: index + 1 }));
 
   const successfulSourceTimes = scans

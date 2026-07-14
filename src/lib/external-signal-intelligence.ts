@@ -23,10 +23,14 @@ import { createSwrCache } from "@/lib/server-swr-cache";
 
 const SQLITE_SAFE_CARD_CHUNK_SIZE = 50;
 const MAX_CATALYSTS_PER_CARD = 3;
-const MAX_EVENT_ONLY_SIGNALS = 30;
-const MAX_EVENT_VARIANTS_PER_ENTITY = 3;
+const MAX_EVENT_ONLY_SIGNALS = 80;
+const MAX_EVENT_SIGNALS_PER_GAME = 40;
+const MAX_EVENT_VARIANTS_PER_ENTITY = 4;
+const MAX_EVENT_SIGNALS_PER_EPISODE = 12;
 const MIN_EVENT_ONLY_SCORE = 38;
-const MAX_STRUCTURAL_SIGNALS = 45;
+const MAX_STRUCTURAL_SIGNALS = 90;
+const MAX_STRUCTURAL_SIGNALS_PER_GAME_ERA = 8;
+const MAX_STRUCTURAL_VARIANTS_PER_ENTITY = 3;
 const structuralSignalCache = createSwrCache<ExternalCardSignal[]>(6 * 60 * 60_000, 24 * 60 * 60_000);
 const onDemandSignalCache = createSwrCache<ExternalCardSignal>(5 * 60_000, 30 * 60_000);
 
@@ -340,8 +344,10 @@ async function loadEventSignalSeeds(
   return seeds;
 }
 
-function selectDiverseEventSignals(signals: ExternalCardSignal[]): ExternalCardSignal[] {
+export function selectDiverseEventSignals(signals: ExternalCardSignal[]): ExternalCardSignal[] {
+  const perGame = new Map<TradingCardGame, number>();
   const perEntity = new Map<string, number>();
+  const perEpisode = new Map<string, number>();
   return signals
     .sort(
       (left, right) =>
@@ -351,9 +357,18 @@ function selectDiverseEventSignals(signals: ExternalCardSignal[]): ExternalCardS
     )
     .filter((signal) => {
       const key = signal.entityKey ?? `${signal.game}:${signal.name.toLowerCase()}`;
+      const episodeKey = `${signal.game}:${signal.episodeCode?.trim() || signal.episodeName}`;
+      const gameCount = perGame.get(signal.game) ?? 0;
       const count = perEntity.get(key) ?? 0;
-      if (count >= MAX_EVENT_VARIANTS_PER_ENTITY) return false;
+      const episodeCount = perEpisode.get(episodeKey) ?? 0;
+      if (
+        gameCount >= MAX_EVENT_SIGNALS_PER_GAME ||
+        count >= MAX_EVENT_VARIANTS_PER_ENTITY ||
+        episodeCount >= MAX_EVENT_SIGNALS_PER_EPISODE
+      ) return false;
+      perGame.set(signal.game, gameCount + 1);
       perEntity.set(key, count + 1);
+      perEpisode.set(episodeKey, episodeCount + 1);
       return true;
     })
     .slice(0, MAX_EVENT_ONLY_SIGNALS);
@@ -363,7 +378,7 @@ async function loadStructuralSignalSeeds(
   games: TradingCardGame[],
   now: Date
 ): Promise<ExternalCardSignal[]> {
-  const cacheKey = `structural-v7-safe-en-nm:${[...games].sort().join(",")}`;
+  const cacheKey = `structural-v8-expanded-coverage:${[...games].sort().join(",")}`;
   return structuralSignalCache.get(cacheKey, () => loadStructuralSignalSeedsUncached(games, now));
 }
 
@@ -385,44 +400,48 @@ async function loadStructuralSignalSeedsUncached(
   ] as const;
   const [candidateBatches, entityDemand] = await Promise.all([
     Promise.all(
-    eras.map((era) =>
-      db.card.findMany({
-        where: {
-          game: { in: games },
-          rarity: { not: null },
-          OR: [
-            { prices: { some: { cm_en_lowest_nm: { gt: 0, not: 9001 } } } },
-            { cardmarket_id: { not: null } },
-          ],
-          episode: { release_date: { gte: era.gte, lte: era.lte } },
-          NOT: { rarity: { in: ["Common", "Uncommon", "Rare", "C", "UC", "R"] } },
-        },
-        orderBy: [{ episode: { release_date: "desc" } }, { id: "asc" }],
-        // Nested relation queries use the parent ids as parameters. Keeping
-        // each era below 400 avoids SQLite's parameter ceiling.
-        take: 500,
-        select: {
-          id: true,
-          game: true,
-          episode_id: true,
-          name: true,
-          image_url: true,
-          card_number: true,
-          printed_card_number: true,
-          rarity: true,
-          cardmarket_id: true,
-          cardmarket_url: true,
-          episode: { select: { name: true, code: true, release_date: true } },
-          _count: { select: { prices: true } },
-          ebaySoldGradedPrices: {
-            where: { company: "PSA", grade: "10" },
-            orderBy: { fetched_at: "desc" },
-            take: 1,
-            select: { median_price: true, currency: true, sample_size: true },
-          },
-        },
-      })
-    )),
+      eras.flatMap((era) =>
+        games.map((game) =>
+          db.card.findMany({
+            where: {
+              game,
+              rarity: { not: null },
+              OR: [
+                { prices: { some: { cm_en_lowest_nm: { gt: 0, not: 9001 } } } },
+                { cardmarket_id: { not: null } },
+              ],
+              episode: { release_date: { gte: era.gte, lte: era.lte } },
+              NOT: { rarity: { in: ["Common", "Uncommon", "Rare", "C", "UC", "R"] } },
+            },
+            orderBy: [{ episode: { release_date: "desc" } }, { id: "asc" }],
+            // Nested relation queries use the parent ids as parameters. Keeping
+            // each game/era batch below 400 avoids SQLite's parameter ceiling
+            // and stops a large Pokemon era consuming One Piece's window.
+            take: 300,
+            select: {
+              id: true,
+              game: true,
+              episode_id: true,
+              name: true,
+              image_url: true,
+              card_number: true,
+              printed_card_number: true,
+              rarity: true,
+              cardmarket_id: true,
+              cardmarket_url: true,
+              episode: { select: { name: true, code: true, release_date: true } },
+              _count: { select: { prices: true } },
+              ebaySoldGradedPrices: {
+                where: { company: "PSA", grade: "10" },
+                orderBy: { fetched_at: "desc" },
+                take: 1,
+                select: { median_price: true, currency: true, sample_size: true },
+              },
+            },
+          })
+        )
+      )
+    ),
     loadCollectorDemandScores(games),
   ]);
   const candidates = candidateBatches.flat();
@@ -487,10 +506,15 @@ async function loadStructuralSignalSeedsUncached(
         candidate.card.game === "one-piece" ? "one-piece" : "pokemon",
         candidate.card.name
       );
-      const eraCount = perEra.get(candidate.eraKey) ?? 0;
+      const game = candidate.card.game === "one-piece" ? "one-piece" : "pokemon";
+      const gameEraKey = `${game}:${candidate.eraKey}`;
+      const eraCount = perEra.get(gameEraKey) ?? 0;
       const entityCount = perEntity.get(entity) ?? 0;
-      if (eraCount >= 5 || entityCount >= 2) return false;
-      perEra.set(candidate.eraKey, eraCount + 1);
+      if (
+        eraCount >= MAX_STRUCTURAL_SIGNALS_PER_GAME_ERA ||
+        entityCount >= MAX_STRUCTURAL_VARIANTS_PER_ENTITY
+      ) return false;
+      perEra.set(gameEraKey, eraCount + 1);
       perEntity.set(entity, entityCount + 1);
       return true;
     })
