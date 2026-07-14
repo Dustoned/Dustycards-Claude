@@ -29,8 +29,11 @@ import type {
   ExternalSealedIntelligence,
 } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
-import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import { normalizeRarityLabel } from "@/lib/rarity";
+import {
+  buildDailyMarketHistory,
+  calculateRobustPriceTrend,
+} from "@/lib/robust-price-history";
 import { createSwrCache } from "@/lib/server-swr-cache";
 import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 
@@ -174,17 +177,6 @@ async function loadEbayDemandCacheVersion(cardIds: string[]): Promise<string> {
 
 function firstPositive(values: Array<number | null | undefined>): number | null {
   return values.find((value): value is number => value != null && Number.isFinite(value) && value > 0) ?? null;
-}
-
-function euroCardValue(price: {
-  cm_en_avg_7d: number | null;
-  cm_en_lowest_nm: number | null;
-  cm_de_lowest_nm: number | null;
-  cm_fr_lowest_nm: number | null;
-  cm_es_lowest_nm: number | null;
-  cm_it_lowest_nm: number | null;
-}): number | null {
-  return getCurrentRawCardmarketValue(price);
 }
 
 function sealedValue(product: {
@@ -396,7 +388,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
   const cardIds = [...new Set(signals.map((signal) => signal.cardId))];
   const cards = [] as Awaited<ReturnType<typeof loadCards>>;
   for (let index = 0; index < cardIds.length; index += CARD_CHUNK_SIZE) {
-    cards.push(...(await loadCards(cardIds.slice(index, index + CARD_CHUNK_SIZE))));
+    cards.push(...(await loadCards(cardIds.slice(index, index + CARD_CHUNK_SIZE), now)));
   }
   const cardById = new Map(cards.map((card) => [card.id, card]));
   const episodeIds = [...new Set(cards.map((card) => card.episode.id))];
@@ -672,11 +664,21 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       supplyLabel: getGradedSupplyLabel(psa10?.sample_size ?? null),
     };
 
-    const rawHistory = card.prices.map((price) => ({
-      fetchedAt: price.fetched_at,
-      value: signal.currency === "EUR" ? euroCardValue(price) : firstPositive([price.tcp_market]),
-    }));
-    const rawTrend90dPct = historyTrend(rawHistory, 90);
+    const rawHistory = buildDailyMarketHistory(
+      card.prices.map((price) => ({
+        observedAt: price.fetched_at,
+        // Signal Radar's EUR baseline is always English NM. Prefer the
+        // steadier Cardmarket 7-day average and use the English NM listing
+        // floor only when that day's average is unavailable.
+        primaryValue:
+          signal.currency === "EUR" ? price.cm_en_avg_7d : price.tcp_market,
+        fallbackValues:
+          signal.currency === "EUR"
+            ? [price.cm_en_lowest_nm]
+            : [price.tcp_mid, price.tcp_low],
+      }))
+    );
+    const rawTrend90dPct = calculateRobustPriceTrend(rawHistory, 90)?.percent ?? null;
     const latestRaw = card.prices[0];
     const rawMarketBreadth = latestRaw
       ? [
@@ -823,7 +825,11 @@ async function enrichSignalsWithMarketIntelligenceUncached(
   });
 }
 
-function loadCards(cardIds: string[]) {
+function loadCards(cardIds: string[], now: Date) {
+  // Fetch by calendar range rather than by refresh-row count: some cards have
+  // many observations per day, so `take: 40` could represent less than a
+  // month and was incorrectly presented as a 90-day history.
+  const historyStart = new Date(now.getTime() - 220 * DAY_MS);
   return db.card.findMany({
     where: { id: { in: cardIds } },
     select: {
@@ -832,17 +838,20 @@ function loadCards(cardIds: string[]) {
       artist: true,
       episode: { select: { id: true, code: true, release_date: true } },
       prices: {
+        where: { fetched_at: { gte: historyStart } },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-        take: 40,
         select: {
           fetched_at: true,
           cm_en_avg_7d: true,
+          cm_en_avg_30d: true,
           cm_en_lowest_nm: true,
           cm_de_lowest_nm: true,
           cm_fr_lowest_nm: true,
           cm_es_lowest_nm: true,
           cm_it_lowest_nm: true,
           tcp_market: true,
+          tcp_mid: true,
+          tcp_low: true,
         },
       },
       gradedPrices: {
