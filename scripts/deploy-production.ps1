@@ -222,7 +222,12 @@ cleanup() {
 trap cleanup EXIT
 
 tar -xzf "$DeployArchive" -C "$release_dir"
-mkdir -p "$RemoteAppPath"
+# `mktemp -d` creates the staging directory as root:root/0700. A plain
+# `tar -C "$release_dir" . | tar -C "$RemoteAppPath"` also copies the `.`
+# directory metadata and silently turns the live app directory into 0700.
+# systemd then cannot CHDIR as the `dustycards` user after restart. Keep the
+# live directory ownership/mode explicit and never overwrite it from staging.
+install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath"
 
 # Replace only source-controlled app paths so deleted/renamed files do not linger
 # on the server. Persistent runtime data (.env, dustycards.db, node_modules, .next)
@@ -231,7 +236,9 @@ for path in src prisma scripts tests public docs; do
   rm -rf "$RemoteAppPath/$path"
 done
 
-tar -cf - -C "$release_dir" . | tar -xf - -C "$RemoteAppPath"
+tar -cf - -C "$release_dir" . | tar --no-overwrite-dir -xf - -C "$RemoteAppPath"
+chown dustycards:dustycards "$RemoteAppPath"
+chmod 0755 "$RemoteAppPath"
 
 cd "$RemoteAppPath"
 if [ -f .env ]; then
