@@ -248,8 +248,10 @@ export interface CatalystSearchQuery {
 
 export interface CatalystWatchTopic {
   game: ExternalRadarGame;
+  episodeId?: string | null;
   name: string;
   setCode?: string | null;
+  focus?: "release" | "lifecycle";
 }
 
 interface CatalystPattern {
@@ -834,13 +836,18 @@ export function buildFirecrawlCatalystSearchQueries(
       .map(({ topic, name }): CatalystSearchQuery => {
         const setCode = normalizeSetCode(topic.setCode);
         const setFragment = setCode ? ` "${setCode.slice(0, 16)}"` : "";
+        const terms = topic.focus === "lifecycle"
+          ? "reprint restock additional print run out of print discontinued sealed supply"
+          : "leaked booklet card list cards revealed chase";
         return {
           game,
-          cardId: `watch-topic:${game}:${normalizeCatalystText(name).replace(/\s+/g, "-")}`,
+          cardId: `watch-topic:${game}:${topic.focus ?? "release"}:${
+            topic.episodeId?.trim() || normalizeCatalystText(name).replace(/\s+/g, "-")
+          }`,
           candidateName: name,
           mode: "set-intelligence",
           topic: "news",
-          query: `${gameLabel} "${name}"${setFragment} leaked booklet card list cards revealed chase ${dateLabel}`.slice(
+          query: `${gameLabel} "${name}"${setFragment} ${terms} ${dateLabel}`.slice(
             0,
             MAX_CATALYST_SEARCH_QUERY_LENGTH
           ),

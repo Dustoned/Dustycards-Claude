@@ -12,6 +12,11 @@ import {
 } from "@/lib/sync/auto-price-refresh-job";
 import { maybeStartCardHistoryQuotaDrainJob } from "@/lib/sync/card-history-auto-drain";
 import { maybeStartExternalSignalRadarJob } from "@/lib/sync/external-signal-radar-job";
+import {
+  getSetLifecycleObservationBucket,
+  maybeRunSetLifecycleJob,
+  type SetLifecycleJobSnapshot,
+} from "@/lib/sync/set-lifecycle-job";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
@@ -50,6 +55,7 @@ export interface SyncSchedulerTickResult {
     finishedAt: string | null;
     error: string | null;
   };
+  setLifecycle: SetLifecycleJobSnapshot;
   quota: {
     requestsRemaining: number | null;
     requestsLimit: number | null;
@@ -64,7 +70,10 @@ export interface SyncSchedulerTickResult {
 async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<void> {
   const now = new Date(result.checkedAt);
   const hasRunningWork =
-    result.priceRefresh.running || result.historyDrain.running || result.externalRadar.running;
+    result.priceRefresh.running ||
+    result.historyDrain.running ||
+    result.externalRadar.running ||
+    result.setLifecycle.running;
   const status = result.scraperDisabled ? "paused" : hasRunningWork ? "running" : "success";
 
   await db.syncJob.upsert({
@@ -134,6 +143,22 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     skip: scraperDisabled,
     now: checkedAt,
   });
+  // This pass only summarizes data already stored locally. It deliberately
+  // keeps running when scrapers are paused and may never take the whole
+  // scheduler down if a malformed historical row slips through.
+  const setLifecycle = await maybeRunSetLifecycleJob({ now: checkedAt }).catch(
+    (error: unknown): SetLifecycleJobSnapshot => ({
+      started: false,
+      running: false,
+      due: true,
+      status: "failed",
+      observationBucket: getSetLifecycleObservationBucket(checkedAt).toISOString(),
+      setsEvaluated: 0,
+      observationsWritten: 0,
+      lastFinishedAt: null,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  );
 
   const result: SyncSchedulerTickResult = {
     ok: true,
@@ -152,6 +177,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     },
     historyDrain,
     externalRadar,
+    setLifecycle,
     quota: {
       requestsRemaining: quota.requestsRemaining,
       requestsLimit: quota.requestsLimit,

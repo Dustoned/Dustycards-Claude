@@ -5,9 +5,12 @@ import {
   deriveEbayDemandIntelligence,
   type EbayDemandSignalSnapshot,
 } from "@/lib/ebay-demand-signal";
+import { EBAY_DEMAND_COHORT_REVISION_AT } from "@/lib/ebay-demand";
 import { getEbayDemandRuntimeConfig } from "@/lib/ebay";
 import { getExternalEntityKey } from "@/lib/external-event-candidates";
 import {
+  alignConfluenceWithScenario,
+  alignOpportunityScoreWithScenario,
   buildPriceScenario,
   calculateGoldMineConfluence,
   calculateOpportunityScores,
@@ -16,6 +19,7 @@ import {
   calculateSetRarityPosition,
   classifySealedProduct,
   getGradedSupplyLabel,
+  hasActiveReprintRisk,
   percentChange,
 } from "@/lib/external-market-intelligence-core";
 import type {
@@ -28,22 +32,139 @@ import type { TradingCardGame } from "@/lib/games";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { createSwrCache } from "@/lib/server-swr-cache";
+import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 
 const DAY_MS = 86_400_000;
 const CARD_CHUNK_SIZE = 50;
 const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
 
+const LIFECYCLE_COPY: Record<
+  SetLifecycleStatus,
+  { label: string; summary: string }
+> = {
+  upcoming: {
+    label: "Upcoming",
+    summary: "This set has not released yet, so supply signals are still provisional.",
+  },
+  launch_window: {
+    label: "Launch window",
+    summary: "Launch supply is still settling; temporary shortages are not treated as out of print.",
+  },
+  actively_supplied: {
+    label: "Actively supplied",
+    summary: "Recent product observations still show active set supply.",
+  },
+  supply_tightening: {
+    label: "Supply tightening",
+    summary: "Observed sealed supply is tightening, but out-of-print status is not confirmed.",
+  },
+  likely_out_of_print: {
+    label: "Likely out of print",
+    summary: "Multiple set-level observations point to an ended print cycle; no official confirmation was found.",
+  },
+  confirmed_out_of_print: {
+    label: "Confirmed out of print",
+    summary: "An authoritative source explicitly indicates that this set is out of print.",
+  },
+  reprint_restock: {
+    label: "Reprint / restock",
+    summary: "A recent reprint or meaningful restock indicates renewed supply.",
+  },
+  unknown_historical: {
+    label: "History incomplete",
+    summary: "There is not enough fresh set-level supply history for a reliable lifecycle call yet.",
+  },
+};
+
+function parseLifecycleStatus(value: string): SetLifecycleStatus | null {
+  return Object.prototype.hasOwnProperty.call(LIFECYCLE_COPY, value)
+    ? (value as SetLifecycleStatus)
+    : null;
+}
+
+function lifecycleCopyFromEvidence(value: string | null): {
+  label: string;
+  summary: string;
+} | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as {
+      assessment?: { label?: unknown; summary?: unknown };
+    };
+    const label = parsed.assessment?.label;
+    const summary = parsed.assessment?.summary;
+    return typeof label === "string" && typeof summary === "string"
+      ? { label, summary }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function lifecycleFields(
+  observation:
+    | {
+        status: string;
+        oop_probability: number;
+        confidence: number;
+        observed_at: Date;
+        evidence_json: string | null;
+      }
+    | null
+    | undefined
+): Pick<
+  ExternalSealedIntelligence,
+  | "lifecycleStatus"
+  | "lifecycleLabel"
+  | "lifecycleConfidence"
+  | "lifecycleOopProbability"
+  | "lifecycleAsOf"
+  | "lifecycleSummary"
+> {
+  const status = observation ? parseLifecycleStatus(observation.status) : null;
+  if (!observation || !status) {
+    return {
+      lifecycleStatus: null,
+      lifecycleLabel: null,
+      lifecycleConfidence: null,
+      lifecycleOopProbability: null,
+      lifecycleAsOf: null,
+      lifecycleSummary: null,
+    };
+  }
+  const copy = lifecycleCopyFromEvidence(observation.evidence_json) ?? LIFECYCLE_COPY[status];
+  const confidence = Math.round(observation.confidence);
+  return {
+    lifecycleStatus: status,
+    lifecycleLabel: copy.label,
+    lifecycleConfidence: confidence,
+    // A low-confidence historical prior is not an actionable probability.
+    // Keep the honest lifecycle label, but show "Learning" instead of a
+    // precise percentage until the observation has enough evidence.
+    lifecycleOopProbability:
+      confidence >= 45 ? Math.round(observation.oop_probability) : null,
+    lifecycleAsOf: observation.observed_at.toISOString(),
+    lifecycleSummary: copy.summary,
+  };
+}
+
 async function loadEbayDemandCacheVersion(cardIds: string[]): Promise<string> {
   if (cardIds.length === 0) return "none";
   const marketplaceId = getEbayDemandRuntimeConfig().marketplaceId;
   const rows = await db.cardEbayDemandSnapshot.findMany({
-    where: { card_id: { in: cardIds }, marketplace_id: marketplaceId, mode: "raw" },
+    where: {
+      card_id: { in: cardIds },
+      marketplace_id: marketplaceId,
+      mode: { in: ["raw", "graded"] },
+      updated_at: { gte: EBAY_DEMAND_COHORT_REVISION_AT },
+    },
     orderBy: [{ updated_at: "desc" }, { id: "desc" }],
-    select: { card_id: true, updated_at: true },
+    select: { card_id: true, mode: true, updated_at: true },
   });
   const latestByCard = new Map<string, number>();
   for (const row of rows) {
-    if (!latestByCard.has(row.card_id)) latestByCard.set(row.card_id, row.updated_at.getTime());
+    const key = `${row.card_id}:${row.mode}`;
+    if (!latestByCard.has(key)) latestByCard.set(key, row.updated_at.getTime());
   }
   return [...latestByCard]
     .sort(([left], [right]) => left.localeCompare(right))
@@ -229,7 +350,10 @@ export async function loadCollectorDemandScores(
   );
 }
 
-function emptySealed(ageYears: number | null): ExternalSealedIntelligence {
+function emptySealed(
+  ageYears: number | null,
+  lifecycle: ReturnType<typeof lifecycleFields>
+): ExternalSealedIntelligence {
   return {
     productCount: 0,
     packProductCount: 0,
@@ -242,6 +366,7 @@ function emptySealed(ageYears: number | null): ExternalSealedIntelligence {
     ageYears,
     pressureScore: 28,
     pressureLabel: "Low",
+    ...lifecycle,
   };
 }
 
@@ -281,7 +406,15 @@ async function enrichSignalsWithMarketIntelligenceUncached(
   const games = [...new Set(signals.map((signal) => signal.game))];
   const ebayDemandMarketplaceId = getEbayDemandRuntimeConfig().marketplaceId;
   const demandHistoryStart = new Date(now.getTime() - 30 * DAY_MS);
-  const [products, pullRates, artistDemand, collectorDemand, episodeRarities, ebayDemandSnapshots] = await Promise.all([
+  const [
+    products,
+    pullRates,
+    artistDemand,
+    collectorDemand,
+    episodeRarities,
+    ebayDemandSnapshots,
+    lifecycleObservations,
+  ] = await Promise.all([
     db.sealedProduct.findMany({
       where: {
         OR: [
@@ -327,12 +460,14 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       where: {
         card_id: { in: cardIds },
         marketplace_id: ebayDemandMarketplaceId,
-        mode: "raw",
+        mode: { in: ["raw", "graded"] },
         snapshot_date: { gte: demandHistoryStart },
+        updated_at: { gte: EBAY_DEMAND_COHORT_REVISION_AT },
       },
       orderBy: [{ card_id: "asc" }, { snapshot_date: "asc" }, { updated_at: "asc" }],
       select: {
         card_id: true,
+        mode: true,
         snapshot_date: true,
         updated_at: true,
         capped: true,
@@ -345,11 +480,36 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         lowest_ask_eur: true,
       },
     }),
+    db.setLifecycleObservation.findMany({
+      where: { episode_id: { in: episodeIds } },
+      orderBy: [{ observed_at: "desc" }, { created_at: "desc" }],
+      select: {
+        episode_id: true,
+        status: true,
+        oop_probability: true,
+        confidence: true,
+        observed_at: true,
+        evidence_json: true,
+      },
+    }),
   ]);
 
-  const ebayDemandByCard = new Map<string, EbayDemandSignalSnapshot[]>();
+  const lifecycleByEpisode = new Map<
+    string,
+    (typeof lifecycleObservations)[number]
+  >();
+  for (const observation of lifecycleObservations) {
+    if (!lifecycleByEpisode.has(observation.episode_id)) {
+      lifecycleByEpisode.set(observation.episode_id, observation);
+    }
+  }
+
+  const rawEbayDemandByCard = new Map<string, EbayDemandSignalSnapshot[]>();
+  const gradedEbayDemandByCard = new Map<string, EbayDemandSignalSnapshot[]>();
   for (const snapshot of ebayDemandSnapshots) {
-    const rows = ebayDemandByCard.get(snapshot.card_id) ?? [];
+    const demandByCard =
+      snapshot.mode === "graded" ? gradedEbayDemandByCard : rawEbayDemandByCard;
+    const rows = demandByCard.get(snapshot.card_id) ?? [];
     rows.push({
       snapshotDate: snapshot.snapshot_date,
       updatedAt: snapshot.updated_at,
@@ -362,7 +522,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       medianAskEur: snapshot.median_ask_eur,
       lowestAskEur: snapshot.lowest_ask_eur,
     });
-    ebayDemandByCard.set(snapshot.card_id, rows);
+    demandByCard.set(snapshot.card_id, rows);
   }
 
   const productIds = products.map((product) => product.id);
@@ -439,9 +599,8 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       : [];
     const trend30dPct = historyTrend(representativeHistory, 30);
     const trend90dPct = historyTrend(representativeHistory, 90);
-    const hasReprintRisk = (signal.catalysts ?? []).some(
-      (catalyst) => catalyst.kind === "reprint" && catalyst.direction !== "negative"
-    );
+    const lifecycle = lifecycleFields(lifecycleByEpisode.get(card.episode.id));
+    const hasReprintRisk = hasActiveReprintRisk(signal.catalysts ?? []);
     const sealedPressure = calculateSealedPressure({
       ageYears,
       packPrice: pack?.value ?? null,
@@ -450,6 +609,8 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       trend90dPct,
       packProductCount: pricedProducts.filter((item) => item.kind === "pack").length,
       hasReprintRisk,
+      lifecycleOopProbability: lifecycle.lifecycleOopProbability,
+      lifecycleConfidence: lifecycle.lifecycleConfidence,
     });
     const sealed: ExternalSealedIntelligence = representative
       ? {
@@ -463,8 +624,12 @@ async function enrichSignalsWithMarketIntelligenceUncached(
           trend90dPct,
           ageYears,
           ...sealedPressure,
+          ...lifecycle,
         }
-      : emptySealed(ageYears);
+      : {
+          ...emptySealed(ageYears, lifecycle),
+          ...sealedPressure,
+        };
 
     const normalizedRarity = normalizeRarityLabel(card.rarity);
     const setRarity = calculateSetRarityPosition(
@@ -525,8 +690,15 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       : 0;
     const ebayDemand = deriveEbayDemandIntelligence({
       marketplaceId: ebayDemandMarketplaceId,
-      snapshots: ebayDemandByCard.get(signal.cardId) ?? [],
+      snapshots: rawEbayDemandByCard.get(signal.cardId) ?? [],
       currentMarketPriceEur: signal.currency === "EUR" ? signal.currentPrice : null,
+      now,
+    });
+    const gradedEbayDemand = deriveEbayDemandIntelligence({
+      marketplaceId: ebayDemandMarketplaceId,
+      snapshots: gradedEbayDemandByCard.get(signal.cardId) ?? [],
+      currentMarketPriceEur:
+        graded.currency === "EUR" ? graded.currentPrice : null,
       now,
     });
     const artistScore = card.artist ? artistDemand.get(card.artist) ?? null : null;
@@ -537,7 +709,10 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       gemRatePct,
       rawMarketBreadth,
       verifiedActiveListings:
-        ebayDemand.status === "ready" ? ebayDemand.activeCount : null,
+        ebayDemand.status === "ready" || ebayDemand.status === "learning"
+          ? ebayDemand.activeCount
+          : null,
+      sealedPressureScore: sealed.pressureScore,
       artistDemandScore: artistScore,
       setRarityScore: setRarity.setRarityScore,
     });
@@ -557,7 +732,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         catalyst.direction === "positive" &&
         ["reveal", "product", "localization", "hype"].includes(catalyst.kind)
     );
-    const confluence = calculateGoldMineConfluence({
+    const structuralConfluence = calculateGoldMineConfluence({
       artistDemandScore: artistScore,
       collectorDemandScore: collectorScore,
       specificPullDenominator: pull?.specific_pull_denominator ?? null,
@@ -566,12 +741,13 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       hasFreshChaseCatalyst,
       ageYears,
     });
-    const opportunity = calculateOpportunityScores({
+    const structuralOpportunity = calculateOpportunityScores({
       externalScore: signal.externalScore,
       sealedPressureScore: sealed.pressureScore,
       scarcityScore: scarcity.score,
-      confluenceScore: confluence.score,
-      ebayDemandAdjustment: ebayDemand.scoreAdjustment,
+      confluenceScore: structuralConfluence.score,
+      rawEbayDemandAdjustment: ebayDemand.scoreAdjustment,
+      gradedEbayDemandAdjustment: gradedEbayDemand.scoreAdjustment,
       rawTrend90dPct,
       gradePremiumPct,
       gemRatePct,
@@ -579,48 +755,69 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       riskScore: signal.riskScore ?? 0,
       setRarityScore: setRarity.setRarityScore,
     });
-    const evidenceCount =
+    const sharedEvidenceCount =
       signal.evidence.length +
-      new Set((signal.catalysts ?? []).map((item) => item.sourceUrl)).size +
-      (ebayDemand.status === "ready" ? 1 : 0);
+      new Set((signal.catalysts ?? []).map((item) => item.sourceUrl)).size;
+    const rawEvidenceCount =
+      sharedEvidenceCount + (ebayDemand.status === "ready" ? 1 : 0);
+    const gradedEvidenceCount =
+      sharedEvidenceCount + (gradedEbayDemand.status === "ready" ? 1 : 0);
+    const rawScenario = buildPriceScenario({
+      marketMode: "raw",
+      currentPrice: signal.currentPrice,
+      currency: signal.currency,
+      ageYears,
+      opportunityScore: structuralOpportunity.raw,
+      sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
+      rawTrend90dPct,
+      scarcityScore: scarcity.score,
+      gemRatePct,
+      riskScore: signal.riskScore ?? 0,
+      evidenceCount: rawEvidenceCount,
+      historyPoints: rawHistory.length,
+      ebayDemandAdjustment: ebayDemand.scoreAdjustment,
+    });
+    const gradedScenario = buildPriceScenario({
+      marketMode: "graded",
+      currentPrice: graded.currentPrice,
+      currency: graded.currency,
+      ageYears,
+      opportunityScore: structuralOpportunity.graded,
+      sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
+      rawTrend90dPct,
+      scarcityScore: scarcity.score,
+      gemRatePct,
+      riskScore: signal.riskScore ?? 0,
+      evidenceCount: gradedEvidenceCount + (graded.sampleSize != null ? 1 : 0),
+      historyPoints: card.ebaySoldGradedPriceSnapshots.length,
+      ebayDemandAdjustment: gradedEbayDemand.scoreAdjustment,
+    });
+    const rawOpportunity = alignOpportunityScoreWithScenario(
+      structuralOpportunity.raw,
+      rawScenario
+    );
+    const gradedOpportunity =
+      structuralOpportunity.graded == null
+        ? null
+        : alignOpportunityScoreWithScenario(structuralOpportunity.graded, gradedScenario);
+    const rawConfluence = alignConfluenceWithScenario(structuralConfluence, rawScenario);
+    const gradedConfluence = graded.available
+      ? alignConfluenceWithScenario(structuralConfluence, gradedScenario)
+      : null;
     const intelligence: ExternalMarketIntelligence = {
-      rawOpportunityScore: opportunity.raw,
-      gradedOpportunityScore: opportunity.graded,
+      rawOpportunityScore: rawOpportunity,
+      gradedOpportunityScore: gradedOpportunity,
       ebayDemand,
+      gradedEbayDemand,
       sealed,
       graded,
       scarcity,
-      confluence,
-      rawScenario: buildPriceScenario({
-        marketMode: "raw",
-        currentPrice: signal.currentPrice,
-        currency: signal.currency,
-        ageYears,
-        opportunityScore: opportunity.raw,
-        sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
-        rawTrend90dPct,
-        scarcityScore: scarcity.score,
-        gemRatePct,
-        riskScore: signal.riskScore ?? 0,
-        evidenceCount,
-        historyPoints: rawHistory.length,
-        ebayDemandAdjustment: ebayDemand.scoreAdjustment,
-      }),
-      gradedScenario: buildPriceScenario({
-        marketMode: "graded",
-        currentPrice: graded.currentPrice,
-        currency: graded.currency,
-        ageYears,
-        opportunityScore: opportunity.graded,
-        sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
-        rawTrend90dPct,
-        scarcityScore: scarcity.score,
-        gemRatePct,
-        riskScore: signal.riskScore ?? 0,
-        evidenceCount: evidenceCount + (graded.sampleSize != null ? 1 : 0),
-        historyPoints: card.ebaySoldGradedPriceSnapshots.length,
-        ebayDemandAdjustment: ebayDemand.scoreAdjustment,
-      }),
+      rawConfluence,
+      gradedConfluence,
+      // Backwards-compatible default for persisted payloads and raw-only UI.
+      confluence: rawConfluence,
+      rawScenario,
+      gradedScenario,
     };
     return { ...signal, marketIntelligence: intelligence };
   });

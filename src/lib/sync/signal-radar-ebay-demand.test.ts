@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   cardFindUnique: vi.fn(),
   snapshotFindMany: vi.fn(),
+  buildEbayCardDemandSearchQuery: vi.fn(
+    () => "Sylveon-GX 140/145 Pokemon"
+  ),
   searchEbayDeals: vi.fn(),
   matchEbayListingToCard: vi.fn(),
   listingHasExactCardIdentity: vi.fn(() => true),
   recordEbayDemandScan: vi.fn(),
   getEbayBrowseRateLimitStatus: vi.fn(),
+  cohortRevisionAt: new Date("2026-07-13T18:40:00.000Z"),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -18,7 +22,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/ebay", () => ({
-  buildEbayCardSearchQuery: vi.fn(() => "Sylveon GX 140/145 Guardians Rising Pokemon"),
+  buildEbayCardDemandSearchQuery: mocks.buildEbayCardDemandSearchQuery,
   getEbayDemandRuntimeConfig: vi.fn(() => ({
     configured: true,
     marketplaceId: "EBAY_US",
@@ -33,12 +37,14 @@ vi.mock("@/lib/ebay-card-matching", () => ({
   listingHasExactCardIdentity: mocks.listingHasExactCardIdentity,
 }));
 vi.mock("@/lib/ebay-demand", () => ({
+  EBAY_DEMAND_COHORT_REVISION_AT: mocks.cohortRevisionAt,
   recordEbayDemandScan: mocks.recordEbayDemandScan,
 }));
 
 import {
   getAllowedEbayDemandCardCount,
   getEbayDemandBrowseCallBudget,
+  refreshSignalRadarEbayDemand,
   scanSignalRadarCardEbayDemand,
   selectDueEbayDemandCandidates,
 } from "@/lib/sync/signal-radar-ebay-demand";
@@ -85,6 +91,42 @@ describe("Signal Radar eBay demand refresh", () => {
     expect(selected.map((candidate) => candidate.cardId)).toEqual(["never", "old"]);
   });
 
+  it("immediately refreshes a recent snapshot from before the cohort revision", () => {
+    const selected = selectDueEbayDemandCandidates({
+      candidates: [
+        { cardId: "stale-revision", game: "pokemon", rank: 1, externalScore: 95 },
+        { cardId: "fresh-revision", game: "pokemon", rank: 2, externalScore: 90 },
+      ],
+      latestUpdatedAt: new Map([
+        ["stale-revision", new Date("2026-07-13T18:39:59.999Z")],
+        ["fresh-revision", new Date("2026-07-13T18:40:00.000Z")],
+      ]),
+      now: new Date("2026-07-13T19:00:00.000Z"),
+      limit: 2,
+    });
+
+    expect(selected.map((candidate) => candidate.cardId)).toEqual(["stale-revision"]);
+  });
+
+  it("does not treat pre-revision snapshots as current during Radar due-card lookup", async () => {
+    mocks.getEbayBrowseRateLimitStatus.mockResolvedValue({ summary: { remaining: 1_000 } });
+    mocks.snapshotFindMany.mockResolvedValue([]);
+
+    await refreshSignalRadarEbayDemand(
+      [{ cardId: "card-1", game: "pokemon", rank: 1, externalScore: 95 }] as unknown as Parameters<
+        typeof refreshSignalRadarEbayDemand
+      >[0],
+      new Date("2026-07-13T19:00:00.000Z")
+    );
+
+    expect(mocks.snapshotFindMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        mode: "raw",
+        updated_at: { gte: mocks.cohortRevisionAt },
+      }),
+    }));
+  });
+
   it("persists only exact matched listings from the strict NM-English scan", async () => {
     mocks.cardFindUnique.mockResolvedValue({
       id: "card-1",
@@ -115,11 +157,17 @@ describe("Signal Radar eBay demand refresh", () => {
       observedAt: new Date("2026-07-13T12:00:00.000Z"),
     });
 
+    expect(mocks.buildEbayCardDemandSearchQuery).toHaveBeenCalledWith({
+      name: "Sylveon-GX",
+      game: "pokemon",
+      cardNumber: "140/145",
+    });
     expect(mocks.searchEbayDeals).toHaveBeenCalledWith(expect.objectContaining({
+      query: "Sylveon-GX 140/145 Pokemon",
       strictEnglish: true,
       strictNearMint: true,
       excludeGraded: true,
-      buyingMode: "all",
+      buyingMode: "fixed",
     }));
     expect(mocks.recordEbayDemandScan).toHaveBeenCalledWith(expect.objectContaining({
       cardId: "card-1",

@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma";
 import type { ExternalCardForecastSummary } from "@/lib/external-signal-forecast-store";
 import type { ExternalEbayDemandIntelligence } from "@/lib/ebay-demand-signal";
+import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 import { db } from "@/lib/db";
 import {
   ALL_GAMES,
@@ -62,6 +63,12 @@ export interface ExternalSealedIntelligence {
   ageYears: number | null;
   pressureScore: number;
   pressureLabel: "Low" | "Building" | "High" | "Extreme";
+  lifecycleStatus: SetLifecycleStatus | null;
+  lifecycleLabel: string | null;
+  lifecycleConfidence: number | null;
+  lifecycleOopProbability: number | null;
+  lifecycleAsOf: string | null;
+  lifecycleSummary: string | null;
 }
 
 export interface ExternalGradedIntelligence {
@@ -105,9 +112,12 @@ export interface ExternalMarketIntelligence {
   rawOpportunityScore: number;
   gradedOpportunityScore: number | null;
   ebayDemand?: ExternalEbayDemandIntelligence;
+  gradedEbayDemand?: ExternalEbayDemandIntelligence;
   sealed: ExternalSealedIntelligence;
   graded: ExternalGradedIntelligence;
   scarcity: ExternalScarcityIntelligence;
+  rawConfluence?: ExternalGoldMineConfluence;
+  gradedConfluence?: ExternalGoldMineConfluence | null;
   confluence: ExternalGoldMineConfluence;
   rawScenario: ExternalPriceScenario | null;
   gradedScenario: ExternalPriceScenario | null;

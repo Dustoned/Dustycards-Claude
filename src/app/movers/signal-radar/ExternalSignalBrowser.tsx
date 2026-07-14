@@ -29,7 +29,7 @@ import type {
   ExternalSignalConfidence,
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
-import { isActionablePriceScenario } from "@/lib/external-market-intelligence-core";
+import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
@@ -253,6 +253,10 @@ function MarketIntelligencePanel({
   const scenario = marketMode === "graded" ? market.gradedScenario : market.rawScenario;
   const score =
     marketMode === "graded" ? market.gradedOpportunityScore : market.rawOpportunityScore;
+  const confluence =
+    marketMode === "graded"
+      ? market.gradedConfluence ?? market.confluence
+      : market.rawConfluence ?? market.confluence;
   if (marketMode === "graded" && !market.graded.available) return null;
   return (
     <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1.15fr)_minmax(13rem,0.85fr)]">
@@ -288,9 +292,9 @@ function MarketIntelligencePanel({
       <div className="grid grid-cols-2 gap-2">
         <div className={cx(
           "col-span-2 rounded-xl border p-2.5",
-          market.confluence.score >= 85
+          confluence.score >= 85
             ? "border-fuchsia-300/24 bg-gradient-to-r from-fuchsia-400/[0.1] to-amber-300/[0.06]"
-            : market.confluence.score >= 70
+            : confluence.score >= 70
               ? "border-violet-300/18 bg-violet-400/[0.06]"
               : "border-white/8 bg-white/[0.025]"
         )}>
@@ -298,12 +302,12 @@ function MarketIntelligencePanel({
             <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-fuchsia-100/70">
               <Sparkles className="h-3 w-3" /> Factor confluence
             </div>
-            <span className="text-[10px] font-black text-fuchsia-100">{market.confluence.score}/100</span>
+            <span className="text-[10px] font-black text-fuchsia-100">{confluence.score}/100</span>
           </div>
-          <p className="mt-1 text-sm font-black text-white/88">{market.confluence.label}</p>
+          <p className="mt-1 text-sm font-black text-white/88">{confluence.label}</p>
           <p className="mt-1 text-[9px] leading-4 text-white/42">
-            {market.confluence.drivers.length > 0
-              ? market.confluence.drivers.join(" · ")
+            {confluence.drivers.length > 0
+              ? confluence.drivers.join(" · ")
               : "No multi-factor setup yet"}
           </p>
           <p className="mt-0.5 text-[8px] leading-3 text-white/28">
@@ -509,9 +513,16 @@ function CompactSignalCard({
       ? signal.marketIntelligence?.gradedOpportunityScore
       : signal.marketIntelligence?.rawOpportunityScore;
   const effectiveScore = score ?? signal.externalScore;
-  const confluence = signal.marketIntelligence?.confluence;
+  const confluence = signal.marketIntelligence
+    ? marketMode === "graded"
+      ? signal.marketIntelligence.gradedConfluence ?? signal.marketIntelligence.confluence
+      : signal.marketIntelligence.rawConfluence ?? signal.marketIntelligence.confluence
+    : undefined;
   const scarcity = signal.marketIntelligence?.scarcity;
-  const ebayDemand = signal.marketIntelligence?.ebayDemand;
+  const ebayDemand =
+    marketMode === "graded"
+      ? signal.marketIntelligence?.gradedEbayDemand
+      : signal.marketIntelligence?.ebayDemand;
   const launchWindow = scenario?.drivers.includes("launch price discovery") ?? false;
   const releaseStabilization = scenario?.drivers.includes("post-release stabilization") ?? false;
   const primaryCatalyst = signal.catalysts?.[0];
@@ -519,7 +530,7 @@ function CompactSignalCard({
   const primaryReason = [
     ...(eventLinked && primaryCatalyst ? [primaryCatalyst.headline] : []),
     ...(ebayDemand?.status === "ready" && ebayDemand.scoreAdjustment !== 0 && ebayDemand.reason
-      ? [`eBay NM-English: ${ebayDemand.reason}`]
+      ? [`${marketMode === "graded" ? "eBay graded" : "eBay NM-English"}: ${ebayDemand.reason}`]
       : []),
     ...(scarcity?.setRarityScore != null
       ? [`${signal.rarity ?? "Card rarity"} is ${scarcity.setRarityLabel.toLowerCase()} in this set (${scarcity.setRarityScore}/100)`]
@@ -873,10 +884,14 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
           marketMode === "graded"
             ? signal.marketIntelligence?.gradedScenario
             : signal.marketIntelligence?.rawScenario;
+        const selectedScore =
+          marketMode === "graded"
+            ? signal.marketIntelligence?.gradedOpportunityScore
+            : signal.marketIntelligence?.rawOpportunityScore;
         const eventLinked =
           (signal.sourceMode === "event" || signal.sourceMode === "hybrid") &&
           (signal.catalysts?.length ?? 0) > 0;
-        if (!eventLinked && !isActionablePriceScenario(selectedScenario)) return false;
+        if (!eventLinked && !isWatchablePriceScenario(selectedScenario, selectedScore)) return false;
         if (!query) return true;
         return textMatchesSearchQuery(
           `${signal.name} ${signal.episodeName} ${signal.episodeCode ?? ""} ${signal.cardNumber ?? ""} ${signal.rarity ?? ""} ${(signal.catalysts ?? []).map((catalyst) => `${catalyst.headline} ${catalyst.contextLabel ?? ""}`).join(" ")}`,

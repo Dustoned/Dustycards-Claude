@@ -336,7 +336,7 @@ describe("bounded external query planning", () => {
 
     expect(queries).toHaveLength(11);
     expect(queries[0]).toMatchObject({
-      cardId: "watch-topic:pokemon:30th-celebration",
+      cardId: "watch-topic:pokemon:release:30th-celebration",
       candidateName: "30th Celebration",
       game: "pokemon",
       mode: "set-intelligence",
@@ -349,5 +349,31 @@ describe("bounded external query planning", () => {
     expect(queries.every((query) => query.query.length <= MAX_CATALYST_SEARCH_QUERY_LENGTH)).toBe(
       true
     );
+  });
+
+  it("uses a lifecycle watch topic for set-level reprint and OOP evidence", () => {
+    const queries = buildFirecrawlCatalystSearchQueries(
+      [{ cardId: "p1", game: "pokemon", name: "Pikachu ex", rank: 1 }],
+      new Date("2026-07-13T12:00:00.000Z"),
+      {
+        watchTopics: [
+          {
+            game: "pokemon",
+            episodeId: "episode-evolving-skies",
+            name: "Evolving Skies",
+            setCode: "EVS",
+            focus: "lifecycle",
+          },
+        ],
+      }
+    );
+
+    expect(queries[0]).toMatchObject({
+      cardId: "watch-topic:pokemon:lifecycle:episode-evolving-skies",
+      candidateName: "Evolving Skies",
+      mode: "set-intelligence",
+    });
+    expect(queries[0]?.query).toContain("reprint restock additional print run");
+    expect(queries[0]?.query).toContain("out of print discontinued sealed supply");
   });
 });

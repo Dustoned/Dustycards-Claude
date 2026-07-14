@@ -56,6 +56,9 @@ describe("deriveEbayDemandIntelligence", () => {
 
     expect(result.status).toBe("learning");
     expect(result.scoreAdjustment).toBe(0);
+    // A first fresh, uncapped observation is already valid inventory evidence;
+    // only the directional demand trend still needs seven daily snapshots.
+    expect(result.activeCount).toBe(2);
   });
 
   it("adds only a bounded corroborating boost when supply contracts", () => {

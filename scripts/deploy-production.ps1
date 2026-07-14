@@ -309,6 +309,8 @@ if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
   echo "Migration state unknown while app is live; stopping services and retrying check."
   systemctl stop dustycards-sync-scheduler.timer 2>/dev/null || true
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
+  systemctl stop dustycards-sealed-release-refresh.timer 2>/dev/null || true
+  systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
   systemctl stop dustycards 2>/dev/null || true
   PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
     const Database = require("better-sqlite3");
@@ -344,6 +346,8 @@ if [ "$PENDING_MIGRATIONS" -gt 0 ] 2>/dev/null; then
   echo "Pending migrations: $PENDING_MIGRATIONS — running prisma migrate deploy."
   systemctl stop dustycards-sync-scheduler.timer 2>/dev/null || true
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
+  systemctl stop dustycards-sealed-release-refresh.timer 2>/dev/null || true
+  systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
   systemctl stop dustycards 2>/dev/null || true
   npx prisma migrate deploy
 else
@@ -386,13 +390,52 @@ Unit=dustycards-sync-scheduler.service
 WantedBy=timers.target
 EOF
 
+# Product launch dates come straight from the official Pokemon gallery. This
+# intentionally runs only twice a month and only checks the current/next year;
+# already cached product pages are not downloaded again. It consumes no Tavily
+# or Firecrawl credits and gives the lifecycle model real product-release
+# observations instead of treating the parent set date as every product date.
+cat > /etc/systemd/system/dustycards-sealed-release-refresh.service <<EOF
+[Unit]
+Description=DustyCards official sealed product release refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=dustycards
+Group=dustycards
+WorkingDirectory=$RemoteAppPath
+EnvironmentFile=$RemoteAppPath/.env
+ExecStart=/usr/bin/env npm run sync:sealed-release-dates -- --refresh --apply --allow-partial --years=current-next --max-pages=60 --concurrency=3
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+EOF
+
+cat > /etc/systemd/system/dustycards-sealed-release-refresh.timer <<'EOF'
+[Unit]
+Description=Refresh official sealed release dates twice monthly
+
+[Timer]
+OnCalendar=*-*-01,15 03:25:00
+RandomizedDelaySec=20min
+Persistent=true
+Unit=dustycards-sealed-release-refresh.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 systemctl daemon-reload
 systemctl enable --now dustycards-sync-scheduler.timer
+systemctl enable --now dustycards-sealed-release-refresh.timer
 # Kick off one sync immediately, but do not fail the deploy if it does: the app
 # has only just restarted and may not be ready to serve the sync endpoint in
 # this exact instant. The timer (enabled above) runs it every 5 min regardless.
 systemctl start dustycards-sync-scheduler.service || true
 systemctl is-active dustycards-sync-scheduler.timer
+systemctl is-active dustycards-sealed-release-refresh.timer
 '@
 
 $remoteScript = $remoteScript.Replace("__REMOTE_APP_PATH__", $remoteAppPathLiteral)

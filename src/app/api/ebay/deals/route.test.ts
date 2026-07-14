@@ -22,6 +22,7 @@ const { collectionMock, dbMock, demandMock, ebayMock, exchangeMock, priceHistory
       recordEbayDemandScan: vi.fn(),
     },
     ebayMock: {
+      buildEbayCardDemandSearchQuery: vi.fn(),
       buildEbayCardSearchQuery: vi.fn(),
       buildEbayManualSearchQuery: vi.fn(),
       buildEbayMarketplaceSearchUrl: vi.fn(),
@@ -61,6 +62,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("@/lib/ebay", () => ({
+  buildEbayCardDemandSearchQuery: ebayMock.buildEbayCardDemandSearchQuery,
   buildEbayCardSearchQuery: ebayMock.buildEbayCardSearchQuery,
   buildEbayManualSearchQuery: ebayMock.buildEbayManualSearchQuery,
   buildEbayMarketplaceSearchUrl: ebayMock.buildEbayMarketplaceSearchUrl,
@@ -95,6 +97,7 @@ function makeUmbreonCard() {
     id: "21554",
     name: "Umbreon ex",
     card_number: "161/131",
+    printed_card_number: "161/131",
     rarity: "Special Illustration Rare",
     image_url: null,
     episode: {
@@ -229,7 +232,10 @@ function makeListing(input: {
   };
 }
 
-function mockSearchResults(listings: TestListing[]) {
+function mockSearchResults(
+  listings: TestListing[],
+  scan?: { fetchedCount: number; availableTotal: number | null; capped: boolean }
+) {
   ebayMock.searchEbayDeals.mockImplementation(
     async ({
       buyingMode,
@@ -246,6 +252,7 @@ function mockSearchResults(listings: TestListing[]) {
       buyingMode,
       total: listings.length,
       listings,
+      ...(scan ? { scan } : {}),
       directSearchUrl: `https://www.ebay.nl/sch/i.html?_nkw=${encodeURIComponent(
         query
       )}`,
@@ -279,6 +286,10 @@ describe("GET /api/ebay/deals", () => {
       /\bpokemon\b/i.test(query) ? query : `${query} Pokemon`
     );
     ebayMock.buildEbayCardSearchQuery.mockImplementation(
+      (input: { name: string; cardNumber?: string | null }) =>
+        [input.name, input.cardNumber, "Pokemon"].filter(Boolean).join(" ")
+    );
+    ebayMock.buildEbayCardDemandSearchQuery.mockImplementation(
       (input: { name: string; cardNumber?: string | null }) =>
         [input.name, input.cardNumber, "Pokemon"].filter(Boolean).join(" ")
     );
@@ -413,11 +424,16 @@ describe("GET /api/ebay/deals", () => {
 
     expect(response.status).toBe(200);
     expect(ebayMock.getEbayDemandRuntimeConfig).toHaveBeenCalledTimes(1);
+    expect(ebayMock.buildEbayCardDemandSearchQuery).toHaveBeenCalledWith({
+      name: "Umbreon ex",
+      game: "pokemon",
+      cardNumber: "161/131",
+    });
     expect(ebayMock.searchEbayDeals).toHaveBeenCalledTimes(1);
     expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
       expect.objectContaining({
         config: expect.objectContaining({ marketplaceId: "EBAY_US" }),
-        buyingMode: "all",
+        buyingMode: "fixed",
         strictEnglish: true,
         strictNearMint: true,
         excludeGraded: true,
@@ -430,6 +446,157 @@ describe("GET /api/ebay/deals", () => {
         marketplaceId: "EBAY_US",
         mode: "raw",
         listings: [expect.objectContaining({ itemId: "demand-1" })],
+      })
+    );
+  });
+
+  it("uses loose full-number demand discovery for Mega Dragonite and keeps exact-card matches", async () => {
+    const card = {
+      ...makeUmbreonCard(),
+      id: "mega-dragonite-295",
+      game: "pokemon",
+      name: "Mega Dragonite ex",
+      card_number: "295",
+      printed_card_number: "295/217",
+      episode: {
+        id: "meg",
+        name: "Mega Evolution",
+        code: "MEG",
+      },
+    };
+    dbMock.card.findUnique.mockResolvedValue(card);
+    mockSearchResults(
+      [
+        makeListing({
+          itemId: "dragonite-exact",
+          title: "Mega Dragonite ex 295/217 SIR English NM Pokemon Card",
+          totalEur: 250,
+        }),
+        makeListing({
+          itemId: "dragonite-wrong-denominator",
+          title: "Mega Dragonite ex 295/198 English NM Pokemon Card",
+          totalEur: 20,
+        }),
+        makeListing({
+          itemId: "dragonite-jumbo",
+          title: "Jumbo Mega Dragonite ex 295/217 English Pokemon Card",
+          totalEur: 10,
+        }),
+      ],
+      { fetchedCount: 160, availableTotal: 160, capped: false }
+    );
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3000/api/ebay/deals?cardId=mega-dragonite-295&mode=raw&profile=demand&limit=50"
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(ebayMock.buildEbayCardDemandSearchQuery).toHaveBeenCalledWith({
+      name: "Mega Dragonite ex",
+      game: "pokemon",
+      cardNumber: "295/217",
+    });
+    expect(ebayMock.buildEbayCardSearchQuery).not.toHaveBeenCalled();
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Mega Dragonite ex 295/217 Pokemon",
+        buyingMode: "fixed",
+        strictEnglish: true,
+        strictNearMint: true,
+        excludeGraded: true,
+      })
+    );
+    expect(demandMock.recordEbayDemandScan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cardId: "mega-dragonite-295",
+        listings: [expect.objectContaining({ itemId: "dragonite-exact" })],
+        observedCount: 160,
+        capped: false,
+      })
+    );
+  });
+
+  it("keeps shared graded demand independent from the user's saved slab grade", async () => {
+    const card = {
+      ...makeUmbreonCard(),
+      collectionItems: [
+        {
+          grading_company: "PSA",
+          grading_grade: "8",
+        },
+      ],
+    };
+    dbMock.card.findUnique.mockResolvedValue(card);
+    collectionMock.getCollectionMatchedGradedPrice.mockReturnValueOnce({
+      label: "PSA 8 eBay sold",
+      price: 92,
+      source: "ebay_sold_graded",
+    });
+    mockSearchResults([]);
+    demandMock.recordEbayDemandScan.mockResolvedValueOnce({
+      updatedAt: "2026-07-13T12:00:00.000Z",
+      marketplaceId: "EBAY_US",
+      mode: "graded",
+      sample: { observed: 0, clean: 0, capped: false },
+      summary: {
+        activeCount: 0,
+        new7d: 0,
+        removed7d: 0,
+        removalPressure7d: 0,
+        baseline30d: 0,
+        pressureChangePercent: 0,
+        medianAskEur: null,
+        lowestAskEur: null,
+        auctionCount: 0,
+        fixedCount: 0,
+      },
+      history: [],
+    });
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3000/api/ebay/deals?cardId=21554&mode=graded&buying=all&profile=demand&limit=50"
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(ebayMock.buildEbayCardDemandSearchQuery).toHaveBeenCalledWith({
+      name: "Umbreon ex",
+      game: "pokemon",
+      cardNumber: "161/131",
+    });
+    expect(ebayMock.buildEbayCardSearchQuery).not.toHaveBeenCalled();
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
+      expect.objectContaining({
+        buyingMode: "fixed",
+        reference: {
+          label: "All graded listings",
+          valueEur: null,
+          source: "none",
+        },
+        strictEnglish: true,
+        strictNearMint: false,
+        excludeGraded: false,
+        requireGraded: true,
+        listingKind: "graded",
+      })
+    );
+    expect(collectionMock.getCollectionMatchedGradedPrice).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      reference: {
+        label: "All graded listings",
+        valueEur: null,
+        source: "none",
+      },
+    });
+    expect(demandMock.recordEbayDemandScan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cardId: "21554",
+        marketplaceId: "EBAY_US",
+        mode: "graded",
+        listings: [],
       })
     );
   });

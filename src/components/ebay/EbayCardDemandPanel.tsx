@@ -81,6 +81,7 @@ interface EbayCardDemandPanelProps {
   initialMode?: EbayCardDemandMode;
   className?: string;
   compact?: boolean;
+  rail?: boolean;
 }
 
 interface JsonRecord {
@@ -207,6 +208,9 @@ function normalizeListing(value: unknown): EbayCardDemandListing | null {
 
 function normalizePayload(value: unknown, mode: EbayCardDemandMode): EbayCardDemandPayload {
   const payload = isRecord(value) ? value : {};
+  if (isRecord(payload.demand) && payload.demand.mode !== mode) {
+    throw new Error("eBay demand response did not match the requested market mode.");
+  }
   const demand = normalizeDemand(payload.demand, mode);
   const listingPage = isRecord(payload.listingPage) ? payload.listingPage : {};
   const normalizedListings = Array.isArray(payload.listings)
@@ -285,7 +289,7 @@ async function requestDemand(
     if (forceRefresh) {
       normalized = normalizePayload(
         await fetchJson(
-          `/api/ebay/deals?cardId=${encodeURIComponent(cardId)}&mode=${mode}&profile=demand&buying=all&limit=50`
+          `/api/ebay/deals?cardId=${encodeURIComponent(cardId)}&mode=${mode}&profile=demand&buying=fixed&limit=50`
         ),
         mode
       );
@@ -300,7 +304,7 @@ async function requestDemand(
       if (normalized.configured !== false && needsFreshObservation && !seededKeys.has(key)) {
         normalized = normalizePayload(
           await fetchJson(
-            `/api/ebay/deals?cardId=${encodeURIComponent(cardId)}&mode=${mode}&profile=demand&buying=all&limit=50`
+            `/api/ebay/deals?cardId=${encodeURIComponent(cardId)}&mode=${mode}&profile=demand&buying=fixed&limit=50`
           ),
           mode
         );
@@ -495,11 +499,15 @@ export default function EbayCardDemandPanel({
   initialMode = "raw",
   className = "",
   compact = false,
+  rail = false,
 }: EbayCardDemandPanelProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
   const [mode, setMode] = useState<EbayCardDemandMode>(initialMode);
-  const [payload, setPayload] = useState<EbayCardDemandPayload | null>(null);
+  const [payloadState, setPayloadState] = useState<{
+    contextKey: string;
+    payload: EbayCardDemandPayload;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -508,6 +516,16 @@ export default function EbayCardDemandPanel({
   const [listingTotal, setListingTotal] = useState(0);
   const [listingsLoading, setListingsLoading] = useState(false);
   const [listingsError, setListingsError] = useState<string | null>(null);
+  const requestContextKey = `${cardId}:${mode}`;
+  const requestContextRef = useRef(requestContextKey);
+  const payload = payloadState?.contextKey === requestContextKey ? payloadState.payload : null;
+
+  useEffect(() => {
+    requestContextRef.current = requestContextKey;
+    return () => {
+      if (requestContextRef.current === requestContextKey) requestContextRef.current = "";
+    };
+  }, [requestContextKey]);
 
   useEffect(() => {
     const element = panelRef.current;
@@ -532,20 +550,26 @@ export default function EbayCardDemandPanel({
   useEffect(() => {
     if (!visible) return;
     let active = true;
+    const contextKey = `${cardId}:${mode}`;
     queueMicrotask(() => {
-      if (!active) return;
+      if (!active || requestContextRef.current !== contextKey) return;
       setLoading(true);
       setError(null);
-      setPayload(payloadCache.get(`${cardId}:${mode}`) ?? null);
+      const cachedPayload = payloadCache.get(contextKey);
+      setPayloadState(cachedPayload ? { contextKey, payload: cachedPayload } : null);
       void requestDemand(cardId, mode, false)
         .then((nextPayload) => {
-          if (active) setPayload(nextPayload);
+          if (active && requestContextRef.current === contextKey) {
+            setPayloadState({ contextKey, payload: nextPayload });
+          }
         })
         .catch((requestError: unknown) => {
-          if (active) setError(requestError instanceof Error ? requestError.message : "eBay demand data could not be loaded.");
+          if (active && requestContextRef.current === contextKey) {
+            setError(requestError instanceof Error ? requestError.message : "eBay demand data could not be loaded.");
+          }
         })
         .finally(() => {
-          if (active) setLoading(false);
+          if (active && requestContextRef.current === contextKey) setLoading(false);
         });
     });
     return () => {
@@ -554,17 +578,32 @@ export default function EbayCardDemandPanel({
   }, [cardId, mode, visible]);
 
   useEffect(() => {
-    setShowAllListings(false);
-    setLoadedListings([]);
-    setListingTotal(0);
-    setListingsLoading(false);
-    setListingsError(null);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setShowAllListings(false);
+      setLoadedListings([]);
+      setListingTotal(0);
+      setListingsLoading(false);
+      setListingsError(null);
+      setRefreshing(false);
+    });
+    return () => {
+      active = false;
+    };
   }, [cardId, mode]);
 
   useEffect(() => {
     if (!payload) return;
-    setLoadedListings(payload.listings);
-    setListingTotal(payload.listingPage.total);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setLoadedListings(payload.listings);
+      setListingTotal(payload.listingPage.total);
+    });
+    return () => {
+      active = false;
+    };
   }, [payload]);
 
   const latestListings = useMemo(
@@ -578,10 +617,12 @@ export default function EbayCardDemandPanel({
   );
 
   async function loadListingPage(offset: number, replace: boolean) {
+    const contextKey = `${cardId}:${mode}`;
     setListingsLoading(true);
     setListingsError(null);
     try {
       const nextPayload = await requestListingPage(cardId, mode, offset);
+      if (requestContextRef.current !== contextKey) return;
       setListingTotal(nextPayload.listingPage.total);
       setLoadedListings((current) => {
         const merged = new Map<string, EbayCardDemandListing>();
@@ -590,9 +631,11 @@ export default function EbayCardDemandPanel({
         return [...merged.values()];
       });
     } catch (requestError) {
-      setListingsError(requestError instanceof Error ? requestError.message : "eBay listings could not be loaded.");
+      if (requestContextRef.current === contextKey) {
+        setListingsError(requestError instanceof Error ? requestError.message : "eBay listings could not be loaded.");
+      }
     } finally {
-      setListingsLoading(false);
+      if (requestContextRef.current === contextKey) setListingsLoading(false);
     }
   }
 
@@ -605,18 +648,29 @@ export default function EbayCardDemandPanel({
     void loadListingPage(loadedListings.length, false);
   }
 
+  function selectMode(nextMode: EbayCardDemandMode) {
+    if (nextMode === mode) return;
+    requestContextRef.current = `${cardId}:${nextMode}`;
+    setMode(nextMode);
+  }
+
   const displayedListingCount = latestListings.length;
 
   async function refresh() {
+    const contextKey = `${cardId}:${mode}`;
     setRefreshing(true);
     setError(null);
     try {
       const nextPayload = await requestDemand(cardId, mode, true);
-      setPayload(nextPayload);
+      if (requestContextRef.current === contextKey) {
+        setPayloadState({ contextKey, payload: nextPayload });
+      }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "eBay demand data could not be refreshed.");
+      if (requestContextRef.current === contextKey) {
+        setError(requestError instanceof Error ? requestError.message : "eBay demand data could not be refreshed.");
+      }
     } finally {
-      setRefreshing(false);
+      if (requestContextRef.current === contextKey) setRefreshing(false);
     }
   }
 
@@ -634,18 +688,19 @@ export default function EbayCardDemandPanel({
     <section
       ref={panelRef}
       data-ebay-card-demand
+      data-ebay-demand-layout={rail ? "rail" : compact ? "compact" : "default"}
       className={`min-w-0 overflow-hidden rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] ${className}`}
     >
-      <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-white/7 px-4 py-3 sm:px-5">
+      <header className={`grid min-h-14 items-center gap-3 border-b border-white/7 py-3 ${rail ? "px-3.5" : "px-4 sm:flex sm:flex-wrap sm:justify-between sm:px-5"}`}>
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-300/12 bg-sky-400/[0.06] text-sky-200/72">
             <BarChart3 className="h-4 w-4" />
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-bold text-white/88 sm:text-base">eBay market demand</h2>
+              <h2 className={`font-bold text-white/88 ${rail ? "text-sm" : "text-sm sm:text-base"}`}>eBay market demand</h2>
               <span className="rounded-full border border-sky-300/12 bg-sky-400/[0.055] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-sky-100/64">
-                {marketplaceLabel(demand?.marketplaceId)} · {mode === "raw" ? "Raw · EN · NM" : "Graded · EN"}
+                {marketplaceLabel(demand?.marketplaceId)} · {mode === "raw" ? "Raw · EN · NM · Fixed" : "Graded · EN · Fixed"}
               </span>
             </div>
             <p className="mt-0.5 truncate text-[9px] text-white/32">
@@ -653,14 +708,19 @@ export default function EbayCardDemandPanel({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="grid h-8 grid-cols-2 rounded-lg border border-white/8 bg-black/24 p-1">
+        <div className={rail ? "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2.5rem] items-center gap-2" : "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-2 sm:flex sm:w-auto"}>
+          <div
+            role="group"
+            aria-label="eBay market mode"
+            className={rail ? "dc-compact-segment grid h-9 min-w-0 grid-cols-2 overflow-hidden rounded-lg border border-white/8 bg-black/24 p-1" : "dc-compact-segment grid h-11 min-w-0 grid-cols-2 overflow-hidden rounded-xl border border-white/8 bg-black/24 p-0 sm:h-8 sm:min-w-[8.5rem] sm:rounded-lg sm:p-1"}
+          >
             {(["raw", "graded"] as const).map((nextMode) => (
               <button
                 key={nextMode}
                 type="button"
-                onClick={() => setMode(nextMode)}
-                className={`rounded-md px-2.5 text-[9px] font-semibold capitalize transition ${
+                onClick={() => selectMode(nextMode)}
+                aria-pressed={mode === nextMode}
+                className={`min-w-0 rounded-lg px-2.5 text-[10px] font-semibold capitalize transition sm:rounded-md sm:text-[9px] ${
                   mode === nextMode ? "bg-violet-500 text-white" : "text-white/42 hover:bg-white/[0.055] hover:text-white/72"
                 }`}
               >
@@ -674,14 +734,14 @@ export default function EbayCardDemandPanel({
             disabled={refreshing || loading}
             aria-label="Refresh eBay demand"
             title="Refresh clean eBay listing observations"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/[0.035] text-white/42 transition hover:border-violet-300/20 hover:bg-violet-400/[0.07] hover:text-white/78 disabled:cursor-wait disabled:opacity-45"
+            className={rail ? "dc-compact-icon-button flex h-9 w-10 items-center justify-center rounded-lg border border-white/8 bg-white/[0.035] text-white/42 transition hover:border-violet-300/20 hover:bg-violet-400/[0.07] hover:text-white/78 disabled:cursor-wait disabled:opacity-45" : "dc-compact-icon-button flex h-11 w-11 items-center justify-center rounded-xl border border-white/8 bg-white/[0.035] text-white/42 transition hover:border-violet-300/20 hover:bg-violet-400/[0.07] hover:text-white/78 disabled:cursor-wait disabled:opacity-45 sm:h-8 sm:w-8 sm:rounded-lg"}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
         </div>
       </header>
 
-      <div className="p-3.5 sm:p-4">
+      <div className={rail ? "p-3" : "p-3.5 sm:p-4"}>
         {!visible || (loading && !payload) ? (
           <div className="grid gap-3 sm:grid-cols-4">
             {Array.from({ length: 4 }, (_, index) => <div key={index} className="h-20 animate-pulse rounded-xl border border-white/6 bg-white/[0.025]" />)}
@@ -701,14 +761,16 @@ export default function EbayCardDemandPanel({
               {demand ? "No verified matches in this observation" : "No clean listing baseline yet"}
             </p>
             <p className="mt-1 max-w-lg text-[9px] leading-4 text-white/32">
-              {mode === "raw" ? "Only exact English, near-mint, ungraded matches count; other languages and conditions are excluded." : "Only listings matched to this exact graded card count."}
+              {mode === "raw"
+                ? "Only exact English, near-mint, fixed-price raw matches count; other languages, conditions and auctions are excluded."
+                : "Only exact English, verified graded fixed-price matches count; raw cards and auctions are excluded."}
             </p>
           </div>
         ) : (
           <div className={`grid min-w-0 gap-3 ${compact ? "" : "xl:grid-cols-[minmax(0,0.95fr)_minmax(20rem,1.05fr)]"}`}>
             <div className="min-w-0">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <DemandMetric label={cappedSample ? "Active sample" : "Active"} value={String(summary?.activeCount ?? 0)} detail={`${summary?.fixedCount ?? 0} fixed · ${summary?.auctionCount ?? 0} auction`} />
+              <div className={rail ? "grid grid-cols-2 gap-2" : "grid grid-cols-2 gap-2 sm:grid-cols-4"}>
+                <DemandMetric label={cappedSample ? "Active sample" : "Active"} value={String(summary?.activeCount ?? 0)} detail={`${summary?.fixedCount ?? 0} fixed-price listings`} />
                 <DemandMetric label={cappedSample ? "New sample · 7d" : "New · 7d"} value={String(summary?.new7d ?? 0)} detail={cappedSample ? "Within the verified sample" : "Created on eBay this week"} />
                 <DemandMetric label="Removed est. · 7d" value={cappedSample ? "--" : String(summary?.removed7d ?? 0)} detail={cappedSample ? "Unavailable on a capped sample" : "No longer observed; not confirmed sold"} />
                 <DemandMetric label="Pressure vs 30d" value={cappedSample ? "--" : formatPercent(summary?.pressureChangePercent ?? null, true)} detail={cappedSample ? "Needs a complete observation" : `${formatPercent(summary?.removalPressure7d ?? null)} vs ${formatPercent(summary?.baseline30d ?? null)} baseline`} tone={cappedSample ? "neutral" : pressureTone} />
@@ -732,7 +794,7 @@ export default function EbayCardDemandPanel({
                 </div>
               </div>
               {latestListings.length ? (
-                <div className={`grid gap-2 ${compact ? "" : showAllListings ? "sm:grid-cols-2 2xl:grid-cols-3" : "sm:grid-cols-2"}`}>
+                <div className={`grid gap-2 ${compact ? "" : showAllListings ? "sm:grid-cols-2 2xl:grid-cols-3" : "sm:grid-cols-2"} ${rail && showAllListings ? "max-h-[55dvh] overflow-y-auto overscroll-contain pr-1" : ""}`}>
                   {latestListings.map((listing) => <LatestListing key={listing.itemId} listing={listing} />)}
                 </div>
               ) : (

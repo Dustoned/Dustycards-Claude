@@ -101,7 +101,7 @@ const candidates = [
 
 describe("external catalyst cadence", () => {
   it("invalidates the previous discovery query plan after adding watch topics", () => {
-    expect(EXTERNAL_CATALYST_QUERY_VERSION).toBe(4);
+    expect(EXTERNAL_CATALYST_QUERY_VERSION).toBe(5);
   });
 
   it("is caller-controlled and due only after 72 hours", () => {

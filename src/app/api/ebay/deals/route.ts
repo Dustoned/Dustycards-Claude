@@ -10,6 +10,7 @@ import {
 import { getCollectionMatchedGradedPrice } from "@/lib/collection";
 import { db } from "@/lib/db";
 import {
+  buildEbayCardDemandSearchQuery,
   buildEbayCardSearchQuery,
   buildEbayManualSearchQuery,
   buildEbayMarketplaceSearchUrl,
@@ -88,6 +89,7 @@ async function getCardDealContext(cardId: string, userId: string) {
       game: true,
       name: true,
       card_number: true,
+      printed_card_number: true,
       rarity: true,
       image_url: true,
       episode: {
@@ -158,6 +160,10 @@ async function getCardDealContext(cardId: string, userId: string) {
 type CardDealContext = NonNullable<Awaited<ReturnType<typeof getCardDealContext>>>;
 type SealedDealContext = NonNullable<Awaited<ReturnType<typeof getSealedDealContext>>>;
 
+function getCardSearchNumber(card: CardDealContext): string | null {
+  return card.printed_card_number?.trim() || card.card_number?.trim() || null;
+}
+
 type EnrichedEbayDealListing = EbayDealListing & {
   reference: EbayDealReference;
   cardMatch: EbayCardMatch;
@@ -165,6 +171,12 @@ type EnrichedEbayDealListing = EbayDealListing & {
 
 const NO_MATCH_REFERENCE: EbayDealReference = {
   label: "No matched DustyCards card",
+  valueEur: null,
+  source: "none",
+};
+
+const GRADE_AGNOSTIC_DEMAND_REFERENCE: EbayDealReference = {
+  label: "All graded listings",
   valueEur: null,
   source: "none",
 };
@@ -227,7 +239,7 @@ function toMatchCard(card: CardDealContext): EbayMatchCard {
   return {
     id: card.id,
     name: card.name,
-    card_number: card.card_number,
+    card_number: getCardSearchNumber(card),
     rarity: card.rarity,
     image_url: card.image_url,
     episode: card.episode,
@@ -302,7 +314,7 @@ function buildLooseCardDealQuery(input: {
 }): string {
   const parts = [
     input.card.name,
-    input.includeNumber ? input.card.card_number : null,
+    input.includeNumber ? getCardSearchNumber(input.card) : null,
     input.includeSetCode ? input.card.episode.code : null,
     input.mode === "graded" ? "graded" : null,
     "Pokemon",
@@ -348,7 +360,12 @@ function buildCandidateCardWhere(query: string, listings: EbayDealListing[]): Pr
         { episode: { code: { contains: token.toUpperCase() } } },
       ],
     })),
-    ...numbers.map((number) => ({ card_number: { contains: number } })),
+    ...numbers.map((number) => ({
+      OR: [
+        { card_number: { contains: number } },
+        { printed_card_number: { contains: number } },
+      ],
+    })),
   ];
 
   if (conditions.length === 0) return null;
@@ -366,7 +383,10 @@ function buildFocusedCandidateCardWhere(query: string): Prisma.CardWhereInput | 
         OR: tokens.map((token) => ({ name: { contains: token } })),
       },
       {
-        OR: numbers.map((number) => ({ card_number: { contains: number } })),
+        OR: numbers.flatMap((number) => [
+          { card_number: { contains: number } },
+          { printed_card_number: { contains: number } },
+        ]),
       },
     ],
   };
@@ -441,6 +461,7 @@ async function getCandidateCardContexts(input: {
       game: true,
       name: true,
       card_number: true,
+      printed_card_number: true,
       rarity: true,
       image_url: true,
       episode: {
@@ -700,9 +721,10 @@ async function enrichDemandListingsWithPinnedCard(input: {
   listings: EbayDealListing[];
   mode: Exclude<DealMode, "sealed">;
   card: CardDealContext;
+  reference: EbayDealReference;
 }): Promise<EnrichedEbayDealListing[]> {
   const candidate = toMatchCard(input.card);
-  const reference = await buildReferenceForCard(input.card, input.mode);
+  const reference = input.reference;
 
   return input.listings.flatMap((listing): EnrichedEbayDealListing[] => {
     const cardMatch = matchEbayListingToCard({
@@ -896,20 +918,35 @@ export async function GET(req: NextRequest) {
           : card.hasSavedGrade
             ? "graded"
             : "raw";
+      const useGenericGradedDemand = demandProfile && cardMode === "graded";
       mode = cardMode;
-      reference = await buildReferenceForCard(card, cardMode);
+      reference = useGenericGradedDemand
+        ? GRADE_AGNOSTIC_DEMAND_REFERENCE
+        : await buildReferenceForCard(card, cardMode);
 
       if (!query) {
-        query = buildEbayCardSearchQuery({
-          name: card.name,
-          game: card.game === "one-piece" ? "one-piece" : "pokemon",
-          episodeName: card.episode.name,
-          episodeCode: card.episode.code,
-          cardNumber: card.card_number,
-          gradingCompany: card.collectionItem?.grading_company,
-          gradingGrade: card.collectionItem?.grading_grade,
-          mode: cardMode,
-        });
+        if (demandProfile) {
+          // Match the broad exact-card query used by the complete For Sale
+          // pipeline. Expansion names/codes severely undercount listings whose
+          // titles only contain the name and collector number. The strict
+          // post-fetch filters below still enforce the selected market mode.
+          query = buildEbayCardDemandSearchQuery({
+            name: card.name,
+            game: card.game === "one-piece" ? "one-piece" : "pokemon",
+            cardNumber: getCardSearchNumber(card),
+          });
+        } else {
+          query = buildEbayCardSearchQuery({
+            name: card.name,
+            game: card.game === "one-piece" ? "one-piece" : "pokemon",
+            episodeName: card.episode.name,
+            episodeCode: card.episode.code,
+            cardNumber: getCardSearchNumber(card),
+            gradingCompany: card.collectionItem?.grading_company,
+            gradingGrade: card.collectionItem?.grading_grade,
+            mode: cardMode,
+          });
+        }
       }
     } else if (productId) {
       sealedProduct = await getSealedDealContext(productId);
@@ -933,7 +970,13 @@ export async function GET(req: NextRequest) {
       query = buildEbayManualSearchQuery(`${q} graded`);
     }
 
-    const buyingMode = requestedBuyingMode ?? (mode === "sealed" ? "all" : "fixed");
+    // Demand measures clean active fixed-price supply. Ignore legacy
+    // `buying=all` clients here so auctions cannot enter the shared cohort or
+    // consume extra Browse API quota.
+    const buyingMode =
+      demandProfile && mode !== "sealed"
+        ? "fixed"
+        : requestedBuyingMode ?? (mode === "sealed" ? "all" : "fixed");
 
     if (!query) {
       return NextResponse.json({
@@ -1024,6 +1067,7 @@ export async function GET(req: NextRequest) {
             listings: result.listings,
             mode,
             card,
+            reference,
           })
         : mode === "sealed"
         ? enrichListingsWithSealedReference({

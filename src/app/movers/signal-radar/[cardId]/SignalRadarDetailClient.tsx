@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   BarChart3,
@@ -19,17 +19,18 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import {
-  getSignalExplanations,
-  PriceScenarioChart,
-} from "@/app/movers/signal-radar/ExternalSignalBrowser";
+import { getSignalExplanations } from "@/app/movers/signal-radar/ExternalSignalBrowser";
 import CachedImage from "@/components/CachedImage";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
+import PriceHistoryPanel, {
+  type PriceHistoryValuePoint,
+} from "@/components/PriceHistoryPanel";
 import { formatCurrency } from "@/lib/format";
 import type { ExternalCardSignal, ExternalMarketMode } from "@/lib/external-signal-radar";
 import { buildCardMarketProxyUrl, getSafeDirectCardMarketCardUrl } from "@/lib/cardmarket";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import { getExpansionHref } from "@/lib/games";
+import { buildAttachedBasePrediction } from "@/lib/signal-price-history";
 
 export interface SignalRadarCardBasics {
   id: string;
@@ -56,6 +57,15 @@ export interface SignalRadarCardBasics {
     series: string | null;
     release_date: string | null;
   };
+}
+
+export interface SignalRadarPriceHistoryData {
+  raw: PriceHistoryValuePoint[];
+  rawCurrency: "EUR";
+  graded: PriceHistoryValuePoint[];
+  gradedCurrency: "EUR" | "USD";
+  gradedLabel: string | null;
+  modelDate: string;
 }
 
 interface CardResearchResult {
@@ -143,10 +153,12 @@ function MetricRow({ label, value, hint }: { label: string; value: ReactNode; hi
 export default function SignalRadarDetailClient({
   signal,
   cardBasics,
+  priceHistory,
   initialResearch = null,
 }: {
   signal: ExternalCardSignal;
   cardBasics: SignalRadarCardBasics;
+  priceHistory: SignalRadarPriceHistoryData;
   initialResearch?: CardResearchSnapshot | null;
 }) {
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
@@ -164,6 +176,11 @@ export default function SignalRadarDetailClient({
     marketMode === "graded" ? market?.gradedOpportunityScore : market?.rawOpportunityScore;
   const score = opportunity ?? signal.externalScore;
   const tier = score >= 80 ? "Breakout" : score >= 60 ? "Strong" : "Watch";
+  const confluence = market
+    ? marketMode === "graded"
+      ? market.gradedConfluence ?? market.confluence
+      : market.rawConfluence ?? market.confluence
+    : undefined;
   const explanations = getSignalExplanations(signal);
   const catalysts = signal.catalysts ?? [];
   const researchResults = research?.results ?? [];
@@ -177,15 +194,25 @@ export default function SignalRadarDetailClient({
       : rawMarketPrice ?? signal.currentPrice;
   const displayCurrency =
     marketMode === "graded" ? scenario?.currency ?? market?.graded.currency ?? "EUR" : signal.currency;
-  const scenarioUsesAverageBaseline =
-    marketMode === "raw" &&
-    rawMarketPrice != null &&
-    scenario?.currentPrice != null &&
-    Math.abs(rawMarketPrice - scenario.currentPrice) >= 0.01;
   const scenarioUsesReleaseStabilization =
     scenario?.drivers.includes("post-release stabilization") ?? false;
   const scenarioUsesLaunchWindow =
     scenario?.drivers.includes("launch price discovery") ?? false;
+  const activeHistory = marketMode === "graded" ? priceHistory.graded : priceHistory.raw;
+  const activeHistoryCurrency =
+    marketMode === "graded" ? priceHistory.gradedCurrency : priceHistory.rawCurrency;
+  const predictionPoints = useMemo(
+    () =>
+      scenario
+        ? buildAttachedBasePrediction({
+            history: activeHistory,
+            currentPrice: displayPrice,
+            points: scenario.points,
+            modelDate: priceHistory.modelDate,
+          })
+        : [],
+    [activeHistory, displayPrice, priceHistory.modelDate, scenario]
+  );
   const cardMarketHref =
     getSafeDirectCardMarketCardUrl(cardBasics.cardmarket_url, signal.game) ??
     buildCardMarketProxyUrl(signal.cardId);
@@ -268,18 +295,19 @@ export default function SignalRadarDetailClient({
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#090a0f] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.35)] lg:hidden">
+      <div className="relative overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#090a0f] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.35)] sm:p-4 lg:hidden">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_18%,rgba(124,92,255,0.24),transparent_36%),radial-gradient(circle_at_22%_16%,rgba(56,189,248,0.10),transparent_32%)]" />
 
-        <div className="relative flex flex-col items-center">
-          <div className="relative aspect-[63/88] w-[min(58vw,15rem)] overflow-hidden rounded-[1rem] border border-white/12 bg-black/28 shadow-[0_26px_70px_rgba(0,0,0,0.52)]">
+        <div className="relative grid gap-4 sm:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)] sm:items-start">
+        <div className="relative min-w-0 flex flex-col items-center sm:items-stretch">
+          <div className="relative aspect-[63/88] w-[min(58vw,15rem)] overflow-hidden rounded-[1rem] border border-white/12 bg-black/28 shadow-[0_26px_70px_rgba(0,0,0,0.52)] sm:w-full">
             {signal.imageUrl ? (
               <CachedImage
                 sourceUrl={signal.imageUrl}
                 alt={signal.name}
                 fill
                 priority
-                sizes="58vw"
+                sizes="(max-width: 639px) 58vw, 240px"
                 className="object-contain"
               />
             ) : null}
@@ -295,19 +323,20 @@ export default function SignalRadarDetailClient({
           </div>
         </div>
 
-        <div className="relative mt-5">
+        <div className="relative mt-5 sm:contents">
+          <div className="min-w-0 sm:col-start-2 sm:row-start-1">
           <div className="flex flex-wrap gap-1.5">
             <span className="rounded-full border border-violet-300/18 bg-violet-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] text-violet-100/78">{signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} radar`}</span>
             <span className="rounded-full border border-emerald-300/16 bg-emerald-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100/70">{signal.confidence}</span>
             <span className="rounded-full border border-white/9 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/48">{tier}</span>
           </div>
-          <h1 className="mt-3 text-[1.85rem] font-black leading-[1.02] tracking-tight text-white">{signal.name}</h1>
+          <h1 className="mt-3 break-words text-[1.85rem] font-black leading-[1.02] tracking-tight text-white">{signal.name}</h1>
           <p className="mt-1.5 text-[13px] font-medium text-white/48">{signal.episodeName}{signal.cardNumber ? ` · ${signal.cardNumber}` : ""}{signal.rarity ? ` · ${signal.rarity}` : ""}</p>
 
           <div className="mt-4 grid grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-2.5">
             <div className="rounded-[1.15rem] border border-violet-300/14 bg-violet-400/[0.07] p-3.5">
               <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-violet-100/45">Current {marketMode}</p>
-              <p className="mt-1.5 text-[1.55rem] font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
+              <p className="mt-1.5 break-words text-[clamp(1.15rem,6vw,1.55rem)] font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
               <p className="mt-1 text-[9px] text-white/32">{signal.horizon}</p>
             </div>
             <div className="rounded-[1.15rem] border border-white/9 bg-black/22 p-3.5">
@@ -315,7 +344,7 @@ export default function SignalRadarDetailClient({
                 <span className="text-[10px] text-white/38">Opportunity</span><strong className="text-sm text-white/88">{score}/100</strong>
               </div>
               <div className="flex items-center justify-between gap-2 pt-2">
-                <span className="text-[10px] text-white/38">Setup</span><strong className="text-sm text-fuchsia-100/82">{market?.confluence.score ?? "--"}/100</strong>
+                <span className="text-[10px] text-white/38">Setup</span><strong className="text-sm text-fuchsia-100/82">{confluence?.score ?? "--"}/100</strong>
               </div>
             </div>
           </div>
@@ -326,20 +355,25 @@ export default function SignalRadarDetailClient({
               return <button key={mode} type="button" disabled={disabled} onClick={() => setMarketMode(mode)} className={cx("min-h-10 flex-1 rounded-xl text-[12px] font-bold capitalize transition", marketMode === mode ? "bg-violet-600 text-white" : disabled ? "cursor-not-allowed text-white/18" : "text-white/45 hover:bg-white/[0.055]")}>{mode}</button>;
             })}
           </div>
+          </div>
 
-          <nav className="mt-4 grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-black/25 p-1">
+          <nav
+            role="tablist"
+            aria-label="Signal analysis sections"
+            className="mt-4 grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-black/25 p-1 sm:col-span-2 sm:mt-0"
+          >
             {([
               ["info", "Info"],
               ["forecast", "Forecast"],
               ["demand", "Demand"],
               ["evidence", "Evidence"],
             ] as const).map(([key, label]) => (
-              <button key={key} type="button" onClick={() => setMobileTab(key)} className={cx("min-h-10 rounded-xl px-2 text-[12px] font-bold transition", mobileTab === key ? "bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,92,255,0.22)]" : "text-white/44 hover:bg-white/[0.055]")}>{label}</button>
+              <button key={key} id={`signal-tab-${key}`} type="button" role="tab" aria-selected={mobileTab === key} aria-controls={`signal-panel-${key}`} onClick={() => setMobileTab(key)} className={cx("min-h-10 min-w-0 rounded-xl px-1.5 text-[11px] font-bold transition min-[390px]:px-2 min-[390px]:text-[12px]", mobileTab === key ? "bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,92,255,0.22)]" : "text-white/44 hover:bg-white/[0.055]")}>{label}</button>
             ))}
           </nav>
 
           {mobileTab === "info" ? (
-            <div className="mt-3 space-y-3">
+            <div id="signal-panel-info" role="tabpanel" aria-labelledby="signal-tab-info" className="mt-3 space-y-3 sm:col-span-2 sm:mt-0">
               <div className="grid grid-cols-2 gap-2 rounded-[1.35rem] border border-white/9 bg-black/18 p-2">
                 {[
                   ["Expansion", cardBasics.episode.name],
@@ -366,14 +400,44 @@ export default function SignalRadarDetailClient({
           ) : null}
 
           {mobileTab === "forecast" ? (
-            <div className="mt-3 space-y-3">
-              <div className="rounded-[1.35rem] border border-white/9 bg-black/18 p-3">
-                <div className="mb-2 flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/48">Price model</p><h2 className="mt-1 text-sm font-bold text-white/84">{marketMode === "graded" ? "Graded" : "Raw"} scenario{scenarioUsesAverageBaseline ? " · 7d average baseline" : ""}</h2></div>{scenario ? <span className="rounded-full border border-white/8 px-2 py-1 text-[9px] text-white/40">{scenario.confidence}</span> : null}</div>
-                {scenario ? <><PriceScenarioChart scenario={scenario} detailed /><div className="mt-2 grid grid-cols-3 gap-2">{scenario.points.map((point) => <div key={point.days} className="rounded-xl border border-white/7 bg-white/[0.025] p-2.5 text-center"><p className="text-[9px] text-white/32">{point.days} days</p><p className="mt-1 text-[12px] font-black text-white/80">{formatCurrency(point.base, scenario.currency)}</p><p className="mt-1 text-[8px] text-white/28">{formatCurrency(point.low, scenario.currency)}–{formatCurrency(point.high, scenario.currency)}</p></div>)}</div>{scenarioUsesLaunchWindow ? <p className="mt-2 rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active: upside potential is higher during the first 6–8 weeks, but the forecast range is deliberately much wider.</p> : scenarioUsesReleaseStabilization ? <p className="mt-2 rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active: positive short-term growth is deliberately tempered during the first year after release.</p> : null}</> : <p className="py-5 text-center text-xs text-white/38">Not enough reliable history.</p>}
-              </div>
+            <div id="signal-panel-forecast" role="tabpanel" aria-labelledby="signal-tab-forecast" className="mt-3 space-y-3 sm:col-span-2 sm:mt-0">
+              <PriceHistoryPanel
+                title={`${marketMode === "graded" ? "Graded" : "Raw"} price history`}
+                currency={activeHistoryCurrency}
+                points={activeHistory}
+                currentValue={displayPrice}
+                tone="dark"
+                layout="hero"
+                rangeScopePoints={activeHistory}
+                rangeStorageKey={`signal-history-${signal.cardId}-${marketMode}`}
+                emptyText="No reliable price history yet"
+                projection={
+                  predictionPoints.length > 1
+                    ? { label: "Dusty prediction", points: predictionPoints }
+                    : null
+                }
+                headerAccessory={
+                  <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/44">
+                    {marketMode === "raw" ? "EN · NM" : priceHistory.gradedLabel ?? "Graded"}
+                  </span>
+                }
+              />
+              {scenario ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {scenario.points.map((point) => (
+                    <div key={point.days} className="rounded-xl border border-sky-300/10 bg-sky-400/[0.035] p-2.5 text-center">
+                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-sky-100/42">{point.days}d</p>
+                      <p className="mt-1 text-[12px] font-black text-white/82">{formatCurrency(point.base, scenario.currency)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {scenarioUsesLaunchWindow ? <p className="rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active, so this base prediction can still move quickly.</p> : scenarioUsesReleaseStabilization ? <p className="rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active, so early upside is deliberately tempered.</p> : null}
               <div className="grid grid-cols-2 gap-2">
                 {[
                   ["Sealed pressure", `${market?.sealed.pressureScore ?? "--"}/100`],
+                  ["Set lifecycle", market?.sealed.lifecycleLabel ?? "Learning"],
+                  ["OOP likelihood", market?.sealed.lifecycleOopProbability == null ? "--" : `${market.sealed.lifecycleOopProbability}%`],
                   ["Cheapest pack", market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")],
                   ["Scarcity", `${market?.scarcity.score ?? "--"}/100`],
                   ["Set rarity", market?.scarcity.setRarityLabel ?? "Unknown"],
@@ -386,13 +450,13 @@ export default function SignalRadarDetailClient({
           ) : null}
 
           {mobileTab === "demand" ? (
-            <div className="mt-3">
+            <div id="signal-panel-demand" role="tabpanel" aria-labelledby="signal-tab-demand" className="mt-3 sm:col-span-2 sm:mt-0">
               <EbayCardDemandPanel cardId={signal.cardId} compact />
             </div>
           ) : null}
 
           {mobileTab === "evidence" ? (
-            <div className="mt-3 space-y-3">
+            <div id="signal-panel-evidence" role="tabpanel" aria-labelledby="signal-tab-evidence" className="mt-3 space-y-3 sm:col-span-2 sm:mt-0">
               <div className="rounded-[1.35rem] border border-white/9 bg-black/18 p-3">
                 <div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/48">Source evidence</p><h2 className="mt-1 text-sm font-bold text-white/84">External proof</h2></div><span className="text-[9px] text-white/30">{signal.horizon}</span></div>
                 <div className="mt-3 space-y-2">{signal.evidence.length ? signal.evidence.map((item) => <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-xl border border-white/7 bg-white/[0.025] p-3"><span className="truncate text-[11px] font-semibold text-white/72">{item.deckName}</span><span className="text-[10px] font-bold text-violet-200/72">{item.inclusionPercent.toFixed(0)}%</span><span className="text-[9px] text-white/34">{item.deckSharePercent.toFixed(1)}% meta</span><span className="text-[9px] text-white/34">inclusion</span></Link>) : <p className="text-[10px] leading-4 text-white/38">This setup uses sealed, CardMarket and eBay evidence instead of tournament decks.</p>}</div>
@@ -404,19 +468,20 @@ export default function SignalRadarDetailClient({
             </div>
           ) : null}
         </div>
+        </div>
       </div>
 
-    <div className="hidden items-start gap-5 lg:grid lg:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)] 2xl:grid-cols-[clamp(20rem,22vw,28rem)_minmax(0,1fr)] 2xl:gap-5">
-      <aside className="2xl:sticky 2xl:top-5">
-        <div className="p-1 [&>div:nth-child(n+3)]:hidden">
-          <div className="relative mx-auto aspect-[63/88] w-full max-w-[28rem] overflow-hidden rounded-[1.15rem] border border-white/12 bg-black/28 shadow-[0_28px_80px_rgba(0,0,0,0.46)]">
+    <div className="signal-radar-desktop-shell hidden items-start gap-4 lg:grid 2xl:gap-5">
+      <aside className="signal-radar-detail-rail min-w-0 self-start">
+        <div className="p-1">
+          <div className="relative mx-auto aspect-[63/88] w-full max-w-[22rem] overflow-hidden rounded-[1.15rem] border border-white/12 bg-black/28 shadow-[0_28px_80px_rgba(0,0,0,0.46)]">
             {signal.imageUrl ? (
               <CachedImage
                 sourceUrl={signal.imageUrl}
                 alt={signal.name}
                 fill
                 priority
-                sizes="(max-width: 1535px) 336px, min(26vw, 512px)"
+                sizes="(max-width: 1279px) 240px, (max-width: 2199px) 336px, 352px"
                 className="object-contain"
               />
             ) : null}
@@ -444,74 +509,17 @@ export default function SignalRadarDetailClient({
             </div>
             <div className="mt-2">{researchButton}</div>
           </section>
-          <div className="mt-4">
-            <div className="flex flex-wrap gap-1.5">
-              <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">{signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} Radar`}</span>
-              <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">{signal.game === "one-piece" ? "One Piece" : "Pokemon"}</span>
-            </div>
-            <h1 className="mt-3 text-xl font-black tracking-tight text-white sm:text-2xl">{signal.name}</h1>
-            <p className="mt-1 text-xs text-white/42">{signal.episodeName}{signal.cardNumber ? ` · ${signal.cardNumber}` : ""}</p>
-            <p className="mt-0.5 text-[10px] text-white/30">{signal.rarity ?? "Rarity unavailable"}</p>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link
-              href={getExpansionHref(cardBasics.episode.id)}
-              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-3 py-1.5 text-[10px] font-semibold text-violet-100/72 transition hover:border-violet-300/28 hover:text-white"
-            >
-              <Tag className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">{cardBasics.episode.name}</span>
-            </Link>
-            {cardBasics.artist ? (
-              <Link
-                href={`/illustrators/${encodeURIComponent(cardBasics.artist)}`}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/9 bg-white/[0.035] px-3 py-1.5 text-[10px] font-semibold text-white/56 transition hover:border-violet-300/20 hover:text-white"
-              >
-                <UserRound className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{cardBasics.artist}</span>
-              </Link>
-            ) : null}
-          </div>
-          <div className="mt-4 overflow-hidden rounded-xl border border-white/8 bg-black/16">
-            <MetricRow label="Card number" value={cardBasics.printed_card_number ?? cardBasics.card_number ?? "--"} />
-            <MetricRow label="Rarity" value={cardBasics.rarity ?? "--"} />
-            <MetricRow label="Type" value={[cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"} />
-            <MetricRow label="HP" value={cardBasics.hp ?? "--"} />
-            <MetricRow label="Series" value={cardBasics.episode.series ?? "--"} />
-            <MetricRow label="Release" value={releaseLabel} />
-          </div>
-          <div className="mt-4 rounded-xl border border-white/8 bg-black/20 p-3">
-            <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/30">Current {marketMode} market</p>
-            <p className="mt-1 text-2xl font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
-            <p className="mt-1 text-[9px] text-white/30">Model horizon · {signal.horizon}</p>
-          </div>
-          <div className="mt-3 flex rounded-xl border border-white/8 bg-black/24 p-1">
-            {(["raw", "graded"] as const).map((mode) => {
-              const disabled = mode === "graded" && !gradedAvailable;
-              return (
-                <button
-                  key={mode}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setMarketMode(mode)}
-                  className={cx(
-                    "h-9 flex-1 rounded-lg text-[11px] font-semibold capitalize transition",
-                    marketMode === mode
-                      ? "bg-violet-500 text-white shadow-sm"
-                      : disabled
-                        ? "cursor-not-allowed text-white/20"
-                        : "text-white/48 hover:bg-white/[0.06] hover:text-white"
-                  )}
-                >
-                  {mode}
-                </button>
-              );
-            })}
-          </div>
+          <EbayCardDemandPanel
+            cardId={signal.cardId}
+            compact
+            rail
+            className="mt-3"
+          />
         </div>
       </aside>
 
-      <div className="signal-radar-detail-grid grid min-w-0 gap-4 [@media(min-width:1900px)]:grid-cols-12 [@media(min-width:1900px)]:items-stretch">
-        <section className="flex h-full min-w-0 flex-col rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] p-4 [@media(min-width:1900px)]:col-span-5 [@media(min-width:1900px)]:col-start-1 [@media(min-width:1900px)]:row-start-1 [@media(min-width:2200px)]:col-span-4">
+      <div className="signal-radar-detail-grid grid min-w-0 gap-4">
+        <section className="signal-radar-identity flex min-w-0 flex-col rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] p-4">
           <div className="flex flex-wrap gap-1.5">
             <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">{signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} Radar`}</span>
             <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">{signal.game === "one-piece" ? "One Piece" : "Pokemon"}</span>
@@ -523,11 +531,18 @@ export default function SignalRadarDetailClient({
             <Link href={getExpansionHref(cardBasics.episode.id)} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-3 py-1.5 text-[10px] font-semibold text-violet-100/72 transition hover:border-violet-300/28 hover:text-white"><Tag className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{cardBasics.episode.name}</span></Link>
             {cardBasics.artist ? <Link href={`/illustrators/${encodeURIComponent(cardBasics.artist)}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/9 bg-white/[0.035] px-3 py-1.5 text-[10px] font-semibold text-white/56 transition hover:border-violet-300/20 hover:text-white"><UserRound className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{cardBasics.artist}</span></Link> : null}
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-x-4 rounded-xl border border-white/8 bg-black/16 px-3">
-            <MetricRow label="Card number" value={cardBasics.printed_card_number ?? cardBasics.card_number ?? "--"} />
-            <MetricRow label="Rarity" value={cardBasics.rarity ?? "--"} />
-            <MetricRow label="Type" value={[cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"} />
-            <MetricRow label="Release" value={releaseLabel} />
+          <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/8 bg-white/[0.055]">
+            {[
+              ["Card number", cardBasics.printed_card_number ?? cardBasics.card_number ?? "--"],
+              ["Rarity", cardBasics.rarity ?? "--"],
+              ["Type", [cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"],
+              ["Release", releaseLabel],
+            ].map(([label, value]) => (
+              <div key={label} className="min-w-0 bg-[rgba(11,13,21,0.96)] px-3 py-2.5">
+                <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/28">{label}</p>
+                <p className="mt-1 break-words text-[11px] font-semibold leading-4 text-white/78">{value}</p>
+              </div>
+            ))}
           </div>
           <div className="mt-auto pt-3">
             <div className="flex items-end justify-between gap-4 rounded-xl border border-violet-300/12 bg-violet-400/[0.055] p-3">
@@ -545,7 +560,7 @@ export default function SignalRadarDetailClient({
           </div>
         </section>
 
-        <section className="min-w-0 rounded-2xl border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5 [@media(min-width:1900px)]:col-span-5 [@media(min-width:1900px)]:col-start-1 [@media(min-width:1900px)]:row-start-2 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:p-4">
+        <section className="signal-radar-summary min-w-0 rounded-2xl border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5 [@media(min-width:2200px)]:p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-violet-200/55">Signal summary</p>
@@ -557,7 +572,7 @@ export default function SignalRadarDetailClient({
           <div className="mt-4 grid gap-2 sm:grid-cols-2 [@media(min-width:2200px)]:grid-cols-4">
             {[
               ["Opportunity", `${score}/100`, "violet"],
-              ["Gold mine setup", `${market?.confluence.score ?? "--"}/100`, "fuchsia"],
+              ["Setup strength", `${confluence?.label ?? "--"} · ${confluence?.score ?? "--"}/100`, "fuchsia"],
               ["Signal tier", tier, "emerald"],
               ["Origin", signal.sourceMode === "structural" ? "Scarcity & value" : signal.sourceMode === "event" ? "Set & reveal" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament", "sky"],
             ].map(([label, value, tone]) => (
@@ -580,39 +595,60 @@ export default function SignalRadarDetailClient({
           </div>
         </section>
 
-        <AnalysisSection className="2xl:col-span-7 2xl:col-start-6 2xl:row-start-1 [@media(min-width:2200px)]:col-span-8 [@media(min-width:2200px)]:col-start-5" eyebrow="Price model" title={`${marketMode === "graded" ? "Graded" : "Raw"} value scenario${scenarioUsesAverageBaseline ? " · 7d avg baseline" : ""}`} icon={<BarChart3 className="h-4 w-4" />} aside={scenario ? <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/42">{scenario.confidence} confidence</span> : null}>
-          {scenario ? (
-            <div className="grid gap-5 [@media(min-width:2200px)]:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.6fr)]">
-              <div className="min-w-0 rounded-xl border border-violet-300/10 bg-violet-400/[0.035] p-3">
-                <PriceScenarioChart scenario={scenario} detailed />
+        <section className="signal-radar-chart min-w-0 space-y-2">
+          <PriceHistoryPanel
+            title={`${marketMode === "graded" ? "Graded" : "Raw"} price history`}
+            currency={activeHistoryCurrency}
+            points={activeHistory}
+            currentValue={displayPrice}
+            tone="dark"
+            layout="hero"
+            rangeScopePoints={activeHistory}
+            rangeStorageKey={`signal-history-${signal.cardId}-${marketMode}`}
+            emptyText="No reliable price history yet"
+            projection={
+              predictionPoints.length > 1
+                ? { label: "Dusty prediction", points: predictionPoints }
+                : null
+            }
+            headerLeadingAccessory={
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="inline-flex h-8 items-center gap-2 rounded-full border border-violet-300/12 bg-violet-400/[0.065] px-3 text-[10px] font-bold text-violet-100/70">
+                  <BarChart3 className="h-3.5 w-3.5" /> Price history + prediction
+                </span>
+                <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/44">
+                  {marketMode === "raw" ? "EN · NM" : priceHistory.gradedLabel ?? "Graded"}
+                </span>
               </div>
-              <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
-                <div className="grid grid-cols-4 border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">
-                  <span>Horizon</span><span className="text-right">Low</span><span className="text-right">Base</span><span className="text-right">High</span>
-                </div>
-                {scenario.points.map((point) => (
-                  <div key={point.days} className="grid min-h-12 grid-cols-4 items-center border-b border-white/6 px-3 text-[10px] last:border-b-0">
-                    <strong className="text-white/65">{point.days} days</strong>
-                    <span className="text-right text-rose-100/62">{formatCurrency(point.low, scenario.currency)}</span>
-                    <span className="text-right font-bold text-white/82">{formatCurrency(point.base, scenario.currency)}</span>
-                    <span className="text-right text-emerald-100/68">{formatCurrency(point.high, scenario.currency)}</span>
-                  </div>
-                ))}
-              </div>
-              {scenarioUsesLaunchWindow ? <p className="xl:col-span-2 rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active: upside potential is higher during the first 6–8 weeks, but the forecast band is deliberately much wider because supply and demand are still forming.</p> : scenarioUsesReleaseStabilization ? <p className="xl:col-span-2 rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active: positive short-term growth is deliberately tempered during the first year after release while supply and grading populations settle.</p> : null}
-            </div>
-          ) : <p className="text-xs text-white/38">Not enough reliable market history for a price scenario.</p>}
-        </AnalysisSection>
-
-          <EbayCardDemandPanel
-            cardId={signal.cardId}
-            compact
-            className="[@media(min-width:1900px)]:col-span-5 [@media(min-width:1900px)]:col-start-1 [@media(min-width:1900px)]:row-start-2 [@media(min-width:2200px)]:col-span-4"
+            }
+            headerAccessory={scenario ? <span className="rounded-full border border-sky-300/12 bg-sky-400/[0.045] px-2.5 py-1 text-[9px] font-semibold text-sky-100/60">{scenario.confidence} confidence</span> : null}
           />
+          {scenario ? (
+            <div className="grid grid-cols-3 gap-2">
+              {scenario.points.map((point) => (
+                <div key={point.days} className="flex min-h-10 items-center justify-between rounded-xl border border-sky-300/9 bg-sky-400/[0.028] px-3 py-2">
+                  <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-sky-100/40">{point.days}d</span>
+                  <strong className="text-[11px] tabular-nums text-white/78">{formatCurrency(point.base, scenario.currency)}</strong>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {scenarioUsesLaunchWindow ? <p className="rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active, so this base prediction can still move quickly.</p> : scenarioUsesReleaseStabilization ? <p className="rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active, so early upside is deliberately tempered.</p> : null}
+        </section>
 
-          <AnalysisSection className="2xl:col-span-7 2xl:col-start-6 2xl:row-start-2 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-5" eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
+          <AnalysisSection className="signal-radar-supply" eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
             <div className="grid gap-3 [@media(min-width:2200px)]:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-amber-300/10 bg-amber-400/[0.025]">
+                <MetricRow
+                  label="Set lifecycle"
+                  value={market?.sealed.lifecycleLabel ?? "Learning"}
+                  hint={market?.sealed.lifecycleSummary ?? undefined}
+                />
+                <MetricRow
+                  label="OOP likelihood"
+                  value={market?.sealed.lifecycleOopProbability == null ? "--" : `${market.sealed.lifecycleOopProbability}%`}
+                  hint={market?.sealed.lifecycleConfidence == null ? undefined : `${market.sealed.lifecycleConfidence}% model confidence${market.sealed.lifecycleAsOf ? ` | observed ${market.sealed.lifecycleAsOf.slice(0, 10)}` : ""}`}
+                />
                 <MetricRow label="Sealed pressure" value={`${market?.sealed.pressureLabel ?? "--"} · ${market?.sealed.pressureScore ?? "--"}/100`} />
                 <MetricRow label="Cheapest pack" value={market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")} hint={market?.sealed.packName ?? undefined} />
                 <MetricRow label="90-day sealed trend" value={signedPercent(market?.sealed.trend90dPct ?? null)} />
@@ -627,13 +663,13 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-          <AnalysisSection className="2xl:col-span-6 2xl:col-start-1 2xl:row-start-3 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-9 [@media(min-width:2200px)]:row-start-2" eyebrow="Demand quality" title="Collector, artist and grading" icon={<Sparkles className="h-4 w-4" />}>
+          <AnalysisSection className="signal-radar-demand" eyebrow="Demand quality" title="Collector, artist and grading" icon={<Sparkles className="h-4 w-4" />}>
             <div className="grid gap-3 [@media(min-width:2200px)]:grid-cols-2">
               <div className="overflow-hidden rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.025]">
-                <MetricRow label="Confluence" value={`${market?.confluence.label ?? "--"} · ${market?.confluence.score ?? "--"}/100`} />
+                <MetricRow label="Confluence" value={`${confluence?.label ?? "--"} · ${confluence?.score ?? "--"}/100`} />
                 <MetricRow label="Illustrator" value={market?.scarcity.artist ?? "Unknown"} hint={market?.scarcity.artistDemandScore == null ? undefined : `${market.scarcity.artistDemandScore}/100 demand`} />
                 <MetricRow label="Character demand" value={`${market?.scarcity.collectorDemandScore ?? "--"}/100`} />
-                <MetricRow label="Active drivers" value={market?.confluence.drivers.length ?? 0} hint={market?.confluence.drivers.join(" · ") || undefined} />
+                <MetricRow label="Active drivers" value={confluence?.drivers.length ?? 0} hint={confluence?.drivers.join(" · ") || undefined} />
               </div>
               <div className="overflow-hidden rounded-xl border border-emerald-300/10 bg-emerald-400/[0.025]">
                 <MetricRow label="Grading supply" value={market?.graded.supplyLabel ?? "Unknown"} />
@@ -644,7 +680,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-        <AnalysisSection className="2xl:col-span-6 2xl:col-start-7 2xl:row-start-3 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-1" eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
+        <AnalysisSection className="signal-radar-calibration" eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
           <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
             <div className="grid grid-cols-[0.55fr_0.65fr_0.7fr_1.4fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">
               <span>Target</span><span>Horizon</span><span>Probability</span><span>Model progress</span>
@@ -664,7 +700,7 @@ export default function SignalRadarDetailClient({
           </div>
         </AnalysisSection>
 
-          <AnalysisSection className="2xl:col-span-6 2xl:col-start-1 2xl:row-start-4 [@media(min-width:2200px)]:hidden" eyebrow="Investment thesis" title="Why it is on the radar" icon={<Radar className="h-4 w-4" />}>
+          <AnalysisSection className="signal-radar-thesis [@media(min-width:2200px)]:hidden" eyebrow="Investment thesis" title="Why it is on the radar" icon={<Radar className="h-4 w-4" />}>
             <div className="space-y-2">
               {explanations.map((item) => (
                 <div key={item.label} className="flex gap-3 rounded-xl border border-white/7 bg-black/16 p-3">
@@ -675,7 +711,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-          <AnalysisSection className="2xl:col-span-6 2xl:col-start-7 2xl:row-start-4 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-5 [@media(min-width:2200px)]:row-start-3" eyebrow="Source evidence" title="External proof" icon={<ArrowUpRight className="h-4 w-4" />} aside={<span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/28">{signal.horizon}</span>}>
+          <AnalysisSection className="signal-radar-evidence" eyebrow="Source evidence" title="External proof" icon={<ArrowUpRight className="h-4 w-4" />} aside={<span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/28">{signal.horizon}</span>}>
             <div className="space-y-2">
               {signal.evidence.length ? signal.evidence.map((item) => (
                 <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border border-white/7 bg-black/16 px-3 py-3 transition hover:border-violet-300/20">
@@ -687,7 +723,7 @@ export default function SignalRadarDetailClient({
             </div>
           </AnalysisSection>
 
-        <AnalysisSection className="2xl:col-span-12 2xl:col-start-1 2xl:row-start-5 [@media(min-width:2200px)]:col-span-4 [@media(min-width:2200px)]:col-start-9 [@media(min-width:2200px)]:row-start-3" eyebrow="Daily external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
+        <AnalysisSection className="signal-radar-news" eyebrow="Daily external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
           {catalysts.length ? (
             <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
               <div className="grid grid-cols-[0.55fr_1.5fr_0.65fr_0.6fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28"><span>Type</span><span>Catalyst</span><span>Evidence</span><span>Direction</span></div>

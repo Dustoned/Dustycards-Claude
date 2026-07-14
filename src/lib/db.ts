@@ -108,6 +108,14 @@ const REQUIRED_RUNTIME_FIELDS = {
   SetPullRateProfile: ["set_code", "imported_at", "source_url", "booster_pack_ev_usd"],
   SetPullRateRarity: ["normalized_rarity", "specific_pull_denominator", "ev_per_pack_usd"],
   SealedPriceSnapshot: ["cm_avg_7d", "cm_avg_30d"],
+  SetLifecycleObservation: [
+    "episode_id",
+    "status",
+    "oop_probability",
+    "confidence",
+    "observation_bucket",
+    "model_version",
+  ],
   Price: ["cm_en_avg_7d", "cm_en_avg_30d", "cm_jp_lowest_nm", "changed_at"],
   CardSubmission: [
     "normalized_key",

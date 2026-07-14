@@ -29,7 +29,7 @@ import {
 import { getTavilyConfigSnapshot, searchTavilyWeb } from "@/lib/tavily";
 
 export const EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS = 24 * 60 * 60_000;
-export const EXTERNAL_CATALYST_QUERY_VERSION = 4;
+export const EXTERNAL_CATALYST_QUERY_VERSION = 5;
 export const EXTERNAL_CATALYST_SEARCH_LIMIT = 5;
 export const EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN = 4;
 export const EXTERNAL_CATALYST_RETRY_BACKOFF_MS = 72 * 60 * 60_000;

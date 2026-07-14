@@ -6,7 +6,7 @@ import {
   enrichSignalsWithMarketIntelligence,
   loadCollectorDemandScores,
 } from "@/lib/external-market-intelligence";
-import { isActionablePriceScenario } from "@/lib/external-market-intelligence-core";
+import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
 import { getExternalForecastSummaries } from "@/lib/external-signal-forecast-store";
 import type {
   ExternalCardSignal,
@@ -783,8 +783,14 @@ export async function enrichExternalSignalRadarData(
           (signal.catalysts?.length ?? 0) > 0;
         return (
           eventLinked ||
-          isActionablePriceScenario(signal.marketIntelligence?.rawScenario) ||
-          isActionablePriceScenario(signal.marketIntelligence?.gradedScenario)
+          isWatchablePriceScenario(
+            signal.marketIntelligence?.rawScenario,
+            signal.marketIntelligence?.rawOpportunityScore
+          ) ||
+          isWatchablePriceScenario(
+            signal.marketIntelligence?.gradedScenario,
+            signal.marketIntelligence?.gradedOpportunityScore
+          )
         );
       }
     )

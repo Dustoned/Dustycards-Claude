@@ -7,13 +7,16 @@ import {
 } from "@/lib/ebay-card-matching";
 import { db } from "@/lib/db";
 import {
-  buildEbayCardSearchQuery,
+  buildEbayCardDemandSearchQuery,
   getEbayBrowseRateLimitStatus,
   getEbayDemandRuntimeConfig,
   searchEbayDeals,
   type EbayDealReference,
 } from "@/lib/ebay";
-import { recordEbayDemandScan } from "@/lib/ebay-demand";
+import {
+  EBAY_DEMAND_COHORT_REVISION_AT,
+  recordEbayDemandScan,
+} from "@/lib/ebay-demand";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -103,10 +106,15 @@ export function selectDueEbayDemandCandidates(input: {
     }
   }
   const refreshBefore = input.now.getTime() - DAY_MS;
+  const cohortRevisionAt = EBAY_DEMAND_COHORT_REVISION_AT.getTime();
   return [...unique.values()]
     .filter((candidate) => {
       const updatedAt = input.latestUpdatedAt.get(candidate.cardId);
-      return !updatedAt || updatedAt.getTime() <= refreshBefore;
+      return (
+        !updatedAt ||
+        updatedAt.getTime() < cohortRevisionAt ||
+        updatedAt.getTime() <= refreshBefore
+      );
     })
     .sort((left, right) => {
       const leftUpdated = input.latestUpdatedAt.get(left.cardId)?.getTime() ?? Number.NEGATIVE_INFINITY;
@@ -167,19 +175,19 @@ export async function scanSignalRadarCardEbayDemand(input: {
     valueEur: card.prices[0]?.cm_en_lowest_nm ?? null,
     source: card.prices[0]?.cm_en_lowest_nm != null ? "cardmarket" : "none",
   };
-  const query = buildEbayCardSearchQuery({
+  const query = buildEbayCardDemandSearchQuery({
     name: card.name,
     game: card.game === "one-piece" ? "one-piece" : "pokemon",
-    episodeName: card.episode.name,
-    episodeCode: card.episode.code,
     cardNumber,
-    mode: "raw",
   });
   const result = await searchEbayDeals({
     query,
     reference,
     limit: 50,
-    buyingMode: "all",
+    // Active auctions do not provide a stable ask price and an auction ending
+    // is not reliable evidence that the card sold. Demand therefore tracks
+    // fixed-price / best-offer inventory only.
+    buyingMode: "fixed",
     config,
     strictEnglish: true,
     strictNearMint: true,
@@ -280,6 +288,7 @@ export async function refreshSignalRadarEbayDemand(
       card_id: { in: candidates.map((candidate) => candidate.cardId) },
       marketplace_id: config.marketplaceId,
       mode: "raw",
+      updated_at: { gte: EBAY_DEMAND_COHORT_REVISION_AT },
     },
     orderBy: [{ updated_at: "desc" }, { id: "desc" }],
     select: { card_id: true, updated_at: true },

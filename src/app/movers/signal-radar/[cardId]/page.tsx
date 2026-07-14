@@ -20,6 +20,11 @@ import {
   POKEMON_GAME,
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
+import {
+  buildCardEbaySoldGradedPriceHistory,
+  buildCardGradedPriceHistory,
+  buildCardPriceHistory,
+} from "@/lib/price-history";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +39,14 @@ export default async function SignalRadarCardPage({
   const user = await requirePageUser(requestedPath);
   const settings = await getServerUserSettings(user.id);
   const activeGame = settings.onePieceLibraryEnabled ? ALL_GAMES : POKEMON_GAME;
-  const [liveData, persistedData, cardBasics] = await Promise.all([
+  const [
+    liveData,
+    persistedData,
+    cardBasics,
+    rawHistoryRows,
+    ebayGradedHistoryRows,
+    cardMarketGradedHistoryRows,
+  ] = await Promise.all([
     getExternalSignalRadarData(activeGame),
     getPersistedExternalSignalRadarData(activeGame),
     db.card.findUnique({
@@ -68,6 +80,42 @@ export default async function SignalRadarCardPage({
         episode: {
           select: { id: true, name: true, code: true, series: true, release_date: true },
         },
+      },
+    }),
+    db.price.findMany({
+      where: { card_id: cardId },
+      orderBy: [{ fetched_at: "asc" }, { id: "asc" }],
+      select: {
+        fetched_at: true,
+        cm_en_lowest_nm: true,
+        cm_de_lowest_nm: true,
+        cm_fr_lowest_nm: true,
+        cm_es_lowest_nm: true,
+        cm_it_lowest_nm: true,
+        cm_jp_lowest_nm: true,
+        tcp_market: true,
+        cm_en_avg_7d: true,
+        cm_en_avg_30d: true,
+      },
+    }),
+    db.cardEbaySoldGradedPriceSnapshot.findMany({
+      where: { card_id: cardId },
+      orderBy: [{ fetched_at: "asc" }, { id: "asc" }],
+      select: {
+        fetched_at: true,
+        label: true,
+        median_price: true,
+        currency: true,
+        sample_size: true,
+      },
+    }),
+    db.cardGradedPriceSnapshot.findMany({
+      where: { card_id: cardId },
+      orderBy: [{ fetched_at: "asc" }, { id: "asc" }],
+      select: {
+        fetched_at: true,
+        label: true,
+        price: true,
       },
     }),
   ]);
@@ -104,6 +152,29 @@ export default async function SignalRadarCardPage({
   }
   if (!signal) notFound();
 
+  const rawHistory = buildCardPriceHistory(rawHistoryRows).map((point) => ({
+    date: point.date,
+    label: point.label,
+    value: point.cm_market_en,
+  }));
+  const gradedLabel = signal.marketIntelligence?.graded.label ?? null;
+  const gradedCurrency = signal.marketIntelligence?.graded.currency ?? "EUR";
+  const normalizedGradedLabel = gradedLabel?.replace(/\s+/g, " ").trim().toLowerCase() ?? null;
+  const ebayGradedSeries = normalizedGradedLabel
+    ? buildCardEbaySoldGradedPriceHistory(ebayGradedHistoryRows).find(
+        (series) =>
+          series.label.toLowerCase() === normalizedGradedLabel &&
+          series.currency === gradedCurrency
+      ) ?? null
+    : null;
+  const cardMarketGradedSeries =
+    normalizedGradedLabel && gradedCurrency === "EUR"
+      ? buildCardGradedPriceHistory(cardMarketGradedHistoryRows).find(
+          (series) => series.label.toLowerCase() === normalizedGradedLabel
+        ) ?? null
+      : null;
+  const gradedHistory = ebayGradedSeries?.points ?? cardMarketGradedSeries?.points ?? [];
+
   const confluence = signal.marketIntelligence?.confluence;
   return (
     <div className="page-container mx-auto max-w-[112rem] px-3 py-3 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
@@ -131,6 +202,14 @@ export default async function SignalRadarCardPage({
       <SignalRadarDetailClient
         signal={signal}
         cardBasics={cardBasics}
+        priceHistory={{
+          raw: rawHistory,
+          rawCurrency: "EUR",
+          graded: gradedHistory,
+          gradedCurrency,
+          gradedLabel,
+          modelDate: data.generatedAt,
+        }}
         initialResearch={initialResearch}
       />
     </div>

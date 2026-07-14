@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { isActionablePriceScenario } from "@/lib/external-market-intelligence-core";
 import type { ExternalCardSignal, ExternalSignalRadarData } from "@/lib/external-signal-radar";
 import { isMailConfigured, sendHighPotentialSignalDigest } from "@/lib/mail";
 import { getMailPublicOrigin } from "@/lib/public-origin";
@@ -71,13 +72,23 @@ export function selectHighPotentialAlertCandidates(
   return signals
     .flatMap((signal) => {
       if (signal.confidence === "Emerging") return [];
-      const score = signal.marketIntelligence?.rawOpportunityScore ?? signal.externalScore;
-      const confluenceScore = signal.marketIntelligence?.confluence.score ?? null;
+      const market = signal.marketIntelligence;
+      const scenario = market?.rawScenario;
+      if (
+        !scenario ||
+        scenario.confidence === "Low" ||
+        !isActionablePriceScenario(scenario)
+      ) {
+        return [];
+      }
+      const score = market?.rawOpportunityScore ?? signal.externalScore;
+      const rawConfluence = market?.rawConfluence ?? market?.confluence;
+      const confluenceScore = rawConfluence?.score ?? null;
       const independentlyConfirmed =
         (confluenceScore ?? 0) >= MIN_CONFLUENCE_SCORE || signal.externalScore >= 90;
       if (score < MIN_OPPORTUNITY_SCORE || !independentlyConfirmed) return [];
       const reason =
-        signal.marketIntelligence?.confluence.drivers[0] ??
+        rawConfluence?.drivers[0] ??
         signal.reasons[0] ??
         signal.pressureExplanation;
       return [{ signal, score, confluenceScore, reason }];

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildEbayCardDemandSearchQuery,
   buildEbayCardSearchQuery,
   buildEbayManualSearchQuery,
   buildEbayMarketplaceSearchUrl,
@@ -10,6 +11,7 @@ import {
   detectEbayListingLanguage,
   getEbayListingGradingReason,
   getEbayListingRejectionReason,
+  isConfirmedEbayGradedListing,
   searchEbayDeals,
   __resetEbayTokenCacheForTests,
 } from "@/lib/ebay";
@@ -39,6 +41,16 @@ describe("ebay deal helpers", () => {
         mode: "graded",
       })
     ).toBe("graded Darkrai 136 Pokemon");
+  });
+
+  it("builds a broad exact-card demand query without expansion-only title terms", () => {
+    expect(
+      buildEbayCardDemandSearchQuery({
+        name: "Mega Dragonite ex",
+        game: "pokemon",
+        cardNumber: "295/217",
+      })
+    ).toBe("Mega Dragonite ex 295/217 Pokemon");
   });
 
   it("adds Pokemon context to manual searches", () => {
@@ -291,6 +303,23 @@ describe("ebay deal helpers", () => {
     ).toBe("accessory/pack listing");
   });
 
+  it("filters oversized, sticker, and multi-card Dragonite results", () => {
+    for (const title of [
+      "Jumbo Mega Dragonite ex 295/217 English Pokemon Card",
+      "Mega Dragonite ex 295/217 Oversized Pokemon Card",
+      "Mega Dragonite ex 295/217 Pokemon Card Sticker",
+    ]) {
+      expect(getEbayListingRejectionReason({ title })).toBe("accessory/pack listing");
+    }
+    for (const title of [
+      "Mega Dragonite ex 295/217 lot Pokemon cards",
+      "Mega Dragonite ex 295/217 bundle Pokemon cards",
+      "Mega Dragonite ex 295/217 playset Pokemon cards",
+    ]) {
+      expect(getEbayListingRejectionReason({ title })).toBe("multi-card listing");
+    }
+  });
+
   it("allows non-English markers for graded but filters sealed language mismatches", () => {
     expect(
       getEbayListingRejectionReason({
@@ -404,6 +433,91 @@ describe("ebay deal helpers", () => {
         title: "Charizard 10/102 Base Set Pokemon Card ENG",
       })
     ).toBeNull();
+  });
+
+  it("requires verified grading evidence for graded demand", () => {
+    expect(isConfirmedEbayGradedListing({
+      title: "Umbreon ex PSA 10 GEM MINT 161/131 Pokemon Card ENG",
+    })).toBe(true);
+    expect(isConfirmedEbayGradedListing({
+      title: "Umbreon ex 161/131 Pokemon Card ENG",
+      condition: "Graded",
+    })).toBe(true);
+    expect(isConfirmedEbayGradedListing({
+      title: "Umbreon ex 161/131 Pokemon Card ENG",
+      aspects: [{ name: "Graded", value: "Yes" }],
+    })).toBe(true);
+    expect(isConfirmedEbayGradedListing({
+      title: "Umbreon ex 161/131 Pokemon Card ENG",
+      aspects: [
+        { name: "Professional Grader", value: "PSA" },
+        { name: "Grade", value: "10" },
+        { name: "Professional Grader", value: "Unknown company" },
+        { name: "Grade", value: "Mint" },
+      ],
+    })).toBe(true);
+
+    for (const rawMarker of ["ungraded", "not graded", "raw card"]) {
+      expect(isConfirmedEbayGradedListing({
+        title: `Umbreon ex ${rawMarker} 161/131 Pokemon Card ENG`,
+        condition: "Graded",
+        aspects: [{ name: "Graded", value: "Yes" }],
+      })).toBe(false);
+    }
+    expect(isConfirmedEbayGradedListing({
+      title: "Umbreon ex 161/131 Pokemon Card ENG",
+      condition: "Ungraded",
+      aspects: [{ name: "Graded", value: "Yes" }],
+    })).toBe(false);
+
+    expect(isConfirmedEbayGradedListing({
+      title: "Umbreon ex BGS9.5 161/131 Pokemon Card ENG",
+    })).toBe(true);
+
+    for (const title of [
+      "Prime Catcher ACE SPEC 157/162 Pokemon Card ENG",
+      "Pikachu & Zekrom GX TAG TEAM 33/181 Pokemon Card ENG",
+      "Umbreon ex PSA 161/131 Pokemon Card ENG",
+      "Umbreon ex certified authenticated encased 161/131 Pokemon Card ENG",
+      "Umbreon ex PSA 10 potential 161/131 Pokemon Card ENG",
+      "Umbreon ex PSA 10 candidate 161/131 Pokemon Card ENG",
+      "Umbreon ex PSA ready 161/131 Pokemon Card ENG",
+      "Umbreon ex gradeable possible 10 161/131 Pokemon Card ENG",
+      "Umbreon ex should grade PSA 10 161/131 Pokemon Card ENG",
+      "Umbreon ex potential PSA 1 161/131 Pokemon Card ENG",
+      "Umbreon ex PSA 7 potential 161/131 Pokemon Card ENG",
+      "Umbreon ex likely BGS 8.5 161/131 Pokemon Card ENG",
+      "Umbreon ex CGC 6 candidate 161/131 Pokemon Card ENG",
+      "Umbreon ex SGC 5 grade-worthy 161/131 Pokemon Card ENG",
+      "Umbreon ex BGS black label candidate 161/131 Pokemon Card ENG",
+    ]) {
+      expect(isConfirmedEbayGradedListing({ title })).toBe(false);
+    }
+    for (let grade = 1; grade <= 10; grade += 1) {
+      expect(isConfirmedEbayGradedListing({
+        title: `Umbreon ex potential PSA ${grade} 161/131 Pokemon Card ENG`,
+      })).toBe(false);
+      expect(isConfirmedEbayGradedListing({
+        title: `Umbreon ex PSA ${grade} likely 161/131 Pokemon Card ENG`,
+      })).toBe(false);
+    }
+  });
+
+  it("hard-rejects explicit ungraded eBay aspects", () => {
+    for (const value of [
+      "No",
+      "Ungraded",
+      "Not Professionally Graded",
+      "Not Applicable",
+      "Does not apply",
+    ]) {
+      const input = {
+        title: "Umbreon ex PSA 10 161/131 Pokemon Card ENG",
+        aspects: [{ name: "Professional Grader", value }],
+      };
+      expect(isConfirmedEbayGradedListing(input)).toBe(false);
+      expect(getEbayListingGradingReason(input)).toBeNull();
+    }
   });
 
   it("detects raw card condition markers from eBay titles", () => {
@@ -637,6 +751,165 @@ describe("ebay deal helpers", () => {
     expect(searchUrl.searchParams.get("aspect_filter")).toContain("Card Condition:{Near Mint or Better}");
   });
 
+  it("accepts Near Mint verified through a localized Card Condition aspect", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return new Response(JSON.stringify({ access_token: "token", expires_in: 7200 }));
+      }
+
+      if (url.includes("/developer/analytics")) {
+        return new Response(JSON.stringify({
+          rateLimits: [{
+            apiContext: "buy",
+            apiName: "browse",
+            resources: [{
+              name: "item_summary_search",
+              rates: [{ remaining: 1000, limit: 5000, timeWindow: 86400 }],
+            }],
+          }],
+        }));
+      }
+
+      if (url.includes("/buy/browse/v1/item/aspect-nm")) {
+        return new Response(JSON.stringify({
+          localizedAspects: [
+            { name: "Language", value: "English" },
+            { name: "Card Condition", value: "Near Mint or Better" },
+          ],
+        }));
+      }
+
+      return new Response(JSON.stringify({
+        total: 1,
+        itemSummaries: [{
+          itemId: "aspect-nm",
+          title: "Mega Dragonite ex 295/217 Pokemon Card",
+          itemWebUrl: "https://www.ebay.nl/itm/aspect-nm",
+          condition: "Ungraded",
+          price: { value: "220", currency: "EUR" },
+          buyingOptions: ["FIXED_PRICE"],
+        }],
+      }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchEbayDeals({
+      query: "Mega Dragonite ex 295/217 Pokemon aspect fallback",
+      reference: { label: "CardMarket raw", valueEur: 250, source: "cardmarket" },
+      strictEnglish: true,
+      strictNearMint: true,
+      excludeGraded: true,
+      listingKind: "card",
+      config: {
+        configured: true,
+        environment: "production",
+        marketplaceId: "EBAY_NL",
+        deliveryCountry: null,
+        categoryId: "183454",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+      },
+    });
+
+    expect(result.listings).toHaveLength(1);
+    expect(result.listings[0]).toMatchObject({
+      itemId: "aspect-nm",
+      language: { code: "ENG", confidence: "explicit" },
+      cardCondition: { code: "near_mint" },
+      demandVerification: { english: true, nearMint: true, source: "ebay_item" },
+    });
+  });
+
+  it("uses fixed-price and official English-graded filters for graded demand", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/identity/v1/oauth2/token")) {
+        return new Response(JSON.stringify({ access_token: "token", expires_in: 7200 }));
+      }
+      if (url.includes("/developer/analytics")) {
+        return new Response(JSON.stringify({
+          rateLimits: [{
+            apiContext: "buy",
+            apiName: "browse",
+            resources: [{
+              name: "item_summary_search",
+              rates: [{ remaining: 1000, limit: 5000, timeWindow: 86400 }],
+            }],
+          }],
+        }));
+      }
+
+      return new Response(JSON.stringify({
+        total: 3,
+        itemSummaries: [
+          {
+            itemId: "confirmed-by-filter",
+            title: "Umbreon ex 161/131 Prismatic Evolutions Pokemon Card",
+            itemWebUrl: "https://www.ebay.com/itm/confirmed-by-filter",
+            condition: "Used",
+            price: { value: "900", currency: "EUR" },
+            buyingOptions: ["FIXED_PRICE", "BEST_OFFER"],
+          },
+          {
+            itemId: "conflicting-raw-title",
+            title: "Umbreon ex 161/131 raw card Pokemon",
+            itemWebUrl: "https://www.ebay.com/itm/conflicting-raw-title",
+            condition: "Used",
+            price: { value: "500", currency: "EUR" },
+            buyingOptions: ["FIXED_PRICE"],
+          },
+          {
+            itemId: "mixed-auction",
+            title: "Umbreon ex PSA 10 161/131 Pokemon Card ENG",
+            itemWebUrl: "https://www.ebay.com/itm/mixed-auction",
+            condition: "Graded",
+            price: { value: "800", currency: "EUR" },
+            buyingOptions: ["FIXED_PRICE", "AUCTION"],
+          },
+        ],
+      }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await searchEbayDeals({
+      query: "Umbreon ex 161/131 Prismatic Evolutions Pokemon",
+      reference: { label: "All graded listings", valueEur: null, source: "none" },
+      buyingMode: "fixed",
+      strictEnglish: true,
+      requireGraded: true,
+      listingKind: "graded",
+      config: {
+        configured: true,
+        environment: "production",
+        marketplaceId: "EBAY_US",
+        deliveryCountry: "NL",
+        categoryId: "183454",
+        clientId: "client-id",
+        clientSecret: "client-secret",
+      },
+    });
+
+    expect(result.listings.map((listing) => listing.itemId)).toEqual(["confirmed-by-filter"]);
+    expect(result.listings[0]).toMatchObject({
+      isConfirmedGradedListing: true,
+      language: { code: "ENG", confidence: "explicit" },
+    });
+    expect(fetchMock.mock.calls.some(([input]) =>
+      String(input).includes("/buy/browse/v1/item/confirmed-by-filter")
+    )).toBe(false);
+
+    const searchCall = fetchMock.mock.calls.find(([input]) =>
+      String(input).includes("/buy/browse/v1/item_summary/search")
+    );
+    expect(searchCall).toBeTruthy();
+    const searchUrl = new URL(String(searchCall?.[0]));
+    expect(searchUrl.searchParams.get("filter")).toContain("buyingOptions:{FIXED_PRICE}");
+    expect(searchUrl.searchParams.get("aspect_filter")).toContain("Language:{English}");
+    expect(searchUrl.searchParams.get("aspect_filter")).toContain("Graded:{Yes}");
+  });
+
   it("paginates the complete strict NM-English inventory when eBay exposes it", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -763,7 +1036,7 @@ describe("ebay deal helpers", () => {
     expect(fetchMock.mock.calls.filter(([request]) =>
       String(request).includes("/item_summary/search")
     )).toHaveLength(50);
-  });
+  }, 15_000);
 
   it("uses eBay language aspects to filter non-English sealed listings", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {

@@ -29,6 +29,7 @@ model Episode {
   binders               CollectionBinder[]
   sealedProducts        SealedProduct[]
   sealedProductContents SealedProductContentSet[]
+  lifecycleObservations SetLifecycleObservation[]
   cardSubmissions       CardSubmission[]
 
   @@index([source_status, source_checked_at])
@@ -320,6 +321,40 @@ model SealedPriceSnapshot {
   @@index([product_id])
   @@index([product_id, fetched_at])
   @@index([episode_id, fetched_at])
+}
+
+// Weekly, set-level supply observations. These rows are deliberately derived
+// from data that is already stored locally; the scheduler never spends an API
+// or crawl credit to create them. A status is only "confirmed" when the
+// evidence contains an explicit authoritative out-of-print statement.
+model SetLifecycleObservation {
+  id                        String    @id @default(cuid())
+  episode_id                String
+  status                    String
+  oop_probability           Float
+  confidence                Float
+  release_age_days          Int?
+  product_count             Int       @default(0)
+  priced_product_count      Int       @default(0)
+  pack_product_count        Int       @default(0)
+  latest_product_release_at DateTime?
+  latest_supply_observed_at DateTime?
+  trend_30d_pct             Float?
+  trend_90d_pct             Float?
+  explicit_oop              Boolean   @default(false)
+  active_reprint            Boolean   @default(false)
+  evidence_json             String?
+  model_version             String
+  observation_bucket        DateTime
+  observed_at               DateTime  @default(now())
+  created_at                DateTime  @default(now())
+
+  episode Episode @relation(fields: [episode_id], references: [id], onDelete: Cascade)
+
+  @@unique([episode_id, observation_bucket, model_version])
+  @@index([episode_id, observed_at])
+  @@index([status, confidence, observed_at])
+  @@index([observation_bucket, model_version])
 }
 
 model Card {

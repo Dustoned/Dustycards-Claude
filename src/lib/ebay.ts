@@ -185,6 +185,13 @@ export interface EbayDealListing {
   cardCondition: EbayListingCardCondition;
   language: EbayListingLanguage;
   isGradedListing: boolean;
+  /**
+   * Stronger than `isGradedListing`: true only when eBay metadata or a
+   * grader-plus-grade title pattern confirms that this is an actual slab.
+   * The broader flag intentionally remains available to keep suspicious
+   * graded-looking listings out of raw demand.
+   */
+  isConfirmedGradedListing?: boolean;
   gradingReason: string | null;
   buyingOptions: string[];
   price: {
@@ -526,6 +533,11 @@ const DISALLOWED_EBAY_LISTING_PATTERNS: Array<{
   {
     pattern:
       /\b(god\s+packs?|chance\s+to\s+get|guaranteed\s+\d|acrylic|keychains?|sleeves?|display\s+stand|mini\s+slab|slab\s+(?:case|holder|stand|guard)|metal\s+card|stainless\s+steel|extended\s+art(?:work)?\s+(?:case|frame)|artwork\s+case|anime\s+frame|card\s+case|case\s+card)\b/i,
+    reason: "accessory/pack listing",
+  },
+  {
+    pattern:
+      /\b(?:jumbo|oversized?|oversize|stickers?|decals?)\b(?=.{0,120}\b(?:card|pokemon|tcg)\b)|\b(?:card|pokemon|tcg)\b(?=.{0,120}\b(?:jumbo|oversized?|oversize|stickers?|decals?)\b)/i,
     reason: "accessory/pack listing",
   },
   {
@@ -914,32 +926,125 @@ function getEbayListingGradingReasonFromAspects(
   return null;
 }
 
+const NEGATIVE_GRADING_ASPECT_VALUE =
+  /\b(?:no|false|none|ungraded|not\s+(?:professionally\s+)?graded|not\s+applicable|does\s+not\s+apply|not\s+specified|n\s*\/\s*a)\b/i;
+const POSITIVE_GRADED_ASPECT_VALUE = /\b(?:yes|ja|true|graded|professionally\s+graded)\b/i;
+const GRADING_COMPANY_PATTERN =
+  String.raw`(?:p\.?s\.?a|b\.?g\.?s|c\.?g\.?c|s\.?g\.?c|beckett|ace|tag|aigrading|ai\s*grading)`;
+const GRADING_VALUE_PATTERN =
+  String.raw`(?:10|9(?:\.5)?|8(?:\.5)?|7(?:\.5)?|6(?:\.5)?|5(?:\.5)?|4(?:\.5)?|3(?:\.5)?|2(?:\.5)?|1(?:\.5)?|gem\s*mint|gem\s*mt|pristine|black\s*label)(?!\d)`;
+const SPECULATIVE_GRADING_TERM_PATTERN =
+  String.raw`(?:potential|candidate|ready|likely|possible|possibly|grade[-\s]?(?:worthy|able)|gradable|gradeworthy|should\s+grade)`;
+const EXPLICIT_RAW_TITLE_PATTERN = /\b(?:ungraded|not\s+graded|raw\s+card)\b/i;
+
+function hasNegativeGradingAspect(aspects: EbayItemAspect[] | null | undefined): boolean {
+  return (aspects ?? []).some((aspect) => {
+    const { name, value } = getAspectText(aspect);
+    if (!value) return false;
+    return (
+      /\b(?:graded|professional grader|grader|grading company|grade)\b/i.test(name) &&
+      NEGATIVE_GRADING_ASPECT_VALUE.test(value)
+    );
+  });
+}
+
+/**
+ * Returns true only for an eBay-confirmed graded item or a title that names
+ * both a recognised grader and a real grade. Seller buzzwords and card names
+ * such as ACE SPEC / TAG TEAM are deliberately insufficient.
+ */
+export function isConfirmedEbayGradedListing(input: {
+  title: string;
+  condition?: string | null;
+  aspects?: EbayItemAspect[] | null;
+}): boolean {
+  if (hasNegativeGradingAspect(input.aspects)) return false;
+
+  const title = normalizeListingFilterText(input.title);
+  const condition = normalizeListingFilterText(input.condition);
+  // Explicit raw wording is more specific than generic eBay aspect metadata.
+  // The official Graded condition remains authoritative for non-conflicting titles.
+  if (EXPLICIT_RAW_TITLE_PATTERN.test(title) || EXPLICIT_RAW_TITLE_PATTERN.test(condition)) {
+    return false;
+  }
+  if (/^(?:graded|professionally graded)$/i.test(condition)) return true;
+
+  let aspectSaysGraded = false;
+  let aspectHasGrader = false;
+  let aspectHasGrade = false;
+  for (const aspect of input.aspects ?? []) {
+    const { name, value } = getAspectText(aspect);
+    if (!value) continue;
+    if (/\bgraded\b/i.test(name) && POSITIVE_GRADED_ASPECT_VALUE.test(value)) {
+      aspectSaysGraded = true;
+    }
+    if (/\b(?:professional grader|grader|grading company)\b/i.test(name)) {
+      aspectHasGrader ||= new RegExp(String.raw`\b${GRADING_COMPANY_PATTERN}\b`, "i").test(value);
+    }
+    if (/\bgrade\b/i.test(name)) {
+      aspectHasGrade ||= new RegExp(String.raw`\b${GRADING_VALUE_PATTERN}\b`, "i").test(value);
+    }
+  }
+  if (aspectSaysGraded || (aspectHasGrader && aspectHasGrade)) return true;
+
+  const combined = [title, condition].filter(Boolean).join(" ");
+  const gradingCompany = String.raw`(?:${GRADING_COMPANY_PATTERN})`;
+  const speculativeGradingPattern = new RegExp(
+    String.raw`(?:\b${SPECULATIVE_GRADING_TERM_PATTERN}\b(?:\W+\w+){0,4}?\W+\b${gradingCompany}\b|\b${gradingCompany}\b(?:\W+\w+){0,4}?\W+\b${SPECULATIVE_GRADING_TERM_PATTERN}\b|\b(?:grade[-\s]?(?:worthy|able)|gradable|gradeworthy|should\s+grade)\b)`,
+    "i"
+  );
+  if (speculativeGradingPattern.test(combined)) return false;
+  const knownRawCardPhrase = /\b(?:ace\s+spec|tag\s+team)\b/i.test(combined);
+  const companyAndGrade =
+    new RegExp(
+      String.raw`\b(${GRADING_COMPANY_PATTERN})\b(?:\W+\w+){0,4}?\W+${GRADING_VALUE_PATTERN}\b`,
+      "i"
+    ).exec(combined) ??
+    new RegExp(
+      String.raw`\b(${GRADING_COMPANY_PATTERN})[\s._:/#-]*${GRADING_VALUE_PATTERN}(?=$|[\s()[\]{}|,;:/\\#-])`,
+      "i"
+    ).exec(combined);
+  if (!companyAndGrade) return false;
+
+  const matchedCompany = companyAndGrade[1]?.replace(/[^a-z]/gi, "").toLowerCase();
+  if (knownRawCardPhrase && (matchedCompany === "ace" || matchedCompany === "tag")) {
+    return false;
+  }
+  return true;
+}
+
 export function getEbayListingGradingReason(input: {
   title: string;
   condition?: string | null;
   aspects?: EbayItemAspect[] | null;
 }): string | null {
+  if (hasNegativeGradingAspect(input.aspects)) return null;
   const aspectReason = getEbayListingGradingReasonFromAspects(input.aspects);
   if (aspectReason) return aspectReason;
 
   const title = normalizeListingFilterText(input.title);
   const condition = normalizeListingFilterText(input.condition);
   const combined = [title, condition].filter(Boolean).join(" ");
-  const compactCombined = combined.replace(/[\s._:/#-]+/g, "");
-  const companyWithOptionalDots = String.raw`(?:p\.?s\.?a|b\.?g\.?s|c\.?g\.?c|s\.?g\.?c|beckett|ace|tag|aigrading|ai\s*grading)`;
-  const gradeValue = String.raw`(?:10|9(?:\.5)?|8(?:\.5)?|7(?:\.5)?|6(?:\.5)?|gem\s*mint|gem\s*mt|pristine|black\s*label)`;
+  const companyWithOptionalDots = GRADING_COMPANY_PATTERN;
+  const gradeValue = GRADING_VALUE_PATTERN;
 
   if (
     new RegExp(
       String.raw`\b${companyWithOptionalDots}\b(?:\W+\w+){0,4}?\W+${gradeValue}\b`,
       "i"
     ).test(combined) ||
-    new RegExp(String.raw`${companyWithOptionalDots}${gradeValue}`, "i").test(compactCombined)
+    new RegExp(
+      String.raw`\b${companyWithOptionalDots}[\s._:/#-]*${gradeValue}(?=$|[\s()[\]{}|,;:/\\#-])`,
+      "i"
+    ).test(combined)
   ) {
     return "Title mentions a grading company and grade";
   }
 
-  if (new RegExp(String.raw`\b${companyWithOptionalDots}\b`, "i").test(combined)) {
+  if (
+    new RegExp(String.raw`\b${companyWithOptionalDots}\b`, "i").test(combined) &&
+    !/\b(?:ace\s+spec|tag\s+team)\b/i.test(combined)
+  ) {
     return "Title mentions a grading company";
   }
 
@@ -998,6 +1103,29 @@ export function buildEbayCardSearchQuery(input: EbayCardSearchInput): string {
   }
 
   return query.slice(0, EBAY_MAX_SEARCH_QUERY_LENGTH).trim();
+}
+
+/**
+ * Broad discovery query for one exact card inventory. Set names and codes are
+ * intentionally omitted because many valid eBay titles only contain the card
+ * name and full collector number. Exact identity, mode, language, condition,
+ * and junk filtering are enforced after Browse discovery.
+ */
+export function buildEbayCardDemandSearchQuery(input: {
+  name: string;
+  game?: "pokemon" | "one-piece" | null;
+  cardNumber?: string | null;
+}): string {
+  return buildEbayCardSearchQuery({
+    name: input.name,
+    game: input.game,
+    cardNumber: input.cardNumber,
+    episodeName: null,
+    episodeCode: null,
+    gradingCompany: null,
+    gradingGrade: null,
+    mode: "raw",
+  });
 }
 
 export function buildEbayManualSearchQuery(value: string): string {
@@ -1202,6 +1330,7 @@ async function enrichListingsWithItemDetails(input: {
   strictNearMint?: boolean;
   englishAspectFiltered?: boolean;
   nearMintAspectFiltered?: boolean;
+  gradedAspectFiltered?: boolean;
   detailFetchLimit?: number;
 }): Promise<EbayDealListing[]> {
   let detailFetches = 0;
@@ -1212,9 +1341,36 @@ async function enrichListingsWithItemDetails(input: {
         listing.language.code === "UNKNOWN" &&
         !input.englishAspectFiltered) ||
       (input.checkLanguageDetails && listing.language.code === "UNKNOWN") ||
-      (input.requireGraded && !listing.isGradedListing) ||
+      (input.requireGraded &&
+        !input.gradedAspectFiltered &&
+        !listing.isConfirmedGradedListing) ||
       (input.strictNearMint && !input.nearMintAspectFiltered);
     if (!shouldFetchDetails) {
+      if (input.gradedAspectFiltered) {
+        const language =
+          listing.language.code === "UNKNOWN"
+            ? {
+                code: "ENG" as const,
+                label: "ENG",
+                confidence: "explicit" as const,
+                reason: "eBay search aspect filter: Language English",
+              }
+            : listing.language;
+        const isConfirmedGradedListing = isConfirmedEbayGradedListing({
+          title: listing.title,
+          condition: listing.condition,
+          aspects: [{ name: "Graded", value: "Yes" }],
+        });
+        return {
+          ...listing,
+          language,
+          gradingReason: isConfirmedGradedListing
+            ? listing.gradingReason ?? "eBay search aspect filter: Graded Yes"
+            : listing.gradingReason,
+          isGradedListing: listing.isGradedListing || isConfirmedGradedListing,
+          isConfirmedGradedListing,
+        };
+      }
       if (
         input.strictNearMint &&
         input.englishAspectFiltered &&
@@ -1294,6 +1450,11 @@ async function enrichListingsWithItemDetails(input: {
         condition: listing.condition,
         aspects,
       }) ?? listing.gradingReason;
+    const isConfirmedGradedListing = isConfirmedEbayGradedListing({
+      title: listing.title,
+      condition: listing.condition,
+      aspects,
+    });
 
     return {
       ...listing,
@@ -1301,10 +1462,11 @@ async function enrichListingsWithItemDetails(input: {
       cardCondition,
       gradingReason,
       isGradedListing: Boolean(gradingReason),
+      isConfirmedGradedListing,
       demandVerification: input.strictNearMint
         ? {
             english: englishVerified,
-            nearMint: descriptorCondition?.code === "near_mint",
+            nearMint: verifiedCondition?.code === "near_mint",
             source: "ebay_item" as const,
           }
         : listing.demandVerification,
@@ -1358,7 +1520,9 @@ function buildEbaySearchFilters(
     filters.push(`deliveryCountry:${config.deliveryCountry}`);
   }
 
-  if (buyingMode === "auction") {
+  if (buyingMode === "fixed") {
+    filters.push("buyingOptions:{FIXED_PRICE}");
+  } else if (buyingMode === "auction") {
     filters.push("buyingOptions:{AUCTION}");
   } else if (buyingMode === "all") {
     filters.push("buyingOptions:{FIXED_PRICE|AUCTION}");
@@ -1373,6 +1537,19 @@ function buildEbaySearchFilters(
   return filters;
 }
 
+function matchesEbayBuyingMode(
+  listing: EbayDealListing,
+  buyingMode: EbayBuyingMode
+): boolean {
+  if (buyingMode === "all") return true;
+  const options = new Set(listing.buyingOptions.map((option) => option.toUpperCase()));
+  if (buyingMode === "auction") return options.has("AUCTION");
+  return (
+    !options.has("AUCTION") &&
+    (options.has("FIXED_PRICE") || options.has("BEST_OFFER"))
+  );
+}
+
 function buildStrictEnglishNearMintAspectFilter(config: EbayRuntimeConfig): string | null {
   if (!config.categoryId) return null;
 
@@ -1382,6 +1559,20 @@ function buildStrictEnglishNearMintAspectFilter(config: EbayRuntimeConfig): stri
 
   if (config.marketplaceId === "EBAY_DE") {
     return `categoryId:${config.categoryId},Sprache:{Englisch},Kartenzustand:{Nahezu neuwertig oder besser (Near Mint or Better)},Bewertet:{Nein}`;
+  }
+
+  return null;
+}
+
+function buildStrictEnglishGradedAspectFilter(config: EbayRuntimeConfig): string | null {
+  if (!config.categoryId) return null;
+
+  if (config.marketplaceId === "EBAY_US" || config.marketplaceId === "EBAY_GB") {
+    return `categoryId:${config.categoryId},Language:{English},Graded:{Yes}`;
+  }
+
+  if (config.marketplaceId === "EBAY_DE") {
+    return `categoryId:${config.categoryId},Sprache:{Englisch},Bewertet:{Ja}`;
   }
 
   return null;
@@ -1736,6 +1927,10 @@ function buildListing(
     title,
     condition: item.condition,
   });
+  const isConfirmedGradedListing = isConfirmedEbayGradedListing({
+    title,
+    condition: item.condition,
+  });
   const cardCondition = detectEbayListingCardCondition({
     title,
     condition: item.condition,
@@ -1750,6 +1945,7 @@ function buildListing(
     cardCondition,
     language,
     isGradedListing: Boolean(gradingReason),
+    isConfirmedGradedListing,
     gradingReason,
     buyingOptions: item.buyingOptions ?? [],
     price: {
@@ -1827,6 +2023,11 @@ export async function searchEbayDeals(input: {
   const config = input.config ?? getEbayRuntimeConfig();
   const query = input.query.trim();
   const buyingMode = input.buyingMode ?? "fixed";
+  const strictGradedAspectFilter =
+    input.strictEnglish && input.requireGraded
+      ? buildStrictEnglishGradedAspectFilter(config)
+      : null;
+  const strictDemandScan = Boolean(input.strictNearMint || strictGradedAspectFilter);
   const directSearchUrl = buildEbayMarketplaceSearchUrl(
     query,
     config.marketplaceId,
@@ -1860,7 +2061,7 @@ export async function searchEbayDeals(input: {
   // A strict demand scan returns every verified listing from its bounded
   // inventory window. The API route can still render a smaller preview, while
   // persistence receives the complete cohort needed for lifecycle tracking.
-  const requestedLimit = input.strictNearMint
+  const requestedLimit = strictDemandScan
     ? EBAY_DEMAND_MAX_FETCHED_LISTINGS
     : Math.min(Math.max(input.limit ?? 24, 1), 50);
   const cacheKey = getSearchCacheKey({
@@ -1891,14 +2092,15 @@ export async function searchEbayDeals(input: {
   if (filters.length > 0) {
     baseUrl.searchParams.set("filter", filters.join(","));
   }
-  const strictAspectFilter =
+  const strictNearMintAspectFilter =
     input.strictEnglish && input.strictNearMint
       ? buildStrictEnglishNearMintAspectFilter(config)
       : null;
+  const strictAspectFilter = strictNearMintAspectFilter ?? strictGradedAspectFilter;
   if (strictAspectFilter) {
     baseUrl.searchParams.set("aspect_filter", strictAspectFilter);
   }
-  const reservedBrowseCalls = input.strictNearMint
+  const reservedBrowseCalls = strictDemandScan
     ? strictAspectFilter
       ? Math.ceil(EBAY_DEMAND_MAX_FETCHED_LISTINGS / EBAY_DEMAND_SEARCH_PAGE_SIZE)
       : Math.ceil(EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT / EBAY_DEMAND_SEARCH_PAGE_SIZE) +
@@ -1913,7 +2115,7 @@ export async function searchEbayDeals(input: {
   let offset = 0;
   let listings: EbayDealListing[] = [];
 
-  const maximumFetchedListings = input.strictNearMint
+  const maximumFetchedListings = strictDemandScan
     ? strictAspectFilter
       ? EBAY_DEMAND_MAX_FETCHED_LISTINGS
       : EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT
@@ -1924,7 +2126,7 @@ export async function searchEbayDeals(input: {
 
     try {
       const pageUrl = new URL(baseUrl);
-      const pageSize = input.strictNearMint
+      const pageSize = strictDemandScan
         ? EBAY_DEMAND_SEARCH_PAGE_SIZE
         : EBAY_SEARCH_PAGE_SIZE;
       const pageLimit = Math.min(pageSize, maximumFetchedListings - offset);
@@ -1993,10 +2195,11 @@ export async function searchEbayDeals(input: {
         );
 
       const preliminaryModeMatches = listings
+        .filter((listing) => matchesEbayBuyingMode(listing, buyingMode))
         .filter((listing) => !input.excludeGraded || !listing.isGradedListing)
-        .filter((listing) => !input.requireGraded || listing.isGradedListing);
+        .filter((listing) => !input.requireGraded || listing.isConfirmedGradedListing === true);
 
-      if (input.strictNearMint) {
+      if (strictDemandScan) {
         const completeInventory =
           totalAvailable != null && fetchedItems.size >= totalAvailable;
         if (
@@ -2046,7 +2249,8 @@ export async function searchEbayDeals(input: {
       strictEnglish: input.strictEnglish,
       strictNearMint: input.strictNearMint,
       englishAspectFiltered: Boolean(strictAspectFilter),
-      nearMintAspectFiltered: Boolean(strictAspectFilter),
+      nearMintAspectFiltered: Boolean(strictNearMintAspectFilter),
+      gradedAspectFiltered: Boolean(strictGradedAspectFilter),
       checkLanguageDetails: shouldCheckLanguageDetails,
       requireGraded: input.requireGraded,
       detailFetchLimit: EBAY_ITEM_DETAILS_ENRICHMENT_LIMIT,
@@ -2060,6 +2264,7 @@ export async function searchEbayDeals(input: {
 
   listings = listings
     .filter((listing) => !getEbayListingRejectionReason({ ...listing, listingKind: input.listingKind }))
+    .filter((listing) => matchesEbayBuyingMode(listing, buyingMode))
     .filter((listing) => !input.strictEnglish || listing.language.code === "ENG")
     .filter(
       (listing) =>
@@ -2069,7 +2274,7 @@ export async function searchEbayDeals(input: {
           listing.demandVerification.nearMint === true)
     )
     .filter((listing) => !input.excludeGraded || !listing.isGradedListing)
-    .filter((listing) => !input.requireGraded || listing.isGradedListing)
+    .filter((listing) => !input.requireGraded || listing.isConfirmedGradedListing === true)
     .sort(sortListings)
     .slice(0, requestedLimit);
 
@@ -2090,7 +2295,7 @@ export async function searchEbayDeals(input: {
         (totalAvailable != null
           ? fetchedItems.size < totalAvailable
           : Boolean(
-              input.strictNearMint &&
+              strictDemandScan &&
                 fetchedItems.size >= maximumFetchedListings
             )),
     },

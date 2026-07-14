@@ -1581,15 +1581,41 @@ html.widescreen .settings-page {
     font-size: 0.62rem !important;
   }
 
-  .card-modal-frame .card-modal-source-toggle {
-    width: auto;
+  .card-modal-frame .card-modal-source-toggle,
+  .card-modal-frame .card-modal-mode-toggle {
+    width: 100% !important;
+    min-width: 0 !important;
     max-width: 100%;
   }
 
-  .card-modal-frame .card-modal-source-toggle button {
-    flex: 0 0 auto;
-    padding: 0.36rem 0.42rem !important;
-    font-size: 0.64rem !important;
+  .card-modal-frame .dc-compact-segment-row {
+    width: 100%;
+    flex-wrap: wrap !important;
+  }
+
+  .card-modal-frame .dc-compact-segment {
+    height: 2.75rem !important;
+    padding: 0 !important;
+  }
+
+  .card-modal-frame .dc-compact-segment > button {
+    display: flex;
+    height: calc(100% + 2px);
+    margin-block: -1px;
+    min-width: 0;
+    min-height: 0 !important;
+    align-items: center;
+    justify-content: center;
+    padding-block: 0 !important;
+    font-size: 0.68rem !important;
+    line-height: 1;
+  }
+
+  .card-modal-frame button.dc-compact-icon-button {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    min-height: 2.75rem;
   }
 
   .card-modal-frame .card-modal-metric {
@@ -1660,20 +1686,112 @@ html.widescreen .settings-page {
   }
 }
 
-/* Keep the Signal Radar analysis readable beside its fixed card rail. */
-@media (min-width: 1536px) and (max-width: 1899px) {
-  .signal-radar-detail-grid {
-    grid-template-columns: minmax(0, 1fr) !important;
+/* Signal Radar detail: a compact media rail with a predictable analysis grid. */
+.signal-radar-desktop-shell {
+  grid-template-columns: clamp(15rem, 22vw, 21rem) minmax(0, 1fr);
+}
+
+.signal-radar-desktop-shell,
+.signal-radar-detail-grid,
+.signal-radar-detail-grid > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.signal-radar-detail-rail {
+  position: sticky;
+  top: calc(var(--ui-header-height) + 0.75rem);
+  max-height: calc(100dvh - var(--ui-header-height) - 1.5rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.2rem;
+  scrollbar-color: rgb(var(--dc-primary-rgb) / 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.signal-radar-detail-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "identity"
+    "summary"
+    "chart"
+    "supply"
+    "demand"
+    "calibration"
+    "thesis"
+    "evidence"
+    "news";
+  align-items: start;
+}
+
+.signal-radar-identity { grid-area: identity; }
+.signal-radar-summary { grid-area: summary; }
+.signal-radar-chart {
+  grid-area: chart;
+  overflow: hidden;
+}
+.signal-radar-supply { grid-area: supply; }
+.signal-radar-demand { grid-area: demand; }
+.signal-radar-calibration { grid-area: calibration; }
+.signal-radar-thesis { grid-area: thesis; }
+.signal-radar-evidence { grid-area: evidence; }
+.signal-radar-news { grid-area: news; }
+
+@media (min-width: 1440px) {
+  .signal-radar-desktop-shell {
+    grid-template-columns: clamp(16rem, 20vw, 22rem) minmax(0, 1fr);
   }
 
-  .signal-radar-detail-grid > * {
-    grid-column: 1 / -1 !important;
-    grid-row: auto !important;
+  .signal-radar-detail-grid {
+    grid-template-columns: minmax(18rem, 0.8fr) minmax(0, 1.2fr);
+    grid-template-areas:
+      "identity chart"
+      "summary supply"
+      "demand calibration"
+      "thesis thesis"
+      "evidence news";
   }
 }
 
-@media (min-width: 1280px) and (max-width: 2199px) {
-  .signal-radar-detail-grid [class~="xl:col-span-2"] {
-    grid-column: auto !important;
+@media (min-width: 1800px) and (max-width: 2199px) {
+  .signal-radar-detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "identity chart chart"
+      "summary supply demand"
+      "calibration thesis thesis"
+      "evidence evidence news";
+  }
+}
+
+@media (min-width: 2200px) {
+  .signal-radar-detail-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "identity chart chart"
+      "summary supply demand"
+      "calibration evidence news";
+  }
+}
+
+@media (min-width: 3000px) {
+  .signal-radar-desktop-shell {
+    grid-template-columns: clamp(18rem, 12vw, 23rem) minmax(0, 1fr);
+  }
+
+  .signal-radar-detail-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "identity chart chart summary"
+      "supply supply demand calibration"
+      "evidence evidence news news";
+  }
+
+  .signal-radar-chart {
+    width: 100%;
+    max-width: 140rem;
+    justify-self: start;
   }
 }

@@ -1273,7 +1273,7 @@ function GradedPricingPanel({
     "bg-white/[0.13] text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
   const sourceSwitchControl = showSourceSwitch ? (
     <div
-      className={`card-modal-source-toggle ${
+      className={`dc-compact-segment card-modal-source-toggle ${
         graphFirst ? "sm:min-w-[12rem]" : "min-w-[12rem]"
       } ${sourceToggleClass}`}
     >
@@ -2067,20 +2067,20 @@ export function CardModalMobileShowcase({
           data-mobile-showcase-tabs
           className={`mt-5 grid min-w-0 ${
             showGradedTab ? "grid-cols-5" : "grid-cols-4"
-          } gap-1 rounded-2xl border border-white/8 bg-black/22 p-1 text-[13px] font-bold text-white/48`}
+          } gap-1 rounded-2xl border border-white/8 bg-black/22 p-1 text-[11px] font-bold text-white/48 min-[390px]:text-[13px]`}
         >
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`relative min-h-10 min-w-0 rounded-xl px-2 transition-colors ${
+              className={`relative min-h-10 min-w-0 rounded-xl px-1 transition-colors min-[390px]:px-2 ${
                 effectiveActiveTab === tab.key
                   ? "bg-violet-600 text-white"
                   : "hover:bg-white/[0.06] hover:text-white/78"
               }`}
             >
-              <span className="truncate">{tab.label}</span>
+              <span className="block truncate">{tab.label}</span>
             </button>
           ))}
         </nav>
@@ -2688,7 +2688,7 @@ export function CardModalHistorySection({
   const chartHeaderChipClass =
     "inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76";
   const historyModeSwitchControl = hasGradedData ? (
-    <div className={`card-modal-mode-toggle ${historyModeToggleClass}`}>
+    <div className={`dc-compact-segment card-modal-mode-toggle ${historyModeToggleClass}`}>
       {[
         { key: "market" as const, label: "Raw" },
         { key: "graded" as const, label: "Graded" },
@@ -2729,7 +2729,7 @@ export function CardModalHistorySection({
       </div>
     ) : null;
   const rawSourceSwitchControl = showRawSourceToggle ? (
-    <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
+    <div className={`dc-compact-segment card-modal-source-toggle ${historySourceToggleClass}`}>
       {[
         { key: "cardmarket" as const, label: "CardMarket" },
         { key: "tcgplayer" as const, label: "TCGPlayer" },
@@ -2751,7 +2751,7 @@ export function CardModalHistorySection({
     </div>
   ) : null;
   const gradedSourceSwitchControl = showGradedSourceToggle ? (
-    <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
+    <div className={`dc-compact-segment card-modal-source-toggle ${historySourceToggleClass}`}>
       {[
         { key: "cardmarket" as const, label: "CardMarket" },
         { key: "ebay" as const, label: "eBay" },
@@ -2776,7 +2776,7 @@ export function CardModalHistorySection({
   ) : null;
   const historyHeaderPrimaryControls =
     historyModeSwitchControl || (effectiveHistoryChartMode === "graded" ? gradedSourceSwitchControl : null) ? (
-      <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-1.5">
+      <div className="dc-compact-segment-row flex min-w-0 shrink-0 flex-nowrap items-center gap-1.5">
         {historyModeSwitchControl}
         {effectiveHistoryChartMode === "graded" ? gradedSourceSwitchControl : null}
       </div>

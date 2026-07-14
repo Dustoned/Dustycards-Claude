@@ -33,6 +33,7 @@ dustycards.db
 dustycards.db-wal
 dustycards.db-shm
 /data/image-cache/
+/data/official-product-releases.json
 
 # misc
 .DS_Store

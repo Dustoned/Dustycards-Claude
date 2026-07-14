@@ -68,6 +68,26 @@ export interface MissingLifecycleUpdate {
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
+/**
+ * Observations before this revision can contain auction inventory, while the
+ * graded cohort also used the broad raw-safety classifier. Keeping the cutoff
+ * in application code avoids a schema migration while ensuring a fresh
+ * on-demand scan immediately replaces both invalid cohorts.
+ */
+export const EBAY_DEMAND_COHORT_REVISION_AT = new Date(
+  "2026-07-13T18:40:00.000Z"
+);
+
+function cohortRevisionWhere() {
+  return { updated_at: { gte: EBAY_DEMAND_COHORT_REVISION_AT } };
+}
+
+function listingVisibilityStart(snapshotDate: Date): Date {
+  return EBAY_DEMAND_COHORT_REVISION_AT.getTime() > snapshotDate.getTime()
+    ? EBAY_DEMAND_COHORT_REVISION_AT
+    : snapshotDate;
+}
+
 export function toUtcDay(value: Date): Date {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 }
@@ -115,7 +135,17 @@ export function isCleanEbayDemandListing(
   listing: EbayDealListing,
   mode: EbayDemandMode
 ): boolean {
-  if (mode === "graded") return listing.isGradedListing;
+  const buyingOptions = new Set(listing.buyingOptions.map((option) => option.toUpperCase()));
+  if (buyingOptions.has("AUCTION")) return false;
+  if (!buyingOptions.has("FIXED_PRICE") && !buyingOptions.has("BEST_OFFER")) return false;
+
+  if (mode === "graded") {
+    return (
+      listing.isConfirmedGradedListing === true &&
+      listing.language.code === "ENG" &&
+      listing.language.confidence === "explicit"
+    );
+  }
 
   return (
     !listing.isGradedListing &&
@@ -244,7 +274,12 @@ export async function getEbayDemandPayload(input: {
 }): Promise<EbayDemandPayload | null> {
   const marketplaceId = input.marketplaceId?.trim() || "EBAY_NL";
   const newest = await db.cardEbayDemandSnapshot.findFirst({
-    where: { card_id: input.cardId, marketplace_id: marketplaceId, mode: input.mode },
+    where: {
+      card_id: input.cardId,
+      marketplace_id: marketplaceId,
+      mode: input.mode,
+      ...cohortRevisionWhere(),
+    },
     orderBy: [{ snapshot_date: "desc" }, { updated_at: "desc" }],
     select: { snapshot_date: true },
   });
@@ -256,6 +291,7 @@ export async function getEbayDemandPayload(input: {
       marketplace_id: marketplaceId,
       mode: input.mode,
       snapshot_date: { gte: addUtcDays(toUtcDay(newest.snapshot_date), -29) },
+      ...cohortRevisionWhere(),
     },
     orderBy: { snapshot_date: "asc" },
   });
@@ -272,11 +308,17 @@ export async function getLatestEbayDemandListings(input: {
 }) {
   const marketplaceId = input.marketplaceId?.trim() || "EBAY_NL";
   const latestSnapshot = await db.cardEbayDemandSnapshot.findFirst({
-    where: { card_id: input.cardId, marketplace_id: marketplaceId, mode: input.mode },
+    where: {
+      card_id: input.cardId,
+      marketplace_id: marketplaceId,
+      mode: input.mode,
+      ...cohortRevisionWhere(),
+    },
     orderBy: [{ snapshot_date: "desc" }, { updated_at: "desc" }],
     select: { snapshot_date: true },
   });
   if (!latestSnapshot) return [];
+  const visibleSince = listingVisibilityStart(latestSnapshot.snapshot_date);
 
   const limit = Math.min(Math.max(input.limit ?? 12, 1), 100);
   const offset = Math.max(0, Math.floor(input.offset ?? 0));
@@ -286,8 +328,9 @@ export async function getLatestEbayDemandListings(input: {
       card_id: input.cardId,
       marketplace_id: marketplaceId,
       mode: input.mode,
+      listing_type: "fixed",
       removed_at: null,
-      last_seen_at: { gte: latestSnapshot.snapshot_date },
+      last_seen_at: { gte: visibleSince },
     },
     orderBy: [{ total_eur: "asc" }, { last_seen_at: "desc" }],
     skip: offset,
@@ -329,7 +372,12 @@ export async function getLatestEbayDemandListingPage(input: {
   const limit = Math.min(Math.max(input.limit ?? 12, 1), 100);
   const offset = Math.max(0, Math.floor(input.offset ?? 0));
   const latestSnapshot = await db.cardEbayDemandSnapshot.findFirst({
-    where: { card_id: input.cardId, marketplace_id: marketplaceId, mode: input.mode },
+    where: {
+      card_id: input.cardId,
+      marketplace_id: marketplaceId,
+      mode: input.mode,
+      ...cohortRevisionWhere(),
+    },
     orderBy: [{ snapshot_date: "desc" }, { updated_at: "desc" }],
     select: { snapshot_date: true },
   });
@@ -337,13 +385,15 @@ export async function getLatestEbayDemandListingPage(input: {
   if (!latestSnapshot) {
     return { listings: [], total: 0, offset, limit, hasMore: false };
   }
+  const visibleSince = listingVisibilityStart(latestSnapshot.snapshot_date);
 
   const where = {
     card_id: input.cardId,
     marketplace_id: marketplaceId,
     mode: input.mode,
+    listing_type: "fixed",
     removed_at: null,
-    last_seen_at: { gte: latestSnapshot.snapshot_date },
+    last_seen_at: { gte: visibleSince },
   };
   const [listings, total] = await Promise.all([
     getLatestEbayDemandListings({ ...input, marketplaceId, limit, offset }),
@@ -377,7 +427,9 @@ export async function recordEbayDemandScan(input: {
       card_id: input.cardId,
       marketplace_id: input.marketplaceId,
       mode: input.mode,
+      listing_type: "fixed",
       removed_at: null,
+      last_seen_at: { gte: EBAY_DEMAND_COHORT_REVISION_AT },
     },
   });
   for (const listing of cleanListings) {
@@ -467,6 +519,8 @@ export async function recordEbayDemandScan(input: {
       card_id: input.cardId,
       marketplace_id: input.marketplaceId,
       mode: input.mode,
+      listing_type: "fixed",
+      last_seen_at: { gte: EBAY_DEMAND_COHORT_REVISION_AT },
       item_creation_date: { gte: scanDay, lt: nextDay },
     },
     select: { item_id: true },
@@ -477,6 +531,8 @@ export async function recordEbayDemandScan(input: {
       card_id: input.cardId,
       marketplace_id: input.marketplaceId,
       mode: input.mode,
+      listing_type: "fixed",
+      last_seen_at: { gte: EBAY_DEMAND_COHORT_REVISION_AT },
       removed_at: { gte: scanDay, lt: nextDay },
     },
   });

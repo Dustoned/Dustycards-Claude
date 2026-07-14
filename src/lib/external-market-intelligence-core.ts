@@ -5,6 +5,7 @@ import type {
   ExternalPriceScenario,
   ExternalScarcityIntelligence,
   ExternalSealedIntelligence,
+  ExternalSignalCatalyst,
 } from "@/lib/external-signal-radar";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 
@@ -29,10 +30,15 @@ export function classifySealedProduct(name: string): "pack" | "box" | "other" {
   if (
     /\b(?:booster pack|sleeved booster|single booster|checklane blister|blister pack)\b/.test(
       normalized
-    ) &&
-    !/\b(?:box|bundle|display|case|collection|tin|elite trainer|etb)\b/.test(normalized)
+    ) ||
+    (/\bbooster\s*$/.test(normalized) &&
+      !/\(\s*\d+\s*cards?\s*\)\s*$/.test(normalized))
   ) {
-    return "pack";
+    if (
+      !/\b(?:box|bundle|display|case|collection|tin|elite trainer|etb)\b/.test(normalized)
+    ) {
+      return "pack";
+    }
   }
   return "other";
 }
@@ -45,6 +51,8 @@ export function calculateSealedPressure(input: {
   trend90dPct: number | null;
   packProductCount: number;
   hasReprintRisk: boolean;
+  lifecycleOopProbability?: number | null;
+  lifecycleConfidence?: number | null;
 }): Pick<ExternalSealedIntelligence, "pressureScore" | "pressureLabel"> {
   const ageScore =
     input.ageYears == null ? 0 : Math.min(30, Math.max(0, (input.ageYears - 1) * 3.5));
@@ -57,8 +65,24 @@ export function calculateSealedPressure(input: {
   const trendScore = Math.min(25, Math.max(-18, trend * 0.7));
   const availabilityScore =
     input.packProductCount === 0 ? 7 : input.packProductCount === 1 ? 5 : input.packProductCount <= 3 ? 2 : 0;
+  // A lifecycle observation is only allowed to change the market model after
+  // the set-level evidence reaches the same confidence threshold used by the
+  // UI. This prevents a single stock gap or stale product snapshot from
+  // turning an in-print set into an apparent scarcity signal.
+  const lifecycleAdjustment =
+    input.lifecycleConfidence != null &&
+    input.lifecycleConfidence >= 65 &&
+    input.lifecycleOopProbability != null
+      ? Math.min(22, Math.max(-12, (input.lifecycleOopProbability - 50) * 0.4))
+      : 0;
   const score = clampMarketScore(
-    28 + ageScore + accessScore + trendScore + availabilityScore - (input.hasReprintRisk ? 28 : 0)
+    28 +
+      ageScore +
+      accessScore +
+      trendScore +
+      availabilityScore +
+      lifecycleAdjustment -
+      (input.hasReprintRisk ? 28 : 0)
   );
   return {
     pressureScore: score,
@@ -73,36 +97,76 @@ export function calculateScarcityScore(input: {
   gemRatePct: number | null;
   rawMarketBreadth: number;
   verifiedActiveListings?: number | null;
+  sealedPressureScore?: number | null;
   artistDemandScore: number | null;
   setRarityScore?: number | null;
 }): Pick<ExternalScarcityIntelligence, "score" | "label"> {
-  const age = input.ageYears == null ? 0 : Math.min(26, Math.max(0, (input.ageYears - 1) * 2.8));
-  const pull =
-    input.specificPullDenominator == null
+  type WeightedEvidence = { score: number; weight: number };
+  const evidence: WeightedEvidence[] = [];
+  const addEvidence = (value: number | null | undefined, weight: number) => {
+    if (value == null || !Number.isFinite(value)) return;
+    evidence.push({ score: Math.min(100, Math.max(0, value)), weight });
+  };
+
+  // Age is a supply constraint, but it is deliberately non-linear. A card does
+  // not become scarce merely because its launch window ended; most of the age
+  // pressure arrives after products have been out of print for several years.
+  const age = input.ageYears == null
+    ? null
+    : input.ageYears <= 1
+      ? input.ageYears * 8
+      : input.ageYears <= 3
+        ? 8 + (input.ageYears - 1) * 16
+        : input.ageYears <= 7
+          ? 40 + (input.ageYears - 3) * 10
+          : 80 + (input.ageYears - 7) * 2.5;
+  addEvidence(age, 22);
+
+  // Complete, exact raw-NM-English eBay inventory is the strongest observable
+  // scarcity signal. The logarithmic curve distinguishes 1 from 10 listings,
+  // while treating 100+ copies as genuinely abundant even for a difficult pull.
+  if (input.verifiedActiveListings != null) {
+    const listings = Math.max(0, input.verifiedActiveListings);
+    addEvidence(100 - Math.log10(listings + 1) * 42, 38);
+  }
+
+  const pull = input.specificPullDenominator == null
+    ? null
+    : ((Math.log10(Math.max(1, input.specificPullDenominator)) - Math.log10(25)) /
+        (Math.log10(2000) - Math.log10(25))) * 100;
+  addEvidence(pull, 10);
+
+  // Price-source breadth counts languages/feeds, not available copies, and a
+  // set-level gem rate describes graded condition supply rather than raw-NM
+  // inventory. Neither is allowed to inflate physical raw scarcity.
+  addEvidence(input.sealedPressureScore, 15);
+  addEvidence(input.setRarityScore, 9);
+
+  // Illustrator and character popularity are demand signals. They intentionally
+  // do not make a plentiful card scarce; both remain part of confluence scoring.
+  const totalWeight = evidence.reduce((sum, item) => sum + item.weight, 0);
+  let score = clampMarketScore(
+    totalWeight === 0
       ? 0
-      : Math.min(30, Math.max(0, Math.log10(Math.max(1, input.specificPullDenominator)) * 13 - 13));
-  const gem =
-    input.gemRatePct == null ? 0 : Math.min(20, Math.max(0, (55 - input.gemRatePct) * 0.45));
-  const verifiedListings = input.verifiedActiveListings;
-  const breadth =
-    verifiedListings != null
-      ? verifiedListings <= 0
-        ? 14
-        : verifiedListings === 1
-          ? 13
-          : verifiedListings <= 2
-            ? 11
-            : verifiedListings <= 3
-              ? 9
-              : verifiedListings <= 6
-                ? 6
-                : verifiedListings <= 12
-                  ? 3
-                  : 0
-      : Math.min(14, Math.max(0, (4 - input.rawMarketBreadth) * 4.5));
-  const artist = input.artistDemandScore == null ? 0 : Math.max(0, input.artistDemandScore - 55) * 0.18;
-  const setRarity = input.setRarityScore == null ? 0 : (input.setRarityScore - 50) * 0.22;
-  const score = clampMarketScore(20 + age + pull + gem + breadth + artist + setRarity);
+      : evidence.reduce((sum, item) => sum + item.score * item.weight, 0) / totalWeight
+  );
+  if (input.verifiedActiveListings == null) {
+    // Structural evidence can establish a strong watch, but "very scarce"
+    // requires a current exact-inventory observation rather than an assumption.
+    score = Math.min(score, 79);
+  } else if (
+    input.ageYears != null &&
+    input.ageYears <= 1.5 &&
+    input.verifiedActiveListings >= 100
+  ) {
+    score = Math.min(score, 35);
+  } else if (
+    input.ageYears != null &&
+    input.ageYears <= 1 &&
+    input.verifiedActiveListings >= 50
+  ) {
+    score = Math.min(score, 45);
+  }
   return {
     score,
     label:
@@ -207,17 +271,21 @@ export function calculateGoldMineConfluence(input: {
 
   return {
     score,
-    label:
-      score >= 85
-        ? "Gold mine setup"
-        : score >= 70
-          ? "Strong setup"
-          : score >= 50
-            ? "Building"
-            : "Single signal",
+    label: confluenceLabel(score),
     drivers,
     freshChase: input.hasFreshChaseCatalyst,
   };
+}
+
+export function hasActiveReprintRisk(
+  catalysts: Array<Pick<ExternalSignalCatalyst, "kind" | "direction">>
+): boolean {
+  // Catalyst direction describes the effect on card scarcity. A negative
+  // reprint/restock signal increases supply and is therefore the actual risk.
+  // Positive reprint catalysts represent explicit no-reprint/OOP evidence.
+  return catalysts.some(
+    (catalyst) => catalyst.kind === "reprint" && catalyst.direction === "negative"
+  );
 }
 
 export function calculateOpportunityScores(input: {
@@ -225,7 +293,8 @@ export function calculateOpportunityScores(input: {
   sealedPressureScore: number;
   scarcityScore: number;
   confluenceScore: number;
-  ebayDemandAdjustment?: number;
+  rawEbayDemandAdjustment?: number;
+  gradedEbayDemandAdjustment?: number;
   rawTrend90dPct: number | null;
   gradePremiumPct: number | null;
   gemRatePct: number | null;
@@ -239,15 +308,35 @@ export function calculateOpportunityScores(input: {
   const confluenceAdjustment = Math.min(13, Math.max(0, input.confluenceScore - 55) * 0.3);
   const riskAdjustment = Math.max(0, input.riskScore) * 15;
   const rarityAdjustment = input.setRarityScore == null ? 0 : (input.setRarityScore - 50) * 0.18;
-  const ebayDemandAdjustment = Math.min(6, Math.max(-4, input.ebayDemandAdjustment ?? 0));
+  const rawEbayDemandAdjustment = Math.min(
+    6,
+    Math.max(-4, input.rawEbayDemandAdjustment ?? 0)
+  );
+  const gradedEbayDemandAdjustment = Math.min(
+    6,
+    Math.max(-4, input.gradedEbayDemandAdjustment ?? 0)
+  );
+  const baseScore =
+    input.externalScore +
+    sealedAdjustment +
+    scarcityAdjustment +
+    trendAdjustment +
+    confluenceAdjustment +
+    rarityAdjustment -
+    riskAdjustment;
   const raw = clampMarketScore(
-    input.externalScore + sealedAdjustment + scarcityAdjustment + trendAdjustment + confluenceAdjustment + rarityAdjustment + ebayDemandAdjustment - riskAdjustment
+    baseScore + rawEbayDemandAdjustment
   );
   if (!input.gradedAvailable) return { raw, graded: null };
   const premium = Math.min(8, Math.max(-4, (input.gradePremiumPct ?? 0) * 0.035));
   const gemScarcity =
     input.gemRatePct == null ? 0 : Math.min(8, Math.max(-2, (45 - input.gemRatePct) * 0.16));
-  return { raw, graded: clampMarketScore(raw + premium + gemScarcity) };
+  return {
+    raw,
+    graded: clampMarketScore(
+      baseScore + gradedEbayDemandAdjustment + premium + gemScarcity
+    ),
+  };
 }
 
 export function isActionablePriceScenario(scenario: ExternalPriceScenario | null | undefined): boolean {
@@ -267,6 +356,124 @@ export function isActionablePriceScenario(scenario: ExternalPriceScenario | null
           : { absolute: 10, percent: 10 };
 
   return absoluteGain >= minimum.absolute && gainPct >= minimum.percent;
+}
+
+function scenarioHorizon(
+  scenario: ExternalPriceScenario | null | undefined
+): ExternalPriceScenario["points"][number] | null {
+  return scenario?.points.find((point) => point.days === 180) ?? scenario?.points.at(-1) ?? null;
+}
+
+function confluenceLabel(score: number): ExternalGoldMineConfluence["label"] {
+  return score >= 85
+    ? "Gold mine setup"
+    : score >= 70
+      ? "Strong setup"
+      : score >= 50
+        ? "Building"
+        : "Single signal";
+}
+
+/**
+ * Converts structural potential into a market-timed opportunity score.
+ *
+ * Artist, character, rarity and supply can identify an excellent card, but
+ * they cannot make a bearish or statistically weak 180-day base case a
+ * "Breakout". The underlying structural score still drives the scenario and
+ * remains visible in the detail panels; only the actionable opportunity tier
+ * is capped until the price model confirms a material move.
+ */
+export function alignOpportunityScoreWithScenario(
+  opportunityScore: number,
+  scenario: ExternalPriceScenario | null | undefined
+): number {
+  const horizon = scenarioHorizon(scenario);
+  // Without a usable base case there is not enough directional evidence for
+  // the actionable Breakout tier (or its email threshold).
+  if (!scenario || !horizon || scenario.currentPrice <= 0) {
+    return Math.min(opportunityScore, 79);
+  }
+
+  const confirmedActionable =
+    scenario.confidence !== "Low" && isActionablePriceScenario(scenario);
+  if (confirmedActionable) return opportunityScore;
+
+  // A bearish base case is a watch, irrespective of how attractive the
+  // long-term structural ingredients are. A flat/small-up case may remain a
+  // strong watch, but not a breakout opportunity.
+  return Math.min(opportunityScore, horizon.base < scenario.currentPrice ? 59 : 79);
+}
+
+/**
+ * Keeps the Gold-mine label consistent with the selected raw price scenario.
+ * The drivers are deliberately preserved so a cooling card can still show why
+ * its long-term setup is interesting without presenting it as an immediate
+ * Gold-mine opportunity.
+ */
+export function alignConfluenceWithScenario(
+  confluence: ExternalGoldMineConfluence,
+  scenario: ExternalPriceScenario | null | undefined
+): ExternalGoldMineConfluence {
+  const horizon = scenarioHorizon(scenario);
+  if (!scenario || !horizon || scenario.currentPrice <= 0) {
+    if (confluence.score <= 84) return confluence;
+    return { ...confluence, score: 84, label: confluenceLabel(84) };
+  }
+
+  const confirmedActionable =
+    scenario.confidence !== "Low" && isActionablePriceScenario(scenario);
+  if (confirmedActionable) return confluence;
+
+  const cap = horizon.base < scenario.currentPrice ? 69 : 84;
+  if (confluence.score <= cap) return confluence;
+  const score = Math.min(confluence.score, cap);
+  return { ...confluence, score, label: confluenceLabel(score) };
+}
+
+/**
+ * Keeps a structurally strong card visible while its honest base case is flat
+ * or mildly negative, provided the upside case is still material. This avoids
+ * turning Radar membership itself into a hidden guarantee that the base line
+ * must rise.
+ */
+export function isWatchablePriceScenario(
+  scenario: ExternalPriceScenario | null | undefined,
+  opportunityScore: number | null | undefined
+): boolean {
+  if (
+    !scenario ||
+    scenario.currentPrice <= 0 ||
+    scenario.confidence === "Low"
+  ) {
+    return false;
+  }
+  if (isActionablePriceScenario(scenario)) return true;
+  if (opportunityScore == null || opportunityScore < 72) return false;
+  const horizon = scenario.points.find((point) => point.days === 180) ?? scenario.points.at(-1);
+  if (!horizon) return false;
+
+  const basePct = ((horizon.base - scenario.currentPrice) / scenario.currentPrice) * 100;
+  const highGain = horizon.high - scenario.currentPrice;
+  const highPct = (highGain / scenario.currentPrice) * 100;
+  const minimum =
+    scenario.currentPrice < 5
+      ? { absolute: 0.5, percent: 20 }
+      : scenario.currentPrice < 25
+        ? { absolute: 1.5, percent: 15 }
+        : scenario.currentPrice < 100
+          ? { absolute: 5, percent: 12 }
+          : { absolute: 10, percent: 10 };
+  const strongSetup =
+    opportunityScore >= 82 &&
+    basePct >= -10 &&
+    highGain >= minimum.absolute &&
+    highPct >= minimum.percent;
+  const asymmetricUpside =
+    basePct >= -5 &&
+    highGain >= minimum.absolute * 1.5 &&
+    highPct >= Math.max(20, minimum.percent + 8);
+
+  return strongSetup || asymmetricUpside;
 }
 
 export function buildPriceScenario(input: {
@@ -292,18 +499,26 @@ export function buildPriceScenario(input: {
     return null;
   }
   const currentPrice = input.currentPrice;
-  const scoreMonthly = (input.opportunityScore - 50) * 0.00115;
-  const sealedMonthly = Math.min(0.02, Math.max(-0.015, (input.sealedTrendPct ?? 0) / 100 / 5));
-  const rawMomentumMonthly = Math.min(0.018, Math.max(-0.018, (input.rawTrend90dPct ?? 0) / 100 / 7));
-  const scarcityMonthly = Math.max(0, input.scarcityScore - 50) * 0.00022;
-  const gemMonthly =
-    input.marketMode === "graded" && input.gemRatePct != null
-      ? Math.max(0, 45 - input.gemRatePct) * 0.00018
-      : 0;
+  // Static qualities (rarity, scarcity, grading supply and the opportunity
+  // score) describe potential, but they do not prove a direction. The base line
+  // therefore moves only on signed market evidence and risk. Static quality is
+  // still reflected in Radar ranking and watchability.
+  const sealedMonthly = Math.min(
+    0.012,
+    Math.max(-0.012, (input.sealedTrendPct ?? 0) * 0.0003)
+  );
+  const rawMomentumMonthly = Math.min(
+    0.025,
+    Math.max(-0.025, (input.rawTrend90dPct ?? 0) * 0.00065)
+  );
+  const ebayDemandMonthly = Math.min(
+    0.004,
+    Math.max(-0.003, (input.ebayDemandAdjustment ?? 0) * 0.00065)
+  );
   const riskMonthly = Math.max(0, input.riskScore) * 0.025;
   const unconstrainedMonthlyRate = Math.min(
-    0.075,
-    Math.max(-0.05, scoreMonthly + sealedMonthly + rawMomentumMonthly + scarcityMonthly + gemMonthly - riskMonthly)
+    0.06,
+    Math.max(-0.05, sealedMonthly + rawMomentumMonthly + ebayDemandMonthly - riskMonthly)
   );
   // Fresh sets usually spend their first year in price discovery: supply is still
   // opening, grading populations are growing and most chases trade sideways even

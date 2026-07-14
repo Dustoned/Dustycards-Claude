@@ -83,6 +83,45 @@ const gengar10: EbayMatchCard = {
   },
 };
 
+const namiOp01: EbayMatchCard = {
+  id: "op01-016",
+  name: "Nami",
+  card_number: "OP01-016",
+  rarity: "Rare",
+  image_url: null,
+  episode: {
+    id: "op01",
+    name: "Romance Dawn",
+    code: "OP01",
+  },
+};
+
+const pikachuSvp001: EbayMatchCard = {
+  id: "svp-001",
+  name: "Pikachu",
+  card_number: "SVP 001",
+  rarity: "Promo",
+  image_url: null,
+  episode: {
+    id: "svp",
+    name: "Scarlet and Violet Black Star Promos",
+    code: "SVP",
+  },
+};
+
+const mewStar101: EbayMatchCard = {
+  id: "mew-star-101",
+  name: "Mew Star",
+  card_number: "101/100",
+  rarity: "Rare Holo Star",
+  image_url: null,
+  episode: {
+    id: "ex-dragon-frontiers",
+    name: "EX Dragon Frontiers",
+    code: "DF",
+  },
+};
+
 describe("eBay card matching", () => {
   it("matches Umbreon ex 161/131 Prismatic listings to the database card", () => {
     const match = matchEbayListingToCard({
@@ -247,5 +286,73 @@ describe("eBay card matching", () => {
       title: "Umbreon ex 059/131 Prismatic Evolutions English NM",
       card: umbreonEx161,
     })).toBe(false);
+    expect(listingHasExactCardIdentity({
+      title: "Umbreon ex 161/198 Prismatic Evolutions English NM",
+      card: { ...umbreonEx161, card_number: "161/131" },
+    })).toBe(false);
+  });
+
+  it("compares the complete One Piece card reference", () => {
+    const rightReference = "Nami OP01-016 Romance Dawn One Piece English";
+    const wrongReference = "Nami OP01-015 Romance Dawn One Piece English";
+
+    expect(listingHasExactCardIdentity({
+      title: rightReference,
+      card: namiOp01,
+    })).toBe(true);
+    expect(listingHasExactCardIdentity({
+      title: wrongReference,
+      card: namiOp01,
+    })).toBe(false);
+    expect(matchEbayListingToCard({
+      title: rightReference,
+      candidates: [namiOp01],
+      requestedMode: "raw",
+    }).status).toBe("matched");
+    expect(matchEbayListingToCard({
+      title: wrongReference,
+      candidates: [namiOp01],
+      requestedMode: "raw",
+    }).status).toBe("unmatched");
+  });
+
+  it("compares both parts of space-separated promo references", () => {
+    const rightReference = "Pikachu SVP 001 Scarlet Violet Black Star Promo English NM";
+    const wrongReference = "Pikachu SVP 002 Scarlet Violet Black Star Promo English NM";
+
+    expect(listingHasExactCardIdentity({
+      title: rightReference,
+      card: pikachuSvp001,
+    })).toBe(true);
+    expect(listingHasExactCardIdentity({
+      title: wrongReference,
+      card: pikachuSvp001,
+    })).toBe(false);
+    expect(matchEbayListingToCard({
+      title: rightReference,
+      candidates: [pikachuSvp001],
+      requestedMode: "raw",
+    }).status).toBe("matched");
+    expect(matchEbayListingToCard({
+      title: wrongReference,
+      candidates: [pikachuSvp001],
+      requestedMode: "raw",
+    }).status).toBe("unmatched");
+  });
+
+  it("still distinguishes true Pokemon Star variants from plain cards", () => {
+    const starMatch = matchEbayListingToCard({
+      title: "Mew Star 101/100 Dragon Frontiers Pokemon Card",
+      candidates: [mewStar101],
+      requestedMode: "raw",
+    });
+    const missingStarVariant = matchEbayListingToCard({
+      title: "Mew 101/100 Dragon Frontiers Pokemon Card",
+      candidates: [mewStar101],
+      requestedMode: "raw",
+    });
+
+    expect(starMatch.status).toBe("matched");
+    expect(missingStarVariant.status).not.toBe("matched");
   });
 });

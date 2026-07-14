@@ -96,23 +96,73 @@ export async function loadExternalEventWatchTopics(
   const through = new Date(now.getTime() + 400 * 24 * 60 * 60_000)
     .toISOString()
     .slice(0, 10);
-  const rows = await db.episode.findMany({
-    where: {
-      game: { in: [...games] },
-      release_date: { gte: from, lte: through },
-    },
-    orderBy: [{ release_date: "asc" }, { name: "asc" }],
-    take: 24,
-    select: { game: true, name: true, code: true },
-  });
+  const lifecycleThrough = new Date(now.getTime() - 18 * 30.4375 * 24 * 60 * 60_000)
+    .toISOString()
+    .slice(0, 10);
+  const [releaseRows, lifecycleRows] = await Promise.all([
+    db.episode.findMany({
+      where: {
+        game: { in: [...games] },
+        release_date: { gte: from, lte: through },
+      },
+      orderBy: [{ release_date: "asc" }, { name: "asc" }],
+      select: { id: true, game: true, name: true, code: true, release_date: true },
+    }),
+    db.episode.findMany({
+      where: {
+        game: { in: [...games] },
+        release_date: { lte: lifecycleThrough },
+      },
+      orderBy: [{ release_date: "asc" }, { name: "asc" }],
+      select: { id: true, game: true, name: true, code: true, release_date: true },
+    }),
+  ]);
   const seen = new Set<string>();
-  return rows.flatMap((row) => {
-    const game: TradingCardGame = row.game === "one-piece" ? "one-piece" : "pokemon";
-    const key = `${game}:${row.name.trim().toLowerCase()}`;
-    if (!row.name.trim() || seen.has(key)) return [];
-    seen.add(key);
-    return [{ game, name: row.name.trim(), setCode: row.code }];
-  });
+  const topics: CatalystWatchTopic[] = [];
+  for (const rawGame of games) {
+    const game: TradingCardGame = rawGame === "one-piece" ? "one-piece" : "pokemon";
+    const today = now.toISOString().slice(0, 10);
+    const gameReleaseRows = releaseRows.filter((row) => row.game === game);
+    const releases = [
+      ...gameReleaseRows.filter((row) => (row.release_date ?? "") >= today),
+      ...gameReleaseRows
+        .filter((row) => (row.release_date ?? "") < today)
+        .sort((left, right) => (right.release_date ?? "").localeCompare(left.release_date ?? "")),
+    ].slice(0, 2);
+    for (const row of releases) {
+      const key = `${game}:${row.name.trim().toLowerCase()}`;
+      if (!row.name.trim() || seen.has(key)) continue;
+      seen.add(key);
+      topics.push({
+        game,
+        episodeId: row.id,
+        name: row.name.trim(),
+        setCode: row.code,
+        focus: "release",
+      });
+    }
+
+    // Rotate one mature set per game through the same bounded daily query
+    // budget. Over time every relevant set gets an OOP/reprint check, without
+    // adding a per-card crawl or increasing MAX_CATALYST_SEARCH_QUERIES.
+    const mature = lifecycleRows.filter((row) => row.game === game);
+    if (mature.length) {
+      const dayBucket = Math.floor(now.getTime() / (24 * 60 * 60_000));
+      const row = mature[dayBucket % mature.length];
+      const key = `${game}:${row.name.trim().toLowerCase()}`;
+      if (row.name.trim() && !seen.has(key)) {
+        seen.add(key);
+        topics.push({
+          game,
+          episodeId: row.id,
+          name: row.name.trim(),
+          setCode: row.code,
+          focus: "lifecycle",
+        });
+      }
+    }
+  }
+  return topics;
 }
 
 export function mergeExternalEventCandidates(

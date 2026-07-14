@@ -8,6 +8,7 @@ function signal(input: {
   external?: number;
   confluence?: number;
   confidence?: ExternalCardSignal["confidence"];
+  scenario?: "actionable" | "bearish" | "missing";
 }): ExternalCardSignal {
   return {
     rank: 1,
@@ -33,6 +34,21 @@ function signal(input: {
     archetypeCount: 0,
     marketIntelligence: {
       rawOpportunityScore: input.opportunity,
+      rawScenario:
+        input.scenario === "missing"
+          ? null
+          : {
+              marketMode: "raw",
+              currentPrice: 10,
+              currency: "EUR",
+              confidence: "Medium",
+              drivers: ["market history"],
+              points: [
+                { days: 30, low: 9, base: input.scenario === "bearish" ? 9.8 : 10.5, high: 11 },
+                { days: 90, low: 8, base: input.scenario === "bearish" ? 9.2 : 11, high: 12 },
+                { days: 180, low: 7, base: input.scenario === "bearish" ? 8.5 : 12, high: 14 },
+              ],
+            },
       confluence: {
         score: input.confluence ?? 70,
         label: "Strong setup",
@@ -62,5 +78,14 @@ describe("Signal Radar email alerts", () => {
 
     expect(selected).toHaveLength(1);
     expect(selected[0].score).toBe(94);
+  });
+
+  it("never emails a structural score without a confident actionable raw scenario", () => {
+    const selected = selectHighPotentialAlertCandidates([
+      signal({ id: "missing-forecast", opportunity: 99, confluence: 95, scenario: "missing" }),
+      signal({ id: "bearish-forecast", opportunity: 99, confluence: 95, scenario: "bearish" }),
+    ]);
+
+    expect(selected).toEqual([]);
   });
 });

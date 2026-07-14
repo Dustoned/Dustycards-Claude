@@ -42,6 +42,7 @@ interface ListingTextSignals {
   tokens: Set<string>;
   variants: Set<string>;
   numbers: Set<string>;
+  codedCardReferences: Array<{ prefix: string; number: string; key: string }>;
   codedRefNumbers: Set<string>;
   hashRefNumbers: Set<string>;
   slashRefs: Array<{ left: string; right: string }>;
@@ -99,6 +100,7 @@ const ACCESSORY_TOKENS = new Set([
   "gemaelde",
   "holder",
   "homemade",
+  "jumbo",
   "keychain",
   "leinwand",
   "malerei",
@@ -108,6 +110,10 @@ const ACCESSORY_TOKENS = new Set([
   "proxy",
   "read",
   "replica",
+  "oversize",
+  "oversized",
+  "sticker",
+  "stickers",
   "stand",
   "unikat",
 ]);
@@ -116,7 +122,7 @@ export function normalizeEbayMatchText(value: string | null | undefined): string
   return (value ?? "")
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
-    .replace(/[\u2605\u2726\u2727]/gu, " star ")
+    .replace(/[\u2605\u2606\u2726\u2727]/gu, " star ")
     .replace(/[\u03b4\u0394]/gu, " delta ")
     .replace(/&/g, " and ")
     .replace(/[^\p{L}\p{N}/#.' -]+/gu, " ")
@@ -156,9 +162,90 @@ function canonicalCardNumber(value: string | null | undefined): string | null {
   return token?.replace(/^0+/, "") || token || null;
 }
 
+function canonicalReferenceNumber(value: string): string {
+  const match = /^(\d+)([a-z]?)$/i.exec(value);
+  if (!match) return value.toLowerCase();
+
+  const digits = match[1].replace(/^0+/, "") || "0";
+  return `${digits}${match[2].toLowerCase()}`;
+}
+
+function createCodedCardReference(prefix: string, number: string) {
+  const canonicalPrefix = prefix.toLowerCase().replace(/[-\s]+/g, "");
+  const canonicalNumber = canonicalReferenceNumber(number);
+  return {
+    prefix: canonicalPrefix,
+    number: canonicalNumber,
+    key: `${canonicalPrefix}:${canonicalNumber}`,
+  };
+}
+
+function canonicalCodedCardReference(value: string | null | undefined): {
+  prefix: string;
+  number: string;
+  key: string;
+} | null {
+  const normalized = normalizeEbayMatchText(value).replace(/^#\s*/, "");
+  if (!normalized || normalized.includes("/")) return null;
+
+  const separated = /^([a-z]+\d*)\s*[- ]\s*(\d+[a-z]?)$/i.exec(normalized);
+  if (separated) return createCodedCardReference(separated[1], separated[2]);
+
+  // One Piece references are sometimes written without their separator (OP01016).
+  const compactOnePiece = /^((?:(?:op|st|eb|prb)\d{2})|p)(\d{3}[a-z]?)$/i.exec(
+    normalized
+  );
+  if (compactOnePiece) {
+    return createCodedCardReference(compactOnePiece[1], compactOnePiece[2]);
+  }
+
+  const compact = /^([a-z]+)(\d+[a-z]?)$/i.exec(normalized);
+  return compact ? createCodedCardReference(compact[1], compact[2]) : null;
+}
+
+function extractCodedCardReferences(value: string): Array<{
+  prefix: string;
+  number: string;
+  key: string;
+}> {
+  const normalized = normalizeEbayMatchText(value);
+  const references = new Map<string, { prefix: string; number: string; key: string }>();
+  const addReference = (prefix: string, number: string) => {
+    const reference = createCodedCardReference(prefix, number);
+    references.set(reference.key, reference);
+  };
+
+  for (const match of normalized.matchAll(/\b([a-z]+\d*)\s*[- ]\s*(\d+[a-z]?)\b/gi)) {
+    addReference(match[1], match[2]);
+  }
+  for (const match of normalized.matchAll(/\b((?:(?:op|st|eb|prb)\d{2})|p)(\d{3}[a-z]?)\b/gi)) {
+    addReference(match[1], match[2]);
+  }
+  for (const match of normalized.matchAll(/\b([a-z]+)(\d+[a-z]?)\b/gi)) {
+    addReference(match[1], match[2]);
+  }
+
+  return [...references.values()];
+}
+
+function canonicalCardSlashReference(
+  value: string | null | undefined
+): { left: string; right: string } | null {
+  const normalized = normalizeEbayMatchText(value);
+  const match = /\b([a-z]*\d+[a-z]*)\s*\/\s*([a-z0-9-]+)\b/i.exec(normalized);
+  if (!match) return null;
+
+  return {
+    left: match[1].replace(/^0+/, "") || match[1],
+    right: match[2].replace(/^0+/, "") || match[2],
+  };
+}
+
 function extractVariants(value: string): Set<string> {
   const tokens = tokenizeEbayMatchText(
-    normalizeEbayMatchText(value).replace(/\bex\s*\/\s*nm\b/g, " ")
+    normalizeEbayMatchText(value)
+      .replace(/\bex\s*\/\s*nm\b/g, " ")
+      .replace(/\bblack\s+star\s+promos?\b/g, " ")
   );
   const variants = new Set<string>();
 
@@ -244,6 +331,7 @@ function getListingSignals(title: string, condition: string | null | undefined):
     tokens,
     variants: extractVariants(title),
     numbers,
+    codedCardReferences: extractCodedCardReferences(title),
     codedRefNumbers,
     hashRefNumbers,
     slashRefs,
@@ -260,8 +348,29 @@ export function listingHasExactCardIdentity(input: {
   card: EbayMatchCard;
 }): boolean {
   const signals = getListingSignals(input.title, input.condition);
+  const codedCardReference = canonicalCodedCardReference(input.card.card_number);
+  if (codedCardReference) {
+    return signals.codedCardReferences.some(
+      (reference) => reference.key === codedCardReference.key
+    );
+  }
+
   const cardNumber = canonicalCardNumber(input.card.card_number);
   if (cardNumber) {
+    const cardSlashReference = canonicalCardSlashReference(input.card.card_number);
+    const sameNumeratorSlashReferences = cardSlashReference
+      ? signals.slashRefs.filter((reference) => reference.left === cardSlashReference.left)
+      : [];
+    if (
+      cardSlashReference &&
+      sameNumeratorSlashReferences.length > 0 &&
+      !sameNumeratorSlashReferences.some(
+        (reference) => reference.right === cardSlashReference.right
+      )
+    ) {
+      return false;
+    }
+
     return (
       signals.tokens.has(cardNumber) ||
       signals.numbers.has(cardNumber) ||
@@ -297,12 +406,29 @@ function scoreCardAgainstListing(
 
   const cardVariants = extractVariants(card.name);
   const titleVariants = signals.variants;
-  const cardNumber = canonicalCardNumber(card.card_number);
+  const codedCardReference = canonicalCodedCardReference(card.card_number);
+  const hasExactCodedCardReference = Boolean(
+    codedCardReference &&
+      signals.codedCardReferences.some(
+        (reference) => reference.key === codedCardReference.key
+      )
+  );
+  const cardNumber = codedCardReference?.number ?? canonicalCardNumber(card.card_number);
+  const cardSlashReference = canonicalCardSlashReference(card.card_number);
   const hasNumber = Boolean(
     cardNumber &&
-      (signals.numbers.has(cardNumber) ||
-        signals.codedRefNumbers.has(cardNumber) ||
-        signals.hashRefNumbers.has(cardNumber))
+      (codedCardReference
+        ? hasExactCodedCardReference
+        : signals.numbers.has(cardNumber) ||
+          signals.codedRefNumbers.has(cardNumber) ||
+          signals.hashRefNumbers.has(cardNumber))
+  );
+  const hasDifferentFullCodedReference = Boolean(
+    codedCardReference &&
+      !hasExactCodedCardReference &&
+      signals.codedCardReferences.some(
+        (reference) => reference.prefix === codedCardReference.prefix
+      )
   );
   const hasDifferentSlashNumber = Boolean(
     cardNumber && !hasNumber && signals.slashRefs.length > 0
@@ -313,6 +439,19 @@ function scoreCardAgainstListing(
   const hasDifferentHashRefNumber = Boolean(
     cardNumber && !hasNumber && signals.hashRefNumbers.size > 0
   );
+  const hasDifferentSlashDenominator = Boolean(
+    cardSlashReference &&
+      signals.slashRefs.some(
+        (reference) =>
+          reference.left === cardSlashReference.left &&
+          reference.right !== cardSlashReference.right
+      ) &&
+      !signals.slashRefs.some(
+        (reference) =>
+          reference.left === cardSlashReference.left &&
+          reference.right === cardSlashReference.right
+      )
+  );
   const hasPromoLikeSlash = Boolean(
     cardNumber &&
       signals.slashRefs.some(
@@ -321,7 +460,13 @@ function scoreCardAgainstListing(
   );
   const setHint = hasSetHint(signals, card);
 
-  if (hasDifferentSlashNumber || hasDifferentCodedRefNumber || hasDifferentHashRefNumber) {
+  if (
+    hasDifferentFullCodedReference ||
+    hasDifferentSlashNumber ||
+    hasDifferentSlashDenominator ||
+    hasDifferentCodedRefNumber ||
+    hasDifferentHashRefNumber
+  ) {
     return null;
   }
 

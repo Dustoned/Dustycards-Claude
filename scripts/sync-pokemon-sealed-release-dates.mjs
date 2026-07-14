@@ -5,7 +5,10 @@ import { createHash } from "node:crypto";
 import Database from "better-sqlite3";
 
 const BASE_URL = "https://www.pokemon.com";
-const CACHE_PATH = path.join(process.cwd(), ".firecrawl", "pokemon-official-product-releases.json");
+// Keep this outside .firecrawl: deploy cleanup intentionally removes that
+// directory, while data/ is persistent on production. The twice-monthly job
+// can therefore remain incremental across deploys.
+const CACHE_PATH = path.join(process.cwd(), "data", "official-product-releases.json");
 const args = new Set(process.argv.slice(2));
 const apply = args.has("--apply");
 const refresh = args.has("--refresh");
@@ -23,6 +26,7 @@ function resolveYears() {
   }
 
   const value = yearsArg.split("=")[1] ?? "";
+  if (value === "current-next") return [currentYear, currentYear + 1];
   const range = value.match(/^(\d{4})-(\d{4})$/);
   if (range) {
     const start = Number(range[1]);
@@ -276,6 +280,7 @@ function findBestMatch(localProduct, officialProducts) {
 async function main() {
   const officialProducts = await loadOfficialProducts();
   const db = new Database(path.join(process.cwd(), "dustycards.db"));
+  db.pragma("busy_timeout = 5000");
   const localProducts = db.prepare(`
     SELECT sp.id, sp.name, sp.episode_id, e.name AS episode_name, e.release_date AS set_release_date
     FROM "SealedProduct" sp
