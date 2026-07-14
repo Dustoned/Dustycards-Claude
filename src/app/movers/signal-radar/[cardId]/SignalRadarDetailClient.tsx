@@ -95,6 +95,72 @@ const FORECAST_TARGETS = [
   { key: "3x-180d", label: "3x", horizon: "180 days", minimum: 200 },
 ] as const;
 
+type ForecastDirection = "strong-rise" | "rise" | "flat" | "decline";
+
+interface ForecastPresentation {
+  direction: ForecastDirection;
+  label: string;
+  change: number;
+  changePct: number;
+}
+
+function getForecastPresentation(
+  currentPrice: number | null | undefined,
+  points: Array<{ days: number; base: number }>,
+  modelOutlook?: "strong_up" | "modest_up" | "flat" | "down",
+  modelReturnPct180?: number
+): ForecastPresentation | null {
+  if (currentPrice == null || currentPrice <= 0) return null;
+  const horizon = points.find((point) => point.days === 180) ?? points.at(-1);
+  if (!horizon || !Number.isFinite(horizon.base) || horizon.base <= 0) return null;
+
+  const change = horizon.base - currentPrice;
+  const changePct = modelReturnPct180 ?? (change / currentPrice) * 100;
+  if (modelOutlook) {
+    const presentation =
+      modelOutlook === "strong_up"
+        ? { direction: "strong-rise" as const, label: "Strong upside" }
+        : modelOutlook === "modest_up"
+          ? { direction: "rise" as const, label: "Mild upside" }
+          : modelOutlook === "down"
+            ? { direction: "decline" as const, label: "Downside risk" }
+            : { direction: "flat" as const, label: "Mostly flat" };
+    return { ...presentation, change, changePct };
+  }
+  const strongAbsoluteGain =
+    currentPrice < 5
+      ? 1
+      : currentPrice < 25
+        ? 3
+        : currentPrice < 100
+          ? 7.5
+          : currentPrice < 500
+            ? 20
+            : Math.max(35, currentPrice * 0.05);
+  const visibleMove = Math.max(0.25, currentPrice * 0.03);
+
+  if (changePct >= 20 && change >= strongAbsoluteGain) {
+    return { direction: "strong-rise", label: "Strong upside", change, changePct };
+  }
+  if (changePct >= 4 && change >= visibleMove) {
+    return { direction: "rise", label: "Mild upside", change, changePct };
+  }
+  if (changePct <= -4 && Math.abs(change) >= visibleMove) {
+    return { direction: "decline", label: "Downside risk", change, changePct };
+  }
+  return { direction: "flat", label: "Mostly flat", change, changePct };
+}
+
+function forecastToneClasses(direction: ForecastDirection) {
+  return direction === "strong-rise"
+    ? "border-emerald-300/14 bg-emerald-400/[0.055] text-emerald-100/78"
+    : direction === "decline"
+      ? "border-rose-300/14 bg-rose-400/[0.055] text-rose-100/78"
+      : direction === "flat"
+        ? "border-amber-300/14 bg-amber-400/[0.05] text-amber-100/74"
+        : "border-sky-300/14 bg-sky-400/[0.05] text-sky-100/76";
+}
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -213,6 +279,25 @@ export default function SignalRadarDetailClient({
         : [],
     [activeHistory, displayPrice, priceHistory.modelDate, scenario]
   );
+  const forecastPresentation = scenario
+    ? getForecastPresentation(
+        displayPrice,
+        scenario.points,
+        scenario.outlook,
+        scenario.expectedReturnPct180
+      )
+    : null;
+  const projection =
+    predictionPoints.length > 1
+      ? {
+          label: forecastPresentation
+            ? `Dusty forecast · ${forecastPresentation.label}`
+            : "Dusty forecast",
+          points: predictionPoints,
+          tone: forecastPresentation?.direction,
+          summary: forecastPresentation ? signedPercent(forecastPresentation.changePct) : undefined,
+        }
+      : null;
   const cardMarketHref =
     getSafeDirectCardMarketCardUrl(cardBasics.cardmarket_url, signal.game) ??
     buildCardMarketProxyUrl(signal.cardId);
@@ -411,11 +496,7 @@ export default function SignalRadarDetailClient({
                 rangeScopePoints={activeHistory}
                 rangeStorageKey={`signal-history-${signal.cardId}-${marketMode}`}
                 emptyText="No reliable price history yet"
-                projection={
-                  predictionPoints.length > 1
-                    ? { label: "Dusty prediction", points: predictionPoints }
-                    : null
-                }
+                projection={projection}
                 headerAccessory={
                   <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/44">
                     {marketMode === "raw" ? "EN · NM" : priceHistory.gradedLabel ?? "Graded"}
@@ -424,15 +505,29 @@ export default function SignalRadarDetailClient({
               />
               {scenario ? (
                 <div className="grid grid-cols-3 gap-2">
-                  {scenario.points.map((point) => (
-                    <div key={point.days} className="rounded-xl border border-sky-300/10 bg-sky-400/[0.035] p-2.5 text-center">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-sky-100/42">{point.days}d</p>
-                      <p className="mt-1 text-[12px] font-black text-white/82">{formatCurrency(point.base, scenario.currency)}</p>
-                    </div>
-                  ))}
+                  {scenario.points.map((point) => {
+                    const changePct = displayPrice && displayPrice > 0
+                      ? ((point.base - displayPrice) / displayPrice) * 100
+                      : null;
+                    const direction: ForecastDirection =
+                      changePct == null || forecastPresentation?.direction === "flat"
+                        ? "flat"
+                        : changePct < 0
+                          ? "decline"
+                          : point.days === 180 && forecastPresentation?.direction === "strong-rise"
+                            ? "strong-rise"
+                            : "rise";
+                    return (
+                      <div key={point.days} className={cx("rounded-xl border p-2.5 text-center", forecastToneClasses(direction))}>
+                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] opacity-55">{point.days}d</p>
+                        <p className="mt-1 text-[12px] font-black tabular-nums text-white/86">{formatCurrency(point.base, scenario.currency)}</p>
+                        <p className="mt-0.5 text-[9px] font-bold tabular-nums opacity-80">{changePct == null ? "--" : signedPercent(changePct)}</p>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : null}
-              {scenarioUsesLaunchWindow ? <p className="rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active, so this base prediction can still move quickly.</p> : scenarioUsesReleaseStabilization ? <p className="rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active, so early upside is deliberately tempered.</p> : null}
+              {scenarioUsesLaunchWindow ? <p className="rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active, so this base prediction can still move quickly.</p> : scenarioUsesReleaseStabilization ? <p className="rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active: fresh supply can keep prices flat or push them lower.</p> : null}
               <div className="grid grid-cols-2 gap-2">
                 {[
                   ["Sealed pressure", `${market?.sealed.pressureScore ?? "--"}/100`],
@@ -606,11 +701,7 @@ export default function SignalRadarDetailClient({
             rangeScopePoints={activeHistory}
             rangeStorageKey={`signal-history-${signal.cardId}-${marketMode}`}
             emptyText="No reliable price history yet"
-            projection={
-              predictionPoints.length > 1
-                ? { label: "Dusty prediction", points: predictionPoints }
-                : null
-            }
+            projection={projection}
             headerLeadingAccessory={
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="inline-flex h-8 items-center gap-2 rounded-full border border-violet-300/12 bg-violet-400/[0.065] px-3 text-[10px] font-bold text-violet-100/70">
@@ -621,19 +712,46 @@ export default function SignalRadarDetailClient({
                 </span>
               </div>
             }
-            headerAccessory={scenario ? <span className="rounded-full border border-sky-300/12 bg-sky-400/[0.045] px-2.5 py-1 text-[9px] font-semibold text-sky-100/60">{scenario.confidence} confidence</span> : null}
+            headerAccessory={scenario ? (
+              <div className="flex flex-wrap justify-end gap-1.5">
+                {forecastPresentation ? (
+                  <span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-bold", forecastToneClasses(forecastPresentation.direction))}>
+                    {forecastPresentation.label}
+                  </span>
+                ) : null}
+                <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/48">
+                  {scenario.confidence} confidence
+                </span>
+              </div>
+            ) : null}
           />
           {scenario ? (
             <div className="grid grid-cols-3 gap-2">
-              {scenario.points.map((point) => (
-                <div key={point.days} className="flex min-h-10 items-center justify-between rounded-xl border border-sky-300/9 bg-sky-400/[0.028] px-3 py-2">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-sky-100/40">{point.days}d</span>
-                  <strong className="text-[11px] tabular-nums text-white/78">{formatCurrency(point.base, scenario.currency)}</strong>
-                </div>
-              ))}
+              {scenario.points.map((point) => {
+                const changePct = displayPrice && displayPrice > 0
+                  ? ((point.base - displayPrice) / displayPrice) * 100
+                  : null;
+                const direction: ForecastDirection =
+                  changePct == null || forecastPresentation?.direction === "flat"
+                    ? "flat"
+                    : changePct < 0
+                      ? "decline"
+                      : point.days === 180 && forecastPresentation?.direction === "strong-rise"
+                        ? "strong-rise"
+                        : "rise";
+                return (
+                  <div key={point.days} className={cx("flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2", forecastToneClasses(direction))}>
+                    <span className="text-[9px] font-bold uppercase tracking-[0.08em] opacity-55">{point.days}d</span>
+                    <div className="min-w-0 text-right">
+                      <strong className="block text-[11px] tabular-nums text-white/82">{formatCurrency(point.base, scenario.currency)}</strong>
+                      <span className="block text-[9px] font-bold tabular-nums opacity-80">{changePct == null ? "--" : signedPercent(changePct)}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
-          {scenarioUsesLaunchWindow ? <p className="rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active, so this base prediction can still move quickly.</p> : scenarioUsesReleaseStabilization ? <p className="rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active, so early upside is deliberately tempered.</p> : null}
+          {scenarioUsesLaunchWindow ? <p className="rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active, so this base prediction can still move quickly.</p> : scenarioUsesReleaseStabilization ? <p className="rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active: fresh supply can keep prices flat or push them lower.</p> : null}
         </section>
 
           <AnalysisSection className="signal-radar-supply" eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>

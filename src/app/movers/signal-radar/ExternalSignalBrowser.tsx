@@ -80,6 +80,32 @@ function getConfidenceClasses(confidence: ExternalSignalConfidence): string {
   return "border-amber-300/20 bg-amber-400/[0.09] text-amber-200";
 }
 
+function getScenarioOutlookBadge(scenario: ExternalPriceScenario | null | undefined) {
+  if (!scenario?.outlook) return null;
+  if (scenario.outlook === "strong_up") {
+    return {
+      label: "Strong upside",
+      classes: "border-emerald-300/20 bg-emerald-400/[0.09] text-emerald-200",
+    };
+  }
+  if (scenario.outlook === "modest_up") {
+    return {
+      label: "Mild upside",
+      classes: "border-sky-300/20 bg-sky-400/[0.08] text-sky-200",
+    };
+  }
+  if (scenario.outlook === "down") {
+    return {
+      label: "Downside risk",
+      classes: "border-rose-300/20 bg-rose-400/[0.08] text-rose-200",
+    };
+  }
+  return {
+    label: "Mostly flat",
+    classes: "border-amber-300/20 bg-amber-400/[0.08] text-amber-200",
+  };
+}
+
 export function getSignalExplanations(signal: ExternalCardSignal) {
   if (signal.sourceMode === "structural") {
     const market = signal.marketIntelligence;
@@ -548,6 +574,7 @@ function CompactSignalCard({
       ? ((base180 - scenario.currentPrice) / scenario.currentPrice) * 100
       : null;
   const detailHref = `/movers/signal-radar/${encodeURIComponent(signal.cardId)}?game=${signal.game}`;
+  const outlookBadge = getScenarioOutlookBadge(scenario);
 
   return (
     <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_14px_42px_rgba(0,0,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/24 sm:p-3.5">
@@ -586,6 +613,11 @@ function CompactSignalCard({
                 <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/45">
                   {signal.sourceMode === "structural" ? "Scarcity" : signal.sourceMode === "event" ? "Event" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament"}
                 </span>
+                {outlookBadge ? (
+                  <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]", outlookBadge.classes)}>
+                    {outlookBadge.label}
+                  </span>
+                ) : null}
                 {eventLinked && primaryCatalyst ? (
                   <span className="max-w-full truncate rounded-full border border-amber-300/15 bg-amber-400/[0.07] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-amber-100/70">
                     {primaryCatalyst.evidenceLevel} source

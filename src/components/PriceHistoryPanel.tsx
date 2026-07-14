@@ -23,6 +23,8 @@ export interface PriceHistoryValuePoint {
 export interface PriceHistoryProjection {
   label?: string;
   points: PriceHistoryValuePoint[];
+  tone?: "strong-rise" | "rise" | "flat" | "decline";
+  summary?: string;
 }
 
 type Tone = "default" | "dark";
@@ -850,6 +852,15 @@ export default function PriceHistoryPanel({
   const accentFillEnd =
     currency === "USD" ? "rgba(245, 158, 11, 0.02)" : "rgba(139, 92, 246, 0.02)";
   const dotFill = currency === "USD" ? "#fbbf24" : "#a78bfa";
+  const projectionVisual =
+    projection?.tone === "strong-rise"
+      ? { stroke: "#34d399", text: "text-emerald-200/78" }
+      : projection?.tone === "decline"
+        ? { stroke: "#fb7185", text: "text-rose-200/78" }
+        : projection?.tone === "flat"
+          ? { stroke: "#fbbf24", text: "text-amber-200/78" }
+          : { stroke: "#38bdf8", text: "text-sky-100/72" };
+  const projectionSummary = projection?.summary ?? null;
   const tooltipRawLeft = activeHover?.pointerX ?? activePoint?.x ?? measuredChartWidth / 2;
   const tooltipLeft = clamp(tooltipRawLeft, 12, Math.max(measuredChartWidth - 12, 12));
   const tooltipLeftRatio = measuredChartWidth > 0 ? tooltipLeft / measuredChartWidth : 0.5;
@@ -1035,14 +1046,15 @@ export default function PriceHistoryPanel({
                             x2={chart.forecastStartX}
                             y1={chart.plotTop}
                             y2={chart.plotBottom}
-                            stroke="rgba(125,211,252,0.2)"
+                            stroke={projectionVisual.stroke}
+                            strokeOpacity="0.22"
                             strokeDasharray="3 5"
                             data-chart-seam
                           />
                           <path
                             d={chart.projectionLinePath}
                             fill="none"
-                            stroke="#38bdf8"
+                            stroke={projectionVisual.stroke}
                             strokeWidth="2.75"
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -1212,8 +1224,15 @@ export default function PriceHistoryPanel({
                   <span className="h-0.5 w-5 rounded-full bg-violet-400" /> History
                 </span>
               ) : null}
-              <span className="inline-flex items-center gap-1.5 text-sky-100/72">
-                <span className="h-0.5 w-5 rounded-full bg-sky-400" /> {projection.label ?? "Prediction"}
+              <span className={`inline-flex items-center gap-1.5 ${projectionVisual.text}`}>
+                <span
+                  className="h-0.5 w-5 rounded-full"
+                  style={{ backgroundColor: projectionVisual.stroke }}
+                />
+                {projection.label ?? "Prediction"}
+                {projection.summary ? (
+                  <strong className="tabular-nums text-white/80">{projection.summary}</strong>
+                ) : null}
               </span>
             </div>
           ) : null}
@@ -1285,14 +1304,15 @@ export default function PriceHistoryPanel({
                     x2={chart.forecastStartX}
                     y1={chart.plotTop}
                     y2={chart.plotBottom}
-                    stroke="rgba(125,211,252,0.2)"
+                    stroke={projectionVisual.stroke}
+                    strokeOpacity="0.22"
                     strokeDasharray="3 5"
                     data-chart-seam
                   />
                   <path
                     d={chart.projectionLinePath}
                     fill="none"
-                    stroke="#38bdf8"
+                    stroke={projectionVisual.stroke}
                     strokeWidth={compact ? "2.75" : isHeroLayout ? "3.25" : "3"}
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1305,10 +1325,30 @@ export default function PriceHistoryPanel({
                       cy={point.y}
                       r={isHeroLayout ? "3.5" : "3"}
                       fill="#071018"
-                      stroke="#38bdf8"
+                      stroke={projectionVisual.stroke}
                       strokeWidth="2"
                     />
                   ))}
+                  {projectionSummary && !isMobileViewport && chart.projectionCoordinates.length > 1 ? (() => {
+                    const point = chart.projectionCoordinates[chart.projectionCoordinates.length - 1];
+                    return (
+                      <text
+                        x={point.x - 4}
+                        y={clamp(point.y - 10, chart.plotTop + 11, chart.plotBottom - 7)}
+                        fill={projectionVisual.stroke}
+                        fontSize="11"
+                        fontWeight="700"
+                        paintOrder="stroke"
+                        stroke="#090a0f"
+                        strokeWidth="4"
+                        strokeLinejoin="round"
+                        textAnchor="end"
+                        data-chart-projection-summary
+                      >
+                        {projectionSummary}
+                      </text>
+                    );
+                  })() : null}
                 </>
               ) : null}
 

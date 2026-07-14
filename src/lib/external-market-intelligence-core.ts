@@ -483,13 +483,26 @@ export function buildPriceScenario(input: {
   ageYears: number | null;
   opportunityScore: number | null;
   sealedTrendPct: number | null;
+  rawTrend30dPct?: number | null;
   rawTrend90dPct: number | null;
+  rawTrend180dPct?: number | null;
   scarcityScore: number;
   gemRatePct: number | null;
   riskScore: number;
   evidenceCount: number;
   historyPoints: number;
   ebayDemandAdjustment?: number;
+  competitiveScore?: number | null;
+  catalystScore?: number | null;
+  hypeScore?: number | null;
+  setRarityScore?: number | null;
+  confluenceScore?: number | null;
+  artistDemandScore?: number | null;
+  collectorDemandScore?: number | null;
+  lifecycleStatus?: ExternalSealedIntelligence["lifecycleStatus"];
+  lifecycleConfidence?: number | null;
+  lifecycleOopProbability?: number | null;
+  currentVsAverage30dPct?: number | null;
 }): ExternalPriceScenario | null {
   if (
     input.currentPrice == null ||
@@ -499,51 +512,153 @@ export function buildPriceScenario(input: {
     return null;
   }
   const currentPrice = input.currentPrice;
-  // Static qualities (rarity, scarcity, grading supply and the opportunity
-  // score) describe potential, but they do not prove a direction. The base line
-  // therefore moves only on signed market evidence and risk. Static quality is
-  // still reflected in Radar ranking and watchability.
-  const sealedMonthly = Math.min(
-    0.012,
-    Math.max(-0.012, (input.sealedTrendPct ?? 0) * 0.0003)
+  const clamp = (value: number, minimum: number, maximum: number) =>
+    Math.min(maximum, Math.max(minimum, value));
+  const signedDeadband = (value: number, band: number) =>
+    Math.abs(value) < band ? 0 : value;
+
+  // Build momentum from genuinely available horizons. Missing long history is
+  // not silently replaced with a short spike; the history loader enforces the
+  // minimum date coverage for every supplied horizon.
+  const momentumInputs = [
+    { value: input.rawTrend30dPct, weight: 0.2 },
+    { value: input.rawTrend90dPct, weight: 0.55 },
+    { value: input.rawTrend180dPct, weight: 0.25 },
+  ].filter(
+    (item): item is { value: number; weight: number } =>
+      item.value != null && Number.isFinite(item.value)
   );
-  const rawMomentumMonthly = Math.min(
-    0.025,
-    Math.max(-0.025, (input.rawTrend90dPct ?? 0) * 0.00065)
-  );
-  const ebayDemandMonthly = Math.min(
-    0.004,
-    Math.max(-0.003, (input.ebayDemandAdjustment ?? 0) * 0.00065)
-  );
-  const riskMonthly = Math.max(0, input.riskScore) * 0.025;
-  const unconstrainedMonthlyRate = Math.min(
-    0.06,
-    Math.max(-0.05, sealedMonthly + rawMomentumMonthly + ebayDemandMonthly - riskMonthly)
-  );
-  // Fresh sets usually spend their first year in price discovery: supply is still
-  // opening, grading populations are growing and most chases trade sideways even
-  // when their long-term collector setup is strong. Only damp optimistic growth;
-  // genuine negative momentum and risk must remain visible.
-  const releaseStabilityFactor =
-    input.ageYears == null || input.ageYears >= 2
-      ? 1
-      : input.ageYears < 0.18
-        ? 0.35
-        : input.ageYears < 1
-          ? 0.16
-          : input.ageYears < 1.5
-            ? 0.4
-            : 0.7;
-  const releaseSupplyDrag =
-    input.ageYears == null || input.ageYears >= 1
+  const weightedMomentumPct =
+    momentumInputs.length === 0
       ? 0
-      : input.ageYears < 0.18
-        ? 0
-        : 0.004;
-  const monthlyRate =
-    unconstrainedMonthlyRate > 0
-      ? Math.max(-0.01, unconstrainedMonthlyRate * releaseStabilityFactor - releaseSupplyDrag)
-      : unconstrainedMonthlyRate;
+      : momentumInputs.reduce((sum, item) => sum + item.value * item.weight, 0) /
+        momentumInputs.reduce((sum, item) => sum + item.weight, 0);
+  const momentumContribution = clamp(
+    signedDeadband(weightedMomentumPct, 2.5) * 0.6,
+    -25,
+    30
+  );
+  const sealedContribution = clamp(
+    signedDeadband(input.sealedTrendPct ?? 0, 2) * 0.2,
+    -12,
+    18
+  );
+  const ebayContribution = clamp(
+    signedDeadband(input.ebayDemandAdjustment ?? 0, 0.75) * 1.5,
+    -7,
+    9
+  );
+  const competitiveContribution =
+    input.competitiveScore == null
+      ? 0
+      : clamp((input.competitiveScore - 50) * 0.08, -4, 4);
+  const catalystContribution = clamp(
+    (input.catalystScore ?? 0) * 10 + (input.hypeScore ?? 0) * 4,
+    -12,
+    12
+  );
+
+  const lifecycleTrusted = (input.lifecycleConfidence ?? 0) >= 65;
+  const lifecycleContribution = lifecycleTrusted
+    ? input.lifecycleStatus === "confirmed_out_of_print"
+      ? 10
+      : input.lifecycleStatus === "likely_out_of_print"
+        ? 7
+        : input.lifecycleStatus === "supply_tightening"
+          ? 4
+          : input.lifecycleStatus === "actively_supplied"
+            ? -3
+            : input.lifecycleStatus === "reprint_restock"
+              ? -12
+              : 0
+    : 0;
+  const oopProbabilityContribution =
+    lifecycleTrusted && input.lifecycleOopProbability != null
+      ? clamp((input.lifecycleOopProbability - 50) * 0.06, -3, 3)
+      : 0;
+
+  const positiveConfirmations = [
+    momentumContribution >= 3,
+    ebayContribution >= 2,
+    sealedContribution + lifecycleContribution >= 4,
+    catalystContribution >= 3,
+    competitiveContribution >= 2,
+  ].filter(Boolean).length;
+  const negativeConfirmations = [
+    momentumContribution <= -3,
+    ebayContribution <= -2,
+    sealedContribution + lifecycleContribution <= -4,
+    catalystContribution <= -3,
+    competitiveContribution <= -2,
+  ].filter(Boolean).length;
+
+  // Rarity, scarcity, artist demand and grading potential amplify confirmed
+  // demand. They never manufacture a bullish direction on their own.
+  const qualityValues = [
+    input.setRarityScore,
+    input.confluenceScore,
+    input.scarcityScore,
+    input.artistDemandScore,
+    input.collectorDemandScore,
+  ].filter((value): value is number => value != null && Number.isFinite(value));
+  const qualityAverage =
+    qualityValues.length === 0
+      ? 0
+      : qualityValues.reduce((sum, value) => sum + value, 0) / qualityValues.length;
+  const raritySupportsUpside =
+    (input.setRarityScore ?? input.scarcityScore) >= 70 && input.scarcityScore >= 60;
+  const strongPositiveEvidence =
+    momentumContribution >= 8 ||
+    ebayContribution >= 5 ||
+    sealedContribution + lifecycleContribution >= 8 ||
+    catalystContribution >= 5;
+  const qualityContribution =
+    strongPositiveEvidence &&
+    positiveConfirmations >= 1 &&
+    positiveConfirmations > negativeConfirmations &&
+    raritySupportsUpside
+      ? clamp((qualityAverage - 65) * 0.22, 0, positiveConfirmations >= 2 ? 10 : 5)
+      : 0;
+
+  const valuationContribution =
+    input.currentVsAverage30dPct == null
+      ? 0
+      : input.currentVsAverage30dPct >= 40
+        ? -14
+        : input.currentVsAverage30dPct >= 20
+          ? -7
+          : input.currentVsAverage30dPct <= -20 && positiveConfirmations >= 1
+            ? 4
+            : 0;
+
+  let releasePhaseContribution = 0;
+  if (input.ageYears != null && input.ageYears < 0.18) {
+    releasePhaseContribution =
+      positiveConfirmations >= 2 && input.opportunityScore >= 80 ? 4 : -4;
+  } else if (input.ageYears != null && input.ageYears < 0.5) {
+    releasePhaseContribution = positiveConfirmations >= 2 ? -8 : -10;
+  } else if (input.ageYears != null && input.ageYears < 1) {
+    releasePhaseContribution = positiveConfirmations >= 2 ? -6 : -9;
+  } else if (input.ageYears != null && input.ageYears < 1.5) {
+    releasePhaseContribution = -3;
+  }
+
+  const riskContribution = Math.max(0, input.riskScore) * 30;
+  const rawReturn180 = clamp(
+    momentumContribution +
+      sealedContribution +
+      ebayContribution +
+      competitiveContribution +
+      catalystContribution +
+      lifecycleContribution +
+      oopProbabilityContribution +
+      qualityContribution +
+      valuationContribution +
+      releasePhaseContribution -
+      riskContribution,
+    -45,
+    80
+  );
   const calculatedConfidence: ExternalPriceScenario["confidence"] =
     input.evidenceCount >= 3 && input.historyPoints >= 8
       ? "High"
@@ -554,6 +669,34 @@ export function buildPriceScenario(input: {
     input.ageYears != null && input.ageYears < 1 && calculatedConfidence === "High"
       ? "Medium"
       : calculatedConfidence;
+  const confidenceShrinkage = confidence === "High" ? 0.9 : confidence === "Medium" ? 0.68 : 0.4;
+  const noiseFloorPct =
+    currentPrice < 5 ? 3 : currentPrice < 25 ? 2.5 : currentPrice < 100 ? 2 : 1.5;
+  const shrunkReturn180 = rawReturn180 * confidenceShrinkage;
+  const provisionalReturnPct180 =
+    Math.abs(shrunkReturn180) < noiseFloorPct ? 0 : Number(shrunkReturn180.toFixed(1));
+  const visibleMove =
+    currentPrice < 5
+      ? { absolute: 1, percent: 20 }
+      : currentPrice < 25
+        ? { absolute: 2, percent: 15 }
+        : currentPrice < 100
+          ? { absolute: 5, percent: 12 }
+          : { absolute: 10, percent: 10 };
+  const expectedAbsoluteMove = Math.abs((currentPrice * provisionalReturnPct180) / 100);
+  const outlook: NonNullable<ExternalPriceScenario["outlook"]> =
+    provisionalReturnPct180 >= 20 && expectedAbsoluteMove >= visibleMove.absolute
+      ? "strong_up"
+      : provisionalReturnPct180 >= 4 && expectedAbsoluteMove >= Math.min(visibleMove.absolute, currentPrice * 0.04)
+        ? "modest_up"
+        : provisionalReturnPct180 <= -Math.max(2.5, visibleMove.percent * 0.25) &&
+            expectedAbsoluteMove >= Math.min(visibleMove.absolute, currentPrice * 0.025)
+          ? "down"
+          : "flat";
+  // A flat classification must also produce a truly horizontal base line.
+  // Otherwise a €300 card still appears to be a prediction when the model only
+  // found a few euros of ordinary market drift.
+  const expectedReturnPct180 = outlook === "flat" ? 0 : provisionalReturnPct180;
   const uncertaintyMultiplier = confidence === "High" ? 0.75 : confidence === "Medium" ? 1 : 1.3;
   const releaseUncertaintyMultiplier =
     input.ageYears == null || input.ageYears >= 1
@@ -565,7 +708,27 @@ export function buildPriceScenario(input: {
         : 1.1;
   const points = SCENARIO_DAYS.map((days) => {
     const months = days / 30;
-    const base = currentPrice * (1 + monthlyRate) ** months;
+    const horizonFactor =
+      expectedReturnPct180 === 0
+        ? 0
+        : expectedReturnPct180 > 0
+          ? input.ageYears != null && input.ageYears < 0.18
+            ? days === 30
+              ? 0.55
+              : days === 90
+                ? 0.82
+                : 1
+            : days === 30
+              ? 0.35
+              : days === 90
+                ? 0.67
+                : 1
+          : days === 30
+            ? 0.45
+            : days === 90
+              ? 0.75
+              : 1;
+    const base = currentPrice * (1 + (expectedReturnPct180 * horizonFactor) / 100);
     const spread = Math.min(
       0.48,
       (0.055 + Math.sqrt(months) * 0.045) * uncertaintyMultiplier * releaseUncertaintyMultiplier
@@ -585,6 +748,13 @@ export function buildPriceScenario(input: {
     input.ebayDemandAdjustment != null && input.ebayDemandAdjustment !== 0
       ? "eBay demand"
       : null,
+    lifecycleContribution > 0
+      ? "out-of-print pressure"
+      : lifecycleContribution < 0
+        ? "active supply or reprint"
+        : null,
+    catalystContribution !== 0 ? "fresh catalyst" : null,
+    valuationContribution < 0 ? "price overextension" : null,
     input.ageYears != null && input.ageYears < 0.18
       ? "launch price discovery"
       : input.ageYears != null && input.ageYears < 1
@@ -596,6 +766,8 @@ export function buildPriceScenario(input: {
     currentPrice,
     currency: input.currency,
     confidence,
+    outlook,
+    expectedReturnPct180,
     points,
     drivers,
   };

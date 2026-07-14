@@ -394,6 +394,223 @@ describe("external market intelligence", () => {
     expect(scenario?.confidence).toBe("High");
   });
 
+  it("produces distinct bearish, flat, modest, and strong 180-day regimes", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 4,
+      opportunityScore: 95,
+      scarcityScore: 95,
+      gemRatePct: 12,
+      evidenceCount: 4,
+      historyPoints: 20,
+    };
+    const scenarios = {
+      bearish: buildPriceScenario({
+        ...shared,
+        sealedTrendPct: -8,
+        rawTrend90dPct: -18,
+        ebayDemandAdjustment: -3,
+        riskScore: 0.08,
+      }),
+      flat: buildPriceScenario({
+        ...shared,
+        sealedTrendPct: null,
+        rawTrend90dPct: null,
+        ebayDemandAdjustment: 0,
+        riskScore: 0,
+      }),
+      modest: buildPriceScenario({
+        ...shared,
+        sealedTrendPct: 3,
+        rawTrend90dPct: 5,
+        ebayDemandAdjustment: 2,
+        riskScore: 0,
+      }),
+      strong: buildPriceScenario({
+        ...shared,
+        sealedTrendPct: 30,
+        rawTrend90dPct: 30,
+        ebayDemandAdjustment: 6,
+        riskScore: 0,
+      }),
+    };
+    const horizon = (key: keyof typeof scenarios) =>
+      scenarios[key]?.points.find((point) => point.days === 180)?.base ?? NaN;
+
+    expect(horizon("bearish")).toBeLessThan(95);
+    expect(horizon("flat")).toBe(100);
+    expect(horizon("modest")).toBeGreaterThan(100);
+    expect(horizon("modest")).toBeLessThanOrEqual(108);
+    expect(horizon("strong")).toBeGreaterThanOrEqual(115);
+    expect([
+      horizon("bearish"),
+      horizon("flat"),
+      horizon("modest"),
+      horizon("strong"),
+    ]).toEqual([...[
+      horizon("bearish"),
+      horizon("flat"),
+      horizon("modest"),
+      horizon("strong"),
+    ]].sort((left, right) => left - right));
+
+    expect(isActionablePriceScenario(scenarios.modest)).toBe(false);
+    expect(isActionablePriceScenario(scenarios.strong)).toBe(true);
+    expect(scenarios.bearish?.points.map((point) => point.base)).toEqual(
+      [...(scenarios.bearish?.points.map((point) => point.base) ?? [])].sort(
+        (left, right) => right - left
+      )
+    );
+    expect(scenarios.flat?.points.map((point) => point.base)).toEqual([100, 100, 100]);
+    expect(scenarios.strong?.points.map((point) => point.base)).toEqual(
+      [...(scenarios.strong?.points.map((point) => point.base) ?? [])].sort(
+        (left, right) => left - right
+      )
+    );
+  });
+
+  it("does not use static ranking strength as automatic price direction", () => {
+    const buildNeutral = (input: {
+      opportunityScore: number;
+      scarcityScore: number;
+      gemRatePct: number | null;
+    }) =>
+      buildPriceScenario({
+        marketMode: "graded",
+        currentPrice: 100,
+        currency: "EUR",
+        ageYears: 7,
+        sealedTrendPct: null,
+        rawTrend90dPct: null,
+        ebayDemandAdjustment: 0,
+        riskScore: 0,
+        evidenceCount: 4,
+        historyPoints: 20,
+        ...input,
+      });
+
+    const ordinary = buildNeutral({
+      opportunityScore: 35,
+      scarcityScore: 20,
+      gemRatePct: 80,
+    });
+    const structurallyExceptional = buildNeutral({
+      opportunityScore: 100,
+      scarcityScore: 100,
+      gemRatePct: 2,
+    });
+
+    expect(ordinary?.points.map((point) => point.base)).toEqual([100, 100, 100]);
+    expect(structurallyExceptional?.points.map((point) => point.base)).toEqual([
+      100,
+      100,
+      100,
+    ]);
+  });
+
+  it("keeps an overextended newly released low rarity card out of a bullish forecast", () => {
+    const scenario = buildPriceScenario({
+      marketMode: "raw",
+      currentPrice: 2,
+      currency: "EUR",
+      ageYears: 0.2,
+      opportunityScore: 92,
+      sealedTrendPct: null,
+      rawTrend30dPct: 25,
+      rawTrend90dPct: null,
+      rawTrend180dPct: null,
+      scarcityScore: 40,
+      setRarityScore: 25,
+      artistDemandScore: 92,
+      collectorDemandScore: 100,
+      catalystScore: 0.4,
+      ebayDemandAdjustment: -4,
+      currentVsAverage30dPct: 50,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 4,
+      historyPoints: 12,
+    });
+
+    expect(["flat", "down"]).toContain(scenario?.outlook);
+    expect(scenario?.points.at(-1)?.base).toBeLessThanOrEqual(2);
+  });
+
+  it("allows a top-rarity launch chase with independent demand signals to be strong upside", () => {
+    const scenario = buildPriceScenario({
+      marketMode: "raw",
+      currentPrice: 100,
+      currency: "EUR",
+      ageYears: 0.08,
+      opportunityScore: 95,
+      sealedTrendPct: 12,
+      rawTrend30dPct: 22,
+      rawTrend90dPct: null,
+      rawTrend180dPct: null,
+      scarcityScore: 86,
+      setRarityScore: 100,
+      confluenceScore: 94,
+      artistDemandScore: 92,
+      collectorDemandScore: 100,
+      catalystScore: 0.8,
+      ebayDemandAdjustment: 4,
+      gemRatePct: 18,
+      riskScore: 0,
+      evidenceCount: 5,
+      historyPoints: 12,
+    });
+
+    expect(scenario?.outlook).toBe("strong_up");
+    expect(scenario?.expectedReturnPct180).toBeGreaterThanOrEqual(20);
+  });
+
+  it("lets a trusted reprint and weakening demand override positive old momentum", () => {
+    const scenario = buildPriceScenario({
+      marketMode: "raw",
+      currentPrice: 100,
+      currency: "EUR",
+      ageYears: 4,
+      opportunityScore: 88,
+      sealedTrendPct: 10,
+      rawTrend90dPct: 8,
+      scarcityScore: 90,
+      setRarityScore: 95,
+      ebayDemandAdjustment: -2,
+      lifecycleStatus: "reprint_restock",
+      lifecycleConfidence: 90,
+      lifecycleOopProbability: 15,
+      gemRatePct: null,
+      riskScore: 0.1,
+      evidenceCount: 4,
+      historyPoints: 20,
+    });
+
+    expect(scenario?.outlook).toBe("down");
+    expect(scenario?.points.at(-1)?.base).toBeLessThan(100);
+  });
+
+  it("rounds a tiny low-price drift back to a genuinely flat base line", () => {
+    const scenario = buildPriceScenario({
+      marketMode: "raw",
+      currentPrice: 2,
+      currency: "EUR",
+      ageYears: 3,
+      opportunityScore: 75,
+      sealedTrendPct: null,
+      rawTrend90dPct: 1,
+      scarcityScore: 70,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 15,
+    });
+
+    expect(scenario?.outlook).toBe("flat");
+    expect(scenario?.points.map((point) => point.base)).toEqual([2, 2, 2]);
+  });
+
   it("keeps optimistic scenarios for new releases close to flat during stabilization", () => {
     const shared = {
       marketMode: "raw" as const,

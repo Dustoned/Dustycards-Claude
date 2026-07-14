@@ -40,6 +40,7 @@ import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 const DAY_MS = 86_400_000;
 const CARD_CHUNK_SIZE = 50;
 const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
+const FORECAST_MODEL_VERSION = "signed-market-v3";
 
 const LIFECYCLE_COPY: Record<
   SetLifecycleStatus,
@@ -371,10 +372,10 @@ export async function enrichSignalsWithMarketIntelligence(
   const cacheKey = signals
     .map(
       (signal) =>
-        `${signal.cardId}:${signal.externalScore}:${signal.riskScore ?? 0}:${signal.currency}:${signal.currentPrice ?? "none"}`
+        `${signal.cardId}:${signal.externalScore}:${signal.competitiveScore ?? "none"}:${signal.catalystScore ?? 0}:${signal.hypeScore ?? 0}:${signal.riskScore ?? 0}:${signal.currency}:${signal.currentPrice ?? "none"}`
     )
     .sort()
-    .join("|") + `::ebay:${ebayDemandVersion}`;
+    .join("|") + `::ebay:${ebayDemandVersion}::model:${FORECAST_MODEL_VERSION}`;
   return marketIntelligenceCache.get(cacheKey, () =>
     enrichSignalsWithMarketIntelligenceUncached(signals, now)
   );
@@ -678,8 +679,23 @@ async function enrichSignalsWithMarketIntelligenceUncached(
             : [price.tcp_mid, price.tcp_low],
       }))
     );
+    const rawTrend30dPct = calculateRobustPriceTrend(rawHistory, 30)?.percent ?? null;
     const rawTrend90dPct = calculateRobustPriceTrend(rawHistory, 90)?.percent ?? null;
+    const rawTrend180dPct = calculateRobustPriceTrend(rawHistory, 180)?.percent ?? null;
     const latestRaw = card.prices[0];
+    const currentVsAverage30dPct =
+      signal.currency === "EUR" &&
+      signal.currentPrice != null &&
+      latestRaw?.cm_en_avg_30d != null &&
+      latestRaw.cm_en_avg_30d > 0
+        ? Number(
+            (
+              ((signal.currentPrice - latestRaw.cm_en_avg_30d) /
+                latestRaw.cm_en_avg_30d) *
+              100
+            ).toFixed(1)
+          )
+        : null;
     const rawMarketBreadth = latestRaw
       ? [
           latestRaw.cm_en_lowest_nm,
@@ -771,13 +787,29 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       ageYears,
       opportunityScore: structuralOpportunity.raw,
       sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
+      rawTrend30dPct,
       rawTrend90dPct,
+      rawTrend180dPct,
       scarcityScore: scarcity.score,
       gemRatePct,
       riskScore: signal.riskScore ?? 0,
       evidenceCount: rawEvidenceCount,
       historyPoints: rawHistory.length,
       ebayDemandAdjustment: ebayDemand.scoreAdjustment,
+      competitiveScore:
+        signal.sourceMode === "competitive" || signal.sourceMode === "hybrid"
+          ? signal.competitiveScore ?? null
+          : null,
+      catalystScore: signal.catalystScore ?? null,
+      hypeScore: signal.hypeScore ?? null,
+      setRarityScore: setRarity.setRarityScore,
+      confluenceScore: structuralConfluence.score,
+      artistDemandScore: artistScore,
+      collectorDemandScore: collectorScore,
+      lifecycleStatus: sealed.lifecycleStatus,
+      lifecycleConfidence: sealed.lifecycleConfidence,
+      lifecycleOopProbability: sealed.lifecycleOopProbability,
+      currentVsAverage30dPct,
     });
     const gradedScenario = buildPriceScenario({
       marketMode: "graded",
@@ -786,13 +818,28 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       ageYears,
       opportunityScore: structuralOpportunity.graded,
       sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
+      rawTrend30dPct,
       rawTrend90dPct,
+      rawTrend180dPct,
       scarcityScore: scarcity.score,
       gemRatePct,
       riskScore: signal.riskScore ?? 0,
       evidenceCount: gradedEvidenceCount + (graded.sampleSize != null ? 1 : 0),
       historyPoints: card.ebaySoldGradedPriceSnapshots.length,
       ebayDemandAdjustment: gradedEbayDemand.scoreAdjustment,
+      competitiveScore:
+        signal.sourceMode === "competitive" || signal.sourceMode === "hybrid"
+          ? signal.competitiveScore ?? null
+          : null,
+      catalystScore: signal.catalystScore ?? null,
+      hypeScore: signal.hypeScore ?? null,
+      setRarityScore: setRarity.setRarityScore,
+      confluenceScore: structuralConfluence.score,
+      artistDemandScore: artistScore,
+      collectorDemandScore: collectorScore,
+      lifecycleStatus: sealed.lifecycleStatus,
+      lifecycleConfidence: sealed.lifecycleConfidence,
+      lifecycleOopProbability: sealed.lifecycleOopProbability,
     });
     const rawOpportunity = alignOpportunityScoreWithScenario(
       structuralOpportunity.raw,

@@ -47,6 +47,8 @@ export interface ExternalPriceScenario {
   currentPrice: number;
   currency: "EUR" | "USD";
   confidence: "High" | "Medium" | "Low";
+  outlook?: "strong_up" | "modest_up" | "flat" | "down";
+  expectedReturnPct180?: number;
   points: ExternalPriceScenarioPoint[];
   drivers: string[];
 }
