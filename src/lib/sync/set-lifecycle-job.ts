@@ -9,6 +9,7 @@ const SET_LIFECYCLE_JOB_STALE_MS = 30 * 60_000;
 const DAY_MS = 24 * 60 * 60_000;
 const REPRINT_RESET_WINDOW_MS = 180 * DAY_MS;
 const MAX_SET_EVIDENCE_DISTANCE = 220;
+const SEALED_SNAPSHOT_QUERY_CHUNK_SIZE = 400;
 
 const PACK_NAME_RE = /\b(?:booster|blister|sleeved\s+pack|single\s+pack)\b/i;
 const PACK_CONTAINER_RE = /\b(?:box|case|display|bundle|collection|tin)\b/i;
@@ -61,6 +62,35 @@ type SnapshotRow = {
   fetched_at: Date;
   cm_lowest: number | null;
 };
+
+export function chunkLifecycleProductIds(
+  productIds: readonly string[],
+  chunkSize = SEALED_SNAPSHOT_QUERY_CHUNK_SIZE
+): string[][] {
+  if (!Number.isInteger(chunkSize) || chunkSize < 1) {
+    throw new RangeError("chunkSize must be a positive integer");
+  }
+
+  const chunks: string[][] = [];
+  for (let index = 0; index < productIds.length; index += chunkSize) {
+    chunks.push(productIds.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+async function fetchLifecycleSnapshots(productIds: readonly string[]): Promise<SnapshotRow[]> {
+  const snapshots: SnapshotRow[] = [];
+  for (const productIdChunk of chunkLifecycleProductIds(productIds)) {
+    snapshots.push(
+      ...(await db.sealedPriceSnapshot.findMany({
+        where: { product_id: { in: productIdChunk } },
+        select: { product_id: true, fetched_at: true, cm_lowest: true },
+        orderBy: [{ product_id: "asc" }, { fetched_at: "asc" }],
+      }))
+    );
+  }
+  return snapshots;
+}
 
 function finitePositive(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
@@ -346,13 +376,7 @@ async function runLifecycleObservationPass(now: Date, bucket: Date) {
   })) as ProductRow[];
   const productIds = products.map((product) => product.id);
   const [snapshots, catalysts] = await Promise.all([
-    productIds.length
-      ? db.sealedPriceSnapshot.findMany({
-          where: { product_id: { in: productIds } },
-          select: { product_id: true, fetched_at: true, cm_lowest: true },
-          orderBy: [{ product_id: "asc" }, { fetched_at: "asc" }],
-        })
-      : Promise.resolve([]),
+    fetchLifecycleSnapshots(productIds),
     db.externalCardCatalyst.findMany({
       where: {
         game: { in: [...new Set(episodes.map((episode) => episode.game))] },

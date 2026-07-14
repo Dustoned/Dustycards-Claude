@@ -6,6 +6,7 @@ vi.mock("@/lib/set-lifecycle-core", () => ({ assessSetLifecycle: vi.fn() }));
 
 import {
   calculateLifecycleSetTrend,
+  chunkLifecycleProductIds,
   getLifecycleCatalystEvidenceAt,
   getSetLifecycleObservationBucket,
   hasSetLevelOopStatement,
@@ -16,6 +17,19 @@ import {
 } from "@/lib/sync/set-lifecycle-job";
 
 describe("set lifecycle observation helpers", () => {
+  it("chunks sealed-product queries below SQLite's parameter limit", () => {
+    const productIds = Array.from({ length: 805 }, (_, index) => `product-${index}`);
+
+    const chunks = chunkLifecycleProductIds(productIds);
+
+    expect(chunks.map((chunk) => chunk.length)).toEqual([400, 400, 5]);
+    expect(chunks.flat()).toEqual(productIds);
+  });
+
+  it("rejects an invalid lifecycle query chunk size", () => {
+    expect(() => chunkLifecycleProductIds(["product-1"], 0)).toThrow(RangeError);
+  });
+
   it("uses a stable Monday UTC bucket for the whole week", () => {
     expect(
       getSetLifecycleObservationBucket(new Date("2026-07-19T23:59:59.000Z")).toISOString()
