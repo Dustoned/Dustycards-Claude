@@ -46,6 +46,33 @@ describe("safe CardMarket history aliases", () => {
     expect(isSafeCardMarketHistoryAlias(identity, candidate())).toBe(true);
   });
 
+  it("rejects an unapproved base/alternate-art sibling even when all catalogue fields match", () => {
+    const onePieceIdentity: CardMarketHistoryIdentity = {
+      id: "one-piece:29650",
+      game: "one-piece",
+      episodeId: "one-piece:367",
+      name: "Nico Robin",
+      cardNumber: "OP05-010",
+      printedCardNumber: "OP05-010",
+      cardmarketId: "799301",
+      cardmarketUrl:
+        "https://www.cardmarket.com/OnePiece/Products?idProduct=799301&language=1",
+    };
+    const alternateArt: CardMarketAliasCandidate = {
+      id: "one-piece:34241",
+      game: "one-piece",
+      episode_id: "one-piece:367",
+      name: "Nico Robin",
+      card_number: "OP05-010",
+      printed_card_number: "OP05-010",
+      cardmarket_id: "799301",
+      cardmarket_url:
+        "https://www.cardmarket.com/OnePiece/Products?idProduct=799301&language=1",
+    };
+
+    expect(isSafeCardMarketHistoryAlias(onePieceIdentity, alternateArt)).toBe(false);
+  });
+
   it.each([
     ["different game", { game: "one-piece" }],
     ["different set", { episode_id: "other-set" }],

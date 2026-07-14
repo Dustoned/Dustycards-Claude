@@ -107,7 +107,7 @@ describe("loadSafeCardMarketHistoryRows", () => {
     dbMock.card.findMany
       .mockResolvedValueOnce([
         {
-          id: "old-printing",
+          id: "9907",
           game: "pokemon",
           episode_id: "set-1",
           name: "Example-GX",
@@ -117,7 +117,7 @@ describe("loadSafeCardMarketHistoryRows", () => {
           cardmarket_url: "https://www.cardmarket.com/Pokemon/Products?idProduct=1",
         },
         {
-          id: "current-printing",
+          id: "9908",
           game: "pokemon",
           episode_id: "set-1",
           name: "Example-GX",
@@ -129,7 +129,7 @@ describe("loadSafeCardMarketHistoryRows", () => {
       ])
       .mockResolvedValueOnce([
         {
-          id: "old-printing",
+          id: "9907",
           prices: [
             {
               fetched_at: new Date("2026-07-14T12:00:00.000Z"),
@@ -140,7 +140,7 @@ describe("loadSafeCardMarketHistoryRows", () => {
           ],
         },
         {
-          id: "current-printing",
+          id: "9908",
           prices: [
             {
               fetched_at: new Date("2026-07-14T12:00:00.000Z"),
@@ -154,7 +154,7 @@ describe("loadSafeCardMarketHistoryRows", () => {
 
     const prices = await loadLatestSafeEnglishNmPrices([
       {
-        id: "current-printing",
+        id: "9908",
         game: "pokemon",
         episodeId: "set-1",
         name: "Example-GX",
@@ -165,11 +165,11 @@ describe("loadSafeCardMarketHistoryRows", () => {
       },
     ]);
 
-    expect(prices.get("current-printing")).toEqual(
+    expect(prices.get("9908")).toEqual(
       expect.objectContaining({
         value: 20,
         row: expect.objectContaining({
-          card_id: "current-printing",
+          card_id: "9908",
           cm_en_lowest_nm: 20,
           tcp_market: 22,
         }),

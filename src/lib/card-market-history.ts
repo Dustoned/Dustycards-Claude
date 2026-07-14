@@ -2,6 +2,15 @@ import { db } from "@/lib/db";
 
 const SQLITE_SAFE_CHUNK_SIZE = 200;
 
+/**
+ * Cross-card history is dangerous even when the upstream CardMarket id, set,
+ * name and collector number all match: One Piece base and alternate-art cards
+ * can share every one of those fields. Keep hand-offs explicit and audited.
+ */
+const SAFE_CARDMARKET_HISTORY_HANDOFF_GROUPS: readonly ReadonlySet<string>[] = [
+  new Set(["9907", "9908"]),
+];
+
 export interface CardMarketHistoryIdentity {
   id: string;
   game: string;
@@ -94,14 +103,22 @@ function cardMarketProductIdFromUrl(url: string | null | undefined): string | nu
 
 /**
  * CardMarket ids in the upstream catalogue are not globally trustworthy.
- * Only accept a sibling when set, game, normalized name and collector number
- * all agree. This admits provider hand-offs such as 157 -> 157a while keeping
- * unrelated cards that accidentally share a CardMarket id isolated.
+ * Cross-card history is therefore accepted only for an explicitly audited
+ * provider hand-off, after which the identity fields below still have to
+ * agree. Exact-card history is always loaded independently of this function.
  */
 export function isSafeCardMarketHistoryAlias(
   identity: CardMarketHistoryIdentity,
   candidate: CardMarketAliasCandidate
 ): boolean {
+  if (
+    identity.id !== candidate.id &&
+    !SAFE_CARDMARKET_HISTORY_HANDOFF_GROUPS.some(
+      (group) => group.has(identity.id) && group.has(candidate.id)
+    )
+  ) {
+    return false;
+  }
   if (!identity.cardmarketId || candidate.cardmarket_id !== identity.cardmarketId) {
     return false;
   }
