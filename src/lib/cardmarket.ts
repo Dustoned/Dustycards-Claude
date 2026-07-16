@@ -157,10 +157,13 @@ export function resolveCardMarketSealedProductUrl(product: {
   cardmarket_url?: string | null;
 }): string | null {
   if (isDirectCardMarketUrl(product.cardmarket_url) && !isCardMarketProductIdUrl(product.cardmarket_url)) {
-    return product.cardmarket_url;
+    return withCardMarketFilters(product.cardmarket_url);
   }
 
-  return buildCardMarketSealedProductUrl(product.name) ?? product.cardmarket_url ?? null;
+  const sealedUrl = buildCardMarketSealedProductUrl(product.name);
+  if (sealedUrl) return withCardMarketFilters(sealedUrl);
+
+  return product.cardmarket_url ? withCardMarketFilters(product.cardmarket_url) : null;
 }
 
 export function buildCardMarketProxyUrl(cardId: string): string {

@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import {
   calculateExternalEventScore,
+  selectActionableRadarCohort,
   selectDiverseEventSignals,
 } from "@/lib/external-signal-intelligence";
 import type {
@@ -37,12 +38,16 @@ function signal(input: {
   episodeCode?: string | null;
   episodeName?: string;
   externalScore?: number;
+  sourceMode?: ExternalCardSignal["sourceMode"];
+  currentPrice?: number;
+  ageYears?: number;
+  catalysts?: ExternalSignalCatalyst[];
 }): ExternalCardSignal {
   return {
     rank: 0,
     cardId: input.cardId,
     entityKey: input.entityKey ?? `${input.game ?? "pokemon"}:${input.cardId}`,
-    sourceMode: "event",
+    sourceMode: input.sourceMode ?? "event",
     game: input.game ?? "pokemon",
     name: input.cardId,
     imageUrl: null,
@@ -50,7 +55,7 @@ function signal(input: {
     episodeName: input.episodeName ?? input.episodeCode ?? "Test set",
     episodeCode: input.episodeCode ?? "SET",
     rarity: "Special Illustration Rare",
-    currentPrice: 10,
+    currentPrice: input.currentPrice ?? 10,
     currency: "EUR",
     externalScore: input.externalScore ?? 70,
     competitiveScore: 0,
@@ -63,6 +68,11 @@ function signal(input: {
     maxDeckSharePercent: 0,
     maxInclusionPercent: 0,
     archetypeCount: 0,
+    catalysts: input.catalysts,
+    marketIntelligence:
+      input.ageYears == null
+        ? undefined
+        : ({ sealed: { ageYears: input.ageYears } } as ExternalCardSignal["marketIntelligence"]),
   };
 }
 
@@ -152,5 +162,69 @@ describe("event signal coverage", () => {
 
     expect(oneEpisode).toHaveLength(12);
     expect(oneEntity).toHaveLength(4);
+  });
+});
+
+describe("actionable radar cohort", () => {
+  it("keeps a small trophy group without letting it fill the cohort", () => {
+    const trophyCards = Array.from({ length: 8 }, (_, index) =>
+      signal({
+        cardId: `trophy-${index}`,
+        sourceMode: "structural",
+        currentPrice: 5_000,
+        ageYears: 20,
+      })
+    );
+    const selected = selectActionableRadarCohort([
+      ...trophyCards,
+      signal({
+        cardId: "fresh-trophy-event",
+        sourceMode: "event",
+        currentPrice: 5_000,
+        catalysts: [catalyst()],
+      }),
+      signal({ cardId: "accessible", sourceMode: "structural", currentPrice: 180, ageYears: 7 }),
+    ]);
+
+    expect(selected.filter((candidate) => candidate.cardId.startsWith("trophy-"))).toHaveLength(2);
+    expect(selected.map((candidate) => candidate.cardId)).toContain("fresh-trophy-event");
+    expect(selected.map((candidate) => candidate.cardId)).toContain("accessible");
+  });
+
+  it("does not limit old cards merely because of their age", () => {
+    const mature = Array.from({ length: 10 }, (_, index) =>
+      signal({
+        cardId: `mature-${index}`,
+        sourceMode: "structural",
+        currentPrice: 200,
+        ageYears: 20,
+      })
+    );
+    const selected = selectActionableRadarCohort(mature);
+
+    expect(selected).toHaveLength(10);
+  });
+
+  it("prevents premium structural cards from filling a game cohort", () => {
+    const premium = Array.from({ length: 10 }, (_, index) =>
+      signal({
+        cardId: `premium-${index}`,
+        sourceMode: "structural",
+        currentPrice: 800,
+        ageYears: 7,
+      })
+    );
+    const accessible = Array.from({ length: 10 }, (_, index) =>
+      signal({
+        cardId: `accessible-${index}`,
+        sourceMode: "structural",
+        currentPrice: 120,
+        ageYears: 7,
+      })
+    );
+    const selected = selectActionableRadarCohort([...premium, ...accessible]);
+
+    expect(selected.filter((candidate) => candidate.cardId.startsWith("premium-"))).toHaveLength(6);
+    expect(selected.filter((candidate) => candidate.cardId.startsWith("accessible-"))).toHaveLength(10);
   });
 });

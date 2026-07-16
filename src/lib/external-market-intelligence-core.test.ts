@@ -47,6 +47,53 @@ describe("external market intelligence", () => {
     expect(["High", "Extreme"]).toContain(old.pressureLabel);
   });
 
+  it("raises sealed pressure when the raw chase value is dense relative to pack price", () => {
+    const denseChase = calculateSealedPressure({
+      ageYears: 4,
+      packPrice: 15,
+      rawCardPrice: 120,
+      trend30dPct: 2,
+      trend90dPct: 6,
+      packProductCount: 2,
+      hasReprintRisk: false,
+    });
+    const shallowChase = calculateSealedPressure({
+      ageYears: 4,
+      packPrice: 15,
+      rawCardPrice: 24,
+      trend30dPct: 2,
+      trend90dPct: 6,
+      packProductCount: 2,
+      hasReprintRisk: false,
+    });
+
+    expect(denseChase.pressureScore).toBeGreaterThan(shallowChase.pressureScore);
+    expect(denseChase.pressureLabel).not.toBe("Low");
+  });
+
+  it("does not let a trophy-card price overpower a healthy chase ratio", () => {
+    const healthyChase = calculateSealedPressure({
+      ageYears: 7,
+      packPrice: 20,
+      rawCardPrice: 160,
+      trend30dPct: 2,
+      trend90dPct: 6,
+      packProductCount: 2,
+      hasReprintRisk: false,
+    });
+    const trophyCard = calculateSealedPressure({
+      ageYears: 7,
+      packPrice: 20,
+      rawCardPrice: 5_000,
+      trend30dPct: 2,
+      trend90dPct: 6,
+      packProductCount: 2,
+      hasReprintRisk: false,
+    });
+
+    expect(trophyCard).toEqual(healthyChase);
+  });
+
   it("uses only sufficiently confident lifecycle evidence in sealed pressure", () => {
     const shared = {
       ageYears: 4,

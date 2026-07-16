@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCardMarketProxyUrl,
+  buildCardMarketSealedProductUrl,
   getSafeDirectCardMarketCardUrl,
   isCardMarketProductIdUrl,
   resolveCardMarketCardUrl,
+  resolveCardMarketSealedProductUrl,
 } from "@/lib/cardmarket";
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 
@@ -68,6 +70,20 @@ describe("CardMarket card URL resolution", () => {
     expect(getSafeDirectCardMarketCardUrl(url, POKEMON_GAME)).toBeNull();
     expect(getSafeDirectCardMarketCardUrl(url, ONE_PIECE_GAME)).toBe(
       "https://www.cardmarket.com/en/OnePiece/Products/Singles/OP03/Issho-OP03-078?language=1&minCondition=2"
+    );
+  });
+
+  it("adds English NM filters to sealed product links", () => {
+    expect(buildCardMarketSealedProductUrl("Mega Greninja ex Premium Collection")).toBe(
+      "https://www.cardmarket.com/en/Pokemon/Products/Box-Sets/Mega-Greninja-ex-Premium-Collection"
+    );
+    expect(
+      resolveCardMarketSealedProductUrl({
+        name: "Mega Greninja ex Premium Collection",
+        cardmarket_url: null,
+      })
+    ).toBe(
+      "https://www.cardmarket.com/en/Pokemon/Products/Box-Sets/Mega-Greninja-ex-Premium-Collection?language=1&minCondition=2"
     );
   });
 });

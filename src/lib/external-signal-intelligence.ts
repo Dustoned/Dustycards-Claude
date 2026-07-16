@@ -31,6 +31,10 @@ const MIN_EVENT_ONLY_SCORE = 38;
 const MAX_STRUCTURAL_SIGNALS = 90;
 const MAX_STRUCTURAL_SIGNALS_PER_GAME_ERA = 8;
 const MAX_STRUCTURAL_VARIANTS_PER_ENTITY = 3;
+const PREMIUM_STRUCTURAL_PRICE = 500;
+const TROPHY_STRUCTURAL_PRICE = 2_500;
+const MAX_PREMIUM_STRUCTURAL_SIGNALS_PER_GAME = 6;
+const MAX_TROPHY_STRUCTURAL_SIGNALS_PER_GAME = 2;
 const structuralSignalCache = createSwrCache<ExternalCardSignal[]>(6 * 60 * 60_000, 24 * 60 * 60_000);
 const onDemandSignalCache = createSwrCache<ExternalCardSignal>(5 * 60_000, 30 * 60_000);
 
@@ -372,6 +376,38 @@ export function selectDiverseEventSignals(signals: ExternalCardSignal[]): Extern
       return true;
     })
     .slice(0, MAX_EVENT_ONLY_SIGNALS);
+}
+
+/**
+ * Keeps obvious trophy cards from filling the default Radar without treating
+ * age itself as a negative signal. Fresh event and tournament signals are not
+ * subject to these structural-card quotas.
+ */
+export function selectActionableRadarCohort(
+  signals: readonly ExternalCardSignal[]
+): ExternalCardSignal[] {
+  const premiumStructuralByGame = new Map<TradingCardGame, number>();
+  const trophyStructuralByGame = new Map<TradingCardGame, number>();
+
+  return signals.filter((signal) => {
+    if (signal.sourceMode !== "structural") return true;
+
+    const premium =
+      signal.currentPrice != null && signal.currentPrice > PREMIUM_STRUCTURAL_PRICE;
+    const trophy =
+      signal.currentPrice != null && signal.currentPrice > TROPHY_STRUCTURAL_PRICE;
+    const premiumCount = premiumStructuralByGame.get(signal.game) ?? 0;
+    const trophyCount = trophyStructuralByGame.get(signal.game) ?? 0;
+    if (
+      (premium && premiumCount >= MAX_PREMIUM_STRUCTURAL_SIGNALS_PER_GAME) ||
+      (trophy && trophyCount >= MAX_TROPHY_STRUCTURAL_SIGNALS_PER_GAME)
+    ) {
+      return false;
+    }
+    if (premium) premiumStructuralByGame.set(signal.game, premiumCount + 1);
+    if (trophy) trophyStructuralByGame.set(signal.game, trophyCount + 1);
+    return true;
+  });
 }
 
 async function loadStructuralSignalSeeds(
@@ -812,7 +848,7 @@ export async function enrichExternalSignalRadarData(
     now
   );
   const forecasts = await getExternalForecastSummaries(selected.map((signal) => signal.cardId));
-  const signals = selected
+  const rankedSignals = selected
     .map((signal) => ({
       ...signal,
       forecast: forecasts.get(signal.cardId) ?? null,
@@ -842,7 +878,8 @@ export async function enrichExternalSignalRadarData(
         right.externalScore - left.externalScore ||
         right.archetypeCount - left.archetypeCount ||
         left.rank - right.rank
-    )
+    );
+  const signals = selectActionableRadarCohort(rankedSignals)
     .map((signal, index) => ({ ...signal, rank: index + 1 }));
 
   return {

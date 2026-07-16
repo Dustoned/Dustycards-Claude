@@ -56,11 +56,17 @@ export function calculateSealedPressure(input: {
 }): Pick<ExternalSealedIntelligence, "pressureScore" | "pressureLabel"> {
   const ageScore =
     input.ageYears == null ? 0 : Math.min(30, Math.max(0, (input.ageYears - 1) * 3.5));
-  const ratio =
-    input.packPrice != null && input.rawCardPrice != null && input.rawCardPrice > 0
-      ? input.packPrice / input.rawCardPrice
+  const valueDensity =
+    input.packPrice != null && input.packPrice > 0 && input.rawCardPrice != null
+      ? input.rawCardPrice / input.packPrice
       : null;
-  const accessScore = ratio == null ? 0 : Math.min(26, Math.max(0, Math.log2(ratio + 1) * 8));
+  // Cheaper sealed relative to the value of the strongest raw cards is more
+  // pressure-positive. Cap the ratio once it already represents a strong
+  // chase: trophy-card prices are not extra evidence that sealed is actionable.
+  const accessScore =
+    valueDensity == null
+      ? 0
+      : Math.min(28, Math.max(0, Math.log2(Math.min(valueDensity, 8) + 1) * 7));
   const trend = input.trend30dPct ?? input.trend90dPct ?? 0;
   const trendScore = Math.min(25, Math.max(-18, trend * 0.7));
   const availabilityScore =
