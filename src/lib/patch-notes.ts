@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.0",
+    releasedAt: "July 18, 2026",
+    title: "Signal Radar v9: predictions that measure themselves",
+    summary:
+      "DustyCards 3.7.0 overhauls the Signal Radar prediction engine: full price history since release now feeds the model, every forecast is scored against what actually happened, and a backtest harness validates the math offline.",
+    tone: "new",
+    highlights: [
+      "Every displayed forecast (outlook, expected return, price bands) is now stored the moment it is made and scored once its 30/90/180-day horizon matures — direction accuracy, band coverage and error size per cohort.",
+      "The model now sees up to 3 years of price history per card: volatility-aware momentum and bands, distance-from-all-time-high overextension checks, 365-day momentum, JP-vs-EN lead-lag and card-vs-set relative strength.",
+      "Cleaner math: correlated inputs no longer double-count, downside is as expressible as upside, and confidence reflects how noisy a card's history actually is.",
+      "More reliable data: eBay demand now focuses capacity so cards actually reach readiness, deck scans survive a single timeout, old news decays instead of counting forever, and discovered sources queue instead of vanishing.",
+      "New offline backtest harness (scripts/backtest-signal-radar.mjs) replayed 4,284 historical predictions to find the next calibration targets.",
+      "Also in this release: graded target scoring improvements, graded eBay listing filters, and weekly collection value drivers.",
+    ],
+  },
+  {
     version: "3.6.24",
     releasedAt: "July 12, 2026",
     title: "Ultrawide radar dashboard",
