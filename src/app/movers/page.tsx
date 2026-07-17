@@ -136,8 +136,8 @@ function getModeCopy(
       eyebrow: activeItemScope === "collection" ? "Grade Targets / Collection" : "Grade Targets / All Cards",
       title: "Market",
       description:
-        "Find cards where the raw CardMarket price is low compared with the current graded value.",
-      ranking: "Raw vs graded upside",
+        "Find cards where conservative graded value still beats raw price after grading cost, grade odds, and lower-grade fallback.",
+      ranking: "Risk-adjusted grade upside",
     };
   }
 
@@ -517,7 +517,7 @@ export default async function MoversPage({
           label: activeItemScope === "all" ? "Tracked Cards" : "Collection Cards",
           value: cardData?.trackedCards.toLocaleString("en-US") ?? "0",
           hint: isGradingScope
-            ? "Labels compared with raw CardMarket price."
+            ? "Labels checked across equivalent grading companies."
             : isGradedScope
               ? "Current labels with graded price data."
               : "Cards checked for raw movement.",
@@ -528,7 +528,7 @@ export default async function MoversPage({
           label: isGradingScope ? "Targets" : isGradedScope ? "Labels Shown" : "Moving",
           value: cardData?.eligibleCards.toLocaleString("en-US") ?? "0",
           hint: isGradingScope
-            ? "Positive raw-to-graded upside."
+            ? "Positive expected gain after grading risk."
             : isGradedScope
               ? "Current slab labels in the market list."
               : "Cards with meaningful movement.",
@@ -767,7 +767,7 @@ export default async function MoversPage({
             }
             emptyDescription={
               isGradingScope
-                ? "No current graded label has positive raw-to-graded upside with a raw CardMarket price yet."
+                ? "No target has positive expected value after grading cost, grade odds, and lower-grade fallback."
                 : isGradedScope
                   ? "No current graded labels have enough data to show."
                   : "There is not enough recent movement for this filter combination yet."
@@ -780,7 +780,7 @@ export default async function MoversPage({
             }
             description={
               isGradingScope
-                ? "Sorted by raw-to-graded upside with the extra details available per card."
+                ? "Sorted by risk-adjusted grade upside using company-equivalent grades and the lower-grade fallback."
                 : isGradedScope
                   ? "Every graded label is listed separately, with movement filters nearby."
                   : "Raw cards grouped around risers, drops, and market pockets with the relevant switches nearby."

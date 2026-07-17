@@ -391,7 +391,7 @@ describe("mover scopes", () => {
   );
 
   it(
-    "shows raw-to-graded grade targets sorted by opportunity score",
+    "shows risk-adjusted grade targets sorted by opportunity score",
     async () => {
       const [gradingData, currentGradedCount] = await Promise.all([
         getMovers("cm_en", "grading"),
@@ -407,8 +407,11 @@ describe("mover scopes", () => {
         gradingData.movers.every(
           (item) =>
             item.grading &&
-            item.grading.gradedPrice === item.currentPrice &&
-            item.grading.valueGap > 0 &&
+            item.grading.marketPrice === item.currentPrice &&
+            item.grading.gradedPrice <= item.currentPrice &&
+            item.grading.expectedGain > 0 &&
+            item.grading.priceStatus !== "suspicious" &&
+            item.priceQuality.status !== "suspicious" &&
             item.moverScore === item.grading.score
         )
       ).toBe(true);

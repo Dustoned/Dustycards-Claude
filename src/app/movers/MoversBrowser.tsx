@@ -10,6 +10,7 @@ import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { BuySignalLabel } from "@/lib/buy-signal";
 import { textMatchesSearchQuery } from "@/lib/card-search";
+import { parseGradingTargetLabel } from "@/lib/grading-targets";
 import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/movers";
 import {
   compareMoverItems,
@@ -96,10 +97,7 @@ const BUY_SIGNAL_FILTER_OPTIONS: Array<{ value: BuySignalFilter; label: string }
 ];
 
 function isGradeTenLabel(label: string | null | undefined): boolean {
-  if (!label) return false;
-
-  const normalized = label.toUpperCase().replace(/[^A-Z0-9.]+/g, " ");
-  return /\b(?:PSA|BGS|CGC|SGC)?\s*10\b/.test(normalized) || normalized.includes("GEM MINT");
+  return parseGradingTargetLabel(label).isGradeTenEquivalent;
 }
 
 function getRecentDropAmount(item: Pick<CollectionMoverItem, "change7d" | "change30d">): number {
@@ -146,8 +144,8 @@ function matchesFocusFilter(
   if (focusFilter === "grading_upside") {
     return (
       options.isGradingScope &&
-      (item.grading?.valueMultiplier ?? 0) >= 3 &&
-      (item.grading?.valueGap ?? 0) >= 20
+      (item.grading?.expectedMultiplier ?? 0) >= 1.25 &&
+      (item.grading?.expectedGain ?? 0) >= 20
     );
   }
 
@@ -183,7 +181,7 @@ function buildFocusOptions({
           label: isGradingScope ? "Older cheap 10s" : "Older value",
         },
         ...(isGradingScope
-          ? [{ value: "grading_upside" as const, label: "3x+ upside" }]
+          ? [{ value: "grading_upside" as const, label: "EV 1.25x+" }]
           : [{ value: "high_rarity" as const, label: "High rarity" }]),
         { value: "owned", label: "Owned x2+" },
       ];
@@ -319,8 +317,8 @@ export default function MoversBrowser({
       return [
         { key: "grade_score" as const, label: "Best targets" },
         { key: "older_value" as const, label: "Older value" },
-        { key: "grade_multiplier" as const, label: "Multiplier" },
-        { key: "grade_gap" as const, label: "Value gap" },
+        { key: "grade_multiplier" as const, label: "Expected return" },
+        { key: "grade_gap" as const, label: "Expected gain" },
         { key: "raw_price_low" as const, label: "Raw price" },
         { key: "name" as const, label: "Name" },
       ];

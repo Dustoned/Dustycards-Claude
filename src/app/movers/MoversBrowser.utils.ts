@@ -35,9 +35,9 @@ export function buildSortSummary(sortKey: SortKey, direction: DirectionFilter): 
     case "grade_score":
       return "Grade score best target -> weakest target";
     case "grade_multiplier":
-      return "Raw-to-graded multiplier high -> low";
+      return "Risk-adjusted return high -> low";
     case "grade_gap":
-      return "Raw-to-graded gap high -> low";
+      return "Expected grading gain high -> low";
     case "older_value":
       return "Older affordable cards first";
     case "raw_price_low":
@@ -136,13 +136,13 @@ export function compareMoverItems(
     if (diff !== 0) return diff;
   } else if (sortKey === "grade_multiplier") {
     const diff = compareMetricValues(
-      a.grading?.valueMultiplier,
-      b.grading?.valueMultiplier,
+      a.grading?.expectedMultiplier,
+      b.grading?.expectedMultiplier,
       "desc"
     );
     if (diff !== 0) return diff;
   } else if (sortKey === "grade_gap") {
-    const diff = compareMetricValues(a.grading?.valueGap, b.grading?.valueGap, "desc");
+    const diff = compareMetricValues(a.grading?.expectedGain, b.grading?.expectedGain, "desc");
     if (diff !== 0) return diff;
   } else if (sortKey === "older_value") {
     const diff = compareMetricValues(a.olderValueScore, b.olderValueScore, "desc");

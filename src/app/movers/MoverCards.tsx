@@ -234,35 +234,48 @@ export function getMoverReasons(
     return [{ label: item.priceQuality.reason ?? "Outlier ignored", tone: "rose" }];
   }
 
-  if (item.priceQuality.status === "thin_history") {
+  if (item.priceQuality.status === "thin_history" && mode !== "target") {
     return [{ label: item.priceQuality.reason ?? "Thin history", tone: "amber" }];
   }
 
   if (mode === "target" && item.grading) {
-    if (item.grading.valueMultiplier != null && item.grading.valueMultiplier >= 3) {
+    if (item.grading.priceAdjusted) {
       reasons.push({
-        label: `${item.grading.valueMultiplier.toFixed(1)}x grade upside`,
-        tone: "emerald",
-      });
-    } else if (item.grading.valueMultiplier != null && item.grading.valueMultiplier >= 2) {
-      reasons.push({
-        label: `${item.grading.valueMultiplier.toFixed(1)}x graded`,
-        tone: "emerald",
+        label: `Ask ${formatCurrency(item.grading.marketPrice, "EUR")} capped`,
+        tone: "amber",
       });
     }
     if (
-      item.grading.valueGap != null &&
-      item.grading.valueGap >= 100 &&
+      item.grading.gradeStepMultiplier != null &&
+      item.grading.spreadRisk !== "normal" &&
       reasons.length < 2
     ) {
       reasons.push({
-        label: `+${formatCurrency(item.grading.valueGap, "EUR")} gap`,
+        label: `${item.grading.gradeStepMultiplier.toFixed(1)}x vs ${item.grading.fallbackLabel ?? "lower grade"}`,
         tone: "amber",
+      });
+    }
+    if (item.grading.expectedGain > 0 && reasons.length < 2) {
+      reasons.push({
+        label: `EV +${formatCurrency(item.grading.expectedGain, "EUR")}`,
+        tone: "emerald",
+      });
+    }
+    if (item.priceQuality.status === "thin_history" && reasons.length < 2) {
+      reasons.push({
+        label: item.priceQuality.reason ?? "Thin grade data",
+        tone: "amber",
+      });
+    }
+    if (item.grading.tier === "pristine" && reasons.length < 2) {
+      reasons.push({
+        label: `${item.grading.estimatedHitRatePct.toFixed(1)}% pristine hit`,
+        tone: "violet",
       });
     }
     if (item.olderValueScore >= 5 && reasons.length < 2) {
       reasons.push({
-        label: item.gradedLabel?.includes("10") ? "Old cheap 10" : "Older value",
+        label: item.grading.tier === "gem" ? "Older gem target" : "Older value",
         tone: "sky",
       });
     }
@@ -405,28 +418,26 @@ function buildCompactMetrics(
 
   if (mode === "target" && item.grading) {
     all.push(
-      item.tcggoScore?.score != null
-        ? { label: "TCGGO", value: formatOptionalScore(item.tcggoScore.score) }
-        : null,
       { label: "Raw CM", value: formatCurrency(item.grading.rawPrice, "EUR") },
       {
-        label: item.gradedLabel ?? "Graded",
+        label: `${item.gradedLabel ?? "Grade"} target`,
         value: formatTileCurrency(item.grading.gradedPrice, "EUR"),
       },
-      item.grading.valueGap != null
+      item.grading.fallbackPrice != null
         ? {
-            label: "Gap",
-            value: formatTileDelta(item.grading.valueGap, "EUR"),
-            toneValue: item.grading.valueGap,
+            label: item.grading.fallbackLabel ?? "Lower grade",
+            value: formatTileCurrency(item.grading.fallbackPrice, "EUR"),
           }
-        : null,
-      item.grading.valueMultiplier != null
-        ? {
-            label: "Multiplier",
-            value: `${item.grading.valueMultiplier.toFixed(2)}x`,
-            toneValue: item.grading.valueMultiplier - 1,
-          }
-        : null
+        : {
+            label: "Expected",
+            value: formatTileCurrency(item.grading.expectedValue, "EUR"),
+            toneValue: item.grading.expectedGain,
+          },
+      {
+        label: "Hit rate",
+        value: `${item.grading.estimatedHitRatePct.toFixed(1)}%`,
+        toneValue: item.grading.estimatedHitRatePct - 25,
+      }
     );
   } else if (mode === "graded") {
     all.push(
@@ -604,7 +615,7 @@ const MoverTile = memo(function MoverTile({
             <MoverReasonChips item={item} mode={mode} changeDisplay={changeDisplay} />
             {mode === "target" ? (
               <span className="inline-flex rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/45">
-                Target
+                {item.grading?.tier === "pristine" ? "Pristine target" : "Grade target"}
               </span>
             ) : null}
             {item.ownedCount > 0 ? (

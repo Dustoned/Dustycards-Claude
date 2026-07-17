@@ -22,6 +22,7 @@
 /test-results/
 /.firecrawl/
 /*.png
+/backtest-signal-radar-report.json
 
 # next.js
 /.next/

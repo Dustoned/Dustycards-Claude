@@ -6,6 +6,14 @@ import {
 import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
 import { startPerformanceTimer } from "@/lib/performance-timing";
 import {
+  buildGradingTargetAssessment,
+  parseGradingTargetLabel,
+  type GradingTargetAssessment,
+  type GradingTargetPriceStatus,
+  type GradingTargetSpreadRisk,
+  type GradingTargetTier,
+} from "@/lib/grading-targets";
+import {
   CARD_MARKET_HISTORY_SERIES,
   buildCardPriceHistory,
   getCardMarketHistorySeriesCurrentValue,
@@ -337,9 +345,24 @@ export interface MoverGradedPrice {
 
 export interface MoverGradingInsight {
   rawPrice: number;
+  marketPrice: number;
   gradedPrice: number;
   valueGap: number;
   valueMultiplier: number;
+  expectedValue: number;
+  expectedGain: number;
+  expectedMultiplier: number;
+  estimatedHitRatePct: number;
+  gradingCost: number;
+  fallbackLabel: string | null;
+  fallbackPrice: number | null;
+  gradeStepMultiplier: number | null;
+  spreadRisk: GradingTargetSpreadRisk;
+  tier: GradingTargetTier;
+  tierLabel: string;
+  priceAdjusted: boolean;
+  priceStatus: GradingTargetPriceStatus;
+  priceReason: string | null;
   olderValueScore: number;
   score: number;
 }
@@ -1022,21 +1045,7 @@ function getAgeWeight(releaseAgeYears: number | null): number {
 }
 
 function isGradeTenLabel(label: string | null | undefined): boolean {
-  if (!label) return false;
-
-  const normalized = label.toUpperCase().replace(/[^A-Z0-9.]+/g, " ");
-  return /\b(?:PSA|BGS|CGC|SGC)?\s*10\b/.test(normalized) || normalized.includes("GEM MINT");
-}
-
-function getGradingDifficultyWeight(label: string | null | undefined): number {
-  if (!label) return 1;
-
-  const normalized = label.toUpperCase().replace(/[^A-Z0-9.]+/g, " ");
-  const isBgs = /\bBGS\b/.test(normalized);
-  const isTen = /\b10\b/.test(normalized) || normalized.includes("PRISTINE");
-  if (!isBgs || !isTen) return 1;
-
-  return normalized.includes("BLACK") ? 0.62 : 0.76;
+  return parseGradingTargetLabel(label).isGradeTenEquivalent;
 }
 
 function getOlderValueScore(input: {
@@ -1073,60 +1082,81 @@ function getOlderValueScore(input: {
 }
 
 interface GradingInsightOptions {
+  assessment: GradingTargetAssessment;
   ageWeight?: number;
   olderValueScore?: number;
   isGradeTen?: boolean;
-  gradeDifficultyWeight?: number;
 }
 
 function buildGradingInsight(
   rawPrice: number | null,
-  gradedPrice: number | null,
   rarityWeight: number,
-  options: GradingInsightOptions = {}
+  options: GradingInsightOptions
 ): MoverGradingInsight | null {
-  if (rawPrice == null || gradedPrice == null || rawPrice <= 0 || gradedPrice <= 0) {
+  const { assessment } = options;
+  const gradedPrice = assessment.targetPrice;
+  if (rawPrice == null || rawPrice <= 0 || gradedPrice <= 0) {
     return null;
   }
 
   const valueGap = gradedPrice - rawPrice;
   const valueMultiplier = gradedPrice / rawPrice;
-  const positiveGap = Math.max(valueGap, 0);
-  const positiveMultiplier = Math.max(valueMultiplier, 1);
+  const positiveExpectedGain = Math.max(assessment.expectedGain, 0);
   const rawAffordabilityBoost =
     rawPrice <= 5
-      ? 1.45
+      ? 1.18
       : rawPrice <= 10
-        ? 1.35
+        ? 1.14
         : rawPrice <= 20
-          ? 1.24
+          ? 1.1
           : rawPrice <= 40
-            ? 1.12
+            ? 1.05
             : rawPrice <= 75
               ? 1
               : rawPrice <= 120
-                ? 0.84
-                : 0.68;
-  const multiplierScore = Math.log2(positiveMultiplier) * 42;
-  const gapScore = Math.min(positiveGap, 700) / 6;
+                ? 0.92
+                : 0.82;
+  const expectedMultiplierScore =
+    Math.log2(Math.max(assessment.expectedMultiplier, 1)) * 42;
+  const expectedGainScore = Math.min(positiveExpectedGain, 600) / 7;
+  const targetGapScore = Math.min(Math.max(valueGap, 0), 500) / 25;
   const ageMultiplier = clamp(options.ageWeight ?? 1, 1, 1.24);
-  const gradeTenMultiplier = options.isGradeTen ? 1.07 : 1;
-  const gradeDifficultyWeight = clamp(options.gradeDifficultyWeight ?? 1, 0.5, 1);
+  const gradeTenMultiplier = options.isGradeTen ? 1.03 : 1;
+  const qualityWeight =
+    assessment.priceStatus === "suspicious"
+      ? 0
+      : assessment.priceStatus === "thin_history"
+        ? 0.68
+        : 1;
   const olderValueScore = options.olderValueScore ?? 0;
   const rawScore =
-    Math.max(0, multiplierScore + gapScore) *
+    (expectedMultiplierScore + expectedGainScore + targetGapScore) *
       rawAffordabilityBoost *
       clamp(rarityWeight, 0.75, 1.85) *
       ageMultiplier *
-      gradeTenMultiplier +
-    olderValueScore;
-  const score = round(rawScore * gradeDifficultyWeight);
+      gradeTenMultiplier + olderValueScore;
+  const score = round(clamp(rawScore * qualityWeight, 0, 100));
 
   return {
     rawPrice: round(rawPrice),
+    marketPrice: assessment.marketPrice,
     gradedPrice: round(gradedPrice),
     valueGap: round(valueGap),
     valueMultiplier: round(valueMultiplier, 2),
+    expectedValue: assessment.expectedValue,
+    expectedGain: assessment.expectedGain,
+    expectedMultiplier: assessment.expectedMultiplier,
+    estimatedHitRatePct: assessment.estimatedHitRatePct,
+    gradingCost: assessment.gradingCost,
+    fallbackLabel: assessment.fallbackLabel,
+    fallbackPrice: assessment.fallbackPrice,
+    gradeStepMultiplier: assessment.gradeStepMultiplier,
+    spreadRisk: assessment.spreadRisk,
+    tier: assessment.tier,
+    tierLabel: assessment.tierLabel,
+    priceAdjusted: assessment.priceAdjusted,
+    priceStatus: assessment.priceStatus,
+    priceReason: assessment.priceReason,
     olderValueScore,
     score,
   };
@@ -1584,6 +1614,9 @@ async function buildGradedMoversData(
     ? "WHERE user_id = ? AND for_sale = 0 AND sold_at IS NULL"
     : "WHERE for_sale = 0 AND sold_at IS NULL";
   const gradedWhereParts = ["c.game = ?"];
+  if (scope === "grading") {
+    gradedWhereParts.push("gp.price > 0", "gp.price <> 9001");
+  }
   if (itemScope === "collection") {
     gradedWhereParts.push("COALESCE(oc.owned_count, 0) > 0");
   }
@@ -1915,12 +1948,25 @@ async function buildGradedMoversData(
       kind: scope === "grading" ? "grading" : "graded",
       isGradeTen,
     });
-    const grading = buildGradingInsight(cardmarketPrice, currentPrice, rarityWeight, {
-      ageWeight,
-      olderValueScore,
-      isGradeTen,
-      gradeDifficultyWeight: getGradingDifficultyWeight(row.graded_label),
-    });
+    const gradingAssessment =
+      cardmarketPrice != null
+        ? buildGradingTargetAssessment({
+            label: row.graded_label,
+            marketPrice: currentPrice,
+            rawPrice: cardmarketPrice,
+            peerPrices: gradedPricesByCardId.get(row.card_id) ?? [],
+            ageYears: releaseAgeYears,
+            gemRatePct: pullRateInfo?.psaAvgGemPct ?? null,
+          })
+        : null;
+    const grading = gradingAssessment
+      ? buildGradingInsight(cardmarketPrice, rarityWeight, {
+          assessment: gradingAssessment,
+          ageWeight,
+          olderValueScore,
+          isGradeTen,
+        })
+      : null;
     const scores = buildMoverScores({
       kind: "graded",
       currentPrice,
@@ -1935,6 +1981,22 @@ async function buildGradedMoversData(
       cheapnessWeight,
       ageWeight,
     });
+    const priceQuality: MoverPriceQuality =
+      scope === "grading" && grading
+        ? grading.priceStatus === "suspicious" ||
+          scores.priceQuality.status === "suspicious"
+          ? {
+              status: "suspicious",
+              reason: grading.priceReason ?? scores.priceQuality.reason,
+            }
+          : grading.priceStatus === "thin_history" ||
+              scores.priceQuality.status === "thin_history"
+            ? {
+                status: "thin_history",
+                reason: grading.priceReason ?? scores.priceQuality.reason,
+              }
+            : scores.priceQuality
+        : scores.priceQuality;
     const moverScore = scope === "grading" ? grading?.score ?? 0 : scores.rankingScore;
     const rankingScore = scope === "grading" ? moverScore : scores.rankingScore;
 
@@ -1999,7 +2061,7 @@ async function buildGradedMoversData(
       movementScore: scores.movementScore,
       opportunityScore: scores.opportunityScore,
       rankingScore,
-      priceQuality: scores.priceQuality,
+      priceQuality,
       buySignal,
       moverScore,
     });
@@ -2008,16 +2070,23 @@ async function buildGradedMoversData(
   const sortedMovers =
     scope === "grading"
       ? [...movers]
-          .filter((item) => item.grading && item.grading.valueGap > 0)
+          .filter(
+            (item) =>
+              item.grading &&
+              item.grading.expectedGain > 0 &&
+              item.grading.score > 0 &&
+              item.grading.priceStatus !== "suspicious" &&
+              item.priceQuality.status !== "suspicious"
+          )
           .sort((a, b) => {
             const scoreDiff = (b.grading?.score ?? 0) - (a.grading?.score ?? 0);
             if (scoreDiff !== 0) return scoreDiff;
 
             const multiplierDiff =
-              (b.grading?.valueMultiplier ?? 0) - (a.grading?.valueMultiplier ?? 0);
+              (b.grading?.expectedMultiplier ?? 0) - (a.grading?.expectedMultiplier ?? 0);
             if (multiplierDiff !== 0) return multiplierDiff;
 
-            const gapDiff = (b.grading?.valueGap ?? 0) - (a.grading?.valueGap ?? 0);
+            const gapDiff = (b.grading?.expectedGain ?? 0) - (a.grading?.expectedGain ?? 0);
             if (gapDiff !== 0) return gapDiff;
 
             return `${a.name} ${a.gradedLabel ?? ""}`.localeCompare(
