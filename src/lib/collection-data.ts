@@ -518,11 +518,12 @@ const SQLITE_SAFE_CHUNK_SIZE = 250;
 const COLLECTION_OVERVIEW_CHART_DAYS = 120;
 export const BINDER_HISTORY_RECENT_DAYS = COLLECTION_OVERVIEW_CHART_DAYS;
 const COLLECTION_VALUE_DRIVER_LIMIT = 24;
-const COLLECTION_VALUE_DRIVER_WINDOW_DAYS = 2;
-const COLLECTION_VALUE_DRIVER_STALE_DAYS = COLLECTION_VALUE_DRIVER_WINDOW_DAYS;
+export const COLLECTION_VALUE_DRIVER_WINDOW_DAYS = 7;
+const COLLECTION_VALUE_DRIVER_STALE_DAYS = 2;
+const COLLECTION_VALUE_DRIVER_ANCHOR_TOLERANCE_DAYS = 2;
 // How far before the baseline date a card's baseline snapshot may sit and still
 // count as a genuine window-length move (see isValueDriverBaselineTooOld).
-const COLLECTION_VALUE_DRIVER_BASELINE_MAX_AGE_DAYS = COLLECTION_VALUE_DRIVER_WINDOW_DAYS;
+const COLLECTION_VALUE_DRIVER_BASELINE_MAX_AGE_DAYS = 2;
 const EMPTY_COLLECTION_VALUE_DRIVERS: CollectionValueDriversData = {
   latestDate: null,
   latestLabel: null,
@@ -574,6 +575,30 @@ function shiftHistoryDateKey(dateKey: string, days: number): string {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+export function pickValueDriverWindowStartDate(
+  dates: readonly string[],
+  latestDate: string,
+  windowDays = COLLECTION_VALUE_DRIVER_WINDOW_DAYS,
+  toleranceDays = COLLECTION_VALUE_DRIVER_ANCHOR_TOLERANCE_DAYS
+): string | null {
+  if (!latestDate || windowDays <= 0) return null;
+
+  const windowStartDate = shiftHistoryDateKey(latestDate, -windowDays);
+  const latestAllowedDate = shiftHistoryDateKey(
+    latestDate,
+    -Math.max(windowDays - Math.max(toleranceDays, 0), 1)
+  );
+
+  return (
+    dates
+      .filter(
+        (date) =>
+          date < latestDate && date >= windowStartDate && date <= latestAllowedDate
+      )
+      .sort((left, right) => left.localeCompare(right))[0] ?? null
+  );
 }
 
 function getValueDriverStaleBeforeDate(maxAgeDays = COLLECTION_VALUE_DRIVER_STALE_DAYS): string {
@@ -1365,10 +1390,13 @@ function pickCollectionValueDriverPreviousPoint(
     return previousPoints[previousPoints.length - 1] ?? null;
   }
 
-  const windowStartDate = shiftHistoryDateKey(latestPoint.date, -windowDays);
-  const windowPoints = previousPoints.filter((point) => point.date >= windowStartDate);
+  const previousDate = pickValueDriverWindowStartDate(
+    previousPoints.map((point) => point.date),
+    latestPoint.date,
+    windowDays
+  );
 
-  return windowPoints[0] ?? previousPoints[previousPoints.length - 1] ?? null;
+  return previousPoints.find((point) => point.date === previousDate) ?? null;
 }
 
 type CollectionValueDriverDraft = Omit<
@@ -1478,12 +1506,12 @@ function buildCollectionValueDrivers({
     if (isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate)) continue;
     const baseline = cardBaselineValues.get(item.card_id);
     // Without a fresh baseline snapshot we cannot attribute the change to this
-    // 2-day window, so the card is left out (and old moves drop off in time).
+    // weekly window, so the card is left out (and old moves drop off in time).
     if (!baseline || isValueDriverBaselineTooOld(baseline.date, minBaselineDate)) continue;
     // The baseline comes from raw price history. If a card's current value is
     // graded / eBay-sold rather than raw, the "change" would be the graded
-    // premium versus raw — a constant offset that never ages out, not a 2-day
-    // market move. We can't measure a graded card's 2-day change from raw
+    // premium versus raw — a constant offset that never ages out, not a weekly
+    // market move. We can't measure a graded card's weekly change from raw
     // history, so it is left out of the drivers (this is the "Raw -> Graded"
     // entry that used to stay pinned to the panel for weeks).
     const currentSource = getCollectionValueDriverCardSource(item);
@@ -1574,7 +1602,7 @@ function buildCollectionValueDrivers({
     previousDate: previousPoint.date,
     previousLabel: previousPoint.label,
     // Net must equal the drivers we actually show. Using the collection chart
-    // delta (current total vs 2 days ago) leaked the graded premium back in —
+    // delta (current total vs the weekly baseline) leaked the graded premium back in —
     // current value uses graded prices while the drivers are raw-only — so the
     // badge disagreed with the list and the source breakdown.
     totalChange: roundCurrency(gainsTotal + dropsTotal),
@@ -2212,10 +2240,15 @@ async function getAllCardValueDriversData(
       AND p.cm_en_lowest_nm <> 9001
     GROUP BY DATE(p.fetched_at)
     ORDER BY date DESC
-    LIMIT 2
+    LIMIT ${COLLECTION_VALUE_DRIVER_WINDOW_DAYS + 2}
   `;
   const latestDate = dates[0]?.date ?? null;
-  const previousDate = dates[1]?.date ?? null;
+  const previousDate = latestDate
+    ? pickValueDriverWindowStartDate(
+        dates.map((entry) => entry.date),
+        latestDate
+      )
+    : null;
 
   if (!latestDate || !previousDate) {
     timer.finish({ historyDays: dates.length, drivers: 0 });

@@ -40,8 +40,8 @@ function getDriverDateDistanceDays(data: CollectionValueDriversData): number | n
 function getDriverWindowLabel(data: CollectionValueDriversData): string {
   const days = getDriverDateDistanceDays(data);
 
-  if (days == null) return "Latest movement";
-  if (days <= 2) return "Last 2 days";
+  if (days == null) return "Weekly movement";
+  if (days >= 5 && days <= 9) return "Last 7 days";
   return `Latest ${days} days`;
 }
 

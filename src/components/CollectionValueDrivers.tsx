@@ -512,7 +512,7 @@ export default function CollectionValueDrivers({
     <div className="space-y-3">
       {!hasDrivers ? (
         <div className="rounded-xl border border-dashed border-black/10 bg-black/[0.025] px-4 py-8 text-center text-sm text-gray-500 dark:border-white/10 dark:bg-white/[0.035] dark:text-white/40">
-          No item-level value changes in the latest comparison window.
+          No item-level value changes in the latest weekly comparison window.
         </div>
       ) : (
         <>
@@ -523,9 +523,9 @@ export default function CollectionValueDrivers({
           ) : null}
 
           <SectionHeader
-            eyebrow="Value Changes"
+            eyebrow="Weekly Value Changes"
             title="Market list"
-            description={`Raw-style value changes for ${rangeLabel.toLowerCase()}.`}
+            description={`Weekly raw-style value changes for ${rangeLabel.toLowerCase()}.`}
             actions={
               <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
                 {shouldLazyRender

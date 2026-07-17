@@ -37,7 +37,7 @@ describe("collection query contracts", () => {
 
   it("builds all-card value drivers from usable English NM rows only", async () => {
     dbMock.$queryRaw
-      .mockResolvedValueOnce([{ date: "2026-07-13" }, { date: "2026-07-12" }])
+      .mockResolvedValueOnce([{ date: "2026-07-13" }, { date: "2026-07-06" }])
       .mockResolvedValueOnce([]);
 
     const result = await getCollectionValueDriversData("user-query-contract", "all", "pokemon");

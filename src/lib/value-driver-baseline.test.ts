@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isValueDriverBaselineTooOld } from "./collection-data";
+import {
+  COLLECTION_VALUE_DRIVER_WINDOW_DAYS,
+  isValueDriverBaselineTooOld,
+  pickValueDriverWindowStartDate,
+} from "./collection-data";
 
-// Window is 2 days; baseline date is the previous chart point (e.g. Jun 26),
-// minBaselineDate is 2 days before that (Jun 24). A baseline snapshot older
-// than Jun 24 means the "change" really spans a longer, unknown period.
+// The weekly anchor can use a baseline snapshot up to two days before its
+// selected date. Anything older spans a longer, unknown period.
 describe("isValueDriverBaselineTooOld", () => {
   const minBaselineDate = "2026-06-24";
 
@@ -21,5 +24,35 @@ describe("isValueDriverBaselineTooOld", () => {
   it("drops a card with no baseline snapshot at all", () => {
     expect(isValueDriverBaselineTooOld(null, minBaselineDate)).toBe(true);
     expect(isValueDriverBaselineTooOld(undefined, minBaselineDate)).toBe(true);
+  });
+});
+
+describe("pickValueDriverWindowStartDate", () => {
+  it("selects the date closest to seven days before the latest snapshot", () => {
+    expect(COLLECTION_VALUE_DRIVER_WINDOW_DAYS).toBe(7);
+    expect(
+      pickValueDriverWindowStartDate(
+        ["2026-07-14", "2026-07-13", "2026-07-09", "2026-07-08", "2026-07-07"],
+        "2026-07-14"
+      )
+    ).toBe("2026-07-07");
+  });
+
+  it("allows a missing snapshot within the two-day weekly-anchor tolerance", () => {
+    expect(
+      pickValueDriverWindowStartDate(
+        ["2026-07-14", "2026-07-13", "2026-07-09", "2026-07-08"],
+        "2026-07-14"
+      )
+    ).toBe("2026-07-08");
+  });
+
+  it("rejects short-term and older snapshots as a weekly baseline", () => {
+    expect(
+      pickValueDriverWindowStartDate(
+        ["2026-07-14", "2026-07-10", "2026-07-06"],
+        "2026-07-14"
+      )
+    ).toBeNull();
   });
 });
