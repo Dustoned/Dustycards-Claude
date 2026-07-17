@@ -7,7 +7,10 @@ import {
   type EbayCardMatch,
   type EbayMatchCard,
 } from "@/lib/ebay-card-matching";
-import { getCollectionMatchedGradedPrice } from "@/lib/collection";
+import {
+  COLLECTION_GRADING_COMPANIES,
+  getCollectionMatchedGradedPrice,
+} from "@/lib/collection";
 import { db } from "@/lib/db";
 import {
   buildEbayCardDemandSearchQuery,
@@ -33,6 +36,15 @@ import type { Prisma } from "@/generated/prisma";
 export const runtime = "nodejs";
 
 type DealMode = "raw" | "graded" | "sealed";
+type GradingListingFilter = {
+  company: string | null;
+  grade: string | null;
+  explicit: boolean;
+};
+
+const SELECTABLE_GRADING_GRADES = new Set(
+  Array.from({ length: 19 }, (_, index) => String(10 - index * 0.5))
+);
 
 function parseDealMode(value: string | null): DealMode | null {
   return value === "raw" || value === "graded" || value === "sealed" ? value : null;
@@ -40,6 +52,51 @@ function parseDealMode(value: string | null): DealMode | null {
 
 function parseBuyingMode(value: string | null): EbayBuyingMode | null {
   return value === "fixed" || value === "auction" || value === "all" ? value : null;
+}
+
+function normalizeGradingCompany(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toUpperCase().replace(/[^A-Z]/g, "") ?? "";
+  if (!normalized) return null;
+  if (normalized === "BECKETT") return "BGS";
+  return normalized;
+}
+
+function parseGradingCompanyFilter(value: string | null): string | null {
+  const normalized = normalizeGradingCompany(value);
+  return COLLECTION_GRADING_COMPANIES.find((company) => company === normalized) ?? null;
+}
+
+function normalizeGradingGrade(value: string | null | undefined): string | null {
+  const parsed = Number(value?.trim());
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 10 || !Number.isInteger(parsed * 2)) {
+    return null;
+  }
+  return String(parsed);
+}
+
+function parseGradingGradeFilter(value: string | null): string | null {
+  const normalized = normalizeGradingGrade(value);
+  return normalized && SELECTABLE_GRADING_GRADES.has(normalized) ? normalized : null;
+}
+
+function getGradingSearchContext(filter: GradingListingFilter): string {
+  if (filter.company && filter.grade) return `${filter.company} ${filter.grade}`;
+  if (filter.company) return filter.company;
+  if (filter.grade) return `graded ${filter.grade}`;
+  return "graded";
+}
+
+function listingMatchesGradingFilter(
+  listing: EnrichedEbayDealListing,
+  filter: GradingListingFilter
+): boolean {
+  if (!filter.explicit) return true;
+
+  const listingCompany = normalizeGradingCompany(listing.cardMatch.gradingCompany);
+  const listingGrade = normalizeGradingGrade(listing.cardMatch.gradingGrade);
+  if (filter.company && listingCompany !== filter.company) return false;
+  if (filter.grade && listingGrade !== filter.grade) return false;
+  return true;
 }
 
 function hasGradedQueryContext(value: string): boolean {
@@ -311,12 +368,17 @@ function buildLooseCardDealQuery(input: {
   mode: Exclude<DealMode, "sealed">;
   includeNumber?: boolean;
   includeSetCode?: boolean;
+  gradingFilter?: GradingListingFilter;
 }): string {
   const parts = [
     input.card.name,
     input.includeNumber ? getCardSearchNumber(input.card) : null,
     input.includeSetCode ? input.card.episode.code : null,
-    input.mode === "graded" ? "graded" : null,
+    input.mode === "graded"
+      ? getGradingSearchContext(
+          input.gradingFilter ?? { company: null, grade: null, explicit: false }
+        )
+      : null,
     "Pokemon",
   ];
 
@@ -327,6 +389,7 @@ function buildCardDealSearchQueries(input: {
   card: CardDealContext;
   mode: Exclude<DealMode, "sealed">;
   primaryQuery: string;
+  gradingFilter: GradingListingFilter;
 }): string[] {
   return uniqueDealQueries([
     input.primaryQuery,
@@ -335,15 +398,18 @@ function buildCardDealSearchQueries(input: {
       mode: input.mode,
       includeNumber: true,
       includeSetCode: true,
+      gradingFilter: input.gradingFilter.explicit ? input.gradingFilter : undefined,
     }),
     buildLooseCardDealQuery({
       card: input.card,
       mode: input.mode,
       includeNumber: true,
+      gradingFilter: input.gradingFilter.explicit ? input.gradingFilter : undefined,
     }),
     buildLooseCardDealQuery({
       card: input.card,
       mode: input.mode,
+      gradingFilter: input.gradingFilter.explicit ? input.gradingFilter : undefined,
     }),
   ]);
 }
@@ -626,6 +692,7 @@ async function enrichListingsWithCardMatches(input: {
   mode: Exclude<DealMode, "sealed">;
   marketplaceId: string;
   pinnedCard: CardDealContext | null;
+  gradingFilter: GradingListingFilter;
 }): Promise<EnrichedEbayDealListing[]> {
   const candidateContexts = await getCandidateCardContexts({
     query: input.query,
@@ -672,7 +739,11 @@ async function enrichListingsWithCardMatches(input: {
     };
 
     if (input.pinnedCard && cardMatch.card?.id === input.pinnedCard.id) {
-      reference = await buildReferenceForCard(input.pinnedCard, input.mode);
+      reference = await buildReferenceForCard(
+        input.pinnedCard,
+        input.mode,
+        input.gradingFilter
+      );
       comparison = compareListingToReference({
         totalPriceEur: listing.total.valueEur,
         referencePriceEur: reference.valueEur,
@@ -685,7 +756,11 @@ async function enrichListingsWithCardMatches(input: {
       }
 
       if (cardContext) {
-        reference = await buildReferenceForCard(cardContext, input.mode);
+        reference = await buildReferenceForCard(
+          cardContext,
+          input.mode,
+          input.gradingFilter
+        );
         comparison = compareListingToReference({
           totalPriceEur: listing.total.valueEur,
           referencePriceEur: reference.valueEur,
@@ -772,9 +847,24 @@ function enrichListingsWithSealedReference(input: {
 
 async function buildReferenceForCard(
   card: CardDealContext,
-  mode: Exclude<DealMode, "sealed">
+  mode: Exclude<DealMode, "sealed">,
+  gradingFilter: GradingListingFilter = { company: null, grade: null, explicit: false }
 ): Promise<EbayDealReference> {
   if (mode === "graded") {
+    if (gradingFilter.explicit && (!gradingFilter.company || !gradingFilter.grade)) {
+      return {
+        label: `${getGradingSearchContext(gradingFilter)} listings`,
+        valueEur: null,
+        source: "none",
+      };
+    }
+
+    const targetCompany = gradingFilter.explicit
+      ? gradingFilter.company
+      : card.collectionItem?.grading_company;
+    const targetGrade = gradingFilter.explicit
+      ? gradingFilter.grade
+      : card.collectionItem?.grading_grade;
     const usdToEurRate = card.ebaySoldGradedPrices.some(
       (price) => price.currency.toUpperCase() === "USD"
     )
@@ -786,8 +876,8 @@ async function buildReferenceForCard(
         ebaySoldGradedPrices: card.ebaySoldGradedPrices,
       },
       {
-        gradingCompany: card.collectionItem?.grading_company,
-        gradingGrade: card.collectionItem?.grading_grade,
+        gradingCompany: targetCompany,
+        gradingGrade: targetGrade,
         usdToEurRate,
       }
     );
@@ -806,10 +896,10 @@ async function buildReferenceForCard(
           label: price.label,
           company: price.company,
           grade: price.grade,
-          targetCompany: card.collectionItem?.grading_company,
-          targetGrade: card.collectionItem?.grading_grade,
+          targetCompany,
+          targetGrade,
         })
-      ) ?? card.ebaySoldGradedPrices[0] ?? null;
+      ) ?? null;
 
     if (matchedEbaySoldGradedPrice) {
       const currency = matchedEbaySoldGradedPrice.currency.toUpperCase();
@@ -822,6 +912,31 @@ async function buildReferenceForCard(
 
       return {
         label: matchedEbaySoldGradedPrice.label,
+        valueEur,
+        source: "ebay_sold_graded",
+      };
+    }
+
+    if (gradingFilter.explicit) {
+      return {
+        label: `${getGradingSearchContext(gradingFilter)} listings`,
+        valueEur: null,
+        source: "none",
+      };
+    }
+
+    const fallbackEbaySoldGradedPrice = card.ebaySoldGradedPrices[0] ?? null;
+    if (fallbackEbaySoldGradedPrice) {
+      const currency = fallbackEbaySoldGradedPrice.currency.toUpperCase();
+      const valueEur =
+        currency === "EUR"
+          ? fallbackEbaySoldGradedPrice.median_price
+          : currency === "USD"
+            ? convertUsdToEur(fallbackEbaySoldGradedPrice.median_price, usdToEurRate)
+            : null;
+
+      return {
+        label: fallbackEbaySoldGradedPrice.label,
         valueEur,
         source: "ebay_sold_graded",
       };
@@ -891,6 +1006,15 @@ export async function GET(req: NextRequest) {
     const requestedMode = parseDealMode(req.nextUrl.searchParams.get("mode"));
     const requestedBuyingMode = parseBuyingMode(req.nextUrl.searchParams.get("buying"));
     const limit = parseLimit(req.nextUrl.searchParams.get("limit"));
+    const gradingCompany = parseGradingCompanyFilter(
+      req.nextUrl.searchParams.get("grader")
+    );
+    const gradingGrade = parseGradingGradeFilter(req.nextUrl.searchParams.get("grade"));
+    const gradingFilter: GradingListingFilter = {
+      company: gradingCompany,
+      grade: gradingGrade,
+      explicit: Boolean(gradingCompany || gradingGrade),
+    };
 
     let mode: DealMode = requestedMode ?? (productId ? "sealed" : "raw");
     let query = q
@@ -922,7 +1046,7 @@ export async function GET(req: NextRequest) {
       mode = cardMode;
       reference = useGenericGradedDemand
         ? GRADE_AGNOSTIC_DEMAND_REFERENCE
-        : await buildReferenceForCard(card, cardMode);
+        : await buildReferenceForCard(card, cardMode, gradingFilter);
 
       if (!query) {
         if (demandProfile) {
@@ -942,8 +1066,12 @@ export async function GET(req: NextRequest) {
             episodeName: card.episode.name,
             episodeCode: card.episode.code,
             cardNumber: getCardSearchNumber(card),
-            gradingCompany: card.collectionItem?.grading_company,
-            gradingGrade: card.collectionItem?.grading_grade,
+            gradingCompany: gradingFilter.explicit
+              ? gradingFilter.company
+              : card.collectionItem?.grading_company,
+            gradingGrade: gradingFilter.explicit
+              ? gradingFilter.grade
+              : card.collectionItem?.grading_grade,
             mode: cardMode,
           });
         }
@@ -966,7 +1094,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (q && mode === "graded" && !hasGradedQueryContext(q)) {
+    if (q && mode === "graded" && gradingFilter.explicit) {
+      query = buildEbayManualSearchQuery(`${getGradingSearchContext(gradingFilter)} ${q}`);
+    } else if (q && mode === "graded" && !hasGradedQueryContext(q)) {
       query = buildEbayManualSearchQuery(`${q} graded`);
     }
 
@@ -1032,6 +1162,7 @@ export async function GET(req: NextRequest) {
             card,
             mode: mode === "graded" ? "graded" : "raw",
             primaryQuery: query,
+            gradingFilter,
           })
       : sealedProduct
         ? uniqueDealQueries([query])
@@ -1081,8 +1212,14 @@ export async function GET(req: NextRequest) {
             mode,
             marketplaceId: result.marketplaceId,
             pinnedCard: card,
+            gradingFilter,
           });
-    const limitedListings = card || sealedProduct ? listings.slice(0, limit) : listings;
+    const gradingFilteredListings =
+      mode === "graded" && gradingFilter.explicit
+        ? listings.filter((listing) => listingMatchesGradingFilter(listing, gradingFilter))
+        : listings;
+    const limitedListings =
+      card || sealedProduct ? gradingFilteredListings.slice(0, limit) : gradingFilteredListings;
     let demand: EbayDemandPayload | null = null;
 
     if (demandProfile && card && (mode === "raw" || mode === "graded")) {
@@ -1130,7 +1267,10 @@ export async function GET(req: NextRequest) {
         : null,
       mode,
       ...result,
-      total: card || sealedProduct ? limitedListings.length : result.total,
+      total:
+        card || sealedProduct || (mode === "graded" && gradingFilter.explicit)
+          ? limitedListings.length
+          : result.total,
       listings: limitedListings,
       demand,
     });

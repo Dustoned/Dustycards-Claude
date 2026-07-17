@@ -1064,13 +1064,17 @@ export function getEbayListingGradingReason(input: {
 }
 
 export function buildEbayCardSearchQuery(input: EbayCardSearchInput): string {
+  const gradingContext =
+    input.gradingCompany && input.gradingGrade
+      ? `${input.gradingCompany} ${input.gradingGrade}`
+      : input.gradingCompany
+        ? input.gradingCompany
+        : input.gradingGrade
+          ? `graded ${input.gradingGrade}`
+          : "graded";
   const gradeTokens =
     input.mode === "graded"
-      ? uniqueTokens([
-          input.gradingCompany && input.gradingGrade
-            ? `${input.gradingCompany} ${input.gradingGrade}`
-            : "graded",
-        ])
+      ? uniqueTokens([gradingContext])
       : [];
   const cardNumber = normalizeQueryToken(input.cardNumber);
   const episodeCode = normalizeQueryToken(input.episodeCode);

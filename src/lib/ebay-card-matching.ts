@@ -84,6 +84,10 @@ const VARIANT_ALIASES = new Map<string, string>([
 ]);
 
 const GRADING_COMPANIES = ["PSA", "BGS", "CGC", "SGC", "ACE", "TAG", "AIGRADING"];
+const GRADING_COMPANY_TITLE_PATTERN =
+  String.raw`(?:psa|bgs|beckett|cgc|sgc|ace|tag|ai\s*grading|aigrading)`;
+const GRADING_DESCRIPTOR_TITLE_PATTERN =
+  String.raw`(?:(?:gem\s*(?:mint|mt)|pristine|perfect|black\s*label)\s*)?`;
 const ACCESSORY_TOKENS = new Set([
   "acrylic",
   "acryl",
@@ -282,13 +286,27 @@ function getListingSignals(title: string, condition: string | null | undefined):
       right: match[2].replace(/^0+/, "") || match[2],
     }));
   const slashRightNumbers = new Set(slashRefs.map((ref) => ref.right));
+  const companyFirstGradePattern = new RegExp(
+    String.raw`\b(${GRADING_COMPANY_TITLE_PATTERN})\s*${GRADING_DESCRIPTOR_TITLE_PATTERN}(\d+(?:\.\d+)?)\b`,
+    "i"
+  );
+  const gradeFirstCompanyPattern = new RegExp(
+    String.raw`\b(\d+(?:\.\d+)?)\s*(${GRADING_COMPANY_TITLE_PATTERN})\b`,
+    "i"
+  );
   const gradeNumberTokens = new Set(
     [
       ...normalizedTitle.matchAll(
-        /\b(?:psa|bgs|cgc|sgc|ace|tag|aigrading|graded|grade|gem\s*mint|gm)\s*(?:gem\s*mint\s*)?(\d+(?:\.\d+)?)\b/gi
+        new RegExp(
+          String.raw`\b(?:${GRADING_COMPANY_TITLE_PATTERN}|graded|grade|gem\s*(?:mint|mt)|gm)\s*${GRADING_DESCRIPTOR_TITLE_PATTERN}(\d+(?:\.\d+)?)\b`,
+          "gi"
+        )
       ),
       ...normalizedTitle.matchAll(
-        /\b(\d+(?:\.\d+)?)\s*(?:psa|bgs|cgc|sgc|ace|tag|aigrading|graded|grade|gem\s*mint|gm)\b/gi
+        new RegExp(
+          String.raw`\b(\d+(?:\.\d+)?)\s*(?:${GRADING_COMPANY_TITLE_PATTERN}|graded|grade|gem\s*(?:mint|mt)|gm)\b`,
+          "gi"
+        )
       ),
     ].map((match) => match[1].replace(/^0+/, "") || match[1])
   );
@@ -315,13 +333,20 @@ function getListingSignals(title: string, condition: string | null | undefined):
     )
   );
 
-  const gradeMatch = normalizedTitle.match(
-    /\b(psa|bgs|cgc|sgc|ace|tag|aigrading)\s*(?:gem\s*mint\s*)?(\d+(?:\.\d+)?)\b/i
-  );
+  const companyFirstGradeMatch = normalizedTitle.match(companyFirstGradePattern);
+  const gradeFirstCompanyMatch = normalizedTitle.match(gradeFirstCompanyPattern);
+  const rawGradingCompany =
+    companyFirstGradeMatch?.[1] ?? gradeFirstCompanyMatch?.[2] ?? null;
+  const gradingCompanyToken = rawGradingCompany
+    ?.replace(/\s+/g, "")
+    .toUpperCase();
+  const gradingCompany = gradingCompanyToken === "BECKETT" ? "BGS" : gradingCompanyToken ?? null;
+  const gradingGrade = companyFirstGradeMatch?.[2] ?? gradeFirstCompanyMatch?.[1] ?? null;
   const conditionText = normalizeEbayMatchText(condition ?? "");
   const isAccessoryListing = [...tokens].some((token) => ACCESSORY_TOKENS.has(token));
   const isGradedListing = Boolean(
-    gradeMatch ||
+    companyFirstGradeMatch ||
+      gradeFirstCompanyMatch ||
       /\b(graded|valutata|graad)\b/i.test(conditionText) ||
       /\b(graded|slab|graad)\b/i.test(normalizedTitle)
   );
@@ -337,8 +362,8 @@ function getListingSignals(title: string, condition: string | null | undefined):
     slashRefs,
     isAccessoryListing,
     isGradedListing,
-    gradingCompany: gradeMatch?.[1]?.toUpperCase() ?? null,
-    gradingGrade: gradeMatch?.[2] ?? null,
+    gradingCompany,
+    gradingGrade,
   };
 }
 

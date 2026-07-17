@@ -41,6 +41,22 @@ describe("ebay deal helpers", () => {
         mode: "graded",
       })
     ).toBe("graded Darkrai 136 Pokemon");
+    expect(
+      buildEbayCardSearchQuery({
+        name: "Darkrai",
+        cardNumber: "136",
+        gradingCompany: "CGC",
+        mode: "graded",
+      })
+    ).toBe("CGC Darkrai 136 Pokemon");
+    expect(
+      buildEbayCardSearchQuery({
+        name: "Darkrai",
+        cardNumber: "136",
+        gradingGrade: "9.5",
+        mode: "graded",
+      })
+    ).toBe("graded 9.5 Darkrai 136 Pokemon");
   });
 
   it("builds a broad exact-card demand query without expansion-only title terms", () => {

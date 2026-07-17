@@ -22,6 +22,7 @@ import type { WatchedListingPayload } from "@/app/api/ebay/watched-listings/rout
 import type { ModalCardData } from "@/components/CardModal";
 import { HeaderStatCard } from "@/components/PageHeader";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
+import { COLLECTION_GRADING_COMPANIES } from "@/lib/collection";
 import { formatCurrency, type CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 
@@ -250,6 +251,27 @@ const SORT_OPTIONS: Array<{ value: DealSort; label: string }> = [
   { value: "condition_worst", label: "Worst condition" },
   { value: "newest", label: "Newest" },
 ];
+const GRADING_GRADE_OPTIONS = [
+  "10",
+  "9.5",
+  "9",
+  "8.5",
+  "8",
+  "7.5",
+  "7",
+  "6.5",
+  "6",
+  "5.5",
+  "5",
+  "4.5",
+  "4",
+  "3.5",
+  "3",
+  "2.5",
+  "2",
+  "1.5",
+  "1",
+] as const;
 
 function formatMaybeCurrency(value: number | null | undefined, currency: string | null): string {
   if (value == null) return "--";
@@ -351,6 +373,16 @@ function parseDealSort(value: string | null): DealSort {
   return SORT_OPTIONS.some((option) => option.value === value) ? (value as DealSort) : "deal";
 }
 
+function parseGradingCompanyFilter(value: string | null): string {
+  const normalized = value?.trim().toUpperCase();
+  return COLLECTION_GRADING_COMPANIES.find((company) => company === normalized) ?? "";
+}
+
+function parseGradingGradeFilter(value: string | null): string {
+  const normalized = value?.trim();
+  return GRADING_GRADE_OPTIONS.find((grade) => grade === normalized) ?? "";
+}
+
 function getDefaultBuyingMode(mode: DealMode): BuyingMode {
   return mode === "sealed" ? "all" : "fixed";
 }
@@ -364,6 +396,8 @@ function buildDealsHref(input: {
   buying: BuyingMode;
   condition: ConditionFilter;
   sort: DealSort;
+  gradingCompany: string;
+  gradingGrade: string;
 }) {
   const params = new URLSearchParams();
   const trimmedQuery = input.q.trim();
@@ -371,6 +405,12 @@ function buildDealsHref(input: {
   if (input.productId) params.set("productId", input.productId);
   if (trimmedQuery && !input.cardId && !input.productId) params.set("q", trimmedQuery);
   if (input.mode !== "raw") params.set("mode", input.mode);
+  if (input.mode === "graded" && input.gradingCompany) {
+    params.set("grader", input.gradingCompany);
+  }
+  if (input.mode === "graded" && input.gradingGrade) {
+    params.set("grade", input.gradingGrade);
+  }
   if (input.buying !== getDefaultBuyingMode(input.mode)) params.set("buying", input.buying);
   if (input.condition !== "all") params.set("condition", input.condition);
   if (input.sort !== "deal") params.set("sort", input.sort);
@@ -559,7 +599,9 @@ function ListingCard({
                   className="inline-flex items-center rounded-md border border-violet-400/20 bg-violet-400/[0.1] px-1.5 py-0.5 text-[10px] font-bold text-violet-100"
                   title={listing.gradingReason ?? "Graded-looking listing"}
                 >
-                  Graded
+                  {match.gradingCompany && match.gradingGrade
+                    ? `${match.gradingCompany} ${match.gradingGrade}`
+                    : "Graded"}
                 </span>
               )}
               <span className="truncate">
@@ -779,11 +821,15 @@ export default function DealsBrowser() {
       : getDefaultBuyingMode(paramMode);
   const paramCondition = parseConditionFilter(searchParams.get("condition"));
   const paramSort = parseDealSort(searchParams.get("sort"));
+  const paramGradingCompany = parseGradingCompanyFilter(searchParams.get("grader"));
+  const paramGradingGrade = parseGradingGradeFilter(searchParams.get("grade"));
   const [query, setQuery] = useState(paramQuery);
   const [mode, setMode] = useState<DealMode>(paramMode);
   const [buying, setBuying] = useState<BuyingMode>(paramBuying);
   const [conditionFilter, setConditionFilter] = useState<ConditionFilter>(paramCondition);
   const [sort, setSort] = useState<DealSort>(paramSort);
+  const [gradingCompany, setGradingCompany] = useState(paramGradingCompany);
+  const [gradingGrade, setGradingGrade] = useState(paramGradingGrade);
   const [data, setData] = useState<DealsResponse>(DEFAULT_RESPONSE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -813,10 +859,26 @@ export default function DealsBrowser() {
     if (cardId) params.set("cardId", cardId);
     if (productId) params.set("productId", productId);
     if (paramMode !== "raw") params.set("mode", paramMode);
+    if (paramMode === "graded" && paramGradingCompany) {
+      params.set("grader", paramGradingCompany);
+    }
+    if (paramMode === "graded" && paramGradingGrade) {
+      params.set("grade", paramGradingGrade);
+    }
     if (paramBuying !== getDefaultBuyingMode(paramMode)) params.set("buying", paramBuying);
     if (refreshNonce > 0) params.set("_r", String(refreshNonce));
     return `/api/ebay/deals?${params.toString()}`;
-  }, [cardId, hasSearch, paramBuying, paramMode, paramQuery, productId, refreshNonce]);
+  }, [
+    cardId,
+    hasSearch,
+    paramBuying,
+    paramGradingCompany,
+    paramGradingGrade,
+    paramMode,
+    paramQuery,
+    productId,
+    refreshNonce,
+  ]);
 
   useEffect(() => {
     if (!requestPath) {
@@ -1000,6 +1062,8 @@ export default function DealsBrowser() {
         buying,
         condition: conditionFilter,
         sort,
+        gradingCompany,
+        gradingGrade,
       })
     );
   }
@@ -1018,6 +1082,8 @@ export default function DealsBrowser() {
         buying,
         condition: conditionFilter,
         sort,
+        gradingCompany,
+        gradingGrade,
       })
     );
   }
@@ -1310,7 +1376,11 @@ export default function DealsBrowser() {
             </button>
           </div>
 
-          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div
+            className={`mt-2 grid gap-2 sm:grid-cols-2 ${
+              mode === "graded" ? "xl:grid-cols-6" : "xl:grid-cols-4"
+            }`}
+          >
             <label className="min-w-0">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
                 Type
@@ -1331,6 +1401,48 @@ export default function DealsBrowser() {
                 <option value="sealed">Sealed</option>
               </select>
             </label>
+
+            {mode === "graded" ? (
+              <>
+                <label className="min-w-0">
+                  <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
+                    Grading company
+                  </span>
+                  <select
+                    value={gradingCompany}
+                    onChange={(event) => setGradingCompany(event.target.value)}
+                    className="min-h-[40px] w-full rounded-xl border border-white/8 bg-black/20 px-3 text-sm font-semibold text-white outline-none"
+                    title="Search only listings from this grading company"
+                  >
+                    <option value="">All companies</option>
+                    {COLLECTION_GRADING_COMPANIES.map((company) => (
+                      <option key={company} value={company}>
+                        {company}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="min-w-0">
+                  <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">
+                    Grade
+                  </span>
+                  <select
+                    value={gradingGrade}
+                    onChange={(event) => setGradingGrade(event.target.value)}
+                    className="min-h-[40px] w-full rounded-xl border border-white/8 bg-black/20 px-3 text-sm font-semibold text-white outline-none"
+                    title="Search only listings with this grade"
+                  >
+                    <option value="">All grades</option>
+                    {GRADING_GRADE_OPTIONS.map((grade) => (
+                      <option key={grade} value={grade}>
+                        Grade {grade}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : null}
 
             <label className="min-w-0">
               <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/35">

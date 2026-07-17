@@ -53,6 +53,7 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 vi.mock("@/lib/collection", () => ({
+  COLLECTION_GRADING_COMPANIES: ["PSA", "BGS", "CGC", "SGC", "ACE", "TAG"],
   getCollectionMatchedGradedPrice:
     collectionMock.getCollectionMatchedGradedPrice,
 }));
@@ -620,6 +621,57 @@ describe("GET /api/ebay/deals", () => {
     );
   });
 
+  it("filters graded searches by grading company and grade", async () => {
+    dbMock.card.findMany.mockResolvedValue([]);
+    mockSearchResults([
+      makeListing({
+        itemId: "psa-10",
+        title: "PSA 10 Charizard 4/102 Base Set Pokemon Card ENG",
+        totalEur: 850,
+        condition: "Graded",
+      }),
+      makeListing({
+        itemId: "psa-9",
+        title: "PSA 9 Charizard 4/102 Base Set Pokemon Card ENG",
+        totalEur: 350,
+        condition: "Graded",
+      }),
+      makeListing({
+        itemId: "bgs-10",
+        title: "BGS 10 Charizard 4/102 Base Set Pokemon Card ENG",
+        totalEur: 1_100,
+        condition: "Graded",
+      }),
+    ]);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3000/api/ebay/deals?q=charizard&mode=graded&grader=PSA&grade=10"
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(ebayMock.buildEbayManualSearchQuery).toHaveBeenLastCalledWith(
+      "PSA 10 charizard"
+    );
+    expect(ebayMock.searchEbayDeals).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "PSA 10 charizard Pokemon",
+        requireGraded: true,
+        listingKind: "graded",
+      })
+    );
+    expect(body.total).toBe(1);
+    expect(body.listings.map((listing: { itemId: string }) => listing.itemId)).toEqual([
+      "psa-10",
+    ]);
+    expect(body.listings[0].cardMatch).toMatchObject({
+      gradingCompany: "PSA",
+      gradingGrade: "10",
+    });
+  });
+
   it("uses the exact saved eBay sold graded price as the graded reference", async () => {
     const card = {
       ...makeUmbreonCard(),
@@ -679,6 +731,63 @@ describe("GET /api/ebay/deals", () => {
       label: "PSA 8 eBay sold",
       valueEur: 92,
       source: "ebay_sold_graded",
+    });
+  });
+
+  it("uses the selected grade instead of the saved slab grade for comparisons", async () => {
+    const card = {
+      ...makeUmbreonCard(),
+      gradedPrices: [
+        { label: "PSA 8", price: 80 },
+        { label: "PSA 10", price: 900 },
+      ],
+      collectionItems: [
+        {
+          grading_company: "PSA",
+          grading_grade: "8",
+        },
+      ],
+    };
+    dbMock.card.findUnique.mockResolvedValue(card);
+    collectionMock.getCollectionMatchedGradedPrice.mockImplementation(
+      (_card: unknown, options: { gradingCompany?: string; gradingGrade?: string }) =>
+        options.gradingCompany === "PSA" && options.gradingGrade === "10"
+          ? {
+              label: "PSA 10",
+              price: 900,
+              source: "cardmarket_graded",
+            }
+          : null
+    );
+    mockSearchResults([
+      makeListing({
+        itemId: "selected-psa-10",
+        title: "PSA 10 Umbreon ex 161/131 Prismatic Evolutions Pokemon Card ENG",
+        totalEur: 750,
+        condition: "Graded",
+      }),
+    ]);
+
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3000/api/ebay/deals?cardId=21554&mode=graded&grader=PSA&grade=10"
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(collectionMock.getCollectionMatchedGradedPrice).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        gradingCompany: "PSA",
+        gradingGrade: "10",
+      })
+    );
+    expect(body.listings).toHaveLength(1);
+    expect(body.listings[0].reference).toMatchObject({
+      label: "PSA 10",
+      valueEur: 900,
+      source: "graded",
     });
   });
 

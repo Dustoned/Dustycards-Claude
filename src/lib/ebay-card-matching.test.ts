@@ -233,6 +233,26 @@ describe("eBay card matching", () => {
     expect(match.gradingGrade).toBe("9");
   });
 
+  it("normalizes Beckett grades and recognizes grade-first slab titles", () => {
+    const beckett = matchEbayListingToCard({
+      title: "Beckett 9.5 Umbreon ex 161/131 Prismatic Evolutions Pokemon Card",
+      condition: "Graded",
+      candidates: [umbreonEx161],
+      requestedMode: "graded",
+    });
+    const gradeFirst = matchEbayListingToCard({
+      title: "10 PSA Umbreon ex 161/131 Prismatic Evolutions Pokemon Card",
+      condition: "Graded",
+      candidates: [umbreonEx161],
+      requestedMode: "graded",
+    });
+
+    expect(beckett.gradingCompany).toBe("BGS");
+    expect(beckett.gradingGrade).toBe("9.5");
+    expect(gradeFirst.gradingCompany).toBe("PSA");
+    expect(gradeFirst.gradingGrade).toBe("10");
+  });
+
   it("does not use graded 10 as the card number when matching slabs", () => {
     const match = matchEbayListingToCard({
       title: "Graded 10 Mega Gengar ex 056/094 2025 Pokemon Phantasmal Flames Promo GM10 PFL",
