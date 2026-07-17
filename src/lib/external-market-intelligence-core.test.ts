@@ -9,6 +9,7 @@ import {
   calculateSealedPressure,
   calculateSetRarityPosition,
   classifySealedProduct,
+  type ExtendedPriceHistoryFeatures,
   hasActiveReprintRisk,
   isActionablePriceScenario,
   isWatchablePriceScenario,
@@ -224,7 +225,7 @@ describe("external market intelligence", () => {
       setRarityScore: 100,
     });
 
-    expect(modern.score).toBe(29);
+    expect(modern.score).toBe(25);
     expect(oldNmCard.score).toBe(79);
     expect(oldNmCard.score).toBeGreaterThan(modern.score + 35);
     expect(["Scarce", "Very scarce"]).toContain(oldNmCard.label);
@@ -1026,5 +1027,274 @@ describe("external market intelligence", () => {
     expect(rawSupported.graded).toBe(neutral.graded);
     expect(gradedSoft.raw).toBe(neutral.raw);
     expect(gradedSoft.graded).toBeLessThan(neutral.graded ?? 0);
+  });
+
+  const extendedFeatures = (
+    overrides: Partial<ExtendedPriceHistoryFeatures>
+  ): ExtendedPriceHistoryFeatures => ({
+    volatilityDaily90Pct: null,
+    athDistancePct: null,
+    momentum365Pct: null,
+    jpLeadLagPct: null,
+    setRelativeStrength90Pct: null,
+    avg30AnchorGapPct: null,
+    ...overrides,
+  });
+
+  it("treats missing extended history exactly like an all-null feature set", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 4,
+      opportunityScore: 82,
+      sealedTrendPct: 6,
+      rawTrend90dPct: 15,
+      scarcityScore: 80,
+      gemRatePct: null,
+      ebayDemandAdjustment: 2,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 10,
+    };
+    const absent = buildPriceScenario(shared);
+    const explicitNull = buildPriceScenario({ ...shared, extendedHistory: null });
+    const allNullFeatures = buildPriceScenario({
+      ...shared,
+      extendedHistory: extendedFeatures({}),
+    });
+
+    expect(explicitNull).toEqual(absent);
+    expect(allNullFeatures).toEqual(absent);
+  });
+
+  it("counts the same momentum for more on a stable card than a volatile one", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 4,
+      opportunityScore: 82,
+      sealedTrendPct: null,
+      rawTrend90dPct: 15,
+      scarcityScore: 80,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 10,
+    };
+    const stable = buildPriceScenario({
+      ...shared,
+      extendedHistory: extendedFeatures({ volatilityDaily90Pct: 1 }),
+    });
+    const choppy = buildPriceScenario({
+      ...shared,
+      extendedHistory: extendedFeatures({ volatilityDaily90Pct: 4 }),
+    });
+    const span = (scenario: ReturnType<typeof buildPriceScenario>) => {
+      const horizon = scenario?.points.at(-1);
+      return horizon == null ? NaN : horizon.high - horizon.low;
+    };
+
+    expect(stable?.points.at(-1)?.base).toBeGreaterThan(choppy?.points.at(-1)?.base ?? NaN);
+    expect(span(choppy)).toBeGreaterThan(span(stable));
+  });
+
+  it("requires calm dispersion for High confidence and demotes extremes to Low", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 4,
+      opportunityScore: 82,
+      sealedTrendPct: null,
+      rawTrend90dPct: 8,
+      scarcityScore: 80,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 4,
+      historyPoints: 20,
+    };
+
+    expect(buildPriceScenario(shared)?.confidence).toBe("High");
+    expect(
+      buildPriceScenario({
+        ...shared,
+        extendedHistory: extendedFeatures({ volatilityDaily90Pct: 6 }),
+      })?.confidence
+    ).toBe("Medium");
+    expect(
+      buildPriceScenario({
+        ...shared,
+        extendedHistory: extendedFeatures({ volatilityDaily90Pct: 9 }),
+      })?.confidence
+    ).toBe("Low");
+  });
+
+  it("penalizes hot trends near the all-time high and rewards recovering deep discounts", () => {
+    const hotShared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 4,
+      opportunityScore: 82,
+      sealedTrendPct: null,
+      rawTrend90dPct: 30,
+      scarcityScore: 80,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 10,
+    };
+    const unanchored = buildPriceScenario(hotShared);
+    const nearAth = buildPriceScenario({
+      ...hotShared,
+      extendedHistory: extendedFeatures({ athDistancePct: -2 }),
+    });
+    const recoveryShared = { ...hotShared, rawTrend90dPct: 5 };
+    const noRecoveryContext = buildPriceScenario(recoveryShared);
+    const deepRecovery = buildPriceScenario({
+      ...recoveryShared,
+      extendedHistory: extendedFeatures({ athDistancePct: -60 }),
+    });
+
+    expect(nearAth?.points.at(-1)?.base).toBeLessThan(unanchored?.points.at(-1)?.base ?? NaN);
+    expect(deepRecovery?.points.at(-1)?.base).toBeGreaterThan(
+      noRecoveryContext?.points.at(-1)?.base ?? NaN
+    );
+  });
+
+  it("uses the avg30 anchor gap as the valuation signal when extended history is loaded", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 4,
+      opportunityScore: 82,
+      sealedTrendPct: null,
+      rawTrend90dPct: 10,
+      scarcityScore: 80,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 10,
+      currentVsEnglishNmAverage30dPct: 50,
+    };
+    const legacyAnchor = buildPriceScenario(shared);
+    const thinFloor = buildPriceScenario({
+      ...shared,
+      extendedHistory: extendedFeatures({ avg30AnchorGapPct: -40 }),
+    });
+    const stretchedFloor = buildPriceScenario({
+      ...shared,
+      extendedHistory: extendedFeatures({ avg30AnchorGapPct: 40 }),
+    });
+
+    expect(thinFloor?.points.at(-1)?.base).toBeGreaterThan(
+      stretchedFloor?.points.at(-1)?.base ?? NaN
+    );
+    expect(thinFloor?.points.at(-1)?.base).toBeGreaterThan(
+      legacyAnchor?.points.at(-1)?.base ?? NaN
+    );
+  });
+
+  it("adds clamped long-horizon, JP lead-lag and set-relative contributions", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 4,
+      opportunityScore: 82,
+      sealedTrendPct: null,
+      rawTrend90dPct: null,
+      scarcityScore: 80,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 10,
+    };
+    const neutral = buildPriceScenario(shared);
+    const supportive = buildPriceScenario({
+      ...shared,
+      extendedHistory: extendedFeatures({
+        momentum365Pct: 500,
+        jpLeadLagPct: 500,
+        setRelativeStrength90Pct: 500,
+      }),
+    });
+    const weakening = buildPriceScenario({
+      ...shared,
+      extendedHistory: extendedFeatures({
+        momentum365Pct: -500,
+        jpLeadLagPct: -500,
+        setRelativeStrength90Pct: -500,
+      }),
+    });
+
+    expect(neutral?.points.at(-1)?.base).toBe(100);
+    expect(supportive?.points.at(-1)?.base).toBeGreaterThan(100);
+    expect(supportive?.expectedReturnPct180 ?? 0).toBeLessThanOrEqual(17);
+    expect(weakening?.points.at(-1)?.base).toBeLessThan(100);
+    expect(weakening?.expectedReturnPct180 ?? 0).toBeGreaterThanOrEqual(-12);
+  });
+
+  it("mirrors the quality bonus as a penalty for weak quality on strong negative evidence", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 5,
+      opportunityScore: 60,
+      sealedTrendPct: null,
+      rawTrend90dPct: -20,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 12,
+    };
+    const weakQuality = buildPriceScenario({
+      ...shared,
+      scarcityScore: 20,
+      setRarityScore: 10,
+      artistDemandScore: 20,
+      collectorDemandScore: 25,
+    });
+    const middlingQuality = buildPriceScenario({
+      ...shared,
+      scarcityScore: 55,
+      setRarityScore: 55,
+      artistDemandScore: 55,
+      collectorDemandScore: 55,
+    });
+
+    expect(weakQuality?.points.at(-1)?.base).toBeLessThan(
+      middlingQuality?.points.at(-1)?.base ?? NaN
+    );
+  });
+
+  it("widens the low band with the same factor as the high band when the outlook is down", () => {
+    const scenario = buildPriceScenario({
+      marketMode: "raw",
+      currentPrice: 100,
+      currency: "EUR",
+      ageYears: 5,
+      opportunityScore: 70,
+      sealedTrendPct: null,
+      rawTrend90dPct: -20,
+      scarcityScore: 60,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 12,
+    });
+    const horizon = scenario?.points.at(-1);
+
+    expect(scenario?.outlook).toBe("down");
+    // The 0.35x-current low-band floor can lift the low point a few cents, so
+    // symmetry is asserted to the nearest 0.5 rather than 0.05.
+    expect((horizon?.base ?? 0) - (horizon?.low ?? 0)).toBeCloseTo(
+      (horizon?.high ?? 0) - (horizon?.base ?? 0),
+      0
+    );
   });
 });

@@ -1,7 +1,9 @@
 import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import {
+  FORECAST_PUBLISH_GATES,
   evaluateSignalOutcome,
+  scoreForecastOutcome,
   summarizeForecastCohort,
   type ForecastCohortSummary,
   type WilsonInterval,
@@ -38,6 +40,15 @@ export const EXTERNAL_FORECAST_TARGETS = [
   },
 ] as const;
 
+/**
+ * When a model-version bump leaves the new version without enough completed
+ * outcomes, its cohort may borrow from the version it replaced (flagged via
+ * usingPreviousModelCohort) instead of restarting calibration from zero.
+ */
+export const FORECAST_MODEL_VERSION_FALLBACKS: Readonly<Record<string, string>> = {
+  "v9-calibrated-inputs": "v8-expanded-coverage",
+};
+
 export type ExternalForecastTarget = (typeof EXTERNAL_FORECAST_TARGETS)[number];
 export type ExternalForecastTargetKey = ExternalForecastTarget["key"];
 type ExternalForecastHitField = ExternalForecastTarget["hitField"];
@@ -58,6 +69,11 @@ export interface ExternalForecastTargetSummary {
   cohortLabel: string;
   holdoutSamples: number;
   holdoutCalibrationError: number | null;
+  directionAccuracy?: number | null;
+  bandCoverage?: number | null;
+  meanAbsoluteErrorPct180?: number | null;
+  insufficientShare?: number | null;
+  usingPreviousModelCohort?: boolean;
 }
 
 export interface ExternalCardForecastSummary {
@@ -100,6 +116,11 @@ export interface ForecastCohortOutcomeSample {
   signalTier: string;
   priceBand: string | null;
   observedAt: Date;
+  status?: "complete" | "insufficient";
+  directionHit?: boolean | null;
+  bandWithin?: boolean | null;
+  realizedReturnPct?: number | null;
+  entryExpectedReturnPct180?: number | null;
 }
 
 export interface ForecastSignalContext {
@@ -158,6 +179,9 @@ async function loadMaturedPendingOutcomes(now: Date) {
           observed_at: true,
           reference_source: true,
           reference_price: true,
+          entry_outlook: true,
+          entry_expected_return_pct_180: true,
+          entry_scenario_json: true,
         },
       },
     },
@@ -266,6 +290,9 @@ export async function evaluatePendingExternalSignalOutcomes(
       hit_15x: boolean | null;
       hit_2x: boolean | null;
       hit_3x: boolean | null;
+      realized_return_pct: number | null;
+      direction_hit: boolean | null;
+      band_within: boolean | null;
     };
   }> = [];
   let complete = 0;
@@ -285,12 +312,13 @@ export async function evaluatePendingExternalSignalOutcomes(
         observedAt: row.fetched_at,
         value: getSameSourceCardmarketValue(entry.reference_source, row),
       }));
+    const entryPrice =
+      entry.reference_price != null && entry.reference_price >= 1
+        ? entry.reference_price
+        : 0;
     const evaluated = evaluateSignalOutcome({
       entryAt: entry.observed_at,
-      entryPrice:
-        entry.reference_price != null && entry.reference_price >= 1
-          ? entry.reference_price
-          : 0,
+      entryPrice,
       horizonDays: outcome.horizon_days,
       prices: priceRows,
       now,
@@ -298,6 +326,14 @@ export async function evaluatePendingExternalSignalOutcomes(
     const status = evaluated.status === "complete" ? "complete" : "insufficient";
     if (status === "complete") complete += 1;
     else insufficient += 1;
+    const score = scoreForecastOutcome({
+      entryOutlook: entry.entry_outlook ?? null,
+      entryExpectedReturnPct180: entry.entry_expected_return_pct_180 ?? null,
+      entryScenarioJson: entry.entry_scenario_json ?? null,
+      horizonDays: outcome.horizon_days as 30 | 90 | 180,
+      entryPrice,
+      endPrice: status === "complete" ? evaluated.endReferencePrice : null,
+    });
     writes.push({
       id: outcome.id,
       data: {
@@ -311,6 +347,9 @@ export async function evaluatePendingExternalSignalOutcomes(
         hit_15x: status === "complete" ? evaluated.hit15x : null,
         hit_2x: status === "complete" ? evaluated.hit2x : null,
         hit_3x: status === "complete" ? evaluated.hit3x : null,
+        realized_return_pct: score.realizedReturnPct,
+        direction_hit: score.directionHit,
+        band_within: score.bandWithin,
       },
     });
   }
@@ -378,9 +417,11 @@ async function loadCompletedCohortOutcomes(
   const rowsByPair = new Map<string, ForecastCohortOutcomeSample[]>();
   await Promise.all(
     pairs.map(async ({ game, modelVersion }) => {
+      // Insufficient rows are loaded alongside complete ones purely so the
+      // survivorship share can be reported; they never enter the hit counts.
       const rows = await db.externalSignalOutcome.findMany({
         where: {
-          status: "complete",
+          status: { in: ["complete", "insufficient"] },
           horizon_days: { in: [90, 180] },
           entry_observation: {
             game,
@@ -391,9 +432,13 @@ async function loadCompletedCohortOutcomes(
         orderBy: { entry_observation: { observed_at: "asc" } },
         select: {
           horizon_days: true,
+          status: true,
           hit_15x: true,
           hit_2x: true,
           hit_3x: true,
+          realized_return_pct: true,
+          direction_hit: true,
+          band_within: true,
           entry_observation: {
             select: {
               card_id: true,
@@ -402,6 +447,7 @@ async function loadCompletedCohortOutcomes(
               pressure_label: true,
               price_band: true,
               observed_at: true,
+              entry_expected_return_pct_180: true,
             },
           },
         },
@@ -419,6 +465,11 @@ async function loadCompletedCohortOutcomes(
           signalTier: row.entry_observation.pressure_label,
           priceBand: row.entry_observation.price_band,
           observedAt: row.entry_observation.observed_at,
+          status: row.status === "insufficient" ? ("insufficient" as const) : ("complete" as const),
+          directionHit: row.direction_hit,
+          bandWithin: row.band_within,
+          realizedReturnPct: row.realized_return_pct,
+          entryExpectedReturnPct180: row.entry_observation.entry_expected_return_pct_180,
         }))
       );
     })
@@ -460,10 +511,14 @@ function summarizeRows(
 ): ForecastCohortSummary & {
   holdoutSamples: number;
   holdoutCalibrationError: number | null;
+  directionAccuracy: number | null;
+  bandCoverage: number | null;
+  meanAbsoluteErrorPct180: number | null;
+  insufficientShare: number | null;
 } {
-  const independentRows = dedupeCohortRowsByHorizon(rows, target.horizonDays).filter(
-    (row) => getHit(row, target.hitField) != null
-  );
+  const completeRows = rows.filter((row) => (row.status ?? "complete") === "complete");
+  const dedupedRows = dedupeCohortRowsByHorizon(completeRows, target.horizonDays);
+  const independentRows = dedupedRows.filter((row) => getHit(row, target.hitField) != null);
   const samples = independentRows.length;
   const hits = independentRows.filter((row) => getHit(row, target.hitField) === true).length;
   const uniqueCards = new Set(independentRows.map((row) => row.cardId)).size;
@@ -476,6 +531,35 @@ function summarizeRows(
     training.length > 0 && holdout.length > 0
       ? Math.abs(trainingHits / training.length - holdoutHits / holdout.length)
       : null;
+
+  // Survivorship: how many episodes never produced a usable outcome (status
+  // insufficient, or complete without a hit verdict for this target).
+  const insufficientCount =
+    rows.filter((row) => row.status === "insufficient").length +
+    (dedupedRows.length - independentRows.length);
+  const consideredCount = insufficientCount + samples;
+  const insufficientShare = consideredCount > 0 ? insufficientCount / consideredCount : null;
+
+  const directionRows = independentRows.filter((row) => row.directionHit != null);
+  const directionAccuracy = directionRows.length
+    ? directionRows.filter((row) => row.directionHit === true).length / directionRows.length
+    : null;
+  const bandRows = independentRows.filter((row) => row.bandWithin != null);
+  const bandCoverage = bandRows.length
+    ? bandRows.filter((row) => row.bandWithin === true).length / bandRows.length
+    : null;
+  const absoluteErrors = independentRows
+    .filter((row) => row.horizonDays === 180)
+    .map((row) =>
+      row.realizedReturnPct != null && row.entryExpectedReturnPct180 != null
+        ? Math.abs(row.realizedReturnPct - row.entryExpectedReturnPct180)
+        : null
+    )
+    .filter((value): value is number => value != null);
+  const meanAbsoluteErrorPct180 = absoluteErrors.length
+    ? absoluteErrors.reduce((sum, value) => sum + value, 0) / absoluteErrors.length
+    : null;
+
   return {
     ...summarizeForecastCohort({
       targetMultiplier: target.targetMultiplier,
@@ -487,6 +571,10 @@ function summarizeRows(
     }),
     holdoutSamples: holdout.length,
     holdoutCalibrationError,
+    directionAccuracy,
+    bandCoverage,
+    meanAbsoluteErrorPct180,
+    insufficientShare,
   };
 }
 
@@ -511,16 +599,17 @@ function toTargetSummary(input: {
   };
 }
 
-export function selectForecastCohort(input: {
+function selectForecastCohortForVersion(input: {
   current: ForecastSignalContext;
   rows: readonly ForecastCohortOutcomeSample[];
   target: ExternalForecastTarget;
+  modelVersion: string;
 }): ExternalForecastTargetSummary {
   const horizonRows = input.rows.filter(
     (row) =>
       row.horizonDays === input.target.horizonDays &&
       row.game === input.current.game &&
-      row.modelVersion === input.current.modelVersion
+      row.modelVersion === input.modelVersion
   );
   const candidates: Array<{
     scope: ExternalForecastCohortScope;
@@ -546,7 +635,7 @@ export function selectForecastCohort(input: {
     },
     {
       scope: "game",
-      label: `All ${input.current.game} ${input.current.modelVersion} signals`,
+      label: `All ${input.current.game} ${input.modelVersion} signals`,
       rows: horizonRows,
     }
   );
@@ -565,10 +654,35 @@ export function selectForecastCohort(input: {
   return broadestLearning!;
 }
 
+export function selectForecastCohort(input: {
+  current: ForecastSignalContext;
+  rows: readonly ForecastCohortOutcomeSample[];
+  target: ExternalForecastTarget;
+}): ExternalForecastTargetSummary {
+  const primary = selectForecastCohortForVersion({
+    ...input,
+    modelVersion: input.current.modelVersion,
+  });
+  if (primary.status === "calibrated") return primary;
+  const gate = FORECAST_PUBLISH_GATES.find(
+    (candidate) => candidate.targetMultiplier === input.target.targetMultiplier
+  );
+  if (!gate || primary.samples >= gate.minimumSamples) return primary;
+  const fallbackVersion = FORECAST_MODEL_VERSION_FALLBACKS[input.current.modelVersion];
+  if (!fallbackVersion) return primary;
+  const fallback = selectForecastCohortForVersion({
+    ...input,
+    modelVersion: fallbackVersion,
+  });
+  if (fallback.samples <= primary.samples) return primary;
+  return { ...fallback, usingPreviousModelCohort: true };
+}
+
 /**
  * Returns latest forecast calibration per requested card. Cohorts progressively
- * widen from same game/model/tier/price-band to tier and finally game, but game
- * and model version are never crossed.
+ * widen from same game/model/tier/price-band to tier and finally game. Games are
+ * never crossed; model versions only via the explicit fallback map, flagged as
+ * usingPreviousModelCohort.
  */
 export async function getExternalForecastSummaries(
   cardIds: readonly string[]
@@ -576,19 +690,31 @@ export async function getExternalForecastSummaries(
   const uniqueCardIds = [...new Set(cardIds.filter(Boolean))];
   if (uniqueCardIds.length === 0) return new Map();
   const currentByCardId = await loadLatestSignalObservations(uniqueCardIds);
-  const pairs = [
-    ...new Map(
-      [...currentByCardId.values()].map((current) => [
-        pairKey(current.game, current.modelVersion),
-        { game: current.game, modelVersion: current.modelVersion },
-      ])
-    ).values(),
-  ];
-  const cohortRowsByPair = await loadCompletedCohortOutcomes(pairs);
+  const pairsByKey = new Map(
+    [...currentByCardId.values()].map((current) => [
+      pairKey(current.game, current.modelVersion),
+      { game: current.game, modelVersion: current.modelVersion },
+    ])
+  );
+  for (const pair of [...pairsByKey.values()]) {
+    const fallbackVersion = FORECAST_MODEL_VERSION_FALLBACKS[pair.modelVersion];
+    if (!fallbackVersion) continue;
+    pairsByKey.set(pairKey(pair.game, fallbackVersion), {
+      game: pair.game,
+      modelVersion: fallbackVersion,
+    });
+  }
+  const cohortRowsByPair = await loadCompletedCohortOutcomes([...pairsByKey.values()]);
   const summaries = new Map<string, ExternalCardForecastSummary>();
 
   for (const current of currentByCardId.values()) {
-    const rows = cohortRowsByPair.get(pairKey(current.game, current.modelVersion)) ?? [];
+    const fallbackVersion = FORECAST_MODEL_VERSION_FALLBACKS[current.modelVersion];
+    const rows = [
+      ...(cohortRowsByPair.get(pairKey(current.game, current.modelVersion)) ?? []),
+      ...(fallbackVersion
+        ? (cohortRowsByPair.get(pairKey(current.game, fallbackVersion)) ?? [])
+        : []),
+    ];
     const targetEntries = EXTERNAL_FORECAST_TARGETS.map((target) => [
       target.key,
       selectForecastCohort({ current, rows, target }),

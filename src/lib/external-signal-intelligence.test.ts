@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import {
   calculateExternalEventScore,
+  catalystAgeDecayFactor,
   selectActionableRadarCohort,
   selectDiverseEventSignals,
 } from "@/lib/external-signal-intelligence";
@@ -115,6 +116,30 @@ describe("external event score", () => {
         riskScore: 0.8,
       })
     ).toBeLessThan(50);
+  });
+});
+
+describe("catalyst age decay", () => {
+  it("holds full strength for two weeks and then slides linearly to 0.35 at expiry", () => {
+    const observedAt = "2026-06-01T00:00:00.000Z";
+    const expiresAt = "2026-08-30T00:00:00.000Z";
+    const active = { observedAt, expiresAt };
+
+    expect(catalystAgeDecayFactor(active, new Date("2026-06-10T00:00:00.000Z"))).toBe(1);
+    expect(catalystAgeDecayFactor(active, new Date("2026-06-15T00:00:00.000Z"))).toBe(1);
+    const flatUntil = Date.parse(observedAt) + 14 * 24 * 60 * 60 * 1_000;
+    const midway = new Date((flatUntil + Date.parse(expiresAt)) / 2);
+    expect(catalystAgeDecayFactor(active, midway)).toBeCloseTo(0.675, 5);
+    expect(catalystAgeDecayFactor(active, new Date(expiresAt))).toBeCloseTo(0.35, 5);
+  });
+
+  it("does not decay catalysts without an expiry", () => {
+    expect(
+      catalystAgeDecayFactor(
+        { observedAt: "2026-01-01T00:00:00.000Z", expiresAt: null },
+        new Date("2026-07-01T00:00:00.000Z")
+      )
+    ).toBe(1);
   });
 });
 

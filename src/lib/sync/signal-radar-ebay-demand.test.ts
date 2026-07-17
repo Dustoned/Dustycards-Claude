@@ -46,11 +46,13 @@ vi.mock("@/lib/ebay-demand", () => ({
 }));
 
 import {
+  EBAY_DEMAND_FOCUS_SET_SIZE,
   getAllowedEbayDemandCardCount,
   getEbayDemandBrowseCallBudget,
   refreshSignalRadarEbayDemand,
   scanSignalRadarCardEbayDemand,
   selectDueEbayDemandCandidates,
+  selectEbayDemandFocusCardIds,
 } from "@/lib/sync/signal-radar-ebay-demand";
 
 describe("Signal Radar eBay demand refresh", () => {
@@ -96,6 +98,72 @@ describe("Signal Radar eBay demand refresh", () => {
     });
 
     expect(selected.map((candidate) => candidate.cardId)).toEqual(["never", "old"]);
+  });
+
+  it("builds a focus set from the top ranks with enter/leave hysteresis", () => {
+    const candidates = Array.from({ length: 60 }, (_, index) => ({
+      cardId: `card-${index + 1}`,
+      game: "pokemon" as const,
+      rank: index + 1,
+      externalScore: 200 - index,
+    }));
+
+    const initial = selectEbayDemandFocusCardIds({
+      candidates,
+      previousFocusCardIds: new Set(),
+    });
+    expect(initial.size).toBe(30);
+    expect(initial.has("card-30")).toBe(true);
+    expect(initial.has("card-31")).toBe(false);
+
+    // "held" slid to effective rank 40 (kept), "dropped" to rank 50 (removed).
+    const shifted = Array.from({ length: 60 }, (_, index) => ({
+      cardId: index === 39 ? "held" : index === 49 ? "dropped" : `new-${index + 1}`,
+      game: "pokemon" as const,
+      rank: index + 1,
+      externalScore: 200 - index,
+    }));
+    const next = selectEbayDemandFocusCardIds({
+      candidates: shifted,
+      previousFocusCardIds: new Set(["held", "dropped"]),
+    });
+    expect(next.has("held")).toBe(true);
+    expect(next.has("dropped")).toBe(false);
+    expect(next.has("new-30")).toBe(true);
+    expect(next.has("new-31")).toBe(false);
+    expect(next.size).toBe(31);
+
+    const capped = selectEbayDemandFocusCardIds({
+      candidates,
+      previousFocusCardIds: new Set(candidates.slice(0, 40).map((card) => card.cardId)),
+    });
+    expect(capped.size).toBe(EBAY_DEMAND_FOCUS_SET_SIZE);
+  });
+
+  it("rotates the focus set daily and gives non-focus cards a weekly leftover slot", () => {
+    const now = new Date("2026-07-25T12:00:00.000Z");
+    const selected = selectDueEbayDemandCandidates({
+      candidates: [
+        { cardId: "nonfocus-2d", game: "pokemon", rank: 1, externalScore: 95 },
+        { cardId: "nonfocus-8d", game: "pokemon", rank: 2, externalScore: 90 },
+        { cardId: "focus-due", game: "pokemon", rank: 3, externalScore: 85 },
+        { cardId: "focus-fresh", game: "pokemon", rank: 4, externalScore: 80 },
+      ],
+      latestUpdatedAt: new Map([
+        ["nonfocus-2d", new Date("2026-07-23T12:00:00.000Z")],
+        ["nonfocus-8d", new Date("2026-07-17T12:00:00.000Z")],
+        ["focus-due", new Date("2026-07-24T11:00:00.000Z")],
+        ["focus-fresh", new Date("2026-07-25T00:00:00.000Z")],
+      ]),
+      now,
+      limit: 10,
+      focusCardIds: new Set(["focus-due", "focus-fresh"]),
+    });
+
+    expect(selected.map((candidate) => candidate.cardId)).toEqual([
+      "focus-due",
+      "nonfocus-8d",
+    ]);
   });
 
   it("immediately refreshes a recent snapshot from before the cohort revision", () => {

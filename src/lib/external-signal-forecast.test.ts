@@ -4,6 +4,7 @@ import {
   collapseSignalPricesByUtcDay,
   evaluateSignalOutcome,
   getSignalPriceBand,
+  scoreForecastOutcome,
   summarizeForecastCohort,
 } from "@/lib/external-signal-forecast";
 
@@ -109,5 +110,100 @@ describe("forecast publication gates", () => {
     expect(getSignalPriceBand(24.99)).toBe("EUR 5-25");
     expect(getSignalPriceBand(100)).toBe("EUR 100+");
     expect(getSignalPriceBand(null)).toBeNull();
+  });
+});
+
+const scenarioJson = JSON.stringify({
+  points: {
+    d30: { low: 9, base: 10, high: 12 },
+    d90: { low: 8, base: 11, high: 14 },
+    d180: { low: 7, base: 12, high: 18 },
+  },
+});
+
+function score(
+  overrides: Partial<Parameters<typeof scoreForecastOutcome>[0]> = {}
+): ReturnType<typeof scoreForecastOutcome> {
+  return scoreForecastOutcome({
+    entryOutlook: "modest_up",
+    entryExpectedReturnPct180: 15,
+    entryScenarioJson: scenarioJson,
+    horizonDays: 90,
+    entryPrice: 10,
+    endPrice: 12,
+    ...overrides,
+  });
+}
+
+describe("scoreForecastOutcome", () => {
+  it("computes the realized return in percent", () => {
+    expect(score({ endPrice: 12 }).realizedReturnPct).toBe(20);
+    expect(score({ endPrice: 8 }).realizedReturnPct).toBe(-20);
+    expect(score({ endPrice: 10 }).realizedReturnPct).toBe(0);
+  });
+
+  it("scores up outlooks as hits only above the +2pct dead zone", () => {
+    expect(score({ entryOutlook: "strong_up", endPrice: 12 }).directionHit).toBe(true);
+    expect(score({ entryOutlook: "modest_up", endPrice: 12 }).directionHit).toBe(true);
+    // Exactly +2pct is inside the dead zone.
+    expect(score({ entryOutlook: "strong_up", endPrice: 10.2 }).directionHit).toBe(false);
+    expect(score({ entryOutlook: "modest_up", endPrice: 9 }).directionHit).toBe(false);
+  });
+
+  it("scores a down outlook as a hit only below -2pct", () => {
+    expect(score({ entryOutlook: "down", endPrice: 9 }).directionHit).toBe(true);
+    expect(score({ entryOutlook: "down", endPrice: 9.8 }).directionHit).toBe(false);
+    expect(score({ entryOutlook: "down", endPrice: 12 }).directionHit).toBe(false);
+  });
+
+  it("gives a flat outlook a +/-7pct tolerance, inclusive", () => {
+    expect(score({ entryOutlook: "flat", endPrice: 10.7 }).directionHit).toBe(true);
+    expect(score({ entryOutlook: "flat", endPrice: 9.3 }).directionHit).toBe(true);
+    expect(score({ entryOutlook: "flat", endPrice: 10.75 }).directionHit).toBe(false);
+    expect(score({ entryOutlook: "flat", endPrice: 9.2 }).directionHit).toBe(false);
+  });
+
+  it("checks the band against the horizon that matches, bounds inclusive", () => {
+    expect(score({ horizonDays: 90, endPrice: 12 }).bandWithin).toBe(true);
+    expect(score({ horizonDays: 90, endPrice: 8 }).bandWithin).toBe(true);
+    expect(score({ horizonDays: 90, endPrice: 14 }).bandWithin).toBe(true);
+    expect(score({ horizonDays: 90, endPrice: 16 }).bandWithin).toBe(false);
+    // 16 sits outside d90 [8,14] but inside d180 [7,18].
+    expect(score({ horizonDays: 180, endPrice: 16 }).bandWithin).toBe(true);
+    expect(score({ horizonDays: 30, endPrice: 12.5 }).bandWithin).toBe(false);
+  });
+
+  it("returns a null direction for a null or unknown outlook", () => {
+    const nullOutlook = score({ entryOutlook: null });
+    expect(nullOutlook.directionHit).toBeNull();
+    expect(nullOutlook.realizedReturnPct).toBe(20);
+    expect(nullOutlook.bandWithin).toBe(true);
+    expect(score({ entryOutlook: "sideways_maybe" }).directionHit).toBeNull();
+  });
+
+  it("returns all nulls when the end price is missing", () => {
+    expect(score({ endPrice: null })).toEqual({
+      realizedReturnPct: null,
+      directionHit: null,
+      bandWithin: null,
+    });
+  });
+
+  it("returns nulls for an invalid entry price instead of dividing by zero", () => {
+    const result = score({ entryPrice: 0 });
+    expect(result.realizedReturnPct).toBeNull();
+    expect(result.directionHit).toBeNull();
+  });
+
+  it("never throws on malformed or incomplete scenario JSON", () => {
+    expect(score({ entryScenarioJson: "{not json" }).bandWithin).toBeNull();
+    expect(score({ entryScenarioJson: "null" }).bandWithin).toBeNull();
+    expect(score({ entryScenarioJson: '{"points":{}}' }).bandWithin).toBeNull();
+    expect(
+      score({ entryScenarioJson: '{"points":{"d90":{"low":"8","high":14}}}' }).bandWithin
+    ).toBeNull();
+    expect(score({ entryScenarioJson: null }).bandWithin).toBeNull();
+    // Direction scoring is unaffected by a broken band.
+    expect(score({ entryScenarioJson: "{not json" }).directionHit).toBe(true);
   });
 });

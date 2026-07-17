@@ -11,6 +11,15 @@ import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 
 const SCENARIO_DAYS = [30, 90, 180] as const;
 
+export interface ExtendedPriceHistoryFeatures {
+  volatilityDaily90Pct: number | null;
+  athDistancePct: number | null;
+  momentum365Pct: number | null;
+  jpLeadLagPct: number | null;
+  setRelativeStrength90Pct: number | null;
+  avg30AnchorGapPct: number | null;
+}
+
 export function clampMarketScore(value: number): number {
   return Math.round(Math.min(100, Math.max(0, value)));
 }
@@ -145,8 +154,11 @@ export function calculateScarcityScore(input: {
   // Price-source breadth counts languages/feeds, not available copies, and a
   // set-level gem rate describes graded condition supply rather than raw-NM
   // inventory. Neither is allowed to inflate physical raw scarcity.
+  // Sealed pressure's primary occurrence is here; set rarity's primary
+  // occurrence is the opportunity-score rarity adjustment, so its evidence
+  // weight here is halved to reduce double-counting.
   addEvidence(input.sealedPressureScore, 15);
-  addEvidence(input.setRarityScore, 9);
+  addEvidence(input.setRarityScore, 4.5);
 
   // Illustrator and character popularity are demand signals. They intentionally
   // do not make a plentiful card scarce; both remain part of confluence scoring.
@@ -308,20 +320,23 @@ export function calculateOpportunityScores(input: {
   riskScore: number;
   setRarityScore?: number | null;
 }): { raw: number; graded: number | null } {
-  const sealedAdjustment = (input.sealedPressureScore - 50) * 0.16;
+  // Sealed pressure's primary weight lives inside the scarcity score (which
+  // already feeds this sum via scarcityAdjustment); this direct occurrence is
+  // half-weighted to avoid double-counting the same signal.
+  const sealedAdjustment = (input.sealedPressureScore - 50) * 0.08;
   const scarcityAdjustment = (input.scarcityScore - 50) * 0.18;
   const trendAdjustment = Math.min(6, Math.max(-6, (input.rawTrend90dPct ?? 0) * 0.08));
   const confluenceAdjustment = Math.min(13, Math.max(0, input.confluenceScore - 55) * 0.3);
   const riskAdjustment = Math.max(0, input.riskScore) * 15;
+  // This is set rarity's primary occurrence; its other entries (scarcity
+  // evidence, scenario quality amplifier) are half-weighted.
   const rarityAdjustment = input.setRarityScore == null ? 0 : (input.setRarityScore - 50) * 0.18;
-  const rawEbayDemandAdjustment = Math.min(
-    6,
-    Math.max(-4, input.rawEbayDemandAdjustment ?? 0)
-  );
-  const gradedEbayDemandAdjustment = Math.min(
-    6,
-    Math.max(-4, input.gradedEbayDemandAdjustment ?? 0)
-  );
+  // eBay demand's primary occurrence is the price-scenario direction evidence;
+  // this ranking modifier is half-weighted to avoid double-counting.
+  const rawEbayDemandAdjustment =
+    Math.min(6, Math.max(-4, input.rawEbayDemandAdjustment ?? 0)) * 0.5;
+  const gradedEbayDemandAdjustment =
+    Math.min(6, Math.max(-4, input.gradedEbayDemandAdjustment ?? 0)) * 0.5;
   const baseScore =
     input.externalScore +
     sealedAdjustment +
@@ -509,6 +524,7 @@ export function buildPriceScenario(input: {
   lifecycleConfidence?: number | null;
   lifecycleOopProbability?: number | null;
   currentVsEnglishNmAverage30dPct?: number | null;
+  extendedHistory?: ExtendedPriceHistoryFeatures | null;
 }): ExternalPriceScenario | null {
   if (
     input.currentPrice == null ||
@@ -539,9 +555,15 @@ export function buildPriceScenario(input: {
       ? 0
       : momentumInputs.reduce((sum, item) => sum + item.value * item.weight, 0) /
         momentumInputs.reduce((sum, item) => sum + item.weight, 0);
+  const extended = input.extendedHistory ?? null;
+  const volatility = extended?.volatilityDaily90Pct ?? null;
+  // A +20% move on a stable card is more meaningful than on a hyper-volatile
+  // one; normalize the momentum contribution by daily dispersion when known.
+  const momentumVolatilityScale =
+    volatility == null ? 1 : clamp(1.8 / Math.max(0.6, volatility), 0.55, 1.4);
   const momentumContribution = clamp(
-    signedDeadband(weightedMomentumPct, 2.5) * 0.6,
-    -25,
+    signedDeadband(weightedMomentumPct, 2.5) * 0.6 * momentumVolatilityScale,
+    -30,
     30
   );
   const sealedContribution = clamp(
@@ -599,18 +621,24 @@ export function buildPriceScenario(input: {
   ].filter(Boolean).length;
 
   // Rarity, scarcity, artist demand and grading potential amplify confirmed
-  // demand. They never manufacture a bullish direction on their own.
-  const qualityValues = [
-    input.setRarityScore,
-    input.confluenceScore,
-    input.scarcityScore,
-    input.artistDemandScore,
-    input.collectorDemandScore,
-  ].filter((value): value is number => value != null && Number.isFinite(value));
+  // demand. They never manufacture a bullish direction on their own. Set
+  // rarity's primary occurrence is the opportunity-score rarity adjustment,
+  // so it is half-weighted here to reduce double-counting.
+  const qualityInputs = [
+    { value: input.setRarityScore, weight: 0.5 },
+    { value: input.confluenceScore, weight: 1 },
+    { value: input.scarcityScore, weight: 1 },
+    { value: input.artistDemandScore, weight: 1 },
+    { value: input.collectorDemandScore, weight: 1 },
+  ].filter(
+    (item): item is { value: number; weight: number } =>
+      item.value != null && Number.isFinite(item.value)
+  );
   const qualityAverage =
-    qualityValues.length === 0
+    qualityInputs.length === 0
       ? 0
-      : qualityValues.reduce((sum, value) => sum + value, 0) / qualityValues.length;
+      : qualityInputs.reduce((sum, item) => sum + item.value * item.weight, 0) /
+        qualityInputs.reduce((sum, item) => sum + item.weight, 0);
   const raritySupportsUpside =
     (input.setRarityScore ?? input.scarcityScore) >= 70 && input.scarcityScore >= 60;
   const strongPositiveEvidence =
@@ -625,17 +653,68 @@ export function buildPriceScenario(input: {
     raritySupportsUpside
       ? clamp((qualityAverage - 65) * 0.22, 0, positiveConfirmations >= 2 ? 10 : 5)
       : 0;
+  // Mirror of the quality bonus: a structurally weak card with strong
+  // negative evidence deserves the same magnitude of downside expression.
+  const strongNegativeEvidence =
+    momentumContribution <= -8 ||
+    ebayContribution <= -5 ||
+    sealedContribution + lifecycleContribution <= -8 ||
+    catalystContribution <= -5;
+  const qualityPenalty =
+    strongNegativeEvidence &&
+    negativeConfirmations >= 1 &&
+    negativeConfirmations > positiveConfirmations &&
+    qualityInputs.length > 0 &&
+    qualityAverage < 40
+      ? clamp((qualityAverage - 40) * 0.22, negativeConfirmations >= 2 ? -10 : -5, 0)
+      : 0;
 
+  // With full history loaded the anchor gap (EN-NM floor vs cm 30d average)
+  // replaces the hand-rolled 30d-mean valuation anchor: a floor far below the
+  // 30d average signals thin listings ripe for mild repricing, a floor far
+  // above it signals an already-stretched ask.
+  const anchorGapPct = extended?.avg30AnchorGapPct ?? null;
   const valuationContribution =
-    input.currentVsEnglishNmAverage30dPct == null
+    anchorGapPct != null
+      ? clamp(signedDeadband(anchorGapPct, 10) * -0.12, -3, 3)
+      : input.currentVsEnglishNmAverage30dPct == null
+        ? 0
+        : input.currentVsEnglishNmAverage30dPct >= 40
+          ? -14
+          : input.currentVsEnglishNmAverage30dPct >= 20
+            ? -7
+            : input.currentVsEnglishNmAverage30dPct <= -20 && positiveConfirmations >= 1
+              ? 4
+              : 0;
+
+  // Full-window valuation: overextension near the all-time high on a hot 90d
+  // trend, and a recovery bonus deep below the ATH once the trend turns.
+  const athDistancePct = extended?.athDistancePct ?? null;
+  let athContribution = 0;
+  if (athDistancePct != null && input.rawTrend90dPct != null) {
+    if (athDistancePct >= -8 && input.rawTrend90dPct > 25) {
+      athContribution = -clamp(
+        (athDistancePct + 8) * 0.6 + (input.rawTrend90dPct - 25) * 0.08,
+        0,
+        8
+      );
+    } else if (athDistancePct <= -45 && input.rawTrend90dPct > 3) {
+      athContribution = clamp(
+        (-athDistancePct - 45) * 0.1 + (input.rawTrend90dPct - 3) * 0.05,
+        0,
+        5
+      );
+    }
+  }
+
+  const momentum365Contribution =
+    extended?.momentum365Pct == null ? 0 : clamp(extended.momentum365Pct * 0.04, -4, 5);
+  const jpLeadLagContribution =
+    extended?.jpLeadLagPct == null ? 0 : clamp(extended.jpLeadLagPct * 0.15, -4, 6);
+  const setStrengthContribution =
+    extended?.setRelativeStrength90Pct == null
       ? 0
-      : input.currentVsEnglishNmAverage30dPct >= 40
-        ? -14
-        : input.currentVsEnglishNmAverage30dPct >= 20
-          ? -7
-          : input.currentVsEnglishNmAverage30dPct <= -20 && positiveConfirmations >= 1
-            ? 4
-            : 0;
+      : clamp(extended.setRelativeStrength90Pct * 0.12, -4, 6);
 
   let releasePhaseContribution = 0;
   if (input.ageYears != null && input.ageYears < 0.18) {
@@ -659,22 +738,33 @@ export function buildPriceScenario(input: {
       lifecycleContribution +
       oopProbabilityContribution +
       qualityContribution +
+      qualityPenalty +
       valuationContribution +
+      athContribution +
+      momentum365Contribution +
+      jpLeadLagContribution +
+      setStrengthContribution +
       releasePhaseContribution -
       riskContribution,
-    -45,
+    -60,
     80
   );
+  // High confidence additionally requires calm daily dispersion; extreme
+  // dispersion makes any point forecast unreliable regardless of evidence.
   const calculatedConfidence: ExternalPriceScenario["confidence"] =
-    input.evidenceCount >= 3 && input.historyPoints >= 8
+    input.evidenceCount >= 3 &&
+    input.historyPoints >= 8 &&
+    (volatility == null || volatility <= 4.5)
       ? "High"
       : input.evidenceCount >= 2 || input.historyPoints >= 5
         ? "Medium"
         : "Low";
   const confidence: ExternalPriceScenario["confidence"] =
-    input.ageYears != null && input.ageYears < 1 && calculatedConfidence === "High"
-      ? "Medium"
-      : calculatedConfidence;
+    volatility != null && volatility > 8
+      ? "Low"
+      : input.ageYears != null && input.ageYears < 1 && calculatedConfidence === "High"
+        ? "Medium"
+        : calculatedConfidence;
   const confidenceShrinkage = confidence === "High" ? 0.9 : confidence === "Medium" ? 0.68 : 0.4;
   const noiseFloorPct =
     currentPrice < 5 ? 3 : currentPrice < 25 ? 2.5 : currentPrice < 100 ? 2 : 1.5;
@@ -712,6 +802,13 @@ export function buildPriceScenario(input: {
         : input.ageYears < 0.5
           ? 1.2
         : 1.1;
+  // Observed daily dispersion widens or narrows the band around the pure
+  // time-based spread when volatility is known.
+  const volatilitySpreadMultiplier =
+    volatility == null ? 1 : clamp(volatility / 1.8, 0.7, 1.9);
+  // Symmetry: a bearish outlook gets the same widening on the low band that
+  // bullish scenarios already get on the high band.
+  const lowSpreadFactor = outlook === "down" ? 1.15 : 1;
   const points = SCENARIO_DAYS.map((days) => {
     const months = days / 30;
     const horizonFactor =
@@ -737,11 +834,14 @@ export function buildPriceScenario(input: {
     const base = currentPrice * (1 + (expectedReturnPct180 * horizonFactor) / 100);
     const spread = Math.min(
       0.48,
-      (0.055 + Math.sqrt(months) * 0.045) * uncertaintyMultiplier * releaseUncertaintyMultiplier
+      (0.055 + Math.sqrt(months) * 0.045) *
+        uncertaintyMultiplier *
+        releaseUncertaintyMultiplier *
+        volatilitySpreadMultiplier
     );
     return {
       days,
-      low: roundMoney(Math.max(currentPrice * 0.35, base * (1 - spread))),
+      low: roundMoney(Math.max(currentPrice * 0.35, base * (1 - spread * lowSpreadFactor))),
       base: roundMoney(base),
       high: roundMoney(base * (1 + spread * 1.15)),
     };
@@ -760,7 +860,8 @@ export function buildPriceScenario(input: {
         ? "active supply or reprint"
         : null,
     catalystContribution !== 0 ? "fresh catalyst" : null,
-    valuationContribution < 0 ? "price overextension" : null,
+    valuationContribution < 0 || athContribution < 0 ? "price overextension" : null,
+    athContribution > 0 ? "recovery below all-time high" : null,
     input.ageYears != null && input.ageYears < 0.18
       ? "launch price discovery"
       : input.ageYears != null && input.ageYears < 1

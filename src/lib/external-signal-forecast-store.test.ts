@@ -4,6 +4,7 @@ vi.mock("@/lib/db", () => ({ db: {} }));
 
 import {
   EXTERNAL_FORECAST_TARGETS,
+  FORECAST_MODEL_VERSION_FALLBACKS,
   dedupeCohortRowsByHorizon,
   getSameSourceCardmarketValue,
   selectForecastCohort,
@@ -22,6 +23,11 @@ function sample(input: {
   priceBand?: string | null;
   hit?: boolean;
   horizonDays?: number;
+  status?: "complete" | "insufficient";
+  directionHit?: boolean | null;
+  bandWithin?: boolean | null;
+  realizedReturnPct?: number | null;
+  entryExpectedReturnPct180?: number | null;
 }): ForecastCohortOutcomeSample {
   return {
     horizonDays: input.horizonDays ?? 90,
@@ -34,6 +40,11 @@ function sample(input: {
     signalTier: input.signalTier ?? "Breakout",
     priceBand: input.priceBand ?? "5-25",
     observedAt: new Date(Date.UTC(2025, 0, 1) + input.index * DAY_MS),
+    status: input.status,
+    directionHit: input.directionHit,
+    bandWithin: input.bandWithin,
+    realizedReturnPct: input.realizedReturnPct,
+    entryExpectedReturnPct180: input.entryExpectedReturnPct180,
   };
 }
 
@@ -120,5 +131,117 @@ describe("external signal forecast store helpers", () => {
     expect(summary.samples).toBe(0);
     expect(summary.hits).toBe(0);
     expect(summary.cohortScope).toBe("game");
+  });
+
+  it("reports direction accuracy, band coverage and the survivorship share", () => {
+    const rows = [
+      ...Array.from({ length: 200 }, (_, index) =>
+        sample({
+          index,
+          hit: index % 5 === 0,
+          directionHit: index % 2 === 0,
+          bandWithin: index % 4 !== 0,
+        })
+      ),
+      ...Array.from({ length: 50 }, (_, index) =>
+        sample({ index: 300 + index, status: "insufficient" })
+      ),
+    ];
+    const summary = selectForecastCohort({
+      current,
+      rows,
+      target: EXTERNAL_FORECAST_TARGETS[0],
+    });
+
+    // The insufficient rows never enter the hit counts.
+    expect(summary.samples).toBe(200);
+    expect(summary.hits).toBe(40);
+    expect(summary.directionAccuracy).toBe(0.5);
+    expect(summary.bandCoverage).toBe(0.75);
+    expect(summary.insufficientShare).toBe(0.2);
+  });
+
+  it("computes the mean absolute forecast error for 180d outcomes", () => {
+    const rows = Array.from({ length: 40 }, (_, index) =>
+      sample({
+        index: index * 2,
+        horizonDays: 180,
+        hit: index % 8 === 0,
+        realizedReturnPct: index % 2 === 0 ? 20 : 40,
+        entryExpectedReturnPct180: 30,
+      })
+    );
+    const summary = selectForecastCohort({
+      current,
+      rows,
+      target: EXTERNAL_FORECAST_TARGETS[2],
+    });
+
+    expect(summary.meanAbsoluteErrorPct180).toBe(10);
+    expect(summary.directionAccuracy).toBeNull();
+    expect(summary.bandCoverage).toBeNull();
+  });
+
+  it("falls back to the previous model version when the new cohort is too small", () => {
+    expect(FORECAST_MODEL_VERSION_FALLBACKS["v9-calibrated-inputs"]).toBe(
+      "v8-expanded-coverage"
+    );
+
+    const v9Current: ForecastSignalContext = {
+      ...current,
+      modelVersion: "v9-calibrated-inputs",
+    };
+    const rows = [
+      ...Array.from({ length: 5 }, (_, index) =>
+        sample({
+          index,
+          cardId: `v9-card-${index}`,
+          modelVersion: "v9-calibrated-inputs",
+        })
+      ),
+      ...Array.from({ length: 200 }, (_, index) =>
+        sample({
+          index,
+          modelVersion: "v8-expanded-coverage",
+          hit: index % 5 === 0,
+        })
+      ),
+    ];
+    const summary = selectForecastCohort({
+      current: v9Current,
+      rows,
+      target: EXTERNAL_FORECAST_TARGETS[0],
+    });
+
+    expect(summary.usingPreviousModelCohort).toBe(true);
+    expect(summary.status).toBe("calibrated");
+    expect(summary.samples).toBe(200);
+  });
+
+  it("keeps the current cohort once it clears the minimum sample gate", () => {
+    const rows = [
+      ...Array.from({ length: 60 }, (_, index) =>
+        sample({
+          index,
+          cardId: `v9-card-${index}`,
+          modelVersion: "v9-calibrated-inputs",
+        })
+      ),
+      ...Array.from({ length: 200 }, (_, index) =>
+        sample({
+          index,
+          modelVersion: "v8-expanded-coverage",
+          hit: index % 5 === 0,
+        })
+      ),
+    ];
+    const summary = selectForecastCohort({
+      current: { ...current, modelVersion: "v9-calibrated-inputs" },
+      rows,
+      target: EXTERNAL_FORECAST_TARGETS[0],
+    });
+
+    expect(summary.usingPreviousModelCohort).toBeUndefined();
+    expect(summary.samples).toBe(60);
   });
 });

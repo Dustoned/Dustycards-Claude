@@ -158,7 +158,32 @@ async function loadActiveCatalysts(
   return byCard;
 }
 
-function calculateCatalystScores(catalysts: readonly ExternalSignalCatalyst[]): {
+const CATALYST_DECAY_FLAT_MS = 14 * 24 * 60 * 60_000;
+const CATALYST_DECAY_FLOOR = 0.35;
+
+/**
+ * News value fades: full strength for the first two weeks, then a linear slide
+ * to 0.35 at expiry so aging catalysts stop outweighing fresh evidence. The
+ * same factor applies to risk so positives and negatives decay consistently.
+ */
+export function catalystAgeDecayFactor(
+  catalyst: Pick<ExternalSignalCatalyst, "observedAt" | "expiresAt">,
+  now: Date
+): number {
+  const observedAt = Date.parse(catalyst.observedAt);
+  const expiresAt = catalyst.expiresAt ? Date.parse(catalyst.expiresAt) : Number.NaN;
+  if (!Number.isFinite(observedAt) || !Number.isFinite(expiresAt)) return 1;
+  const flatUntil = observedAt + CATALYST_DECAY_FLAT_MS;
+  const decaySpan = expiresAt - flatUntil;
+  if (decaySpan <= 0 || now.getTime() <= flatUntil) return 1;
+  const progress = clamp((now.getTime() - flatUntil) / decaySpan, 0, 1);
+  return 1 - progress * (1 - CATALYST_DECAY_FLOOR);
+}
+
+function calculateCatalystScores(
+  catalysts: readonly ExternalSignalCatalyst[],
+  now: Date
+): {
   catalystScore: number;
   hypeScore: number;
   riskScore: number;
@@ -169,7 +194,8 @@ function calculateCatalystScores(catalysts: readonly ExternalSignalCatalyst[]): 
   for (const catalyst of catalysts) {
     const sourceWeight =
       catalyst.sourceKind === "official" ? 1 : catalyst.sourceKind === "community" ? 0.75 : 0.4;
-    const weightedStrength = catalyst.strength * sourceWeight;
+    const weightedStrength =
+      catalyst.strength * sourceWeight * catalystAgeDecayFactor(catalyst, now);
     const signed = catalyst.direction === "positive" ? weightedStrength : -weightedStrength;
     if (catalyst.kind === "hype") hypeScore += signed;
     else if (catalyst.direction === "negative") riskScore += weightedStrength;
@@ -676,7 +702,7 @@ async function buildOnDemandExternalCardSignalUncached(
     }),
   ]);
   const catalysts = catalystsByCard.get(card.id) ?? [];
-  const catalystScores = calculateCatalystScores(catalysts);
+  const catalystScores = calculateCatalystScores(catalysts, now);
   const hasCatalysts = catalysts.length > 0;
   const externalScore = observation?.external_score ??
     (hasCatalysts ? calculateExternalEventScore(catalysts, catalystScores) : 50);
@@ -789,7 +815,7 @@ export async function enrichExternalSignalRadarData(
   const scored = seeds
     .map((signal) => {
       const catalysts = catalystsByCard.get(signal.cardId) ?? [];
-      const scores = calculateCatalystScores(catalysts);
+      const scores = calculateCatalystScores(catalysts, now);
       const competitiveScore = signal.competitiveScore ?? signal.externalScore;
       const structural = signal.sourceMode === "structural" || competitiveScore < 0;
       const eventOnly = !structural && competitiveScore === 0;

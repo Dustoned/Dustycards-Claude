@@ -33,6 +33,9 @@ export const EXTERNAL_CATALYST_QUERY_VERSION = 5;
 export const EXTERNAL_CATALYST_SEARCH_LIMIT = 5;
 export const EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN = 4;
 export const EXTERNAL_CATALYST_RETRY_BACKOFF_MS = 72 * 60 * 60_000;
+// Trusted URLs that miss the daily scrape budget are queued as pending rows so
+// later runs work through them; the cap bounds daily table growth.
+export const EXTERNAL_CATALYST_MAX_BACKLOG_INSERTS_PER_RUN = 25;
 
 // Reserve the documented search-unit maximum even when requesting five
 // results. The provider's returned credits replace this estimate afterward.
@@ -78,6 +81,8 @@ export interface ExternalCatalystDiscoveryResult {
   searchProvider: "tavily" | "firecrawl";
   tavilyCreditsUsed: number;
   creditsUsed: number;
+  backlogQueued?: number;
+  backlogProcessed?: number;
   errors: ExternalCatalystDiscoveryError[];
 }
 
@@ -111,6 +116,17 @@ export interface CatalystPersistenceInput {
   now: Date;
 }
 
+export interface ExternalCatalystBacklogSource {
+  id: string;
+  canonicalUrl: string;
+  urlHash: string;
+  domain: string;
+  game: ExternalRadarGame;
+  sourceKind: CatalystSourceKind;
+  title: string | null;
+  description: string | null;
+}
+
 export interface ExternalCatalystDiscoveryStore {
   findKnownCanonicalUrls(urls: readonly string[], now: Date): Promise<string[]>;
   touchKnownCanonicalUrls(urls: readonly string[], now: Date): Promise<void>;
@@ -118,6 +134,8 @@ export interface ExternalCatalystDiscoveryStore {
   createSource(input: CatalystSourceCreateInput): Promise<{ id: string } | null>;
   persistScrapedSource(input: CatalystPersistenceInput): Promise<number>;
   markSourceFailed(sourceId: string, error: unknown, now: Date): Promise<void>;
+  /** Oldest never-attempted pending sources queued by earlier runs (optional). */
+  listPendingBacklogSources?(limit: number, now: Date): Promise<ExternalCatalystBacklogSource[]>;
 }
 
 export interface BudgetedRequestInput<T> {
@@ -436,6 +454,41 @@ const prismaCatalystStore: ExternalCatalystDiscoveryStore = {
       },
     });
   },
+
+  async listPendingBacklogSources(limit) {
+    // Never-attempted rows only: failed sources keep their 72-hour backoff via
+    // the createSource retry path and are excluded here by scrape_status.
+    const rows = await db.externalCatalystSource.findMany({
+      where: { scrape_status: "pending", last_scraped_at: null },
+      orderBy: [{ first_seen_at: "asc" }, { id: "asc" }],
+      take: Math.max(0, Math.floor(limit)),
+      select: {
+        id: true,
+        canonical_url: true,
+        url_hash: true,
+        domain: true,
+        game: true,
+        source_type: true,
+        title: true,
+        description: true,
+      },
+    });
+    return rows.flatMap((row) => {
+      if (!["official", "community", "social"].includes(row.source_type)) return [];
+      return [
+        {
+          id: row.id,
+          canonicalUrl: row.canonical_url,
+          urlHash: row.url_hash,
+          domain: row.domain,
+          game: row.game === "one-piece" ? ("one-piece" as const) : ("pokemon" as const),
+          sourceKind: row.source_type as CatalystSourceKind,
+          title: row.title,
+          description: row.description,
+        },
+      ];
+    });
+  },
 };
 
 const tavilyConfigured = getTavilyConfigSnapshot().configured;
@@ -568,7 +621,21 @@ function baseResult(due: boolean): ExternalCatalystDiscoveryResult {
     searchProvider: tavilyConfigured ? "tavily" : "firecrawl",
     tavilyCreditsUsed: 0,
     creditsUsed: 0,
+    backlogQueued: 0,
+    backlogProcessed: 0,
     errors: [],
+  };
+}
+
+function backlogSearchQuery(source: ExternalCatalystBacklogSource): CatalystSearchQuery {
+  return {
+    game: source.game,
+    cardId: "backlog",
+    candidateName: "",
+    mode: "candidate",
+    topic: "news",
+    query: "",
+    allowedDomains: [],
   };
 }
 
@@ -699,34 +766,73 @@ export async function runExternalCatalystDiscovery(
 
   const knownUrlSet = new Set(knownUrls);
   result.knownUrlsSkipped = discovered.filter((source) => knownUrlSet.has(source.canonicalUrl)).length;
-  const selected = selectUnseenSourcesFairly(discovered, knownUrlSet);
 
-  for (const source of selected) {
-    let sourceRow: { id: string } | null;
+  // Earlier runs queued more trusted URLs than the scrape budget allowed; the
+  // backlog is worked through first and new finds only take the leftover slots.
+  let backlogEntries: Array<{ source: DiscoveredCatalystSource; existingId: string }> = [];
+  if (dependencies.store.listPendingBacklogSources) {
     try {
-      sourceRow = await dependencies.store.createSource({
-        canonicalUrl: source.canonicalUrl,
-        urlHash: source.urlHash,
-        domain: source.domain,
-        game: source.game,
-        sourceKind: source.sourceKind,
-        title: source.title,
-        description: source.description,
-        now,
-      });
+      const pending = await dependencies.store.listPendingBacklogSources(
+        EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN,
+        now
+      );
+      backlogEntries = pending.map((row) => ({
+        existingId: row.id,
+        source: {
+          canonicalUrl: row.canonicalUrl,
+          urlHash: row.urlHash,
+          domain: row.domain,
+          game: row.game,
+          sourceKind: row.sourceKind,
+          title: row.title,
+          description: row.description,
+          query: backlogSearchQuery(row),
+        },
+      }));
     } catch (error) {
-      result.errors.push({
-        stage: "persist",
-        message: errorMessage(error),
-        url: source.canonicalUrl,
-      });
-      continue;
+      result.errors.push({ stage: "persist", message: errorMessage(error) });
     }
-    if (!sourceRow) {
-      result.knownUrlsSkipped += 1;
-      continue;
+  }
+  const backlogUrls = new Set(backlogEntries.map((entry) => entry.source.canonicalUrl));
+  const selected = selectUnseenSourcesFairly(discovered, knownUrlSet)
+    .filter((source) => !backlogUrls.has(source.canonicalUrl))
+    .slice(0, Math.max(0, EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN - backlogEntries.length));
+  const scrapeQueue = [
+    ...backlogEntries,
+    ...selected.map((source) => ({ source, existingId: null as string | null })),
+  ];
+
+  for (const { source, existingId } of scrapeQueue) {
+    let sourceRow: { id: string } | null;
+    if (existingId) {
+      sourceRow = { id: existingId };
+      result.backlogProcessed = (result.backlogProcessed ?? 0) + 1;
+    } else {
+      try {
+        sourceRow = await dependencies.store.createSource({
+          canonicalUrl: source.canonicalUrl,
+          urlHash: source.urlHash,
+          domain: source.domain,
+          game: source.game,
+          sourceKind: source.sourceKind,
+          title: source.title,
+          description: source.description,
+          now,
+        });
+      } catch (error) {
+        result.errors.push({
+          stage: "persist",
+          message: errorMessage(error),
+          url: source.canonicalUrl,
+        });
+        continue;
+      }
+      if (!sourceRow) {
+        result.knownUrlsSkipped += 1;
+        continue;
+      }
+      result.sourcesCreated += 1;
     }
-    result.sourcesCreated += 1;
 
     if (source.sourceKind === "social") {
       const snippet = buildSocialSnippetEvidence(source);
@@ -808,6 +914,37 @@ export async function runExternalCatalystDiscovery(
           url: source.canonicalUrl,
         });
       }
+    }
+  }
+
+  // Queue the unseen trusted URLs that missed this run's scrape budget as
+  // pending rows so they stop vanishing; later runs drain this backlog first.
+  const processedUrls = new Set(scrapeQueue.map((entry) => entry.source.canonicalUrl));
+  const backlogCandidates = discovered.filter(
+    (source) => !knownUrlSet.has(source.canonicalUrl) && !processedUrls.has(source.canonicalUrl)
+  );
+  for (const source of backlogCandidates.slice(0, EXTERNAL_CATALYST_MAX_BACKLOG_INSERTS_PER_RUN)) {
+    try {
+      const created = await dependencies.store.createSource({
+        canonicalUrl: source.canonicalUrl,
+        urlHash: source.urlHash,
+        domain: source.domain,
+        game: source.game,
+        sourceKind: source.sourceKind,
+        title: source.title,
+        description: source.description,
+        now,
+      });
+      if (created) {
+        result.sourcesCreated += 1;
+        result.backlogQueued = (result.backlogQueued ?? 0) + 1;
+      }
+    } catch (error) {
+      result.errors.push({
+        stage: "persist",
+        message: errorMessage(error),
+        url: source.canonicalUrl,
+      });
     }
   }
 

@@ -901,6 +901,10 @@ model ExternalSignalObservation {
   reference_price        Float?
   reference_price_at     DateTime?
   is_episode_entry       Boolean   @default(false)
+  entry_outlook          String?
+  entry_expected_return_pct_180 Float?
+  entry_opportunity_score Float?
+  entry_scenario_json    String?
   external_score         Float
   competitive_score      Float     @default(0)
   confidence             String
@@ -945,6 +949,9 @@ model ExternalSignalOutcome {
   hit_15x              Boolean?
   hit_2x               Boolean?
   hit_3x               Boolean?
+  realized_return_pct  Float?
+  direction_hit        Boolean?
+  band_within          Boolean?
   created_at           DateTime  @default(now())
   updated_at           DateTime  @updatedAt
 

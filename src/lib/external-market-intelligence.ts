@@ -8,6 +8,11 @@ import {
 } from "@/lib/ebay-demand-signal";
 import { EBAY_DEMAND_COHORT_REVISION_AT } from "@/lib/ebay-demand";
 import { getEbayDemandRuntimeConfig } from "@/lib/ebay";
+import {
+  getEpisodeSetPriceSnapshotRows,
+  type EpisodeSetPriceSnapshotRow,
+} from "@/lib/episode-set-prices";
+import { convertUsdToEur, getUsdToEurRate } from "@/lib/exchange-rates";
 import { getExternalEntityKey } from "@/lib/external-event-candidates";
 import {
   alignConfluenceWithScenario,
@@ -21,7 +26,7 @@ import {
   classifySealedProduct,
   getGradedSupplyLabel,
   hasActiveReprintRisk,
-  percentChange,
+  type ExtendedPriceHistoryFeatures,
 } from "@/lib/external-market-intelligence-core";
 import type {
   ExternalCardSignal,
@@ -34,6 +39,7 @@ import { normalizeRarityLabel } from "@/lib/rarity";
 import {
   buildDailyMarketHistory,
   calculateRobustPriceTrend,
+  type DailyMarketValue,
 } from "@/lib/robust-price-history";
 import { createSwrCache } from "@/lib/server-swr-cache";
 import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
@@ -41,7 +47,7 @@ import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 const DAY_MS = 86_400_000;
 const CARD_CHUNK_SIZE = 50;
 const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
-const FORECAST_MODEL_VERSION = "signed-market-v5-en-nm-only";
+const FORECAST_MODEL_VERSION = "signed-market-v6-extended-history";
 
 const LIFECYCLE_COPY: Record<
   SetLifecycleStatus,
@@ -208,20 +214,115 @@ function releaseAgeYears(value: string | null, now: Date): number | null {
   return Number((Math.max(0, now.getTime() - timestamp) / (DAY_MS * 365.25)).toFixed(1));
 }
 
-function historyTrend(
-  points: Array<{ fetchedAt: Date; value: number | null }>,
-  days: number
+function isUsableMarketValue(value: number | null): value is number {
+  return value != null && Number.isFinite(value) && value > 0 && value !== 9001;
+}
+
+function medianOf(values: readonly number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+/** Sample stdev of day-over-day pct returns over the trailing 90 days. */
+function calculateDailyVolatilityPct(
+  history: readonly DailyMarketValue[]
 ): number | null {
-  const valid = points
-    .filter((point): point is { fetchedAt: Date; value: number } => point.value != null && point.value > 0)
-    .sort((left, right) => left.fetchedAt.getTime() - right.fetchedAt.getTime());
-  if (valid.length < 2) return null;
-  const latest = valid[valid.length - 1];
-  const cutoff = latest.fetchedAt.getTime() - days * DAY_MS;
-  const previous = [...valid].reverse().find((point) => point.fetchedAt.getTime() <= cutoff) ?? valid[0];
-  if (latest.fetchedAt.getTime() - previous.fetchedAt.getTime() < Math.min(days, 14) * DAY_MS) return null;
-  const change = percentChange(latest.value, previous.value);
-  return change != null && Math.abs(change) <= 300 ? change : null;
+  const latest = history.at(-1);
+  if (!latest) return null;
+  const cutoff = latest.day.getTime() - 90 * DAY_MS;
+  const window = history.filter((point) => point.day.getTime() >= cutoff);
+  if (window.length < 20) return null;
+  const returns: number[] = [];
+  for (let index = 1; index < window.length; index += 1) {
+    returns.push(((window[index].value - window[index - 1].value) / window[index - 1].value) * 100);
+  }
+  const mean = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const variance =
+    returns.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+    (returns.length - 1);
+  return Number(Math.sqrt(variance).toFixed(2));
+}
+
+function calculateAthDistancePct(
+  history: readonly DailyMarketValue[]
+): number | null {
+  if (history.length < 60) return null;
+  const current = history[history.length - 1].value;
+  let allTimeHigh = 0;
+  for (const point of history) allTimeHigh = Math.max(allTimeHigh, point.value);
+  if (allTimeHigh <= 0) return null;
+  return Number((((current - allTimeHigh) / allTimeHigh) * 100).toFixed(1));
+}
+
+// Mirrors calculateRobustPriceTrend for a 365d window; the shared helper only
+// accepts the 30/90/180 horizons, so the long-horizon coverage gates (same
+// span/unique-days progression) live here.
+const MOMENTUM_365_COVERAGE = { spanDays: 240, uniqueDays: 24 };
+
+function calculateMomentum365Pct(
+  history: readonly DailyMarketValue[]
+): number | null {
+  const latest = history.at(-1);
+  if (!latest || history.length < MOMENTUM_365_COVERAGE.uniqueDays) return null;
+  const cutoff = latest.day.getTime() - 365 * DAY_MS;
+  const window = history.filter((point) => point.day.getTime() >= cutoff);
+  if (window.length < MOMENTUM_365_COVERAGE.uniqueDays) return null;
+  const spanDays = Math.round((latest.day.getTime() - window[0].day.getTime()) / DAY_MS);
+  if (spanDays < MOMENTUM_365_COVERAGE.spanDays) return null;
+  const endpointSize = Math.min(5, Math.max(2, Math.floor(window.length / 4)));
+  const startValue = medianOf(window.slice(0, endpointSize).map((point) => point.value));
+  const endValue = medianOf(window.slice(-endpointSize).map((point) => point.value));
+  if (startValue == null || endValue == null || startValue <= 0) return null;
+  const percent = ((endValue - startValue) / startValue) * 100;
+  return Number.isFinite(percent) && Math.abs(percent) <= 300
+    ? Number(percent.toFixed(1))
+    : null;
+}
+
+/**
+ * 90d trend of the set's daily price index with median-smoothed endpoints.
+ * The index is the per-card average of that day's EN-NM floors: a partially
+ * synced day covers fewer cards, so a raw daily total would fake set moves.
+ */
+function calculateSetIndexTrend90Pct(
+  rows: readonly EpisodeSetPriceSnapshotRow[]
+): number | null {
+  const byDay = new Map<string, { timestamp: number; sum: number; count: number }>();
+  for (const row of rows) {
+    if (!isUsableMarketValue(row.cm_en_lowest_nm)) continue;
+    const dayKey = row.fetched_at.slice(0, 10);
+    const bucket = byDay.get(dayKey) ?? {
+      timestamp: Date.parse(`${dayKey}T00:00:00.000Z`),
+      sum: 0,
+      count: 0,
+    };
+    bucket.sum += row.cm_en_lowest_nm;
+    bucket.count += 1;
+    byDay.set(dayKey, bucket);
+  }
+  const series = [...byDay.values()]
+    .filter((bucket) => Number.isFinite(bucket.timestamp) && bucket.count > 0)
+    .map((bucket) => ({ day: bucket.timestamp, value: bucket.sum / bucket.count }))
+    .sort((left, right) => left.day - right.day);
+  const latest = series.at(-1);
+  if (!latest) return null;
+  const cutoff = latest.day - 90 * DAY_MS;
+  const window = series.filter((point) => point.day >= cutoff);
+  if (window.length < 12) return null;
+  const spanDays = Math.round((latest.day - window[0].day) / DAY_MS);
+  if (spanDays < 60) return null;
+  const endpointSize = Math.min(5, Math.max(2, Math.floor(window.length / 4)));
+  const startValue = medianOf(window.slice(0, endpointSize).map((point) => point.value));
+  const endValue = medianOf(window.slice(-endpointSize).map((point) => point.value));
+  if (startValue == null || endValue == null || startValue <= 0) return null;
+  const percent = ((endValue - startValue) / startValue) * 100;
+  return Number.isFinite(percent) && Math.abs(percent) <= 300
+    ? Number(percent.toFixed(1))
+    : null;
 }
 
 function chooseLatestGrade<T extends { company: string; grade: string; fetched_at: Date }>(
@@ -408,6 +509,8 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     episodeRarities,
     ebayDemandSnapshots,
     lifecycleObservations,
+    usdToEurRate,
+    episodeSetSnapshotEntries,
   ] = await Promise.all([
     db.sealedProduct.findMany({
       where: {
@@ -486,7 +589,24 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         evidence_json: true,
       },
     }),
+    getUsdToEurRate(),
+    // Loads each distinct set once per enrichment run; the loader itself is
+    // SWR-cached. A failed set load only nulls the relative-strength feature.
+    Promise.all(
+      episodeIds.map((episodeId) =>
+        getEpisodeSetPriceSnapshotRows(episodeId)
+          .then((rows) => [episodeId, rows] as const)
+          .catch(() => [episodeId, [] as EpisodeSetPriceSnapshotRow[]] as const)
+      )
+    ),
   ]);
+
+  // One set-index trend per distinct set; every card in the set shares it.
+  const setIndexTrend90ByEpisode = new Map<string, number | null>(
+    episodeSetSnapshotEntries.map(
+      ([episodeId, rows]) => [episodeId, calculateSetIndexTrend90Pct(rows)] as const
+    )
+  );
 
   const lifecycleByEpisode = new Map<
     string,
@@ -585,14 +705,18 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     const pack = pricedProducts.find((item) => item.kind === "pack") ?? null;
     const box = pricedProducts.find((item) => item.kind === "box") ?? null;
     const representative = pack ?? box ?? pricedProducts[0] ?? null;
+    // The sealed series gets the same robust daily-median treatment as the
+    // card series; a raw two-point trend amplified single-snapshot outliers.
     const representativeHistory = representative
-      ? (snapshotsByProduct.get(representative.product.id) ?? []).map((snapshot) => ({
-          fetchedAt: snapshot.fetched_at,
-          value: sealedValue(snapshot),
-        }))
+      ? buildDailyMarketHistory(
+          (snapshotsByProduct.get(representative.product.id) ?? []).map((snapshot) => ({
+            observedAt: snapshot.fetched_at,
+            primaryValue: sealedValue(snapshot),
+          }))
+        )
       : [];
-    const trend30dPct = historyTrend(representativeHistory, 30);
-    const trend90dPct = historyTrend(representativeHistory, 90);
+    const trend30dPct = calculateRobustPriceTrend(representativeHistory, 30)?.percent ?? null;
+    const trend90dPct = calculateRobustPriceTrend(representativeHistory, 90)?.percent ?? null;
     const lifecycle = lifecycleFields(lifecycleByEpisode.get(card.episode.id));
     const hasReprintRisk = hasActiveReprintRisk(signal.catalysts ?? []);
     const sealedPressure = calculateSealedPressure({
@@ -645,10 +769,33 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     const cardMarketPsa10 = chooseCardMarketPsa10(card.gradedPrices);
     const gradedCurrent = psa10?.median_price ?? cardMarketPsa10?.price ?? null;
     const gradedCurrency = psa10 ? (psa10.currency === "EUR" ? "EUR" : "USD") : "EUR";
-    const comparableRaw = signal.currency === gradedCurrency ? signal.currentPrice : null;
+    // Compare graded vs raw in one currency. On a mismatch the USD side is
+    // converted with the 12h-cached USD->EUR rate (values below are marked
+    // FX-converted and used only for this ratio; displayed graded prices keep
+    // their source currency) instead of silently dropping the premium.
+    const comparablePair =
+      gradedCurrent == null || signal.currentPrice == null
+        ? null
+        : signal.currency === gradedCurrency
+          ? { graded: gradedCurrent, raw: signal.currentPrice }
+          : {
+              graded:
+                gradedCurrency === "USD"
+                  ? convertUsdToEur(gradedCurrent, usdToEurRate)
+                  : gradedCurrent,
+              raw:
+                signal.currency === "USD"
+                  ? convertUsdToEur(signal.currentPrice, usdToEurRate)
+                  : signal.currentPrice,
+            };
     const gradePremiumPct =
-      gradedCurrent != null && comparableRaw != null && comparableRaw > 0
-        ? Number((((gradedCurrent - comparableRaw) / comparableRaw) * 100).toFixed(1))
+      comparablePair != null &&
+      comparablePair.graded != null &&
+      comparablePair.raw != null &&
+      comparablePair.raw > 0
+        ? Number(
+            (((comparablePair.graded - comparablePair.raw) / comparablePair.raw) * 100).toFixed(1)
+          )
         : null;
     const graded: ExternalGradedIntelligence = {
       available: gradedCurrent != null,
@@ -709,6 +856,64 @@ async function enrichSignalsWithMarketIntelligenceUncached(
             ).toFixed(1)
           )
         : null;
+    // Extended long-window features are anchored on the EN-NM daily median
+    // series; for EUR signals that is exactly rawHistory, so reuse it.
+    const englishNmHistory =
+      signal.currency === "EUR"
+        ? rawHistory
+        : buildDailyMarketHistory(
+            card.prices.map((price) => ({
+              observedAt: price.fetched_at,
+              primaryValue: price.cm_en_lowest_nm,
+            }))
+          );
+    const englishNmTrend90dPct =
+      signal.currency === "EUR"
+        ? rawTrend90dPct
+        : calculateRobustPriceTrend(englishNmHistory, 90)?.percent ?? null;
+    const japaneseHistory = buildDailyMarketHistory(
+      card.prices.map((price) => ({
+        observedAt: price.fetched_at,
+        primaryValue: price.cm_jp_lowest_nm,
+      }))
+    );
+    // The robust helper anchors its window on the series' own latest day; a
+    // JP series that stopped updating must not be compared to a current EN one.
+    const japaneseLatestDay = japaneseHistory.at(-1)?.day.getTime() ?? null;
+    const englishLatestDay = englishNmHistory.at(-1)?.day.getTime() ?? null;
+    const japaneseFresh =
+      japaneseLatestDay != null &&
+      englishLatestDay != null &&
+      englishLatestDay - japaneseLatestDay <= 14 * DAY_MS;
+    const japaneseTrend90dPct = japaneseFresh
+      ? calculateRobustPriceTrend(japaneseHistory, 90)?.percent ?? null
+      : null;
+    const setIndexTrend90dPct = setIndexTrend90ByEpisode.get(card.episode.id) ?? null;
+    const latestEnglishNmFloor =
+      card.prices.find((price) => isUsableMarketValue(price.cm_en_lowest_nm))
+        ?.cm_en_lowest_nm ?? null;
+    const latestEnglishAvg30 =
+      card.prices.find((price) => isUsableMarketValue(price.cm_en_avg_30d))
+        ?.cm_en_avg_30d ?? null;
+    const extendedHistory: ExtendedPriceHistoryFeatures = {
+      volatilityDaily90Pct: calculateDailyVolatilityPct(englishNmHistory),
+      athDistancePct: calculateAthDistancePct(englishNmHistory),
+      momentum365Pct: calculateMomentum365Pct(englishNmHistory),
+      jpLeadLagPct:
+        japaneseTrend90dPct != null && englishNmTrend90dPct != null
+          ? Number((japaneseTrend90dPct - englishNmTrend90dPct).toFixed(1))
+          : null,
+      setRelativeStrength90Pct:
+        englishNmTrend90dPct != null && setIndexTrend90dPct != null
+          ? Number((englishNmTrend90dPct - setIndexTrend90dPct).toFixed(1))
+          : null,
+      avg30AnchorGapPct:
+        latestEnglishNmFloor != null && latestEnglishAvg30 != null && latestEnglishAvg30 > 0
+          ? Number(
+              (((latestEnglishNmFloor - latestEnglishAvg30) / latestEnglishAvg30) * 100).toFixed(1)
+            )
+          : null,
+    };
     const rawMarketBreadth = latestRaw
       ? [
           latestRaw.cm_en_lowest_nm,
@@ -823,6 +1028,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       lifecycleConfidence: sealed.lifecycleConfidence,
       lifecycleOopProbability: sealed.lifecycleOopProbability,
       currentVsEnglishNmAverage30dPct,
+      extendedHistory,
     });
     const gradedScenario = buildPriceScenario({
       marketMode: "graded",
@@ -853,6 +1059,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       lifecycleStatus: sealed.lifecycleStatus,
       lifecycleConfidence: sealed.lifecycleConfidence,
       lifecycleOopProbability: sealed.lifecycleOopProbability,
+      extendedHistory,
     });
     const rawOpportunity = alignOpportunityScoreWithScenario(
       structuralOpportunity.raw,
@@ -888,8 +1095,9 @@ async function enrichSignalsWithMarketIntelligenceUncached(
 async function loadCards(cardIds: string[], now: Date) {
   // Fetch by calendar range rather than by refresh-row count: some cards have
   // many observations per day, so `take: 40` could represent less than a
-  // month and was incorrectly presented as a 90-day history.
-  const historyStart = new Date(now.getTime() - 220 * DAY_MS);
+  // month and was incorrectly presented as a 90-day history. The long window
+  // feeds the extended features (ATH distance, 365d momentum).
+  const historyStart = new Date(now.getTime() - 1100 * DAY_MS);
   const cards = await db.card.findMany({
     where: { id: { in: cardIds } },
     select: {
@@ -939,10 +1147,29 @@ async function loadCards(cardIds: string[], now: Date) {
     { fetchedAtGte: historyStart }
   );
 
+  // Rows beyond every trend horizon only feed the EN-NM series (ATH distance,
+  // 365d momentum); drop the other columns there to keep the window light.
+  const slimCutoff = now.getTime() - 400 * DAY_MS;
   return cards.map((card) => ({
     ...card,
-    prices: [...(historyByCardId.get(card.id) ?? [])].sort(
-      (left, right) => right.fetched_at.getTime() - left.fetched_at.getTime()
-    ),
+    prices: [...(historyByCardId.get(card.id) ?? [])]
+      .sort((left, right) => right.fetched_at.getTime() - left.fetched_at.getTime())
+      .map((row) =>
+        row.fetched_at.getTime() >= slimCutoff
+          ? row
+          : {
+              ...row,
+              cm_de_lowest_nm: null,
+              cm_fr_lowest_nm: null,
+              cm_es_lowest_nm: null,
+              cm_it_lowest_nm: null,
+              cm_jp_lowest_nm: null,
+              cm_en_avg_7d: null,
+              cm_en_avg_30d: null,
+              tcp_market: null,
+              tcp_mid: null,
+              tcp_low: null,
+            }
+      ),
   }));
 }

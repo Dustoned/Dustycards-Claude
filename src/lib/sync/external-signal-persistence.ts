@@ -1,22 +1,30 @@
 import { db } from "@/lib/db";
 import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
+import { getSameSourceCardmarketValue } from "@/lib/external-signal-forecast-store";
 import type {
   ExternalCardSignal,
+  ExternalPriceScenario,
   ExternalSignalRadarData,
 } from "@/lib/external-signal-radar";
-import { normalizeCardMarketListingValue } from "@/lib/price-history";
 
 export const EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 export const EXTERNAL_CATALYST_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
-export const EXTERNAL_SIGNAL_MODEL_VERSION = "v8-expanded-coverage";
+export const EXTERNAL_SIGNAL_MODEL_VERSION = "v9-calibrated-inputs";
 export const EXTERNAL_SIGNAL_OUTCOME_HORIZONS = [30, 90, 180] as const;
 const INDEPENDENT_ENTRY_GAP_MS = 14 * 24 * 60 * 60_000;
 const REFERENCE_PRICE_MAX_AGE_MS = 72 * 60 * 60_000;
 
 interface CardmarketReference {
   price: number;
-  source: "cardmarket:en-nm";
+  source: "cardmarket:avg7d";
   fetchedAt: Date;
+}
+
+interface EntryForecastFields {
+  entry_outlook: string | null;
+  entry_expected_return_pct_180: number | null;
+  entry_opportunity_score: number | null;
+  entry_scenario_json: string | null;
 }
 
 interface PreviousEpisodeEntry {
@@ -86,16 +94,18 @@ async function loadFreshCardmarketReferences(
       { fetchedAtGte: oldestAllowed }
     );
     for (const card of cards) {
-      const price = [...(historyByCardId.get(card.id) ?? [])]
+      // New episodes anchor on the avg-7d family; previously opened episodes
+      // keep the reference_source stored on their entry row.
+      const latest = [...(historyByCardId.get(card.id) ?? [])]
         .reverse()
-        .find((row) => normalizeCardMarketListingValue(row.cm_en_lowest_nm) != null);
-      if (!price) continue;
-      const englishNm = normalizeCardMarketListingValue(price.cm_en_lowest_nm);
-      if (englishNm != null) {
+        .find((row) => getSameSourceCardmarketValue("cardmarket:avg7d", row) != null);
+      if (!latest) continue;
+      const average7d = getSameSourceCardmarketValue("cardmarket:avg7d", latest);
+      if (average7d != null) {
         references.set(card.id, {
-          price: englishNm,
-          source: "cardmarket:en-nm",
-          fetchedAt: price.fetched_at,
+          price: average7d,
+          source: "cardmarket:avg7d",
+          fetchedAt: latest.fetched_at,
         });
       }
     }
@@ -135,6 +145,38 @@ function pressureRank(label: string): number {
   return 0;
 }
 
+/**
+ * Serializes the displayed scenario band exactly as scoreForecastOutcome
+ * expects: { points: { d30:{low,base,high}, d90:{...}, d180:{...} } } in EUR.
+ * Non-EUR scenarios and incomplete horizon sets are stored as null so an
+ * outcome can never be scored against a band the user did not see.
+ */
+function serializeEntryScenario(scenario: ExternalPriceScenario | null): string | null {
+  if (!scenario || scenario.currency !== "EUR") return null;
+  const byDays = new Map(scenario.points.map((point) => [point.days, point]));
+  const d30 = byDays.get(30);
+  const d90 = byDays.get(90);
+  const d180 = byDays.get(180);
+  if (!d30 || !d90 || !d180) return null;
+  return JSON.stringify({
+    points: {
+      d30: { low: d30.low, base: d30.base, high: d30.high },
+      d90: { low: d90.low, base: d90.base, high: d90.high },
+      d180: { low: d180.low, base: d180.base, high: d180.high },
+    },
+  });
+}
+
+function getEntryForecastFields(signal: ExternalCardSignal): EntryForecastFields {
+  const scenario = signal.marketIntelligence?.rawScenario ?? null;
+  return {
+    entry_outlook: scenario?.outlook ?? null,
+    entry_expected_return_pct_180: scenario?.expectedReturnPct180 ?? null,
+    entry_opportunity_score: signal.marketIntelligence?.rawOpportunityScore ?? null,
+    entry_scenario_json: serializeEntryScenario(scenario),
+  };
+}
+
 function isIndependentEpisodeEntry(
   signal: ExternalCardSignal,
   reference: CardmarketReference | undefined,
@@ -151,7 +193,9 @@ function isIndependentEpisodeEntry(
  * Stores every six-hour scan, but opens outcome horizons only for independent
  * episode entries: first sighting, a 14-day gap, or a higher signal tier. This
  * avoids treating repeated observations of the same run-up as independent
- * evidence. Forecast references are fresh CardMarket EUR values only.
+ * evidence. Forecast references are fresh CardMarket EUR avg-7d values only;
+ * the displayed scenario is frozen on the row so outcomes score the exact
+ * prediction the user saw.
  */
 export async function persistExternalCompetitiveScan(
   data: ExternalSignalRadarData,
@@ -232,6 +276,7 @@ export async function persistExternalCompetitiveScan(
     for (const signal of persistableSignals) {
       const reference = references.get(signal.cardId);
       const isEpisodeEntry = entryCardIds.has(signal.cardId);
+      const entryForecast = getEntryForecastFields(signal);
       await tx.externalSignalObservation.create({
         data: {
           run_id: run.id,
@@ -246,6 +291,10 @@ export async function persistExternalCompetitiveScan(
           reference_price: reference?.price ?? null,
           reference_price_at: reference?.fetchedAt ?? null,
           is_episode_entry: isEpisodeEntry,
+          entry_outlook: entryForecast.entry_outlook,
+          entry_expected_return_pct_180: entryForecast.entry_expected_return_pct_180,
+          entry_opportunity_score: entryForecast.entry_opportunity_score,
+          entry_scenario_json: entryForecast.entry_scenario_json,
           external_score: signal.externalScore,
           competitive_score: signal.competitiveScore ?? signal.externalScore,
           confidence: signal.confidence,

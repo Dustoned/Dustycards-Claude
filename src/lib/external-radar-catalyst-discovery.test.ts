@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS,
+  EXTERNAL_CATALYST_MAX_BACKLOG_INSERTS_PER_RUN,
   EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN,
   EXTERNAL_CATALYST_QUERY_VERSION,
   EXTERNAL_CATALYST_SEARCH_LIMIT,
   isExternalCatalystDiscoveryDue,
   runExternalCatalystDiscovery,
+  type ExternalCatalystBacklogSource,
   type ExternalCatalystDiscoveryDependencies,
   type ExternalCatalystDiscoveryStore,
 } from "@/lib/external-radar-catalyst-discovery";
@@ -351,6 +353,112 @@ describe("external catalyst discovery orchestration", () => {
     const scrapeReservations = requestIds.filter((key) => key.includes(":scrape:"));
     expect(scrapeReservations).toHaveLength(2);
     expect(new Set(scrapeReservations).size).toBe(2);
+  });
+
+  it("queues unseen trusted URLs beyond the scrape budget as pending backlog", async () => {
+    const store = makeStore();
+    const deps = dependencies({
+      store,
+      searchResults: {
+        pokemon: {
+          results: ["a", "b", "c", "d", "e"].map((suffix) => ({
+            title: `Meowth ex support ${suffix}`,
+            description: "Meowth ex support",
+            url: `https://pokebeach.com/news/meowth-${suffix}`,
+          })),
+          creditsUsed: 1,
+          warning: null,
+        },
+      },
+    });
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates: [candidates[0]], now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(deps.scrapePage).toHaveBeenCalledTimes(EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN);
+    expect(store.created).toHaveLength(5);
+    expect(result.sourcesCreated).toBe(5);
+    expect(result.backlogQueued).toBe(1);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("drains the pending backlog before scraping new discoveries", async () => {
+    const store = makeStore();
+    const backlog: ExternalCatalystBacklogSource[] = Array.from(
+      { length: EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN },
+      (_, index) => ({
+        id: `backlog-${index}`,
+        canonicalUrl: `https://pokebeach.com/news/backlog-${index}`,
+        urlHash: `hash-${index}`,
+        domain: "pokebeach.com",
+        game: "pokemon",
+        sourceKind: "community",
+        title: "Meowth ex backlog story",
+        description: "Meowth ex support",
+      })
+    );
+    store.listPendingBacklogSources = async () => backlog;
+    const deps = dependencies({
+      store,
+      searchResults: {
+        pokemon: {
+          results: [
+            {
+              title: "Fresh Meowth ex story",
+              description: "Meowth ex support",
+              url: "https://pokebeach.com/news/fresh",
+            },
+          ],
+          creditsUsed: 1,
+          warning: null,
+        },
+      },
+    });
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates: [candidates[0]], now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(store.persisted).toEqual(backlog.map((row) => row.canonicalUrl));
+    expect(result.backlogProcessed).toBe(EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN);
+    expect(result.sourcesScraped).toBe(EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN);
+    expect(store.created).toEqual(["https://pokebeach.com/news/fresh"]);
+    expect(result.backlogQueued).toBe(1);
+  });
+
+  it("caps backlog inserts per run to bound table growth", async () => {
+    const store = makeStore();
+    let searchCall = 0;
+    const searchWeb = vi.fn(async ({ query }: { query: string }) => {
+      const pokemon = query.startsWith("Pokemon");
+      searchCall += 1;
+      return {
+        results: Array.from({ length: EXTERNAL_CATALYST_SEARCH_LIMIT }, (_, index) => ({
+          title: pokemon ? "Meowth ex story" : "Roronoa Zoro story",
+          description: null,
+          url: pokemon
+            ? `https://pokebeach.com/news/bulk-${searchCall}-${index}`
+            : `https://onepiecetopdecks.com/news/bulk-${searchCall}-${index}`,
+        })),
+        creditsUsed: 1,
+        warning: null,
+      };
+    });
+    const deps = { ...dependencies({ store, searchResults: {} }), searchWeb };
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates, now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(result.trustedUrlsSeen).toBe(50);
+    expect(result.backlogQueued).toBe(EXTERNAL_CATALYST_MAX_BACKLOG_INSERTS_PER_RUN);
+    expect(store.created).toHaveLength(
+      EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN + EXTERNAL_CATALYST_MAX_BACKLOG_INSERTS_PER_RUN
+    );
   });
 
   it("analyzes social search snippets without spending a scrape credit", async () => {

@@ -69,6 +69,8 @@ const DAY_MS = 24 * 60 * 60_000;
 const MINIMUM_COVERAGE_RATIO = 0.6;
 const FINAL_WINDOW_DAYS = 7;
 const WILSON_80_Z = 1.28155;
+const DIRECTION_TOLERANCE_PCT = 2;
+const FLAT_TOLERANCE_PCT = 7;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -191,6 +193,64 @@ export function evaluateSignalOutcome(input: {
     hit2x: hasSustainedThreshold(windowPrices, input.entryPrice * 2),
     hit3x: hasSustainedThreshold(windowPrices, input.entryPrice * 3),
   };
+}
+
+function parseScenarioBand(
+  scenarioJson: string | null,
+  horizonDays: 30 | 90 | 180
+): { low: number; high: number } | null {
+  if (!scenarioJson) return null;
+  try {
+    const parsed: unknown = JSON.parse(scenarioJson);
+    const points = (parsed as { points?: Record<string, unknown> } | null)?.points;
+    const point = points?.[`d${horizonDays}`] as { low?: unknown; high?: unknown } | undefined;
+    const low = point?.low;
+    const high = point?.high;
+    if (typeof low !== "number" || !Number.isFinite(low)) return null;
+    if (typeof high !== "number" || !Number.isFinite(high)) return null;
+    return { low, high };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Scores one matured forecast against what actually happened. Direction uses a
+ * +/-2pct dead zone (flat tolerates +/-7pct); the band check reads the horizon
+ * that matches from the scenario JSON frozen at entry. Never throws: malformed
+ * or missing inputs degrade to null, sample by sample.
+ */
+export function scoreForecastOutcome(input: {
+  entryOutlook: string | null;
+  entryExpectedReturnPct180: number | null;
+  entryScenarioJson: string | null;
+  horizonDays: 30 | 90 | 180;
+  entryPrice: number;
+  endPrice: number | null;
+}): { realizedReturnPct: number | null; directionHit: boolean | null; bandWithin: boolean | null } {
+  const realizedReturnPct =
+    isValidPrice(input.entryPrice) && isValidPrice(input.endPrice)
+      ? ((input.endPrice - input.entryPrice) / input.entryPrice) * 100
+      : null;
+
+  let directionHit: boolean | null = null;
+  if (realizedReturnPct != null && input.entryOutlook != null) {
+    if (input.entryOutlook === "strong_up" || input.entryOutlook === "modest_up") {
+      directionHit = realizedReturnPct > DIRECTION_TOLERANCE_PCT;
+    } else if (input.entryOutlook === "down") {
+      directionHit = realizedReturnPct < -DIRECTION_TOLERANCE_PCT;
+    } else if (input.entryOutlook === "flat") {
+      directionHit = Math.abs(realizedReturnPct) <= FLAT_TOLERANCE_PCT;
+    }
+  }
+
+  const band = parseScenarioBand(input.entryScenarioJson, input.horizonDays);
+  const bandWithin =
+    band != null && isValidPrice(input.endPrice)
+      ? input.endPrice >= band.low && input.endPrice <= band.high
+      : null;
+
+  return { realizedReturnPct, directionHit, bandWithin };
 }
 
 export function calculateWilsonInterval(

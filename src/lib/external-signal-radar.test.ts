@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   capCompetitiveSignalsPerGame,
   calculateExternalSignalScore,
+  fetchWithSingleRetry,
   getPressureTierForScore,
   parseLimitlessCoreCards,
   parseLimitlessMetaDecks,
+  resolveDeckScanStatus,
   type ExternalSignalEvidence,
 } from "@/lib/external-signal-radar";
 
@@ -128,6 +130,43 @@ describe("external signal scoring", () => {
     expect(getPressureTierForScore(50)).toEqual({
       label: "Watch",
       explanation: "Early external signal that needs more confirmation",
+    });
+  });
+});
+
+describe("deck scan resilience", () => {
+  it("retries a failed deck page once with a fresh attempt", async () => {
+    const attempt = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("This operation was aborted"))
+      .mockResolvedValueOnce("<html>ok</html>");
+
+    await expect(fetchWithSingleRetry(attempt)).resolves.toBe("<html>ok</html>");
+    expect(attempt).toHaveBeenCalledTimes(2);
+  });
+
+  it("propagates the error when the retry also fails", async () => {
+    const attempt = vi.fn().mockRejectedValue(new Error("still down"));
+
+    await expect(fetchWithSingleRetry(attempt)).rejects.toThrow("still down");
+    expect(attempt).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts eight of ten deck pages as a complete scan with a non-blocking detail", () => {
+    expect(resolveDeckScanStatus({ attempted: 10, successful: 10 })).toEqual({
+      complete: true,
+      message: null,
+      detail: null,
+    });
+    expect(resolveDeckScanStatus({ attempted: 10, successful: 8 })).toEqual({
+      complete: true,
+      message: null,
+      detail: "8 of 10 archetypes could be read",
+    });
+    expect(resolveDeckScanStatus({ attempted: 10, successful: 7 })).toEqual({
+      complete: false,
+      message: "7 of 10 archetypes could be read",
+      detail: "7 of 10 archetypes could be read",
     });
   });
 });

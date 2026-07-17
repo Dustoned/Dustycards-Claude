@@ -25,6 +25,14 @@ const DEFAULT_CARD_LIMIT = 12;
 const UNKNOWN_QUOTA_CARD_LIMIT = 3;
 const DEFAULT_QUOTA_RESERVE = 1_000;
 const MAX_CONFIGURED_CARD_LIMIT = 20;
+const NON_FOCUS_REFRESH_MS = 7 * DAY_MS;
+
+// Readiness needs seven complete daily scans, so daily capacity concentrates on
+// a small focus set instead of starving the whole cohort. Enter/leave ranks are
+// hysteretic so a card is not rotated out before it can reach seven scans.
+export const EBAY_DEMAND_FOCUS_SET_SIZE = 36;
+export const EBAY_DEMAND_FOCUS_ENTER_RANK = 30;
+export const EBAY_DEMAND_FOCUS_LEAVE_RANK = 45;
 
 // Two 200-item search pages plus at most 300 item-detail checks on a
 // marketplace that cannot verify English/NM through search aspects.
@@ -57,6 +65,7 @@ export interface SignalRadarEbayDemandRefreshResult {
   complete: number;
   capped: number;
   cleanListings: number;
+  focusSize?: number;
   quotaRemaining: number | null;
   quotaReserve: number;
   estimatedBrowseCallBudget: number;
@@ -89,14 +98,11 @@ export function getAllowedEbayDemandCardCount(input: {
   return Math.min(requested, Math.floor(available / callsPerCard));
 }
 
-export function selectDueEbayDemandCandidates(input: {
-  candidates: readonly SignalRadarEbayDemandCandidate[];
-  latestUpdatedAt: ReadonlyMap<string, Date>;
-  now: Date;
-  limit: number;
-}): SignalRadarEbayDemandCandidate[] {
+function dedupeCandidatesByCardId(
+  candidates: readonly SignalRadarEbayDemandCandidate[]
+): Map<string, SignalRadarEbayDemandCandidate> {
   const unique = new Map<string, SignalRadarEbayDemandCandidate>();
-  for (const candidate of input.candidates) {
+  for (const candidate of candidates) {
     const existing = unique.get(candidate.cardId);
     if (
       !existing ||
@@ -106,21 +112,77 @@ export function selectDueEbayDemandCandidates(input: {
       unique.set(candidate.cardId, candidate);
     }
   }
+  return unique;
+}
+
+/**
+ * Keeps the daily scan capacity on the current top of the Radar. Previous focus
+ * members stay in until they fall below the leave rank, and new cards only join
+ * from the tighter enter rank, so membership does not churn mid-learning.
+ */
+export function selectEbayDemandFocusCardIds(input: {
+  candidates: readonly SignalRadarEbayDemandCandidate[];
+  previousFocusCardIds: ReadonlySet<string>;
+}): Set<string> {
+  // Effective rank comes from the current score ordering; the incoming rank
+  // field is 0 for event/structural seeds and only breaks ties.
+  const ranked = [...dedupeCandidatesByCardId(input.candidates).values()]
+    .sort(
+      (left, right) =>
+        right.externalScore - left.externalScore ||
+        left.rank - right.rank ||
+        left.cardId.localeCompare(right.cardId)
+    )
+    .map((candidate, index) => ({ cardId: candidate.cardId, effectiveRank: index + 1 }));
+  const focus = new Set<string>();
+  for (const { cardId, effectiveRank } of ranked) {
+    if (focus.size >= EBAY_DEMAND_FOCUS_SET_SIZE) break;
+    if (
+      input.previousFocusCardIds.has(cardId) &&
+      effectiveRank <= EBAY_DEMAND_FOCUS_LEAVE_RANK
+    ) {
+      focus.add(cardId);
+    }
+  }
+  for (const { cardId, effectiveRank } of ranked) {
+    if (focus.size >= EBAY_DEMAND_FOCUS_SET_SIZE) break;
+    if (effectiveRank <= EBAY_DEMAND_FOCUS_ENTER_RANK) focus.add(cardId);
+  }
+  return focus;
+}
+
+export function selectDueEbayDemandCandidates(input: {
+  candidates: readonly SignalRadarEbayDemandCandidate[];
+  latestUpdatedAt: ReadonlyMap<string, Date>;
+  now: Date;
+  limit: number;
+  focusCardIds?: ReadonlySet<string>;
+}): SignalRadarEbayDemandCandidate[] {
+  const unique = dedupeCandidatesByCardId(input.candidates);
   const refreshBefore = input.now.getTime() - DAY_MS;
+  const nonFocusRefreshBefore = input.now.getTime() - NON_FOCUS_REFRESH_MS;
   const cohortRevisionAt = EBAY_DEMAND_COHORT_REVISION_AT.getTime();
   return [...unique.values()]
     .filter((candidate) => {
       const updatedAt = input.latestUpdatedAt.get(candidate.cardId);
-      return (
-        !updatedAt ||
-        updatedAt.getTime() < cohortRevisionAt ||
-        updatedAt.getTime() <= refreshBefore
-      );
+      if (!updatedAt || updatedAt.getTime() < cohortRevisionAt) return true;
+      // Non-focus cards only get a weekly refresh from leftover slots so the
+      // focus set can accumulate its seven complete daily scans.
+      const dueBefore =
+        input.focusCardIds && !input.focusCardIds.has(candidate.cardId)
+          ? nonFocusRefreshBefore
+          : refreshBefore;
+      return updatedAt.getTime() <= dueBefore;
     })
     .sort((left, right) => {
+      const focusDelta = input.focusCardIds
+        ? Number(input.focusCardIds.has(right.cardId)) -
+          Number(input.focusCardIds.has(left.cardId))
+        : 0;
       const leftUpdated = input.latestUpdatedAt.get(left.cardId)?.getTime() ?? Number.NEGATIVE_INFINITY;
       const rightUpdated = input.latestUpdatedAt.get(right.cardId)?.getTime() ?? Number.NEGATIVE_INFINITY;
       return (
+        focusDelta ||
         leftUpdated - rightUpdated ||
         left.rank - right.rank ||
         right.externalScore - left.externalScore ||
@@ -242,6 +304,14 @@ function isQuotaError(message: string): boolean {
   return /quota|rate.?limit|daily request limit|browse api limit/i.test(message);
 }
 
+// Focus membership only has to survive between job runs in the same server
+// process; after a restart the set is rebuilt from the current top ranks.
+const focusCardIdsByMarketplace = new Map<string, Set<string>>();
+
+export function resetEbayDemandFocusStateForTests(): void {
+  focusCardIdsByMarketplace.clear();
+}
+
 export async function refreshSignalRadarEbayDemand(
   signals: readonly ExternalCardSignal[],
   now = new Date()
@@ -276,6 +346,7 @@ export async function refreshSignalRadarEbayDemand(
     complete: 0,
     capped: 0,
     cleanListings: 0,
+    focusSize: 0,
     quotaRemaining: null,
     quotaReserve,
     estimatedBrowseCallBudget: 0,
@@ -283,6 +354,14 @@ export async function refreshSignalRadarEbayDemand(
     errors: [],
   };
   if (!config.configured || candidates.length === 0) return baseResult;
+
+  const focusCardIds = selectEbayDemandFocusCardIds({
+    candidates,
+    previousFocusCardIds:
+      focusCardIdsByMarketplace.get(config.marketplaceId) ?? new Set<string>(),
+  });
+  focusCardIdsByMarketplace.set(config.marketplaceId, focusCardIds);
+  baseResult.focusSize = focusCardIds.size;
 
   let quotaRemaining: number | null = null;
   try {
@@ -314,6 +393,7 @@ export async function refreshSignalRadarEbayDemand(
     latestUpdatedAt,
     now,
     limit: candidates.length,
+    focusCardIds,
   });
   baseResult.due = due.length;
   const allowed = getAllowedEbayDemandCardCount({

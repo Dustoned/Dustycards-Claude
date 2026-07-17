@@ -17,6 +17,7 @@ const SIGNAL_CACHE_FRESH_MS = 6 * 60 * 60_000;
 const SIGNAL_CACHE_STALE_MS = 24 * 60 * 60_000;
 const SOURCE_FETCH_TIMEOUT_MS = 8_000;
 const DECKS_PER_GAME = 10;
+const MIN_ACCEPTED_DECKS_PER_GAME = 8;
 const MIN_CORE_INCLUSION_PERCENT = 45;
 const MAX_COMPETITIVE_SIGNALS_PER_GAME = 45;
 
@@ -215,6 +216,8 @@ export interface ExternalSignalSourceStatus {
   ok: boolean;
   deckCount: number;
   message: string | null;
+  /** Non-blocking note, e.g. a small deck-page shortfall on an accepted scan. */
+  detail?: string | null;
   fetchedAt: string | null;
 }
 
@@ -427,6 +430,33 @@ async function fetchLimitlessHtml(url: string): Promise<string> {
   }
 }
 
+/** One fresh second attempt (own timeout) so a single slow page cannot void a scan. */
+export async function fetchWithSingleRetry<T>(attempt: () => Promise<T>): Promise<T> {
+  try {
+    return await attempt();
+  } catch {
+    return attempt();
+  }
+}
+
+/**
+ * A near-complete scan (at most two of the ten deck pages missing) still
+ * represents the meta, so it keeps the cacheable six-hour persistence slot.
+ * The shortfall is reported as a non-blocking detail instead of a message.
+ */
+export function resolveDeckScanStatus(input: {
+  attempted: number;
+  successful: number;
+}): { complete: boolean; message: string | null; detail: string | null } {
+  if (input.successful >= input.attempted) {
+    return { complete: true, message: null, detail: null };
+  }
+  const detail = `${input.successful} of ${input.attempted} archetypes could be read`;
+  const complete =
+    input.successful >= Math.min(input.attempted, MIN_ACCEPTED_DECKS_PER_GAME);
+  return { complete, message: complete ? null : detail, detail };
+}
+
 async function scanGame(game: TradingCardGame): Promise<GameSignalScan> {
   const config = SOURCE_CONFIG[game];
   const decksUrl = `${config.baseUrl}/decks`;
@@ -437,7 +467,10 @@ async function scanGame(game: TradingCardGame): Promise<GameSignalScan> {
     const deckResults = await Promise.allSettled(
       decks.map(async (deck) => ({
         deck,
-        cards: parseLimitlessCoreCards(await fetchLimitlessHtml(deck.url), game),
+        cards: parseLimitlessCoreCards(
+          await fetchWithSingleRetry(() => fetchLimitlessHtml(deck.url)),
+          game
+        ),
       }))
     );
     const aggregated = new Map<string, AggregatedExternalCard>();
@@ -466,6 +499,10 @@ async function scanGame(game: TradingCardGame): Promise<GameSignalScan> {
     }
 
     const successfulDecks = deckResults.filter((result) => result.status === "fulfilled").length;
+    const scanStatus = resolveDeckScanStatus({
+      attempted: decks.length,
+      successful: successfulDecks,
+    });
     return {
       game,
       cards: [...aggregated.values()],
@@ -476,10 +513,8 @@ async function scanGame(game: TradingCardGame): Promise<GameSignalScan> {
         ok: successfulDecks > 0,
         deckCount: successfulDecks,
         fetchedAt: new Date().toISOString(),
-        message:
-          successfulDecks === decks.length
-            ? null
-            : `${successfulDecks} of ${decks.length} archetypes could be read`,
+        message: scanStatus.message,
+        detail: scanStatus.detail,
       },
     };
   } catch (error) {
