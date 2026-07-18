@@ -484,6 +484,150 @@ export function buildOwnedSealedValueHistory(
   return buildEpisodeSealedSetPriceHistory(weighted);
 }
 
+// Graded snapshot history row as the value-history builder needs it
+// (structurally compatible with collection-data's GradedHistorySnapshotRow).
+export interface OwnedGradedHistoryRow {
+  card_id: string;
+  label: string;
+  company: string | null;
+  grade: string | null;
+  source: "cardmarket_graded" | "ebay_sold_graded";
+  value: number;
+  currency: string;
+  fetched_at: Date | string;
+}
+
+function toOwnedHistoryDateKey(value: Date | string): string {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+/**
+ * Value history for GRADED collection copies, priced the same way the
+ * collection prices them: per day the matched graded label's newest snapshot
+ * (same label matching as the current value via
+ * getCollectionMatchedGradedPrice). Days before a copy's first graded snapshot
+ * fall back to the card's raw history so the copy does not vanish from (or
+ * step-jump into) the chart when graded tracking started.
+ */
+export function buildOwnedGradedCardValueHistory(
+  gradedRows: OwnedGradedHistoryRow[],
+  rawRows: EpisodePriceHistorySnapshot[],
+  copies: Array<{
+    card_id: string;
+    gradingCompany: string | null;
+    gradingGrade: string | null;
+  }>,
+  usdToEurRate: CurrencyExchangeRate | null
+): EpisodeSetPriceHistoryPoint[] {
+  if (copies.length === 0) return [];
+
+  const gradedByCard = new Map<string, OwnedGradedHistoryRow[]>();
+  for (const row of gradedRows) {
+    const list = gradedByCard.get(row.card_id);
+    if (list) list.push(row);
+    else gradedByCard.set(row.card_id, [row]);
+  }
+  for (const list of gradedByCard.values()) {
+    list.sort(
+      (a, b) => new Date(a.fetched_at).getTime() - new Date(b.fetched_at).getTime()
+    );
+  }
+  const rawByCard = new Map<string, EpisodePriceHistorySnapshot[]>();
+  for (const row of rawRows) {
+    const list = rawByCard.get(row.card_id);
+    if (list) list.push(row);
+    else rawByCard.set(row.card_id, [row]);
+  }
+  for (const list of rawByCard.values()) {
+    list.sort(
+      (a, b) => new Date(a.fetched_at).getTime() - new Date(b.fetched_at).getTime()
+    );
+  }
+
+  const weighted: EpisodePriceHistorySnapshot[] = [];
+  const pushCopyValue = (copyId: string, fetchedAt: Date | string, value: number) => {
+    weighted.push({
+      card_id: copyId,
+      fetched_at: fetchedAt,
+      cm_en_lowest_nm: Number(value.toFixed(2)),
+      cm_de_lowest_nm: null,
+      cm_fr_lowest_nm: null,
+      cm_es_lowest_nm: null,
+      cm_it_lowest_nm: null,
+    });
+  };
+
+  copies.forEach((copy, index) => {
+    const copyId = `${copy.card_id}::graded-copy-${index}`;
+    const cardRows = gradedByCard.get(copy.card_id) ?? [];
+
+    // Walk the card's graded snapshots day by day; per day the newest row per
+    // (source, label) forms a synthetic card that goes through the exact same
+    // label matching that produces the copy's current value.
+    const perLabel = new Map<string, OwnedGradedHistoryRow>();
+    const gradedSeries: Array<{ date: string; value: number }> = [];
+    let currentDate: string | null = null;
+    const flushDay = () => {
+      if (currentDate == null || perLabel.size === 0) return;
+      const synthetic = {
+        gradedPrices: [] as Array<{ label: string; price: number }>,
+        ebaySoldGradedPrices: [] as Array<{
+          label: string;
+          company: string;
+          grade: string;
+          median_price: number;
+          currency: string;
+        }>,
+      };
+      for (const row of perLabel.values()) {
+        if (row.source === "cardmarket_graded") {
+          synthetic.gradedPrices.push({ label: row.label, price: row.value });
+        } else {
+          synthetic.ebaySoldGradedPrices.push({
+            label: row.label,
+            company: row.company ?? "",
+            grade: row.grade ?? "",
+            median_price: row.value,
+            currency: row.currency,
+          });
+        }
+      }
+      const match = getCollectionMatchedGradedPrice(synthetic, {
+        gradingCompany: copy.gradingCompany,
+        gradingGrade: copy.gradingGrade,
+        usdToEurRate,
+      });
+      if (match) gradedSeries.push({ date: currentDate, value: match.price });
+    };
+    for (const row of cardRows) {
+      const dateKey = toOwnedHistoryDateKey(row.fetched_at);
+      if (dateKey !== currentDate) {
+        flushDay();
+        currentDate = dateKey;
+      }
+      perLabel.set(`${row.source}|${row.label}`, row);
+    }
+    flushDay();
+
+    const firstGradedDate = gradedSeries[0]?.date ?? null;
+    for (const raw of rawByCard.get(copy.card_id) ?? []) {
+      const dateKey = toOwnedHistoryDateKey(raw.fetched_at);
+      if (firstGradedDate != null && dateKey >= firstGradedDate) break;
+      const value = getCardMarketValue(raw);
+      if (value == null) continue;
+      pushCopyValue(copyId, raw.fetched_at, value);
+    }
+    for (const point of gradedSeries) {
+      pushCopyValue(copyId, `${point.date}T12:00:00.000Z`, point.value);
+    }
+  });
+
+  return buildEpisodeSetPriceHistory(weighted);
+}
+
 export function combineValueHistories(
   ...histories: EpisodeSetPriceHistoryPoint[][]
 ): EpisodeSetPriceHistoryPoint[] {

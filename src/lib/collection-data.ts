@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma";
 import type { CollectionCardViewItem, CollectionSealedViewItem } from "@/types/collection-view";
 import {
   buildOwnedCardValueHistory,
+  buildOwnedGradedCardValueHistory,
   buildOwnedSealedValueHistory,
   buildLinkedBinderCostBasis,
   combineValueHistories,
@@ -2087,9 +2088,27 @@ export async function getCollectionOverviewData(
       ])
     : [[], [], []];
 
+  // Same rule as the drivers: raw copies chart raw, graded copies chart their
+  // own graded price history — chart, value tile and drivers stay in sync.
+  const overviewRawChartQuantities = buildCardQuantityMap(
+    metricCards.filter((record) => !record.grading_company)
+  );
+  const overviewGradedCopies = metricCards
+    .filter((record) => record.grading_company)
+    .map((record) => ({
+      card_id: record.card.id,
+      gradingCompany: record.grading_company,
+      gradingGrade: record.grading_grade,
+    }));
   const combinedHistory = combineValueHistories(
-    buildOwnedCardValueHistory(cardHistory, cardQuantities),
-    buildOwnedSealedValueHistory(sealedHistory, sealedQuantities)
+    buildOwnedCardValueHistory(cardHistory, overviewRawChartQuantities),
+    buildOwnedSealedValueHistory(sealedHistory, sealedQuantities),
+    buildOwnedGradedCardValueHistory(
+      gradedHistory,
+      cardHistory,
+      overviewGradedCopies,
+      usdToEurRate
+    )
   ).map((point) => ({
     date: point.date,
     label: point.label,
@@ -2712,9 +2731,23 @@ export async function getCollectionValueDriversData(
     ? await getUsdToEurRate()
     : null;
   const valueOptions = { usdToEurRate };
+  // Graded copies chart via their own graded price history; only the raw
+  // copies count in the raw series, so the chart tracks every card the way
+  // the collection actually prices it (and matches the drivers).
+  const rawChartQuantities = buildCardQuantityMap(
+    metricCards.filter((record) => !record.grading_company)
+  );
+  const gradedCopies = metricCards
+    .filter((record) => record.grading_company)
+    .map((record) => ({
+      card_id: record.card.id,
+      gradingCompany: record.grading_company,
+      gradingGrade: record.grading_grade,
+    }));
   const combinedHistory = combineValueHistories(
-    buildOwnedCardValueHistory(cardHistory, cardQuantities),
-    buildOwnedSealedValueHistory(sealedHistory, sealedQuantities)
+    buildOwnedCardValueHistory(cardHistory, rawChartQuantities),
+    buildOwnedSealedValueHistory(sealedHistory, sealedQuantities),
+    buildOwnedGradedCardValueHistory(gradedHistory, cardHistory, gradedCopies, usdToEurRate)
   ).map((point) => ({
     date: point.date,
     label: point.label,

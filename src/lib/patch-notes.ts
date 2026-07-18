@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.4",
+    releasedAt: "July 18, 2026",
+    title: "Collection chart prices graded cards as graded",
+    summary:
+      "DustyCards 3.7.4 makes the collection value chart track every card by its own pricing source, so the chart, the value tile and the value drivers finally tell the same story.",
+    tone: "improved",
+    highlights: [
+      "Graded copies now chart their graded price history (same label matching as their collection value) instead of the raw card price — the chart level now lines up with the Value tile.",
+      "A raw price spike on a graded card no longer moves the chart without explanation; the chart moves exactly when the drivers say it does.",
+      "Days before graded price tracking existed fall back to the raw history, so history stays continuous.",
+    ],
+  },
+  {
     version: "3.7.3",
     releasedAt: "July 18, 2026",
     title: "Value drivers compare graded cards graded-vs-graded",
