@@ -212,7 +212,7 @@ function realizedValueAround(
   return median(values);
 }
 
-function buildNeutralScenario(inputs: BacktestInputs) {
+export function buildNeutralScenario(inputs: BacktestInputs) {
   const evidenceCount = [
     inputs.rawTrend30dPct,
     inputs.rawTrend90dPct,

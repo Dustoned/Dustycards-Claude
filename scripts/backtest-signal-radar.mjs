@@ -34,6 +34,7 @@ function parseArgs(argv) {
     else if (arg === "--min-days") options.minDays = Number(argv[++index]);
     else if (arg === "--out") options.out = argv[++index];
     else if (arg === "--db") options.db = argv[++index];
+    else if (arg === "--as-of-days-ago") options.asOfDaysAgo = Number(argv[++index]);
     else {
       console.error(`Unknown argument: ${arg}`);
       process.exit(1);
@@ -103,9 +104,13 @@ async function importTsModule(relPath) {
 fs.rmSync(CACHE_DIR, { recursive: true, force: true });
 fs.mkdirSync(CACHE_DIR, { recursive: true });
 
-const { runCardBacktest, summarizeBacktest } = await importTsModule(
-  "src/lib/signal-radar-backtest.ts"
-);
+const {
+  runCardBacktest,
+  summarizeBacktest,
+  buildBacktestInputsAt,
+  buildNeutralScenario,
+  backtestDirectionHit,
+} = await importTsModule("src/lib/signal-radar-backtest.ts");
 const { buildDailyMarketHistory } = await importTsModule("src/lib/robust-price-history.ts");
 const { LIVE_DB_PATH, APP_DB_SNAPSHOT_PATH } = await importTsModule("src/lib/db-paths.ts");
 
@@ -165,6 +170,129 @@ const priceStatement = db.prepare(
    WHERE card_id = ? AND cm_en_lowest_nm IS NOT NULL
    ORDER BY fetched_at ASC, id ASC`
 );
+
+// --- Pinned "pretend it is N days ago" mode ---------------------------------
+// One prediction per card at exactly N days before its latest observation,
+// scored against the card's actual latest price. Answers: "if the current
+// model had run back then, how would its calls have played out by today?"
+
+if (Number.isFinite(options.asOfDaysAgo) && options.asOfDaysAgo >= 30) {
+  const N = options.asOfDaysAgo;
+  const DAY = 24 * 60 * 60 * 1000;
+  const results = [];
+  let done = 0;
+  for (const card of cards) {
+    const rows = priceStatement.all(card.cardId);
+    const daily = buildDailyMarketHistory(
+      rows.map((row) => ({
+        observedAt: parseFetchedAt(row.fetchedAt),
+        primaryValue: row.value,
+      }))
+    );
+    const sorted = [...daily].sort((left, right) => left.day.getTime() - right.day.getTime());
+    done++;
+    if (done % 50 === 0) console.error(`  ${done}/${cards.length} cards done`);
+    if (sorted.length < 60) continue;
+    const last = sorted[sorted.length - 1];
+    const targetTime = last.day.getTime() - N * DAY;
+    let bestIdx = -1;
+    let bestDiff = Infinity;
+    for (let index = 0; index < sorted.length; index++) {
+      const diff = Math.abs(sorted[index].day.getTime() - targetTime);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIdx = index;
+      }
+    }
+    if (bestIdx < 0 || bestDiff > 10 * DAY) continue;
+    if (sorted[bestIdx].day.getTime() - sorted[0].day.getTime() < 240 * DAY) continue;
+    const inputs = buildBacktestInputsAt(sorted, bestIdx);
+    if (!inputs) continue;
+    const scenario = buildNeutralScenario(inputs);
+    if (!scenario || scenario.confidence === "Low") continue;
+    const point = scenario.points.reduce((best, item) =>
+      Math.abs(item.days - N) < Math.abs(best.days - N) ? item : best
+    );
+    const entryPrice = scenario.currentPrice;
+    const realizedPrice = last.value;
+    const realizedReturnPct = Number(
+      (((realizedPrice - entryPrice) / entryPrice) * 100).toFixed(2)
+    );
+    const predictedBasePct = Number(
+      (((point.base - entryPrice) / entryPrice) * 100).toFixed(2)
+    );
+    results.push({
+      cardId: card.cardId,
+      name: card.name,
+      game: card.game,
+      asOfDay: inputs.asOfDay.toISOString().slice(0, 10),
+      outlook: scenario.outlook ?? "flat",
+      confidence: scenario.confidence,
+      horizonDays: point.days,
+      entryPrice,
+      predictedLow: point.low,
+      predictedBase: point.base,
+      predictedHigh: point.high,
+      predictedBasePct,
+      realizedPrice,
+      realizedReturnPct,
+      directionHit: backtestDirectionHit(scenario.outlook ?? "flat", realizedReturnPct),
+      bandWithin: realizedPrice >= point.low && realizedPrice <= point.high,
+      absErrorPct: Number(Math.abs(predictedBasePct - realizedReturnPct).toFixed(2)),
+    });
+  }
+  db.close();
+
+  const byOutlook = new Map();
+  for (const row of results) {
+    const bucket = byOutlook.get(row.outlook) ?? [];
+    bucket.push(row);
+    byOutlook.set(row.outlook, bucket);
+  }
+  const fmtRate = (part, total) => (total === 0 ? "-" : `${((part / total) * 100).toFixed(1)}%`);
+  console.log("");
+  console.log(
+    `Signal Radar "as if ${N} days ago": ${results.length} cards, scored on the ~${results[0]?.horizonDays ?? N}d horizon vs today's actual price (neutral external inputs)`
+  );
+  console.table(
+    ["strong_up", "modest_up", "flat", "down"]
+      .filter((outlook) => byOutlook.has(outlook))
+      .map((outlook) => {
+        const rows = byOutlook.get(outlook);
+        const hits = rows.filter((row) => row.directionHit).length;
+        const inBand = rows.filter((row) => row.bandWithin).length;
+        const meanAbs = rows.reduce((sum, row) => sum + row.absErrorPct, 0) / rows.length;
+        const meanPred = rows.reduce((sum, row) => sum + row.predictedBasePct, 0) / rows.length;
+        const meanReal = rows.reduce((sum, row) => sum + row.realizedReturnPct, 0) / rows.length;
+        return {
+          outlook,
+          cards: rows.length,
+          "direction hit": fmtRate(hits, rows.length),
+          "band coverage": fmtRate(inBand, rows.length),
+          "mean |err|": `${meanAbs.toFixed(1)}%`,
+          "mean predicted": `${meanPred.toFixed(1)}%`,
+          "mean realized": `${meanReal.toFixed(1)}%`,
+        };
+      })
+  );
+  const interesting = [...results].sort(
+    (left, right) => Math.abs(right.realizedReturnPct) - Math.abs(left.realizedReturnPct)
+  );
+  console.log("Voorbeelden (grootste echte bewegingen):");
+  for (const row of interesting.slice(0, 8)) {
+    console.log(
+      `  ${row.directionHit ? "HIT " : "MISS"} [${row.outlook}] ${row.name} (${row.game}): ` +
+        `€${row.entryPrice} -> voorspeld €${row.predictedBase} [€${row.predictedLow}-€${row.predictedHigh}], ` +
+        `echt €${row.realizedPrice} (${row.realizedReturnPct > 0 ? "+" : ""}${row.realizedReturnPct}%)`
+    );
+  }
+  fs.writeFileSync(
+    path.join(projectRoot, options.out),
+    JSON.stringify({ mode: `as-of-${N}d-ago`, results }, null, 1)
+  );
+  console.log(`Report written to ${options.out}`);
+  process.exit(0);
+}
 
 // --- Backtest ---------------------------------------------------------------
 
