@@ -693,21 +693,21 @@ export function CardModalBuySignalPanel({
   );
 }
 
-export function CardModalSignalSummaryPanel({
+export function CardModalMarketSignalPanel({
   signal,
-  buySignal,
+  card,
   loading = false,
-  cardId,
-  game,
   onNavigate,
+  className = "",
 }: {
   signal: ModalCardData["signal_summary"] | null | undefined;
-  buySignal: ModalCardData["buy_signal"] | null | undefined;
+  card: ModalCardData;
   loading?: boolean;
-  cardId: string;
-  game: ModalCardData["game"];
   onNavigate: () => void;
+  className?: string;
 }) {
+  const buySignal = card.buy_signal;
+  const stats = card.market_stats;
   const market = signal?.marketIntelligence;
   const externalOpportunity = signal
     ? market?.rawOpportunityScore ?? signal.externalScore
@@ -770,75 +770,124 @@ export function CardModalSignalSummaryPanel({
         label: item.label,
         value: item.value,
       }));
+  const updatedLabel = formatShortStatusDate(stats?.updated_at);
 
   return (
     <section
+      data-card-market-stats
       data-signal-summary-panel
       data-signal-source={signal ? "external" : "market"}
-      className="min-w-0 rounded-2xl border border-violet-300/14 bg-[linear-gradient(135deg,rgba(124,92,255,0.11),rgba(14,18,29,0.92)_48%,rgba(56,189,248,0.045))] p-3.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.07)]"
+      className={`relative min-w-0 overflow-hidden rounded-[22px] border border-cyan-200/12 bg-[linear-gradient(145deg,#071011_0%,#0a0c13_58%,#0b0a14_100%)] p-4 shadow-[inset_0_1px_0_rgba(165,243,252,0.055),0_24px_70px_rgba(0,0,0,0.2)] ${className}`}
     >
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.09] text-violet-100/78">
-            <Radar className="h-4 w-4" />
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -right-20 -top-28 h-64 w-64 rounded-full bg-cyan-400/[0.07] blur-3xl" />
+        <div className="absolute -bottom-24 -left-16 h-52 w-52 rounded-full bg-violet-500/[0.06] blur-3xl" />
+      </div>
+
+      <div className="relative">
+        <div className="flex min-w-0 items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-200/16 bg-cyan-300/[0.07] text-cyan-100/74">
+              <Radar className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100/48">
+                Signal summary
+                {loading && !signal ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
+              </p>
+              <h3 className="mt-0.5 truncate text-base font-black tracking-[-0.02em] text-white/90">
+                {title}
+              </h3>
+            </div>
+          </div>
+          <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white/46">
+            {confidence} confidence
           </span>
-          <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-violet-100/42">
-              Signal summary
-              {loading && !signal ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
+        </div>
+
+        <div className="mt-3 grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-3">
+          <div className="flex min-h-[5.25rem] flex-col justify-between rounded-2xl border border-cyan-200/18 bg-[linear-gradient(145deg,rgba(34,211,238,0.12),rgba(16,185,129,0.035))] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+            <p className="text-[8px] font-black uppercase leading-tight tracking-[0.1em] text-cyan-100/46">
+              DustyCards Market Score
             </p>
-            <h3 className="mt-0.5 truncate text-sm font-bold text-white/88">{title}</h3>
+            <div className="flex items-end justify-between gap-1">
+              <span className="text-[1.75rem] font-black tabular-nums tracking-[-0.07em] text-white">
+                {formatMarketStatsNumber(stats?.score ?? null)}
+              </span>
+              <span className="pb-1 text-[9px] font-bold text-white/24">/100</span>
+            </div>
+          </div>
+
+          <div className="min-w-0 rounded-2xl border border-white/[0.07] bg-black/18 p-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              {stats ? (
+                <span className={`inline-flex rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.09em] ${getMarketStatsTierClass(stats.tier)}`}>
+                  {stats.tier}
+                </span>
+              ) : (
+                <span className="inline-flex rounded-full border border-white/10 bg-white/[0.045] px-2 py-1 text-[9px] font-black uppercase tracking-[0.09em] text-white/44">
+                  Building
+                </span>
+              )}
+              <span className="rounded-full border border-violet-300/16 bg-violet-400/[0.07] px-2 py-1 text-[9px] font-bold text-violet-100/72">
+                {opportunity == null ? "Opportunity --" : `Opportunity ${opportunity}/100`}
+              </span>
+              <span className="max-w-full truncate rounded-full border border-emerald-300/14 bg-emerald-400/[0.055] px-2 py-1 text-[9px] font-bold text-emerald-100/70">
+                {setup}
+              </span>
+            </div>
+            <p className="mt-2 text-[8px] font-bold uppercase tracking-[0.11em] text-white/28">
+              Why it matters · {origin}
+            </p>
+            <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/62">
+              {explanation}
+            </p>
           </div>
         </div>
-        <span className="shrink-0 rounded-full border border-violet-300/16 bg-violet-400/[0.08] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-violet-100/72">
-          {confidence}
-        </span>
+
+        {interesting.length ? (
+          <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+            {interesting.slice(0, 2).map((item) => (
+              <span
+                key={`${item.label}-${item.value}`}
+                className="max-w-full truncate rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[9px] font-semibold text-white/54"
+                title={`${item.label}: ${item.value}`}
+              >
+                <span className="text-white/30">{item.label}</span> · {item.value}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {stats ? (
+          <CardModalMarketStatsContent stats={stats} />
+        ) : (
+          <div className="mt-3 rounded-xl border border-dashed border-white/10 px-3 py-3 text-center text-[11px] font-medium text-white/36">
+            Market drivers appear as saved price and demand evidence becomes available.
+          </div>
+        )}
+
+        <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] pt-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[9px] font-semibold text-white/28">
+            {stats ? (
+              <span>{stats.data_points} saved price {stats.data_points === 1 ? "point" : "points"}</span>
+            ) : null}
+            {stats?.tcggo?.score != null ? (
+              <span>TCGGO {formatMarketStatsNumber(stats.tcggo.score)}</span>
+            ) : null}
+            {updatedLabel ? <span>{updatedLabel}</span> : null}
+          </div>
+          <Link
+            href={`/movers/signal-radar/${encodeURIComponent(card.id)}?game=${encodeURIComponent(card.game)}`}
+            prefetch={false}
+            onClick={onNavigate}
+            className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-500/[0.11] px-3 text-[10px] font-bold text-violet-50/86 transition hover:border-violet-200/34 hover:bg-violet-500/[0.18]"
+          >
+            Full analysis
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
-          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Opportunity</p>
-          <p className="mt-1 text-base font-black tabular-nums text-white">
-            {opportunity == null ? "--" : `${opportunity}/100`}
-          </p>
-        </div>
-        <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
-          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Setup</p>
-          <p className="mt-1 truncate text-sm font-black text-emerald-100/84">{setup}</p>
-        </div>
-        <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
-          <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Origin</p>
-          <p className="mt-1 truncate text-sm font-black text-sky-100/82">{origin}</p>
-        </div>
-      </div>
-
-      <div className="mt-2.5 rounded-xl border border-white/7 bg-black/14 px-3 py-2.5">
-        <p className="text-[8px] font-bold uppercase tracking-[0.11em] text-white/28">Why it matters</p>
-        <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/64">
-          {explanation}
-        </p>
-      </div>
-
-      {interesting.length ? (
-        <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5">
-          {interesting.slice(0, 3).map((item) => (
-            <span key={item.label} className="max-w-full truncate rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 text-[9px] font-semibold text-white/58" title={`${item.label}: ${item.value}`}>
-              <span className="text-white/32">{item.label}</span> · {item.value}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      <Link
-        href={`/movers/signal-radar/${encodeURIComponent(cardId)}?game=${encodeURIComponent(game)}`}
-        prefetch={false}
-        onClick={onNavigate}
-        className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/22 bg-violet-500/[0.13] px-3 text-[11px] font-bold text-violet-50/90 transition hover:border-violet-200/36 hover:bg-violet-500/[0.20] disabled:cursor-wait disabled:opacity-60"
-      >
-        <Radar className="h-4 w-4" />
-        View full signal analysis
-        <ChevronRight className="h-3.5 w-3.5" />
-      </Link>
     </section>
   );
 }
@@ -2209,10 +2258,6 @@ export function CardModalMobileShowcase({
           </div>
         )}
 
-        {showOverview && (
-          <CardModalMarketStatsPanel card={card} compact className="mt-3" />
-        )}
-
         {showPreviousPrices && (
           <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4">
             <div className="flex items-center justify-between gap-3">
@@ -2269,22 +2314,20 @@ export function CardModalMobileShowcase({
         )}
       </div>
 
+      <div className="relative z-10 mt-4">
+        <CardModalMarketSignalPanel
+          signal={signalSummary}
+          card={card}
+          loading={signalSummaryLoading}
+          onNavigate={onClose}
+        />
+      </div>
+
       {showDemand ? (
         <div className="relative z-10 mt-4">
           <EbayCardDemandPanel cardId={card.id} compact />
         </div>
       ) : null}
-
-      <div className="relative z-10 mt-4">
-        <CardModalSignalSummaryPanel
-          signal={signalSummary}
-          buySignal={card.buy_signal}
-          loading={signalSummaryLoading}
-          cardId={card.id}
-          game={card.game}
-          onNavigate={onClose}
-        />
-      </div>
 
       <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(179,155,255,0.05)]">
         <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
@@ -3064,182 +3107,143 @@ function MarketStatsFact({
   );
 }
 
-export function CardModalMarketStatsPanel({
-  card,
-  compact = false,
-  className = "",
+function CardModalMarketStatsContent({
+  stats,
 }: {
-  card: ModalCardData;
-  compact?: boolean;
-  className?: string;
+  stats: NonNullable<ModalCardData["market_stats"]>;
 }) {
-  const stats = card.market_stats;
-  if (!stats) return null;
-
-  const updatedLabel = formatShortStatusDate(stats.updated_at);
-  const confidenceLabel = `${stats.confidence} confidence`;
   const rsiDetail = stats.rsi == null
     ? "RSI needs at least 15 saved English NM price points. Below 30 is oversold; above 70 is overbought."
     : "14-point RSI from saved English NM price movements. Below 30 is oversold; above 70 is overbought.";
 
   return (
-    <section
-      data-card-market-stats
-      className={`relative min-w-0 rounded-[22px] border border-cyan-200/12 bg-[#071011] p-4 shadow-[inset_0_1px_0_rgba(165,243,252,0.055),0_24px_70px_rgba(0,0,0,0.2)] ${compact ? "" : "sm:p-5"} ${className}`}
-    >
-      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[22px]">
-        <div className="absolute -right-20 -top-28 h-64 w-64 rounded-full bg-cyan-400/[0.07] blur-3xl" />
-        <div className="absolute -bottom-28 left-1/4 h-56 w-56 rounded-full bg-emerald-400/[0.045] blur-3xl" />
+    <>
+      <div className="mt-3 border-t border-white/[0.07] pt-3">
+        <div className="mb-2.5 flex items-center justify-between gap-3">
+          <p className="text-[9px] font-black uppercase tracking-[0.13em] text-white/40">
+            Market drivers
+          </p>
+          <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/24">
+            {stats.confidence} confidence
+          </span>
+        </div>
+        <div className="grid gap-x-4 gap-y-2.5 sm:grid-cols-2">
+          {MARKET_STATS_METRICS.map((metric) => (
+            <MarketStatsMetricRow key={metric.key} stats={stats} metric={metric} />
+          ))}
+        </div>
       </div>
 
-      <div className="relative">
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/[0.07] pb-3">
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-cyan-100/58">
-              <Radar className="h-3.5 w-3.5" />
-              DustyCards Market Score
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-white/[0.07] bg-black/18 px-3 py-2.5">
+          <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.09em] text-white/32">
+            RSI
+            <MarketStatsInfo label="RSI" description={rsiDetail} />
+          </span>
+          <div className="mt-1 flex items-baseline justify-between gap-2">
+            <p className="text-sm font-bold tabular-nums text-white/80">
+              {formatMarketStatsNumber(stats.rsi)}
             </p>
-            <p className="mt-1 text-xs font-medium text-white/38">
-              Own model from saved market evidence
+            <p className={`truncate text-[9px] font-semibold ${stats.rsi_label === "Overbought" ? "text-rose-300/72" : stats.rsi_label === "Oversold" ? "text-sky-300/72" : "text-white/30"}`}>
+              {stats.rsi_label ?? "Building"}
             </p>
           </div>
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {stats.tcggo?.score != null && (
-              <span className="rounded-full border border-violet-300/16 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-violet-100/72">
-                TCGGO {formatMarketStatsNumber(stats.tcggo.score)}
+        </div>
+        <div className="rounded-xl border border-white/[0.07] bg-black/18 px-3 py-2.5">
+          <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.09em] text-white/32">
+            Volatility
+            <MarketStatsInfo
+              label="Volatility"
+              description="Annualized dispersion of saved English NM price returns. A higher percentage means wider historical price swings."
+            />
+          </span>
+          <div className="mt-1 flex items-baseline justify-between gap-2">
+            <p className="text-sm font-bold tabular-nums text-white/80">
+              {formatMarketStatsNumber(stats.volatility_percent, "%")}
+            </p>
+            <p className="text-[9px] font-semibold text-white/30">Annualized</p>
+          </div>
+        </div>
+      </div>
+
+      <details className="group mt-3 rounded-xl border border-white/[0.07] bg-black/14 open:bg-black/20">
+        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 text-[10px] font-bold text-white/48 marker:hidden">
+          <span>More market details</span>
+          <span className="flex min-w-0 items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.07em] text-white/24">
+            <span className="hidden truncate min-[390px]:inline">ATH · ATL · grading</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" />
+          </span>
+        </summary>
+
+        <div className="border-t border-white/[0.06] p-3">
+          <div className="grid grid-cols-3 gap-2">
+            <MarketStatsFact
+              label="ATH"
+              description="Highest saved English NM CardMarket price in DustyCards history for this card."
+              value={formatCurrency(stats.ath, "EUR")}
+              comparison={stats.tcggo?.ath == null ? null : formatCurrency(stats.tcggo.ath, "EUR")}
+            />
+            <MarketStatsFact
+              label="ATL"
+              description="Lowest saved English NM CardMarket price in DustyCards history for this card."
+              value={formatCurrency(stats.atl, "EUR")}
+              comparison={stats.tcggo?.atl == null ? null : formatCurrency(stats.tcggo.atl, "EUR")}
+            />
+            <MarketStatsFact
+              label="Lang spread"
+              description="Difference between the highest and lowest current usable CardMarket language price. It needs at least two languages."
+              value={formatCurrency(stats.language_spread, "EUR")}
+              comparison={stats.language_spread_percent == null ? null : `${formatMarketStatsNumber(stats.language_spread_percent, "%")} range`}
+            />
+          </div>
+
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-black/18 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-white/38">
+                Graded vs raw
+                <MarketStatsInfo
+                  label="Graded versus raw"
+                  description="Exact graded market value divided by the current English NM raw price. eBay sold medians are preferred over CardMarket graded quotes."
+                />
               </span>
-            )}
-            <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white/42">
-              {confidenceLabel}
-            </span>
-            {updatedLabel && (
-              <span className="text-[10px] font-medium text-white/30">{updatedLabel}</span>
-            )}
-          </div>
-        </div>
-
-        <div className={`mt-4 grid gap-4 ${compact ? "" : "xl:grid-cols-[14rem_minmax(20rem,1.25fr)_minmax(17rem,0.85fr)]"}`}>
-          <div className="rounded-2xl border border-white/[0.08] bg-black/24 p-3.5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-2xl border border-cyan-200/20 bg-[linear-gradient(145deg,rgba(34,211,238,0.13),rgba(16,185,129,0.05))] text-[2rem] font-black tabular-nums tracking-[-0.06em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                {formatMarketStatsNumber(stats.score)}
-              </div>
-              <div className="min-w-0">
-                <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] ${getMarketStatsTierClass(stats.tier)}`}>
-                  {stats.tier}
-                </span>
-                <p className="mt-2 text-[11px] font-medium leading-relaxed text-white/36">
-                  {stats.data_points} saved price {stats.data_points === 1 ? "point" : "points"}
-                </p>
-              </div>
+              <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/24">EUR</span>
             </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-2.5 py-2">
-                <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.09em] text-white/32">
-                  RSI
-                  <MarketStatsInfo label="RSI" description={rsiDetail} />
-                </span>
-                <p className="mt-1 text-sm font-bold tabular-nums text-white/80">
-                  {formatMarketStatsNumber(stats.rsi)}
-                </p>
-                <p className={`mt-0.5 truncate text-[9px] font-semibold ${stats.rsi_label === "Overbought" ? "text-rose-300/72" : stats.rsi_label === "Oversold" ? "text-sky-300/72" : "text-white/30"}`}>
-                  {stats.rsi_label ?? "Building"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-2.5 py-2">
-                <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.09em] text-white/32">
-                  Volatility
-                  <MarketStatsInfo
-                    label="Volatility"
-                    description="Annualized dispersion of saved English NM price returns. A higher percentage means wider historical price swings."
-                  />
-                </span>
-                <p className="mt-1 text-sm font-bold tabular-nums text-white/80">
-                  {formatMarketStatsNumber(stats.volatility_percent, "%")}
-                </p>
-                <p className="mt-0.5 truncate text-[9px] font-semibold text-white/30">Annualized</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/[0.07] bg-black/16 p-3.5">
-            <div className="grid gap-x-5 gap-y-3.5 sm:grid-cols-2">
-              {MARKET_STATS_METRICS.map((metric) => (
-                <MarketStatsMetricRow key={metric.key} stats={stats} metric={metric} />
-              ))}
-            </div>
-            <p className="mt-3 border-t border-white/[0.06] pt-2.5 text-[10px] font-medium leading-relaxed text-white/28">
-              Missing inputs stay neutral in the total and lower confidence. Scores describe market evidence, not guaranteed returns.
-            </p>
-          </div>
-
-          <div className="min-w-0">
-            <div className="grid grid-cols-3 gap-2">
-              <MarketStatsFact
-                label="ATH"
-                description="Highest saved English NM CardMarket price in DustyCards history for this card."
-                value={formatCurrency(stats.ath, "EUR")}
-                comparison={stats.tcggo?.ath == null ? null : formatCurrency(stats.tcggo.ath, "EUR")}
-              />
-              <MarketStatsFact
-                label="ATL"
-                description="Lowest saved English NM CardMarket price in DustyCards history for this card."
-                value={formatCurrency(stats.atl, "EUR")}
-                comparison={stats.tcggo?.atl == null ? null : formatCurrency(stats.tcggo.atl, "EUR")}
-              />
-              <MarketStatsFact
-                label="Lang spread"
-                description="Difference between the highest and lowest current usable CardMarket language price. It needs at least two languages."
-                value={formatCurrency(stats.language_spread, "EUR")}
-                comparison={stats.language_spread_percent == null ? null : `${formatMarketStatsNumber(stats.language_spread_percent, "%")} range`}
-              />
-            </div>
-
-            <div className="mt-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-white/38">
-                  Graded vs raw
-                  <MarketStatsInfo
-                    label="Graded versus raw"
-                    description="Exact graded market value divided by the current English NM raw price. eBay sold medians are preferred over CardMarket graded quotes."
-                  />
-                </span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/24">EUR</span>
-              </div>
-              <div className="mt-2">
-                {stats.graded_comparisons.length > 0 ? (
-                  stats.graded_comparisons.map((comparison) => (
-                    <div key={`${comparison.label}-${comparison.source}`} className="flex min-w-0 items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-b-0">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-bold text-white/72">{comparison.label}</p>
-                        <p className="mt-0.5 truncate text-[9px] font-medium text-white/28">
-                          {comparison.source === "ebay_sold"
-                            ? `eBay sold${comparison.sample_size ? ` · ${comparison.sample_size} sale${comparison.sample_size === 1 ? "" : "s"}` : ""} · ${comparison.reliability} evidence`
-                            : `CardMarket graded quote · ${comparison.reliability} evidence`}
-                        </p>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-xs font-bold tabular-nums text-white/82">
-                          {formatCurrency(comparison.price_eur, "EUR")}
-                        </p>
-                        <p className="mt-0.5 text-[10px] font-black tabular-nums text-amber-200/78">
-                          {comparison.raw_multiple == null ? "--" : `${formatMarketStatsNumber(comparison.raw_multiple)}x raw`}
-                        </p>
-                      </div>
+            <div className="mt-1">
+              {stats.graded_comparisons.length > 0 ? (
+                stats.graded_comparisons.map((comparison) => (
+                  <div key={`${comparison.label}-${comparison.source}`} className="flex min-w-0 items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-b-0">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-white/72">{comparison.label}</p>
+                      <p className="mt-0.5 truncate text-[9px] font-medium text-white/28">
+                        {comparison.source === "ebay_sold"
+                          ? `eBay sold${comparison.sample_size ? ` · ${comparison.sample_size} sale${comparison.sample_size === 1 ? "" : "s"}` : ""} · ${comparison.reliability} evidence`
+                          : `CardMarket graded quote · ${comparison.reliability} evidence`}
+                      </p>
                     </div>
-                  ))
-                ) : (
-                  <p className="py-3 text-center text-[11px] font-medium text-white/30">
-                    No usable graded comparison yet.
-                  </p>
-                )}
-              </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-bold tabular-nums text-white/82">
+                        {formatCurrency(comparison.price_eur, "EUR")}
+                      </p>
+                      <p className="mt-0.5 text-[10px] font-black tabular-nums text-amber-200/78">
+                        {comparison.raw_multiple == null ? "--" : `${formatMarketStatsNumber(comparison.raw_multiple)}x raw`}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="py-3 text-center text-[11px] font-medium text-white/30">
+                  No usable graded comparison yet.
+                </p>
+              )}
             </div>
           </div>
+
+          <p className="mt-3 text-[9px] font-medium leading-relaxed text-white/25">
+            Missing inputs stay neutral and lower confidence. Market evidence is not a guarantee of future returns.
+          </p>
         </div>
-      </div>
-    </section>
+      </details>
+    </>
   );
 }
 

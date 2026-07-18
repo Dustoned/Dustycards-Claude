@@ -31,12 +31,11 @@ import {
   CardModalDesktopActionGroup,
   CardModalHeroSection,
   CardModalHistorySection,
-  CardModalMarketStatsPanel,
+  CardModalMarketSignalPanel,
   CardModalMobileShowcase,
   CardModalOwnedCopyPanel,
   CardModalPreview,
   CardModalRecentPricesPanel,
-  CardModalSignalSummaryPanel,
 } from "./card-modal/CardModalSections";
 import type { ModalCardData } from "./card-modal/types";
 import type { SealedModalProductData } from "./sealed-modal/types";
@@ -656,10 +655,6 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                 </div>
 
                 <div className="card-modal-area-support grid min-w-0 items-stretch gap-5 2xl:grid-cols-[minmax(16rem,0.8fr)_minmax(28rem,1.7fr)]">
-                    <CardModalMarketStatsPanel
-                      card={modalCard}
-                      className="2xl:col-span-2"
-                    />
                     <CardModalRecentPricesPanel
                       card={modalCard}
                       className="h-full min-h-[10rem]"
@@ -677,12 +672,10 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
                 </div>
 
                 <div className="card-modal-area-signal min-w-0">
-                  <CardModalSignalSummaryPanel
+                  <CardModalMarketSignalPanel
                     signal={signalSummary}
-                    buySignal={modalCard.buy_signal}
+                    card={modalCard}
                     loading={signalSummaryLoading}
-                    cardId={modalCard.id}
-                    game={modalCard.game}
                     onNavigate={onClose}
                   />
                 </div>

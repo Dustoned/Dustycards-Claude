@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.9",
+    releasedAt: "July 19, 2026",
+    title: "One compact market signal",
+    summary:
+      "DustyCards 3.7.9 combines Signal summary, setup and Market Score into one compact card on every card detail.",
+    tone: "improved",
+    highlights: [
+      "Market Score, opportunity, setup and the reason behind the signal now share one clear summary.",
+      "All six market drivers remain visible with their explanations on desktop and mobile.",
+      "ATH, ATL, language spread and graded-versus-raw evidence are grouped under an expandable market-details row.",
+      "The local buy-signal fallback remains active whenever external signal analysis is loading or unavailable.",
+    ],
+  },
+  {
     version: "3.7.8",
     releasedAt: "July 18, 2026",
     title: "Market scores on every card detail",
