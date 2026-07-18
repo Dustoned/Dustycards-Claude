@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.2",
+    releasedAt: "July 18, 2026",
+    title: "Graded cards back in the value drivers — the honest way",
+    summary:
+      "DustyCards 3.7.2 shows the underlying market moves of graded and eBay-sold-priced cards in the Collection Value Drivers again.",
+    tone: "fixed",
+    highlights: [
+      "A graded card whose raw market price jumps (like a BGS 9.5 going from 150 to 425) now appears in the value drivers — previously graded cards were excluded entirely, so the chart could jump 300 while the drivers showed nothing.",
+      "The change is measured raw-vs-raw from the same price history, so the old phantom 'Raw -> Graded premium' entries cannot come back.",
+      "Driver rows now show the grading label (e.g. BGS 9.5) in the card detail.",
+    ],
+  },
+  {
     version: "3.7.1",
     releasedAt: "July 18, 2026",
     title: "Signal Radar calibrated against 4,284 historical predictions",

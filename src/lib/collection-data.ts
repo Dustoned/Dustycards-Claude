@@ -1336,6 +1336,24 @@ function buildLatestCardSnapshotDateMap(
   return values;
 }
 
+// Newest usable RAW snapshot value per card. Used for graded / eBay-sold cards
+// so their driver change is measured raw-vs-raw (same source on both sides)
+// instead of being excluded entirely.
+function buildLatestCardRawValueMap(
+  rows: EpisodePriceHistorySnapshot[]
+): Map<string, ValueDriverBaseline> {
+  const values = new Map<string, ValueDriverBaseline>();
+  const sorted = [...rows].sort((a, b) => toHistoryMillis(a.fetched_at) - toHistoryMillis(b.fetched_at));
+
+  for (const row of sorted) {
+    const value = getCardMarketValue(row);
+    if (value == null) continue;
+    values.set(row.card_id, { value, date: toHistoryDateKey(row.fetched_at) });
+  }
+
+  return values;
+}
+
 function buildLatestSealedSnapshotDateMap(
   rows: EpisodeSealedPriceHistorySnapshot[]
 ): Map<string, string> {
@@ -1363,8 +1381,11 @@ function calculateChangePct(change: number, previousValue: number): number | nul
 
 function buildCardValueDriverDetail(item: CollectionCardViewItem): string {
   const number = item.card_number ? `#${item.card_number}` : null;
+  const grading = item.grading_company
+    ? [item.grading_company, item.grading_grade].filter(Boolean).join(" ")
+    : null;
 
-  return number ?? "";
+  return [number, grading].filter(Boolean).join(" / ");
 }
 
 function buildSealedValueDriverDetail(item: CollectionSealedViewItem): string {
@@ -1492,6 +1513,7 @@ function buildCollectionValueDrivers({
 
   const cardBaselineValues = buildCardBaselineValueMap(cardHistory, previousPoint.date);
   const sealedBaselineValues = buildSealedBaselineValueMap(sealedHistory, previousPoint.date);
+  const cardLatestRawValues = buildLatestCardRawValueMap(cardHistory);
   const cardLatestSnapshotDates = buildLatestCardSnapshotDateMap(cardHistory);
   const sealedLatestSnapshotDates = buildLatestSealedSnapshotDateMap(sealedHistory);
   const staleBeforeDate = getValueDriverStaleBeforeDate();
@@ -1508,19 +1530,30 @@ function buildCollectionValueDrivers({
     // Without a fresh baseline snapshot we cannot attribute the change to this
     // weekly window, so the card is left out (and old moves drop off in time).
     if (!baseline || isValueDriverBaselineTooOld(baseline.date, minBaselineDate)) continue;
-    // The baseline comes from raw price history. If a card's current value is
-    // graded / eBay-sold rather than raw, the "change" would be the graded
-    // premium versus raw — a constant offset that never ages out, not a weekly
-    // market move. We can't measure a graded card's weekly change from raw
-    // history, so it is left out of the drivers (this is the "Raw -> Graded"
-    // entry that used to stay pinned to the panel for weeks).
+    // The baseline comes from raw price history, so both sides of the change
+    // must be raw. For a card whose CURRENT value is graded / eBay-sold, the
+    // graded premium versus raw would be a constant offset that never ages out
+    // (the "Raw -> Graded" entry that used to stay pinned for weeks) — so for
+    // those cards the change is measured raw-vs-raw from the same history: the
+    // underlying market move of the card is a real driver of the chart, which
+    // also tracks raw prices (e.g. a graded card whose raw price jumps +275
+    // must show up here, not vanish).
     const currentSource = getCollectionValueDriverCardSource(item);
-    if (currentSource !== "Raw") continue;
-    if (item.current_value == null) continue;
-    const currentItemValue = item.current_value;
+    let currentItemValue: number;
+    if (currentSource === "Raw") {
+      if (item.current_value == null) continue;
+      currentItemValue = item.current_value;
+    } else {
+      const latestRaw = cardLatestRawValues.get(item.card_id);
+      if (!latestRaw) continue;
+      currentItemValue = latestRaw.value;
+    }
     const previousItemValue = baseline.value;
-    const previousSource = "Raw";
-    const key = `card:${item.card_id}:${currentSource}`;
+    // Both sides of the measured change are raw history; the pill still shows
+    // the card's own pricing source (no "Raw -> Graded" arrow — the arrow
+    // implied a source switch, which is exactly what we no longer measure).
+    const previousSource = currentSource;
+    const key = `card:${item.card_id}:Raw`;
 
     addCollectionValueDriverDraft(drafts, {
       id: key,
