@@ -677,7 +677,8 @@ describe("external market intelligence", () => {
     const matureSet = buildPriceScenario({ ...shared, ageYears: 4 });
 
     expect(newRelease?.confidence).toBe("Medium");
-    expect(newRelease?.points[1].base).toBeLessThanOrEqual(103);
+    // 105 rather than 103: the base-rate drift term adds ~+2pp everywhere.
+    expect(newRelease?.points[1].base).toBeLessThanOrEqual(105);
     expect(matureSet?.points[1].base).toBeGreaterThan(newRelease?.points[1].base ?? 0);
     expect(newRelease?.drivers).toContain("post-release stabilization");
   });
@@ -831,13 +832,24 @@ describe("external market intelligence", () => {
       historyPoints: 12,
     };
     const flat = buildPriceScenario({ ...shared, rawTrend90dPct: null });
+    // An UNcorroborated mild dip on a high-quality card is dampened to flat
+    // (backtest: such dips historically mean-revert), while a corroborated
+    // mild decline still produces a genuine down base.
     const mildDown = buildPriceScenario({ ...shared, rawTrend90dPct: -5 });
+    const corroboratedMildDown = buildPriceScenario({
+      ...shared,
+      rawTrend90dPct: -5,
+      ebayDemandAdjustment: -2,
+    });
     const materialDown = buildPriceScenario({ ...shared, rawTrend90dPct: -25 });
 
     expect(flat?.points.at(-1)?.base).toBe(100);
-    expect(mildDown?.points.at(-1)?.base).toBeLessThan(100);
+    expect(mildDown?.points.at(-1)?.base).toBe(100);
+    expect(mildDown?.drivers).toContain("uncorroborated dip (historically mean-reverts)");
+    expect(corroboratedMildDown?.points.at(-1)?.base).toBeLessThan(100);
     expect(isWatchablePriceScenario(flat, shared.opportunityScore)).toBe(true);
     expect(isWatchablePriceScenario(mildDown, shared.opportunityScore)).toBe(true);
+    expect(isWatchablePriceScenario(corroboratedMildDown, shared.opportunityScore)).toBe(true);
     expect(isWatchablePriceScenario(materialDown, shared.opportunityScore)).toBe(false);
   });
 
@@ -1233,7 +1245,8 @@ describe("external market intelligence", () => {
 
     expect(neutral?.points.at(-1)?.base).toBe(100);
     expect(supportive?.points.at(-1)?.base).toBeGreaterThan(100);
-    expect(supportive?.expectedReturnPct180 ?? 0).toBeLessThanOrEqual(17);
+    // Clamp ceiling (5+6+6) plus the shrunk base-rate drift term.
+    expect(supportive?.expectedReturnPct180 ?? 0).toBeLessThanOrEqual(19.5);
     expect(weakening?.points.at(-1)?.base).toBeLessThan(100);
     expect(weakening?.expectedReturnPct180 ?? 0).toBeGreaterThanOrEqual(-12);
   });
@@ -1272,7 +1285,7 @@ describe("external market intelligence", () => {
     );
   });
 
-  it("widens the low band with the same factor as the high band when the outlook is down", () => {
+  it("widens both band sides for a down outlook, the high side the most", () => {
     const scenario = buildPriceScenario({
       marketMode: "raw",
       currentPrice: 100,
@@ -1288,13 +1301,14 @@ describe("external market intelligence", () => {
       historyPoints: 12,
     });
     const horizon = scenario?.points.at(-1);
+    const lowWidth = (horizon?.base ?? 0) - (horizon?.low ?? 0);
+    const highWidth = (horizon?.high ?? 0) - (horizon?.base ?? 0);
 
     expect(scenario?.outlook).toBe("down");
-    // The 0.35x-current low-band floor can lift the low point a few cents, so
-    // symmetry is asserted to the nearest 0.5 rather than 0.05.
-    expect((horizon?.base ?? 0) - (horizon?.low ?? 0)).toBeCloseTo(
-      (horizon?.high ?? 0) - (horizon?.base ?? 0),
-      0
-    );
+    // Backtest: missed down calls missed UPWARD (mean-reverting dips), so the
+    // high side of a down scenario carries the widest band (1.5x vs 1.35x).
+    expect(lowWidth).toBeGreaterThan(0);
+    expect(highWidth).toBeGreaterThan(lowWidth);
+    expect(highWidth / lowWidth).toBeCloseTo(1.5 / 1.35, 1);
   });
 });

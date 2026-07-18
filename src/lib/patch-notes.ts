@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.1",
+    releasedAt: "July 18, 2026",
+    title: "Signal Radar calibrated against 4,284 historical predictions",
+    summary:
+      "DustyCards 3.7.1 tunes the Signal Radar using the backtest: honest price bands, market-drift awareness, and dips without negative evidence are no longer called declines.",
+    tone: "improved",
+    highlights: [
+      "Price bands widened to what the backtest measured as honest: coverage improved from 56-74% to 73-81% (target ~80%).",
+      "The model now accounts for the market's structural upward drift instead of under-predicting in a rising market.",
+      "A dip without any corroborating negative evidence (no bad news, no weakening demand) on a structurally strong card is no longer predicted as a decline — the backtest showed such dips historically mean-revert. It is flagged as an 'uncorroborated dip' instead.",
+      "Down-call count halved to only genuinely corroborated or deep declines; their band coverage improved from 56% to 73%.",
+    ],
+  },
+  {
     version: "3.7.0",
     releasedAt: "July 18, 2026",
     title: "Signal Radar v9: predictions that measure themselves",
