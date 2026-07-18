@@ -21,6 +21,25 @@ function makeScrape(overrides: Partial<FirecrawlPageScrapeResult>): FirecrawlPag
   };
 }
 
+function makeCardMarketArticleRow(input: {
+  condition: string;
+  language?: string;
+  price: string;
+  comment?: string;
+}): string {
+  return [
+    '<div id="articleRow-test" class="article-row">',
+    '<div class="product-attributes">',
+    `<a class="article-condition" data-bs-original-title="${input.condition}">${input.condition}</a>`,
+    `<span aria-label="${input.language ?? "English"}"></span>`,
+    "</div>",
+    `<div class="product-comments">${input.comment ?? ""}</div>`,
+    '<div class="mobile-offer-container"></div>',
+    `<div class="price-container"><span class="color-primary fw-bold">${input.price}</span></div>`,
+    "</div>",
+  ].join("");
+}
+
 describe("card submission parsing", () => {
   it("normalizes text for duplicate matching", () => {
     expect(normalizeSubmissionText("Prismatic & Evolutions!!!")).toBe("prismatic and evolutions");
@@ -246,6 +265,37 @@ describe("card submission parsing", () => {
     expect(parsed.condition).toBe("Excellent");
     expect(parsed.language).toBe("English");
     expect(parsed.nmPriceEur).toBe(42.5);
+  });
+
+  it("keeps condition, language, and price inside the same CardMarket offer row", () => {
+    const parsed = parseCardMarketScrape(
+      makeScrape({
+        title: "Zeus (OP11-106) (V.1) | Cardmarket",
+        sourceUrl:
+          "https://www.cardmarket.com/en/OnePiece/Products/Singles/Unnumbered-Promos/Zeus-OP11-106-V1",
+        markdown: [
+          "English Played 90,00 EUR",
+          "English Excellent 100,00 EUR",
+          "English Near Mint 140,00 EUR",
+          "English Near Mint PSA 10 99,00 EUR",
+        ].join("\n"),
+        html: [
+          '<meta property="og:image" content="https://img.example/zeus.jpg">',
+          makeCardMarketArticleRow({ condition: "Played", price: "90,00 EUR" }),
+          makeCardMarketArticleRow({ condition: "Excellent", price: "100,00 EUR" }),
+          makeCardMarketArticleRow({ condition: "Near Mint", price: "140,00 EUR" }),
+          makeCardMarketArticleRow({
+            condition: "Near Mint",
+            price: "99,00 EUR",
+            comment: "PSA 10",
+          }),
+        ].join(""),
+      })
+    );
+
+    expect(parsed.language).toBe("English");
+    expect(parsed.condition).toBe("Near Mint");
+    expect(parsed.nmPriceEur).toBe(140);
   });
 
   it("extracts graded CardMarket prices from seller comments", () => {

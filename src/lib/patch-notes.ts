@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.6",
+    releasedAt: "July 18, 2026",
+    title: "Reliable submitted-card NM prices",
+    summary:
+      "DustyCards 3.7.6 reads each CardMarket offer as one unit so manually submitted cards use the matching language, condition and raw price.",
+    tone: "fixed",
+    highlights: [
+      "Condition, language, seller comment and price are now read from the same CardMarket offer instead of a shared text window.",
+      "Played or Excellent prices immediately above a Near Mint offer can no longer be stored as the Near Mint value.",
+      "PSA, BGS and other graded offers remain excluded from the raw Near Mint price.",
+      "All seven active manually submitted cards were checked against their current CardMarket offer rows.",
+    ],
+  },
+  {
     version: "3.7.5",
     releasedAt: "July 18, 2026",
     title: "Accurate sudden drops and submitted-card refreshes",

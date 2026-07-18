@@ -1094,12 +1094,96 @@ function windowMatchesCondition(text: string, condition: string): boolean {
   }
 }
 
-function extractConditionPrice(scrape: FirecrawlPageScrapeResult, condition: string): {
+interface ExtractedConditionPrice {
   language: SubmissionLanguage | null;
   price: number | null;
   warnings: string[];
-} {
+}
+
+function extractCardMarketArticleRows(html: string): string[] {
+  const starts = [
+    ...html.matchAll(/<div\b[^>]*\bid=["']articleRow[^"']*["'][^>]*>/gi),
+  ]
+    .map((match) => match.index)
+    .filter((index): index is number => index != null);
+
+  return starts.map((start, index) => {
+    const nextStart = starts[index + 1];
+    const footerStart = html.indexOf('<div class="table-footer"', start);
+    const end = nextStart ?? (footerStart >= 0 ? footerStart : html.length);
+    return html.slice(start, end);
+  });
+}
+
+function extractCardMarketArticlePrice(row: string): number | null {
+  for (const match of row.matchAll(/<span\b([^>]*)>([^<]*)<\/span>/gi)) {
+    const classes = match[1]?.match(/\bclass=["']([^"']+)["']/i)?.[1]?.split(/\s+/) ?? [];
+    if (!classes.includes("color-primary")) continue;
+
+    const price = parsePriceToken(match[2] ?? "");
+    if (price != null) return price;
+  }
+
+  return null;
+}
+
+function extractCardMarketArticleComment(row: string): string {
+  const start = row.search(/\bclass=["'][^"']*\bproduct-comments\b[^"']*["']/i);
+  if (start < 0) return "";
+
+  const relativeEnd = row
+    .slice(start)
+    .search(/\bclass=["'][^"']*\bmobile-offer-container\b[^"']*["']/i);
+  const end = relativeEnd < 0 ? row.length : start + relativeEnd;
+  return htmlToText(row.slice(start, end));
+}
+
+function extractArticleConditionPrice(
+  scrape: FirecrawlPageScrapeResult,
+  condition: string
+): ExtractedConditionPrice | null {
+  const rows = extractCardMarketArticleRows(scrape.html);
+  if (rows.length === 0) return null;
+
+  const explicit: Record<SubmissionLanguage, number[]> = { English: [], Japanese: [] };
+
+  for (const row of rows) {
+    const productAttributes =
+      row.match(
+        /<div\b[^>]*class=["'][^"']*\bproduct-attributes\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i
+      )?.[0] ?? "";
+    if (!productAttributes || !windowMatchesCondition(productAttributes, condition)) continue;
+
+    const language = languageFromText(productAttributes);
+    const price = extractCardMarketArticlePrice(row);
+    if (!language || price == null) continue;
+
+    const comment = extractCardMarketArticleComment(row);
+    if (extractGradingLabelMatches(comment).length > 0) continue;
+
+    explicit[language].push(price);
+  }
+
+  const lowestEnglish = explicit.English.length > 0 ? Math.min(...explicit.English) : null;
+  const lowestJapanese = explicit.Japanese.length > 0 ? Math.min(...explicit.Japanese) : null;
+  if (lowestEnglish != null) return { language: "English", price: lowestEnglish, warnings: [] };
+  if (lowestJapanese != null) return { language: "Japanese", price: lowestJapanese, warnings: [] };
+
+  return {
+    language: null,
+    price: null,
+    warnings: [`No English or Japanese ${condition} price was found in CardMarket offer rows.`],
+  };
+}
+
+function extractConditionPrice(
+  scrape: FirecrawlPageScrapeResult,
+  condition: string
+): ExtractedConditionPrice {
   const normalizedCondition = normalizeSubmissionCondition(condition);
+  const articlePrice = extractArticleConditionPrice(scrape, normalizedCondition);
+  if (articlePrice) return articlePrice;
+
   const text = `${scrape.markdown}\n${htmlToText(scrape.html)}`;
   const lines = text
     .split(/\r?\n|(?<=€)\s+/)
