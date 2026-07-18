@@ -30,6 +30,9 @@ import {
 } from "@/lib/games";
 import {
   FAST_SUDDEN_DROP_FEED_LIMIT,
+  FAST_SUDDEN_DROP_MIN_AMOUNT,
+  FAST_SUDDEN_DROP_MIN_PERCENT,
+  FAST_SUDDEN_DROP_STRONG_AMOUNT,
   getFastSuddenDropsData,
 } from "@/lib/home-sudden-drops-server";
 import {
@@ -58,15 +61,21 @@ export default async function SuddenDropsPage({
     view?: string;
     game?: string;
     highlight?: string;
+    minDrop?: string;
   }>;
 }) {
-  const { source, scope, view, game, highlight } = await searchParams;
+  const { source, scope, view, game, highlight, minDrop } = await searchParams;
+  const usesHomePreviewThreshold = minDrop === String(FAST_SUDDEN_DROP_MIN_AMOUNT);
+  const activeDropMinimum = usesHomePreviewThreshold
+    ? FAST_SUDDEN_DROP_MIN_AMOUNT
+    : SUDDEN_DROP_DEAL_MIN_AMOUNT;
   const nextParams = new URLSearchParams();
   if (source) nextParams.set("source", source);
   if (scope) nextParams.set("scope", scope);
   if (view) nextParams.set("view", view);
   if (game) nextParams.set(GAME_SEARCH_PARAM, game);
   if (highlight) nextParams.set("highlight", highlight);
+  if (usesHomePreviewThreshold) nextParams.set("minDrop", String(FAST_SUDDEN_DROP_MIN_AMOUNT));
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/movers/sudden-drops${nextQuery ? `?${nextQuery}` : ""}`);
   const settings = await getServerUserSettings(user.id);
@@ -74,7 +83,16 @@ export default async function SuddenDropsPage({
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const activePriceSource = normalizeMoversPriceSource(source, settings.primaryPriceSource);
-  const data = await getFastSuddenDropsData(activePriceSource, activeGame);
+  const data = await getFastSuddenDropsData(
+    activePriceSource,
+    activeGame,
+    FAST_SUDDEN_DROP_FEED_LIMIT,
+    {
+      minimumAmount: activeDropMinimum,
+      minimumPercent: usesHomePreviewThreshold ? FAST_SUDDEN_DROP_MIN_PERCENT : null,
+      percentBypassAmount: FAST_SUDDEN_DROP_STRONG_AMOUNT,
+    }
+  );
   const movers = data.items;
   const activeItemScope = "all";
   const cardScope = "all";
@@ -129,6 +147,7 @@ export default async function SuddenDropsPage({
     if (view) params.set("view", view);
     if (nextGameValue) params.set(GAME_SEARCH_PARAM, nextGameValue);
     if (highlight) params.set("highlight", highlight);
+    if (usesHomePreviewThreshold) params.set("minDrop", String(FAST_SUDDEN_DROP_MIN_AMOUNT));
 
     const query = params.toString();
     return query ? `/movers/sudden-drops?${query}` : "/movers/sudden-drops";
@@ -204,7 +223,7 @@ export default async function SuddenDropsPage({
               <div className="flex flex-wrap items-center gap-[var(--ui-header-action-gap)]">
                 <HeaderPill tone={isAllScope ? "sky" : "emerald"}>Scope: {scopeLabel}</HeaderPill>
                 <HeaderPill tone="rose">
-                  Drop threshold: {formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+
+                  Drop threshold: {formatCurrency(activeDropMinimum, activeCurrency)}+
                 </HeaderPill>
                 <HeaderPill tone="amber">
                   Rolling window: 24 hours
@@ -221,7 +240,7 @@ export default async function SuddenDropsPage({
         <div className="flex flex-wrap gap-3 text-sm">
           <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/20 bg-rose-400/[0.08] px-3 py-1.5 text-rose-700 dark:text-rose-200">
             <ArrowDownRight className="h-4 w-4" />
-            Rolling 24-hour {formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+ drops
+            Rolling 24-hour {formatCurrency(activeDropMinimum, activeCurrency)}+ drops
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1.5 text-violet-700 dark:text-violet-200">
             <Sparkles className="h-4 w-4" />
@@ -243,8 +262,8 @@ export default async function SuddenDropsPage({
           metricWindowLabel="24H"
           eyebrow="Sudden Drops"
           title="Cards that became cheaper in the last 24 hours"
-          description={`Search, filter, and sort up to ${FAST_SUDDEN_DROP_FEED_LIMIT} verified raw cards whose current price is at least ${formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)} below their previous price within the rolling 24-hour window.`}
-          emptyTitle={`No verified ${formatCurrency(SUDDEN_DROP_DEAL_MIN_AMOUNT, activeCurrency)}+ drops in the last 24 hours`}
+          description={`Search, filter, and sort up to ${FAST_SUDDEN_DROP_FEED_LIMIT} verified raw cards whose current price is at least ${formatCurrency(activeDropMinimum, activeCurrency)} below their previous price within the rolling 24-hour window.`}
+          emptyTitle={`No verified ${formatCurrency(activeDropMinimum, activeCurrency)}+ drops in the last 24 hours`}
           emptyDescription="No raw cards currently meet the rolling 24-hour threshold. Suspicious listing outliers are excluded."
         />
       </div>

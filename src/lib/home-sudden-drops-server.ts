@@ -23,9 +23,22 @@ export const FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS = 1;
 export const FAST_SUDDEN_DROP_WINDOW_HOURS = 24;
 export const FAST_SUDDEN_DROP_MIN_AMOUNT = 5;
 export const FAST_SUDDEN_DROP_STRONG_AMOUNT = 25;
+export const FAST_SUDDEN_DROP_MIN_PERCENT = 10;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
 type FastSuddenDropSnapshotPrefix = "latest" | "anchor";
+
+export interface FastSuddenDropQueryOptions {
+  minimumAmount?: number;
+  minimumPercent?: number | null;
+  percentBypassAmount?: number;
+}
+
+interface FastSuddenDropThresholds {
+  minimumAmount: number;
+  minimumPercent: number | null;
+  percentBypassAmount: number;
+}
 
 interface FastSuddenDropRow {
   card_id: string;
@@ -95,6 +108,27 @@ function priceExpression(alias: string, source: PriceSource): string {
 
 function getSourceLabel(source: PriceSource): "CardMarket" | "TCGPlayer" {
   return source === "tcp" ? "TCGPlayer" : "CardMarket";
+}
+
+function resolveFastSuddenDropThresholds(
+  options?: FastSuddenDropQueryOptions
+): FastSuddenDropThresholds {
+  const minimumAmount =
+    options?.minimumAmount != null && Number.isFinite(options.minimumAmount)
+      ? Math.max(options.minimumAmount, 0)
+      : FAST_SUDDEN_DROP_MIN_AMOUNT;
+  const minimumPercent =
+    options?.minimumPercent === null
+      ? null
+      : options?.minimumPercent != null && Number.isFinite(options.minimumPercent)
+        ? Math.max(options.minimumPercent, 0)
+        : FAST_SUDDEN_DROP_MIN_PERCENT;
+  const percentBypassAmount =
+    options?.percentBypassAmount != null && Number.isFinite(options.percentBypassAmount)
+      ? Math.max(options.percentBypassAmount, minimumAmount)
+      : Math.max(FAST_SUDDEN_DROP_STRONG_AMOUNT, minimumAmount);
+
+  return { minimumAmount, minimumPercent, percentBypassAmount };
 }
 
 function median(values: number[]): number | null {
@@ -193,7 +227,11 @@ function toRefreshMetadata(
   };
 }
 
-function normalizeDropRow(row: FastSuddenDropRow, source: PriceSource): FastSuddenDropRow | null {
+function normalizeDropRow(
+  row: FastSuddenDropRow,
+  source: PriceSource,
+  thresholds: FastSuddenDropThresholds
+): FastSuddenDropRow | null {
   const currentPrice =
     source === "tcp"
       ? row.current_price
@@ -217,9 +255,10 @@ function normalizeDropRow(row: FastSuddenDropRow, source: PriceSource): FastSudd
   });
 
   if (
-    dropAmount < FAST_SUDDEN_DROP_MIN_AMOUNT ||
-    (dropAmount < FAST_SUDDEN_DROP_STRONG_AMOUNT &&
-      Math.abs(dropPercent ?? 0) < 10)
+    dropAmount < thresholds.minimumAmount ||
+    (thresholds.minimumPercent != null &&
+      dropAmount < thresholds.percentBypassAmount &&
+      Math.abs(dropPercent ?? 0) < thresholds.minimumPercent)
   ) {
     return null;
   }
@@ -416,7 +455,8 @@ async function getFastSuddenDropRows(
   source: PriceSource,
   game: TradingCardGame,
   limit: number,
-  refresh: FastSuddenDropRefreshWindow
+  refresh: FastSuddenDropRefreshWindow,
+  thresholds: FastSuddenDropThresholds
 ): Promise<FastSuddenDropRow[]> {
   const selectedPrice = priceExpression("latest", source);
   const selectedPriceAnchor = priceExpression("anchor", source);
@@ -521,7 +561,7 @@ async function getFastSuddenDropRows(
       SELECT *
       FROM scored
       WHERE drop_amount >= ?
-        AND (drop_amount >= ? OR ABS(COALESCE(drop_percent, 0)) >= 10)
+        AND (? IS NULL OR drop_amount >= ? OR ABS(COALESCE(drop_percent, 0)) >= ?)
     )
     SELECT *, COUNT(*) OVER() AS total_count
     FROM filtered
@@ -536,8 +576,10 @@ async function getFastSuddenDropRows(
     SUDDEN_DROP_DEAL_MAX_CURRENT_PRICE,
     refreshStartedAt,
     refreshEndedAt,
-    FAST_SUDDEN_DROP_MIN_AMOUNT,
-    FAST_SUDDEN_DROP_STRONG_AMOUNT,
+    thresholds.minimumAmount,
+    thresholds.minimumPercent,
+    thresholds.percentBypassAmount,
+    thresholds.minimumPercent,
     limit
   );
 }
@@ -566,7 +608,8 @@ function getDropPercent(item: CollectionMoverItem): number | null {
 function buildFastSuddenDropsData(
   items: CollectionMoverItem[],
   limit: number,
-  refresh: FastSuddenDropRefreshWindow | null
+  refresh: FastSuddenDropRefreshWindow | null,
+  thresholds: FastSuddenDropThresholds
 ): FastSuddenDropsData {
   const refreshMetadata = toRefreshMetadata(refresh);
 
@@ -578,7 +621,7 @@ function buildFastSuddenDropsData(
         .slice(0, 8)
         .map((item) => toPreviewItem(item, getDropAmount(item), getDropPercent(item))),
       total: items.length,
-      threshold: FAST_SUDDEN_DROP_MIN_AMOUNT,
+      threshold: thresholds.minimumAmount,
       windowDays: FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS,
       limit,
       refreshStartedAt: refreshMetadata?.startedAt ?? null,
@@ -592,42 +635,45 @@ async function getFastSuddenDropsForRefresh(
   source: PriceSource,
   game: TradingCardGameFilter,
   limit: number,
-  refresh: FastSuddenDropRefreshWindow | null
+  refresh: FastSuddenDropRefreshWindow | null,
+  thresholds: FastSuddenDropThresholds
 ): Promise<FastSuddenDropsData> {
   if (!refresh) {
-    return buildFastSuddenDropsData([], limit, null);
+    return buildFastSuddenDropsData([], limit, null, thresholds);
   }
 
   if (game === ALL_GAMES) {
     const [pokemon, onePiece] = await Promise.all([
-      getFastSuddenDropsForRefresh(source, POKEMON_GAME, limit, refresh),
-      getFastSuddenDropsForRefresh(source, ONE_PIECE_GAME, limit, refresh),
+      getFastSuddenDropsForRefresh(source, POKEMON_GAME, limit, refresh, thresholds),
+      getFastSuddenDropsForRefresh(source, ONE_PIECE_GAME, limit, refresh, thresholds),
     ]);
     const items = [...pokemon.items, ...onePiece.items]
       .sort(compareFastSuddenDrops)
       .slice(0, limit);
 
-    return buildFastSuddenDropsData(items, limit, refresh);
+    return buildFastSuddenDropsData(items, limit, refresh, thresholds);
   }
 
   const rowLimit = Math.min(Math.max(limit * 50, 500), 2500);
-  const rows = await getFastSuddenDropRows(source, game, rowLimit, refresh);
+  const rows = await getFastSuddenDropRows(source, game, rowLimit, refresh, thresholds);
   const filteredItems = rows
-    .map((row) => normalizeDropRow(row, source))
+    .map((row) => normalizeDropRow(row, source, thresholds))
     .filter((row): row is FastSuddenDropRow => row !== null)
     .map((row) => toMoverItem(row, source))
     .filter((item) => item.priceQuality.status !== "suspicious")
     .sort(compareFastSuddenDrops);
   const items = filteredItems.slice(0, limit);
 
-  return buildFastSuddenDropsData(items, limit, refresh);
+  return buildFastSuddenDropsData(items, limit, refresh, thresholds);
 }
 
 export async function getFastSuddenDropsData(
   source: PriceSource,
   game: TradingCardGameFilter,
-  limit = FAST_SUDDEN_DROP_FEED_LIMIT
+  limit = FAST_SUDDEN_DROP_FEED_LIMIT,
+  options?: FastSuddenDropQueryOptions
 ): Promise<FastSuddenDropsData> {
   const refresh = getFastSuddenDropRollingWindow();
-  return getFastSuddenDropsForRefresh(source, game, limit, refresh);
+  const thresholds = resolveFastSuddenDropThresholds(options);
+  return getFastSuddenDropsForRefresh(source, game, limit, refresh, thresholds);
 }

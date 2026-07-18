@@ -105,6 +105,14 @@ describe("getFastSuddenDropsData", () => {
     insertCard.run("old-drop", "Old Drop", "002", "Rare", "episode-1", "pokemon");
     insertCard.run("moderate-drop", "Moderate Drop", "003", "Rare", "episode-1", "pokemon");
     insertCard.run("absolute-drop", "Absolute Drop", "004", "Rare", "episode-1", "pokemon");
+    insertCard.run(
+      "large-absolute-drop",
+      "Large Absolute Drop",
+      "005",
+      "Rare",
+      "episode-1",
+      "pokemon"
+    );
 
     const insertPrice = sqlite.prepare(
       `INSERT INTO "Price" (id, card_id, fetched_at, changed_at, cm_en_lowest_nm)
@@ -118,6 +126,20 @@ describe("getFastSuddenDropsData", () => {
     insertPrice.run("moderate-after", "moderate-drop", currentSnapshotAt, currentSnapshotAt, 32);
     insertPrice.run("absolute-before", "absolute-drop", previousSnapshotAt, previousSnapshotAt, 1000);
     insertPrice.run("absolute-after", "absolute-drop", currentSnapshotAt, currentSnapshotAt, 994);
+    insertPrice.run(
+      "large-absolute-before",
+      "large-absolute-drop",
+      previousSnapshotAt,
+      previousSnapshotAt,
+      1000
+    );
+    insertPrice.run(
+      "large-absolute-after",
+      "large-absolute-drop",
+      currentSnapshotAt,
+      currentSnapshotAt,
+      940
+    );
 
     dbMock.$queryRawUnsafe.mockImplementation((sql: string, ...params: unknown[]) =>
       sqlite.prepare(sql).all(...params)
@@ -125,14 +147,24 @@ describe("getFastSuddenDropsData", () => {
 
     try {
       const result = await getFastSuddenDropsData("cm_en", "pokemon");
+      const fullPageResult = await getFastSuddenDropsData("cm_en", "pokemon", 50, {
+        minimumAmount: 50,
+        minimumPercent: null,
+      });
 
       expect(result.items.map((item) => item.cardId)).toEqual([
         "new-drop",
+        "large-absolute-drop",
         "moderate-drop",
       ]);
       expect(result.items[0]?.change7d).toBe(-60);
       expect(result.preview.threshold).toBe(5);
       expect(result.refresh?.status).toBe("rolling");
+      expect(fullPageResult.items.map((item) => item.cardId)).toEqual([
+        "new-drop",
+        "large-absolute-drop",
+      ]);
+      expect(fullPageResult.preview.threshold).toBe(50);
     } finally {
       sqlite.close();
     }

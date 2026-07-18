@@ -1,7 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { dbMock, exchangeMock, historyMock, pullRatesMock } = vi.hoisted(() => ({
+const {
+  CardSubmissionErrorMock,
+  dbMock,
+  exchangeMock,
+  historyMock,
+  pullRatesMock,
+  submissionMock,
+  syncMock,
+} = vi.hoisted(() => ({
+  CardSubmissionErrorMock: class CardSubmissionError extends Error {
+    status: number;
+
+    constructor(message: string, status = 400) {
+      super(message);
+      this.status = status;
+    }
+  },
   dbMock: {
     card: {
       findUnique: vi.fn(),
@@ -24,6 +40,13 @@ const { dbMock, exchangeMock, historyMock, pullRatesMock } = vi.hoisted(() => ({
   pullRatesMock: {
     getPullRateInfoForSetRarity: vi.fn().mockResolvedValue(null),
   },
+  submissionMock: {
+    refreshAdminCardSubmission: vi.fn(),
+  },
+  syncMock: {
+    runCardPriceRefresh: vi.fn(),
+    runSingleCardHistoryImport: vi.fn(),
+  },
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -33,7 +56,12 @@ vi.mock("@/lib/auth", () => ({
     role: "user",
     disabled: false,
   }),
-  requireAdmin: vi.fn(),
+  requireAdmin: vi.fn().mockResolvedValue({
+    id: "admin-1",
+    email: "admin@example.com",
+    role: "admin",
+    disabled: false,
+  }),
   authErrorResponse: vi.fn(() => null),
 }));
 
@@ -55,13 +83,18 @@ vi.mock("@/lib/pull-rates", () => ({
 }));
 
 vi.mock("@/lib/sync", () => ({
-  runCardPriceRefresh: vi.fn(),
-  runSingleCardHistoryImport: vi.fn(),
+  runCardPriceRefresh: syncMock.runCardPriceRefresh,
+  runSingleCardHistoryImport: syncMock.runSingleCardHistoryImport,
   SyncCancelledError: class SyncCancelledError extends Error {},
   SyncConflictError: class SyncConflictError extends Error {
     activeType = "price";
     startedAt = new Date("2026-05-24T10:00:00.000Z");
   },
+}));
+
+vi.mock("@/lib/card-submissions", () => ({
+  CardSubmissionError: CardSubmissionErrorMock,
+  refreshAdminCardSubmission: submissionMock.refreshAdminCardSubmission,
 }));
 
 vi.mock("@/lib/tcggo", () => ({
@@ -76,7 +109,7 @@ vi.mock("@/lib/user-settings-server", () => ({
   getServerUserSettings: vi.fn().mockResolvedValue({ onePieceLibraryEnabled: true }),
 }));
 
-import { GET } from "@/app/api/cards/[id]/route";
+import { GET, POST } from "@/app/api/cards/[id]/route";
 
 function makeCardRecord() {
   return {
@@ -155,6 +188,9 @@ describe("GET /api/cards/[id]", () => {
     exchangeMock.getUsdToEurRate.mockClear();
     pullRatesMock.getPullRateInfoForSetRarity.mockClear();
     historyMock.loadSafeCardMarketHistoryRows.mockReset();
+    submissionMock.refreshAdminCardSubmission.mockReset();
+    syncMock.runCardPriceRefresh.mockReset();
+    syncMock.runSingleCardHistoryImport.mockReset();
   });
 
   it("includes a safe buy_signal payload in card detail responses", async () => {
@@ -234,5 +270,87 @@ describe("GET /api/cards/[id]", () => {
     );
     expect(body.price_fetched_at).toBe("2026-05-22T10:00:00.000Z");
     expect(body.buy_signal.context).toBe("market");
+  });
+});
+
+describe("POST /api/cards/[id]", () => {
+  beforeEach(() => {
+    dbMock.card.findUnique.mockReset();
+    dbMock.sealedProduct.findMany.mockReset().mockResolvedValue([]);
+    dbMock.sealedProduct.count.mockReset().mockResolvedValue(0);
+    dbMock.collectionCard.findMany.mockReset();
+    historyMock.loadSafeCardMarketHistoryRows.mockReset();
+    submissionMock.refreshAdminCardSubmission.mockReset().mockResolvedValue({});
+    syncMock.runCardPriceRefresh.mockReset().mockResolvedValue({});
+    syncMock.runSingleCardHistoryImport.mockReset();
+  });
+
+  it("refreshes user-submitted cards through their CardMarket submission", async () => {
+    const card = makeCardRecord();
+    dbMock.card.findUnique
+      .mockResolvedValueOnce({
+        is_user_submitted: true,
+        cardSubmissions: [{ id: "submission-1" }],
+      })
+      .mockResolvedValueOnce(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
+      new Map([[card.id, card.prices]])
+    );
+
+    const response = await POST(
+      new NextRequest("http://localhost:3000/api/cards/card-1", {
+        method: "POST",
+        body: JSON.stringify({ action: "refresh" }),
+      }),
+      { params: Promise.resolve({ id: "card-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(submissionMock.refreshAdminCardSubmission).toHaveBeenCalledWith("submission-1");
+    expect(syncMock.runCardPriceRefresh).not.toHaveBeenCalled();
+  });
+
+  it("keeps official cards on the regular TCGGO refresh path", async () => {
+    const card = makeCardRecord();
+    dbMock.card.findUnique
+      .mockResolvedValueOnce({
+        is_user_submitted: false,
+        cardSubmissions: [],
+      })
+      .mockResolvedValueOnce(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
+      new Map([[card.id, card.prices]])
+    );
+
+    const response = await POST(
+      new NextRequest("http://localhost:3000/api/cards/card-1", {
+        method: "POST",
+        body: JSON.stringify({ action: "refresh" }),
+      }),
+      { params: Promise.resolve({ id: "card-1" }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(syncMock.runCardPriceRefresh).toHaveBeenCalledWith("card-1");
+    expect(submissionMock.refreshAdminCardSubmission).not.toHaveBeenCalled();
+  });
+
+  it("returns a useful conflict when a submitted card lost its refresh source", async () => {
+    dbMock.card.findUnique.mockResolvedValueOnce({
+      is_user_submitted: true,
+      cardSubmissions: [],
+    });
+
+    const response = await POST(
+      new NextRequest("http://localhost:3000/api/cards/card-1", {
+        method: "POST",
+        body: JSON.stringify({ action: "refresh" }),
+      }),
+      { params: Promise.resolve({ id: "card-1" }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error).toContain("active CardMarket refresh source");
   });
 });

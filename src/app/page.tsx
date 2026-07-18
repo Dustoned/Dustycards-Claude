@@ -35,6 +35,7 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
+import { FAST_SUDDEN_DROP_MIN_AMOUNT } from "@/lib/home-sudden-drops-server";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import EmptyState from "@/components/EmptyState";
 
@@ -641,6 +642,7 @@ export default async function HomePage({
     const gameValue = getGameFilterSearchParamValue(activeGame);
 
     params.set("scope", "all");
+    params.set("minDrop", String(FAST_SUDDEN_DROP_MIN_AMOUNT));
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
     }

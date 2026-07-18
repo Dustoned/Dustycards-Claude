@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.5",
+    releasedAt: "July 18, 2026",
+    title: "Accurate sudden drops and submitted-card refreshes",
+    summary:
+      "DustyCards 3.7.5 separates the broad homepage drop preview from the stricter market page and correctly refreshes manually submitted cards through CardMarket.",
+    tone: "fixed",
+    highlights: [
+      "The direct Sudden Drops page now matches its advertised threshold and only shows cards whose latest 24-hour price change is at least EUR 50.",
+      "The homepage keeps its more sensitive EUR 5 preview, while links preserve that preview threshold so selected cards remain visible.",
+      "Manually submitted cards now refresh through their linked CardMarket submission instead of sending a local-only card id to TCGGO.",
+      "Submission and Firecrawl failures now return their specific error message instead of a generic card-price refresh error.",
+    ],
+  },
+  {
     version: "3.7.4",
     releasedAt: "July 18, 2026",
     title: "Collection chart prices graded cards as graded",

@@ -28,6 +28,10 @@ import { getDisplayCardNumber } from "@/lib/card-number-display";
 import { parseBgsSubgrades } from "@/lib/graded-slabs";
 import { buildBuySignal } from "@/lib/buy-signal";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
+import {
+  CardSubmissionError,
+  refreshAdminCardSubmission,
+} from "@/lib/card-submissions";
 
 type CardAction = "refresh" | "sync-history";
 
@@ -537,6 +541,36 @@ export async function GET(
   }
 }
 
+async function refreshCardPrices(cardId: string) {
+  const refreshTarget = await db.card.findUnique({
+    where: { id: cardId },
+    select: {
+      is_user_submitted: true,
+      cardSubmissions: {
+        where: { status: "added" },
+        orderBy: { updated_at: "desc" },
+        take: 1,
+        select: { id: true },
+      },
+    },
+  });
+
+  if (!refreshTarget?.is_user_submitted) {
+    await runCardPriceRefresh(cardId);
+    return;
+  }
+
+  const submissionId = refreshTarget.cardSubmissions[0]?.id;
+  if (!submissionId) {
+    throw new CardSubmissionError(
+      "This submitted card no longer has an active CardMarket refresh source.",
+      409
+    );
+  }
+
+  await refreshAdminCardSubmission(submissionId);
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -561,7 +595,7 @@ export async function POST(
     if (action === "sync-history") {
       await runSingleCardHistoryImport(id);
     } else {
-      await runCardPriceRefresh(id);
+      await refreshCardPrices(id);
     }
 
     const payload = await getCardDetailPayload(id, user.id);
@@ -601,6 +635,10 @@ export async function POST(
         },
         { status: 429 }
       );
+    }
+
+    if (error instanceof CardSubmissionError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
     const authResponse = authErrorResponse(error);
