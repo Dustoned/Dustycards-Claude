@@ -27,6 +27,8 @@ import { getServerUserSettings } from "@/lib/user-settings-server";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
 import { parseBgsSubgrades } from "@/lib/graded-slabs";
 import { buildBuySignal } from "@/lib/buy-signal";
+import { buildCardMarketStats } from "@/lib/card-market-stats";
+import { getEbayDemandPayload } from "@/lib/ebay-demand";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import {
   CardSubmissionError,
@@ -167,6 +169,19 @@ async function getCardDetailPayload(id: string, userId: string) {
       tcggo_url: true,
       price_source_status: true,
       price_source_checked_at: true,
+      tcggo_score: true,
+      tcggo_score_tier: true,
+      tcggo_score_momentum: true,
+      tcggo_score_stability: true,
+      tcggo_score_liquidity: true,
+      tcggo_score_demand: true,
+      tcggo_score_market_depth: true,
+      tcggo_score_grade_premium: true,
+      tcggo_score_rsi: true,
+      tcggo_score_ath: true,
+      tcggo_score_atl: true,
+      tcggo_score_synced_at: true,
+      tcggo_score_updated_at: true,
       ebay_sold_graded_status: true,
       ebay_sold_graded_checked_at: true,
       ebay_sold_graded_synced_at: true,
@@ -337,10 +352,13 @@ async function getCardDetailPayload(id: string, userId: string) {
     .find((price) => getCurrentRawCardmarketValue(price) != null) ?? null;
   const priceHistory = buildCardPriceHistory(safePriceRows);
   const gradedPriceHistory = buildCardGradedPriceHistory(card.gradedPriceSnapshots);
-  const pullRateInfo = await getPullRateInfoForSetRarity({
-    setCode: card.episode.code,
-    rarity: card.rarity,
-  });
+  const [pullRateInfo, ebayDemand] = await Promise.all([
+    getPullRateInfoForSetRarity({
+      setCode: card.episode.code,
+      rarity: card.rarity,
+    }),
+    getEbayDemandPayload({ cardId: card.id, mode: "raw" }),
+  ]);
   const pullRateInfoPayload = pullRateInfo
     ? {
         source: pullRateInfo.source,
@@ -398,6 +416,36 @@ async function getCardDetailPayload(id: string, userId: string) {
         cm_en_avg_30d: latestEnglishNmSnapshot?.cm_en_avg_30d ?? null,
       }
     : null;
+  const marketStats = buildCardMarketStats({
+    history: priceHistory,
+    currentLanguagePrices: {
+      en: latestPricePayload?.cm_en_lowest_nm,
+      de: latestPricePayload?.cm_de_lowest_nm,
+      fr: latestPricePayload?.cm_fr_lowest_nm,
+      es: latestPricePayload?.cm_es_lowest_nm,
+      it: latestPricePayload?.cm_it_lowest_nm,
+      jp: latestPricePayload?.cm_jp_lowest_nm,
+    },
+    rawPrice: latestPricePayload?.cm_en_lowest_nm,
+    gradedPrices: card.gradedPrices,
+    ebaySoldGradedPrices,
+    demand: ebayDemand,
+    updatedAt: latestEnglishNmSnapshot?.fetched_at ?? latestSourceSnapshot?.fetched_at ?? null,
+    tcggo: {
+      score: card.tcggo_score,
+      tier: card.tcggo_score_tier,
+      momentum: card.tcggo_score_momentum,
+      stability: card.tcggo_score_stability,
+      liquidity: card.tcggo_score_liquidity,
+      demand: card.tcggo_score_demand,
+      marketDepth: card.tcggo_score_market_depth,
+      gradePremium: card.tcggo_score_grade_premium,
+      rsi: card.tcggo_score_rsi,
+      ath: card.tcggo_score_ath,
+      atl: card.tcggo_score_atl,
+      updatedAt: card.tcggo_score_updated_at ?? card.tcggo_score_synced_at,
+    },
+  });
   const collectionItemPayload = collectionItem
     ? {
         id: collectionItem.id,
@@ -476,6 +524,7 @@ async function getCardDetailPayload(id: string, userId: string) {
     graded_price_history: gradedPriceHistory,
     ebay_sold_graded_price_history: ebaySoldGradedPriceHistory,
     price_history: priceHistory,
+    market_stats: marketStats,
     buy_signal: buySignal,
     pull_rate_info: pullRateInfoPayload,
     episode_id: card.episode.id,

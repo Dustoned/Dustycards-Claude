@@ -29,6 +29,10 @@ const {
     collectionCard: {
       findMany: vi.fn(),
     },
+    cardEbayDemandSnapshot: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+    },
   },
   exchangeMock: {
     convertUsdToEur: vi.fn((value: number) => Number((value * 0.9).toFixed(2))),
@@ -184,6 +188,8 @@ describe("GET /api/cards/[id]", () => {
     dbMock.sealedProduct.findMany.mockReset().mockResolvedValue([]);
     dbMock.sealedProduct.count.mockReset().mockResolvedValue(0);
     dbMock.collectionCard.findMany.mockReset();
+    dbMock.cardEbayDemandSnapshot.findFirst.mockReset().mockResolvedValue(null);
+    dbMock.cardEbayDemandSnapshot.findMany.mockReset().mockResolvedValue([]);
     exchangeMock.convertUsdToEur.mockClear();
     exchangeMock.getUsdToEurRate.mockClear();
     pullRatesMock.getPullRateInfoForSetRarity.mockClear();
@@ -221,6 +227,17 @@ describe("GET /api/cards/[id]", () => {
       expect.arrayContaining([
         expect.objectContaining({ label: "eBay sold", value: "Graded only" }),
       ])
+    );
+    expect(body.market_stats).toEqual(
+      expect.objectContaining({
+        model: "dustycards-market-v1",
+        score: expect.any(Number),
+        confidence: "low",
+        metrics: expect.objectContaining({
+          momentum: expect.any(Number),
+          market_depth: expect.any(Number),
+        }),
+      })
     );
     expect(dbMock.card.findUnique.mock.calls[0]?.[0]?.select?.collectionItems?.where).toEqual({
       user_id: "user-1",
@@ -279,6 +296,8 @@ describe("POST /api/cards/[id]", () => {
     dbMock.sealedProduct.findMany.mockReset().mockResolvedValue([]);
     dbMock.sealedProduct.count.mockReset().mockResolvedValue(0);
     dbMock.collectionCard.findMany.mockReset();
+    dbMock.cardEbayDemandSnapshot.findFirst.mockReset().mockResolvedValue(null);
+    dbMock.cardEbayDemandSnapshot.findMany.mockReset().mockResolvedValue([]);
     historyMock.loadSafeCardMarketHistoryRows.mockReset();
     submissionMock.refreshAdminCardSubmission.mockReset().mockResolvedValue({});
     syncMock.runCardPriceRefresh.mockReset().mockResolvedValue({});

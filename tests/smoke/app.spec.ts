@@ -486,6 +486,13 @@ test.describe("DustyCards smoke", () => {
   test("card detail uses an aligned responsive workspace", async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await applyDisplaySettings(page, { widescreen: true, modalSize: "medium" });
+    await page.route("**/api/cards/*/signal-preview", async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ ok: false, error: "Simulated preview failure" }),
+      });
+    });
     await page.goto("/search?q=pikachu");
 
     const firstCard = page.locator(".dc-wide-grid-zone [role='button']").first();
@@ -495,6 +502,16 @@ test.describe("DustyCards smoke", () => {
     const dialog = page.getByRole("dialog");
     const detailGrid = dialog.locator(".card-modal-layout-grid");
     await expect(detailGrid).toBeVisible({ timeout: 15_000 });
+    const desktopMarketStats = detailGrid.locator("[data-card-market-stats]");
+    await expect(desktopMarketStats).toBeVisible();
+    await expect(desktopMarketStats).toContainText("DustyCards Market Score");
+    await expect(
+      desktopMarketStats.getByRole("button", { name: /^Momentum:/ })
+    ).toBeVisible();
+    const desktopSignalSummary = detailGrid.locator("[data-signal-summary-panel]");
+    await expect(desktopSignalSummary).toBeVisible();
+    await expect(desktopSignalSummary).toHaveAttribute("data-signal-source", "market");
+    await expect(desktopSignalSummary).toContainText("Signal summary");
 
     const preview = detailGrid.locator(".card-modal-area-preview");
     const hero = detailGrid.locator(".card-modal-area-hero");
@@ -537,6 +554,18 @@ test.describe("DustyCards smoke", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(detailGrid).toBeHidden();
     await expect(dialog).toHaveAttribute("data-mobile-showcase", "true");
+    const mobileMarketStats = dialog.locator(".md\\:hidden [data-card-market-stats]");
+    await expect(mobileMarketStats).toBeVisible();
+    await expect(mobileMarketStats).toContainText("DustyCards Market Score");
+    await mobileMarketStats.getByRole("button", { name: /^Momentum:/ }).click();
+    await expect(mobileMarketStats.getByRole("tooltip")).toContainText(
+      "Price direction from saved"
+    );
+    const mobileSignalSummary = dialog.locator(
+      ".md\\:hidden [data-signal-summary-panel]"
+    );
+    await expect(mobileSignalSummary).toBeVisible();
+    await expect(mobileSignalSummary).toHaveAttribute("data-signal-source", "market");
     await expectNoHorizontalOverflow(page);
   });
 

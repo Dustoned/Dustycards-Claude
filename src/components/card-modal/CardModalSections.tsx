@@ -695,45 +695,86 @@ export function CardModalBuySignalPanel({
 
 export function CardModalSignalSummaryPanel({
   signal,
+  buySignal,
+  loading = false,
   cardId,
   game,
   onNavigate,
 }: {
   signal: ModalCardData["signal_summary"] | null | undefined;
+  buySignal: ModalCardData["buy_signal"] | null | undefined;
+  loading?: boolean;
   cardId: string;
   game: ModalCardData["game"];
   onNavigate: () => void;
 }) {
-  if (!signal) return null;
-  const market = signal.marketIntelligence;
-  const opportunity = market?.rawOpportunityScore ?? signal.externalScore;
-  const tier = opportunity >= 80 ? "Breakout" : opportunity >= 60 ? "Strong" : "Watch";
-  const interesting = [
-    signal.catalysts?.[0]
-      ? { label: "Catalyst", value: signal.catalysts[0].headline }
-      : null,
-    market?.scarcity.setRarityScore != null
-      ? { label: "Set rarity", value: `${market.scarcity.setRarityLabel} · ${market.scarcity.setRarityScore}/100` }
-      : null,
-    market?.scarcity
-      ? { label: "Scarcity", value: `${market.scarcity.label} · ${market.scarcity.score}/100` }
-      : null,
-    market?.sealed && (market.sealed.productCount > 0 || market.sealed.pressureScore >= 45)
-      ? { label: "Sealed", value: `${market.sealed.pressureLabel} · ${market.sealed.pressureScore}/100` }
-      : null,
-    market?.graded.available
-      ? {
-          label: "Grading",
-          value: market.graded.psa10Price == null
-            ? market.graded.supplyLabel
-            : `PSA 10 ${formatCurrency(market.graded.psa10Price, market.graded.currency)}`,
-        }
-      : null,
-  ].filter((item): item is { label: string; value: string } => Boolean(item));
+  const market = signal?.marketIntelligence;
+  const externalOpportunity = signal
+    ? market?.rawOpportunityScore ?? signal.externalScore
+    : null;
+  const externalTier = externalOpportunity == null
+    ? null
+    : externalOpportunity >= 80
+      ? "Breakout"
+      : externalOpportunity >= 60
+        ? "Strong"
+        : "Watch";
+  const localTitle = buySignal
+    ? buySignal.label === "hold"
+      ? "Neutral setup"
+      : buySignal.label === "sell" || buySignal.label === "strong_sell"
+        ? `${buySignal.label_text} pressure`
+        : `${buySignal.label_text} setup`
+    : "Building setup";
+  const opportunity = externalOpportunity ?? buySignal?.score ?? null;
+  const title = signal ? `${externalTier ?? "Watch"} setup` : localTitle;
+  const confidence = signal?.confidence ?? buySignal?.confidence ?? "low";
+  const setup = signal
+    ? market?.confluence.label ?? externalTier ?? "Watch"
+    : buySignal?.label_text ?? "Awaiting data";
+  const origin = signal
+    ? (signal.catalysts?.length ?? 0) > 0
+      ? "External event"
+      : "Market & rarity"
+    : "DustyCards model";
+  const explanation = signal
+    ? signal.reasons[0] ?? signal.pressureExplanation
+    : buySignal?.reasons[0] ?? buySignal?.warnings[0] ?? "More market history is needed for a stronger signal.";
+  const externalInteresting = signal
+    ? [
+        signal.catalysts?.[0]
+          ? { label: "Catalyst", value: signal.catalysts[0].headline }
+          : null,
+        market?.scarcity.setRarityScore != null
+          ? { label: "Set rarity", value: `${market.scarcity.setRarityLabel} · ${market.scarcity.setRarityScore}/100` }
+          : null,
+        market?.scarcity
+          ? { label: "Scarcity", value: `${market.scarcity.label} · ${market.scarcity.score}/100` }
+          : null,
+        market?.sealed && (market.sealed.productCount > 0 || market.sealed.pressureScore >= 45)
+          ? { label: "Sealed", value: `${market.sealed.pressureLabel} · ${market.sealed.pressureScore}/100` }
+          : null,
+        market?.graded.available
+          ? {
+              label: "Grading",
+              value: market.graded.psa10Price == null
+                ? market.graded.supplyLabel
+                : `PSA 10 ${formatCurrency(market.graded.psa10Price, market.graded.currency)}`,
+            }
+          : null,
+      ].filter((item): item is { label: string; value: string } => Boolean(item))
+    : [];
+  const interesting = signal
+    ? externalInteresting
+    : (buySignal?.evidence ?? []).slice(0, 3).map((item) => ({
+        label: item.label,
+        value: item.value,
+      }));
 
   return (
     <section
       data-signal-summary-panel
+      data-signal-source={signal ? "external" : "market"}
       className="min-w-0 rounded-2xl border border-violet-300/14 bg-[linear-gradient(135deg,rgba(124,92,255,0.11),rgba(14,18,29,0.92)_48%,rgba(56,189,248,0.045))] p-3.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.07)]"
     >
       <div className="flex min-w-0 items-center justify-between gap-3">
@@ -742,34 +783,39 @@ export function CardModalSignalSummaryPanel({
             <Radar className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-100/42">Signal summary</p>
-            <h3 className="mt-0.5 truncate text-sm font-bold text-white/88">{tier} setup</h3>
+            <p className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-violet-100/42">
+              Signal summary
+              {loading && !signal ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
+            </p>
+            <h3 className="mt-0.5 truncate text-sm font-bold text-white/88">{title}</h3>
           </div>
         </div>
         <span className="shrink-0 rounded-full border border-violet-300/16 bg-violet-400/[0.08] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-violet-100/72">
-          {signal.confidence}
+          {confidence}
         </span>
       </div>
 
       <div className="mt-3 grid grid-cols-3 gap-2">
         <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
           <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Opportunity</p>
-          <p className="mt-1 text-base font-black tabular-nums text-white">{opportunity}/100</p>
+          <p className="mt-1 text-base font-black tabular-nums text-white">
+            {opportunity == null ? "--" : `${opportunity}/100`}
+          </p>
         </div>
         <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
           <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Setup</p>
-          <p className="mt-1 truncate text-sm font-black text-emerald-100/84">{market?.confluence.label ?? tier}</p>
+          <p className="mt-1 truncate text-sm font-black text-emerald-100/84">{setup}</p>
         </div>
         <div className="rounded-xl border border-white/8 bg-black/18 p-2.5">
           <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/30">Origin</p>
-          <p className="mt-1 truncate text-sm font-black text-sky-100/82">{(signal.catalysts?.length ?? 0) > 0 ? "External event" : "Market & rarity"}</p>
+          <p className="mt-1 truncate text-sm font-black text-sky-100/82">{origin}</p>
         </div>
       </div>
 
       <div className="mt-2.5 rounded-xl border border-white/7 bg-black/14 px-3 py-2.5">
         <p className="text-[8px] font-bold uppercase tracking-[0.11em] text-white/28">Why it matters</p>
         <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/64">
-          {signal.reasons[0] ?? signal.pressureExplanation}
+          {explanation}
         </p>
       </div>
 
@@ -2163,6 +2209,10 @@ export function CardModalMobileShowcase({
           </div>
         )}
 
+        {showOverview && (
+          <CardModalMarketStatsPanel card={card} compact className="mt-3" />
+        )}
+
         {showPreviousPrices && (
           <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-white/[0.035] p-4">
             <div className="flex items-center justify-between gap-3">
@@ -2226,16 +2276,14 @@ export function CardModalMobileShowcase({
       ) : null}
 
       <div className="relative z-10 mt-4">
-        {signalSummary ? (
-          <CardModalSignalSummaryPanel
-            signal={signalSummary}
-            cardId={card.id}
-            game={card.game}
-            onNavigate={onClose}
-          />
-        ) : signalSummaryLoading ? (
-          <div className="h-40 animate-pulse rounded-2xl border border-white/8 bg-white/[0.025]" />
-        ) : null}
+        <CardModalSignalSummaryPanel
+          signal={signalSummary}
+          buySignal={card.buy_signal}
+          loading={signalSummaryLoading}
+          cardId={card.id}
+          game={card.game}
+          onNavigate={onClose}
+        />
       </div>
 
       <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(179,155,255,0.05)]">
@@ -2867,6 +2915,333 @@ export function CardModalHistorySection({
 const CARD_MODAL_SUPPORT_PANEL_CLASS =
   "min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.022))] p-4";
 const CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS = "text-sm font-semibold text-white";
+
+const MARKET_STATS_METRICS = [
+  {
+    key: "momentum",
+    label: "Momentum",
+    description: "Price direction from saved 7, 30 and 90-day English NM returns. A score of 50 is neutral.",
+  },
+  {
+    key: "stability",
+    label: "Stability",
+    description: "Consistency of saved English NM price moves. Fewer abrupt day-to-day swings produce a higher score.",
+  },
+  {
+    key: "liquidity",
+    label: "Liquidity",
+    description: "Depth of verified active fixed-price eBay supply for this exact raw English NM card.",
+  },
+  {
+    key: "grade_premium",
+    label: "Grade Premium",
+    description: "Representative gem-mint value versus raw. PSA 10, BGS 9.5 and CGC 10 are peers; BGS 10 remains a separate pristine tier.",
+  },
+  {
+    key: "demand",
+    label: "Demand",
+    description: "Supply-pressure proxy from verified listings disappearing versus new listings. A disappearance is not automatically a confirmed sale.",
+  },
+  {
+    key: "market_depth",
+    label: "Market Depth",
+    description: "Breadth across CardMarket languages, verified eBay stock and usable graded observations.",
+  },
+] as const;
+
+function MarketStatsInfo({ label, description }: { label: string; description: string }) {
+  return (
+    <span className="group relative inline-flex shrink-0">
+      <button
+        type="button"
+        aria-label={`${label}: ${description}`}
+        data-mobile-tooltip={description}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-white/32 outline-none transition-colors hover:bg-white/[0.07] hover:text-cyan-100 focus-visible:bg-white/[0.08] focus-visible:text-cyan-100"
+      >
+        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute bottom-[calc(100%+0.45rem)] left-1/2 z-50 hidden w-64 -translate-x-1/2 rounded-xl border border-cyan-100/15 bg-[#061113]/96 px-3 py-2 text-left text-[11px] font-medium leading-relaxed text-white/82 opacity-0 shadow-[0_18px_55px_rgba(0,0,0,0.48)] backdrop-blur-xl transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 md:block"
+      >
+        {description}
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-[260] w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-cyan-100/15 bg-[#061113]/96 px-3.5 py-3 text-center text-xs font-semibold leading-relaxed text-white/86 opacity-0 shadow-[0_22px_70px_rgba(0,0,0,0.6)] backdrop-blur-xl transition-opacity group-focus-within:visible group-focus-within:opacity-100 md:hidden"
+      >
+        {description}
+      </span>
+    </span>
+  );
+}
+
+function getMarketStatsTierClass(tier: NonNullable<ModalCardData["market_stats"]>["tier"]): string {
+  if (tier === "STRONG" || tier === "POSITIVE") {
+    return "border-emerald-300/20 bg-emerald-400/[0.1] text-emerald-200";
+  }
+  if (tier === "CAUTION" || tier === "WEAK") {
+    return "border-amber-300/20 bg-amber-400/[0.1] text-amber-100";
+  }
+  if (tier === "BUILDING") {
+    return "border-white/10 bg-white/[0.045] text-white/48";
+  }
+  return "border-cyan-300/20 bg-cyan-400/[0.09] text-cyan-100";
+}
+
+function getMarketStatsBarClass(value: number | null): string {
+  if (value == null) return "bg-white/16";
+  if (value >= 65) return "bg-gradient-to-r from-emerald-500 to-cyan-300";
+  if (value >= 45) return "bg-gradient-to-r from-sky-500 to-cyan-300";
+  return "bg-gradient-to-r from-amber-500 to-orange-300";
+}
+
+function formatMarketStatsNumber(value: number | null, suffix = ""): string {
+  if (value == null || !Number.isFinite(value)) return "--";
+  return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}${suffix}`;
+}
+
+function MarketStatsMetricRow({
+  stats,
+  metric,
+}: {
+  stats: NonNullable<ModalCardData["market_stats"]>;
+  metric: (typeof MARKET_STATS_METRICS)[number];
+}) {
+  const value = stats.metrics[metric.key];
+  const comparison = stats.tcggo?.[metric.key] ?? null;
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center justify-between gap-3">
+        <span className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold text-white/58">
+          <span className="truncate">{metric.label}</span>
+          <MarketStatsInfo label={metric.label} description={metric.description} />
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-xs font-bold tabular-nums text-white/80">
+          {comparison != null && (
+            <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/30">
+              TCGGO {formatMarketStatsNumber(comparison)}
+            </span>
+          )}
+          {formatMarketStatsNumber(value)}
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${getMarketStatsBarClass(value)}`}
+          style={{ width: `${value ?? 0}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MarketStatsFact({
+  label,
+  description,
+  value,
+  comparison,
+}: {
+  label: string;
+  description: string;
+  value: string;
+  comparison?: string | null;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-white/[0.07] bg-black/20 px-3 py-2.5">
+      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.09em] text-white/34">
+        {label}
+        <MarketStatsInfo label={label} description={description} />
+      </span>
+      <p className="mt-1 truncate text-sm font-semibold tabular-nums text-white/84">{value}</p>
+      {comparison && (
+        <p className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-[0.07em] text-white/28">
+          TCGGO {comparison}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function CardModalMarketStatsPanel({
+  card,
+  compact = false,
+  className = "",
+}: {
+  card: ModalCardData;
+  compact?: boolean;
+  className?: string;
+}) {
+  const stats = card.market_stats;
+  if (!stats) return null;
+
+  const updatedLabel = formatShortStatusDate(stats.updated_at);
+  const confidenceLabel = `${stats.confidence} confidence`;
+  const rsiDetail = stats.rsi == null
+    ? "RSI needs at least 15 saved English NM price points. Below 30 is oversold; above 70 is overbought."
+    : "14-point RSI from saved English NM price movements. Below 30 is oversold; above 70 is overbought.";
+
+  return (
+    <section
+      data-card-market-stats
+      className={`relative min-w-0 rounded-[22px] border border-cyan-200/12 bg-[#071011] p-4 shadow-[inset_0_1px_0_rgba(165,243,252,0.055),0_24px_70px_rgba(0,0,0,0.2)] ${compact ? "" : "sm:p-5"} ${className}`}
+    >
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[22px]">
+        <div className="absolute -right-20 -top-28 h-64 w-64 rounded-full bg-cyan-400/[0.07] blur-3xl" />
+        <div className="absolute -bottom-28 left-1/4 h-56 w-56 rounded-full bg-emerald-400/[0.045] blur-3xl" />
+      </div>
+
+      <div className="relative">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/[0.07] pb-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-cyan-100/58">
+              <Radar className="h-3.5 w-3.5" />
+              DustyCards Market Score
+            </p>
+            <p className="mt-1 text-xs font-medium text-white/38">
+              Own model from saved market evidence
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {stats.tcggo?.score != null && (
+              <span className="rounded-full border border-violet-300/16 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-violet-100/72">
+                TCGGO {formatMarketStatsNumber(stats.tcggo.score)}
+              </span>
+            )}
+            <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white/42">
+              {confidenceLabel}
+            </span>
+            {updatedLabel && (
+              <span className="text-[10px] font-medium text-white/30">{updatedLabel}</span>
+            )}
+          </div>
+        </div>
+
+        <div className={`mt-4 grid gap-4 ${compact ? "" : "xl:grid-cols-[14rem_minmax(20rem,1.25fr)_minmax(17rem,0.85fr)]"}`}>
+          <div className="rounded-2xl border border-white/[0.08] bg-black/24 p-3.5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-[4.5rem] w-[4.5rem] shrink-0 items-center justify-center rounded-2xl border border-cyan-200/20 bg-[linear-gradient(145deg,rgba(34,211,238,0.13),rgba(16,185,129,0.05))] text-[2rem] font-black tabular-nums tracking-[-0.06em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                {formatMarketStatsNumber(stats.score)}
+              </div>
+              <div className="min-w-0">
+                <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] ${getMarketStatsTierClass(stats.tier)}`}>
+                  {stats.tier}
+                </span>
+                <p className="mt-2 text-[11px] font-medium leading-relaxed text-white/36">
+                  {stats.data_points} saved price {stats.data_points === 1 ? "point" : "points"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-2.5 py-2">
+                <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.09em] text-white/32">
+                  RSI
+                  <MarketStatsInfo label="RSI" description={rsiDetail} />
+                </span>
+                <p className="mt-1 text-sm font-bold tabular-nums text-white/80">
+                  {formatMarketStatsNumber(stats.rsi)}
+                </p>
+                <p className={`mt-0.5 truncate text-[9px] font-semibold ${stats.rsi_label === "Overbought" ? "text-rose-300/72" : stats.rsi_label === "Oversold" ? "text-sky-300/72" : "text-white/30"}`}>
+                  {stats.rsi_label ?? "Building"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] px-2.5 py-2">
+                <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.09em] text-white/32">
+                  Volatility
+                  <MarketStatsInfo
+                    label="Volatility"
+                    description="Annualized dispersion of saved English NM price returns. A higher percentage means wider historical price swings."
+                  />
+                </span>
+                <p className="mt-1 text-sm font-bold tabular-nums text-white/80">
+                  {formatMarketStatsNumber(stats.volatility_percent, "%")}
+                </p>
+                <p className="mt-0.5 truncate text-[9px] font-semibold text-white/30">Annualized</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.07] bg-black/16 p-3.5">
+            <div className="grid gap-x-5 gap-y-3.5 sm:grid-cols-2">
+              {MARKET_STATS_METRICS.map((metric) => (
+                <MarketStatsMetricRow key={metric.key} stats={stats} metric={metric} />
+              ))}
+            </div>
+            <p className="mt-3 border-t border-white/[0.06] pt-2.5 text-[10px] font-medium leading-relaxed text-white/28">
+              Missing inputs stay neutral in the total and lower confidence. Scores describe market evidence, not guaranteed returns.
+            </p>
+          </div>
+
+          <div className="min-w-0">
+            <div className="grid grid-cols-3 gap-2">
+              <MarketStatsFact
+                label="ATH"
+                description="Highest saved English NM CardMarket price in DustyCards history for this card."
+                value={formatCurrency(stats.ath, "EUR")}
+                comparison={stats.tcggo?.ath == null ? null : formatCurrency(stats.tcggo.ath, "EUR")}
+              />
+              <MarketStatsFact
+                label="ATL"
+                description="Lowest saved English NM CardMarket price in DustyCards history for this card."
+                value={formatCurrency(stats.atl, "EUR")}
+                comparison={stats.tcggo?.atl == null ? null : formatCurrency(stats.tcggo.atl, "EUR")}
+              />
+              <MarketStatsFact
+                label="Lang spread"
+                description="Difference between the highest and lowest current usable CardMarket language price. It needs at least two languages."
+                value={formatCurrency(stats.language_spread, "EUR")}
+                comparison={stats.language_spread_percent == null ? null : `${formatMarketStatsNumber(stats.language_spread_percent, "%")} range`}
+              />
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-white/38">
+                  Graded vs raw
+                  <MarketStatsInfo
+                    label="Graded versus raw"
+                    description="Exact graded market value divided by the current English NM raw price. eBay sold medians are preferred over CardMarket graded quotes."
+                  />
+                </span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/24">EUR</span>
+              </div>
+              <div className="mt-2">
+                {stats.graded_comparisons.length > 0 ? (
+                  stats.graded_comparisons.map((comparison) => (
+                    <div key={`${comparison.label}-${comparison.source}`} className="flex min-w-0 items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-b-0">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold text-white/72">{comparison.label}</p>
+                        <p className="mt-0.5 truncate text-[9px] font-medium text-white/28">
+                          {comparison.source === "ebay_sold"
+                            ? `eBay sold${comparison.sample_size ? ` · ${comparison.sample_size} sale${comparison.sample_size === 1 ? "" : "s"}` : ""} · ${comparison.reliability} evidence`
+                            : `CardMarket graded quote · ${comparison.reliability} evidence`}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs font-bold tabular-nums text-white/82">
+                          {formatCurrency(comparison.price_eur, "EUR")}
+                        </p>
+                        <p className="mt-0.5 text-[10px] font-black tabular-nums text-amber-200/78">
+                          {comparison.raw_multiple == null ? "--" : `${formatMarketStatsNumber(comparison.raw_multiple)}x raw`}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="py-3 text-center text-[11px] font-medium text-white/30">
+                    No usable graded comparison yet.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function getOwnedCopyPrice(
   card: ModalCardData,

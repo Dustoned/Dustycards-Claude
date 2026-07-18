@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.8",
+    releasedAt: "July 18, 2026",
+    title: "Market scores on every card detail",
+    summary:
+      "DustyCards 3.7.8 adds a detailed in-house Market Score and keeps Signal summary visible for every card, even when external signal analysis is unavailable.",
+    tone: "new",
+    highlights: [
+      "Every card detail now shows Momentum, Stability, Liquidity, Grade Premium, Demand and Market Depth with an explanation behind each info button.",
+      "RSI, volatility, all-time high and low, language spread and graded-versus-raw comparisons use saved DustyCards market evidence, with eBay sold medians preferred for graded values.",
+      "PSA 10, BGS 9.5 and CGC 10 are treated as gem-mint peers while BGS 10 remains a separate pristine tier.",
+      "TCGGO scores appear only as an optional comparison when the API actually supplies them; missing inputs stay neutral and lower confidence.",
+      "Signal summary now falls back to the card's local buy signal during loading or external preview failures, so the panel never disappears from card detail.",
+    ],
+  },
+  {
     version: "3.7.7",
     releasedAt: "July 18, 2026",
     title: "Submitted cards refresh independently",

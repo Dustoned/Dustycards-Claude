@@ -7,6 +7,7 @@ import type {
   CardPriceHistoryPoint,
 } from "@/lib/price-history";
 import type { BuySignalResult } from "@/lib/buy-signal";
+import type { CardMarketStats } from "@/lib/card-market-stats";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 
@@ -63,6 +64,7 @@ export interface ModalCardData {
   graded_price_history?: CardGradedPriceHistorySeries[];
   ebay_sold_graded_price_history?: CardEbaySoldGradedPriceHistorySeries[];
   price_history: CardPriceHistoryPoint[];
+  market_stats?: CardMarketStats;
   buy_signal?: BuySignalResult;
   signal_summary?: ExternalCardSignal | null;
   pull_rate_info?: {
