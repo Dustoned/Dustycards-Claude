@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.7",
+    releasedAt: "July 18, 2026",
+    title: "Submitted cards refresh independently",
+    summary:
+      "DustyCards 3.7.7 refreshes due manually submitted cards before the larger TCGGO batch, keeping CardMarket updates independent from TCGGO availability.",
+    tone: "fixed",
+    highlights: [
+      "Due submitted cards now enter their bounded CardMarket refresh phase before any TCGGO catalog or price request.",
+      "A TCGGO timeout, permission error or quota failure can no longer prevent the daily submitted-card refresh.",
+      "The existing daily interval and maximum of three submitted cards per batch remain unchanged.",
+    ],
+  },
+  {
     version: "3.7.6",
     releasedAt: "July 18, 2026",
     title: "Reliable submitted-card NM prices",

@@ -4048,31 +4048,6 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
     async (progress) => {
       await progress.throwIfCancelled();
 
-      const catalogBatch = shouldRunCatalogWithAutoBatch
-        ? mergeAutoCatalogSyncSelections(
-            await Promise.all(
-              catalogGamesToSync.map(async (game) =>
-                selectAutoCatalogSyncBatch({
-                  now: new Date(),
-                  minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
-                  maxEpisodes: AUTO_CATALOG_SYNC_MAX_EPISODES,
-                  game,
-                  fetchRemoteEpisodes: () => fetchAllEpisodes(game),
-                }).catch(async (error) => {
-                  if (!shouldSkipAutoCatalogStatusError(error)) {
-                    throw error;
-                  }
-
-                  await progress.updateMessage(
-                    `Skipping ${getAutoCatalogGameLabel(game)} catalog refresh after TCGGO returned 403; continuing with price batch.`
-                  );
-
-                  return createEmptyAutoCatalogSyncSelection();
-                })
-              )
-            )
-          )
-        : createEmptyAutoCatalogSyncSelection();
       const fetchedAt = new Date();
       let catalogSyncedEpisodes = 0;
       let newEpisodes = 0;
@@ -4131,6 +4106,60 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
             currentSet: currentSet ?? null,
           })
         );
+
+      // Submitted cards use CardMarket directly and must not wait behind the
+      // much larger TCGGO batch, which can fail independently.
+      submittedCardCandidates = await countDueSubmittedCardSubmissions({
+        now: fetchedAt,
+        intervalMs: AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS,
+      });
+      if (submittedCardCandidates > 0) {
+        await progress.throwIfCancelled();
+        await updateAutoProgress(
+          `Refreshing ${Math.min(
+            submittedCardCandidates,
+            AUTO_SUBMITTED_CARD_REFRESH_MAX_SUBMISSIONS
+          )} submitted CardMarket cards`
+        );
+        const submittedResult = await refreshDueSubmittedCardSubmissions({
+          now: fetchedAt,
+          intervalMs: AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS,
+          maxSubmissions: AUTO_SUBMITTED_CARD_REFRESH_MAX_SUBMISSIONS,
+          throwIfCancelled: progress.throwIfCancelled,
+        });
+        submittedCardCandidates = submittedResult.candidateSubmissions;
+        submittedCardsSelected = submittedResult.selectedSubmissions;
+        submittedCardsRefreshed = submittedResult.refreshedSubmissions;
+        submittedCardRefreshFailures = submittedResult.failedSubmissions;
+        newPrices += submittedCardsRefreshed;
+        refreshedCards += submittedCardsRefreshed;
+      }
+
+      const catalogBatch = shouldRunCatalogWithAutoBatch
+        ? mergeAutoCatalogSyncSelections(
+            await Promise.all(
+              catalogGamesToSync.map(async (game) =>
+                selectAutoCatalogSyncBatch({
+                  now: new Date(),
+                  minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
+                  maxEpisodes: AUTO_CATALOG_SYNC_MAX_EPISODES,
+                  game,
+                  fetchRemoteEpisodes: () => fetchAllEpisodes(game),
+                }).catch(async (error) => {
+                  if (!shouldSkipAutoCatalogStatusError(error)) {
+                    throw error;
+                  }
+
+                  await progress.updateMessage(
+                    `Skipping ${getAutoCatalogGameLabel(game)} catalog refresh after TCGGO returned 403; continuing with price batch.`
+                  );
+
+                  return createEmptyAutoCatalogSyncSelection();
+                })
+              )
+            )
+          )
+        : createEmptyAutoCatalogSyncSelection();
 
       if (catalogBatch.remoteEpisodes.length > 0) {
         await updateAutoProgress(
@@ -4213,10 +4242,6 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           AUTO_PRICE_BACKFILL_MAX_CARDS,
           Math.max(AUTO_PRICE_REFRESH_MAX_CARDS - dueBatch.selectedCards, 0)
         ),
-      });
-      submittedCardCandidates = await countDueSubmittedCardSubmissions({
-        now: fetchedAt,
-        intervalMs: AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS,
       });
       const nativeHistoryBatch = await selectNativeHistoryBackfillBatch();
       const combinedBatch = mergeSelectedByEpisode(
@@ -4397,28 +4422,6 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       );
       const nativeHistoryCount = syncedCardHistoryItems + syncedSealedHistoryItems;
       activeRemainingDueCards = remainingDueCards;
-
-      if (submittedCardCandidates > 0) {
-        await progress.throwIfCancelled();
-        await updateAutoProgress(
-          `Refreshing ${Math.min(
-            submittedCardCandidates,
-            AUTO_SUBMITTED_CARD_REFRESH_MAX_SUBMISSIONS
-          )} submitted CardMarket cards`
-        );
-        const submittedResult = await refreshDueSubmittedCardSubmissions({
-          now: fetchedAt,
-          intervalMs: AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS,
-          maxSubmissions: AUTO_SUBMITTED_CARD_REFRESH_MAX_SUBMISSIONS,
-          throwIfCancelled: progress.throwIfCancelled,
-        });
-        submittedCardCandidates = submittedResult.candidateSubmissions;
-        submittedCardsSelected = submittedResult.selectedSubmissions;
-        submittedCardsRefreshed = submittedResult.refreshedSubmissions;
-        submittedCardRefreshFailures = submittedResult.failedSubmissions;
-        newPrices += submittedCardsRefreshed;
-        refreshedCards += submittedCardsRefreshed;
-      }
 
       const messageParts = [
         `Checked ${selectedCards} cards across ${combinedBatch.size} sets`,
