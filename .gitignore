@@ -61,3 +61,6 @@ gcm-diagnose.log
 next-env.d.ts
 
 /src/generated/prisma
+
+# Generated Signal Radar backtest reports
+backtest-*.json
