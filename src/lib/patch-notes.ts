@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.7.3",
+    releasedAt: "July 18, 2026",
+    title: "Value drivers compare graded cards graded-vs-graded",
+    summary:
+      "DustyCards 3.7.3 measures every card's weekly change against its own pricing source: graded cards compare this week's graded price with last week's graded price for the same label.",
+    tone: "improved",
+    highlights: [
+      "A graded card in the drivers now shows the change of its own graded price (same label, same source, a week apart) — exactly how the card is valued in your collection.",
+      "When a graded card has no graded price history in the window yet, its underlying raw market move is shown instead (labeled Raw) so big moves never disappear from the drivers.",
+      "Graded-vs-raw is never mixed, so the old phantom premium entries stay impossible.",
+    ],
+  },
+  {
     version: "3.7.2",
     releasedAt: "July 18, 2026",
     title: "Graded cards back in the value drivers — the honest way",

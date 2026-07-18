@@ -11,6 +11,7 @@ import {
   type CollectionSealedValueLike,
   getCollectionCardMarketValue,
   getCollectionCardValueInfo,
+  getCollectionMatchedGradedPrice,
   getCollectionSealedMarketValue,
   sumCollectionPurchasePrices,
 } from "@/lib/collection";
@@ -1026,6 +1027,75 @@ export async function getCardHistoryRows(cardIds: string[], since?: string) {
   return rows.flat();
 }
 
+// Per-label graded price history for the user's graded cards, merged from the
+// CardMarket-graded and eBay-sold snapshot tables. Used by the value drivers to
+// measure a graded card's change against its OWN pricing source (graded vs
+// graded), never against raw.
+export interface GradedHistorySnapshotRow {
+  card_id: string;
+  label: string;
+  company: string | null;
+  grade: string | null;
+  source: "cardmarket_graded" | "ebay_sold_graded";
+  value: number;
+  currency: string;
+  fetched_at: Date | string;
+}
+
+export async function getGradedHistoryRows(
+  cardIds: string[],
+  since?: string
+): Promise<GradedHistorySnapshotRow[]> {
+  if (cardIds.length === 0) return [];
+  const sinceDate = since ? new Date(since) : null;
+  const where = (extra: object = {}) => ({
+    card_id: { in: cardIds },
+    ...(sinceDate ? { fetched_at: { gte: sinceDate } } : {}),
+    ...extra,
+  });
+  const [cardmarketRows, ebayRows] = await Promise.all([
+    db.cardGradedPriceSnapshot.findMany({
+      where: where(),
+      select: { card_id: true, label: true, price: true, fetched_at: true },
+    }),
+    db.cardEbaySoldGradedPriceSnapshot.findMany({
+      where: where(),
+      select: {
+        card_id: true,
+        label: true,
+        company: true,
+        grade: true,
+        median_price: true,
+        currency: true,
+        fetched_at: true,
+      },
+    }),
+  ]);
+
+  return [
+    ...cardmarketRows.map((row) => ({
+      card_id: row.card_id,
+      label: row.label,
+      company: null,
+      grade: null,
+      source: "cardmarket_graded" as const,
+      value: row.price,
+      currency: "EUR",
+      fetched_at: row.fetched_at,
+    })),
+    ...ebayRows.map((row) => ({
+      card_id: row.card_id,
+      label: row.label,
+      company: row.company,
+      grade: row.grade,
+      source: "ebay_sold_graded" as const,
+      value: row.median_price,
+      currency: row.currency,
+      fetched_at: row.fetched_at,
+    })),
+  ];
+}
+
 async function getSealedHistoryRows(productIds: string[], since?: string) {
   if (productIds.length === 0) return [];
 
@@ -1336,9 +1406,9 @@ function buildLatestCardSnapshotDateMap(
   return values;
 }
 
-// Newest usable RAW snapshot value per card. Used for graded / eBay-sold cards
-// so their driver change is measured raw-vs-raw (same source on both sides)
-// instead of being excluded entirely.
+// Newest usable RAW snapshot value per card. Fallback for graded / eBay-sold
+// cards without graded baseline history, so their underlying market move still
+// shows raw-vs-raw (same source on both sides) instead of vanishing.
 function buildLatestCardRawValueMap(
   rows: EpisodePriceHistorySnapshot[]
 ): Map<string, ValueDriverBaseline> {
@@ -1351,6 +1421,83 @@ function buildLatestCardRawValueMap(
     values.set(row.card_id, { value, date: toHistoryDateKey(row.fetched_at) });
   }
 
+  return values;
+}
+
+// Per card: a synthetic "card" whose graded/eBay-sold price arrays hold the
+// newest snapshot per (source, label) INSIDE the baseline window. Feeding it to
+// getCollectionMatchedGradedPrice reuses the exact same label matching the
+// current value uses, so the baseline is guaranteed to be the same source the
+// card is priced with today (graded vs graded, never graded vs raw).
+function buildGradedBaselineCardMap(
+  rows: GradedHistorySnapshotRow[],
+  baselineDate: string,
+  minBaselineDate: string
+): Map<
+  string,
+  {
+    gradedPrices: Array<{ label: string; price: number }>;
+    ebaySoldGradedPrices: Array<{
+      label: string;
+      company: string;
+      grade: string;
+      median_price: number;
+      currency: string;
+    }>;
+  }
+> {
+  const newestPerLabel = new Map<string, GradedHistorySnapshotRow>();
+  for (const row of rows) {
+    const dateKey = toHistoryDateKey(row.fetched_at);
+    if (dateKey > baselineDate || dateKey < minBaselineDate) continue;
+    const key = `${row.card_id}|${row.source}|${row.label}`;
+    const existing = newestPerLabel.get(key);
+    if (!existing || toHistoryMillis(row.fetched_at) > toHistoryMillis(existing.fetched_at)) {
+      newestPerLabel.set(key, row);
+    }
+  }
+
+  const cards = new Map<
+    string,
+    {
+      gradedPrices: Array<{ label: string; price: number }>;
+      ebaySoldGradedPrices: Array<{
+        label: string;
+        company: string;
+        grade: string;
+        median_price: number;
+        currency: string;
+      }>;
+    }
+  >();
+  for (const row of newestPerLabel.values()) {
+    const entry = cards.get(row.card_id) ?? { gradedPrices: [], ebaySoldGradedPrices: [] };
+    if (row.source === "cardmarket_graded") {
+      entry.gradedPrices.push({ label: row.label, price: row.value });
+    } else {
+      entry.ebaySoldGradedPrices.push({
+        label: row.label,
+        company: row.company ?? "",
+        grade: row.grade ?? "",
+        median_price: row.value,
+        currency: row.currency,
+      });
+    }
+    cards.set(row.card_id, entry);
+  }
+
+  return cards;
+}
+
+function buildGradedLatestSnapshotDateMap(rows: GradedHistorySnapshotRow[]): Map<string, string> {
+  const values = new Map<string, string>();
+  for (const row of rows) {
+    const dateKey = toHistoryDateKey(row.fetched_at);
+    const existing = values.get(row.card_id);
+    if (!existing || dateKey > existing) {
+      values.set(row.card_id, dateKey);
+    }
+  }
   return values;
 }
 
@@ -1481,6 +1628,8 @@ function buildCollectionValueDrivers({
   sealed,
   cardHistory,
   sealedHistory,
+  gradedHistory = [],
+  usdToEurRate = null,
   chart,
   limit = COLLECTION_VALUE_DRIVER_LIMIT,
   windowDays = COLLECTION_VALUE_DRIVER_WINDOW_DAYS,
@@ -1489,6 +1638,8 @@ function buildCollectionValueDrivers({
   sealed: CollectionSealedViewItem[];
   cardHistory: EpisodePriceHistorySnapshot[];
   sealedHistory: EpisodeSealedPriceHistorySnapshot[];
+  gradedHistory?: GradedHistorySnapshotRow[];
+  usdToEurRate?: CurrencyExchangeRate | null;
   chart: Array<{ date: string; label: string; value: number | null }>;
   // currentValue is intentionally not used for the Net: see the return below.
   currentValue?: number;
@@ -1521,39 +1672,80 @@ function buildCollectionValueDrivers({
     previousPoint.date,
     -COLLECTION_VALUE_DRIVER_BASELINE_MAX_AGE_DAYS
   );
+  const gradedBaselineCards = buildGradedBaselineCardMap(
+    gradedHistory,
+    previousPoint.date,
+    minBaselineDate
+  );
+  const gradedLatestSnapshotDates = buildGradedLatestSnapshotDateMap(gradedHistory);
   const drafts = new Map<string, CollectionValueDriverDraft>();
 
   for (const item of cards) {
-    const latestSnapshotDate = cardLatestSnapshotDates.get(item.card_id) ?? null;
-    if (isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate)) continue;
-    const baseline = cardBaselineValues.get(item.card_id);
-    // Without a fresh baseline snapshot we cannot attribute the change to this
-    // weekly window, so the card is left out (and old moves drop off in time).
-    if (!baseline || isValueDriverBaselineTooOld(baseline.date, minBaselineDate)) continue;
-    // The baseline comes from raw price history, so both sides of the change
-    // must be raw. For a card whose CURRENT value is graded / eBay-sold, the
-    // graded premium versus raw would be a constant offset that never ages out
-    // (the "Raw -> Graded" entry that used to stay pinned for weeks) — so for
-    // those cards the change is measured raw-vs-raw from the same history: the
-    // underlying market move of the card is a real driver of the chart, which
-    // also tracks raw prices (e.g. a graded card whose raw price jumps +275
-    // must show up here, not vanish).
+    const rawLatestDate = cardLatestSnapshotDates.get(item.card_id) ?? null;
+    const rawBaseline = cardBaselineValues.get(item.card_id) ?? null;
+    const rawPathUsable =
+      !isValueDriverSnapshotStale(rawLatestDate, staleBeforeDate) &&
+      rawBaseline != null &&
+      !isValueDriverBaselineTooOld(rawBaseline.date, minBaselineDate);
+
     const currentSource = getCollectionValueDriverCardSource(item);
     let currentItemValue: number;
+    let previousItemValue: number;
+    let pillSource = currentSource;
+    let latestSnapshotDate = rawLatestDate;
+
     if (currentSource === "Raw") {
-      if (item.current_value == null) continue;
+      // Without a fresh baseline snapshot we cannot attribute the change to
+      // this weekly window, so the card is left out (old moves age off).
+      if (!rawPathUsable || item.current_value == null) continue;
       currentItemValue = item.current_value;
+      previousItemValue = rawBaseline.value;
     } else {
-      const latestRaw = cardLatestRawValues.get(item.card_id);
-      if (!latestRaw) continue;
-      currentItemValue = latestRaw.value;
+      // Graded / eBay-sold cards are compared the way they are priced in the
+      // collection: this week's graded value vs the SAME graded label + source
+      // a week ago (never graded vs raw — that premium is a constant offset,
+      // not a market move). The baseline reuses the exact label matching that
+      // produces the current value, restricted to snapshots inside the window.
+      const gradedLatestDate = gradedLatestSnapshotDates.get(item.card_id) ?? null;
+      const baselineCard = gradedBaselineCards.get(item.card_id) ?? null;
+      const baselineMatch = baselineCard
+        ? getCollectionMatchedGradedPrice(baselineCard, {
+            gradingCompany: item.grading_company,
+            gradingGrade: item.grading_grade,
+            usdToEurRate,
+          })
+        : null;
+      const baselineBucket =
+        baselineMatch == null
+          ? null
+          : baselineMatch.source === "ebay_sold_graded"
+            ? "eBay sold"
+            : "Graded";
+
+      if (
+        baselineMatch != null &&
+        baselineBucket === currentSource &&
+        item.current_value != null &&
+        !isValueDriverSnapshotStale(gradedLatestDate, staleBeforeDate)
+      ) {
+        currentItemValue = item.current_value;
+        previousItemValue = baselineMatch.price;
+        latestSnapshotDate = gradedLatestDate;
+      } else if (rawPathUsable) {
+        // No graded baseline in the window: fall back to the card's raw
+        // history so the underlying market move still shows (measured and
+        // labeled as Raw on both sides).
+        const latestRaw = cardLatestRawValues.get(item.card_id);
+        if (!latestRaw) continue;
+        currentItemValue = latestRaw.value;
+        previousItemValue = rawBaseline.value;
+        pillSource = "Raw";
+      } else {
+        continue;
+      }
     }
-    const previousItemValue = baseline.value;
-    // Both sides of the measured change are raw history; the pill still shows
-    // the card's own pricing source (no "Raw -> Graded" arrow — the arrow
-    // implied a source switch, which is exactly what we no longer measure).
-    const previousSource = currentSource;
-    const key = `card:${item.card_id}:Raw`;
+
+    const key = `card:${item.card_id}:${pillSource === "Raw" ? "Raw" : "GradedOwn"}`;
 
     addCollectionValueDriverDraft(drafts, {
       id: key,
@@ -1571,8 +1763,8 @@ function buildCollectionValueDrivers({
       quantity: 1,
       previousValue: previousItemValue,
       currentValue: currentItemValue,
-      currentSource,
-      previousSource,
+      currentSource: pillSource,
+      previousSource: pillSource,
       latestSnapshotDate,
       stale: false,
     });
@@ -1880,12 +2072,20 @@ export async function getCollectionOverviewData(
   const cardQuantities = buildCardQuantityMap(metricCards);
   const sealedQuantities = buildProductQuantityMap(metricSealed);
   const historyCutoff = loadCollectionHistory ? getHistoryCutoffDate() : null;
-  const [cardHistory, sealedHistory] = loadCollectionHistory
+  const overviewGradedCardIds = [
+    ...new Set(
+      metricCards
+        .filter((record) => record.grading_company)
+        .map((record) => record.card.id)
+    ),
+  ];
+  const [cardHistory, sealedHistory, gradedHistory] = loadCollectionHistory
     ? await Promise.all([
         getCardHistoryRows([...cardQuantities.keys()], historyCutoff ?? undefined),
         getSealedHistoryRows([...sealedQuantities.keys()], historyCutoff ?? undefined),
+        getGradedHistoryRows(overviewGradedCardIds, historyCutoff ?? undefined),
       ])
-    : [[], []];
+    : [[], [], []];
 
   const combinedHistory = combineValueHistories(
     buildOwnedCardValueHistory(cardHistory, cardQuantities),
@@ -2055,6 +2255,8 @@ export async function getCollectionOverviewData(
           sealed: sealedViewItems,
           cardHistory,
           sealedHistory,
+          gradedHistory,
+          usdToEurRate,
           chart: combinedHistory,
           currentValue: overviewMetric.currentValue,
         })
@@ -2494,9 +2696,17 @@ export async function getCollectionValueDriversData(
   const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
   const cardQuantities = buildCardQuantityMap(metricCards);
   const sealedQuantities = buildProductQuantityMap(metricSealed);
-  const [cardHistory, sealedHistory] = await Promise.all([
+  const gradedCardIds = [
+    ...new Set(
+      metricCards
+        .filter((record) => record.grading_company)
+        .map((record) => record.card.id)
+    ),
+  ];
+  const [cardHistory, sealedHistory, gradedHistory] = await Promise.all([
     getCardHistoryRows([...cardQuantities.keys()], getHistoryCutoffDate()),
     getSealedHistoryRows([...sealedQuantities.keys()], getHistoryCutoffDate()),
+    getGradedHistoryRows(gradedCardIds, getHistoryCutoffDate()),
   ]);
   const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards)
     ? await getUsdToEurRate()
@@ -2522,6 +2732,8 @@ export async function getCollectionValueDriversData(
     sealed: sealedItems,
     cardHistory,
     sealedHistory,
+    gradedHistory,
+    usdToEurRate,
     chart: combinedHistory,
     currentValue,
   });
