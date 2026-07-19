@@ -1629,6 +1629,7 @@ html.widescreen .settings-page {
   --card-detail-media-max: 28rem;
   --card-detail-title-size: clamp(2rem, 4.8vw, 3rem);
   --card-detail-route-header-offset: 0rem;
+  --card-detail-mobile-action-reserve: calc(4.125rem + env(safe-area-inset-bottom));
   position: relative;
   isolation: isolate;
   container-name: card-detail;
@@ -1638,6 +1639,10 @@ html.widescreen .settings-page {
   background:
     linear-gradient(180deg, rgba(13, 13, 19, 0.98), rgba(5, 5, 8, 0.995) 42rem),
     #050508;
+}
+
+.card-detail-scroll-viewport {
+  min-width: 0;
 }
 
 .card-detail-experience[data-detail-size="small"] {
@@ -1689,7 +1694,34 @@ html.widescreen .settings-page {
   width: min(100%, 144rem);
   min-height: 100%;
   margin-inline: auto;
-  padding: max(0.8rem, env(safe-area-inset-top)) 0.8rem calc(5.75rem + env(safe-area-inset-bottom));
+  padding: max(0.8rem, env(safe-area-inset-top)) 0.8rem 1rem;
+}
+
+@container card-detail (max-width: 39.99rem) {
+  [data-card-detail-shell][data-has-actions="true"] > .card-detail-scroll-viewport {
+    height: calc(100dvh - var(--card-detail-mobile-action-reserve));
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-block-end: 1.25rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  [data-card-detail-shell][data-card-detail-mode="radar"][data-has-actions="true"]
+    > .card-detail-scroll-viewport {
+    height: calc(
+      100dvh - var(--ui-header-height) - var(--card-detail-mobile-action-reserve)
+    );
+  }
+
+  [data-card-detail-shell][data-has-actions="true"] .card-detail-layout {
+    padding-bottom: 1.25rem;
+  }
+
+  .card-detail-primary-actions > :is(button, a) {
+    height: 2.75rem;
+    min-height: 2.75rem;
+  }
 }
 
 .card-detail-toolbar {
@@ -1748,17 +1780,22 @@ html.widescreen .settings-page {
   position: fixed;
   z-index: 220;
   right: 0.75rem;
-  bottom: calc(0.35rem + env(safe-area-inset-bottom));
+  bottom: calc(0.5rem + env(safe-area-inset-bottom));
   left: 0.75rem;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
+  gap: 0.5rem;
   min-height: 3.5rem;
+  isolation: isolate;
   border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 1.2rem;
-  background: rgba(13, 12, 19, 0.96);
+  background: rgba(13, 12, 19, 0.965);
   padding: 0.35rem;
-  box-shadow: 0 20px 65px rgba(0, 0, 0, 0.58), inset 0 1px rgba(255, 255, 255, 0.055);
+  box-shadow:
+    0 18px 54px rgba(0, 0, 0, 0.56),
+    inset 0 1px rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(22px) saturate(125%);
 }
 
 .card-detail-actions [data-card-detail-overflow-actions] {
@@ -1898,6 +1935,12 @@ html.widescreen .settings-page {
   color: rgba(220, 210, 255, 0.54);
 }
 
+.card-detail-price-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .card-detail-badges {
   display: flex;
   min-width: 0;
@@ -1944,6 +1987,7 @@ html.widescreen .settings-page {
   letter-spacing: -0.045em;
   color: white;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .card-detail-price-meta {
@@ -1961,16 +2005,18 @@ html.widescreen .settings-page {
   justify-content: flex-end;
 }
 
-[data-card-detail-shell] [data-chart-range] {
-  min-height: 2.5rem;
+.card-detail-price-block:has([data-card-detail-market-mode]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
 }
 
-@container card-detail (max-width: 39.99rem) {
-  .card-detail-price-block:has([data-card-detail-market-mode="raw"]) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
+.card-detail-price-block:has([data-card-detail-market-mode]) > :first-child {
+  min-width: 0;
+}
+
+[data-card-detail-shell] [data-chart-range] {
+  min-height: 2.5rem;
 }
 
 .card-detail-kpis {
@@ -2224,6 +2270,11 @@ html.widescreen .settings-page {
     width: min(100%, var(--card-detail-media-max));
   }
 
+  .card-detail-price-block:has([data-card-detail-market-mode]) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+
   .card-detail-toolbar {
     grid-template-columns: minmax(0, 1fr) auto auto;
   }
@@ -2274,6 +2325,7 @@ html.widescreen .settings-page {
     background: transparent;
     padding: 0;
     box-shadow: none;
+    backdrop-filter: none;
   }
 
   .card-detail-actions [data-card-detail-overflow-actions] {
@@ -2414,14 +2466,36 @@ html.widescreen .settings-page {
 
 @container card-detail (min-width: 96rem) {
   .card-detail-layout {
-    grid-template-columns: minmax(20rem, var(--card-detail-media-max)) minmax(24rem, 0.88fr) minmax(34rem, 1.5fr);
+    grid-template-columns: minmax(20rem, var(--card-detail-media-max)) minmax(27.5rem, 0.95fr) minmax(32rem, 1.45fr);
     grid-template-areas:
       "toolbar toolbar toolbar"
       "media identity chart"
-      "tabs tabs tabs"
+      "media tabs tabs"
       "panel panel panel";
     gap: clamp(1.25rem, 1.5cqi, 2rem);
     padding-top: 1.75rem;
+  }
+
+  .card-detail-tabs-shell {
+    width: 100%;
+    height: 2.75rem;
+    justify-self: stretch;
+    align-self: end;
+    padding: 0;
+  }
+
+  .card-detail-tabs {
+    display: grid;
+    height: 100%;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+
+  .card-detail-tab {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
   }
 
   .card-detail-media-switch {

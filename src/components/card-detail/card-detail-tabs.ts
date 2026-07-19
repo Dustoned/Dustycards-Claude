@@ -1,22 +1,21 @@
 import type { CardDetailMode, CardDetailTabId } from "@/components/card-detail/CardDetailShell";
 
-const STANDARD_CARD_DETAIL_TAB_ORDER = [
+const CARD_DETAIL_TAB_ORDER = [
   "overview",
   "market",
   "collection",
-] as const satisfies readonly CardDetailTabId[];
-
-const RADAR_CARD_DETAIL_TAB_ORDER = [
-  ...STANDARD_CARD_DETAIL_TAB_ORDER,
   "forecast",
   "analysis",
   "evidence",
 ] as const satisfies readonly CardDetailTabId[];
 
+const CARD_DETAIL_TAB_ORDERS: Record<CardDetailMode, readonly CardDetailTabId[]> = {
+  standard: CARD_DETAIL_TAB_ORDER,
+  radar: CARD_DETAIL_TAB_ORDER,
+};
+
 export function getCardDetailTabOrder(mode: CardDetailMode): readonly CardDetailTabId[] {
-  return mode === "radar"
-    ? RADAR_CARD_DETAIL_TAB_ORDER
-    : STANDARD_CARD_DETAIL_TAB_ORDER;
+  return CARD_DETAIL_TAB_ORDERS[mode];
 }
 
 export function orderCardDetailTabs<T extends { id: CardDetailTabId }>(

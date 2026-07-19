@@ -39,9 +39,12 @@ import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
 import useModalA11y from "@/lib/useModalA11y";
 import {
+  CARD_THREE_WIGGLE_DURATION_MS,
   getCardThreeAutoRotateResumeDelay,
   getCardThreeInlineIdlePhase,
   getCardThreeInlineIdleRotation,
+  getCardThreeWiggleAngle,
+  getCardThreeWiggleCameraOffset,
   normalizeCardThreeRotationAngle,
 } from "@/lib/card-three-motion";
 
@@ -1153,6 +1156,7 @@ export default function CardThreeViewer({
   const isInline = variant === "inline";
   const { displaySettings, isMobileViewport } = useSettings();
   const card3dSize = displaySettings.card3dSize;
+  const wiggleStereoscopy = displaySettings.wiggleStereoscopy;
   const [priceSource, setPriceSource] = useState<"cardmarket" | "tcgplayer">("cardmarket");
   const [gradedSource, setGradedSource] = useState<"cardmarket" | "ebay">("cardmarket");
   const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(
@@ -1736,6 +1740,7 @@ export default function CardThreeViewer({
 
         const targetRotation = { ...initialRotationRef.current };
         let inlineAutoRotationPhase = getCardThreeInlineIdlePhase(0, performance.now());
+        let wigglePulseStartedAt: number | null = null;
         const getFitCameraDistance = () =>
           Math.max(
             isInline
@@ -1781,15 +1786,22 @@ export default function CardThreeViewer({
         const resumeAutoRotation = () => {
           if (prefersReducedMotion || activePointers.size > 0) return;
           if (isInline) {
-            const normalizedTarget = normalizeCardThreeRotationAngle(targetRotation.y);
-            targetRotation.y = normalizedTarget;
-            cardGroup.rotation.y =
-              normalizedTarget +
-              normalizeCardThreeRotationAngle(cardGroup.rotation.y - normalizedTarget);
-            inlineAutoRotationPhase = getCardThreeInlineIdlePhase(
-              cardGroup.rotation.y,
-              performance.now()
-            );
+            if (wiggleStereoscopy) {
+              targetRotation.x = initialRotationRef.current.x;
+              targetRotation.y = initialRotationRef.current.y;
+              targetRotation.z = initialRotationRef.current.z;
+              wigglePulseStartedAt = performance.now();
+            } else {
+              const normalizedTarget = normalizeCardThreeRotationAngle(targetRotation.y);
+              targetRotation.y = normalizedTarget;
+              cardGroup.rotation.y =
+                normalizedTarget +
+                normalizeCardThreeRotationAngle(cardGroup.rotation.y - normalizedTarget);
+              inlineAutoRotationPhase = getCardThreeInlineIdlePhase(
+                cardGroup.rotation.y,
+                performance.now()
+              );
+            }
           }
           autoRotateRef.current = true;
         };
@@ -1825,6 +1837,8 @@ export default function CardThreeViewer({
           prefersReducedMotion = event.matches;
           if (prefersReducedMotion) {
             autoRotateRef.current = false;
+            camera.position.x = 0;
+            wigglePulseStartedAt = null;
             clearAutoRotationResumeTimer();
             return;
           }
@@ -2017,6 +2031,9 @@ export default function CardThreeViewer({
             ([entry]) => {
               isSceneVisible = entry?.isIntersecting ?? true;
               if (isSceneVisible) {
+                if (wiggleStereoscopy && autoRotateRef.current) {
+                  wigglePulseStartedAt = performance.now();
+                }
                 requestAnimationLoop?.();
               } else {
                 stopAnimationLoop();
@@ -2065,29 +2082,48 @@ export default function CardThreeViewer({
         const animate = () => {
           animationFrameId = 0;
           if (!mounted || document.hidden || !isSceneVisible) return;
+          const now = performance.now();
           holoUniforms.uPointerUv.value.lerp(pointerTargetUv, 0.18);
           holoUniforms.uPointerStrength.value +=
             (pointerTargetStrength - holoUniforms.uPointerStrength.value) * 0.16;
           const minCameraDistance = applyCameraConstraints();
+          let targetCameraX = 0;
 
           if (autoRotateRef.current) {
             if (isInline) {
-              targetRotation.y = getCardThreeInlineIdleRotation(
-                performance.now(),
-                inlineAutoRotationPhase
-              );
-              targetRotation.x =
-                initialRotationRef.current.x + Math.sin(performance.now() * 0.00052) * 0.014;
+              if (wiggleStereoscopy) {
+                wigglePulseStartedAt ??= now;
+                const elapsedMs = now - wigglePulseStartedAt;
+                targetRotation.x = initialRotationRef.current.x;
+                targetRotation.y = initialRotationRef.current.y;
+                targetRotation.z = initialRotationRef.current.z;
+                targetCameraX = getCardThreeWiggleCameraOffset(
+                  camera.position.z,
+                  getCardThreeWiggleAngle(elapsedMs)
+                );
+                if (elapsedMs >= CARD_THREE_WIGGLE_DURATION_MS) {
+                  autoRotateRef.current = false;
+                  wigglePulseStartedAt = null;
+                }
+              } else {
+                targetRotation.y = getCardThreeInlineIdleRotation(
+                  now,
+                  inlineAutoRotationPhase
+                );
+                targetRotation.x =
+                  initialRotationRef.current.x + Math.sin(now * 0.00052) * 0.014;
+              }
             } else {
               targetRotation.y += 0.0022;
               targetRotation.x =
-                initialRotationRef.current.x + Math.sin(performance.now() * 0.001) * 0.014;
+                initialRotationRef.current.x + Math.sin(now * 0.001) * 0.014;
             }
           }
 
           cardGroup.rotation.x += (targetRotation.x - cardGroup.rotation.x) * 0.16;
           cardGroup.rotation.y += (targetRotation.y - cardGroup.rotation.y) * 0.16;
           cardGroup.rotation.z = 0;
+          camera.position.x += (targetCameraX - camera.position.x) * 0.32;
           camera.position.z += (targetCameraDistance - camera.position.z) * 0.18;
           camera.position.z = clamp(camera.position.z, minCameraDistance, MAX_CAMERA_DISTANCE);
           const offsetX = getFramingOffset(
@@ -2132,6 +2168,9 @@ export default function CardThreeViewer({
           if (document.hidden) {
             stopAnimationLoop();
           } else {
+            if (wiggleStereoscopy && autoRotateRef.current) {
+              wigglePulseStartedAt = performance.now();
+            }
             requestAnimationLoop?.();
           }
         };
@@ -2188,6 +2227,7 @@ export default function CardThreeViewer({
     isBgsSlabViewer,
     isSlabViewer,
     card3dSize,
+    wiggleStereoscopy,
     isInline,
     isMobileViewport,
   ]);
@@ -2270,6 +2310,9 @@ export default function CardThreeViewer({
       aria-label={isInline ? undefined : `3D view of ${card.name}`}
       tabIndex={isInline ? undefined : -1}
       data-card-three-modal={isInline ? undefined : "true"}
+      data-card-three-motion-mode={
+        isInline ? (wiggleStereoscopy ? "wiggle-stereoscopy" : "swing") : "orbit"
+      }
       className={
         isInline
           ? "card-detail-inline-three-viewer relative aspect-[5/7] w-full touch-none overflow-hidden rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_50%_34%,rgba(124,92,255,0.13),rgba(8,8,12,0.96)_66%)]"

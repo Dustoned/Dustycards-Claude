@@ -33,6 +33,7 @@ export interface UserSettings {
   mobileModalSize: ModalSize;
   card3dSize: Card3dSize;
   mobileCard3dSize: Card3dSize;
+  wiggleStereoscopy: boolean;
 }
 
 export const SETTINGS_STORAGE_KEY = "dustycards-settings";
@@ -64,6 +65,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   mobileModalSize: "small",
   card3dSize: "medium",
   mobileCard3dSize: "small",
+  wiggleStereoscopy: false,
 };
 
 function pickEnumValue<T extends string>(
@@ -173,6 +175,10 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       ["small", "medium", "large"],
       DEFAULT_SETTINGS.mobileCard3dSize
     ),
+    wiggleStereoscopy:
+      typeof source.wiggleStereoscopy === "boolean"
+        ? source.wiggleStereoscopy
+        : DEFAULT_SETTINGS.wiggleStereoscopy,
   };
 }
 

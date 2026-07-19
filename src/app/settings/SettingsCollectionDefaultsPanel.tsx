@@ -123,19 +123,25 @@ function ToggleRow({
       </div>
       <button
         type="button"
+        aria-label={`${title}: ${checked ? "on" : "off"}`}
         aria-pressed={checked}
         onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 shrink-0 items-center overflow-hidden rounded-full transition-colors ${
-          checked ? "bg-gray-950 dark:bg-white" : "bg-black/10 dark:bg-white/12"
-        }`}
+        className="inline-flex h-11 w-12 shrink-0 items-center justify-center rounded-xl transition hover:bg-black/[0.035] dark:hover:bg-white/[0.05]"
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
-            checked
-              ? "translate-x-6 bg-white dark:bg-gray-950"
-              : "translate-x-1 bg-white dark:bg-white/65"
+          aria-hidden="true"
+          className={`relative inline-flex h-6 w-11 items-center overflow-hidden rounded-full transition-colors ${
+            checked ? "bg-gray-950 dark:bg-white" : "bg-black/10 dark:bg-white/12"
           }`}
-        />
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
+              checked
+                ? "translate-x-6 bg-white dark:bg-gray-950"
+                : "translate-x-1 bg-white dark:bg-white/65"
+            }`}
+          />
+        </span>
       </button>
     </div>
   );
@@ -235,6 +241,12 @@ export default function SettingsCollectionDefaultsPanel() {
               options={CARD_3D_SIZE_OPTIONS}
               value={settings.card3dSize}
               onChange={(value) => set("card3dSize", value)}
+            />
+            <ToggleRow
+              title="Wiggle stereoscopy"
+              description="Play a brief motion-parallax depth pulse when an idle 3D preview appears. Reduced Motion keeps it still."
+              checked={settings.wiggleStereoscopy}
+              onChange={(value) => set("wiggleStereoscopy", value)}
             />
           </div>
 

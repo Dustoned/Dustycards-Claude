@@ -173,9 +173,11 @@ export default function CardDetailShell({
       data-card-detail-mode={mode}
       data-detail-size={detailSize}
       data-active-tab={active?.id}
+      data-has-actions={actions ? "true" : "false"}
     >
       <div className="card-detail-ambient" aria-hidden="true" />
-      <div className="card-detail-layout" data-card-detail-canvas>
+      <div className="card-detail-scroll-viewport" data-card-detail-scroll-viewport>
+        <div className="card-detail-layout" data-card-detail-canvas>
         <header className="card-detail-toolbar">
           <BackControl navigation={navigation} />
           <div className="card-detail-toolbar-status" role="status" aria-live="polite">{status}</div>
@@ -255,15 +257,16 @@ export default function CardDetailShell({
           </div>
         </nav>
 
-        <section
-          id={`${reactId}-panel-${active?.id ?? fallbackTab}`}
-          role="tabpanel"
-          aria-labelledby={`${reactId}-tab-${active?.id ?? fallbackTab}`}
-          className="card-detail-panel"
-          data-card-detail-region="panel"
-        >
-          {active?.content}
-        </section>
+          <section
+            id={`${reactId}-panel-${active?.id ?? fallbackTab}`}
+            role="tabpanel"
+            aria-labelledby={`${reactId}-tab-${active?.id ?? fallbackTab}`}
+            className="card-detail-panel"
+            data-card-detail-region="panel"
+          >
+            {active?.content}
+          </section>
+        </div>
       </div>
     </article>
   );

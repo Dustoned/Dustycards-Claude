@@ -4,13 +4,14 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Radar, Sparkles } from "lucide-react";
+import { ArrowUpRight, Sparkles } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import CardDetailShell, {
   type CardDetailTab,
 } from "@/components/card-detail/CardDetailShell";
 import { CardDetailMediaSwitcher } from "@/components/card-detail/CardDetailMediaSwitcher";
 import { CardDetailMarketControls } from "@/components/card-detail/CardDetailMarketControls";
+import { buildCardDetailSignalTabs } from "@/components/card-detail/CardDetailSignalTabs";
 import { orderCardDetailTabs } from "@/components/card-detail/card-detail-tabs";
 import {
   buildCardMarketProxyUrl,
@@ -44,7 +45,6 @@ import {
   CardModalOwnedCopyPanel,
   CardModalPreview,
   CardModalRecentPricesPanel,
-  getCardModalGradedDisplayPrices,
   getPreferredCardModalGradedDisplayPrice,
   type CardModalGradedDisplayPrice,
 } from "./card-modal/CardModalSections";
@@ -68,6 +68,19 @@ interface Props {
   showGradedSlabPreview?: boolean;
   backLabel?: string;
   onClose: () => void;
+}
+
+interface SignalResearchResult {
+  url: string;
+  title: string;
+  description: string | null;
+  domain: string;
+  category: string;
+  reason: string | null;
+}
+
+interface SignalResearchSnapshot {
+  results: SignalResearchResult[];
 }
 
 function normalizeGradeSelection(value: string | null | undefined): string {
@@ -185,6 +198,7 @@ export default function CardModal({
   const [removingCollectionItem, setRemovingCollectionItem] = useState(false);
   const [researchingSignal, setResearchingSignal] = useState(false);
   const [signalResearchError, setSignalResearchError] = useState<string | null>(null);
+  const [signalResearch, setSignalResearch] = useState<SignalResearchSnapshot | null>(null);
   const [signalSummaryState, setSignalSummaryState] = useState<{
     cardId: string;
     signal: ModalCardData["signal_summary"];
@@ -406,7 +420,7 @@ export default function CardModal({
         { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }
       );
       const payload = (await response.json().catch(() => null)) as
-        | { ok: true; detailUrl: string }
+        | { ok: true; research: SignalResearchSnapshot }
         | { ok: false; error?: string }
         | null;
       if (!response.ok || !payload?.ok) {
@@ -416,8 +430,7 @@ export default function CardModal({
             : "Could not build the signal analysis."
         );
       }
-      onClose();
-      router.push(payload.detailUrl);
+      setSignalResearch(payload.research);
     } catch (error) {
       setSignalResearchError(
         error instanceof Error ? error.message : "Could not build the signal analysis."
@@ -522,7 +535,6 @@ export default function CardModal({
       }
     />
   );
-  const gradedHeroOptions = getCardModalGradedDisplayPrices(modalCard, collectionItem);
   const activeGradedHeroPrice =
     gradedHeroState.cardId === modalCard.id
       ? gradedHeroState.price
@@ -548,8 +560,13 @@ export default function CardModal({
       ebaySoldGradedPriceHistory={ebaySoldGradedPriceHistory}
       showCurrentValue={false}
       showModeControl={false}
-      showGradedSelectionControl={false}
+      showGradedSelectionControl
       selectedGradedDisplayPrice={activeGradedHeroPrice}
+      onGradedDisplayPriceChange={(price) => {
+        if (price) {
+          setGradedHeroState({ cardId: modalCard.id, price });
+        }
+      }}
     />
   );
 
@@ -573,7 +590,7 @@ export default function CardModal({
   const heroPriceLabel = showingGradedHero
     ? `${activeGradedHeroPrice.sourceLabel} · ${activeGradedHeroPrice.label}`
     : showingTcgPlayerHero
-      ? "TCGPlayer raw market"
+      ? "TCGPlayer raw"
       : `${activeCardMarketSeriesLabel} Near Mint`;
   const average7d = modalCard.price?.cm_en_avg_7d ?? null;
   const average30d = modalCard.price?.cm_en_avg_30d ?? null;
@@ -589,7 +606,7 @@ export default function CardModal({
         {
           label: "Selected grade",
           value: activeGradedHeroPrice.label,
-          hint: "Controls the graded chart",
+          hint: "Chart series",
           tone: "violet" as const,
         },
         {
@@ -630,7 +647,6 @@ export default function CardModal({
         new Date(modalCard.episode_release_date)
       )
     : "Unknown";
-  const signalScore = signalSummary?.marketIntelligence?.rawOpportunityScore ?? signalSummary?.externalScore;
   const detailFacts = [
     [
       "Expansion",
@@ -719,33 +735,6 @@ export default function CardModal({
           </div>
         </dl>
 
-        <div className="mt-4 rounded-2xl border border-violet-300/13 bg-violet-400/[0.045] p-4">
-          <div className="flex items-start gap-3">
-            <Radar className="mt-0.5 h-5 w-5 shrink-0 text-violet-200/78" />
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-white/84">
-                {signalSummaryLoading
-                  ? "Checking Signal Radar"
-                  : signalSummary
-                    ? `${signalScore ?? "--"}/100 opportunity · ${signalSummary.confidence} confidence`
-                    : "No active Radar profile yet"}
-              </p>
-              <p className="mt-1 text-sm leading-5 text-white/46">
-                {signalSummary?.reasons[0] ??
-                  signalSummary?.pressureExplanation ??
-                  "Open the focused analysis when you want forecasts, scarcity and evidence."}
-              </p>
-              <Link
-                href={`/movers/signal-radar/${encodeURIComponent(modalCard.id)}?game=${encodeURIComponent(modalCard.game)}`}
-                prefetch={false}
-                onClick={onClose}
-                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-violet-300/20 bg-violet-500/[0.1] px-3 text-sm font-bold text-violet-50/88 transition hover:border-violet-200/34 hover:bg-violet-500/[0.17]"
-              >
-                Open full analysis <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-        </div>
       </section>
     </div>
   );
@@ -757,6 +746,7 @@ export default function CardModal({
         card={modalCard}
         loading={signalSummaryLoading}
         onNavigate={onClose}
+        showFullAnalysisLink={false}
       />
       <div className="card-detail-section-grid">
         <CardModalRecentPricesPanel card={modalCard} />
@@ -786,10 +776,28 @@ export default function CardModal({
     </div>
   );
 
+  const signalTabs = buildCardDetailSignalTabs({
+    signal: signalSummary ?? null,
+    loading: signalSummaryLoading,
+    marketMode: effectiveHistoryChartMode === "graded" ? "graded" : "raw",
+    selectedGradeLabel: activeGradedHeroPrice?.label,
+    researchResults: signalResearch?.results ?? [],
+    researchStatus: researchingSignal
+      ? "loading"
+      : signalResearchError
+        ? "error"
+        : signalResearch
+          ? "success"
+          : "idle",
+    researchError: signalResearchError,
+    onResearch: () => void researchSignalCard(),
+  });
+
   const tabs: CardDetailTab[] = orderCardDetailTabs("standard", [
     { id: "overview", label: "Overview", content: overviewPanel },
     { id: "market", label: "Market", content: marketPanel },
     { id: "collection", label: "Collection", content: collectionPanel },
+    ...signalTabs,
   ]);
 
   return (
@@ -840,8 +848,8 @@ export default function CardModal({
                 </>
               }
               status={
-                refreshError || signalResearchError ? (
-                  <span className="text-sm font-semibold text-rose-200/78">{refreshError ?? signalResearchError}</span>
+                refreshError ? (
+                  <span className="text-sm font-semibold text-rose-200/78">{refreshError}</span>
                 ) : null
               }
               priceLabel={heroPriceLabel}
@@ -866,20 +874,6 @@ export default function CardModal({
                   onModeChange={(mode) =>
                     setHistoryChartMode(mode === "graded" ? "graded" : "market")
                   }
-                  gradeOptions={gradedHeroOptions.map((price) => ({
-                    value: price.selectionKey,
-                    label: price.label,
-                    detail: price.sourceLabel,
-                  }))}
-                  selectedGrade={activeGradedHeroPrice?.selectionKey}
-                  onGradeChange={(selectionKey) => {
-                    const nextPrice = gradedHeroOptions.find(
-                      (price) => price.selectionKey === selectionKey
-                    );
-                    if (nextPrice) {
-                      setGradedHeroState({ cardId: modalCard.id, price: nextPrice });
-                    }
-                  }}
                 />
               }
               kpis={[
@@ -936,8 +930,6 @@ export default function CardModal({
                   onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
                   onAddedToCollection={refreshModalCardFromServer}
                   onClose={onClose}
-                  onResearchSignal={signalSummary ? undefined : () => void researchSignalCard()}
-                  researchingSignal={researchingSignal}
                   onOpenCardMarket={() => void openCardMarket()}
                 />
               }

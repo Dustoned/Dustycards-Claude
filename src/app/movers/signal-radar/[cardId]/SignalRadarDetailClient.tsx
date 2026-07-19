@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
-  CheckCircle2,
+  Globe2,
   Loader2,
   RefreshCw,
   Search,
@@ -14,13 +14,16 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
-import { getSignalExplanations } from "@/app/movers/signal-radar/ExternalSignalBrowser";
 import CardDetailShell, {
   type CardDetailSize,
   type CardDetailTab,
 } from "@/components/card-detail/CardDetailShell";
 import { CardDetailMediaSwitcher } from "@/components/card-detail/CardDetailMediaSwitcher";
-import { CardDetailMarketControls } from "@/components/card-detail/CardDetailMarketControls";
+import {
+  CardDetailGradeSelect,
+  CardDetailMarketControls,
+} from "@/components/card-detail/CardDetailMarketControls";
+import { buildCardDetailSignalTabs } from "@/components/card-detail/CardDetailSignalTabs";
 import { orderCardDetailTabs } from "@/components/card-detail/card-detail-tabs";
 import {
   CardModalActiveListingsPanel,
@@ -94,12 +97,6 @@ interface CardResearchSnapshot {
 
 type ForecastDirection = "strong-rise" | "rise" | "flat" | "decline";
 
-const FORECAST_TARGETS = [
-  { key: "1.5x-90d", label: "1.5×", horizon: "90 days", minimum: 50 },
-  { key: "2x-90d", label: "2×", horizon: "90 days", minimum: 100 },
-  { key: "3x-180d", label: "3×", horizon: "180 days", minimum: 200 },
-] as const;
-
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -120,19 +117,6 @@ function getForecastDirection(
   if (changePct == null || Math.abs(changePct) < 4) return "flat";
   if (changePct < 0) return "decline";
   return changePct >= 20 ? "strong-rise" : "rise";
-}
-
-function forecastTone(direction: ForecastDirection): string {
-  if (direction === "strong-rise") {
-    return "border-cyan-300/18 bg-cyan-400/[0.055] text-cyan-100/84";
-  }
-  if (direction === "rise") {
-    return "border-emerald-300/16 bg-emerald-400/[0.05] text-emerald-100/80";
-  }
-  if (direction === "decline") {
-    return "border-rose-300/16 bg-rose-400/[0.05] text-rose-100/80";
-  }
-  return "border-white/10 bg-white/[0.035] text-white/66";
 }
 
 function DetailSurface({
@@ -324,10 +308,11 @@ export default function SignalRadarDetailClient({
   const gradingCompanyLabel = normalizeGradingCompanyLabel(collectionItem?.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(collectionItem?.grading_grade);
   const showGradedPreview = Boolean(gradingCompanyLabel && gradingGradeLabel);
+  const ownedCopyGradeLabel = [gradingCompanyLabel, gradingGradeLabel]
+    .filter(Boolean)
+    .join(" ");
   const radarGradedLabel =
-    priceHistory.gradedLabel ??
-    [gradingCompanyLabel, gradingGradeLabel].filter(Boolean).join(" ") ??
-    "Graded";
+    priceHistory.gradedLabel?.trim() || ownedCopyGradeLabel || "Graded";
   const market = signal.marketIntelligence;
   const gradedAvailable = market?.graded.available ?? false;
   const effectiveMode = marketMode === "graded" && gradedAvailable ? "graded" : "raw";
@@ -378,8 +363,6 @@ export default function SignalRadarDetailClient({
           summary: signedPercent(forecastChangePct),
         }
       : null;
-  const explanations = getSignalExplanations(signal);
-  const catalysts = signal.catalysts ?? [];
   const researchResults = research?.results ?? [];
   const cardMarketHref =
     getSafeDirectCardMarketCardUrl(card.cardmarket_url, card.game) ?? buildCardMarketProxyUrl(card.id);
@@ -469,7 +452,10 @@ export default function SignalRadarDetailClient({
 
   const overviewPanel = (
     <div className="card-detail-section-grid" data-columns="2">
-      <DetailSurface eyebrow="Card profile" title="The printing at a glance" copy="Canonical card facts stay in the same place as every other detail view.">
+      <DetailSurface
+        title="Card profile"
+        copy="The essential printing details, kept in one predictable place."
+      >
         <InfoGrid
           items={[
             ["Expansion", <Link key="set" href={getExpansionHref(card.episode_id)} className="text-violet-200/82 hover:text-white">{card.episode_name}</Link>],
@@ -484,19 +470,37 @@ export default function SignalRadarDetailClient({
         />
       </DetailSurface>
 
-      <DetailSurface eyebrow="Signal summary" title={`Why ${card.name} is on the radar`} copy={signal.pressureExplanation}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {explanations.slice(0, 4).map((item) => (
-            <div key={item.label} className="flex gap-3 rounded-2xl border border-white/8 bg-black/16 p-4">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300/72" />
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-white/80">{item.label}</p>
-                <p className="mt-1 text-sm leading-5 text-white/42">{item.text}</p>
-              </div>
-            </div>
-          ))}
+      <section className="card-detail-surface">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="card-detail-eyebrow">Collector snapshot</p>
+            <h2 className="mt-2 text-xl font-extrabold text-white/92">
+              {collectionItem ? "A saved copy with context" : "Ready for your collection"}
+            </h2>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.07] text-violet-100/76">
+            <Sparkles className="h-4 w-4" />
+          </span>
         </div>
-      </DetailSurface>
+        <dl className="card-detail-info-grid mt-4">
+          <div className="card-detail-info-cell">
+            <dt>Status</dt>
+            <dd>{collectionItem ? (collectionItem.read_only ? "Shared" : "Owned") : "Not owned"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Condition</dt>
+            <dd>{collectionItem?.condition ?? "--"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Language</dt>
+            <dd>{collectionItem?.language ?? "--"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Location</dt>
+            <dd>{collectionItem?.for_sale ? "For sale" : collectionItem?.binder_name ?? "Singles"}</dd>
+          </div>
+        </dl>
+      </section>
     </div>
   );
 
@@ -530,148 +534,22 @@ export default function SignalRadarDetailClient({
     </div>
   );
 
-  const forecastPanel = (
-    <div className="card-detail-section-grid" data-columns="2">
-      <DetailSurface eyebrow="Base scenario" title="Forecast targets" copy="A directional model, not a guaranteed price target.">
-        {scenario ? (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {scenario.points.map((point) => {
-              const changePct = displayPrice && displayPrice > 0
-                ? ((point.base - displayPrice) / displayPrice) * 100
-                : null;
-              const direction = getForecastDirection(undefined, changePct);
-              return (
-                <div key={point.days} className={cx("rounded-2xl border p-4", forecastTone(direction))}>
-                  <p className="text-xs font-bold uppercase tracking-[0.1em] opacity-55">{point.days} days</p>
-                  <p className="mt-2 text-xl font-extrabold tabular-nums text-white/90">{formatCurrency(point.base, scenario.currency)}</p>
-                  <p className="mt-1 text-sm font-bold tabular-nums">{signedPercent(changePct)}</p>
-                  <p className="mt-3 text-xs text-white/38">Range {formatCurrency(point.low, scenario.currency)}–{formatCurrency(point.high, scenario.currency)}</p>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-white/42">No reliable scenario is available yet.</p>
-        )}
-      </DetailSurface>
-
-      <DetailSurface eyebrow="Historical calibration" title="Growth probability tracker" copy={signal.forecast?.modelVersion ?? "The model is still learning from completed signals."}>
-        <div className="overflow-hidden rounded-2xl border border-white/8">
-          {FORECAST_TARGETS.map((target) => {
-            const summary = signal.forecast?.targets[target.key];
-            const interval = summary?.status === "calibrated" ? summary.interval : null;
-            return (
-              <div key={target.key} className="grid min-h-16 grid-cols-[0.55fr_0.8fr_1.35fr] items-center gap-3 border-b border-white/7 px-4 text-sm last:border-b-0">
-                <strong className="text-white/82">{target.label}</strong>
-                <span className="text-white/46">{target.horizon}</span>
-                <span className="text-right font-semibold text-cyan-100/68">
-                  {interval && summary ? `${Math.round(interval.estimate * 100)}% · ${summary.hits}/${summary.samples} hits` : `Learning · ${summary?.samples ?? 0}/${target.minimum}`}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </DetailSurface>
-    </div>
-  );
-
-  const analysisPanel = (
-    <div className="card-detail-section-grid" data-columns="3">
-      <DetailSurface eyebrow="Supply & access" title="Sealed and scarcity">
-        <InfoGrid items={[
-          ["Set lifecycle", market?.sealed.lifecycleLabel ?? "Learning"],
-          ["OOP likelihood", market?.sealed.lifecycleOopProbability == null ? "--" : `${market.sealed.lifecycleOopProbability}%`],
-          ["Sealed pressure", `${market?.sealed.pressureLabel ?? "--"} · ${market?.sealed.pressureScore ?? "--"}/100`],
-          ["Cheapest pack", market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")],
-          ["Scarcity", `${market?.scarcity.label ?? "--"} · ${market?.scarcity.score ?? "--"}/100`],
-          ["Pull odds", market?.scarcity.pullOdds ?? "Unknown"],
-        ]} />
-      </DetailSurface>
-
-      <DetailSurface eyebrow="Demand quality" title="Collector and grading">
-        <InfoGrid items={[
-          ["Confluence", `${confluence?.label ?? "--"} · ${confluence?.score ?? "--"}/100`],
-          ["Artist demand", market?.scarcity.artistDemandScore == null ? "--" : `${market.scarcity.artistDemandScore}/100`],
-          ["Collector demand", `${market?.scarcity.collectorDemandScore ?? "--"}/100`],
-          ["Grading supply", market?.graded.supplyLabel ?? "Unknown"],
-          ["PSA 10 market", market?.graded.psa10Price == null ? "--" : formatCurrency(market.graded.psa10Price, market.graded.currency)],
-          ["Gem rate", market?.graded.gemRatePct == null ? "--" : `${market.graded.gemRatePct.toFixed(1)}%`],
-        ]} />
-      </DetailSurface>
-
-      <DetailSurface eyebrow="Investment thesis" title="Active drivers">
-        <div className="space-y-3">
-          {(confluence?.drivers ?? signal.reasons).slice(0, 6).map((driver) => (
-            <div key={driver} className="flex gap-3 rounded-2xl border border-white/8 bg-black/16 p-4">
-              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-200/72" />
-              <p className="text-sm font-semibold leading-5 text-white/66">{driver}</p>
-            </div>
-          ))}
-        </div>
-      </DetailSurface>
-    </div>
-  );
-
-  const evidencePanel = (
-    <div className="card-detail-section-grid" data-columns="2">
-      <DetailSurface eyebrow="Source evidence" title="External proof" copy={signal.horizon}>
-        <div className="space-y-3">
-          {signal.evidence.length ? signal.evidence.map((item) => (
-            <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/8 bg-black/16 px-4 py-3 transition hover:border-violet-300/22">
-              <span className="truncate text-sm font-bold text-white/74">{item.deckName}</span>
-              <span className="text-sm font-bold text-violet-200/72">{item.inclusionPercent.toFixed(0)}%</span>
-              <span className="text-xs text-white/38">{item.deckSharePercent.toFixed(1)}% meta share</span>
-              <span className="text-right text-xs text-white/38">inclusion</span>
-            </Link>
-          )) : (
-            <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm leading-6 text-white/42">This structural profile uses sealed, CardMarket and eBay evidence instead of tournament decks.</p>
-          )}
-        </div>
-      </DetailSurface>
-
-      <DetailSurface eyebrow="Daily scan" title="News, catalysts and research">
-        <button
-          type="button"
-          onClick={() => void runCardResearch()}
-          disabled={researchStatus === "loading"}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-500/[0.12] px-4 text-sm font-bold text-violet-50/90 transition hover:border-violet-200/34 hover:bg-violet-500/[0.2] disabled:cursor-wait disabled:opacity-60"
-        >
-          {researchStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {researchStatus === "loading" ? "Researching this card..." : research ? "Refresh focused research" : "Research this card"}
-        </button>
-        <div className="mt-4 space-y-3">
-          {catalysts.length ? catalysts.slice(0, 6).map((catalyst) => (
-            <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="block rounded-2xl border border-white/8 bg-black/16 p-4 transition hover:border-violet-300/22">
-              <div className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-[0.08em] text-white/36">
-                <span>{catalyst.kind}</span>
-                <span className={catalyst.direction === "negative" ? "text-rose-200/70" : catalyst.direction === "positive" ? "text-emerald-200/70" : "text-white/42"}>{catalyst.direction}</span>
-              </div>
-              <p className="mt-2 text-sm font-bold leading-5 text-white/74">{catalyst.headline}</p>
-              <p className="mt-1 text-sm leading-5 text-white/40">{catalyst.explanation}</p>
-            </Link>
-          )) : researchResults.length ? researchResults.slice(0, 5).map((result) => (
-            <Link key={result.url} href={result.url} target="_blank" rel="noreferrer" className="block rounded-2xl border border-white/8 bg-black/16 p-4 transition hover:border-violet-300/22">
-              <p className="text-sm font-bold text-white/74">{result.title}</p>
-              <p className="mt-1 text-xs text-violet-200/58">{result.domain}</p>
-            </Link>
-          )) : (
-            <div className="flex gap-3 rounded-2xl border border-white/8 bg-black/16 p-4">
-              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300/68" />
-              <p className="text-sm leading-5 text-white/42">No fresh trusted catalyst is linked to this printing yet.</p>
-            </div>
-          )}
-        </div>
-      </DetailSurface>
-    </div>
-  );
+  const signalTabs = buildCardDetailSignalTabs({
+    signal,
+    marketMode: effectiveMode,
+    selectedGradeLabel: effectiveMode === "graded" ? radarGradedLabel : null,
+    researchResults,
+    researchStatus,
+    researchError,
+    researchPresentation: "dialog",
+    onResearch: () => void runCardResearch(),
+  });
 
   const tabs: CardDetailTab[] = orderCardDetailTabs("radar", [
     { id: "overview", label: "Overview", content: overviewPanel },
     { id: "market", label: "Market", content: marketPanel },
     { id: "collection", label: "Collection", content: collectionPanel },
-    { id: "forecast", label: "Forecast", content: forecastPanel },
-    { id: "analysis", label: "Analysis", content: analysisPanel },
-    { id: "evidence", label: "Evidence", content: evidencePanel },
+    ...signalTabs,
   ]);
 
   return (
@@ -690,7 +568,7 @@ export default function SignalRadarDetailClient({
           <span className="rounded-full border border-violet-300/18 bg-violet-400/[0.075] px-2.5 py-1 text-[11px] font-bold text-violet-100/78">{card.rarity ?? "Unclassified"}</span>
         }
         status={actionError ? <span className="text-sm font-semibold text-rose-200/78">{actionError}</span> : null}
-        priceLabel={`Current ${effectiveMode} market`}
+        priceLabel={effectiveMode === "graded" ? `${radarGradedLabel} market` : "Raw market"}
         price={formatCurrency(displayPrice, displayCurrency)}
         priceMeta={horizonPoint ? "Base case · 180-day horizon" : signal.horizon}
         marketControls={
@@ -698,12 +576,6 @@ export default function SignalRadarDetailClient({
             mode={effectiveMode}
             gradedAvailable={gradedAvailable}
             onModeChange={setMarketMode}
-            gradeOptions={
-              gradedAvailable
-                ? [{ value: radarGradedLabel || "Graded", label: radarGradedLabel || "Graded", detail: "Radar series" }]
-                : []
-            }
-            selectedGrade={radarGradedLabel || "Graded"}
           />
         }
         kpis={[
@@ -757,7 +629,29 @@ export default function SignalRadarDetailClient({
             points={activeHistory}
             currentValue={displayPrice}
             showCurrentValue={false}
-            subtitle={effectiveMode === "raw" ? "English · Near Mint" : priceHistory.gradedLabel ?? "Graded"}
+            subtitle={effectiveMode === "raw" ? "English · Near Mint" : radarGradedLabel}
+            headerLeadingAccessory={
+              effectiveMode === "graded" ? (
+                <CardDetailGradeSelect
+                  options={[
+                    {
+                      value: radarGradedLabel || "Graded",
+                      label: radarGradedLabel || "Graded",
+                      detail: "Radar series",
+                    },
+                  ]}
+                  selectedGrade={radarGradedLabel || "Graded"}
+                />
+              ) : (
+                <span
+                  className="inline-flex h-11 w-[5.75rem] items-center gap-2 rounded-xl border border-white/10 bg-black/25 px-2.5 text-[12px] font-black text-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                  data-card-detail-chart-series-control="language"
+                >
+                  <Globe2 className="h-3.5 w-3.5 shrink-0 text-violet-200/64" aria-hidden="true" />
+                  EN
+                </span>
+              )
+            }
             tone="dark"
             layout="hero"
             rangeScopePoints={activeHistory}

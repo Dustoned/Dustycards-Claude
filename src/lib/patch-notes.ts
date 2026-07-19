@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.1",
+    releasedAt: "July 19, 2026",
+    title: "Card detail finishing pass",
+    summary:
+      "DustyCards 3.8.1 completes the premium Card Detail rollout with consistent tabs, cleaner market controls and an optional motion-depth preview.",
+    tone: "improved",
+    highlights: [
+      "Standard Card Detail and Signal Radar now keep the same tab rail and content rhythm without repeated signal modules.",
+      "Raw, graded, language, grade and market-source controls remain aligned while their chart context and status tags stay visible.",
+      "Mobile actions float cleanly above content with equal button sizing and no toolbar overlap while scrolling.",
+      "Optional Wiggle Stereoscopy creates a brief depth pulse in the inline 3D card, remembers the setting and respects Reduced Motion.",
+    ],
+  },
+  {
     version: "3.8.0",
     releasedAt: "July 19, 2026",
     title: "Premium card details",

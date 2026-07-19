@@ -5,16 +5,8 @@ import {
 } from "@/components/card-detail/card-detail-tabs";
 
 describe("card detail tab order", () => {
-  it("keeps the shared standard sections in their canonical order", () => {
+  it("keeps every detail mode in the same canonical order", () => {
     expect(getCardDetailTabOrder("standard")).toEqual([
-      "overview",
-      "market",
-      "collection",
-    ]);
-  });
-
-  it("adds radar-only sections after every shared section", () => {
-    expect(getCardDetailTabOrder("radar")).toEqual([
       "overview",
       "market",
       "collection",
@@ -22,9 +14,10 @@ describe("card detail tab order", () => {
       "analysis",
       "evidence",
     ]);
+    expect(getCardDetailTabOrder("radar")).toEqual(getCardDetailTabOrder("standard"));
   });
 
-  it("orders available tabs canonically and excludes tabs unavailable to the mode", () => {
+  it("orders every available tab identically in both modes", () => {
     const tabs = [
       { id: "evidence" as const, label: "Evidence" },
       { id: "collection" as const, label: "Collection" },
@@ -32,16 +25,13 @@ describe("card detail tab order", () => {
       { id: "market" as const, label: "Market" },
     ];
 
-    expect(orderCardDetailTabs("standard", tabs).map((tab) => tab.id)).toEqual([
-      "overview",
-      "market",
-      "collection",
-    ]);
-    expect(orderCardDetailTabs("radar", tabs).map((tab) => tab.id)).toEqual([
+    const expected = [
       "overview",
       "market",
       "collection",
       "evidence",
-    ]);
+    ];
+    expect(orderCardDetailTabs("standard", tabs).map((tab) => tab.id)).toEqual(expected);
+    expect(orderCardDetailTabs("radar", tabs).map((tab) => tab.id)).toEqual(expected);
   });
 });

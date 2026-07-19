@@ -37,6 +37,7 @@ const baseSettings = {
   mobileModalSize: "small" as DisplaySize,
   card3dSize: "medium" as DisplaySize,
   mobileCard3dSize: "small" as DisplaySize,
+  wiggleStereoscopy: false,
 };
 
 function hashToken(token: string): string {
@@ -238,28 +239,34 @@ async function requiredBounds(locator: Locator) {
   return bounds!;
 }
 
-async function expectSingleHeroGradeSelector(shell: Locator): Promise<Locator> {
-  const marketControls = shell.locator('[data-card-detail-market-mode="graded"]');
-  const modeControl = marketControls.locator(":scope > div").first();
-  const gradeControl = marketControls.locator("[data-card-detail-grade-control]");
+function expectBoundsToMatch(
+  actual: { x: number; y: number; width: number; height: number },
+  expected: { x: number; y: number; width: number; height: number },
+  tolerance = 2
+) {
+  expect(Math.abs(actual.x - expected.x)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(actual.y - expected.y)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(actual.width - expected.width)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(actual.height - expected.height)).toBeLessThanOrEqual(tolerance);
+}
+
+async function expectSingleChartGradeSelector(shell: Locator): Promise<Locator> {
+  const identity = shell.locator('[data-card-detail-region="identity"]');
+  const chart = shell.locator('[data-card-detail-region="chart"]');
+  const gradeControl = chart.locator('[data-card-detail-chart-series-control="grade"]');
   const gradeSelector = gradeControl.getByRole("combobox", {
     name: "Select graded slab",
     exact: true,
   });
 
-  await expect(marketControls).toBeVisible();
   await expect(gradeControl).toBeVisible();
   await expect(gradeSelector).toBeVisible();
   await expect(
+    identity.getByRole("combobox", { name: "Select graded slab", exact: true })
+  ).toHaveCount(0);
+  await expect(
     shell.getByRole("combobox", { name: "Select graded slab", exact: true })
   ).toHaveCount(1);
-
-  const [modeBounds, gradeBounds] = await Promise.all([
-    requiredBounds(modeControl),
-    requiredBounds(gradeControl),
-  ]);
-  expect(Math.abs(modeBounds.y - gradeBounds.y)).toBeLessThanOrEqual(2);
-  expect(gradeBounds.x).toBeGreaterThanOrEqual(modeBounds.x + modeBounds.width - 2);
 
   return gradeSelector;
 }
@@ -286,18 +293,27 @@ async function expectSelectedGradeInHistoryChart(
   const chart = shell.locator('[data-card-detail-region="chart"]');
   const chartImage = chart.getByRole("img", { name: "Historical price", exact: true });
   await expect(chartImage).toBeVisible();
-  const bounds = await requiredBounds(chartImage);
-  await chartImage.hover({
-    position: {
-      x: Math.max(1, Math.floor(bounds.width / 2)),
-      y: Math.max(1, Math.floor(bounds.height / 2)),
-    },
-  });
+  const renderedPoints = chartImage.locator("circle");
+  if ((await renderedPoints.count()) > 0) {
+    await renderedPoints.last().hover();
+  } else {
+    const bounds = await requiredBounds(chartImage);
+    await chartImage.hover({
+      position: {
+        x: Math.max(1, Math.floor(bounds.width - 24)),
+        y: Math.max(1, Math.floor(bounds.height / 2)),
+      },
+    });
+  }
   await expect(chart.getByText(formattedPrice, { exact: true })).toBeVisible();
 }
 
 async function resetDetailScroll(shell: Locator) {
   await shell.evaluate((element) => {
+    const detailViewport = element.querySelector<HTMLElement>(
+      "[data-card-detail-scroll-viewport]"
+    );
+    if (detailViewport) detailViewport.scrollTop = 0;
     let ancestor = element.parentElement;
     while (ancestor) {
       ancestor.scrollTop = 0;
@@ -311,9 +327,62 @@ async function expectSingleVisibleActionCluster(shell: Locator) {
   await expect(shell.locator('[data-card-detail-actions]:visible')).toHaveCount(1);
 }
 
+async function expectVisiblePriceStatusItems(shell: Locator) {
+  const statusLine = shell.locator("[data-card-detail-price-status]");
+  const items = statusLine.locator("[data-card-detail-price-status-item]");
+  await expect(statusLine).toBeVisible();
+  await expect(items).toHaveCount(5);
+  expect(
+    (await items.evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute("data-card-detail-price-status-item"))
+    )).sort()
+  ).toEqual(["coverage", "history", "next", "source", "updated"]);
+
+  const chartBounds = await requiredBounds(shell.locator('[data-card-detail-region="chart"]'));
+  for (let index = 0; index < 5; index += 1) {
+    const item = items.nth(index);
+    await expect(item).toBeVisible();
+    const bounds = await requiredBounds(item);
+    expect(bounds.x).toBeGreaterThanOrEqual(chartBounds.x - 1);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(
+      chartBounds.x + chartBounds.width + 1
+    );
+    expect(bounds.y).toBeGreaterThanOrEqual(chartBounds.y - 1);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(
+      chartBounds.y + chartBounds.height + 1
+    );
+  }
+
+  return items.allTextContents();
+}
+
 async function captureCardDetailScreenshot(page: Page, shell: Locator, fileName: string) {
   if (!CARD_DETAIL_SCREENSHOT_DIR) return;
   await resetDetailScroll(shell);
+  await page.waitForTimeout(80);
+  await page.screenshot({
+    path: `${CARD_DETAIL_SCREENSHOT_DIR}/${fileName}`,
+    animations: "disabled",
+  });
+}
+
+async function captureCardDetailPanelScreenshot(page: Page, shell: Locator, fileName: string) {
+  if (!CARD_DETAIL_SCREENSHOT_DIR) return;
+  await shell.locator('[data-card-detail-region="panel"]').evaluate((element) => {
+    element.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+  });
+  await page.waitForTimeout(80);
+  await page.screenshot({
+    path: `${CARD_DETAIL_SCREENSHOT_DIR}/${fileName}`,
+    animations: "disabled",
+  });
+}
+
+async function captureCardDetailStatusScreenshot(page: Page, shell: Locator, fileName: string) {
+  if (!CARD_DETAIL_SCREENSHOT_DIR) return;
+  await shell.locator("[data-card-detail-price-status]").evaluate((element) => {
+    element.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+  });
   await page.waitForTimeout(80);
   await page.screenshot({
     path: `${CARD_DETAIL_SCREENSHOT_DIR}/${fileName}`,
@@ -370,6 +439,23 @@ async function expectBoundedCenteredDetailCanvas(shell: Locator) {
   expect(Math.abs(leftInset - rightInset)).toBeLessThanOrEqual(3);
 }
 
+async function expectWideDetailTabsBesideMedia(shell: Locator) {
+  await resetDetailScroll(shell);
+  const [mediaBounds, identityBounds, chartBounds, tabsBounds] = await Promise.all([
+    requiredBounds(shell.locator('[data-card-detail-region="media"]')),
+    requiredBounds(shell.locator('[data-card-detail-region="identity"]')),
+    requiredBounds(shell.locator('[data-card-detail-region="chart"]')),
+    requiredBounds(shell.locator(".card-detail-tabs-shell")),
+  ]);
+
+  expect(tabsBounds.x).toBeGreaterThanOrEqual(identityBounds.x - 2);
+  expect(Math.abs(tabsBounds.x + tabsBounds.width - (chartBounds.x + chartBounds.width))).toBeLessThanOrEqual(3);
+  expect(tabsBounds.y).toBeGreaterThanOrEqual(
+    Math.max(identityBounds.y + identityBounds.height, chartBounds.y + chartBounds.height) - 2
+  );
+  expect(tabsBounds.y).toBeLessThan(mediaBounds.y + mediaBounds.height);
+}
+
 async function expectTouchSizedDetailControls(shell: Locator) {
   const controls = shell.locator([
     "[data-card-detail-back]:visible",
@@ -417,6 +503,13 @@ async function expectDetailScrollLayersClear(
 ) {
   for (let pass = 0; pass < 2; pass += 1) {
     await shell.evaluate((element) => {
+      const detailViewport = element.querySelector<HTMLElement>(
+        "[data-card-detail-scroll-viewport]"
+      );
+      if (detailViewport && detailViewport.scrollHeight > detailViewport.clientHeight) {
+        detailViewport.scrollTop = detailViewport.scrollHeight;
+        return;
+      }
       const dialog = element.closest<HTMLElement>("[role='dialog']");
       if (dialog && dialog.scrollHeight > dialog.clientHeight) {
         dialog.scrollTop = dialog.scrollHeight;
@@ -454,12 +547,153 @@ async function expectDetailScrollLayersClear(
 
   if (viewport!.width <= 767) {
     await expect(page.locator("[data-mobile-bottom-nav]")).toBeHidden();
-    const actionsBounds = await requiredBounds(
-      shell.locator("[data-card-detail-primary-actions]")
+    const primaryActions = shell.locator("[data-card-detail-primary-actions]");
+    const actionsBounds = await requiredBounds(primaryActions);
+    const actionsPosition = await primaryActions.evaluate(
+      (element) => window.getComputedStyle(element).position
     );
-    expect(actionsBounds.y + actionsBounds.height).toBeLessThanOrEqual(viewport!.height - 4);
-    const panelBounds = await requiredBounds(shell.locator('[data-card-detail-region="panel"]'));
-    expect(panelBounds.y + panelBounds.height).toBeLessThanOrEqual(actionsBounds.y + 2);
+    expect(actionsBounds.height).toBeGreaterThanOrEqual(44);
+    if (actionsPosition === "fixed") {
+      expect(actionsBounds.y + actionsBounds.height).toBeLessThanOrEqual(viewport!.height - 4);
+      const panelBounds = await requiredBounds(shell.locator('[data-card-detail-region="panel"]'));
+      expect(panelBounds.y + panelBounds.height).toBeLessThanOrEqual(actionsBounds.y + 2);
+    }
+  }
+
+  await resetDetailScroll(shell);
+}
+
+async function expectMobileActionClusterNeverCoversDetail(
+  page: Page,
+  shell: Locator,
+  { requireScrollable = true }: { requireScrollable?: boolean } = {}
+) {
+  const viewport = page.viewportSize();
+  expect(viewport).not.toBeNull();
+  if (viewport!.width > 767) return;
+
+  const primaryActions = shell.locator("[data-card-detail-primary-actions]:visible");
+  await expect(primaryActions).toHaveCount(1);
+  const reachedScrollPositions: number[] = [];
+  let availableScroll = 0;
+
+  for (const progress of [0, 0.35, 0.7, 1]) {
+    await shell.evaluate((element, scrollProgress) => {
+      const detailViewport = element.querySelector<HTMLElement>(
+        "[data-card-detail-scroll-viewport]"
+      );
+      if (detailViewport && detailViewport.scrollHeight > detailViewport.clientHeight) {
+        detailViewport.scrollTop = Math.round(
+          (detailViewport.scrollHeight - detailViewport.clientHeight) * scrollProgress
+        );
+        return;
+      }
+      const dialog = element.closest<HTMLElement>("[role='dialog']");
+      if (dialog && dialog.scrollHeight > dialog.clientHeight) {
+        dialog.scrollTop = Math.round(
+          (dialog.scrollHeight - dialog.clientHeight) * scrollProgress
+        );
+        return;
+      }
+      const root = document.scrollingElement;
+      window.scrollTo({
+        top: Math.round(((root?.scrollHeight ?? 0) - window.innerHeight) * scrollProgress),
+        behavior: "auto",
+      });
+    }, progress);
+    await page.waitForTimeout(50);
+
+    const overlapState = await shell.evaluate((element) => {
+      const actionsCandidates = Array.from(
+        element.querySelectorAll<HTMLElement>("[data-card-detail-primary-actions]")
+      ).filter((candidate) => {
+        const bounds = candidate.getBoundingClientRect();
+        const style = window.getComputedStyle(candidate);
+        return (
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          bounds.width > 0 &&
+          bounds.height > 0
+        );
+      });
+      const actions = actionsCandidates[0];
+      const detailViewport = element.querySelector<HTMLElement>(
+        "[data-card-detail-scroll-viewport]"
+      );
+      if (!actions || !detailViewport) {
+        return {
+          actionCount: actionsCandidates.length,
+          maxScroll: 0,
+          scrollTop: 0,
+          viewportClearsDock: false,
+          overlaps: [] as string[],
+        };
+      }
+      const actionsBounds = actions.getBoundingClientRect();
+      const detailViewportBounds = detailViewport.getBoundingClientRect();
+      const actionsVisible =
+        actionsBounds.bottom > 0 &&
+        actionsBounds.top < window.innerHeight &&
+        actionsBounds.right > 0 &&
+        actionsBounds.left < window.innerWidth;
+      const maxScroll = Math.max(0, detailViewport.scrollHeight - detailViewport.clientHeight);
+      if (!actionsVisible) {
+        return {
+          actionCount: actionsCandidates.length,
+          maxScroll,
+          scrollTop: detailViewport.scrollTop,
+          viewportClearsDock: true,
+          overlaps: [] as string[],
+        };
+      }
+
+      const overlaps = [
+        '[data-card-detail-region="media"]',
+        '[data-card-detail-region="identity"]',
+        ".card-detail-tabs-shell",
+        '[data-card-detail-region="chart"]',
+        '[data-card-detail-region="panel"]',
+      ].filter((selector) => {
+        const region = element.querySelector<HTMLElement>(selector);
+        if (!region) return false;
+        const regionBounds = region.getBoundingClientRect();
+        const clippedRegionBounds = {
+          top: Math.max(regionBounds.top, detailViewportBounds.top, 0),
+          right: Math.min(regionBounds.right, detailViewportBounds.right, window.innerWidth),
+          bottom: Math.min(regionBounds.bottom, detailViewportBounds.bottom, window.innerHeight),
+          left: Math.max(regionBounds.left, detailViewportBounds.left, 0),
+        };
+        const regionVisible =
+          clippedRegionBounds.bottom > clippedRegionBounds.top &&
+          clippedRegionBounds.right > clippedRegionBounds.left;
+        if (!regionVisible) return false;
+        return (
+          actionsBounds.left < clippedRegionBounds.right - 1 &&
+          actionsBounds.right > clippedRegionBounds.left + 1 &&
+          actionsBounds.top < clippedRegionBounds.bottom - 1 &&
+          actionsBounds.bottom > clippedRegionBounds.top + 1
+        );
+      });
+
+      return {
+        actionCount: actionsCandidates.length,
+        maxScroll,
+        scrollTop: detailViewport.scrollTop,
+        viewportClearsDock: detailViewportBounds.bottom <= actionsBounds.top + 2,
+        overlaps,
+      };
+    });
+    expect(overlapState.actionCount).toBe(1);
+    expect(overlapState.viewportClearsDock).toBe(true);
+    expect(overlapState.overlaps, `Action overlap at ${progress * 100}% scroll`).toEqual([]);
+    availableScroll = overlapState.maxScroll;
+    reachedScrollPositions.push(overlapState.scrollTop);
+  }
+
+  if (requireScrollable) {
+    expect(availableScroll).toBeGreaterThan(20);
+    expect(new Set(reachedScrollPositions.map((value) => Math.round(value / 10))).size).toBe(4);
+    expect(reachedScrollPositions.at(-1)).toBeGreaterThanOrEqual(availableScroll - 2);
   }
 
   await resetDetailScroll(shell);
@@ -748,7 +982,11 @@ test.describe("DustyCards smoke", () => {
   test("card detail uses an aligned responsive workspace", async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
-    await applyDisplaySettings(page, { widescreen: true, modalSize: "medium" });
+    await applyDisplaySettings(page, {
+      widescreen: true,
+      modalSize: "medium",
+      wiggleStereoscopy: true,
+    });
     await page.route("**/api/cards/*/signal-preview", async (route) => {
       if (route.request().url().includes("/api/cards/23190/signal-preview")) {
         await route.continue();
@@ -793,14 +1031,42 @@ test.describe("DustyCards smoke", () => {
     });
     const heroPriceLabel = shell.locator(".card-detail-price-label");
     const heroPrice = shell.locator(".card-detail-price");
+    const heroMarketToggle = shell.locator("[data-card-detail-market-toggle]");
+    const identityRegion = shell.locator('[data-card-detail-region="identity"]');
+    const rawLanguageControl = shell.locator(
+      '[data-card-detail-chart-series-control="language"]'
+    );
     await expect(rawHeroMode).toHaveAttribute("aria-pressed", "true");
+    const rawPriceStatusLabels = await expectVisiblePriceStatusItems(shell);
     await expect(
       shell.getByRole("combobox", { name: "Select graded slab", exact: true })
     ).toHaveCount(0);
+    const [rawMarketToggleBounds, rawIdentityBounds, rawLanguageBounds] = await Promise.all([
+      requiredBounds(heroMarketToggle),
+      requiredBounds(identityRegion),
+      requiredBounds(rawLanguageControl),
+    ]);
 
     await gradedHeroMode.click();
     await expect(gradedHeroMode).toHaveAttribute("aria-pressed", "true");
-    const heroGradeSelector = await expectSingleHeroGradeSelector(shell);
+    const heroGradeSelector = await expectSingleChartGradeSelector(shell);
+    const [gradedMarketToggleBounds, gradedIdentityBounds, gradedSeriesBounds] =
+      await Promise.all([
+        requiredBounds(heroMarketToggle),
+        requiredBounds(identityRegion),
+        requiredBounds(
+          shell.locator('[data-card-detail-chart-series-control="grade"]')
+        ),
+      ]);
+    expectBoundsToMatch(gradedMarketToggleBounds, rawMarketToggleBounds);
+    expectBoundsToMatch(gradedIdentityBounds, rawIdentityBounds);
+    expectBoundsToMatch(gradedSeriesBounds, rawLanguageBounds);
+    const gradedOptionLabels = await heroGradeSelector.locator("option").allTextContents();
+    expect(gradedOptionLabels.some((label) => label.includes("CardMarket"))).toBe(true);
+    expect(gradedOptionLabels.some((label) => label.includes("eBay sold"))).toBe(true);
+    await expect(
+      shell.locator('[data-card-detail-region="chart"] .card-modal-source-toggle')
+    ).toHaveCount(0);
 
     await selectGradeStartingWith(heroGradeSelector, "BGS 10");
     await expect(heroPriceLabel).toContainText("BGS 10");
@@ -811,15 +1077,33 @@ test.describe("DustyCards smoke", () => {
     await expect(heroPriceLabel).toContainText("PSA 10");
     await expect(heroPrice).toHaveText("€1,699.00");
     await expectSelectedGradeInHistoryChart(shell, "€1,699.00");
+    expect(await expectVisiblePriceStatusItems(shell)).toEqual(rawPriceStatusLabels);
     await expect(
       shell.getByRole("combobox", { name: "Select graded slab", exact: true })
     ).toHaveCount(1);
+    await captureCardDetailScreenshot(page, shell, "standard-graded-1920x1080.png");
 
     await rawHeroMode.click();
     await expect(rawHeroMode).toHaveAttribute("aria-pressed", "true");
+    expectBoundsToMatch(await requiredBounds(heroMarketToggle), rawMarketToggleBounds);
+    expectBoundsToMatch(await requiredBounds(identityRegion), rawIdentityBounds);
     await expect(
       shell.getByRole("combobox", { name: "Select graded slab", exact: true })
     ).toHaveCount(0);
+
+    const tcgPlayerSource = shell
+      .locator('[data-card-detail-region="chart"]')
+      .getByRole("button", { name: "TCGPlayer", exact: true });
+    if ((await tcgPlayerSource.count()) > 0) {
+      await tcgPlayerSource.click();
+      await expect(tcgPlayerSource).toHaveAttribute("aria-pressed", "true");
+      expectBoundsToMatch(await requiredBounds(heroMarketToggle), rawMarketToggleBounds);
+      expectBoundsToMatch(await requiredBounds(identityRegion), rawIdentityBounds);
+      await shell
+        .locator('[data-card-detail-region="chart"]')
+        .getByRole("button", { name: "CardMarket", exact: true })
+        .click();
+    }
 
     const mediaSwitcher = shell.locator(".card-detail-media-switcher");
     const mediaSwitch = mediaSwitcher.locator("[data-card-detail-media-switch]");
@@ -841,6 +1125,10 @@ test.describe("DustyCards smoke", () => {
     expect(Math.abs(inlineThreeDimensionalBounds.height - twoDimensionalBounds.height)).toBeLessThanOrEqual(3);
     const inlineCanvas = mediaSwitcher.locator(".card-detail-inline-three-viewer canvas");
     await expect(inlineCanvas).toBeVisible({ timeout: 15_000 });
+    await expect(mediaSwitcher.locator(".card-detail-inline-three-viewer")).toHaveAttribute(
+      "data-card-three-motion-mode",
+      "wiggle-stereoscopy"
+    );
     await page.waitForTimeout(750);
     await expectCanvasHasPixels(page, inlineCanvas, 350);
     await expect(
@@ -858,22 +1146,43 @@ test.describe("DustyCards smoke", () => {
     await expect(mediaSwitcher).toHaveAttribute("data-card-detail-media-mode", "2d");
 
     const tabs = shell.getByRole("tab");
-    await expect(tabs).toHaveCount(3);
-    expect(await tabs.allTextContents()).toEqual(["Overview", "Market", "Collection"]);
+    await expect(tabs).toHaveCount(6);
+    expect(await tabs.allTextContents()).toEqual([
+      "Overview",
+      "Market",
+      "Collection",
+      "Forecast",
+      "Analysis",
+      "Evidence",
+    ]);
     const overviewTab = shell.getByRole("tab", { name: "Overview", exact: true });
     const marketTab = shell.getByRole("tab", { name: "Market", exact: true });
-    const collectionTab = shell.getByRole("tab", { name: "Collection", exact: true });
+    const forecastTab = shell.getByRole("tab", { name: "Forecast", exact: true });
+    const analysisTab = shell.getByRole("tab", { name: "Analysis", exact: true });
+    const evidenceTab = shell.getByRole("tab", { name: "Evidence", exact: true });
     await expect(overviewTab).toHaveAttribute("aria-selected", "true");
     await overviewTab.focus();
     await page.keyboard.press("ArrowRight");
     await expect(marketTab).toHaveAttribute("aria-selected", "true");
     await expect(marketTab).toBeFocused();
     await page.keyboard.press("End");
-    await expect(collectionTab).toHaveAttribute("aria-selected", "true");
-    await expect(collectionTab).toBeFocused();
+    await expect(evidenceTab).toHaveAttribute("aria-selected", "true");
+    await expect(evidenceTab).toBeFocused();
     await page.keyboard.press("Home");
     await expect(overviewTab).toHaveAttribute("aria-selected", "true");
     await expect(overviewTab).toBeFocused();
+    await forecastTab.click();
+    await expect(shell).toHaveAttribute("data-active-tab", "forecast");
+    await expect(shell.getByRole("heading", { name: "Forecast targets", exact: true })).toBeVisible();
+    await captureCardDetailScreenshot(page, shell, "standard-forecast-1920x1080.png");
+    await analysisTab.click();
+    await expect(shell).toHaveAttribute("data-active-tab", "analysis");
+    await expect(shell.getByRole("heading", { name: "Sealed and scarcity", exact: true })).toBeVisible();
+    await evidenceTab.click();
+    await expect(shell).toHaveAttribute("data-active-tab", "evidence");
+    await expect(shell.getByRole("heading", { name: "External proof", exact: true })).toBeVisible();
+    await expect(shell.locator("[data-card-detail-research]:visible")).toHaveCount(1);
+    await captureCardDetailScreenshot(page, shell, "standard-evidence-1920x1080.png");
     await marketTab.click();
     await expect(shell).toHaveAttribute("data-active-tab", "market");
 
@@ -909,6 +1218,7 @@ test.describe("DustyCards smoke", () => {
     await overviewTab.click();
     await captureCardDetailScreenshot(page, shell, "standard-1920x1080.png");
     await expectDetailHeroLayout(shell, "triple");
+    await expectWideDetailTabsBesideMedia(shell);
     await expectDetailScrollLayersClear(page, shell, "standard");
     await expectSingleVisibleActionCluster(shell);
     await expectNoHorizontalOverflow(page, shell);
@@ -934,8 +1244,20 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page, shell);
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await marketTab.click();
+    await gradedHeroMode.click();
+    await expect(gradedHeroMode).toHaveAttribute("aria-pressed", "true");
+    await expectVisiblePriceStatusItems(shell);
+    await captureCardDetailStatusScreenshot(
+      page,
+      shell,
+      "standard-graded-status-390x844.png"
+    );
+    await rawHeroMode.click();
+    await expect(rawHeroMode).toHaveAttribute("aria-pressed", "true");
     await overviewTab.click();
     await captureCardDetailScreenshot(page, shell, "standard-390x844.png");
+    await expectMobileActionClusterNeverCoversDetail(page, shell);
     await marketTab.click();
     await expect(marketSignal).toHaveCount(1);
     await expect(marketSignal).toBeVisible();
@@ -958,6 +1280,9 @@ test.describe("DustyCards smoke", () => {
     await expect(shell.locator('[data-card-detail-region="chart"]')).toBeHidden();
     await marketTab.click();
     await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
+    await expectMobileActionClusterNeverCoversDetail(page, shell, {
+      requireScrollable: false,
+    });
     await expectDetailHeroLayout(shell, "single");
     await expect(shell.locator("[data-card-detail-media-switch]")).toBeHidden();
     await expectDetailScrollLayersClear(page, shell, "standard");
@@ -973,11 +1298,19 @@ test.describe("DustyCards smoke", () => {
     );
     expect(Math.abs(mobileBackBounds.y - mobileOverflowBounds.y)).toBeLessThanOrEqual(4);
     await expectNoHorizontalOverflow(page, shell);
+    await forecastTab.click();
+    await captureCardDetailPanelScreenshot(page, shell, "standard-forecast-390x844.png");
+    await evidenceTab.click();
+    await captureCardDetailPanelScreenshot(page, shell, "standard-evidence-390x844.png");
+    await expectMobileActionClusterNeverCoversDetail(page, shell, {
+      requireScrollable: false,
+    });
 
     await page.setViewportSize({ width: 5120, height: 1440 });
     await overviewTab.click();
     await expectDetailHeroLayout(shell, "triple");
     await expectBoundedCenteredDetailCanvas(shell);
+    await expectWideDetailTabsBesideMedia(shell);
     await expectSingleVisibleActionCluster(shell);
     await expectNoHorizontalOverflow(page, shell);
     await captureCardDetailScreenshot(page, shell, "standard-5120x1440.png");
@@ -1010,14 +1343,14 @@ test.describe("DustyCards smoke", () => {
       .getByRole("button", { name: "2D", exact: true })
       .click();
     await page.setViewportSize({ width: 390, height: 844 });
-    const reopenedOverflow = reopenedShell.locator("[data-card-detail-overflow-actions]");
-    await reopenedOverflow.locator("summary").click();
-    await reopenedOverflow.getByRole("button", { name: "Research signal", exact: true }).click();
-    await expect(reopenedShell.locator(".card-detail-mobile-status")).toContainText(
+    await expect(reopenedShell.getByRole("tab")).toHaveCount(6);
+    await reopenedShell.getByRole("tab", { name: "Evidence", exact: true }).click();
+    const mobileResearchAction = reopenedShell.locator("[data-card-detail-research]:visible");
+    await expect(mobileResearchAction).toHaveCount(1);
+    await mobileResearchAction.click();
+    await expect(reopenedShell.locator('[data-card-detail-signal-state="error"]')).toContainText(
       "Simulated research failure"
     );
-    await expect(reopenedShell.locator(".card-detail-mobile-status")).toBeVisible();
-    await reopenedOverflow.locator("summary").click();
     await reopenedShell.locator("[data-card-detail-back]").click();
     await expect(reopenedDialog).toBeHidden();
     await expect(page).toHaveURL(/\/search\?q=seismitoad&game=pokemon&autoswitch=0$/);
@@ -1026,7 +1359,11 @@ test.describe("DustyCards smoke", () => {
   test("Signal Radar detail shares the responsive card detail shell", async ({ page }) => {
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
-    await applyDisplaySettings(page, { widescreen: true, modalSize: "medium" });
+    await applyDisplaySettings(page, {
+      widescreen: true,
+      modalSize: "medium",
+      wiggleStereoscopy: true,
+    });
     await page.addInitScript(() => {
       window.localStorage.setItem("dustycards-card-detail-media-mode", "3d");
     });
@@ -1046,6 +1383,10 @@ test.describe("DustyCards smoke", () => {
       "Back to Signal Radar"
     );
     await expectSingleVisibleActionCluster(shell);
+    await expect(shell.locator(".card-detail-inline-three-viewer")).toHaveAttribute(
+      "data-card-three-motion-mode",
+      "wiggle-stereoscopy"
+    );
 
     const radarMarketControls = shell.locator("[data-card-detail-market-mode]");
     const radarRawMode = radarMarketControls.getByRole("button", {
@@ -1058,19 +1399,36 @@ test.describe("DustyCards smoke", () => {
     });
     const radarHeroPriceLabel = shell.locator(".card-detail-price-label");
     const radarHeroPrice = shell.locator(".card-detail-price");
+    const radarMarketToggle = shell.locator("[data-card-detail-market-toggle]");
+    const radarIdentityRegion = shell.locator('[data-card-detail-region="identity"]');
+    const radarRawLanguageControl = shell.locator(
+      '[data-card-detail-chart-series-control="language"]'
+    );
     const radarRawHeroPrice = (await radarHeroPrice.textContent())?.trim() ?? "";
     expect(radarRawHeroPrice).not.toBe("");
     await expect(radarRawMode).toHaveAttribute("aria-pressed", "true");
     await expect(
       shell.getByRole("combobox", { name: "Select graded slab", exact: true })
     ).toHaveCount(0);
+    const [radarRawToggleBounds, radarRawIdentityBounds, radarRawLanguageBounds] =
+      await Promise.all([
+        requiredBounds(radarMarketToggle),
+        requiredBounds(radarIdentityRegion),
+        requiredBounds(radarRawLanguageControl),
+      ]);
 
     await radarGradedMode.click();
     await expect(radarGradedMode).toHaveAttribute("aria-pressed", "true");
-    const radarGradeSelector = await expectSingleHeroGradeSelector(shell);
+    const radarGradeSelector = await expectSingleChartGradeSelector(shell);
+    expectBoundsToMatch(await requiredBounds(radarMarketToggle), radarRawToggleBounds);
+    expectBoundsToMatch(await requiredBounds(radarIdentityRegion), radarRawIdentityBounds);
+    expectBoundsToMatch(
+      await requiredBounds(shell.locator('[data-card-detail-chart-series-control="grade"]')),
+      radarRawLanguageBounds
+    );
     const radarSelectedGrade = await radarGradeSelector.inputValue();
     expect(radarSelectedGrade).toMatch(/(?:BGS|CGC|PSA|graded)/i);
-    await expect(radarHeroPriceLabel).toHaveText("Current graded market");
+    await expect(radarHeroPriceLabel).toHaveText(`${radarSelectedGrade} market`);
     await expect(radarHeroPrice).not.toHaveText(radarRawHeroPrice);
     await expect(shell.locator('[data-card-detail-region="chart"]')).toContainText(
       radarSelectedGrade
@@ -1078,6 +1436,7 @@ test.describe("DustyCards smoke", () => {
     await expect(
       shell.getByRole("combobox", { name: "Select graded slab", exact: true })
     ).toHaveCount(1);
+    await captureCardDetailScreenshot(page, shell, "radar-graded-1920x1080.png");
 
     await radarRawMode.click();
     await expect(radarRawMode).toHaveAttribute("aria-pressed", "true");
@@ -1123,10 +1482,14 @@ test.describe("DustyCards smoke", () => {
     await expect(marketTab).toBeFocused();
     await forecastTab.click();
     await expect(shell).toHaveAttribute("data-active-tab", "forecast");
+    await captureCardDetailScreenshot(page, shell, "radar-forecast-1920x1080.png");
+    await evidenceTab.click();
+    await captureCardDetailScreenshot(page, shell, "radar-evidence-1920x1080.png");
 
     await overviewTab.click();
     await captureCardDetailScreenshot(page, shell, "radar-1920x1080.png");
     await expectDetailHeroLayout(shell, "triple");
+    await expectWideDetailTabsBesideMedia(shell);
     await expectDetailScrollLayersClear(page, shell, "radar");
     await expectSingleVisibleActionCluster(shell);
     await expectNoHorizontalOverflow(page, shell);
@@ -1151,11 +1514,20 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page, shell);
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await radarGradedMode.click();
+    await expect(radarGradedMode).toHaveAttribute("aria-pressed", "true");
+    await captureCardDetailScreenshot(page, shell, "radar-graded-390x844.png");
+    await radarRawMode.click();
+    await expect(radarRawMode).toHaveAttribute("aria-pressed", "true");
     await overviewTab.click();
     await expect(shell.locator('[data-card-detail-region="chart"]')).toBeHidden();
     await captureCardDetailScreenshot(page, shell, "radar-390x844.png");
+    await expectMobileActionClusterNeverCoversDetail(page, shell);
     await forecastTab.click();
     await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
+    await expectMobileActionClusterNeverCoversDetail(page, shell, {
+      requireScrollable: false,
+    });
     await expectDetailHeroLayout(shell, "single");
     await expectDetailScrollLayersClear(page, shell, "radar");
     await expectTouchSizedDetailControls(shell);
@@ -1170,11 +1542,18 @@ test.describe("DustyCards smoke", () => {
     );
     expect(Math.abs(radarMobileBackBounds.y - radarMobileOverflowBounds.y)).toBeLessThanOrEqual(4);
     await expectNoHorizontalOverflow(page, shell);
+    await captureCardDetailPanelScreenshot(page, shell, "radar-forecast-390x844.png");
+    await evidenceTab.click();
+    await captureCardDetailPanelScreenshot(page, shell, "radar-evidence-390x844.png");
+    await expectMobileActionClusterNeverCoversDetail(page, shell, {
+      requireScrollable: false,
+    });
 
     await page.setViewportSize({ width: 5120, height: 1440 });
     await overviewTab.click();
     await expectDetailHeroLayout(shell, "triple");
     await expectBoundedCenteredDetailCanvas(shell);
+    await expectWideDetailTabsBesideMedia(shell);
     await expectSingleVisibleActionCluster(shell);
     await expectNoHorizontalOverflow(page, shell);
     await captureCardDetailScreenshot(page, shell, "radar-5120x1440.png");
@@ -1355,6 +1734,7 @@ test.describe("DustyCards smoke", () => {
       modalSize: "small",
       uiScale: "large",
       widescreen: true,
+      wiggleStereoscopy: true,
     });
 
     const freshSession = createAuthenticatedSmokeSession();
@@ -1389,6 +1769,7 @@ test.describe("DustyCards smoke", () => {
           modalSize: "small",
           uiScale: "large",
           widescreen: true,
+          wiggleStereoscopy: true,
         });
     } finally {
       await freshContext.close();

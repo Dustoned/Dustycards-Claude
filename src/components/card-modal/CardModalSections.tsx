@@ -274,10 +274,12 @@ function getPriceStatusToneClass(tone: PriceStatusTone): string {
 }
 
 function PriceStatusInlineItem({
+  kind,
   value,
   title,
   tone = "neutral",
 }: {
+  kind: "source" | "updated" | "next" | "coverage" | "history";
   value: string;
   title: string;
   tone?: PriceStatusTone;
@@ -288,6 +290,7 @@ function PriceStatusInlineItem({
         tone
       )}`}
       title={title}
+      data-card-detail-price-status-item={kind}
     >
       {value}
     </span>
@@ -366,14 +369,19 @@ function CardPriceStatusLine({
       : "No history yet";
 
   return (
-    <div className={`min-w-0 border-b border-white/8 pb-2 ${className}`}>
+    <div
+      className={`min-w-0 border-b border-white/8 pb-2 ${className}`}
+      data-card-detail-price-status
+    >
       <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] leading-none text-white/28 max-[640px]:gap-1 max-[640px]:text-[10px]">
         <PriceStatusInlineItem
+          kind="source"
           value={sourceStatus.value}
           title={`Source: ${sourceStatus.value}. ${sourceStatus.hint}`}
           tone={sourceStatus.tone}
         />
         <PriceStatusInlineItem
+          kind="updated"
           value={updatedValue}
           title={`Latest price: ${latestPriceAge ?? "No price"}. ${
             latestPriceLabel ?? sourceCheckedLabel ?? "No source check yet"
@@ -381,16 +389,19 @@ function CardPriceStatusLine({
           tone={latestPriceTone}
         />
         <PriceStatusInlineItem
+          kind="next"
           value={nextUpdateValue}
           title={`Refresh: ${refreshValue}. ${refreshHint}`}
           tone={refreshTone}
         />
         <PriceStatusInlineItem
+          kind="coverage"
           value={`${coverage.currentCount} of ${coverage.totalCount} sources`}
           title={`Data: ${coverage.currentCount}/${coverage.totalCount} sources. CM ${coverage.cardMarketCount}/${coverage.cardMarketTotal} / TCG ${coverage.tcgPlayerCount}/${coverage.tcgPlayerTotal}`}
           tone={coverageTone}
         />
         <PriceStatusInlineItem
+          kind="history"
           value={historyPoints.length > 0 ? `${historyPoints.length} history points` : "No history yet"}
           title={`History: ${historyPoints.length > 0 ? `${historyPoints.length} points` : "None"}. ${historyHint}`}
           tone={historyPoints.length > 0 ? "neutral" : "warning"}
@@ -970,30 +981,56 @@ function GradedSlabSelectControl({
   selectedRow,
   onChange,
   className = "",
+  variant = "compact",
+  valueMode = "label",
 }: {
   rows: GradedPriceDisplayRow[];
   selectedRow: GradedPriceDisplayRow | null;
-  onChange: (label: string) => void;
+  onChange: (value: string) => void;
   className?: string;
+  variant?: "compact" | "chart";
+  valueMode?: "label" | "key";
 }) {
   const label = selectedRow?.label ?? "Graded";
-  const shellClass = `relative inline-flex h-8 max-w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-black/20 px-2.5 text-[11px] font-semibold leading-none text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors max-[640px]:h-7 max-[640px]:px-2 max-[640px]:text-[10px] ${className}`;
+  const shellClass =
+    variant === "chart"
+      ? `relative inline-flex h-11 w-[5.75rem] max-w-full items-center justify-start rounded-xl border border-white/10 bg-black/25 pl-2.5 pr-7 text-[12px] font-black leading-none text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors ${className}`
+      : `relative inline-flex h-8 max-w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-black/20 px-2.5 text-[11px] font-semibold leading-none text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors max-[640px]:h-7 max-[640px]:px-2 max-[640px]:text-[10px] ${className}`;
+  const chartControlProps =
+    variant === "chart" ? { "data-card-detail-chart-series-control": "grade" } : {};
+  const controlLabel =
+    variant === "chart" ? (
+      <span className="min-w-0">
+        <span className="block truncate text-[12px] font-black leading-4">{label}</span>
+        {selectedRow?.sourceLabel ? (
+          <span className="block truncate text-[9px] font-semibold leading-3 tracking-[-0.01em] text-white/42">
+            {selectedRow.sourceLabel}
+          </span>
+        ) : null}
+      </span>
+    ) : (
+      <span className="whitespace-nowrap">{label}</span>
+    );
 
   if (rows.length <= 1) {
     return (
-      <span className={shellClass}>
-        <span className="whitespace-nowrap">{label}</span>
+      <span className={shellClass} {...chartControlProps}>
+        {controlLabel}
       </span>
     );
   }
 
   return (
-    <label className={`${shellClass} cursor-pointer pr-7 hover:border-white/18 hover:bg-white/[0.055] hover:text-white`}>
-      <span className="whitespace-nowrap">{label}</span>
+    <label
+      className={`${shellClass} cursor-pointer hover:border-white/18 hover:bg-white/[0.055] hover:text-white`}
+      data-card-detail-grade-control
+      {...chartControlProps}
+    >
+      {controlLabel}
       <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-white/48" />
       <select
         aria-label="Select graded slab"
-        value={selectedRow?.label ?? ""}
+        value={selectedRow ? (valueMode === "key" ? selectedRow.key : selectedRow.label) : ""}
         onChange={(event) => onChange(event.target.value)}
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
       >
@@ -1003,8 +1040,12 @@ function GradedSlabSelectControl({
           </option>
         )}
         {rows.map((row) => (
-          <option key={row.key} value={row.label} className="bg-[#111214] text-white">
-            {row.label}
+          <option
+            key={row.key}
+            value={valueMode === "key" ? row.key : row.label}
+            className="bg-[#111214] text-white"
+          >
+            {row.label} - {row.sourceLabel}
           </option>
         ))}
       </select>
@@ -2793,8 +2834,6 @@ export function CardModalHistorySection({
     getPreferredGradedRow(gradedSourceRows);
   const gradedChartCurrency =
     selectedGradedRow?.chartCurrency ?? selectedGradedRow?.currency ?? "EUR";
-  const showGradedSourceToggle =
-    showGradedSelectionControl && cardMarketGradedRows.length > 0 && ebayGradedRows.length > 0;
 
   const activeMarketHistory =
     activeMarketSource === "tcgplayer"
@@ -2810,11 +2849,10 @@ export function CardModalHistorySection({
           points: cardMarketHistory,
           title: "CardMarket History",
         };
-  const hasMultipleCardMarketSeries = availableCardMarketHistorySeries.length > 1;
   const showCardMarketSeriesPicker =
     effectiveHistoryChartMode === "market" &&
     activeMarketSource === "cardmarket" &&
-    hasMultipleCardMarketSeries;
+    availableCardMarketHistorySeries.length > 0;
   const showRawSourceToggle = effectiveHistoryChartMode === "market" && showTcgPlayerSource;
   const historyRangeScopePoints = [
     ...activeMarketHistory.points,
@@ -2860,6 +2898,7 @@ export function CardModalHistorySection({
       <label
         className="relative inline-flex h-11 w-[5.75rem] shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-black/25 pl-2.5 pr-7 text-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition hover:border-white/18 hover:text-white focus-within:border-violet-300/34 focus-within:ring-2 focus-within:ring-violet-300/35"
         data-card-detail-language-control
+        data-card-detail-chart-series-control="language"
       >
         <Globe2 className="h-3.5 w-3.5 shrink-0 text-violet-200/64" aria-hidden="true" />
         <span className="text-[12px] font-black">
@@ -2906,42 +2945,9 @@ export function CardModalHistorySection({
       ))}
     </div>
   ) : null;
-  const gradedSourceSwitchControl = showGradedSourceToggle ? (
-    <div className={`dc-compact-segment card-modal-source-toggle ${historySourceToggleClass}`}>
-      {[
-        { key: "cardmarket" as const, label: "CardMarket" },
-        { key: "ebay" as const, label: "eBay" },
-      ].map((source) => (
-        <button
-          key={source.key}
-          type="button"
-          onClick={() => {
-            const nextRows = source.key === "cardmarket" ? cardMarketGradedRows : ebayGradedRows;
-            const nextRow = getPreferredGradedRow(nextRows);
-            setGradedSelection({
-              cardId: card.id,
-              source: source.key,
-              label: nextRow?.label ?? "",
-            });
-            onGradedDisplayPriceChange?.(toGradedDisplayPrice(nextRow));
-          }}
-          aria-pressed={effectiveGradedSource === source.key}
-          className={`${historySourceToggleButtonClass} ${
-            effectiveGradedSource === source.key
-              ? historySourceToggleActiveClass
-              : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
-          }`}
-        >
-          {source.label}
-        </button>
-      ))}
-    </div>
-  ) : null;
-  const historyHeaderPrimaryControls =
-    historyModeSwitchControl || (effectiveHistoryChartMode === "graded" ? gradedSourceSwitchControl : null) ? (
+  const historyHeaderPrimaryControls = historyModeSwitchControl ? (
       <div className="dc-compact-segment-row flex min-w-0 shrink-0 flex-nowrap items-center gap-1.5">
         {historyModeSwitchControl}
-        {effectiveHistoryChartMode === "graded" ? gradedSourceSwitchControl : null}
       </div>
     ) : null;
   const historyHeaderLeadingAccessory =
@@ -2961,26 +2967,24 @@ export function CardModalHistorySection({
     );
   const gradedSlabSelectControl = showGradedSelectionControl ? (
     <GradedSlabSelectControl
-      rows={gradedSourceRows}
+      rows={gradedRows}
       selectedRow={selectedGradedRow}
-      onChange={(label) => {
-        const nextRow = gradedSourceRows.find((row) => row.label === label) ?? null;
+      onChange={(selectionKey) => {
+        const nextRow = gradedRows.find((row) => row.key === selectionKey) ?? null;
         setGradedSelection({
           cardId: card.id,
-          source: effectiveGradedSource,
-          label,
+          source: nextRow?.sourceType ?? effectiveGradedSource,
+          label: nextRow?.label ?? "",
         });
         onGradedDisplayPriceChange?.(toGradedDisplayPrice(nextRow));
       }}
-      className="max-w-[10rem] max-[640px]:max-w-[8.5rem]"
+      variant="chart"
+      valueMode="key"
     />
   ) : null;
-  const gradedHeaderLeadingAccessory = showGradedSelectionControl ? (
-    <div className="grid min-w-0 max-w-full gap-1.5">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        {historyModeSwitchControl}
-        {gradedSourceSwitchControl}
-      </div>
+  const gradedHeaderLeadingAccessory = historyModeSwitchControl || gradedSlabSelectControl ? (
+    <div className="flex min-w-0 max-w-full flex-nowrap items-center gap-1.5">
+      {historyModeSwitchControl}
       {gradedSlabSelectControl}
     </div>
   ) : null;
@@ -3022,10 +3026,9 @@ export function CardModalHistorySection({
                 rangeStorageKey={`card-history-${card.id}`}
               />
             </div>
-
-            <CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />
           </>
         )}
+        <CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />
       </div>
     </section>
   );
