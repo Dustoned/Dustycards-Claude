@@ -36,6 +36,7 @@ interface Props {
   currency: CurrencyCode;
   points: PriceHistoryValuePoint[];
   currentValue?: number | null;
+  showCurrentValue?: boolean;
   deltaValue?: number | null;
   subtitle?: string;
   headerLeadingAccessory?: ReactNode;
@@ -542,6 +543,7 @@ export default function PriceHistoryPanel({
   currency,
   points,
   currentValue,
+  showCurrentValue = true,
   deltaValue,
   subtitle,
   headerLeadingAccessory,
@@ -831,12 +833,12 @@ export default function PriceHistoryPanel({
       ? compact
         ? "flex h-28 items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-white/40"
         : isHeroLayout
-          ? "flex h-[232px] items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-white/40"
+          ? "flex h-[148px] items-center justify-center rounded-2xl border border-dashed border-white/10 px-5 text-center text-sm text-white/40"
           : "flex h-[184px] items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-white/40"
       : compact
         ? "flex h-28 items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-white/40"
         : isHeroLayout
-          ? "flex h-[232px] items-center justify-center rounded-2xl border border-dashed border-white/10 text-sm text-white/40"
+          ? "flex h-[148px] items-center justify-center rounded-2xl border border-dashed border-white/10 px-5 text-center text-sm text-white/40"
           : "flex h-[184px] items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-white/40";
   const axisLabelClass =
     tone === "dark" ? "fill-white/40" : "fill-white/40";
@@ -963,7 +965,9 @@ export default function PriceHistoryPanel({
         <div className="grid h-full min-w-0 gap-4 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6">
           <div className="min-w-0 flex flex-col justify-center">
             <p className="text-sm font-medium text-white/55">{title}</p>
-            <p className={`${valueClass} mt-1`}>{formatCurrency(displayedValue, currency)}</p>
+            {showCurrentValue ? (
+              <p className={`${valueClass} mt-1`}>{formatCurrency(displayedValue, currency)}</p>
+            ) : null}
             {deltaJsx ? <div className="mt-2">{deltaJsx}</div> : null}
           </div>
           <div className="flex min-w-0 flex-col">
@@ -1144,7 +1148,7 @@ export default function PriceHistoryPanel({
         className={`${stableHeroHeaderClass} ${
           isMobileHeroLayout
             ? headerLeadingAccessory
-              ? "grid grid-cols-1 items-start gap-2"
+              ? "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2"
               : "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2"
             : isHeroLayout
             ? "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
@@ -1155,12 +1159,16 @@ export default function PriceHistoryPanel({
           {headerLeadingAccessory ? (
             <div className="min-w-0">
               {headerLeadingAccessory}
-              <p className={`${valueClass} mt-2`}>{formatCurrency(displayedValue, currency)}</p>
+              {showCurrentValue ? (
+                <p className={`${valueClass} mt-2`}>{formatCurrency(displayedValue, currency)}</p>
+              ) : null}
             </div>
           ) : (
             <>
               <p className={titleClass}>{title}</p>
-              <p className={`${valueClass} mt-1`}>{formatCurrency(displayedValue, currency)}</p>
+              {showCurrentValue ? (
+                <p className={`${valueClass} mt-1`}>{formatCurrency(displayedValue, currency)}</p>
+              ) : null}
               {primaryMetaText && <p className={`${metaClass} mt-1`}>{primaryMetaText}</p>}
               {secondaryMetaText && secondaryMetaText !== primaryMetaText && (
                 <p className={`${subtitleClass} mt-1`}>{secondaryMetaText}</p>
@@ -1181,7 +1189,7 @@ export default function PriceHistoryPanel({
                   : "text-right"
             }`}
           >
-            <div className={`${isMobileHeroLayout ? "min-w-0 max-w-[7.25rem] gap-1.5" : "min-w-[4.5rem] gap-2"} flex flex-col items-end`}>
+            <div className={`${isMobileHeroLayout ? "min-w-0 max-w-[10.5rem] gap-1.5" : "min-w-[4.5rem] gap-2"} flex flex-col items-end`}>
               {headerAccessory}
               {reserveDateSlot && (
                 <p
@@ -1371,7 +1379,7 @@ export default function PriceHistoryPanel({
                   r="4.5"
                   fill={dotFill}
                 />
-              ) : (
+              ) : chart.pathCoordinates.length > 1 ? (
                 <>
                   <circle
                     cx={chart.pathCoordinates[0].x}
@@ -1387,7 +1395,7 @@ export default function PriceHistoryPanel({
                     fill={dotFill}
                   />
                 </>
-              )}
+              ) : null}
 
               {activePoint && (
                 <circle

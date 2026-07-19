@@ -17,6 +17,7 @@ function getTooltipText(target: EventTarget | null): {
   element: HTMLElement;
 } | null {
   if (!(target instanceof Element)) return null;
+  if (target.closest("[data-readable-tooltip-trigger]")) return null;
 
   const element = target.closest<HTMLElement>(
     "[data-mobile-tooltip], [title], [aria-label]"

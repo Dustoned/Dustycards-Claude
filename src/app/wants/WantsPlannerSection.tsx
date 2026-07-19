@@ -994,6 +994,7 @@ export default function WantsPlannerSection({
       <CardModal
         key={selectedCard.id}
         card={selectedCard}
+        backLabel="Back to Wants"
         onClose={() => setSelectedCard(null)}
       />
     ) : null}

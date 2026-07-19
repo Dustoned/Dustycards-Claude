@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getCachedImageUrl,
   getImageCacheVariantForSourceUrl,
+  getTextureImageUrl,
   TCGGO_CARD_TRANSPARENT_TRIM_VARIANT,
 } from "@/lib/image-cache";
 
@@ -20,6 +21,9 @@ describe("image cache", () => {
 
     expect(getImageCacheVariantForSourceUrl(sourceUrl)).toBeNull();
     expect(getCachedImageUrl(sourceUrl)).toBe(sourceUrl);
+    expect(getTextureImageUrl(sourceUrl)).toBe(
+      `/api/image-cache?url=${encodeURIComponent(sourceUrl)}`
+    );
   });
 
   it.each([

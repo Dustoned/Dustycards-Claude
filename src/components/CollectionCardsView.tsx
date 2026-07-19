@@ -2767,6 +2767,7 @@ export default function CollectionCardsView({
         <CardModal
           key={selectedCard.id}
           card={selectedCard}
+          backLabel="Back to Collection"
           showGradedSlabPreview={showGradedSlabPreview}
           onClose={() => setSelectedCard(null)}
         />

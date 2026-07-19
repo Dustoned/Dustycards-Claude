@@ -79,6 +79,9 @@ interface EbayCardDemandPayload {
 interface EbayCardDemandPanelProps {
   cardId: string;
   initialMode?: EbayCardDemandMode;
+  mode?: EbayCardDemandMode;
+  onModeChange?: (mode: EbayCardDemandMode) => void;
+  showModeControl?: boolean;
   className?: string;
   compact?: boolean;
   rail?: boolean;
@@ -497,13 +500,17 @@ function LatestListing({ listing }: { listing: EbayCardDemandListing }) {
 export default function EbayCardDemandPanel({
   cardId,
   initialMode = "raw",
+  mode: controlledMode,
+  onModeChange,
+  showModeControl = true,
   className = "",
   compact = false,
   rail = false,
 }: EbayCardDemandPanelProps) {
   const panelRef = useRef<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
-  const [mode, setMode] = useState<EbayCardDemandMode>(initialMode);
+  const [uncontrolledMode, setUncontrolledMode] = useState<EbayCardDemandMode>(initialMode);
+  const mode = controlledMode ?? uncontrolledMode;
   const [payloadState, setPayloadState] = useState<{
     contextKey: string;
     payload: EbayCardDemandPayload;
@@ -651,7 +658,8 @@ export default function EbayCardDemandPanel({
   function selectMode(nextMode: EbayCardDemandMode) {
     if (nextMode === mode) return;
     requestContextRef.current = `${cardId}:${nextMode}`;
-    setMode(nextMode);
+    if (controlledMode == null) setUncontrolledMode(nextMode);
+    onModeChange?.(nextMode);
   }
 
   const displayedListingCount = latestListings.length;
@@ -708,26 +716,28 @@ export default function EbayCardDemandPanel({
             </p>
           </div>
         </div>
-        <div className={rail ? "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2.5rem] items-center gap-2" : "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-2 sm:flex sm:w-auto"}>
-          <div
-            role="group"
-            aria-label="eBay market mode"
-            className={rail ? "dc-compact-segment grid h-9 min-w-0 grid-cols-2 overflow-hidden rounded-lg border border-white/8 bg-black/24 p-1" : "dc-compact-segment grid h-11 min-w-0 grid-cols-2 overflow-hidden rounded-xl border border-white/8 bg-black/24 p-0 sm:h-8 sm:min-w-[8.5rem] sm:rounded-lg sm:p-1"}
-          >
-            {(["raw", "graded"] as const).map((nextMode) => (
-              <button
-                key={nextMode}
-                type="button"
-                onClick={() => selectMode(nextMode)}
-                aria-pressed={mode === nextMode}
-                className={`min-w-0 rounded-lg px-2.5 text-[10px] font-semibold capitalize transition sm:rounded-md sm:text-[9px] ${
-                  mode === nextMode ? "bg-violet-500 text-white" : "text-white/42 hover:bg-white/[0.055] hover:text-white/72"
-                }`}
-              >
-                {nextMode}
-              </button>
-            ))}
-          </div>
+        <div className={showModeControl ? (rail ? "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2.5rem] items-center gap-2" : "grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-2 sm:flex sm:w-auto") : "flex w-full justify-end sm:w-auto"}>
+          {showModeControl ? (
+            <div
+              role="group"
+              aria-label="eBay market mode"
+              className={rail ? "dc-compact-segment grid h-9 min-w-0 grid-cols-2 overflow-hidden rounded-lg border border-white/8 bg-black/24 p-1" : "dc-compact-segment grid h-11 min-w-0 grid-cols-2 overflow-hidden rounded-xl border border-white/8 bg-black/24 p-0 sm:h-8 sm:min-w-[8.5rem] sm:rounded-lg sm:p-1"}
+            >
+              {(["raw", "graded"] as const).map((nextMode) => (
+                <button
+                  key={nextMode}
+                  type="button"
+                  onClick={() => selectMode(nextMode)}
+                  aria-pressed={mode === nextMode}
+                  className={`min-w-0 rounded-lg px-2.5 text-[10px] font-semibold capitalize transition sm:rounded-md sm:text-[9px] ${
+                    mode === nextMode ? "bg-violet-500 text-white" : "text-white/42 hover:bg-white/[0.055] hover:text-white/72"
+                  }`}
+                >
+                  {nextMode}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => void refresh()}

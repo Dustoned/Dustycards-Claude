@@ -14,11 +14,17 @@ const FOCUSABLE_SELECTOR = [
 export default function useModalA11y({
   dialogRef,
   enabled = true,
+  initialFocus = "first",
+  initialFocusRef,
   onClose,
+  restoreFocusDelayFrames = 1,
 }: {
   dialogRef: RefObject<HTMLElement | null>;
   enabled?: boolean;
+  initialFocus?: "first" | "dialog";
+  initialFocusRef?: { readonly current: HTMLElement | null };
   onClose: () => void;
+  restoreFocusDelayFrames?: number;
 }) {
   const onCloseRef = useRef(onClose);
 
@@ -40,8 +46,20 @@ export default function useModalA11y({
         (element) => element.getClientRects().length > 0
       );
 
-    const animationFrame = window.requestAnimationFrame(() => {
-      (focusable()[0] ?? dialogElement).focus({ preventScroll: true });
+    const initialFocusAnimationFrame = window.requestAnimationFrame(() => {
+      const preferredInitialFocus = initialFocusRef?.current;
+      const initialFocusElement =
+        preferredInitialFocus &&
+        dialogElement.contains(preferredInitialFocus) &&
+        preferredInitialFocus.getClientRects().length > 0
+          ? preferredInitialFocus
+          : initialFocus === "dialog"
+            ? dialogElement
+            : focusable()[0] ?? dialogElement;
+
+      initialFocusElement.focus({
+        preventScroll: true,
+      });
     });
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -80,11 +98,25 @@ export default function useModalA11y({
     document.addEventListener("keydown", handleKeyDown, true);
 
     return () => {
-      window.cancelAnimationFrame(animationFrame);
+      window.cancelAnimationFrame(initialFocusAnimationFrame);
       document.removeEventListener("keydown", handleKeyDown, true);
-      if (previouslyFocused?.isConnected) {
-        window.requestAnimationFrame(() => previouslyFocused.focus({ preventScroll: true }));
+      // A still-connected dialog is being temporarily suspended (for example,
+      // while a nested fullscreen dialog is open), not closed. Restoring its
+      // original page trigger here would move focus behind the nested modal.
+      if (!dialogElement.isConnected && previouslyFocused?.isConnected) {
+        const restoreFocus = (framesRemaining: number) => {
+          window.requestAnimationFrame(() => {
+            if (framesRemaining > 1) {
+              restoreFocus(framesRemaining - 1);
+              return;
+            }
+            if (previouslyFocused.isConnected) {
+              previouslyFocused.focus({ preventScroll: true });
+            }
+          });
+        };
+        restoreFocus(Math.max(1, Math.floor(restoreFocusDelayFrames)));
       }
     };
-  }, [dialogRef, enabled]);
+  }, [dialogRef, enabled, initialFocus, initialFocusRef, restoreFocusDelayFrames]);
 }

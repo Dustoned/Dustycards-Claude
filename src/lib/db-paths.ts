@@ -1,7 +1,11 @@
 import fs from "fs";
 import path from "path";
 
-export const LIVE_DB_PATH = path.join(process.cwd(), "dustycards.db");
+const configuredLiveDbPath = process.env.DUSTYCARDS_DATABASE_PATH?.trim();
+
+export const LIVE_DB_PATH = configuredLiveDbPath
+  ? path.resolve(configuredLiveDbPath)
+  : path.join(process.cwd(), "dustycards.db");
 export const APP_DB_SNAPSHOT_PATH = path.join(process.cwd(), "data", "dustycards.app.db");
 
 export function getSqliteSidecarPaths(dbPath: string): string[] {

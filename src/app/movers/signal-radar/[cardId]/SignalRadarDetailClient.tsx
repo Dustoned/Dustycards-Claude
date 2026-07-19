@@ -1,63 +1,66 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
-  BarChart3,
-  BrainCircuit,
   CheckCircle2,
   Loader2,
-  Newspaper,
-  PackageSearch,
-  Radar,
   RefreshCw,
   Search,
   ShieldAlert,
   Sparkles,
-  Tag,
-  UserRound,
   X,
 } from "lucide-react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { getSignalExplanations } from "@/app/movers/signal-radar/ExternalSignalBrowser";
-import CachedImage from "@/components/CachedImage";
+import CardDetailShell, {
+  type CardDetailSize,
+  type CardDetailTab,
+} from "@/components/card-detail/CardDetailShell";
+import { CardDetailMediaSwitcher } from "@/components/card-detail/CardDetailMediaSwitcher";
+import { CardDetailMarketControls } from "@/components/card-detail/CardDetailMarketControls";
+import { orderCardDetailTabs } from "@/components/card-detail/card-detail-tabs";
+import {
+  CardModalActiveListingsPanel,
+  CardModalDesktopActionGroup,
+  CardModalMarketSignalPanel,
+  CardModalOwnedCopyPanel,
+  CardModalPreview,
+  CardModalRecentPricesPanel,
+} from "@/components/card-modal/CardModalSections";
+import type { ModalCardData } from "@/components/card-modal/types";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import PriceHistoryPanel, {
+  type PriceHistoryProjection,
   type PriceHistoryValuePoint,
 } from "@/components/PriceHistoryPanel";
-import { formatCurrency } from "@/lib/format";
-import type { ExternalCardSignal, ExternalMarketMode } from "@/lib/external-signal-radar";
+import { useSettings } from "@/components/SettingsProvider";
+import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { buildCardMarketProxyUrl, getSafeDirectCardMarketCardUrl } from "@/lib/cardmarket";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
+import type { ExternalCardSignal, ExternalMarketMode } from "@/lib/external-signal-radar";
+import { formatCurrency } from "@/lib/format";
+import {
+  GRADED_SLAB_ASPECT_CLASS,
+  RAW_CARD_ASPECT_CLASS,
+  normalizeGradingCompanyLabel,
+  normalizeGradingGradeLabel,
+} from "@/lib/graded-slabs";
 import { getExpansionHref } from "@/lib/games";
 import { buildAttachedBasePrediction } from "@/lib/signal-price-history";
+import useBodyScrollLock from "@/lib/useBodyScrollLock";
+import useModalA11y from "@/lib/useModalA11y";
 
-export interface SignalRadarCardBasics {
-  id: string;
-  card_number: string | null;
-  printed_card_number: string | null;
-  rarity: string | null;
-  hp: number | null;
-  supertype: string | null;
-  subtypes: string | null;
-  artist: string | null;
-  cardmarket_url: string | null;
-  prices: Array<{
-    cm_en_lowest_nm: number | null;
-    cm_de_lowest_nm: number | null;
-    cm_fr_lowest_nm: number | null;
-    cm_es_lowest_nm: number | null;
-    cm_it_lowest_nm: number | null;
-    cm_jp_lowest_nm: number | null;
-  }>;
-  episode: {
-    id: string;
-    name: string;
-    code: string | null;
-    series: string | null;
-    release_date: string | null;
-  };
-}
+const CardThreeViewer = dynamic(() => import("@/app/expansions/[id]/CardThreeViewer"), {
+  ssr: false,
+  loading: () => null,
+});
+const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
+  ssr: false,
+  loading: () => null,
+});
 
 export interface SignalRadarPriceHistoryData {
   raw: PriceHistoryValuePoint[];
@@ -89,184 +92,264 @@ interface CardResearchSnapshot {
   results: CardResearchResult[];
 }
 
-const FORECAST_TARGETS = [
-  { key: "1.5x-90d", label: "1.5x", horizon: "90 days", minimum: 50 },
-  { key: "2x-90d", label: "2x", horizon: "90 days", minimum: 100 },
-  { key: "3x-180d", label: "3x", horizon: "180 days", minimum: 200 },
-] as const;
-
 type ForecastDirection = "strong-rise" | "rise" | "flat" | "decline";
 
-interface ForecastPresentation {
-  direction: ForecastDirection;
-  label: string;
-  change: number;
-  changePct: number;
-}
-
-function getForecastPresentation(
-  currentPrice: number | null | undefined,
-  points: Array<{ days: number; base: number }>,
-  modelOutlook?: "strong_up" | "modest_up" | "flat" | "down",
-  modelReturnPct180?: number
-): ForecastPresentation | null {
-  if (currentPrice == null || currentPrice <= 0) return null;
-  const horizon = points.find((point) => point.days === 180) ?? points.at(-1);
-  if (!horizon || !Number.isFinite(horizon.base) || horizon.base <= 0) return null;
-
-  const change = horizon.base - currentPrice;
-  const changePct = modelReturnPct180 ?? (change / currentPrice) * 100;
-  if (modelOutlook) {
-    const presentation =
-      modelOutlook === "strong_up"
-        ? { direction: "strong-rise" as const, label: "Strong upside" }
-        : modelOutlook === "modest_up"
-          ? { direction: "rise" as const, label: "Mild upside" }
-          : modelOutlook === "down"
-            ? { direction: "decline" as const, label: "Downside risk" }
-            : { direction: "flat" as const, label: "Mostly flat" };
-    return { ...presentation, change, changePct };
-  }
-  const strongAbsoluteGain =
-    currentPrice < 5
-      ? 1
-      : currentPrice < 25
-        ? 3
-        : currentPrice < 100
-          ? 7.5
-          : currentPrice < 500
-            ? 20
-            : Math.max(35, currentPrice * 0.05);
-  const visibleMove = Math.max(0.25, currentPrice * 0.03);
-
-  if (changePct >= 20 && change >= strongAbsoluteGain) {
-    return { direction: "strong-rise", label: "Strong upside", change, changePct };
-  }
-  if (changePct >= 4 && change >= visibleMove) {
-    return { direction: "rise", label: "Mild upside", change, changePct };
-  }
-  if (changePct <= -4 && Math.abs(change) >= visibleMove) {
-    return { direction: "decline", label: "Downside risk", change, changePct };
-  }
-  return { direction: "flat", label: "Mostly flat", change, changePct };
-}
-
-function forecastToneClasses(direction: ForecastDirection) {
-  return direction === "strong-rise"
-    ? "border-emerald-300/14 bg-emerald-400/[0.055] text-emerald-100/78"
-    : direction === "decline"
-      ? "border-rose-300/14 bg-rose-400/[0.055] text-rose-100/78"
-      : direction === "flat"
-        ? "border-amber-300/14 bg-amber-400/[0.05] text-amber-100/74"
-        : "border-sky-300/14 bg-sky-400/[0.05] text-sky-100/76";
-}
+const FORECAST_TARGETS = [
+  { key: "1.5x-90d", label: "1.5×", horizon: "90 days", minimum: 50 },
+  { key: "2x-90d", label: "2×", horizon: "90 days", minimum: 100 },
+  { key: "3x-180d", label: "3×", horizon: "180 days", minimum: 200 },
+] as const;
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-function signedPercent(value: number | null): string {
-  if (value == null) return "--";
+function signedPercent(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "--";
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
-function AnalysisSection({
+function getForecastDirection(
+  outlook: "strong_up" | "modest_up" | "flat" | "down" | undefined,
+  changePct: number | null
+): ForecastDirection {
+  if (outlook === "strong_up") return "strong-rise";
+  if (outlook === "modest_up") return "rise";
+  if (outlook === "down") return "decline";
+  if (outlook === "flat") return "flat";
+  if (changePct == null || Math.abs(changePct) < 4) return "flat";
+  if (changePct < 0) return "decline";
+  return changePct >= 20 ? "strong-rise" : "rise";
+}
+
+function forecastTone(direction: ForecastDirection): string {
+  if (direction === "strong-rise") {
+    return "border-cyan-300/18 bg-cyan-400/[0.055] text-cyan-100/84";
+  }
+  if (direction === "rise") {
+    return "border-emerald-300/16 bg-emerald-400/[0.05] text-emerald-100/80";
+  }
+  if (direction === "decline") {
+    return "border-rose-300/16 bg-rose-400/[0.05] text-rose-100/80";
+  }
+  return "border-white/10 bg-white/[0.035] text-white/66";
+}
+
+function DetailSurface({
   eyebrow,
   title,
-  icon,
-  aside,
+  copy,
   children,
-  className,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
-  icon: ReactNode;
-  aside?: ReactNode;
+  copy?: string;
   children: ReactNode;
-  className?: string;
 }) {
   return (
-    <section className={cx("overflow-hidden rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)]", className)}>
-      <div className="flex min-h-14 items-center justify-between gap-3 border-b border-white/7 px-4 py-3 sm:px-5 [@media(min-width:2200px)]:min-h-12 [@media(min-width:2200px)]:py-2.5">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-300/12 bg-violet-400/[0.065] text-violet-200/75">
-            {icon}
-          </span>
-          <div className="min-w-0">
-            <p className="text-[8px] font-bold uppercase tracking-[0.16em] text-white/30">{eyebrow}</p>
-            <h2 className="mt-0.5 truncate text-sm font-bold text-white/88 sm:text-base">{title}</h2>
-          </div>
-        </div>
-        {aside}
-      </div>
-      <div className="p-4 sm:p-5 [@media(min-width:2200px)]:p-3.5">{children}</div>
+    <section className="card-detail-surface">
+      {eyebrow ? <p className="card-detail-eyebrow">{eyebrow}</p> : null}
+      <h2 className={cx("card-detail-surface-title", eyebrow ? "mt-2" : "")}>{title}</h2>
+      {copy ? <p className="card-detail-surface-copy">{copy}</p> : null}
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
 
-function MetricRow({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
+function InfoGrid({ items }: { items: Array<[string, ReactNode]> }) {
   return (
-    <div className="grid min-h-12 grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] items-center gap-3 border-b border-white/6 px-3 py-2.5 last:border-b-0 [@media(min-width:2200px)]:min-h-10 [@media(min-width:2200px)]:py-2">
-      <span className="min-w-0 break-words text-[10px] font-medium leading-tight text-white/38">{label}</span>
-      <span className="min-w-0 break-words text-right text-xs font-semibold leading-tight text-white/78">
-        {value}
-        {hint ? <span className="mt-0.5 block text-[9px] font-normal text-white/28">{hint}</span> : null}
-      </span>
+    <dl className="card-detail-info-grid">
+      {items.map(([label, value], index) => (
+        <div key={`${label}-${index}`} className="card-detail-info-cell">
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function ResearchDialog({
+  signal,
+  research,
+  status,
+  error,
+  onClose,
+  onRetry,
+}: {
+  signal: ExternalCardSignal;
+  research: CardResearchSnapshot | null;
+  status: "idle" | "loading" | "success" | "error";
+  error: string | null;
+  onClose: () => void;
+  onRetry: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  useBodyScrollLock(true);
+  useModalA11y({ dialogRef, onClose });
+
+  return (
+    <div
+      className="fixed inset-0 z-[270] flex items-end justify-center bg-black/78 px-0 pt-12 backdrop-blur-md sm:items-center sm:p-5"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="card-research-title"
+        tabIndex={-1}
+        className="flex max-h-[88dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[1.65rem] border border-white/12 bg-[linear-gradient(150deg,rgba(20,19,30,0.995),rgba(8,8,13,0.995))] shadow-[0_30px_100px_rgba(0,0,0,0.72)] sm:max-h-[82dvh] sm:rounded-[1.65rem]"
+      >
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/8 px-4 py-4 sm:px-6">
+          <div className="min-w-0">
+            <p className="card-detail-eyebrow">Focused web research</p>
+            <h2 id="card-research-title" className="mt-1 truncate text-xl font-extrabold text-white/92">
+              {signal.name}
+            </h2>
+            <p className="mt-1 text-sm text-white/42">
+              Printing-specific catalysts, reprints, grading and collector demand.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close card research"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-white/58 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          {status === "loading" ? (
+            <div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-violet-300/13 bg-violet-400/[0.035] px-6 text-center">
+              <Loader2 className="h-7 w-7 animate-spin text-violet-200/78" />
+              <h3 className="mt-4 text-base font-bold text-white/84">Researching this exact printing</h3>
+              <p className="mt-1.5 max-w-md text-sm leading-6 text-white/42">
+                Checking trusted news, reprint signals and relevant market context.
+              </p>
+            </div>
+          ) : null}
+
+          {status === "error" ? (
+            <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-rose-300/13 bg-rose-400/[0.035] px-6 text-center">
+              <ShieldAlert className="h-7 w-7 text-rose-200/72" />
+              <h3 className="mt-3 text-base font-bold text-white/84">Research could not be completed</h3>
+              <p className="mt-1.5 max-w-md text-sm leading-6 text-white/44">{error}</p>
+              <button type="button" onClick={onRetry} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-bold text-white/76 transition hover:border-violet-300/24 hover:bg-violet-400/[0.09]">
+                <RefreshCw className="h-4 w-4" /> Try again
+              </button>
+            </div>
+          ) : null}
+
+          {status === "success" && research ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-black/18 px-4 py-3 text-xs font-semibold text-white/42">
+                <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 uppercase">{research.provider}</span>
+                <span>{research.queriesRun} {research.queriesRun === 1 ? "query" : "queries"}</span>
+                <span>{research.creditsUsed} credits</span>
+                {research.cached ? <span className="text-cyan-100/65">Cached for 24 hours</span> : null}
+              </div>
+              {research.results.length ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {research.results.map((result, index) => (
+                    <a
+                      key={`${result.url}:${index}`}
+                      href={result.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex min-w-0 flex-col rounded-2xl border border-white/8 bg-white/[0.025] p-4 transition hover:border-violet-300/22 hover:bg-violet-400/[0.055]"
+                    >
+                      <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-white/38">
+                        <span>{result.category}</span>
+                        <span className="ml-auto text-violet-200/58">{result.domain}</span>
+                      </div>
+                      <h3 className="mt-3 line-clamp-2 text-sm font-bold leading-5 text-white/82 group-hover:text-white">{result.title}</h3>
+                      {result.reason ? <p className="mt-2 text-xs font-semibold leading-5 text-violet-100/62">{result.reason}</p> : null}
+                      {result.description ? <p className="mt-2 line-clamp-3 text-sm leading-5 text-white/40">{result.description}</p> : null}
+                      <span className="mt-auto inline-flex items-center gap-1 pt-4 text-xs font-bold text-violet-200/62">
+                        Open source <ArrowUpRight className="h-3.5 w-3.5" />
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-white/8 bg-black/18 px-6 text-center">
+                  <Search className="h-7 w-7 text-white/24" />
+                  <h3 className="mt-3 text-base font-bold text-white/76">No reliable card-specific source found</h3>
+                  <p className="mt-1.5 max-w-md text-sm leading-6 text-white/40">The completed search found no new source that could safely be tied to this printing.</p>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </section>
     </div>
   );
 }
 
 export default function SignalRadarDetailClient({
   signal,
-  cardBasics,
+  card,
   priceHistory,
   initialResearch = null,
+  detailSize = "medium",
 }: {
   signal: ExternalCardSignal;
-  cardBasics: SignalRadarCardBasics;
+  card: ModalCardData;
   priceHistory: SignalRadarPriceHistoryData;
   initialResearch?: CardResearchSnapshot | null;
+  detailSize?: CardDetailSize;
 }) {
+  const router = useRouter();
+  const { displaySettings, currentUserRole } = useSettings();
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
-  const [mobileTab, setMobileTab] = useState<"info" | "forecast" | "demand" | "evidence">("info");
+  const [threeDOpen, setThreeDOpen] = useState(false);
+  const [selectedSealedProduct, setSelectedSealedProduct] = useState<SealedModalProductData | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [syncingHistory, setSyncingHistory] = useState(false);
+  const [removingCollectionItem, setRemovingCollectionItem] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [researchOpen, setResearchOpen] = useState(false);
   const [researchStatus, setResearchStatus] = useState<"idle" | "loading" | "success" | "error">(
     initialResearch ? "success" : "idle"
   );
   const [research, setResearch] = useState<CardResearchSnapshot | null>(initialResearch);
   const [researchError, setResearchError] = useState<string | null>(null);
+
+  const collectionItem = card.collection_item ?? null;
+  const gradingCompanyLabel = normalizeGradingCompanyLabel(collectionItem?.grading_company);
+  const gradingGradeLabel = normalizeGradingGradeLabel(collectionItem?.grading_grade);
+  const showGradedPreview = Boolean(gradingCompanyLabel && gradingGradeLabel);
+  const radarGradedLabel =
+    priceHistory.gradedLabel ??
+    [gradingCompanyLabel, gradingGradeLabel].filter(Boolean).join(" ") ??
+    "Graded";
   const market = signal.marketIntelligence;
   const gradedAvailable = market?.graded.available ?? false;
-  const scenario = marketMode === "graded" ? market?.gradedScenario : market?.rawScenario;
+  const effectiveMode = marketMode === "graded" && gradedAvailable ? "graded" : "raw";
+  const scenario = effectiveMode === "graded" ? market?.gradedScenario : market?.rawScenario;
   const opportunity =
-    marketMode === "graded" ? market?.gradedOpportunityScore : market?.rawOpportunityScore;
+    effectiveMode === "graded" ? market?.gradedOpportunityScore : market?.rawOpportunityScore;
   const score = opportunity ?? signal.externalScore;
-  const tier = score >= 80 ? "Breakout" : score >= 60 ? "Strong" : "Watch";
   const confluence = market
-    ? marketMode === "graded"
+    ? effectiveMode === "graded"
       ? market.gradedConfluence ?? market.confluence
       : market.rawConfluence ?? market.confluence
     : undefined;
-  const explanations = getSignalExplanations(signal);
-  const catalysts = signal.catalysts ?? [];
-  const researchResults = research?.results ?? [];
-  const latestRawPrice = cardBasics.prices[0];
-  const rawMarketPrice = latestRawPrice
-    ? latestRawPrice.cm_en_lowest_nm
-    : null;
-  const displayPrice =
-    marketMode === "graded"
-      ? scenario?.currentPrice ?? market?.graded.currentPrice ?? null
-      : rawMarketPrice ?? signal.currentPrice;
-  const displayCurrency =
-    marketMode === "graded" ? scenario?.currency ?? market?.graded.currency ?? "EUR" : signal.currency;
-  const scenarioUsesReleaseStabilization =
-    scenario?.drivers.includes("post-release stabilization") ?? false;
-  const scenarioUsesLaunchWindow =
-    scenario?.drivers.includes("launch price discovery") ?? false;
-  const activeHistory = marketMode === "graded" ? priceHistory.graded : priceHistory.raw;
+  const activeHistory = effectiveMode === "graded" ? priceHistory.graded : priceHistory.raw;
   const activeHistoryCurrency =
-    marketMode === "graded" ? priceHistory.gradedCurrency : priceHistory.rawCurrency;
+    effectiveMode === "graded" ? priceHistory.gradedCurrency : priceHistory.rawCurrency;
+  const rawMarketPrice = card.price?.cm_en_lowest_nm ?? signal.currentPrice;
+  const displayPrice =
+    effectiveMode === "graded"
+      ? scenario?.currentPrice ?? market?.graded.currentPrice ?? null
+      : rawMarketPrice;
+  const displayCurrency =
+    effectiveMode === "graded" ? scenario?.currency ?? market?.graded.currency ?? "EUR" : "EUR";
   const predictionPoints = useMemo(
     () =>
       scenario
@@ -279,75 +362,103 @@ export default function SignalRadarDetailClient({
         : [],
     [activeHistory, displayPrice, priceHistory.modelDate, scenario]
   );
-  const forecastPresentation = scenario
-    ? getForecastPresentation(
-        displayPrice,
-        scenario.points,
-        scenario.outlook,
-        scenario.expectedReturnPct180
-      )
-    : null;
-  const projection =
+  const horizonPoint = scenario?.points.find((point) => point.days === 180) ?? scenario?.points.at(-1);
+  const forecastChangePct =
+    scenario?.expectedReturnPct180 ??
+    (displayPrice != null && displayPrice > 0 && horizonPoint
+      ? ((horizonPoint.base - displayPrice) / displayPrice) * 100
+      : null);
+  const forecastDirection = getForecastDirection(scenario?.outlook, forecastChangePct);
+  const projection: PriceHistoryProjection | null =
     predictionPoints.length > 1
       ? {
-          label: forecastPresentation
-            ? `Dusty forecast · ${forecastPresentation.label}`
-            : "Dusty forecast",
+          label: "Dusty forecast",
           points: predictionPoints,
-          tone: forecastPresentation?.direction,
-          summary: forecastPresentation ? signedPercent(forecastPresentation.changePct) : undefined,
+          tone: forecastDirection,
+          summary: signedPercent(forecastChangePct),
         }
       : null;
+  const explanations = getSignalExplanations(signal);
+  const catalysts = signal.catalysts ?? [];
+  const researchResults = research?.results ?? [];
   const cardMarketHref =
-    getSafeDirectCardMarketCardUrl(cardBasics.cardmarket_url, signal.game) ??
-    buildCardMarketProxyUrl(signal.cardId);
+    getSafeDirectCardMarketCardUrl(card.cardmarket_url, card.game) ?? buildCardMarketProxyUrl(card.id);
   const ebayHref = buildCardEbaySearchUrl({
-    name: signal.name,
-    cardNumber: cardBasics.printed_card_number ?? cardBasics.card_number,
+    name: card.name,
+    cardNumber: card.card_number,
+    gradingCompany: gradingCompanyLabel,
+    gradingGrade: gradingGradeLabel,
   });
-  const releaseLabel = cardBasics.episode.release_date
-    ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(
-        new Date(cardBasics.episode.release_date)
-      )
+  const releaseLabel = card.episode_release_date
+    ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(card.episode_release_date))
     : "Unknown";
+  const isBusy = refreshing || syncingHistory;
 
-  useEffect(() => {
-    if (!researchOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setResearchOpen(false);
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [researchOpen]);
+  async function runCardAction(action: "refresh" | "sync-history") {
+    if (action === "refresh") {
+      setRefreshing(true);
+    } else {
+      setSyncingHistory(true);
+    }
+    setActionError(null);
+    try {
+      const response = await fetch(`/api/cards/${encodeURIComponent(card.id)}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Could not update card prices");
+      router.refresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Could not update card prices");
+    } finally {
+      if (action === "refresh") {
+        setRefreshing(false);
+      } else {
+        setSyncingHistory(false);
+      }
+    }
+  }
+
+  async function removeCurrentCollectionItem() {
+    if (!collectionItem || collectionItem.read_only || removingCollectionItem) return;
+    if (!window.confirm("Remove this saved copy from your collection?")) return;
+    setRemovingCollectionItem(true);
+    setActionError(null);
+    try {
+      const response = await fetch("/api/collection/cards", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ itemId: collectionItem.id }),
+      });
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error ?? "Could not remove this copy");
+      router.refresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Could not remove this copy");
+    } finally {
+      setRemovingCollectionItem(false);
+    }
+  }
 
   async function runCardResearch() {
     setResearchOpen(true);
     setResearchStatus("loading");
     setResearchError(null);
-
     try {
       const response = await fetch(
         `/api/movers/signal-radar/${encodeURIComponent(signal.cardId)}/research`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({}),
-        }
+        { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }
       );
       const payload = (await response.json().catch(() => null)) as
         | { ok: true; research: CardResearchSnapshot }
         | { ok: false; error?: string }
         | null;
-
       if (!response.ok || !payload?.ok) {
         throw new Error(payload && "error" in payload && payload.error ? payload.error : "Card research could not be completed.");
       }
-
       setResearch(payload.research);
       setResearchStatus("success");
     } catch (error) {
@@ -356,646 +467,349 @@ export default function SignalRadarDetailClient({
     }
   }
 
-  const researchGeneratedLabel = research?.generatedAt
-    ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(
-        new Date(research.generatedAt)
-      )
-    : null;
+  const overviewPanel = (
+    <div className="card-detail-section-grid" data-columns="2">
+      <DetailSurface eyebrow="Card profile" title="The printing at a glance" copy="Canonical card facts stay in the same place as every other detail view.">
+        <InfoGrid
+          items={[
+            ["Expansion", <Link key="set" href={getExpansionHref(card.episode_id)} className="text-violet-200/82 hover:text-white">{card.episode_name}</Link>],
+            ["Card number", card.card_number ? `#${card.card_number}` : "--"],
+            ["Rarity", card.rarity ?? "--"],
+            ["Illustrator", card.artist ? <Link key="artist" href={`/illustrators/${encodeURIComponent(card.artist)}`} className="text-violet-200/82 hover:text-white">{card.artist}</Link> : "--"],
+            ["Type", [card.supertype, card.subtypes].filter(Boolean).join(" · ") || "--"],
+            ["HP", card.hp ?? "--"],
+            ["Release", releaseLabel],
+            ["Pull odds", card.pull_rate_info?.specific_pull_odds ?? card.pull_rate_info?.pull_rate_odds ?? "Unknown"],
+          ]}
+        />
+      </DetailSurface>
 
-  const researchButton = (
-    <button
-      type="button"
-      onClick={() => void runCardResearch()}
-      disabled={researchStatus === "loading"}
-      className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/20 bg-[linear-gradient(135deg,rgba(124,92,255,0.20),rgba(56,189,248,0.08))] px-3 text-[12px] font-bold text-violet-50/90 shadow-[0_12px_32px_rgba(83,54,180,0.12)] transition hover:border-violet-200/34 hover:bg-violet-400/[0.16] disabled:cursor-wait disabled:opacity-65 lg:min-h-10 lg:rounded-xl lg:text-[10px]"
-    >
-      {researchStatus === "loading" ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Search className="h-4 w-4" />
-      )}
-      {researchStatus === "loading" ? "Researching this card..." : "Research this card"}
-    </button>
+      <DetailSurface eyebrow="Signal summary" title={`Why ${card.name} is on the radar`} copy={signal.pressureExplanation}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {explanations.slice(0, 4).map((item) => (
+            <div key={item.label} className="flex gap-3 rounded-2xl border border-white/8 bg-black/16 p-4">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300/72" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-white/80">{item.label}</p>
+                <p className="mt-1 text-sm leading-5 text-white/42">{item.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </DetailSurface>
+    </div>
   );
 
-  return (
-    <>
-      <div className="relative overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#090a0f] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.35)] sm:p-4 lg:hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_18%,rgba(124,92,255,0.24),transparent_36%),radial-gradient(circle_at_22%_16%,rgba(56,189,248,0.10),transparent_32%)]" />
-
-        <div className="relative grid gap-4 sm:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)] sm:items-start">
-        <div className="relative min-w-0 flex flex-col items-center sm:items-stretch">
-          <div className="relative aspect-[63/88] w-[min(58vw,15rem)] overflow-hidden rounded-[1rem] border border-white/12 bg-black/28 shadow-[0_26px_70px_rgba(0,0,0,0.52)] sm:w-full">
-            {signal.imageUrl ? (
-              <CachedImage
-                sourceUrl={signal.imageUrl}
-                alt={signal.name}
-                fill
-                priority
-                sizes="(max-width: 639px) 58vw, 240px"
-                className="object-contain"
-              />
-            ) : null}
-          </div>
-          <div className="mt-3 grid w-full grid-cols-2 gap-2">
-            <a href={cardMarketHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.055] text-[12px] font-bold text-white/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.10]">
-              CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-            <a href={ebayHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.055] text-[12px] font-bold text-white/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.10]">
-              eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-            <div className="col-span-2">{researchButton}</div>
-          </div>
-        </div>
-
-        <div className="relative mt-5 sm:contents">
-          <div className="min-w-0 sm:col-start-2 sm:row-start-1">
-          <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-full border border-violet-300/18 bg-violet-500/12 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] text-violet-100/78">{signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} radar`}</span>
-            <span className="rounded-full border border-emerald-300/16 bg-emerald-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-emerald-100/70">{signal.confidence}</span>
-            <span className="rounded-full border border-white/9 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/48">{tier}</span>
-          </div>
-          <h1 className="mt-3 break-words text-[1.85rem] font-black leading-[1.02] tracking-tight text-white">{signal.name}</h1>
-          <p className="mt-1.5 text-[13px] font-medium text-white/48">{signal.episodeName}{signal.cardNumber ? ` · ${signal.cardNumber}` : ""}{signal.rarity ? ` · ${signal.rarity}` : ""}</p>
-
-          <div className="mt-4 grid grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] gap-2.5">
-            <div className="rounded-[1.15rem] border border-violet-300/14 bg-violet-400/[0.07] p-3.5">
-              <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-violet-100/45">Current {marketMode}</p>
-              <p className="mt-1.5 break-words text-[clamp(1.15rem,6vw,1.55rem)] font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
-              <p className="mt-1 text-[9px] text-white/32">{signal.horizon}</p>
-            </div>
-            <div className="rounded-[1.15rem] border border-white/9 bg-black/22 p-3.5">
-              <div className="flex items-center justify-between gap-2 border-b border-white/7 pb-2">
-                <span className="text-[10px] text-white/38">Opportunity</span><strong className="text-sm text-white/88">{score}/100</strong>
-              </div>
-              <div className="flex items-center justify-between gap-2 pt-2">
-                <span className="text-[10px] text-white/38">Setup</span><strong className="text-sm text-fuchsia-100/82">{confluence?.score ?? "--"}/100</strong>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 flex rounded-2xl border border-white/8 bg-black/24 p-1">
-            {(["raw", "graded"] as const).map((mode) => {
-              const disabled = mode === "graded" && !gradedAvailable;
-              return <button key={mode} type="button" disabled={disabled} onClick={() => setMarketMode(mode)} className={cx("min-h-10 flex-1 rounded-xl text-[12px] font-bold capitalize transition", marketMode === mode ? "bg-violet-600 text-white" : disabled ? "cursor-not-allowed text-white/18" : "text-white/45 hover:bg-white/[0.055]")}>{mode}</button>;
-            })}
-          </div>
-          </div>
-
-          <nav
-            role="tablist"
-            aria-label="Signal analysis sections"
-            className="mt-4 grid grid-cols-4 gap-1 rounded-2xl border border-white/8 bg-black/25 p-1 sm:col-span-2 sm:mt-0"
-          >
-            {([
-              ["info", "Info"],
-              ["forecast", "Forecast"],
-              ["demand", "Demand"],
-              ["evidence", "Evidence"],
-            ] as const).map(([key, label]) => (
-              <button key={key} id={`signal-tab-${key}`} type="button" role="tab" aria-selected={mobileTab === key} aria-controls={`signal-panel-${key}`} onClick={() => setMobileTab(key)} className={cx("min-h-10 min-w-0 rounded-xl px-1.5 text-[11px] font-bold transition min-[390px]:px-2 min-[390px]:text-[12px]", mobileTab === key ? "bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,92,255,0.22)]" : "text-white/44 hover:bg-white/[0.055]")}>{label}</button>
-            ))}
-          </nav>
-
-          {mobileTab === "info" ? (
-            <div id="signal-panel-info" role="tabpanel" aria-labelledby="signal-tab-info" className="mt-3 space-y-3 sm:col-span-2 sm:mt-0">
-              <div className="grid grid-cols-2 gap-2 rounded-[1.35rem] border border-white/9 bg-black/18 p-2">
-                {[
-                  ["Expansion", cardBasics.episode.name],
-                  ["Illustrator", cardBasics.artist ?? "Unknown"],
-                  ["Card number", cardBasics.printed_card_number ?? cardBasics.card_number ?? "--"],
-                  ["Release", releaseLabel],
-                  ["Type", [cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"],
-                  ["HP", cardBasics.hp ?? "--"],
-                ].map(([label, value]) => (
-                  <div key={label} className="min-w-0 rounded-xl border border-white/7 bg-white/[0.025] p-3">
-                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/28">{label}</p>
-                    <p className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-4 text-white/76">{value}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link href={getExpansionHref(cardBasics.episode.id)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-3 text-[10px] font-semibold text-violet-100/72"><Tag className="h-3.5 w-3.5" />{cardBasics.episode.name}</Link>
-                {cardBasics.artist ? <Link href={`/illustrators/${encodeURIComponent(cardBasics.artist)}`} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/9 bg-white/[0.035] px-3 text-[10px] font-semibold text-white/56"><UserRound className="h-3.5 w-3.5" />{cardBasics.artist}</Link> : null}
-              </div>
-              <div className="space-y-2">
-                {explanations.slice(0, 3).map((item) => <div key={item.label} className="flex gap-3 rounded-2xl border border-white/8 bg-white/[0.025] p-3"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300/72" /><div><p className="text-[12px] font-bold text-white/78">{item.label}</p><p className="mt-1 text-[10px] leading-4 text-white/40">{item.text}</p></div></div>)}
-              </div>
-            </div>
-          ) : null}
-
-          {mobileTab === "forecast" ? (
-            <div id="signal-panel-forecast" role="tabpanel" aria-labelledby="signal-tab-forecast" className="mt-3 space-y-3 sm:col-span-2 sm:mt-0">
-              <PriceHistoryPanel
-                title={`${marketMode === "graded" ? "Graded" : "Raw"} price history`}
-                currency={activeHistoryCurrency}
-                points={activeHistory}
-                currentValue={displayPrice}
-                tone="dark"
-                layout="hero"
-                rangeScopePoints={activeHistory}
-                rangeStorageKey={`signal-history-${signal.cardId}-${marketMode}`}
-                emptyText="No reliable price history yet"
-                projection={projection}
-                headerAccessory={
-                  <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/44">
-                    {marketMode === "raw" ? "EN · NM" : priceHistory.gradedLabel ?? "Graded"}
-                  </span>
-                }
-              />
-              {scenario ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {scenario.points.map((point) => {
-                    const changePct = displayPrice && displayPrice > 0
-                      ? ((point.base - displayPrice) / displayPrice) * 100
-                      : null;
-                    const direction: ForecastDirection =
-                      changePct == null || forecastPresentation?.direction === "flat"
-                        ? "flat"
-                        : changePct < 0
-                          ? "decline"
-                          : point.days === 180 && forecastPresentation?.direction === "strong-rise"
-                            ? "strong-rise"
-                            : "rise";
-                    return (
-                      <div key={point.days} className={cx("rounded-xl border p-2.5 text-center", forecastToneClasses(direction))}>
-                        <p className="text-[9px] font-bold uppercase tracking-[0.08em] opacity-55">{point.days}d</p>
-                        <p className="mt-1 text-[12px] font-black tabular-nums text-white/86">{formatCurrency(point.base, scenario.currency)}</p>
-                        <p className="mt-0.5 text-[9px] font-bold tabular-nums opacity-80">{changePct == null ? "--" : signedPercent(changePct)}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-              {scenarioUsesLaunchWindow ? <p className="rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active, so this base prediction can still move quickly.</p> : scenarioUsesReleaseStabilization ? <p className="rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active: fresh supply can keep prices flat or push them lower.</p> : null}
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  ["Sealed pressure", `${market?.sealed.pressureScore ?? "--"}/100`],
-                  ["Set lifecycle", market?.sealed.lifecycleLabel ?? "Learning"],
-                  ["OOP likelihood", market?.sealed.lifecycleOopProbability == null ? "--" : `${market.sealed.lifecycleOopProbability}%`],
-                  ["Cheapest pack", market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")],
-                  ["Scarcity", `${market?.scarcity.score ?? "--"}/100`],
-                  ["Set rarity", market?.scarcity.setRarityLabel ?? "Unknown"],
-                  ["Pull odds", market?.scarcity.pullOdds ?? "Unknown"],
-                  ["Character demand", `${market?.scarcity.collectorDemandScore ?? "--"}/100`],
-                  ["Gem rate", market?.graded.gemRatePct == null ? "--" : `${market.graded.gemRatePct.toFixed(1)}%`],
-                ].map(([label, value]) => <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.025] p-3"><p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/28">{label}</p><p className="mt-1.5 text-sm font-bold text-white/76">{value}</p></div>)}
-              </div>
-            </div>
-          ) : null}
-
-          {mobileTab === "demand" ? (
-            <div id="signal-panel-demand" role="tabpanel" aria-labelledby="signal-tab-demand" className="mt-3 sm:col-span-2 sm:mt-0">
-              <EbayCardDemandPanel cardId={signal.cardId} compact />
-            </div>
-          ) : null}
-
-          {mobileTab === "evidence" ? (
-            <div id="signal-panel-evidence" role="tabpanel" aria-labelledby="signal-tab-evidence" className="mt-3 space-y-3 sm:col-span-2 sm:mt-0">
-              <div className="rounded-[1.35rem] border border-white/9 bg-black/18 p-3">
-                <div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/48">Source evidence</p><h2 className="mt-1 text-sm font-bold text-white/84">External proof</h2></div><span className="text-[9px] text-white/30">{signal.horizon}</span></div>
-                <div className="mt-3 space-y-2">{signal.evidence.length ? signal.evidence.map((item) => <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-xl border border-white/7 bg-white/[0.025] p-3"><span className="truncate text-[11px] font-semibold text-white/72">{item.deckName}</span><span className="text-[10px] font-bold text-violet-200/72">{item.inclusionPercent.toFixed(0)}%</span><span className="text-[9px] text-white/34">{item.deckSharePercent.toFixed(1)}% meta</span><span className="text-[9px] text-white/34">inclusion</span></Link>) : <p className="text-[10px] leading-4 text-white/38">This setup uses sealed, CardMarket and eBay evidence instead of tournament decks.</p>}</div>
-              </div>
-              <div className="rounded-[1.35rem] border border-white/9 bg-black/18 p-3">
-                <div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/48">Daily scan</p><h2 className="mt-1 text-sm font-bold text-white/84">News, catalysts and risk</h2></div><span className={cx("rounded-full border px-2 py-1 text-[9px]", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 text-rose-100/68" : "border-emerald-300/14 text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk" : "Clear"}</span></div>
-                <div className="mt-3 space-y-2">{catalysts.length ? catalysts.map((catalyst) => <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="block rounded-xl border border-white/7 bg-white/[0.025] p-3"><div className="flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase text-white/34">{catalyst.kind}</span><span className={catalyst.direction === "negative" ? "text-[9px] text-rose-200/72" : "text-[9px] text-emerald-200/72"}>{catalyst.direction}</span></div><p className="mt-1.5 line-clamp-2 text-[11px] font-semibold leading-4 text-white/72">{catalyst.headline}</p></Link>) : researchResults.length ? researchResults.slice(0, 4).map((result) => <Link key={result.url} href={result.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-white/7 bg-white/[0.025] p-3"><div className="flex items-center justify-between gap-2"><span className="text-[9px] font-bold uppercase text-white/34">{result.category}</span><span className="text-[9px] text-violet-200/64">{result.domain}</span></div><p className="mt-1.5 line-clamp-2 text-[11px] font-semibold leading-4 text-white/72">{result.title}</p></Link>) : <div className="flex gap-3 rounded-xl border border-white/7 bg-white/[0.025] p-3"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300/65" /><p className="text-[10px] leading-4 text-white/40">No fresh trusted catalyst is linked to this card yet.</p></div>}</div>
-              </div>
-            </div>
-          ) : null}
-        </div>
-        </div>
+  const marketPanel = (
+    <div className="card-detail-section-grid" data-columns="2">
+      <CardModalMarketSignalPanel
+        signal={signal}
+        card={card}
+        onNavigate={() => undefined}
+        showFullAnalysisLink={false}
+      />
+      <div className="card-detail-section-grid">
+        <CardModalRecentPricesPanel card={card} />
+        <EbayCardDemandPanel
+          cardId={card.id}
+          mode={effectiveMode}
+          onModeChange={setMarketMode}
+          showModeControl={false}
+        />
       </div>
+    </div>
+  );
 
-    <div className="signal-radar-desktop-shell hidden items-start gap-4 lg:grid 2xl:gap-5">
-      <aside className="signal-radar-detail-rail min-w-0 self-start">
-        <div className="p-1">
-          <div className="relative mx-auto aspect-[63/88] w-full max-w-[22rem] overflow-hidden rounded-[1.15rem] border border-white/12 bg-black/28 shadow-[0_28px_80px_rgba(0,0,0,0.46)]">
-            {signal.imageUrl ? (
-              <CachedImage
-                sourceUrl={signal.imageUrl}
-                alt={signal.name}
-                fill
-                priority
-                sizes="(max-width: 1279px) 240px, (max-width: 2199px) 336px, 352px"
-                className="object-contain"
-              />
-            ) : null}
-          </div>
-          <section className="mt-3 rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] p-3">
-            <h2 className="text-sm font-bold text-white/88">Card Links</h2>
-            <p className="mt-1 text-[10px] font-medium text-white/36">Compare this card on external markets.</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-            <a
-              href={cardMarketHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-[10px] font-bold text-white/72 transition hover:border-violet-300/28 hover:bg-violet-400/[0.09] hover:text-white"
-            >
-              CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-            <a
-              href={ebayHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-[10px] font-bold text-white/72 transition hover:border-violet-300/28 hover:bg-violet-400/[0.09] hover:text-white"
-            >
-              eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-            </div>
-            <div className="mt-2">{researchButton}</div>
-          </section>
-          <EbayCardDemandPanel
-            cardId={signal.cardId}
-            compact
-            rail
-            className="mt-3"
-          />
-        </div>
-      </aside>
+  const collectionPanel = (
+    <div className="card-detail-section-grid" data-columns="2">
+      <CardModalOwnedCopyPanel card={card} collectionItem={collectionItem} showActions={false} />
+      <CardModalActiveListingsPanel
+        card={card}
+        onOpenSealedProduct={setSelectedSealedProduct}
+      />
+    </div>
+  );
 
-      <div className="signal-radar-detail-grid grid min-w-0 gap-4">
-        <section className="signal-radar-identity flex min-w-0 flex-col rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] p-4">
-          <div className="flex flex-wrap gap-1.5">
-            <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.11em] text-violet-100/72">{signal.manualResearch || signal.rank <= 0 ? "Research profile" : `#${signal.rank} Radar`}</span>
-            <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/45">{signal.game === "one-piece" ? "One Piece" : "Pokemon"}</span>
-            {signal.rarity ? <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 text-[9px] font-semibold text-white/45">{signal.rarity}</span> : null}
-          </div>
-          <h1 className="mt-3 text-[1.7rem] font-black tracking-tight text-white">{signal.name}</h1>
-          <p className="mt-1 text-xs text-white/42">{signal.episodeName}{signal.cardNumber ? ` · ${signal.cardNumber}` : ""}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link href={getExpansionHref(cardBasics.episode.id)} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-3 py-1.5 text-[10px] font-semibold text-violet-100/72 transition hover:border-violet-300/28 hover:text-white"><Tag className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{cardBasics.episode.name}</span></Link>
-            {cardBasics.artist ? <Link href={`/illustrators/${encodeURIComponent(cardBasics.artist)}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/9 bg-white/[0.035] px-3 py-1.5 text-[10px] font-semibold text-white/56 transition hover:border-violet-300/20 hover:text-white"><UserRound className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{cardBasics.artist}</span></Link> : null}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/8 bg-white/[0.055]">
-            {[
-              ["Card number", cardBasics.printed_card_number ?? cardBasics.card_number ?? "--"],
-              ["Rarity", cardBasics.rarity ?? "--"],
-              ["Type", [cardBasics.supertype, cardBasics.subtypes].filter(Boolean).join(" · ") || "--"],
-              ["Release", releaseLabel],
-            ].map(([label, value]) => (
-              <div key={label} className="min-w-0 bg-[rgba(11,13,21,0.96)] px-3 py-2.5">
-                <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/28">{label}</p>
-                <p className="mt-1 break-words text-[11px] font-semibold leading-4 text-white/78">{value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-auto pt-3">
-            <div className="flex items-end justify-between gap-4 rounded-xl border border-violet-300/12 bg-violet-400/[0.055] p-3">
-              <div className="min-w-0">
-              <p className="text-[8px] font-bold uppercase tracking-[0.14em] text-white/30">Current {marketMode} market</p>
-              <p className="mt-1 text-2xl font-black tabular-nums text-white">{displayPrice == null ? "--" : formatCurrency(displayPrice, displayCurrency)}</p>
-              </div>
-              <div className="grid h-9 w-[11.5rem] shrink-0 grid-cols-2 rounded-lg border border-white/8 bg-black/30 p-1">
-                {(["raw", "graded"] as const).map((mode) => {
-                  const disabled = mode === "graded" && !gradedAvailable;
-                  return <button key={mode} type="button" disabled={disabled} onClick={() => setMarketMode(mode)} className={cx("rounded-md px-3 text-[10px] font-semibold capitalize transition", marketMode === mode ? "bg-violet-500 text-white shadow-sm" : disabled ? "cursor-not-allowed text-white/20" : "text-white/48 hover:bg-white/[0.06] hover:text-white")}>{mode}</button>;
-                })}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="signal-radar-summary min-w-0 rounded-2xl border border-white/9 bg-[linear-gradient(135deg,rgba(26,28,43,0.96),rgba(13,16,25,0.96))] p-4 sm:p-5 [@media(min-width:2200px)]:p-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-violet-200/55">Signal summary</p>
-              <h2 className="mt-1 text-xl font-black text-white sm:text-2xl">Why {signal.name} is on the radar</h2>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-white/42">{signal.pressureExplanation}</p>
-            </div>
-            <span className="rounded-full border border-emerald-300/15 bg-emerald-400/[0.07] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.11em] text-emerald-100/75">{signal.confidence} confidence</span>
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 [@media(min-width:2200px)]:grid-cols-4">
-            {[
-              ["Opportunity", `${score}/100`, "violet"],
-              ["Setup strength", `${confluence?.label ?? "--"} · ${confluence?.score ?? "--"}/100`, "fuchsia"],
-              ["Signal tier", tier, "emerald"],
-              ["Origin", signal.sourceMode === "structural" ? "Scarcity & value" : signal.sourceMode === "event" ? "Set & reveal" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament", "sky"],
-            ].map(([label, value, tone]) => (
-              <div key={label} className={cx("rounded-xl border px-3 py-3", tone === "violet" ? "border-violet-300/14 bg-violet-400/[0.065]" : tone === "fuchsia" ? "border-fuchsia-300/14 bg-fuchsia-400/[0.055]" : tone === "emerald" ? "border-emerald-300/14 bg-emerald-400/[0.055]" : "border-sky-300/14 bg-sky-400/[0.05]")}>
-                <p className="text-[8px] font-bold uppercase tracking-[0.13em] text-white/32">{label}</p>
-                <p className="mt-1 text-base font-black text-white/88">{value}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 hidden grid-cols-3 gap-2 [@media(min-width:2200px)]:grid">
-            {explanations.slice(0, 3).map((item) => (
-              <div key={item.label} className="min-w-0 rounded-xl border border-white/7 bg-black/14 px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300/70" />
-                  <p className="truncate text-[10px] font-bold text-white/72">{item.label}</p>
-                </div>
-                <p className="mt-1 line-clamp-2 text-[9px] leading-3.5 text-white/34">{item.text}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="signal-radar-chart min-w-0 space-y-2">
-          <PriceHistoryPanel
-            title={`${marketMode === "graded" ? "Graded" : "Raw"} price history`}
-            currency={activeHistoryCurrency}
-            points={activeHistory}
-            currentValue={displayPrice}
-            tone="dark"
-            layout="hero"
-            rangeScopePoints={activeHistory}
-            rangeStorageKey={`signal-history-${signal.cardId}-${marketMode}`}
-            emptyText="No reliable price history yet"
-            projection={projection}
-            headerLeadingAccessory={
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="inline-flex h-8 items-center gap-2 rounded-full border border-violet-300/12 bg-violet-400/[0.065] px-3 text-[10px] font-bold text-violet-100/70">
-                  <BarChart3 className="h-3.5 w-3.5" /> Price history + prediction
-                </span>
-                <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/44">
-                  {marketMode === "raw" ? "EN · NM" : priceHistory.gradedLabel ?? "Graded"}
-                </span>
-              </div>
-            }
-            headerAccessory={scenario ? (
-              <div className="flex flex-wrap justify-end gap-1.5">
-                {forecastPresentation ? (
-                  <span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-bold", forecastToneClasses(forecastPresentation.direction))}>
-                    {forecastPresentation.label}
-                  </span>
-                ) : null}
-                <span className="rounded-full border border-white/8 bg-black/20 px-2.5 py-1 text-[9px] font-semibold text-white/48">
-                  {scenario.confidence} confidence
-                </span>
-              </div>
-            ) : null}
-          />
-          {scenario ? (
-            <div className="grid grid-cols-3 gap-2">
-              {scenario.points.map((point) => {
-                const changePct = displayPrice && displayPrice > 0
-                  ? ((point.base - displayPrice) / displayPrice) * 100
-                  : null;
-                const direction: ForecastDirection =
-                  changePct == null || forecastPresentation?.direction === "flat"
-                    ? "flat"
-                    : changePct < 0
-                      ? "decline"
-                      : point.days === 180 && forecastPresentation?.direction === "strong-rise"
-                        ? "strong-rise"
-                        : "rise";
-                return (
-                  <div key={point.days} className={cx("flex min-h-11 items-center justify-between gap-2 rounded-xl border px-3 py-2", forecastToneClasses(direction))}>
-                    <span className="text-[9px] font-bold uppercase tracking-[0.08em] opacity-55">{point.days}d</span>
-                    <div className="min-w-0 text-right">
-                      <strong className="block text-[11px] tabular-nums text-white/82">{formatCurrency(point.base, scenario.currency)}</strong>
-                      <span className="block text-[9px] font-bold tabular-nums opacity-80">{changePct == null ? "--" : signedPercent(changePct)}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : null}
-          {scenarioUsesLaunchWindow ? <p className="rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.04] px-3 py-2 text-[9px] leading-4 text-fuchsia-100/60">Launch price discovery is active, so this base prediction can still move quickly.</p> : scenarioUsesReleaseStabilization ? <p className="rounded-xl border border-sky-300/10 bg-sky-400/[0.04] px-3 py-2 text-[9px] leading-4 text-sky-100/58">New-set stabilization is active: fresh supply can keep prices flat or push them lower.</p> : null}
-        </section>
-
-          <AnalysisSection className="signal-radar-supply" eyebrow="Supply & access" title="Sealed and scarcity" icon={<PackageSearch className="h-4 w-4" />}>
-            <div className="grid gap-3 [@media(min-width:2200px)]:grid-cols-2">
-              <div className="overflow-hidden rounded-xl border border-amber-300/10 bg-amber-400/[0.025]">
-                <MetricRow
-                  label="Set lifecycle"
-                  value={market?.sealed.lifecycleLabel ?? "Learning"}
-                  hint={market?.sealed.lifecycleSummary ?? undefined}
-                />
-                <MetricRow
-                  label="OOP likelihood"
-                  value={market?.sealed.lifecycleOopProbability == null ? "--" : `${market.sealed.lifecycleOopProbability}%`}
-                  hint={market?.sealed.lifecycleConfidence == null ? undefined : `${market.sealed.lifecycleConfidence}% model confidence${market.sealed.lifecycleAsOf ? ` | observed ${market.sealed.lifecycleAsOf.slice(0, 10)}` : ""}`}
-                />
-                <MetricRow label="Sealed pressure" value={`${market?.sealed.pressureLabel ?? "--"} · ${market?.sealed.pressureScore ?? "--"}/100`} />
-                <MetricRow label="Cheapest pack" value={market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")} hint={market?.sealed.packName ?? undefined} />
-                <MetricRow label="90-day sealed trend" value={signedPercent(market?.sealed.trend90dPct ?? null)} />
-                <MetricRow label="Linked products" value={market?.sealed.productCount ?? 0} />
-              </div>
-              <div className="overflow-hidden rounded-xl border border-sky-300/10 bg-sky-400/[0.025]">
-                <MetricRow label="Scarcity" value={`${market?.scarcity.label ?? "--"} · ${market?.scarcity.score ?? "--"}/100`} />
-                <MetricRow label="Set rarity" value={market?.scarcity.setRarityLabel ?? "Unknown"} hint={market?.scarcity.setRarityScore == null ? undefined : `${market.scarcity.setRarityScore}/100 within this set`} />
-                <MetricRow label="Pull odds" value={market?.scarcity.pullOdds ?? "Unknown"} />
-                <MetricRow label="90-day raw trend" value={signedPercent(market?.scarcity.rawTrend90dPct ?? null)} />
-              </div>
-            </div>
-          </AnalysisSection>
-
-          <AnalysisSection className="signal-radar-demand" eyebrow="Demand quality" title="Collector, artist and grading" icon={<Sparkles className="h-4 w-4" />}>
-            <div className="grid gap-3 [@media(min-width:2200px)]:grid-cols-2">
-              <div className="overflow-hidden rounded-xl border border-fuchsia-300/10 bg-fuchsia-400/[0.025]">
-                <MetricRow label="Confluence" value={`${confluence?.label ?? "--"} · ${confluence?.score ?? "--"}/100`} />
-                <MetricRow label="Illustrator" value={market?.scarcity.artist ?? "Unknown"} hint={market?.scarcity.artistDemandScore == null ? undefined : `${market.scarcity.artistDemandScore}/100 demand`} />
-                <MetricRow label="Character demand" value={`${market?.scarcity.collectorDemandScore ?? "--"}/100`} />
-                <MetricRow label="Active drivers" value={confluence?.drivers.length ?? 0} hint={confluence?.drivers.join(" · ") || undefined} />
-              </div>
-              <div className="overflow-hidden rounded-xl border border-emerald-300/10 bg-emerald-400/[0.025]">
-                <MetricRow label="Grading supply" value={market?.graded.supplyLabel ?? "Unknown"} />
-                <MetricRow label="PSA 10 market" value={market?.graded.psa10Price == null ? "--" : formatCurrency(market.graded.psa10Price, market.graded.currency)} />
-                <MetricRow label="PSA 9 market" value={market?.graded.psa9Price == null ? "--" : formatCurrency(market.graded.psa9Price, market.graded.currency)} />
-                <MetricRow label="Gem rate" value={market?.graded.gemRatePct == null ? "--" : `${market.graded.gemRatePct.toFixed(1)}%`} hint="Exact card population API pending" />
-              </div>
-            </div>
-          </AnalysisSection>
-
-        <AnalysisSection className="signal-radar-calibration" eyebrow="Historical calibration" title="Growth probability tracker" icon={<BrainCircuit className="h-4 w-4" />} aside={<span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2.5 py-1 text-[9px] font-semibold text-sky-100/58">{signal.forecast?.modelVersion ?? "Learning"}</span>}>
-          <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
-            <div className="grid grid-cols-[0.55fr_0.65fr_0.7fr_1.4fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28">
-              <span>Target</span><span>Horizon</span><span>Probability</span><span>Model progress</span>
-            </div>
-            {FORECAST_TARGETS.map((target) => {
-              const summary = signal.forecast?.targets[target.key];
-              const interval = summary?.status === "calibrated" ? summary.interval : null;
+  const forecastPanel = (
+    <div className="card-detail-section-grid" data-columns="2">
+      <DetailSurface eyebrow="Base scenario" title="Forecast targets" copy="A directional model, not a guaranteed price target.">
+        {scenario ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {scenario.points.map((point) => {
+              const changePct = displayPrice && displayPrice > 0
+                ? ((point.base - displayPrice) / displayPrice) * 100
+                : null;
+              const direction = getForecastDirection(undefined, changePct);
               return (
-                <div key={target.key} className="grid min-h-14 grid-cols-[0.55fr_0.65fr_0.7fr_1.4fr] items-center border-b border-white/6 px-3 text-[10px] last:border-b-0">
-                  <strong className="text-white/82">{target.label}</strong>
-                  <span className="text-white/42">{target.horizon}</span>
-                  <span className="font-bold text-sky-100/72">{interval ? `${Math.round(interval.estimate * 100)}%` : "Learning"}</span>
-                  <span className="text-white/36">{interval && summary ? `${summary.hits}/${summary.samples} hits · ${Math.round(interval.lower * 100)}–${Math.round(interval.upper * 100)}%` : `${summary?.samples ?? 0}/${target.minimum} completed signals`}</span>
+                <div key={point.days} className={cx("rounded-2xl border p-4", forecastTone(direction))}>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] opacity-55">{point.days} days</p>
+                  <p className="mt-2 text-xl font-extrabold tabular-nums text-white/90">{formatCurrency(point.base, scenario.currency)}</p>
+                  <p className="mt-1 text-sm font-bold tabular-nums">{signedPercent(changePct)}</p>
+                  <p className="mt-3 text-xs text-white/38">Range {formatCurrency(point.low, scenario.currency)}–{formatCurrency(point.high, scenario.currency)}</p>
                 </div>
               );
             })}
           </div>
-        </AnalysisSection>
+        ) : (
+          <p className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-sm text-white/42">No reliable scenario is available yet.</p>
+        )}
+      </DetailSurface>
 
-          <AnalysisSection className="signal-radar-thesis [@media(min-width:2200px)]:hidden" eyebrow="Investment thesis" title="Why it is on the radar" icon={<Radar className="h-4 w-4" />}>
-            <div className="space-y-2">
-              {explanations.map((item) => (
-                <div key={item.label} className="flex gap-3 rounded-xl border border-white/7 bg-black/16 p-3">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300/70" />
-                  <div><p className="text-xs font-bold text-white/78">{item.label}</p><p className="mt-1 text-[10px] leading-4 text-white/42">{item.text}</p></div>
-                </div>
-              ))}
-            </div>
-          </AnalysisSection>
-
-          <AnalysisSection className="signal-radar-evidence" eyebrow="Source evidence" title="External proof" icon={<ArrowUpRight className="h-4 w-4" />} aside={<span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/28">{signal.horizon}</span>}>
-            <div className="space-y-2">
-              {signal.evidence.length ? signal.evidence.map((item) => (
-                <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border border-white/7 bg-black/16 px-3 py-3 transition hover:border-violet-300/20">
-                  <span className="truncate text-xs font-semibold text-white/72">{item.deckName}</span>
-                  <span className="text-[10px] text-white/38">{item.deckSharePercent.toFixed(1)}% meta</span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-200/72">{item.inclusionPercent.toFixed(0)}% inclusion <ArrowUpRight className="h-3 w-3" /></span>
-                </Link>
-              )) : <p className="rounded-xl border border-white/7 bg-black/16 p-3 text-[10px] leading-4 text-white/38">This structural setup uses DustyCards sealed history, CardMarket and eBay sold evidence instead of tournament decks.</p>}
-            </div>
-          </AnalysisSection>
-
-        <AnalysisSection className="signal-radar-news" eyebrow="Daily external scan" title="News, catalysts and risk" icon={<Newspaper className="h-4 w-4" />} aside={<span className={cx("rounded-full border px-2.5 py-1 text-[9px] font-semibold", (signal.riskScore ?? 0) > 0 ? "border-rose-300/14 bg-rose-400/[0.06] text-rose-100/68" : "border-emerald-300/14 bg-emerald-400/[0.06] text-emerald-100/68")}>{(signal.riskScore ?? 0) > 0 ? "Risk detected" : "No active risk"}</span>}>
-          {catalysts.length ? (
-            <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
-              <div className="grid grid-cols-[0.55fr_1.5fr_0.65fr_0.6fr] border-b border-white/7 px-3 py-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/28"><span>Type</span><span>Catalyst</span><span>Evidence</span><span>Direction</span></div>
-              {catalysts.map((catalyst) => (
-                <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="grid min-h-14 grid-cols-[0.55fr_1.5fr_0.65fr_0.6fr] items-center border-b border-white/6 px-3 text-[10px] transition last:border-b-0 hover:bg-white/[0.025]">
-                  <span className="capitalize text-white/42">{catalyst.kind}</span><span className="truncate font-semibold text-white/72">{catalyst.headline}</span><span className="text-white/42">{catalyst.evidenceLevel}</span><span className={catalyst.direction === "negative" ? "text-rose-200/72" : catalyst.direction === "positive" ? "text-emerald-200/72" : "text-white/42"}>{catalyst.direction}</span>
-                </Link>
-              ))}
-            </div>
-          ) : researchResults.length ? (
-            <div className="overflow-hidden rounded-xl border border-white/8 bg-black/16">
-              {researchResults.slice(0, 5).map((result) => (
-                <Link key={result.url} href={result.url} target="_blank" rel="noreferrer" className="grid min-h-14 grid-cols-[0.65fr_1.8fr_0.8fr] items-center gap-3 border-b border-white/6 px-3 text-[10px] transition last:border-b-0 hover:bg-white/[0.025]">
-                  <span className="text-white/42">{result.category}</span>
-                  <span className="truncate font-semibold text-white/72">{result.title}</span>
-                  <span className="truncate text-right text-violet-200/58">{result.domain}</span>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="flex gap-3 rounded-xl border border-white/7 bg-black/16 p-4"><ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300/65" /><p className="text-[10px] leading-4 text-white/42">No fresh trusted news catalyst is linked to this card. The ranking currently comes from {signal.sourceMode === "structural" ? "structural scarcity and market context" : "competitive demand"}.</p></div>
-          )}
-        </AnalysisSection>
-      </div>
-    </div>
-      {researchOpen ? (
-        <div
-          className="fixed inset-0 z-[230] flex items-end justify-center bg-black/76 px-0 pt-12 backdrop-blur-md sm:items-center sm:p-5"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setResearchOpen(false);
-          }}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="card-research-title"
-            className="flex max-h-[88dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[1.65rem] border border-white/12 bg-[linear-gradient(150deg,rgba(20,22,34,0.99),rgba(8,10,16,0.99))] shadow-[0_30px_100px_rgba(0,0,0,0.72)] sm:max-h-[82dvh] sm:rounded-[1.65rem]"
-          >
-            <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/8 px-4 py-4 sm:px-5">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.09] text-violet-100/80">
-                    <Search className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[8px] font-bold uppercase tracking-[0.16em] text-violet-200/48">Focused web research</p>
-                    <h2 id="card-research-title" className="mt-0.5 truncate text-base font-black text-white/92 sm:text-lg">
-                      {signal.name}
-                    </h2>
-                  </div>
-                </div>
-                <p className="mt-2 max-w-xl text-[10px] leading-4 text-white/40">
-                  Searches specifically for this printing, its set, market catalysts, reprints, grading and collector demand.
-                </p>
+      <DetailSurface eyebrow="Historical calibration" title="Growth probability tracker" copy={signal.forecast?.modelVersion ?? "The model is still learning from completed signals."}>
+        <div className="overflow-hidden rounded-2xl border border-white/8">
+          {FORECAST_TARGETS.map((target) => {
+            const summary = signal.forecast?.targets[target.key];
+            const interval = summary?.status === "calibrated" ? summary.interval : null;
+            return (
+              <div key={target.key} className="grid min-h-16 grid-cols-[0.55fr_0.8fr_1.35fr] items-center gap-3 border-b border-white/7 px-4 text-sm last:border-b-0">
+                <strong className="text-white/82">{target.label}</strong>
+                <span className="text-white/46">{target.horizon}</span>
+                <span className="text-right font-semibold text-cyan-100/68">
+                  {interval && summary ? `${Math.round(interval.estimate * 100)}% · ${summary.hits}/${summary.samples} hits` : `Learning · ${summary?.samples ?? 0}/${target.minimum}`}
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setResearchOpen(false)}
-                aria-label="Close card research"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/9 bg-white/[0.035] text-white/50 transition hover:border-white/18 hover:bg-white/[0.075] hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </header>
-
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
-              {researchStatus === "loading" ? (
-                <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-violet-300/12 bg-violet-400/[0.035] px-6 text-center">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-300/16 bg-violet-400/[0.09] text-violet-100/80">
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  </span>
-                  <h3 className="mt-4 text-sm font-bold text-white/82">Researching this exact card</h3>
-                  <p className="mt-1.5 max-w-sm text-[10px] leading-4 text-white/38">Checking trusted news, set information, reprint signals and relevant market context.</p>
-                </div>
-              ) : null}
-
-              {researchStatus === "error" ? (
-                <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-rose-300/12 bg-rose-400/[0.035] px-6 text-center">
-                  <ShieldAlert className="h-7 w-7 text-rose-200/72" />
-                  <h3 className="mt-3 text-sm font-bold text-white/82">Research could not be completed</h3>
-                  <p className="mt-1.5 max-w-md text-[10px] leading-4 text-white/42">{researchError}</p>
-                  <button type="button" onClick={() => void runCardResearch()} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-[11px] font-bold text-white/72 transition hover:border-violet-300/24 hover:bg-violet-400/[0.09]">
-                    <RefreshCw className="h-3.5 w-3.5" /> Try again
-                  </button>
-                </div>
-              ) : null}
-
-              {researchStatus === "success" && research ? (
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/8 bg-black/18 px-3.5 py-3">
-                    <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-semibold text-white/38">
-                      <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 uppercase">{research.provider}</span>
-                      <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1">{research.queriesRun} {research.queriesRun === 1 ? "query" : "queries"}</span>
-                      <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1">{research.creditsUsed} {research.provider === "firecrawl" ? "Firecrawl" : "Tavily"} credits</span>
-                      {research.cached ? <span className="rounded-full border border-sky-300/12 bg-sky-400/[0.05] px-2 py-1 text-sky-100/58">Cached</span> : null}
-                      {researchGeneratedLabel ? <span>{researchGeneratedLabel}</span> : null}
-                    </div>
-                    <span className="text-[9px] text-white/28">Shared for 24 hours to save credits</span>
-                  </div>
-
-                  {research.results.length ? (
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {research.results.map((result, index) => (
-                        <a
-                          key={`${result.url}:${index}`}
-                          href={result.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="group flex min-w-0 flex-col rounded-2xl border border-white/8 bg-white/[0.025] p-3.5 transition hover:border-violet-300/22 hover:bg-violet-400/[0.055]"
-                        >
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.09em]", result.sourceTier === "trusted" ? "border-emerald-300/13 bg-emerald-400/[0.055] text-emerald-100/68" : "border-sky-300/12 bg-sky-400/[0.05] text-sky-100/58")}>{result.sourceTier}</span>
-                            <span className="rounded-full border border-white/8 bg-black/18 px-2 py-1 text-[8px] font-semibold capitalize text-white/42">{result.category}</span>
-                            {result.direction ? <span className={cx("ml-auto text-[8px] font-bold capitalize", result.direction === "positive" ? "text-emerald-200/68" : result.direction === "negative" ? "text-rose-200/68" : "text-white/34")}>{result.direction}</span> : null}
-                          </div>
-                          <h3 className="mt-3 line-clamp-2 text-[12px] font-bold leading-4 text-white/80 transition group-hover:text-white">{result.title}</h3>
-                          {result.reason ? <p className="mt-2 flex items-start gap-1.5 text-[9px] font-semibold leading-4 text-violet-100/62"><CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-300/65" />{result.reason}</p> : null}
-                          {result.description ? <p className="mt-1.5 line-clamp-2 text-[10px] leading-4 text-white/38">{result.description}</p> : null}
-                          <div className="mt-auto flex items-center justify-between gap-2 pt-3 text-[9px] text-white/30">
-                            <span className="truncate">{result.domain}</span>
-                            <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-violet-200/58">Open source <ArrowUpRight className="h-3 w-3" /></span>
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex min-h-52 flex-col items-center justify-center rounded-2xl border border-white/8 bg-black/18 px-6 text-center">
-                      <Search className="h-7 w-7 text-white/24" />
-                      <h3 className="mt-3 text-sm font-bold text-white/76">No card-specific sources found yet</h3>
-                      <p className="mt-1.5 max-w-md text-[10px] leading-4 text-white/38">The search completed, but no reliable new result could be tied to this exact printing. This empty result is cached to avoid wasting search credits.</p>
-                    </div>
-                  )}
-
-                  {catalysts.length ? (
-                    <div className="rounded-2xl border border-white/8 bg-black/18 p-3.5">
-                      <div className="flex items-center justify-between gap-3">
-                        <div><p className="text-[8px] font-bold uppercase tracking-[0.14em] text-violet-200/44">Already on the radar</p><h3 className="mt-1 text-xs font-bold text-white/74">Existing linked catalysts</h3></div>
-                        <span className="rounded-full border border-white/8 bg-white/[0.035] px-2 py-1 text-[9px] font-bold text-white/42">{catalysts.length}</span>
-                      </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        {catalysts.slice(0, 4).map((catalyst) => (
-                          <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-white/7 bg-white/[0.025] p-3 transition hover:border-violet-300/20">
-                            <div className="flex items-center justify-between gap-2"><span className="text-[8px] font-bold uppercase text-white/32">{catalyst.kind}</span><span className="text-[8px] text-white/30">{catalyst.evidenceLevel}</span></div>
-                            <p className="mt-1.5 line-clamp-2 text-[10px] font-semibold leading-4 text-white/66">{catalyst.headline}</p>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </section>
+            );
+          })}
         </div>
+      </DetailSurface>
+    </div>
+  );
+
+  const analysisPanel = (
+    <div className="card-detail-section-grid" data-columns="3">
+      <DetailSurface eyebrow="Supply & access" title="Sealed and scarcity">
+        <InfoGrid items={[
+          ["Set lifecycle", market?.sealed.lifecycleLabel ?? "Learning"],
+          ["OOP likelihood", market?.sealed.lifecycleOopProbability == null ? "--" : `${market.sealed.lifecycleOopProbability}%`],
+          ["Sealed pressure", `${market?.sealed.pressureLabel ?? "--"} · ${market?.sealed.pressureScore ?? "--"}/100`],
+          ["Cheapest pack", market?.sealed.packPrice == null ? "--" : formatCurrency(market.sealed.packPrice, "EUR")],
+          ["Scarcity", `${market?.scarcity.label ?? "--"} · ${market?.scarcity.score ?? "--"}/100`],
+          ["Pull odds", market?.scarcity.pullOdds ?? "Unknown"],
+        ]} />
+      </DetailSurface>
+
+      <DetailSurface eyebrow="Demand quality" title="Collector and grading">
+        <InfoGrid items={[
+          ["Confluence", `${confluence?.label ?? "--"} · ${confluence?.score ?? "--"}/100`],
+          ["Artist demand", market?.scarcity.artistDemandScore == null ? "--" : `${market.scarcity.artistDemandScore}/100`],
+          ["Collector demand", `${market?.scarcity.collectorDemandScore ?? "--"}/100`],
+          ["Grading supply", market?.graded.supplyLabel ?? "Unknown"],
+          ["PSA 10 market", market?.graded.psa10Price == null ? "--" : formatCurrency(market.graded.psa10Price, market.graded.currency)],
+          ["Gem rate", market?.graded.gemRatePct == null ? "--" : `${market.graded.gemRatePct.toFixed(1)}%`],
+        ]} />
+      </DetailSurface>
+
+      <DetailSurface eyebrow="Investment thesis" title="Active drivers">
+        <div className="space-y-3">
+          {(confluence?.drivers ?? signal.reasons).slice(0, 6).map((driver) => (
+            <div key={driver} className="flex gap-3 rounded-2xl border border-white/8 bg-black/16 p-4">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-violet-200/72" />
+              <p className="text-sm font-semibold leading-5 text-white/66">{driver}</p>
+            </div>
+          ))}
+        </div>
+      </DetailSurface>
+    </div>
+  );
+
+  const evidencePanel = (
+    <div className="card-detail-section-grid" data-columns="2">
+      <DetailSurface eyebrow="Source evidence" title="External proof" copy={signal.horizon}>
+        <div className="space-y-3">
+          {signal.evidence.length ? signal.evidence.map((item) => (
+            <Link key={`${item.deckUrl}:${item.deckName}`} href={item.deckUrl} target="_blank" rel="noreferrer" className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/8 bg-black/16 px-4 py-3 transition hover:border-violet-300/22">
+              <span className="truncate text-sm font-bold text-white/74">{item.deckName}</span>
+              <span className="text-sm font-bold text-violet-200/72">{item.inclusionPercent.toFixed(0)}%</span>
+              <span className="text-xs text-white/38">{item.deckSharePercent.toFixed(1)}% meta share</span>
+              <span className="text-right text-xs text-white/38">inclusion</span>
+            </Link>
+          )) : (
+            <p className="rounded-2xl border border-dashed border-white/10 p-5 text-sm leading-6 text-white/42">This structural profile uses sealed, CardMarket and eBay evidence instead of tournament decks.</p>
+          )}
+        </div>
+      </DetailSurface>
+
+      <DetailSurface eyebrow="Daily scan" title="News, catalysts and research">
+        <button
+          type="button"
+          onClick={() => void runCardResearch()}
+          disabled={researchStatus === "loading"}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-500/[0.12] px-4 text-sm font-bold text-violet-50/90 transition hover:border-violet-200/34 hover:bg-violet-500/[0.2] disabled:cursor-wait disabled:opacity-60"
+        >
+          {researchStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          {researchStatus === "loading" ? "Researching this card..." : research ? "Refresh focused research" : "Research this card"}
+        </button>
+        <div className="mt-4 space-y-3">
+          {catalysts.length ? catalysts.slice(0, 6).map((catalyst) => (
+            <Link key={catalyst.id} href={catalyst.sourceUrl} target="_blank" rel="noreferrer" className="block rounded-2xl border border-white/8 bg-black/16 p-4 transition hover:border-violet-300/22">
+              <div className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-[0.08em] text-white/36">
+                <span>{catalyst.kind}</span>
+                <span className={catalyst.direction === "negative" ? "text-rose-200/70" : catalyst.direction === "positive" ? "text-emerald-200/70" : "text-white/42"}>{catalyst.direction}</span>
+              </div>
+              <p className="mt-2 text-sm font-bold leading-5 text-white/74">{catalyst.headline}</p>
+              <p className="mt-1 text-sm leading-5 text-white/40">{catalyst.explanation}</p>
+            </Link>
+          )) : researchResults.length ? researchResults.slice(0, 5).map((result) => (
+            <Link key={result.url} href={result.url} target="_blank" rel="noreferrer" className="block rounded-2xl border border-white/8 bg-black/16 p-4 transition hover:border-violet-300/22">
+              <p className="text-sm font-bold text-white/74">{result.title}</p>
+              <p className="mt-1 text-xs text-violet-200/58">{result.domain}</p>
+            </Link>
+          )) : (
+            <div className="flex gap-3 rounded-2xl border border-white/8 bg-black/16 p-4">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300/68" />
+              <p className="text-sm leading-5 text-white/42">No fresh trusted catalyst is linked to this printing yet.</p>
+            </div>
+          )}
+        </div>
+      </DetailSurface>
+    </div>
+  );
+
+  const tabs: CardDetailTab[] = orderCardDetailTabs("radar", [
+    { id: "overview", label: "Overview", content: overviewPanel },
+    { id: "market", label: "Market", content: marketPanel },
+    { id: "collection", label: "Collection", content: collectionPanel },
+    { id: "forecast", label: "Forecast", content: forecastPanel },
+    { id: "analysis", label: "Analysis", content: analysisPanel },
+    { id: "evidence", label: "Evidence", content: evidencePanel },
+  ]);
+
+  return (
+    <>
+      <CardDetailShell
+        mode="radar"
+        detailSize={displaySettings.modalSize ?? detailSize}
+        navigation={{
+          label: "Back to Signal Radar",
+          href: `/movers/signal-radar?game=${encodeURIComponent(signal.game)}`,
+        }}
+        eyebrow={signal.manualResearch || signal.rank <= 0 ? "Signal Radar research profile" : `Signal Radar · Candidate #${signal.rank}`}
+        title={card.name}
+        subtitle={[card.episode_name, card.card_number ? `#${card.card_number}` : null].filter(Boolean).join(" · ")}
+        badges={
+          <span className="rounded-full border border-violet-300/18 bg-violet-400/[0.075] px-2.5 py-1 text-[11px] font-bold text-violet-100/78">{card.rarity ?? "Unclassified"}</span>
+        }
+        status={actionError ? <span className="text-sm font-semibold text-rose-200/78">{actionError}</span> : null}
+        priceLabel={`Current ${effectiveMode} market`}
+        price={formatCurrency(displayPrice, displayCurrency)}
+        priceMeta={horizonPoint ? "Base case · 180-day horizon" : signal.horizon}
+        marketControls={
+          <CardDetailMarketControls
+            mode={effectiveMode}
+            gradedAvailable={gradedAvailable}
+            onModeChange={setMarketMode}
+            gradeOptions={
+              gradedAvailable
+                ? [{ value: radarGradedLabel || "Graded", label: radarGradedLabel || "Graded", detail: "Radar series" }]
+                : []
+            }
+            selectedGrade={radarGradedLabel || "Graded"}
+          />
+        }
+        kpis={[
+          { label: "Opportunity", value: `${score}/100`, hint: effectiveMode === "graded" ? "Graded setup" : "Raw setup", tone: "violet" },
+          { label: "Setup strength", value: `${confluence?.score ?? "--"}/100`, hint: confluence?.label ?? "Building", tone: "violet" },
+          { label: "Confidence", value: signal.confidence, hint: signal.pressureLabel, tone: "cyan" },
+          { label: "180-day model", value: signedPercent(forecastChangePct), hint: horizonPoint ? formatCurrency(horizonPoint.base, scenario?.currency ?? displayCurrency) : "Learning", tone: forecastChangePct != null && forecastChangePct >= 0 ? "cyan" : "warning" },
+        ]}
+        media={
+          <CardDetailMediaSwitcher
+            cardName={card.name}
+            threeDimensionalAvailable={Boolean(card.image_url)}
+            twoDimensional={
+              <CardModalPreview
+                card={card}
+                mediaWidth="100%"
+                imageSize="(max-width: 639px) 72vw, (max-width: 1535px) 30vw, 480px"
+                previewAspectClass={showGradedPreview ? GRADED_SLAB_ASPECT_CLASS : RAW_CARD_ASPECT_CLASS}
+                showGradedPreview={showGradedPreview}
+                gradingCompanyLabel={gradingCompanyLabel}
+                gradingGradeLabel={gradingGradeLabel}
+                gradedTileSize={displaySettings.cardSize}
+                onOpenThreeD={() => setThreeDOpen(true)}
+              />
+            }
+            renderThreeDimensional={(showTwoDimensional) =>
+              card.image_url ? (
+                <CardThreeViewer
+                  key={`${card.id}-inline`}
+                  card={card}
+                  frontImageUrl={card.image_url}
+                  cardMarketUrl={cardMarketHref}
+                  showGradedSlabPreview={showGradedPreview}
+                  variant="inline"
+                  onClose={showTwoDimensional}
+                />
+              ) : null
+            }
+          />
+        }
+        mediaActions={
+          <div className="card-detail-market-links">
+            <a href={cardMarketHref} target="_blank" rel="noopener noreferrer" className="card-detail-market-link">CardMarket <ArrowUpRight className="h-3.5 w-3.5" /></a>
+            <a href={ebayHref} target="_blank" rel="noopener noreferrer" className="card-detail-market-link">eBay Deals <ArrowUpRight className="h-3.5 w-3.5" /></a>
+          </div>
+        }
+        chart={
+          <PriceHistoryPanel
+            title="Price history"
+            currency={activeHistoryCurrency}
+            points={activeHistory}
+            currentValue={displayPrice}
+            showCurrentValue={false}
+            subtitle={effectiveMode === "raw" ? "English · Near Mint" : priceHistory.gradedLabel ?? "Graded"}
+            tone="dark"
+            layout="hero"
+            rangeScopePoints={activeHistory}
+            rangeStorageKey={`signal-history-${signal.cardId}-${effectiveMode}`}
+            emptyText="No reliable price history yet"
+            projection={projection}
+          />
+        }
+        actions={
+          <CardModalDesktopActionGroup
+            card={card}
+            collectionItem={collectionItem}
+            isBusy={isBusy}
+            refreshing={refreshing}
+            syncingHistory={syncingHistory}
+            canManageCardPrices={currentUserRole === "admin"}
+            removingCollectionItem={removingCollectionItem}
+            onRefresh={() => void runCardAction("refresh")}
+            onSyncHistory={() => void runCardAction("sync-history")}
+            onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
+            onAddedToCollection={() => router.refresh()}
+            onClose={() => router.refresh()}
+            cardMarketHref={cardMarketHref}
+          />
+        }
+        tabs={tabs}
+        mobileChartTabs={["market", "forecast"]}
+      />
+
+      {threeDOpen && card.image_url ? (
+        <CardThreeViewer
+          card={card}
+          frontImageUrl={card.image_url}
+          cardMarketUrl={cardMarketHref}
+          showGradedSlabPreview={showGradedPreview}
+          onClose={() => setThreeDOpen(false)}
+        />
+      ) : null}
+
+      {selectedSealedProduct ? (
+        <SealedProductModal product={selectedSealedProduct} onClose={() => setSelectedSealedProduct(null)} />
+      ) : null}
+
+      {researchOpen ? (
+        <ResearchDialog
+          signal={signal}
+          research={research}
+          status={researchStatus}
+          error={researchError}
+          onClose={() => setResearchOpen(false)}
+          onRetry={() => void runCardResearch()}
+        />
       ) : null}
     </>
   );

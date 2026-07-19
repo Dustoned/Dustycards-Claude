@@ -364,6 +364,7 @@ export default function HomeFeaturedCardsPanel({
         <CardModal
           key={selectedCard.id}
           card={selectedCard}
+          backLabel="Back to Home"
           showGradedSlabPreview
           onClose={() => setSelectedCard(null)}
         />

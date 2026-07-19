@@ -383,6 +383,7 @@ export default function HomeValueDriversPanel({
         <CardModal
           key={`${selectedCard.id}:${selectedCard.price_fetched_at ?? "none"}`}
           card={selectedCard}
+          backLabel="Back to Home"
           onClose={() => setSelectedCard(null)}
         />
       ) : null}

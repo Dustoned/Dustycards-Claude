@@ -65,7 +65,23 @@ export function getCachedImageUrl(value: string | null | undefined): string | nu
   const sourceUrl = new URL(value);
   if (DIRECT_BROWSER_IMAGE_HOSTS.has(sourceUrl.hostname)) return value;
 
+  return getProxiedImageUrl(value);
+}
+
+function getProxiedImageUrl(value: string): string {
   const variant = getImageCacheVariantForSourceUrl(value);
   const variantParam = variant ? `&variant=${encodeURIComponent(variant)}` : "";
   return `/api/image-cache?url=${encodeURIComponent(value)}${variantParam}`;
+}
+
+/**
+ * WebGL textures require CORS-safe image bytes. Even optimized CDNs that are
+ * safe for a normal <img> can omit the headers needed by Three.js, so texture
+ * sources always use the same-origin image cache when the host is supported.
+ */
+export function getTextureImageUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (!isCacheableRemoteImageUrl(value)) return value;
+
+  return getProxiedImageUrl(value);
 }

@@ -1,9 +1,17 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowUpRight, Radar, Sparkles } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
+import CardDetailShell, {
+  type CardDetailTab,
+} from "@/components/card-detail/CardDetailShell";
+import { CardDetailMediaSwitcher } from "@/components/card-detail/CardDetailMediaSwitcher";
+import { CardDetailMarketControls } from "@/components/card-detail/CardDetailMarketControls";
+import { orderCardDetailTabs } from "@/components/card-detail/card-detail-tabs";
 import {
   buildCardMarketProxyUrl,
   getSafeDirectCardMarketCardUrl,
@@ -24,18 +32,21 @@ import {
 } from "@/lib/price-history";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import useModalA11y from "@/lib/useModalA11y";
+import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
+import { formatCurrency } from "@/lib/format";
+import { getExpansionHref } from "@/lib/games";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import {
   CardModalActiveListingsPanel,
-  CardModalCardLinksPanel,
   CardModalDesktopActionGroup,
-  CardModalHeroSection,
   CardModalHistorySection,
   CardModalMarketSignalPanel,
-  CardModalMobileShowcase,
   CardModalOwnedCopyPanel,
   CardModalPreview,
   CardModalRecentPricesPanel,
+  getCardModalGradedDisplayPrices,
+  getPreferredCardModalGradedDisplayPrice,
+  type CardModalGradedDisplayPrice,
 } from "./card-modal/CardModalSections";
 import type { ModalCardData } from "./card-modal/types";
 import type { SealedModalProductData } from "./sealed-modal/types";
@@ -55,6 +66,7 @@ const SealedProductModal = dynamic(() => import("@/components/SealedProductModal
 interface Props {
   card: ModalCardData;
   showGradedSlabPreview?: boolean;
+  backLabel?: string;
   onClose: () => void;
 }
 
@@ -126,7 +138,12 @@ function shouldOpenOnRawMarket(
   return rawFloorValue != null && ebaySoldValue != null && rawFloorValue > ebaySoldValue;
 }
 
-export default function CardModal({ card, showGradedSlabPreview = false, onClose }: Props) {
+export default function CardModal({
+  card,
+  showGradedSlabPreview = false,
+  backLabel = "Back",
+  onClose,
+}: Props) {
   useBodyScrollLock();
   const router = useRouter();
 
@@ -150,6 +167,13 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     savedEbaySoldGradedLabel
   );
   const [modalCard, setModalCard] = useState(card);
+  const [gradedHeroState, setGradedHeroState] = useState<{
+    cardId: string;
+    price: CardModalGradedDisplayPrice | null;
+  }>(() => ({
+    cardId: card.id,
+    price: getPreferredCardModalGradedDisplayPrice(card, card.collection_item),
+  }));
   const { displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
   const [selectedSealedProduct, setSelectedSealedProduct] =
@@ -188,11 +212,6 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
     displaySettings.modalSize,
     displaySettings.widescreen
   );
-  const desktopWorkspaceStyle = {
-    maxWidth: "100%",
-  };
-  const desktopPreviewClass =
-    "card-modal-area-preview min-w-0 lg:sticky lg:top-6 lg:self-start lg:justify-self-center 2xl:justify-self-start";
   const gradedPrices = modalCard.graded_prices ?? [];
   const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];
   const gradedPriceHistory = modalCard.graded_price_history ?? [];
@@ -202,7 +221,6 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   const showGradedPreview = Boolean(
     showGradedSlabPreview && gradingCompanyLabel && gradingGradeLabel
   );
-  const desktopPreviewMediaWidth = "clamp(20rem, 26vw, 32rem)";
   const previewAspectClass = showGradedPreview
     ? GRADED_SLAB_ASPECT_CLASS
     : RAW_CARD_ASPECT_CLASS;
@@ -280,6 +298,7 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   useModalA11y({
     dialogRef: modalFrameRef,
     enabled: !threeDOpen,
+    initialFocus: "dialog",
     onClose,
   });
 
@@ -332,9 +351,14 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
 
       // The server response is authoritative. In particular, a null value must
       // clear a stale local owned-copy state after a refresh.
-      setModalCard({
+      const nextCard = {
         ...data,
         collection_item: data.collection_item ?? null,
+      };
+      setModalCard(nextCard);
+      setGradedHeroState({
+        cardId: nextCard.id,
+        price: getPreferredCardModalGradedDisplayPrice(nextCard, nextCard.collection_item),
       });
       setResolvedUrl(null);
     } catch (error) {
@@ -362,6 +386,10 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
       if (!response.ok) return;
       const data: ModalCardData = await response.json();
       setModalCard(data);
+      setGradedHeroState({
+        cardId: data.id,
+        price: getPreferredCardModalGradedDisplayPrice(data, data.collection_item),
+      });
       setResolvedUrl(null);
     } catch {
       // The page refresh still updates the backing data; keep the modal usable if this request fails.
@@ -462,48 +490,44 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
   }
 
   const storedCardMarketUrl = getCardMarketUrl();
-  const desktopPreviewPanel = (
-    <CardModalPreview
-      card={modalCard}
-      mediaWidth={desktopPreviewMediaWidth}
-      imageSize={layout.imageSize}
-      previewAspectClass={previewAspectClass}
-      showGradedPreview={showGradedPreview}
-      gradingCompanyLabel={gradingCompanyLabel}
-      gradingGradeLabel={gradingGradeLabel}
-      gradedTileSize={displaySettings.cardSize}
-      onOpenThreeD={openThreeDView}
+  const previewPanel = (
+    <CardDetailMediaSwitcher
+      cardName={modalCard.name}
+      threeDimensionalAvailable={Boolean(modalCard.image_url)}
+      twoDimensional={
+        <CardModalPreview
+          card={modalCard}
+          mediaWidth="100%"
+          imageSize={layout.imageSize}
+          previewAspectClass={previewAspectClass}
+          showGradedPreview={showGradedPreview}
+          gradingCompanyLabel={gradingCompanyLabel}
+          gradingGradeLabel={gradingGradeLabel}
+          gradedTileSize={displaySettings.cardSize}
+          onOpenThreeD={openThreeDView}
+        />
+      }
+      renderThreeDimensional={(showTwoDimensional) =>
+        modalCard.image_url ? (
+          <CardThreeViewer
+            key={`${modalCard.id}-inline`}
+            card={modalCard}
+            frontImageUrl={modalCard.image_url}
+            cardMarketUrl={storedCardMarketUrl}
+            showGradedSlabPreview={showGradedSlabPreview}
+            variant="inline"
+            onClose={showTwoDimensional}
+          />
+        ) : null
+      }
     />
   );
-  const desktopHeroPanel = (
-    <CardModalHeroSection
-      card={modalCard}
-      collectionItem={collectionItem}
-      titleClass={layout.titleClass}
-      metaClassName={layout.metaClassName}
-      detailStatClass={layout.detailStatClass}
-      gradingCompanyLabel={gradingCompanyLabel}
-      gradingGradeLabel={gradingGradeLabel}
-      refreshError={refreshError}
-      variant="compact"
-      onClose={onClose}
-    />
-  );
-  const desktopDetailsPanel = (
-    <CardModalHeroSection
-      card={modalCard}
-      collectionItem={collectionItem}
-      titleClass={layout.titleClass}
-      metaClassName={layout.metaClassName}
-      detailStatClass={layout.detailStatClass}
-      gradingCompanyLabel={gradingCompanyLabel}
-      gradingGradeLabel={gradingGradeLabel}
-      refreshError={null}
-      variant="details"
-      onClose={onClose}
-    />
-  );
-  const desktopHistoryPanel = (
+  const gradedHeroOptions = getCardModalGradedDisplayPrices(modalCard, collectionItem);
+  const activeGradedHeroPrice =
+    gradedHeroState.cardId === modalCard.id
+      ? gradedHeroState.price
+      : getPreferredCardModalGradedDisplayPrice(modalCard, collectionItem);
+  const historyPanel = (
     <CardModalHistorySection
       historyChartMode={effectiveHistoryChartMode}
       activeMarketSource={effectiveMarketDataSource}
@@ -522,8 +546,251 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
       tcgPlayerCurrentValue={modalCard.price?.tcp_market ?? null}
       gradedPriceHistory={gradedPriceHistory}
       ebaySoldGradedPriceHistory={ebaySoldGradedPriceHistory}
+      showCurrentValue={false}
+      showModeControl={false}
+      showGradedSelectionControl={false}
+      selectedGradedDisplayPrice={activeGradedHeroPrice}
     />
   );
+
+  const rawCardMarketValue =
+    activeCardMarketCurrentValue ?? modalCard.price?.cm_en_lowest_nm ?? null;
+  const showingGradedHero = effectiveHistoryChartMode === "graded" && activeGradedHeroPrice != null;
+  const showingTcgPlayerHero =
+    effectiveHistoryChartMode === "market" && effectiveMarketDataSource === "tcgplayer";
+  const tcgPlayerHeroValue =
+    modalCard.price?.tcp_market ?? getLatestSeriesValue(tcgPlayerHistory);
+  const heroPriceValue = showingGradedHero
+    ? activeGradedHeroPrice.value
+    : showingTcgPlayerHero
+      ? tcgPlayerHeroValue
+      : rawCardMarketValue;
+  const heroPriceCurrency = showingGradedHero
+    ? activeGradedHeroPrice.currency
+    : showingTcgPlayerHero
+      ? "USD"
+      : "EUR";
+  const heroPriceLabel = showingGradedHero
+    ? `${activeGradedHeroPrice.sourceLabel} · ${activeGradedHeroPrice.label}`
+    : showingTcgPlayerHero
+      ? "TCGPlayer raw market"
+      : `${activeCardMarketSeriesLabel} Near Mint`;
+  const average7d = modalCard.price?.cm_en_avg_7d ?? null;
+  const average30d = modalCard.price?.cm_en_avg_30d ?? null;
+  const trend30d =
+    !showingGradedHero && !showingTcgPlayerHero && rawCardMarketValue != null && average30d != null && average30d > 0
+      ? ((rawCardMarketValue - average30d) / average30d) * 100
+      : null;
+  const costBasis = collectionItem?.cost_basis_value ?? collectionItem?.purchase_price ?? null;
+  const ownedChange =
+    rawCardMarketValue != null && costBasis != null ? rawCardMarketValue - costBasis : null;
+  const priceContextKpis = showingGradedHero
+    ? [
+        {
+          label: "Selected grade",
+          value: activeGradedHeroPrice.label,
+          hint: "Controls the graded chart",
+          tone: "violet" as const,
+        },
+        {
+          label: "Market source",
+          value: activeGradedHeroPrice.sourceLabel,
+          hint: activeGradedHeroPrice.hint ?? "Latest saved graded value",
+        },
+      ]
+    : showingTcgPlayerHero
+      ? [
+          {
+            label: "TCGPlayer mid",
+            value: formatCurrency(modalCard.price?.tcp_mid ?? null, "USD"),
+            hint: "Current midpoint",
+            tone: "violet" as const,
+          },
+          {
+            label: "TCGPlayer low",
+            value: formatCurrency(modalCard.price?.tcp_low ?? null, "USD"),
+            hint: "Current low listing",
+          },
+        ]
+      : [
+          {
+            label: "7-day average",
+            value: formatCurrency(average7d, "EUR"),
+            hint: "Short-term market",
+            tone: "violet" as const,
+          },
+          {
+            label: "30-day average",
+            value: formatCurrency(average30d, "EUR"),
+            hint: "Broader baseline",
+          },
+        ];
+  const releaseLabel = modalCard.episode_release_date
+    ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(
+        new Date(modalCard.episode_release_date)
+      )
+    : "Unknown";
+  const signalScore = signalSummary?.marketIntelligence?.rawOpportunityScore ?? signalSummary?.externalScore;
+  const detailFacts = [
+    [
+      "Expansion",
+      <Link
+        key="expansion"
+        href={getExpansionHref(modalCard.episode_id)}
+        onClick={onClose}
+        className="text-violet-200/82 transition hover:text-white"
+      >
+        {modalCard.episode_name}
+      </Link>,
+    ],
+    ["Card number", modalCard.card_number ? `#${modalCard.card_number}` : "--"],
+    ["Rarity", modalCard.rarity ?? "--"],
+    [
+      "Illustrator",
+      modalCard.artist ? (
+        <Link
+          key="artist"
+          href={`/illustrators/${encodeURIComponent(modalCard.artist)}`}
+          onClick={onClose}
+          className="text-violet-200/82 transition hover:text-white"
+        >
+          {modalCard.artist}
+        </Link>
+      ) : (
+        "--"
+      ),
+    ],
+    ["Type", [modalCard.supertype, modalCard.subtypes].filter(Boolean).join(" · ") || "--"],
+    ["HP", modalCard.hp ?? "--"],
+    ["Release", releaseLabel],
+    [
+      "Pull odds",
+      modalCard.pull_rate_info?.specific_pull_odds ??
+        modalCard.pull_rate_info?.pull_rate_odds ??
+        "Unknown",
+    ],
+  ] as const;
+
+  const overviewPanel = (
+    <div className="card-detail-section-grid" data-columns="2">
+      <section className="card-detail-surface">
+        <h2 className="card-detail-surface-title">Card profile</h2>
+        <p className="card-detail-surface-copy">
+          The essential printing details, kept in one predictable place.
+        </p>
+        <dl className="card-detail-info-grid mt-4">
+          {detailFacts.map(([label, value]) => (
+            <div key={label} className="card-detail-info-cell">
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <section className="card-detail-surface">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="card-detail-eyebrow">Collector snapshot</p>
+            <h2 className="mt-2 text-xl font-extrabold text-white/92">
+              {collectionItem ? "A saved copy with context" : "Ready for your collection"}
+            </h2>
+          </div>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.07] text-violet-100/76">
+            <Sparkles className="h-4 w-4" />
+          </span>
+        </div>
+        <dl className="card-detail-info-grid mt-4">
+          <div className="card-detail-info-cell">
+            <dt>Status</dt>
+            <dd>{collectionItem ? (collectionItem.read_only ? "Shared" : "Owned") : "Not owned"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Condition</dt>
+            <dd>{collectionItem?.condition ?? "--"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Language</dt>
+            <dd>{collectionItem?.language ?? "--"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Location</dt>
+            <dd>{collectionItem?.for_sale ? "For sale" : collectionItem?.binder_name ?? "Singles"}</dd>
+          </div>
+        </dl>
+
+        <div className="mt-4 rounded-2xl border border-violet-300/13 bg-violet-400/[0.045] p-4">
+          <div className="flex items-start gap-3">
+            <Radar className="mt-0.5 h-5 w-5 shrink-0 text-violet-200/78" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white/84">
+                {signalSummaryLoading
+                  ? "Checking Signal Radar"
+                  : signalSummary
+                    ? `${signalScore ?? "--"}/100 opportunity · ${signalSummary.confidence} confidence`
+                    : "No active Radar profile yet"}
+              </p>
+              <p className="mt-1 text-sm leading-5 text-white/46">
+                {signalSummary?.reasons[0] ??
+                  signalSummary?.pressureExplanation ??
+                  "Open the focused analysis when you want forecasts, scarcity and evidence."}
+              </p>
+              <Link
+                href={`/movers/signal-radar/${encodeURIComponent(modalCard.id)}?game=${encodeURIComponent(modalCard.game)}`}
+                prefetch={false}
+                onClick={onClose}
+                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-violet-300/20 bg-violet-500/[0.1] px-3 text-sm font-bold text-violet-50/88 transition hover:border-violet-200/34 hover:bg-violet-500/[0.17]"
+              >
+                Open full analysis <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+
+  const marketPanel = (
+    <div className="card-detail-section-grid" data-columns="2">
+      <CardModalMarketSignalPanel
+        signal={signalSummary}
+        card={modalCard}
+        loading={signalSummaryLoading}
+        onNavigate={onClose}
+      />
+      <div className="card-detail-section-grid">
+        <CardModalRecentPricesPanel card={modalCard} />
+        <EbayCardDemandPanel
+          cardId={modalCard.id}
+          mode={historyChartMode === "graded" ? "graded" : "raw"}
+          onModeChange={(mode) => setHistoryChartMode(mode === "graded" ? "graded" : "market")}
+          showModeControl={false}
+        />
+      </div>
+    </div>
+  );
+
+  const collectionPanel = (
+    <div className="card-detail-section-grid" data-columns="2">
+      <CardModalOwnedCopyPanel
+        card={modalCard}
+        collectionItem={collectionItem}
+        onAddedToCollection={refreshModalCardFromServer}
+        showActions={false}
+      />
+      <CardModalActiveListingsPanel
+        card={modalCard}
+        onOpenSealedProduct={setSelectedSealedProduct}
+        onClose={onClose}
+      />
+    </div>
+  );
+
+  const tabs: CardDetailTab[] = orderCardDetailTabs("standard", [
+    { id: "overview", label: "Overview", content: overviewPanel },
+    { id: "market", label: "Market", content: marketPanel },
+    { id: "collection", label: "Collection", content: collectionPanel },
+  ]);
 
   return (
     <>
@@ -542,146 +809,141 @@ export default function CardModal({ card, showGradedSlabPreview = false, onClose
             aria-modal="true"
             aria-label={modalCard.name}
             tabIndex={-1}
-            className="card-modal-frame dc-modal-panel relative h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain rounded-none border border-white/12 bg-[#050506] [scrollbar-gutter:stable] shadow-none md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
+            className="card-modal-frame dc-modal-panel relative h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain rounded-none border border-white/12 bg-[#050506] [scrollbar-gutter:stable] shadow-none outline-none md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
             data-modal-size={displaySettings.modalSize}
             data-mobile-showcase="true"
           >
-            <div className="md:hidden">
-              <CardModalMobileShowcase
-                card={modalCard}
-                collectionItem={collectionItem}
-                previewAspectClass={previewAspectClass}
-                showGradedPreview={showGradedPreview}
-                gradingCompanyLabel={gradingCompanyLabel}
-                gradingGradeLabel={gradingGradeLabel}
-                gradedTileSize={displaySettings.cardSize}
-                cardMarketHistory={cardMarketHistory}
-                activeCardMarketCurrentValue={activeCardMarketCurrentValue}
-                activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
-                storedCardMarketUrl={storedCardMarketUrl}
-                canManageCardPrices={canManageCardPrices}
-                isBusy={isBusy}
-                refreshing={refreshing}
-                syncingHistory={syncingHistory}
-                removingCollectionItem={removingCollectionItem}
-                onClose={onClose}
-                onOpenThreeD={openThreeDView}
-                onOpenCardMarket={openCardMarket}
-                onRefresh={() => void runCardAction("refresh")}
-                onSyncHistory={() => void runCardAction("sync-history")}
-                onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
-                onAddedToCollection={refreshModalCardFromServer}
-                onResearchSignal={() => void researchSignalCard()}
-                researchingSignal={researchingSignal}
-                signalResearchError={signalResearchError}
-                signalSummary={signalSummary}
-                signalSummaryLoading={signalSummaryLoading}
-              />
-            </div>
-
-            <div className="card-modal-desktop-workspace hidden md:block">
-              <div
-                className="mx-auto flex min-h-dvh w-full flex-col gap-5 px-6 py-6 lg:px-8 lg:py-7"
-                style={desktopWorkspaceStyle}
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <button
-                    type="button"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      onClose();
-                    }}
-                    className="group inline-flex min-h-10 items-center gap-2 rounded-full border border-transparent px-1.5 pr-3 text-sm font-semibold text-white/58 transition-colors hover:border-white/10 hover:bg-white/[0.045] hover:text-white"
-                  >
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] transition-colors group-hover:border-white/18 group-hover:bg-white/[0.08]">
-                      <span aria-hidden="true" className="text-lg leading-none">
-                        &lt;
-                      </span>
+            <CardDetailShell
+              mode="standard"
+              detailSize={displaySettings.modalSize}
+              navigation={{ label: backLabel, onBack: onClose }}
+              eyebrow={modalCard.game === "one-piece" ? "One Piece card" : "Pokémon card"}
+              title={modalCard.name}
+              subtitle={[
+                modalCard.episode_name,
+                modalCard.card_number ? `#${modalCard.card_number}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+              badges={
+                <>
+                  {modalCard.rarity ? (
+                    <span className="rounded-full border border-violet-300/18 bg-violet-400/[0.075] px-2.5 py-1 text-[11px] font-bold text-violet-100/78">
+                      {modalCard.rarity}
                     </span>
-                    Back to Collection
+                  ) : null}
+                  {gradingCompanyLabel && gradingGradeLabel ? (
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-bold text-white/58">
+                      {gradingCompanyLabel} {gradingGradeLabel}
+                    </span>
+                  ) : null}
+                </>
+              }
+              status={
+                refreshError || signalResearchError ? (
+                  <span className="text-sm font-semibold text-rose-200/78">{refreshError ?? signalResearchError}</span>
+                ) : null
+              }
+              priceLabel={heroPriceLabel}
+              price={formatCurrency(heroPriceValue, heroPriceCurrency)}
+              priceMeta={
+                showingGradedHero ? (
+                  activeGradedHeroPrice.hint ?? "Latest saved graded market value"
+                ) : showingTcgPlayerHero ? (
+                  "Selected TCGPlayer source"
+                ) : trend30d == null ? (
+                  "Latest saved raw market value"
+                ) : (
+                  <span className={trend30d >= 0 ? "text-emerald-200/78" : "text-rose-200/78"}>
+                    {trend30d > 0 ? "+" : ""}{trend30d.toFixed(1)}% vs 30-day average
+                  </span>
+                )
+              }
+              marketControls={
+                <CardDetailMarketControls
+                  mode={effectiveHistoryChartMode === "graded" ? "graded" : "raw"}
+                  gradedAvailable={hasGradedData}
+                  onModeChange={(mode) =>
+                    setHistoryChartMode(mode === "graded" ? "graded" : "market")
+                  }
+                  gradeOptions={gradedHeroOptions.map((price) => ({
+                    value: price.selectionKey,
+                    label: price.label,
+                    detail: price.sourceLabel,
+                  }))}
+                  selectedGrade={activeGradedHeroPrice?.selectionKey}
+                  onGradeChange={(selectionKey) => {
+                    const nextPrice = gradedHeroOptions.find(
+                      (price) => price.selectionKey === selectionKey
+                    );
+                    if (nextPrice) {
+                      setGradedHeroState({ cardId: modalCard.id, price: nextPrice });
+                    }
+                  }}
+                />
+              }
+              kpis={[
+                ...priceContextKpis,
+                {
+                  label: collectionItem?.cost_basis_label ?? "Collection",
+                  value: collectionItem ? formatCurrency(costBasis, "EUR") : "Not owned",
+                  hint:
+                    ownedChange == null
+                      ? "Add a copy to track value"
+                      : `${ownedChange >= 0 ? "+" : ""}${formatCurrency(ownedChange, "EUR")} market change`,
+                  tone: ownedChange != null && ownedChange >= 0 ? "positive" : "neutral",
+                },
+                {
+                  label: "Market score",
+                  value: modalCard.market_stats ? `${modalCard.market_stats.score}/100` : "Building",
+                  hint: modalCard.market_stats?.tier ?? "More evidence needed",
+                  tone: "violet",
+                },
+              ]}
+              media={previewPanel}
+              mediaActions={
+                <div className="card-detail-market-links">
+                  <button type="button" onClick={() => void openCardMarket()} className="card-detail-market-link">
+                    CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
                   </button>
-
-                  <CardModalDesktopActionGroup
-                    card={modalCard}
-                    collectionItem={collectionItem}
-                    isBusy={isBusy}
-                    refreshing={refreshing}
-                    syncingHistory={syncingHistory}
-                    canManageCardPrices={canManageCardPrices}
-                    removingCollectionItem={removingCollectionItem}
-                    onRefresh={() => void runCardAction("refresh")}
-                    onSyncHistory={() => void runCardAction("sync-history")}
-                    onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
-                    onAddedToCollection={refreshModalCardFromServer}
-                    onClose={onClose}
-                  />
+                  <a
+                    href={buildCardEbaySearchUrl({
+                      name: modalCard.name,
+                      cardNumber: modalCard.card_number,
+                      gradingCompany: gradingCompanyLabel,
+                      gradingGrade: gradingGradeLabel,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="card-detail-market-link"
+                  >
+                    eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
+                  </a>
                 </div>
-
-              <div className="card-modal-layout-grid">
-                <div className={`${desktopPreviewClass} flex min-w-0 flex-col justify-start gap-4`}>
-                  <div className="flex justify-center 2xl:justify-start">{desktopPreviewPanel}</div>
-                  <CardModalCardLinksPanel
-                    card={modalCard}
-                    storedCardMarketUrl={storedCardMarketUrl}
-                    className="w-full"
-                    onOpenCardMarket={openCardMarket}
-                    onResearchSignal={() => void researchSignalCard()}
-                    researchingSignal={researchingSignal}
-                    signalResearchError={signalResearchError}
-                  />
-                </div>
-
-                <div className="card-modal-area-hero min-w-0">
-                  {desktopHeroPanel}
-                </div>
-
-                <div className="card-modal-area-owned min-w-0">
-                  <CardModalOwnedCopyPanel
-                    card={modalCard}
-                    collectionItem={collectionItem}
-                    className="h-full"
-                    onAddedToCollection={refreshModalCardFromServer}
-                  />
-                </div>
-
-                <div className="card-modal-area-details min-w-0">
-                  {desktopDetailsPanel}
-                </div>
-
-                <div className="card-modal-area-history min-w-0">
-                  {desktopHistoryPanel}
-                </div>
-
-                <div className="card-modal-area-support grid min-w-0 items-stretch gap-5 2xl:grid-cols-[minmax(16rem,0.8fr)_minmax(28rem,1.7fr)]">
-                    <CardModalRecentPricesPanel
-                      card={modalCard}
-                      className="h-full min-h-[10rem]"
-                    />
-                    <CardModalActiveListingsPanel
-                      card={modalCard}
-                      className="h-full min-h-[10rem]"
-                      onOpenSealedProduct={setSelectedSealedProduct}
-                      onClose={onClose}
-                    />
-                    <EbayCardDemandPanel
-                      cardId={modalCard.id}
-                      className="2xl:col-span-2"
-                    />
-                </div>
-
-                <div className="card-modal-area-signal min-w-0">
-                  <CardModalMarketSignalPanel
-                    signal={signalSummary}
-                    card={modalCard}
-                    loading={signalSummaryLoading}
-                    onNavigate={onClose}
-                  />
-                </div>
-              </div>
-              </div>
-            </div>
+              }
+              chart={historyPanel}
+              actions={
+                <CardModalDesktopActionGroup
+                  card={modalCard}
+                  collectionItem={collectionItem}
+                  isBusy={isBusy}
+                  refreshing={refreshing}
+                  syncingHistory={syncingHistory}
+                  canManageCardPrices={canManageCardPrices}
+                  removingCollectionItem={removingCollectionItem}
+                  onRefresh={() => void runCardAction("refresh")}
+                  onSyncHistory={() => void runCardAction("sync-history")}
+                  onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
+                  onAddedToCollection={refreshModalCardFromServer}
+                  onClose={onClose}
+                  onResearchSignal={signalSummary ? undefined : () => void researchSignalCard()}
+                  researchingSignal={researchingSignal}
+                  onOpenCardMarket={() => void openCardMarket()}
+                />
+              }
+              tabs={tabs}
+              mobileChartTabs={["market"]}
+            />
           </div>
         </div>
       </div>

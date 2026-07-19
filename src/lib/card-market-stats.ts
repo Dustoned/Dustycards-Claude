@@ -19,6 +19,11 @@ export interface CardMarketStatsMetrics {
   market_depth: number | null;
 }
 
+export interface CardMarketStatsMetricSources {
+  liquidity: "ebay_inventory" | "ebay_sales_proxy" | "market_proxy" | "neutral_prior";
+  demand: "ebay_lifecycle" | "ebay_sales_proxy" | "price_proxy" | "neutral_prior";
+}
+
 export interface CardMarketStatsTcggoComparison {
   score: number | null;
   tier: string | null;
@@ -46,11 +51,12 @@ export interface CardMarketStatsGradedComparison {
 }
 
 export interface CardMarketStats {
-  model: "dustycards-market-v1";
+  model: "dustycards-market-v2";
   score: number | null;
   tier: CardMarketStatsTier;
   confidence: CardMarketStatsConfidence;
   metrics: CardMarketStatsMetrics;
+  metric_sources: CardMarketStatsMetricSources;
   rsi: number | null;
   rsi_label: "Oversold" | "Neutral" | "Overbought" | null;
   volatility_percent: number | null;
@@ -271,13 +277,13 @@ function getRsiLabel(rsi: number | null): CardMarketStats["rsi_label"] {
   return "Neutral";
 }
 
-function calculateLiquidity(demand: EbayDemandPayload | null): number | null {
+function calculateEbayLiquidity(demand: EbayDemandPayload | null): number | null {
   if (!demand) return null;
   const activeCount = Math.max(demand.summary.activeCount, demand.sample.clean);
   return round(clamp(100 * (1 - Math.exp(-activeCount / 12))));
 }
 
-function calculateDemand(demand: EbayDemandPayload | null): number | null {
+function calculateEbayDemand(demand: EbayDemandPayload | null): number | null {
   if (!demand || demand.history.length < 2) return null;
 
   const activeCount = Math.max(demand.summary.activeCount, 1);
@@ -288,6 +294,113 @@ function calculateDemand(demand: EbayDemandPayload | null): number | null {
   const velocity = 100 * (1 - Math.exp(-removed / Math.max(activeCount * 0.45, 1)));
 
   return round(clamp(pressure * 0.45 + balance * 0.35 + velocity * 0.2));
+}
+
+function calculateEbaySoldActivity(prices: EbaySoldGradedPriceInput[]): number | null {
+  const sampleSize = prices.reduce((sum, price) => {
+    const sample = price.sample_size;
+    return sum + (sample != null && Number.isFinite(sample) && sample > 0 ? Math.floor(sample) : 0);
+  }, 0);
+  if (sampleSize === 0) return null;
+  return round(clamp(100 * (1 - Math.exp(-sampleSize / 8))));
+}
+
+function calculateLiquidityMetric(input: {
+  demand: EbayDemandPayload | null;
+  ebaySoldGradedPrices: EbaySoldGradedPriceInput[];
+  history: CardPriceHistoryPoint[];
+  observations: PriceObservation[];
+  languageCount: number;
+}): {
+  value: number;
+  source: CardMarketStatsMetricSources["liquidity"];
+} {
+  const direct = calculateEbayLiquidity(input.demand);
+  if (direct != null) return { value: direct, source: "ebay_inventory" };
+
+  const recentHistory = input.history.slice(-30);
+  const guideDays = recentHistory.filter(
+    (point) => finitePositive(point.cm_avg_7d) != null || finitePositive(point.cm_avg_30d) != null
+  ).length;
+  const languageBreadth = input.languageCount > 0 ? (input.languageCount / 6) * 100 : null;
+  const guideCoverage = recentHistory.length > 0 && guideDays > 0
+    ? (guideDays / recentHistory.length) * 100
+    : null;
+  const historyContinuity = input.observations.length > 0
+    ? 100 * (1 - Math.exp(-input.observations.length / 14))
+    : null;
+  const proxy = weightedAvailableScore([
+    { value: languageBreadth, weight: 0.55 },
+    { value: guideCoverage, weight: 0.3 },
+    { value: historyContinuity, weight: 0.15 },
+  ]);
+
+  const soldActivity = calculateEbaySoldActivity(input.ebaySoldGradedPrices);
+  if (soldActivity != null) {
+    const soldProxy = weightedAvailableScore([
+      { value: soldActivity, weight: 0.6 },
+      { value: proxy == null ? null : 15 + proxy * 0.7, weight: 0.4 },
+    ]) ?? soldActivity;
+    return {
+      value: round(clamp(soldProxy, 10, 90)),
+      source: "ebay_sales_proxy",
+    };
+  }
+
+  if (proxy == null) return { value: 50, source: "neutral_prior" };
+  // Keep coverage-only estimates away from unsupported extremes.
+  return { value: round(clamp(15 + proxy * 0.7)), source: "market_proxy" };
+}
+
+function calculatePriceGuideTrend(history: CardPriceHistoryPoint[]): number | null {
+  const point = [...history].reverse().find(
+    (candidate) =>
+      finitePositive(candidate.cm_avg_7d) != null &&
+      finitePositive(candidate.cm_avg_30d) != null
+  );
+  const average7d = finitePositive(point?.cm_avg_7d);
+  const average30d = finitePositive(point?.cm_avg_30d);
+  if (average7d == null || average30d == null) return null;
+
+  const logSpreadPercent = Math.log(average7d / average30d) * 100;
+  return round(clamp(50 + 50 * Math.tanh(logSpreadPercent / 20)));
+}
+
+function calculateDemandMetric(input: {
+  demand: EbayDemandPayload | null;
+  ebaySoldGradedPrices: EbaySoldGradedPriceInput[];
+  history: CardPriceHistoryPoint[];
+  momentum: number | null;
+}): {
+  value: number;
+  source: CardMarketStatsMetricSources["demand"];
+} {
+  const direct = calculateEbayDemand(input.demand);
+  if (direct != null) return { value: direct, source: "ebay_lifecycle" };
+
+  const priceProxy = weightedAvailableScore([
+    { value: input.momentum, weight: 0.65 },
+    { value: calculatePriceGuideTrend(input.history), weight: 0.35 },
+  ]);
+  const soldActivity = calculateEbaySoldActivity(input.ebaySoldGradedPrices);
+  if (soldActivity != null) {
+    const soldProxy = weightedAvailableScore([
+      { value: soldActivity, weight: 0.45 },
+      { value: priceProxy, weight: 0.55 },
+    ]) ?? soldActivity;
+    return {
+      value: round(clamp(50 + (soldProxy - 50) * 0.8)),
+      source: "ebay_sales_proxy",
+    };
+  }
+  if (priceProxy == null) return { value: 50, source: "neutral_prior" };
+
+  // Price direction can indicate demand, but shrink it toward neutral until
+  // verified listing lifecycle data confirms actual market pressure.
+  return {
+    value: round(clamp(50 + (priceProxy - 50) * 0.75)),
+    source: "price_proxy",
+  };
 }
 
 function normalizeCompany(value: string | null | undefined): string | null {
@@ -528,22 +641,47 @@ export function buildCardMarketStats(input: BuildCardMarketStatsInput): CardMark
     : null;
   const candidates = buildGradedCandidates(input);
   const rsi = calculateRsi(observations);
+  const momentum = calculateMomentum(observations);
+  const liquidity = calculateLiquidityMetric({
+    demand: input.demand,
+    ebaySoldGradedPrices: input.ebaySoldGradedPrices,
+    history: input.history,
+    observations,
+    languageCount: languageValues.length,
+  });
+  const demand = calculateDemandMetric({
+    demand: input.demand,
+    ebaySoldGradedPrices: input.ebaySoldGradedPrices,
+    history: input.history,
+    momentum,
+  });
   const metrics: CardMarketStatsMetrics = {
-    momentum: calculateMomentum(observations),
+    momentum,
     stability: calculateStability(volatility),
-    liquidity: calculateLiquidity(input.demand),
+    liquidity: liquidity.value,
     grade_premium: calculateGradePremium(candidates),
-    demand: calculateDemand(input.demand),
+    demand: demand.value,
     market_depth: calculateMarketDepth({
       languageCount: languageValues.length,
       demand: input.demand,
       gradedCandidateCount: candidates.length,
     }),
   };
-  const score = calculateOverallScore(metrics);
+  const metricSources: CardMarketStatsMetricSources = {
+    liquidity: liquidity.source,
+    demand: demand.source,
+  };
+  // Proxy bars improve coverage in the UI but remain neutral in the weighted
+  // total until verified eBay inventory or lifecycle evidence exists.
+  const scoringMetrics: CardMarketStatsMetrics = {
+    ...metrics,
+    liquidity: liquidity.source === "ebay_inventory" ? liquidity.value : null,
+    demand: demand.source === "ebay_lifecycle" ? demand.value : null,
+  };
+  const score = calculateOverallScore(scoringMetrics);
 
   return {
-    model: "dustycards-market-v1",
+    model: "dustycards-market-v2",
     score,
     tier: getTier(score),
     confidence: getConfidence({
@@ -551,9 +689,10 @@ export function buildCardMarketStats(input: BuildCardMarketStatsInput): CardMark
       languageCount: languageValues.length,
       demand: input.demand,
       candidates,
-      metrics,
+      metrics: scoringMetrics,
     }),
     metrics,
+    metric_sources: metricSources,
     rsi,
     rsi_label: getRsiLabel(rsi),
     volatility_percent: volatility,

@@ -356,6 +356,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
     {selectedFeaturedCard ? (
       <CardModal
         card={selectedFeaturedCard}
+        backLabel="Back to Sealed Product"
         onClose={() => setSelectedFeaturedCard(null)}
       />
     ) : null}

@@ -1488,6 +1488,7 @@ export default function ExpansionView({
             selectedDetails?.collection_item?.id ?? "none"
           }:${selectedDetails?.price_fetched_at ?? selectedModalCard.price_fetched_at ?? "none"}`}
           card={selectedModalCard}
+          backLabel="Back to Expansion"
           onClose={closeDetails}
         />
       )}

@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.0",
+    releasedAt: "July 19, 2026",
+    title: "Premium card details",
+    summary:
+      "DustyCards 3.8.0 rebuilds Card Detail and Signal Radar around one compact collector-and-market workspace across phone, desktop and widescreen.",
+    tone: "improved",
+    highlights: [
+      "Card Detail and Signal Radar now share the same hero, actions, market controls, tabs and predictable information order.",
+      "Raw and graded prices sit beside one compact selector, with the relevant PSA, BGS or CGC grade appearing only when needed.",
+      "Desktop collectors can switch between equally sized 2D and 3D cards; the preference persists and idle card motion resumes automatically.",
+      "Mobile actions, readable info popups, scroll layers and responsive canvases stay clear from 390px phone layouts through 5K screens.",
+      "Duplicate signal data and repeated actions were removed, while empty history, missing artwork and unavailable research retain clean fallback states.",
+    ],
+  },
+  {
     version: "3.7.9",
     releasedAt: "July 19, 2026",
     title: "One compact market signal",

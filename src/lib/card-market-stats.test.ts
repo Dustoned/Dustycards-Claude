@@ -84,6 +84,10 @@ describe("buildCardMarketStats", () => {
     expect(stats.ath).toBeGreaterThan(stats.atl ?? 0);
     expect(stats.language_spread).toBe(4);
     expect(stats.data_points).toBe(45);
+    expect(stats.metric_sources).toEqual({
+      liquidity: "ebay_inventory",
+      demand: "ebay_lifecycle",
+    });
   });
 
   it("penalizes erratic histories through volatility and stability", () => {
@@ -96,7 +100,7 @@ describe("buildCardMarketStats", () => {
     expect(volatile.metrics.stability).toBeLessThan(stable.metrics.stability ?? 100);
   });
 
-  it("keeps missing market inputs neutral and reports low confidence", () => {
+  it("shows neutral or bounded proxy bars without overstating sparse evidence", () => {
     const stats = buildCardMarketStats(buildInput({
       history: history([20]),
       currentLanguagePrices: { en: 20 },
@@ -107,8 +111,55 @@ describe("buildCardMarketStats", () => {
     expect(stats.score).toBeNull();
     expect(stats.tier).toBe("BUILDING");
     expect(stats.confidence).toBe("low");
-    expect(stats.metrics.liquidity).toBeNull();
-    expect(stats.metrics.demand).toBeNull();
+    expect(stats.metrics.liquidity).toBeGreaterThan(0);
+    expect(stats.metrics.liquidity).toBeLessThan(50);
+    expect(stats.metrics.demand).toBe(50);
+    expect(stats.metric_sources).toEqual({
+      liquidity: "market_proxy",
+      demand: "neutral_prior",
+    });
+  });
+
+  it("fills liquidity and demand from bounded market proxies when eBay history is absent", () => {
+    const proxyHistory = history(Array.from({ length: 45 }, (_, index) => 20 * 1.01 ** index));
+    proxyHistory.at(-1)!.cm_avg_7d = 34;
+    proxyHistory.at(-1)!.cm_avg_30d = 29;
+
+    const stats = buildCardMarketStats(buildInput({
+      history: proxyHistory,
+      demand: null,
+    }));
+
+    expect(stats.metrics.liquidity).toBeGreaterThan(40);
+    expect(stats.metrics.demand).toBeGreaterThan(50);
+    expect(stats.metric_sources).toEqual({
+      liquidity: "market_proxy",
+      demand: "price_proxy",
+    });
+  });
+
+  it("prefers existing eBay sold activity over CardMarket-only proxies", () => {
+    const stats = buildCardMarketStats(buildInput({
+      demand: null,
+      ebaySoldGradedPrices: [
+        {
+          label: "PSA 10",
+          company: "PSA",
+          grade: "10",
+          median_price: 240,
+          median_price_eur: 240,
+          currency: "EUR",
+          sample_size: 8,
+        },
+      ],
+    }));
+
+    expect(stats.metrics.liquidity).toBeGreaterThan(40);
+    expect(stats.metrics.demand).toBeGreaterThan(40);
+    expect(stats.metric_sources).toEqual({
+      liquidity: "ebay_sales_proxy",
+      demand: "ebay_sales_proxy",
+    });
   });
 
   it("prefers eBay sold evidence and treats BGS 9.5 as a gem-mint peer", () => {

@@ -923,7 +923,7 @@ function SearchPageContent({
       )}
 
       {selectedCard && (
-        <CardModal key={selectedCard.id} card={selectedCard} onClose={() => setSelectedCard(null)} />
+        <CardModal key={selectedCard.id} card={selectedCard} backLabel="Back to Search" onClose={() => setSelectedCard(null)} />
       )}
       {selectedSealed && (
         <SealedProductModal

@@ -1816,6 +1816,7 @@ export default function DealsBrowser() {
         <CardModal
           key={selectedCard.id}
           card={selectedCard}
+          backLabel="Back to Deals"
           onClose={() => setSelectedCard(null)}
         />
       )}

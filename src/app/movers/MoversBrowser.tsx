@@ -759,6 +759,7 @@ export default function MoversBrowser({
         <CardModal
           key={`${selectedCard.id}:${selectedCard.price_fetched_at ?? "none"}`}
           card={selectedCard}
+          backLabel="Back to Movers"
           onClose={() => setSelectedCard(null)}
         />
       ) : null}

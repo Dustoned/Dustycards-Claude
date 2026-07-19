@@ -461,6 +461,22 @@ async function scanGame(game: TradingCardGame): Promise<GameSignalScan> {
   const config = SOURCE_CONFIG[game];
   const decksUrl = `${config.baseUrl}/decks`;
 
+  if (process.env.DUSTYCARDS_DISABLE_SCRAPER_REQUESTS === "1") {
+    return {
+      game,
+      cards: [],
+      source: {
+        game,
+        label: config.label,
+        url: decksUrl,
+        ok: false,
+        deckCount: 0,
+        fetchedAt: null,
+        message: "External scan disabled for this runtime",
+      },
+    };
+  }
+
   try {
     const overviewHtml = await fetchLimitlessHtml(decksUrl);
     const decks = parseLimitlessMetaDecks(overviewHtml, config.baseUrl).slice(0, DECKS_PER_GAME);

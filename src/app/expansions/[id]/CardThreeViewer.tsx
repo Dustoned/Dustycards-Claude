@@ -34,9 +34,16 @@ import {
   drawPsaSlabBack,
   type BgsCanvasKind,
 } from "@/lib/graded-slab-canvas";
-import { getCachedImageUrl, isTcggoStorageImageUrl } from "@/lib/image-cache";
+import { getTextureImageUrl, isTcggoStorageImageUrl } from "@/lib/image-cache";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
+import useModalA11y from "@/lib/useModalA11y";
+import {
+  getCardThreeAutoRotateResumeDelay,
+  getCardThreeInlineIdlePhase,
+  getCardThreeInlineIdleRotation,
+  normalizeCardThreeRotationAngle,
+} from "@/lib/card-three-motion";
 
 const ACTIVE_SEGMENT_CLASS =
   "border border-violet-400/40 bg-violet-600 text-white";
@@ -98,6 +105,7 @@ interface Props {
   frontImageUrl: string;
   cardMarketUrl: string | null;
   showGradedSlabPreview?: boolean;
+  variant?: "overlay" | "inline";
   onClose: () => void;
 }
 
@@ -135,7 +143,6 @@ const MIN_CAMERA_DISTANCE = 4.4;
 const MAX_CAMERA_DISTANCE = 22;
 const CAMERA_TARGET_FOLLOW = 0.16;
 const MOBILE_DETAIL_PANEL_CLEARANCE_OFFSET = 0;
-
 interface Card3dSizeConfig {
   resetDistanceScale: number;
   minimumFitScale: number;
@@ -1140,8 +1147,10 @@ export default function CardThreeViewer({
   frontImageUrl,
   cardMarketUrl,
   showGradedSlabPreview = false,
+  variant = "overlay",
   onClose,
 }: Props) {
+  const isInline = variant === "inline";
   const { displaySettings, isMobileViewport } = useSettings();
   const card3dSize = displaySettings.card3dSize;
   const [priceSource, setPriceSource] = useState<"cardmarket" | "tcgplayer">("cardmarket");
@@ -1163,6 +1172,7 @@ export default function CardThreeViewer({
   );
   const [mobileDetailsExpanded, setMobileDetailsExpanded] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const detailsRef = useRef<HTMLDivElement | null>(null);
   const controlsRef = useRef<{ reset: () => void } | null>(null);
@@ -1194,20 +1204,16 @@ export default function CardThreeViewer({
   );
   const isSlabViewer = isPsaSlabViewer || isBgsSlabViewer;
 
-  useBodyScrollLock();
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose]);
+  useBodyScrollLock(!isInline);
+  useModalA11y({
+    dialogRef: rootRef,
+    enabled: !isInline,
+    initialFocusRef: closeButtonRef,
+    onClose,
+    // The fullscreen viewer can sit inside CardModal. Let that parent reactivate
+    // before returning focus to the exact button that opened this nested dialog.
+    restoreFocusDelayFrames: 2,
+  });
 
   useEffect(() => {
     const rootElement = rootRef.current;
@@ -1215,14 +1221,24 @@ export default function CardThreeViewer({
     if (!renderHostElement) return;
     const renderHost: HTMLDivElement = renderHostElement;
     const host: HTMLDivElement = renderHostElement;
-    const sizeConfig = getCard3dSizeConfig(card3dSize, isMobileViewport);
-    initialRotationRef.current = isMobileViewport
-      ? { x: -0.14, y: -0.34, z: 0 }
-      : { x: -0.16, y: -0.48, z: 0 };
+    const sizeConfig = isInline
+      ? {
+          resetDistanceScale: 0.96,
+          minimumFitScale: 0.96,
+          offsetScale: 0,
+        }
+      : getCard3dSizeConfig(card3dSize, isMobileViewport);
+    initialRotationRef.current = isInline
+      ? { x: -0.055, y: 0, z: 0 }
+      : isMobileViewport
+        ? { x: -0.14, y: -0.34, z: 0 }
+        : { x: -0.16, y: -0.48, z: 0 };
 
     setIsReady(false);
     setHasError(false);
-    autoRotateRef.current = true;
+    const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let prefersReducedMotion = reducedMotionQuery.matches;
+    autoRotateRef.current = !prefersReducedMotion;
     viewerApiRef.current = null;
     dragStateRef.current = { active: false, pointerIds: new Set<number>() };
 
@@ -1230,7 +1246,20 @@ export default function CardThreeViewer({
     let animationFrameId = 0;
     let renderer: import("three").WebGLRenderer | null = null;
     let resizeHandler: (() => void) | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+    let intersectionObserver: IntersectionObserver | null = null;
+    let reducedMotionHandler: ((event: MediaQueryListEvent) => void) | null = null;
+    let visibilityChangeHandler: (() => void) | null = null;
+    let isSceneVisible = true;
     let cleanupTextures: (() => void) | null = null;
+    let autoRotateResumeTimer: number | null = null;
+    let requestAnimationLoop: (() => void) | null = null;
+
+    const stopAnimationLoop = () => {
+      if (animationFrameId === 0) return;
+      window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = 0;
+    };
 
     async function mountScene() {
       try {
@@ -1295,7 +1324,7 @@ export default function CardThreeViewer({
           });
 
         const [loadedFrontTexture, backTexture, stlLoaderModule] = await Promise.all([
-          loadTexture(getCachedImageUrl(frontImageUrl) ?? frontImageUrl),
+          loadTexture(getTextureImageUrl(frontImageUrl) ?? frontImageUrl),
           loadTexture(CARD_BACK_URL),
           isPsaSlabViewer ? import("three/examples/jsm/loaders/STLLoader.js") : Promise.resolve(null),
         ]);
@@ -1706,10 +1735,20 @@ export default function CardThreeViewer({
         const objectBoundingRadius = Math.max(objectSize.length() / 2, CARD_WIDTH * 0.8);
 
         const targetRotation = { ...initialRotationRef.current };
+        let inlineAutoRotationPhase = getCardThreeInlineIdlePhase(0, performance.now());
         const getFitCameraDistance = () =>
           Math.max(
-            isMobileViewport ? MOBILE_DEFAULT_CAMERA_DISTANCE : DEFAULT_CAMERA_DISTANCE,
-            getSafeCameraDistance(camera, objectBoundingRadius, objectSize, isMobileViewport)
+            isInline
+              ? 6.25
+              : isMobileViewport
+                ? MOBILE_DEFAULT_CAMERA_DISTANCE
+                : DEFAULT_CAMERA_DISTANCE,
+            getSafeCameraDistance(
+              camera,
+              objectBoundingRadius,
+              objectSize,
+              isMobileViewport || isInline
+            )
           );
         const getResetCameraDistance = () => {
           const fitDistance = getFitCameraDistance();
@@ -1731,6 +1770,68 @@ export default function CardThreeViewer({
         const pointer = new THREE.Vector2();
         const pointerTargetUv = new THREE.Vector2(0.5, 0.5);
         let pointerTargetStrength = 0;
+        let lastInteractionAt: number | null = null;
+
+        const clearAutoRotationResumeTimer = () => {
+          if (autoRotateResumeTimer == null) return;
+          window.clearTimeout(autoRotateResumeTimer);
+          autoRotateResumeTimer = null;
+        };
+
+        const resumeAutoRotation = () => {
+          if (prefersReducedMotion || activePointers.size > 0) return;
+          if (isInline) {
+            const normalizedTarget = normalizeCardThreeRotationAngle(targetRotation.y);
+            targetRotation.y = normalizedTarget;
+            cardGroup.rotation.y =
+              normalizedTarget +
+              normalizeCardThreeRotationAngle(cardGroup.rotation.y - normalizedTarget);
+            inlineAutoRotationPhase = getCardThreeInlineIdlePhase(
+              cardGroup.rotation.y,
+              performance.now()
+            );
+          }
+          autoRotateRef.current = true;
+        };
+
+        const scheduleAutoRotationFromLatestInteraction = () => {
+          autoRotateRef.current = false;
+          clearAutoRotationResumeTimer();
+          if (prefersReducedMotion) return;
+          const delay = getCardThreeAutoRotateResumeDelay(
+            lastInteractionAt,
+            performance.now()
+          );
+          if (delay === 0) {
+            resumeAutoRotation();
+            return;
+          }
+          autoRotateResumeTimer = window.setTimeout(() => {
+            autoRotateResumeTimer = null;
+            if (activePointers.size > 0) {
+              return;
+            }
+            resumeAutoRotation();
+          }, delay);
+        };
+
+        const pauseAutoRotationUntilIdle = () => {
+          lastInteractionAt = performance.now();
+          scheduleAutoRotationFromLatestInteraction();
+        };
+
+        prefersReducedMotion = reducedMotionQuery.matches;
+        reducedMotionHandler = (event) => {
+          prefersReducedMotion = event.matches;
+          if (prefersReducedMotion) {
+            autoRotateRef.current = false;
+            clearAutoRotationResumeTimer();
+            return;
+          }
+          scheduleAutoRotationFromLatestInteraction();
+        };
+        reducedMotionQuery.addEventListener("change", reducedMotionHandler);
+        if (prefersReducedMotion) autoRotateRef.current = false;
 
         const applyCameraConstraints = () => {
           targetCameraDistance = clamp(targetCameraDistance, MIN_CAMERA_DISTANCE, MAX_CAMERA_DISTANCE);
@@ -1803,7 +1904,7 @@ export default function CardThreeViewer({
         };
 
         const beginPointerInteraction = (pointerId: number, clientX: number, clientY: number) => {
-          autoRotateRef.current = false;
+          pauseAutoRotationUntilIdle();
           updateFoilPointer(clientX, clientY);
           activePointers.set(pointerId, { x: clientX, y: clientY });
           pinchStartDistance = activePointers.size === 2 ? getPointerDistance() : null;
@@ -1817,6 +1918,8 @@ export default function CardThreeViewer({
         const movePointerInteraction = (pointerId: number, clientX: number, clientY: number) => {
           const current = activePointers.get(pointerId);
           if (!current) return;
+
+          pauseAutoRotationUntilIdle();
 
           updateFoilPointer(clientX, clientY);
           const next = { x: clientX, y: clientY };
@@ -1853,10 +1956,20 @@ export default function CardThreeViewer({
           if (rootElement?.hasPointerCapture(pointerId)) {
             rootElement.releasePointerCapture(pointerId);
           }
+          if (activePointers.size === 0) {
+            if (isInline) {
+              const normalizedTarget = normalizeCardThreeRotationAngle(targetRotation.y);
+              targetRotation.y = normalizedTarget;
+              cardGroup.rotation.y =
+                normalizedTarget +
+                normalizeCardThreeRotationAngle(cardGroup.rotation.y - normalizedTarget);
+            }
+            pauseAutoRotationUntilIdle();
+          }
         };
 
         const zoomInteraction = (deltaY: number) => {
-          autoRotateRef.current = false;
+          pauseAutoRotationUntilIdle();
           targetCameraDistance = clamp(
             targetCameraDistance + deltaY * 0.0032,
             MIN_CAMERA_DISTANCE,
@@ -1866,7 +1979,7 @@ export default function CardThreeViewer({
 
         controlsRef.current = {
           reset: () => {
-            autoRotateRef.current = false;
+            pauseAutoRotationUntilIdle();
             targetRotation.x = initialRotationRef.current.x;
             targetRotation.y = initialRotationRef.current.y;
             targetRotation.z = initialRotationRef.current.z;
@@ -1893,7 +2006,26 @@ export default function CardThreeViewer({
           renderer.setSize(host.clientWidth, host.clientHeight);
           updateFraming();
         };
-        window.addEventListener("resize", resizeHandler);
+        if (typeof ResizeObserver === "function") {
+          resizeObserver = new ResizeObserver(resizeHandler);
+          resizeObserver.observe(host);
+        } else {
+          window.addEventListener("resize", resizeHandler);
+        }
+        if (isInline && rootElement && typeof IntersectionObserver === "function") {
+          intersectionObserver = new IntersectionObserver(
+            ([entry]) => {
+              isSceneVisible = entry?.isIntersecting ?? true;
+              if (isSceneVisible) {
+                requestAnimationLoop?.();
+              } else {
+                stopAnimationLoop();
+              }
+            },
+            { rootMargin: "160px" }
+          );
+          intersectionObserver.observe(rootElement);
+        }
 
         cleanupTextures = () => {
           edgeGeometry.dispose();
@@ -1931,16 +2063,26 @@ export default function CardThreeViewer({
         }
 
         const animate = () => {
-          animationFrameId = window.requestAnimationFrame(animate);
+          animationFrameId = 0;
+          if (!mounted || document.hidden || !isSceneVisible) return;
           holoUniforms.uPointerUv.value.lerp(pointerTargetUv, 0.18);
           holoUniforms.uPointerStrength.value +=
             (pointerTargetStrength - holoUniforms.uPointerStrength.value) * 0.16;
           const minCameraDistance = applyCameraConstraints();
 
           if (autoRotateRef.current) {
-            targetRotation.y += 0.0022;
-            targetRotation.x =
-              initialRotationRef.current.x + Math.sin(performance.now() * 0.001) * 0.014;
+            if (isInline) {
+              targetRotation.y = getCardThreeInlineIdleRotation(
+                performance.now(),
+                inlineAutoRotationPhase
+              );
+              targetRotation.x =
+                initialRotationRef.current.x + Math.sin(performance.now() * 0.00052) * 0.014;
+            } else {
+              targetRotation.y += 0.0022;
+              targetRotation.x =
+                initialRotationRef.current.x + Math.sin(performance.now() * 0.001) * 0.014;
+            }
           }
 
           cardGroup.rotation.x += (targetRotation.x - cardGroup.rotation.x) * 0.16;
@@ -1972,9 +2114,29 @@ export default function CardThreeViewer({
           );
           camera.lookAt(cameraTarget);
           renderer?.render(scene, camera);
+          requestAnimationLoop?.();
         };
 
-        animate();
+        requestAnimationLoop = () => {
+          if (
+            !mounted ||
+            animationFrameId !== 0 ||
+            document.hidden ||
+            !isSceneVisible
+          ) {
+            return;
+          }
+          animationFrameId = window.requestAnimationFrame(animate);
+        };
+        visibilityChangeHandler = () => {
+          if (document.hidden) {
+            stopAnimationLoop();
+          } else {
+            requestAnimationLoop?.();
+          }
+        };
+        document.addEventListener("visibilitychange", visibilityChangeHandler);
+        requestAnimationLoop();
       } catch (error) {
         console.error("Failed to initialize 3D card viewer", error);
         if (mounted) {
@@ -1987,15 +2149,27 @@ export default function CardThreeViewer({
 
     return () => {
       mounted = false;
-      window.cancelAnimationFrame(animationFrameId);
+      stopAnimationLoop();
       if (resizeHandler) {
         window.removeEventListener("resize", resizeHandler);
+      }
+      resizeObserver?.disconnect();
+      intersectionObserver?.disconnect();
+      if (reducedMotionHandler) {
+        reducedMotionQuery.removeEventListener("change", reducedMotionHandler);
+      }
+      if (visibilityChangeHandler) {
+        document.removeEventListener("visibilitychange", visibilityChangeHandler);
+      }
+      if (autoRotateResumeTimer != null) {
+        window.clearTimeout(autoRotateResumeTimer);
       }
       cleanupTextures?.();
       if (renderer && renderHost.contains(renderer.domElement)) {
         renderHost.removeChild(renderer.domElement);
       }
       renderer?.dispose();
+      renderer?.forceContextLoss();
       controlsRef.current = null;
       viewerApiRef.current = null;
       if (rootElement) {
@@ -2014,6 +2188,7 @@ export default function CardThreeViewer({
     isBgsSlabViewer,
     isSlabViewer,
     card3dSize,
+    isInline,
     isMobileViewport,
   ]);
 
@@ -2090,8 +2265,23 @@ export default function CardThreeViewer({
   return (
     <div
       ref={rootRef}
-      className="fixed inset-0 z-[320] touch-none bg-black/85 backdrop-blur-md"
-      style={{ overscrollBehavior: "contain", touchAction: "none" }}
+      role={isInline ? undefined : "dialog"}
+      aria-modal={isInline ? undefined : "true"}
+      aria-label={isInline ? undefined : `3D view of ${card.name}`}
+      tabIndex={isInline ? undefined : -1}
+      data-card-three-modal={isInline ? undefined : "true"}
+      className={
+        isInline
+          ? "card-detail-inline-three-viewer relative aspect-[5/7] w-full touch-none overflow-hidden rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_50%_34%,rgba(124,92,255,0.13),rgba(8,8,12,0.96)_66%)]"
+          : "fixed inset-0 z-[320] touch-none bg-black/85 backdrop-blur-md"
+      }
+      style={{
+        overscrollBehavior: "contain",
+        touchAction: "none",
+        ...(isInline
+          ? { aspectRatio: isSlabViewer ? "80.3 / 135.2" : "63 / 88" }
+          : {}),
+      }}
       onPointerDownCapture={(event) => {
         const viewerApi = viewerApiRef.current;
         const dragState = dragStateRef.current;
@@ -2116,11 +2306,13 @@ export default function CardThreeViewer({
           return;
         }
 
-        clickAwayRef.current = {
-          active: true,
-          startX: event.clientX,
-          startY: event.clientY,
-        };
+        clickAwayRef.current = isInline
+          ? { active: false, startX: 0, startY: 0 }
+          : {
+              active: true,
+              startX: event.clientX,
+              startY: event.clientY,
+            };
       }}
       onPointerMoveCapture={(event) => {
         viewerApiRef.current?.pointerHover(event.clientX, event.clientY);
@@ -2143,7 +2335,7 @@ export default function CardThreeViewer({
           return;
         }
 
-        if (!clickAwayRef.current.active) return;
+        if (isInline || !clickAwayRef.current.active) return;
 
         const delta = Math.hypot(
           event.clientX - clickAwayRef.current.startX,
@@ -2186,6 +2378,7 @@ export default function CardThreeViewer({
           aria-label={`3D view of ${card.name}`}
         />
 
+        {!isInline ? (
         <div className="pointer-events-none absolute inset-0 z-40 px-3 pb-[calc(0.55rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6 sm:py-6">
           <div className="relative mx-auto h-full max-w-[84rem] lg:max-w-[88rem]">
             <div className="pointer-events-none relative flex h-full flex-col justify-end md:grid md:grid-cols-[minmax(19rem,22rem)_minmax(0,1fr)] md:items-center md:gap-5 lg:grid-cols-[minmax(20rem,23rem)_minmax(0,1fr)] lg:gap-6">
@@ -2613,9 +2806,18 @@ export default function CardThreeViewer({
             </div>
           </div>
         </div>
+        ) : null}
       </div>
 
-      <div className="pointer-events-none absolute right-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-50 flex items-center gap-2 sm:right-6 sm:top-6">
+      <div
+        className={`pointer-events-none absolute z-50 flex items-center gap-2 ${
+          isInline
+            ? "right-3 top-3"
+            : "right-3 top-[calc(0.75rem+env(safe-area-inset-top))] sm:right-6 sm:top-6"
+        }`}
+      >
+        {!isInline ? (
+        <>
         <button
           type="button"
           onPointerDown={(event) => {
@@ -2642,6 +2844,7 @@ export default function CardThreeViewer({
         </button>
 
         <button
+          ref={closeButtonRef}
           type="button"
           onPointerDown={(event) => {
             event.preventDefault();
@@ -2665,6 +2868,8 @@ export default function CardThreeViewer({
         >
           <X className="h-5 w-5" />
         </button>
+        </>
+        ) : null}
       </div>
 
       {!isReady && !hasError && (

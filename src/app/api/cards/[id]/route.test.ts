@@ -114,6 +114,7 @@ vi.mock("@/lib/user-settings-server", () => ({
 }));
 
 import { GET, POST } from "@/app/api/cards/[id]/route";
+import { getCardDetailPayload } from "@/lib/card-detail-data";
 
 function makeCardRecord() {
   return {
@@ -182,6 +183,46 @@ function makeCardRecord() {
   };
 }
 
+const CARD_DETAIL_API_KEYS = [
+  "artist",
+  "buy_signal",
+  "card_number",
+  "cardmarket_id",
+  "cardmarket_url",
+  "collection_item",
+  "ebay_sold_graded_checked_at",
+  "ebay_sold_graded_price_history",
+  "ebay_sold_graded_prices",
+  "ebay_sold_graded_status",
+  "ebay_sold_graded_synced_at",
+  "episode_code",
+  "episode_id",
+  "episode_name",
+  "episode_release_date",
+  "episode_series",
+  "game",
+  "graded_price_history",
+  "graded_prices",
+  "hp",
+  "id",
+  "image_url",
+  "market_stats",
+  "name",
+  "price",
+  "price_fetched_at",
+  "price_history",
+  "price_source_checked_at",
+  "price_source_status",
+  "pull_rate_info",
+  "rarity",
+  "sealed_product_count",
+  "sealed_products",
+  "subtypes",
+  "supertype",
+  "tcggo_url",
+  "want_item",
+] as const;
+
 describe("GET /api/cards/[id]", () => {
   beforeEach(() => {
     dbMock.card.findUnique.mockReset();
@@ -230,13 +271,17 @@ describe("GET /api/cards/[id]", () => {
     );
     expect(body.market_stats).toEqual(
       expect.objectContaining({
-        model: "dustycards-market-v1",
+        model: "dustycards-market-v2",
         score: expect.any(Number),
         confidence: "low",
         metrics: expect.objectContaining({
           momentum: expect.any(Number),
           market_depth: expect.any(Number),
         }),
+        metric_sources: {
+          liquidity: "market_proxy",
+          demand: "price_proxy",
+        },
       })
     );
     expect(dbMock.card.findUnique.mock.calls[0]?.[0]?.select?.collectionItems?.where).toEqual({
@@ -287,6 +332,67 @@ describe("GET /api/cards/[id]", () => {
     );
     expect(body.price_fetched_at).toBe("2026-05-22T10:00:00.000Z");
     expect(body.buy_signal.context).toBe("market");
+  });
+
+  it("returns an API-ready serializable payload for server consumers", async () => {
+    const card = makeCardRecord();
+    (card.episode as { release_date: string | null }).release_date = "2026-05-01";
+    dbMock.card.findUnique.mockResolvedValue(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
+      new Map([[card.id, card.prices]])
+    );
+
+    const payload = await getCardDetailPayload(card.id, "user-1");
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        id: card.id,
+        episode_release_date: "2026-05-01",
+      })
+    );
+    expect(JSON.parse(JSON.stringify(payload))).toEqual(payload);
+  });
+
+  it("keeps the existing card detail API key contract", async () => {
+    const card = makeCardRecord();
+    dbMock.card.findUnique.mockResolvedValue(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
+      new Map([[card.id, card.prices]])
+    );
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/cards/card-1"), {
+      params: Promise.resolve({ id: card.id }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(Object.keys(body).sort()).toEqual([...CARD_DETAIL_API_KEYS].sort());
+  });
+
+  it("returns safe empty states without image, history, ownership or wants", async () => {
+    const card = makeCardRecord();
+    card.prices = [];
+    dbMock.card.findUnique.mockResolvedValue(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(new Map([[card.id, []]]));
+
+    const payload = await getCardDetailPayload(card.id, "user-1");
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        image_url: null,
+        price: null,
+        price_fetched_at: null,
+        price_history: [],
+        graded_prices: [],
+        graded_price_history: [],
+        ebay_sold_graded_prices: [],
+        ebay_sold_graded_price_history: [],
+        collection_item: null,
+        want_item: null,
+        sealed_products: [],
+      })
+    );
+    expect(dbMock.collectionCard.findMany).not.toHaveBeenCalled();
   });
 });
 

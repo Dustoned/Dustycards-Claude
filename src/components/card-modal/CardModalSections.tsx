@@ -15,6 +15,7 @@ import {
   Info,
   LineChart,
   Loader2,
+  Maximize2,
   MoreHorizontal,
   Package,
   Radar,
@@ -29,6 +30,7 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CachedImage from "@/components/CachedImage";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
+import ReadableInfoTooltip from "@/components/card-detail/ReadableInfoTooltip";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import { DETAIL_MARKET_LINK_CLASS } from "@/components/detail-market-link-style";
 import type { CardSize } from "@/components/SettingsProvider";
@@ -699,194 +701,105 @@ export function CardModalMarketSignalPanel({
   loading = false,
   onNavigate,
   className = "",
+  showFullAnalysisLink = true,
 }: {
   signal: ModalCardData["signal_summary"] | null | undefined;
   card: ModalCardData;
   loading?: boolean;
   onNavigate: () => void;
   className?: string;
+  showFullAnalysisLink?: boolean;
 }) {
-  const buySignal = card.buy_signal;
   const stats = card.market_stats;
-  const market = signal?.marketIntelligence;
-  const externalOpportunity = signal
-    ? market?.rawOpportunityScore ?? signal.externalScore
-    : null;
-  const externalTier = externalOpportunity == null
-    ? null
-    : externalOpportunity >= 80
-      ? "Breakout"
-      : externalOpportunity >= 60
-        ? "Strong"
-        : "Watch";
-  const localTitle = buySignal
-    ? buySignal.label === "hold"
-      ? "Neutral setup"
-      : buySignal.label === "sell" || buySignal.label === "strong_sell"
-        ? `${buySignal.label_text} pressure`
-        : `${buySignal.label_text} setup`
-    : "Building setup";
-  const opportunity = externalOpportunity ?? buySignal?.score ?? null;
-  const title = signal ? `${externalTier ?? "Watch"} setup` : localTitle;
-  const confidence = signal?.confidence ?? buySignal?.confidence ?? "low";
-  const setup = signal
-    ? market?.confluence.label ?? externalTier ?? "Watch"
-    : buySignal?.label_text ?? "Awaiting data";
-  const origin = signal
-    ? (signal.catalysts?.length ?? 0) > 0
-      ? "External event"
-      : "Market & rarity"
-    : "DustyCards model";
-  const explanation = signal
-    ? signal.reasons[0] ?? signal.pressureExplanation
-    : buySignal?.reasons[0] ?? buySignal?.warnings[0] ?? "More market history is needed for a stronger signal.";
-  const externalInteresting = signal
-    ? [
-        signal.catalysts?.[0]
-          ? { label: "Catalyst", value: signal.catalysts[0].headline }
-          : null,
-        market?.scarcity.setRarityScore != null
-          ? { label: "Set rarity", value: `${market.scarcity.setRarityLabel} · ${market.scarcity.setRarityScore}/100` }
-          : null,
-        market?.scarcity
-          ? { label: "Scarcity", value: `${market.scarcity.label} · ${market.scarcity.score}/100` }
-          : null,
-        market?.sealed && (market.sealed.productCount > 0 || market.sealed.pressureScore >= 45)
-          ? { label: "Sealed", value: `${market.sealed.pressureLabel} · ${market.sealed.pressureScore}/100` }
-          : null,
-        market?.graded.available
-          ? {
-              label: "Grading",
-              value: market.graded.psa10Price == null
-                ? market.graded.supplyLabel
-                : `PSA 10 ${formatCurrency(market.graded.psa10Price, market.graded.currency)}`,
-            }
-          : null,
-      ].filter((item): item is { label: string; value: string } => Boolean(item))
-    : [];
-  const interesting = signal
-    ? externalInteresting
-    : (buySignal?.evidence ?? []).slice(0, 3).map((item) => ({
-        label: item.label,
-        value: item.value,
-      }));
   const updatedLabel = formatShortStatusDate(stats?.updated_at);
+  const scoreSummary = stats
+    ? stats.score == null
+      ? "The score is waiting for enough verified price and demand evidence."
+      : "A single composite view of saved price direction, stability, liquidity, demand and graded-market depth."
+    : "Market drivers appear as verified price and demand evidence becomes available.";
+  const analysisLinkLabel = signal ? "Open full analysis" : "Open Signal Radar";
 
   return (
     <section
       data-card-market-stats
       data-signal-summary-panel
       data-signal-source={signal ? "external" : "market"}
-      className={`relative min-w-0 overflow-hidden rounded-[22px] border border-cyan-200/12 bg-[linear-gradient(145deg,#071011_0%,#0a0c13_58%,#0b0a14_100%)] p-4 shadow-[inset_0_1px_0_rgba(165,243,252,0.055),0_24px_70px_rgba(0,0,0,0.2)] ${className}`}
+      className={`card-detail-surface relative min-w-0 ${className}`}
     >
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -right-20 -top-28 h-64 w-64 rounded-full bg-cyan-400/[0.07] blur-3xl" />
-        <div className="absolute -bottom-24 -left-16 h-52 w-52 rounded-full bg-violet-500/[0.06] blur-3xl" />
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/14 bg-violet-400/[0.055] text-violet-100/72">
+            <LineChart className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white/38">
+              Market intelligence
+              {loading && !stats ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            </p>
+            <h3 className="mt-1 text-lg font-extrabold tracking-[-0.02em] text-white/90">
+              Market score
+            </h3>
+          </div>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.07em] ${stats ? getMarketStatsTierClass(stats.tier) : "border-white/10 bg-white/[0.04] text-white/46"}`}>
+          {stats?.tier ?? "Building"}
+        </span>
       </div>
 
-      <div className="relative">
-        <div className="flex min-w-0 items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-200/16 bg-cyan-300/[0.07] text-cyan-100/74">
-              <Radar className="h-4 w-4" />
+      <div className="mt-4 grid min-w-0 gap-4 border-y border-white/[0.07] py-4 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:items-center">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-white/38">
+            DustyCards score
+          </p>
+          <div className="mt-1 flex items-end gap-1.5">
+            <span className="text-4xl font-black tabular-nums tracking-[-0.06em] text-white/94">
+              {formatMarketStatsNumber(stats?.score ?? null)}
             </span>
-            <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-cyan-100/48">
-                Signal summary
-                {loading && !signal ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
-              </p>
-              <h3 className="mt-0.5 truncate text-base font-black tracking-[-0.02em] text-white/90">
-                {title}
-              </h3>
-            </div>
-          </div>
-          <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.08em] text-white/46">
-            {confidence} confidence
-          </span>
-        </div>
-
-        <div className="mt-3 grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-3">
-          <div className="flex min-h-[5.25rem] flex-col justify-between rounded-2xl border border-cyan-200/18 bg-[linear-gradient(145deg,rgba(34,211,238,0.12),rgba(16,185,129,0.035))] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-            <p className="text-[8px] font-black uppercase leading-tight tracking-[0.1em] text-cyan-100/46">
-              DustyCards Market Score
-            </p>
-            <div className="flex items-end justify-between gap-1">
-              <span className="text-[1.75rem] font-black tabular-nums tracking-[-0.07em] text-white">
-                {formatMarketStatsNumber(stats?.score ?? null)}
-              </span>
-              <span className="pb-1 text-[9px] font-bold text-white/24">/100</span>
-            </div>
-          </div>
-
-          <div className="min-w-0 rounded-2xl border border-white/[0.07] bg-black/18 p-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              {stats ? (
-                <span className={`inline-flex rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.09em] ${getMarketStatsTierClass(stats.tier)}`}>
-                  {stats.tier}
-                </span>
-              ) : (
-                <span className="inline-flex rounded-full border border-white/10 bg-white/[0.045] px-2 py-1 text-[9px] font-black uppercase tracking-[0.09em] text-white/44">
-                  Building
-                </span>
-              )}
-              <span className="rounded-full border border-violet-300/16 bg-violet-400/[0.07] px-2 py-1 text-[9px] font-bold text-violet-100/72">
-                {opportunity == null ? "Opportunity --" : `Opportunity ${opportunity}/100`}
-              </span>
-              <span className="max-w-full truncate rounded-full border border-emerald-300/14 bg-emerald-400/[0.055] px-2 py-1 text-[9px] font-bold text-emerald-100/70">
-                {setup}
-              </span>
-            </div>
-            <p className="mt-2 text-[8px] font-bold uppercase tracking-[0.11em] text-white/28">
-              Why it matters · {origin}
-            </p>
-            <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/62">
-              {explanation}
-            </p>
+            <span className="pb-1 text-xs font-bold text-white/30">/100</span>
           </div>
         </div>
+        <div className="min-w-0 sm:border-l sm:border-white/[0.07] sm:pl-4">
+          <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-white/38">
+            Data confidence
+          </p>
+          <p className="mt-1 text-sm font-bold capitalize text-white/78">
+            {stats?.confidence ?? "Building"}
+          </p>
+          <p className="mt-1 text-sm leading-5 text-white/50">
+            {scoreSummary}
+          </p>
+        </div>
+      </div>
 
-        {interesting.length ? (
-          <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
-            {interesting.slice(0, 2).map((item) => (
-              <span
-                key={`${item.label}-${item.value}`}
-                className="max-w-full truncate rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[9px] font-semibold text-white/54"
-                title={`${item.label}: ${item.value}`}
-              >
-                <span className="text-white/30">{item.label}</span> · {item.value}
-              </span>
-            ))}
-          </div>
-        ) : null}
+      {stats ? (
+        <CardModalMarketStatsContent stats={stats} />
+      ) : (
+        <div className="mt-4 rounded-xl border border-dashed border-white/10 px-4 py-5 text-center text-sm font-medium leading-5 text-white/42">
+          Market drivers appear as saved price and demand evidence becomes available.
+        </div>
+      )}
 
-        {stats ? (
-          <CardModalMarketStatsContent stats={stats} />
-        ) : (
-          <div className="mt-3 rounded-xl border border-dashed border-white/10 px-3 py-3 text-center text-[11px] font-medium text-white/36">
-            Market drivers appear as saved price and demand evidence becomes available.
-          </div>
-        )}
-
-        <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] pt-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[9px] font-semibold text-white/28">
-            {stats ? (
-              <span>{stats.data_points} saved price {stats.data_points === 1 ? "point" : "points"}</span>
-            ) : null}
-            {stats?.tcggo?.score != null ? (
-              <span>TCGGO {formatMarketStatsNumber(stats.tcggo.score)}</span>
-            ) : null}
-            {updatedLabel ? <span>{updatedLabel}</span> : null}
-          </div>
+      <div className="mt-4 flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-white/34">
+          {stats ? (
+            <span>{stats.data_points} saved price {stats.data_points === 1 ? "point" : "points"}</span>
+          ) : null}
+          {stats?.tcggo?.score != null ? (
+            <span>TCGGO {formatMarketStatsNumber(stats.tcggo.score)}</span>
+          ) : null}
+          {updatedLabel ? <span>{updatedLabel}</span> : null}
+        </div>
+        {showFullAnalysisLink ? (
           <Link
             href={`/movers/signal-radar/${encodeURIComponent(card.id)}?game=${encodeURIComponent(card.game)}`}
             prefetch={false}
             onClick={onNavigate}
-            className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-500/[0.11] px-3 text-[10px] font-bold text-violet-50/86 transition hover:border-violet-200/34 hover:bg-violet-500/[0.18]"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-500/[0.1] px-3.5 text-sm font-bold text-violet-50/86 transition hover:border-violet-200/34 hover:bg-violet-500/[0.17]"
           >
-            Full analysis
+            {analysisLinkLabel}
             <ChevronRight className="h-3.5 w-3.5" />
           </Link>
-        </div>
+        ) : null}
       </div>
     </section>
   );
@@ -1273,6 +1186,51 @@ function getGradedPriceRows(
   ]);
 }
 
+export interface CardModalGradedDisplayPrice {
+  selectionKey: string;
+  source: GradedPriceSource;
+  label: string;
+  sourceLabel: string;
+  value: number;
+  currency: CurrencyCode;
+  hint: string | null;
+}
+
+function toGradedDisplayPrice(
+  row: GradedPriceDisplayRow | null
+): CardModalGradedDisplayPrice | null {
+  if (!row) return null;
+  return {
+    selectionKey: row.key,
+    source: row.sourceType,
+    label: row.label,
+    sourceLabel: row.sourceLabel,
+    value: row.chartCurrentValue ?? row.value,
+    currency: row.chartCurrency,
+    hint: row.hint,
+  };
+}
+
+export function getCardModalGradedDisplayPrices(
+  card: ModalCardData,
+  collectionItem: ModalCardData["collection_item"] | null | undefined
+): CardModalGradedDisplayPrice[] {
+  const rows = getGradedPriceRows(card, collectionItem);
+  const savedRows = rows.filter((row) => row.savedMatch);
+  return (savedRows.length > 0 ? savedRows : rows)
+    .map((row) => toGradedDisplayPrice(row))
+    .filter((price): price is CardModalGradedDisplayPrice => price != null);
+}
+
+export function getPreferredCardModalGradedDisplayPrice(
+  card: ModalCardData,
+  collectionItem: ModalCardData["collection_item"] | null | undefined
+): CardModalGradedDisplayPrice | null {
+  const rows = getGradedPriceRows(card, collectionItem);
+  const savedRows = rows.filter((row) => row.savedMatch);
+  return toGradedDisplayPrice(getPreferredGradedRow(savedRows.length > 0 ? savedRows : rows));
+}
+
 function getBgsSubgradeEntries(collectionItem: ModalCardData["collection_item"] | null | undefined) {
   const subgrades = collectionItem?.grading_subgrades ?? null;
   if (!subgrades) return [];
@@ -1493,6 +1451,10 @@ export function CardModalDesktopActionGroup({
   onRemoveCollectionItem,
   onAddedToCollection,
   onClose,
+  onResearchSignal,
+  researchingSignal = false,
+  cardMarketHref,
+  onOpenCardMarket,
 }: {
   card: ModalCardData;
   collectionItem: ModalCardData["collection_item"] | null;
@@ -1506,6 +1468,10 @@ export function CardModalDesktopActionGroup({
   onRemoveCollectionItem: () => void;
   onAddedToCollection?: () => void | Promise<void>;
   onClose: () => void;
+  onResearchSignal?: () => void;
+  researchingSignal?: boolean;
+  cardMarketHref?: string;
+  onOpenCardMarket?: () => void;
 }) {
   const collectionCard = buildCollectionCard(card);
   const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
@@ -1517,19 +1483,27 @@ export function CardModalDesktopActionGroup({
       ? `In ${collectionItem.binder_name}`
       : "Loose single"
     : null;
-  const iconButtonClass =
-    "!inline-flex !h-10 !w-10 !items-center !justify-center !rounded-xl !border-violet-300/24 !bg-violet-600/22 !p-0 !text-violet-50 !transition-colors hover:!border-violet-200/42 hover:!bg-violet-500/32 hover:!text-white";
-  const utilityButtonClass =
-    "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] p-0 text-white/70 transition-colors hover:border-white/18 hover:bg-white/[0.085] hover:text-white disabled:cursor-not-allowed disabled:opacity-50";
+  const menuButtonClass =
+    "flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white disabled:cursor-not-allowed disabled:opacity-45";
+  const hasOverflowActions = canManageCollectionItem || Boolean(onResearchSignal) || canManageCardPrices;
+  const mobileMarketClass =
+    "inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.045] px-2.5 text-[13px] font-bold text-white/72 transition hover:border-violet-200/28 hover:bg-violet-500/[0.12] hover:text-white";
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-end gap-2" aria-label="Card actions">
+    <div
+      className="card-detail-action-cluster min-w-0 items-center justify-end gap-2"
+      aria-label="Card actions"
+    >
+      <div
+        className="card-detail-primary-actions min-w-0 items-center justify-end gap-2"
+        data-card-detail-primary-actions
+      >
       <CollectionAddCardButton
         card={collectionCard}
         mode="button"
         theme="dark"
-        label={collectionItem && !readOnlyCollectionItem ? "Add copy" : "Add to Collection"}
-        className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-500/22 !px-4 !text-sm !font-bold !text-white hover:!border-violet-200/38 hover:!bg-violet-500/30"
+        label="Add copy"
+        className="!min-h-11 !flex-1 !whitespace-nowrap !rounded-xl !border-violet-300/24 !bg-violet-500/22 !px-2.5 !text-[13px] !font-bold !text-white hover:!border-violet-200/38 hover:!bg-violet-500/30 sm:!px-4 sm:!text-sm lg:!flex-none"
         onAdded={onAddedToCollection}
       />
 
@@ -1540,25 +1514,63 @@ export function CardModalDesktopActionGroup({
         label="Want"
         initialWanted={Boolean(card.want_item)}
         wantItemId={card.want_item?.id ?? null}
-        className="!min-h-10 !rounded-xl !border-violet-300/24 !bg-violet-600/20 !px-3 !text-sm !font-bold !text-violet-50 hover:!border-violet-200/38 hover:!bg-violet-500/30"
+        className="!min-h-11 !flex-1 !whitespace-nowrap !rounded-xl !border-violet-300/20 !bg-violet-600/16 !px-2.5 !text-[13px] !font-bold !text-violet-50 hover:!border-violet-200/36 hover:!bg-violet-500/26 sm:!px-4 sm:!text-sm lg:!flex-none"
       />
 
-      {canManageCollectionItem && collectionItem && (
-        <>
-          <CollectionEditCardButton
-            card={collectionCard}
-            item={collectionItem}
-            mode="icon"
-            theme="dark"
-            label="Edit"
-            className={iconButtonClass}
-            onSaved={onClose}
-          />
+      {onOpenCardMarket ? (
+        <button
+          type="button"
+          onClick={onOpenCardMarket}
+          className={mobileMarketClass}
+          data-card-detail-mobile-market
+        >
+          <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          CardMarket
+        </button>
+      ) : cardMarketHref ? (
+        <a
+          href={cardMarketHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={mobileMarketClass}
+          data-card-detail-mobile-market
+        >
+          <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          CardMarket
+        </a>
+      ) : null}
+      </div>
+
+      {hasOverflowActions ? (
+      <details
+        className="group/card-actions relative shrink-0"
+        data-card-detail-overflow-actions
+      >
+        <summary
+          className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-white/66 transition marker:hidden hover:border-white/18 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/50"
+          aria-label="More card actions"
+          title="More card actions"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </summary>
+        <div className="card-detail-overflow-menu absolute right-0 top-[calc(100%+0.55rem)] z-[245] w-56 overflow-hidden rounded-2xl border border-white/11 bg-[#111019]/98 p-1.5 shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
+          {canManageCollectionItem && collectionItem ? (
+            <CollectionEditCardButton
+              card={collectionCard}
+              item={collectionItem}
+              mode="button"
+              theme="dark"
+              label="Edit saved copy"
+              className="!min-h-11 !w-full !justify-start !rounded-xl !border-0 !bg-transparent !px-3 !text-sm !font-semibold !text-white/68 hover:!bg-white/[0.065] hover:!text-white"
+              onSaved={onClose}
+            />
+          ) : null}
+          {canManageCollectionItem && collectionItem ? (
           <button
             type="button"
             onClick={onRemoveCollectionItem}
             disabled={isBusy || removingCollectionItem}
-            className={`${utilityButtonClass} border-rose-300/18 bg-rose-500/[0.09] text-rose-100 hover:border-rose-200/32 hover:bg-rose-500/18 active:bg-rose-500/22`}
+            className={`${menuButtonClass} text-rose-100/76 hover:bg-rose-500/[0.11] hover:text-rose-50`}
             aria-label={
               removingCollectionItem
                 ? "Removing this saved copy"
@@ -1569,34 +1581,51 @@ export function CardModalDesktopActionGroup({
             title={locationLabel ? `Remove this copy: ${locationLabel}` : "Remove this saved copy"}
           >
             <Trash2 className={`h-4 w-4 ${removingCollectionItem ? "animate-pulse" : ""}`} />
+            {removingCollectionItem ? "Removing copy..." : "Remove saved copy"}
           </button>
-        </>
-      )}
+          ) : null}
 
-      {canManageCardPrices && (
-        <>
+          {onResearchSignal ? (
+            <button
+              type="button"
+              onClick={onResearchSignal}
+              disabled={researchingSignal}
+              className={menuButtonClass}
+            >
+              {researchingSignal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
+              {researchingSignal ? "Building analysis..." : "Research signal"}
+            </button>
+          ) : null}
+
+          {canManageCardPrices ? (
+            <div className="mt-1 border-t border-white/[0.07] pt-1">
           <button
             type="button"
             onClick={onSyncHistory}
             disabled={isBusy}
-            className={utilityButtonClass}
+            className={menuButtonClass}
             aria-label={syncingHistory ? "Syncing price history" : "Sync price history"}
             title={syncingHistory ? "Syncing..." : "Sync history"}
           >
             <LineChart className={`h-4 w-4 ${syncingHistory ? "animate-pulse" : ""}`} />
+            {syncingHistory ? "Syncing history..." : "Sync price history"}
           </button>
           <button
             type="button"
             onClick={onRefresh}
             disabled={isBusy}
-            className={utilityButtonClass}
+            className={menuButtonClass}
             aria-label={refreshing ? "Refreshing prices" : "Refresh prices"}
             title={refreshing ? "Refreshing..." : "Refresh"}
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Refreshing prices..." : "Refresh prices"}
           </button>
-        </>
-      )}
+            </div>
+          ) : null}
+        </div>
+      </details>
+      ) : null}
     </div>
   );
 }
@@ -1654,7 +1683,7 @@ export function CardModalPreview({
               onOpenThreeD();
             }}
             className={previewButtonClass}
-            aria-label={`Open ${card.name} in 3D`}
+            aria-label={`Open fullscreen 3D viewer for ${card.name}`}
           >
             {showGradedPreview && gradingCompanyLabel && gradingGradeLabel ? (
               <GradedSlabPreview
@@ -1688,6 +1717,12 @@ export function CardModalPreview({
                 unoptimized
               />
             )}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute right-2.5 top-2.5 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/16 bg-black/58 text-white/78 opacity-75 shadow-lg backdrop-blur-md transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </span>
           </button>
         ) : (
           <div
@@ -2674,6 +2709,11 @@ export function CardModalHistorySection({
   tcgPlayerCurrentValue,
   gradedPriceHistory,
   ebaySoldGradedPriceHistory,
+  showCurrentValue = true,
+  showModeControl = true,
+  showGradedSelectionControl = true,
+  selectedGradedDisplayPrice,
+  onGradedDisplayPriceChange,
 }: {
   historyChartMode: "market" | "graded";
   activeMarketSource: "cardmarket" | "tcgplayer";
@@ -2695,6 +2735,11 @@ export function CardModalHistorySection({
   tcgPlayerCurrentValue: number | null;
   gradedPriceHistory: CardGradedPriceHistorySeries[];
   ebaySoldGradedPriceHistory: CardEbaySoldGradedPriceHistorySeries[];
+  showCurrentValue?: boolean;
+  showModeControl?: boolean;
+  showGradedSelectionControl?: boolean;
+  selectedGradedDisplayPrice?: CardModalGradedDisplayPrice | null;
+  onGradedDisplayPriceChange?: (price: CardModalGradedDisplayPrice | null) => void;
 }) {
   const savedGradeCandidates = buildSavedGradeCandidates(collectionItem);
   const allGradedRows = getGradedPriceRows(card, collectionItem);
@@ -2720,8 +2765,18 @@ export function CardModalHistorySection({
     source: fallbackGradedSource,
     label: "",
   }));
+  const controlledGradedRow = selectedGradedDisplayPrice
+    ? gradedRows.find((row) => row.key === selectedGradedDisplayPrice.selectionKey) ??
+      gradedRows.find(
+        (row) =>
+          row.sourceType === selectedGradedDisplayPrice.source &&
+          row.label === selectedGradedDisplayPrice.label
+      ) ??
+      null
+    : null;
   const selectedGradedSource =
-    gradedSelection.cardId === card.id ? gradedSelection.source : fallbackGradedSource;
+    controlledGradedRow?.sourceType ??
+    (gradedSelection.cardId === card.id ? gradedSelection.source : fallbackGradedSource);
   const effectiveGradedSource =
     selectedGradedSource === "cardmarket" && cardMarketGradedRows.length > 0
       ? "cardmarket"
@@ -2733,11 +2788,13 @@ export function CardModalHistorySection({
   const selectedGradedSlabLabel =
     gradedSelection.cardId === card.id ? gradedSelection.label : "";
   const selectedGradedRow =
+    controlledGradedRow ??
     gradedSourceRows.find((row) => row.label === selectedGradedSlabLabel) ??
     getPreferredGradedRow(gradedSourceRows);
   const gradedChartCurrency =
     selectedGradedRow?.chartCurrency ?? selectedGradedRow?.currency ?? "EUR";
-  const showGradedSourceToggle = cardMarketGradedRows.length > 0 && ebayGradedRows.length > 0;
+  const showGradedSourceToggle =
+    showGradedSelectionControl && cardMarketGradedRows.length > 0 && ebayGradedRows.length > 0;
 
   const activeMarketHistory =
     activeMarketSource === "tcgplayer"
@@ -2764,21 +2821,19 @@ export function CardModalHistorySection({
     ...gradedPriceHistory.flatMap((series) => series.points),
     ...ebaySoldGradedPriceHistory.flatMap((series) => series.points),
   ];
-  const historyPillClass =
-    "inline-flex h-8 shrink-0 items-center justify-center rounded-full border px-2.5 text-[11px] font-semibold transition-colors max-[640px]:h-7 max-[640px]:px-1.5 max-[640px]:text-[10px]";
   const historySourceToggleClass =
-    "grid h-8 w-[13rem] min-w-[10.5rem] max-w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:w-[10.5rem]";
+    "grid h-11 w-[10.5rem] min-w-[10.5rem] max-w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/25 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
   const historyModeToggleClass =
-    "grid h-8 w-[8.75rem] min-w-[8.75rem] max-w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/24 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:w-[8.25rem]";
+    "grid h-11 w-[9.5rem] min-w-[9.5rem] max-w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/25 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
   const historyModeToggleButtonClass =
-    "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-bold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
+    "min-w-0 rounded-[10px] px-2 text-center text-[12px] font-bold leading-none transition-colors";
   const historySourceToggleButtonClass =
-    "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-semibold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
+    "min-w-0 rounded-[10px] px-1.5 text-center text-[11px] font-bold leading-none transition-colors";
   const historySourceToggleActiveClass =
     "bg-white/[0.13] text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
   const chartHeaderChipClass =
     "inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76";
-  const historyModeSwitchControl = hasGradedData ? (
+  const historyModeSwitchControl = hasGradedData && showModeControl ? (
     <div className={`dc-compact-segment card-modal-mode-toggle ${historyModeToggleClass}`}>
       {[
         { key: "market" as const, label: "Raw" },
@@ -2802,22 +2857,32 @@ export function CardModalHistorySection({
   ) : null;
   const cardMarketSeriesPickerControl =
     effectiveHistoryChartMode === "market" && showCardMarketSeriesPicker ? (
-      <div className="card-modal-series-picker card-modal-history-series-picker flex min-w-0 max-w-full flex-nowrap items-center gap-1">
-        {availableCardMarketHistorySeries.map((series) => (
-          <button
-            key={series.key}
-            type="button"
-            onClick={() => onSelectCardMarketHistorySeries(series.key)}
-            className={`${historyPillClass} ${
-              activeCardMarketHistorySeries === series.key
-                ? ACTIVE_SEGMENT_CLASS
-                : "border-white/10 text-white/54 hover:border-white/18 hover:text-white/82"
-            }`}
-          >
-            {series.label}
-          </button>
-        ))}
-      </div>
+      <label
+        className="relative inline-flex h-11 w-[5.75rem] shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-black/25 pl-2.5 pr-7 text-white/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition hover:border-white/18 hover:text-white focus-within:border-violet-300/34 focus-within:ring-2 focus-within:ring-violet-300/35"
+        data-card-detail-language-control
+      >
+        <Globe2 className="h-3.5 w-3.5 shrink-0 text-violet-200/64" aria-hidden="true" />
+        <span className="text-[12px] font-black">
+          {availableCardMarketHistorySeries.find(
+            (series) => series.key === activeCardMarketHistorySeries
+          )?.label ?? activeCardMarketSeriesLabel}
+        </span>
+        <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-white/38" />
+        <select
+          aria-label="Select market language"
+          value={activeCardMarketHistorySeries}
+          onChange={(event) =>
+            onSelectCardMarketHistorySeries(event.target.value as CardMarketHistorySeriesKey)
+          }
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        >
+          {availableCardMarketHistorySeries.map((series) => (
+            <option key={series.key} value={series.key} className="bg-[#111214] text-white">
+              {series.label}
+            </option>
+          ))}
+        </select>
+      </label>
     ) : null;
   const rawSourceSwitchControl = showRawSourceToggle ? (
     <div className={`dc-compact-segment card-modal-source-toggle ${historySourceToggleClass}`}>
@@ -2851,7 +2916,14 @@ export function CardModalHistorySection({
           key={source.key}
           type="button"
           onClick={() => {
-            setGradedSelection({ cardId: card.id, source: source.key, label: "" });
+            const nextRows = source.key === "cardmarket" ? cardMarketGradedRows : ebayGradedRows;
+            const nextRow = getPreferredGradedRow(nextRows);
+            setGradedSelection({
+              cardId: card.id,
+              source: source.key,
+              label: nextRow?.label ?? "",
+            });
+            onGradedDisplayPriceChange?.(toGradedDisplayPrice(nextRow));
           }}
           aria-pressed={effectiveGradedSource === source.key}
           className={`${historySourceToggleButtonClass} ${
@@ -2887,21 +2959,23 @@ export function CardModalHistorySection({
         </span>
       )
     );
-  const gradedSlabSelectControl = (
+  const gradedSlabSelectControl = showGradedSelectionControl ? (
     <GradedSlabSelectControl
       rows={gradedSourceRows}
       selectedRow={selectedGradedRow}
-      onChange={(label) =>
+      onChange={(label) => {
+        const nextRow = gradedSourceRows.find((row) => row.label === label) ?? null;
         setGradedSelection({
           cardId: card.id,
           source: effectiveGradedSource,
           label,
-        })
-      }
+        });
+        onGradedDisplayPriceChange?.(toGradedDisplayPrice(nextRow));
+      }}
       className="max-w-[10rem] max-[640px]:max-w-[8.5rem]"
     />
-  );
-  const gradedHeaderLeadingAccessory = (
+  ) : null;
+  const gradedHeaderLeadingAccessory = showGradedSelectionControl ? (
     <div className="grid min-w-0 max-w-full gap-1.5">
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
         {historyModeSwitchControl}
@@ -2909,7 +2983,7 @@ export function CardModalHistorySection({
       </div>
       {gradedSlabSelectControl}
     </div>
-  );
+  ) : null;
   return (
     <section className="min-w-0 text-white">
       <div className="flex flex-col gap-3">
@@ -2921,6 +2995,7 @@ export function CardModalHistorySection({
                 currency={gradedChartCurrency}
                 points={selectedGradedRow?.chartPoints ?? []}
                 currentValue={selectedGradedRow?.chartCurrentValue ?? selectedGradedRow?.value ?? null}
+                showCurrentValue={showCurrentValue}
                 headerLeadingAccessory={gradedHeaderLeadingAccessory}
                 tone="dark"
                 layout="hero"
@@ -2938,6 +3013,7 @@ export function CardModalHistorySection({
                 currency={activeMarketHistory.currency}
                 points={activeMarketHistory.points}
                 currentValue={activeMarketHistory.currentValue}
+                showCurrentValue={showCurrentValue}
                 headerLeadingAccessory={historyHeaderLeadingAccessory}
                 headerAccessory={rawHeaderAccessory}
                 tone="dark"
@@ -2993,30 +3069,7 @@ const MARKET_STATS_METRICS = [
 ] as const;
 
 function MarketStatsInfo({ label, description }: { label: string; description: string }) {
-  return (
-    <span className="group relative inline-flex shrink-0">
-      <button
-        type="button"
-        aria-label={`${label}: ${description}`}
-        data-mobile-tooltip={description}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full text-white/32 outline-none transition-colors hover:bg-white/[0.07] hover:text-cyan-100 focus-visible:bg-white/[0.08] focus-visible:text-cyan-100"
-      >
-        <Info className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none invisible absolute bottom-[calc(100%+0.45rem)] left-1/2 z-50 hidden w-64 -translate-x-1/2 rounded-xl border border-cyan-100/15 bg-[#061113]/96 px-3 py-2 text-left text-[11px] font-medium leading-relaxed text-white/82 opacity-0 shadow-[0_18px_55px_rgba(0,0,0,0.48)] backdrop-blur-xl transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 md:block"
-      >
-        {description}
-      </span>
-      <span
-        role="tooltip"
-        className="pointer-events-none invisible fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-1/2 z-[260] w-[min(20rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-cyan-100/15 bg-[#061113]/96 px-3.5 py-3 text-center text-xs font-semibold leading-relaxed text-white/86 opacity-0 shadow-[0_22px_70px_rgba(0,0,0,0.6)] backdrop-blur-xl transition-opacity group-focus-within:visible group-focus-within:opacity-100 md:hidden"
-      >
-        {description}
-      </span>
-    </span>
-  );
+  return <ReadableInfoTooltip label={label} description={description} />;
 }
 
 function getMarketStatsTierClass(tier: NonNullable<ModalCardData["market_stats"]>["tier"]): string {
@@ -3053,17 +3106,51 @@ function MarketStatsMetricRow({
 }) {
   const value = stats.metrics[metric.key];
   const comparison = stats.tcggo?.[metric.key] ?? null;
+  const marketSource = metric.key === "liquidity"
+    ? stats.metric_sources.liquidity
+    : metric.key === "demand"
+      ? stats.metric_sources.demand
+      : null;
+  let sourceLabel: string | null = null;
+  let sourceDescription = "";
+  if (marketSource === "ebay_inventory" || marketSource === "ebay_lifecycle") {
+    sourceLabel = "eBay";
+  } else if (marketSource === "ebay_sales_proxy") {
+    sourceLabel = "sold proxy";
+    sourceDescription = metric.key === "liquidity"
+      ? " No exact raw inventory snapshot is available, so this bounded proxy combines existing eBay graded sold volume with CardMarket coverage. It stays neutral in the total score."
+      : " No mature raw listing lifecycle is available, so this bounded proxy combines existing eBay graded sold volume with saved price direction. It stays neutral in the total score.";
+  } else if (marketSource === "market_proxy") {
+    sourceLabel = "proxy";
+    sourceDescription = " No verified eBay inventory snapshot is available, so this bounded proxy uses CardMarket language breadth, price-guide coverage and saved price continuity. It stays neutral in the total score.";
+  } else if (marketSource === "price_proxy") {
+    sourceLabel = "proxy";
+    sourceDescription = " No mature eBay lifecycle history is available, so this bounded proxy uses saved price momentum and the CardMarket 7-day versus 30-day trend. It stays neutral in the total score.";
+  } else if (marketSource === "neutral_prior") {
+    sourceLabel = "neutral";
+    sourceDescription = " There is not enough direct or proxy evidence yet, so the bar shows a neutral prior that does not affect the total score.";
+  }
+  const description = `${metric.description}${sourceDescription}`;
 
   return (
-    <div className="min-w-0">
+    <div
+      data-market-metric={metric.key}
+      data-market-source={marketSource ?? undefined}
+      className="min-w-0"
+    >
       <div className="flex items-center justify-between gap-3">
-        <span className="inline-flex min-w-0 items-center gap-1 text-xs font-semibold text-white/58">
+        <span className="inline-flex min-w-0 items-center gap-1 text-[13px] font-semibold text-white/62">
           <span className="truncate">{metric.label}</span>
-          <MarketStatsInfo label={metric.label} description={metric.description} />
+          <MarketStatsInfo label={metric.label} description={description} />
         </span>
-        <span className="flex shrink-0 items-center gap-2 text-xs font-bold tabular-nums text-white/80">
+        <span className="flex shrink-0 items-center gap-2 text-sm font-bold tabular-nums text-white/82">
+          {sourceLabel ? (
+            <span className="text-[10px] font-bold uppercase tracking-[0.07em] text-white/32">
+              {sourceLabel}
+            </span>
+          ) : null}
           {comparison != null && (
-            <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/30">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-white/34">
               TCGGO {formatMarketStatsNumber(comparison)}
             </span>
           )}
@@ -3092,14 +3179,14 @@ function MarketStatsFact({
   comparison?: string | null;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-white/[0.07] bg-black/20 px-3 py-2.5">
-      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.09em] text-white/34">
+    <div className="min-w-0 rounded-xl border border-white/[0.07] bg-black/16 px-3 py-3">
+      <span className="flex min-w-0 items-center gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-white/40">
         {label}
         <MarketStatsInfo label={label} description={description} />
       </span>
-      <p className="mt-1 truncate text-sm font-semibold tabular-nums text-white/84">{value}</p>
+      <p className="mt-1 truncate text-base font-semibold tabular-nums text-white/86">{value}</p>
       {comparison && (
-        <p className="mt-0.5 truncate text-[9px] font-semibold uppercase tracking-[0.07em] text-white/28">
+        <p className="mt-0.5 truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-white/32">
           TCGGO {comparison}
         </p>
       )}
@@ -3118,16 +3205,11 @@ function CardModalMarketStatsContent({
 
   return (
     <>
-      <div className="mt-3 border-t border-white/[0.07] pt-3">
-        <div className="mb-2.5 flex items-center justify-between gap-3">
-          <p className="text-[9px] font-black uppercase tracking-[0.13em] text-white/40">
-            Market drivers
-          </p>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/24">
-            {stats.confidence} confidence
-          </span>
-        </div>
-        <div className="grid gap-x-4 gap-y-2.5 sm:grid-cols-2">
+      <div className="mt-4">
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white/42">
+          Market drivers
+        </p>
+        <div className="grid gap-x-5 gap-y-3.5 sm:grid-cols-2">
           {MARKET_STATS_METRICS.map((metric) => (
             <MarketStatsMetricRow key={metric.key} stats={stats} metric={metric} />
           ))}
@@ -3135,22 +3217,22 @@ function CardModalMarketStatsContent({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-xl border border-white/[0.07] bg-black/18 px-3 py-2.5">
-          <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.09em] text-white/32">
+        <div className="rounded-xl border border-white/[0.07] bg-black/16 px-3 py-3">
+          <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-white/38">
             RSI
             <MarketStatsInfo label="RSI" description={rsiDetail} />
           </span>
           <div className="mt-1 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-bold tabular-nums text-white/80">
+            <p className="text-base font-bold tabular-nums text-white/82">
               {formatMarketStatsNumber(stats.rsi)}
             </p>
-            <p className={`truncate text-[9px] font-semibold ${stats.rsi_label === "Overbought" ? "text-rose-300/72" : stats.rsi_label === "Oversold" ? "text-sky-300/72" : "text-white/30"}`}>
+            <p className={`truncate text-[11px] font-semibold ${stats.rsi_label === "Overbought" ? "text-rose-300/72" : stats.rsi_label === "Oversold" ? "text-sky-300/72" : "text-white/34"}`}>
               {stats.rsi_label ?? "Building"}
             </p>
           </div>
         </div>
-        <div className="rounded-xl border border-white/[0.07] bg-black/18 px-3 py-2.5">
-          <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.09em] text-white/32">
+        <div className="rounded-xl border border-white/[0.07] bg-black/16 px-3 py-3">
+          <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-white/38">
             Volatility
             <MarketStatsInfo
               label="Volatility"
@@ -3158,25 +3240,25 @@ function CardModalMarketStatsContent({
             />
           </span>
           <div className="mt-1 flex items-baseline justify-between gap-2">
-            <p className="text-sm font-bold tabular-nums text-white/80">
+            <p className="text-base font-bold tabular-nums text-white/82">
               {formatMarketStatsNumber(stats.volatility_percent, "%")}
             </p>
-            <p className="text-[9px] font-semibold text-white/30">Annualized</p>
+            <p className="text-[11px] font-semibold text-white/34">Annualized</p>
           </div>
         </div>
       </div>
 
-      <details className="group mt-3 rounded-xl border border-white/[0.07] bg-black/14 open:bg-black/20">
-        <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 text-[10px] font-bold text-white/48 marker:hidden">
+      <details className="group/market-details mt-3 rounded-xl border border-white/[0.07] bg-black/14 open:bg-black/20">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-bold text-white/56 marker:hidden">
           <span>More market details</span>
-          <span className="flex min-w-0 items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.07em] text-white/24">
+          <span className="flex min-w-0 items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-white/30">
             <span className="hidden truncate min-[390px]:inline">ATH · ATL · grading</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 transition-transform group-open/market-details:rotate-180" />
           </span>
         </summary>
 
         <div className="border-t border-white/[0.06] p-3">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
             <MarketStatsFact
               label="ATH"
               description="Highest saved English NM CardMarket price in DustyCards history for this card."
@@ -3197,48 +3279,48 @@ function CardModalMarketStatsContent({
             />
           </div>
 
-          <div className="mt-3 rounded-xl border border-white/[0.07] bg-black/18 p-3">
+          <div className="mt-3 rounded-xl border border-white/[0.07] bg-black/16 p-3">
             <div className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.1em] text-white/38">
+              <span className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-[0.08em] text-white/42">
                 Graded vs raw
                 <MarketStatsInfo
                   label="Graded versus raw"
                   description="Exact graded market value divided by the current English NM raw price. eBay sold medians are preferred over CardMarket graded quotes."
                 />
               </span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-white/24">EUR</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-white/30">EUR</span>
             </div>
             <div className="mt-1">
               {stats.graded_comparisons.length > 0 ? (
                 stats.graded_comparisons.map((comparison) => (
                   <div key={`${comparison.label}-${comparison.source}`} className="flex min-w-0 items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-b-0">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-white/72">{comparison.label}</p>
-                      <p className="mt-0.5 truncate text-[9px] font-medium text-white/28">
+                      <p className="truncate text-[13px] font-bold text-white/74">{comparison.label}</p>
+                      <p className="mt-0.5 truncate text-[11px] font-medium text-white/34">
                         {comparison.source === "ebay_sold"
                           ? `eBay sold${comparison.sample_size ? ` · ${comparison.sample_size} sale${comparison.sample_size === 1 ? "" : "s"}` : ""} · ${comparison.reliability} evidence`
                           : `CardMarket graded quote · ${comparison.reliability} evidence`}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="text-xs font-bold tabular-nums text-white/82">
+                      <p className="text-[13px] font-bold tabular-nums text-white/84">
                         {formatCurrency(comparison.price_eur, "EUR")}
                       </p>
-                      <p className="mt-0.5 text-[10px] font-black tabular-nums text-amber-200/78">
+                      <p className="mt-0.5 text-xs font-black tabular-nums text-amber-200/78">
                         {comparison.raw_multiple == null ? "--" : `${formatMarketStatsNumber(comparison.raw_multiple)}x raw`}
                       </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="py-3 text-center text-[11px] font-medium text-white/30">
+                <p className="py-3 text-center text-[13px] font-medium text-white/36">
                   No usable graded comparison yet.
                 </p>
               )}
             </div>
           </div>
 
-          <p className="mt-3 text-[9px] font-medium leading-relaxed text-white/25">
+          <p className="mt-3 text-[11px] font-medium leading-relaxed text-white/32">
             Missing inputs stay neutral and lower confidence. Market evidence is not a guarantee of future returns.
           </p>
         </div>
@@ -3277,11 +3359,13 @@ export function CardModalOwnedCopyPanel({
   collectionItem,
   onAddedToCollection,
   className = "",
+  showActions = true,
 }: {
   card: ModalCardData;
   collectionItem: ModalCardCollectionItem | null;
   onAddedToCollection?: () => void | Promise<void>;
   className?: string;
+  showActions?: boolean;
 }) {
   const collectionCard = buildCollectionCard(card);
   if (!collectionItem) {
@@ -3299,7 +3383,7 @@ export function CardModalOwnedCopyPanel({
         <p className="mt-4 text-sm leading-relaxed text-white/52">
           Add a copy to save its condition, language and purchase price.
         </p>
-        <div className="mt-auto grid gap-2 pt-4 sm:grid-cols-2">
+        {showActions ? <div className="mt-auto grid gap-2 pt-4 sm:grid-cols-2">
           <CollectionAddCardButton
             card={collectionCard}
             mode="button"
@@ -3317,7 +3401,7 @@ export function CardModalOwnedCopyPanel({
             wantItemId={card.want_item?.id ?? null}
             className="!min-h-10 !rounded-xl !border-violet-300/20 !bg-violet-600/18 !text-sm !font-semibold !text-violet-50 hover:!border-violet-200/36 hover:!bg-violet-500/28"
           />
-        </div>
+        </div> : null}
       </section>
     );
   }
@@ -3387,7 +3471,7 @@ export function CardModalOwnedCopyPanel({
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {showActions ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <CollectionAddCardButton
           card={collectionCard}
           mode="button"
@@ -3405,7 +3489,7 @@ export function CardModalOwnedCopyPanel({
           wantItemId={card.want_item?.id ?? null}
           className="!min-h-10 !rounded-xl !border-violet-300/20 !bg-violet-600/18 !text-sm !font-semibold !text-violet-50 hover:!border-violet-200/36 hover:!bg-violet-500/28"
         />
-      </div>
+      </div> : null}
     </section>
   );
 }
@@ -3421,10 +3505,7 @@ export function CardModalRecentPricesPanel({
 
   return (
     <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
-      <div className="flex items-center justify-between gap-3">
-        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Recent Prices</h3>
-        <span className="text-xs font-semibold text-violet-200/80">View All</span>
-      </div>
+      <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Recent Prices</h3>
       <div className="mt-3 grid flex-1 auto-rows-fr gap-0">
         {recentPricePoints.length > 0 ? (
           recentPricePoints.map((point) => (
