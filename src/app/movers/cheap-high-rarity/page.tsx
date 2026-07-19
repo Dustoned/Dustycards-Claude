@@ -17,6 +17,7 @@ import { GAME_SEARCH_PARAM, getGameFilterSearchParamValue, parseVisibleGameFilte
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import type { CollectionMoversData } from "@/lib/movers";
+import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,10 @@ export default async function CheapHighRarityMoversPage({
   const cardScope = activeScope === "value" ? "collection" : activeScope;
   const cardData = data as CollectionMoversData;
   const movers = getDisplayedCheapHighRarityMovers(cardData);
+  const cardQuickActions = await getCardQuickActionMap(
+    user.id,
+    movers.map((item) => item.cardId)
+  );
   const isAllScope = activeItemScope === "all";
   const scopeLabel = isAllScope ? "All Cards" : "Collection";
   const ownedMultipleCount = movers.filter((item) => item.ownedCount >= 2).length;
@@ -129,6 +134,7 @@ export default async function CheapHighRarityMoversPage({
 
         <MoversBrowser
           movers={movers}
+          cardQuickActions={cardQuickActions}
           activeScope={cardScope}
           activeItemScope={activeItemScope}
           eyebrow="Secondary Pocket"

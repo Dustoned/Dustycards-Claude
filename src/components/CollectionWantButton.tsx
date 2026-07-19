@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
+import {
+  dispatchWantsChanged,
+  resolveWantState,
+  WANTS_CHANGED_EVENT,
+  type WantsChangedDetail,
+} from "@/lib/wants-client-events";
 
 interface CollectionCardRef {
   id: string;
@@ -24,6 +29,8 @@ interface Props {
   initialWanted?: boolean;
   wantItemId?: string | null;
   stopPropagation?: boolean;
+  disabled?: boolean;
+  disabledTitle?: string;
   onChanged?: (wantItem: { id: string; created_at: string } | null) => void;
 }
 
@@ -50,12 +57,34 @@ export default function CollectionWantButton({
   initialWanted = false,
   wantItemId = null,
   stopPropagation = true,
+  disabled = false,
+  disabledTitle,
   onChanged,
 }: Props) {
-  const router = useRouter();
-  const [wanted, setWanted] = useState(initialWanted);
-  const [itemId, setItemId] = useState(wantItemId);
+  const [wantState, setWantState] = useState(() =>
+    resolveWantState(card.id, { wanted: initialWanted, itemId: wantItemId })
+  );
   const [saving, setSaving] = useState(false);
+  const { wanted, itemId } = wantState;
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setWantState(resolveWantState(card.id, { wanted: initialWanted, itemId: wantItemId }));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [card.id, initialWanted, wantItemId]);
+
+  useEffect(() => {
+    function handleWantsChanged(event: Event) {
+      const detail = (event as CustomEvent<WantsChangedDetail>).detail;
+      if (!detail || detail.cardId !== card.id) return;
+
+      setWantState({ wanted: detail.wanted, itemId: detail.item?.id ?? null });
+    }
+
+    window.addEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+    return () => window.removeEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+  }, [card.id]);
 
   async function toggleWant(event: React.MouseEvent<HTMLButtonElement>) {
     if (stopPropagation) {
@@ -80,16 +109,14 @@ export default function CollectionWantButton({
       }
 
       if (wanted) {
-        setWanted(false);
-        setItemId(null);
+        setWantState({ wanted: false, itemId: null });
         onChanged?.(null);
+        dispatchWantsChanged({ cardId: card.id, wanted: false, item: null });
       } else if (data.item) {
-        setWanted(true);
-        setItemId(data.item.id);
+        setWantState({ wanted: true, itemId: data.item.id });
         onChanged?.(data.item);
+        dispatchWantsChanged({ cardId: card.id, wanted: true, item: data.item });
       }
-
-      router.refresh();
     } catch {
       // Keep the existing state if the request fails.
     } finally {
@@ -103,11 +130,17 @@ export default function CollectionWantButton({
     <button
       type="button"
       onClick={toggleWant}
-      disabled={saving}
+      disabled={saving || disabled}
       className={buttonClasses(mode, theme, className)}
       aria-pressed={wanted}
-      aria-label={wanted ? `Remove ${card.name} from wants` : `Add ${card.name} to wants`}
-      title={wanted ? "Remove from Wants" : "Add to Wants"}
+      aria-label={
+        disabled && disabledTitle
+          ? disabledTitle
+          : wanted
+            ? `Remove ${card.name} from wants`
+            : `Add ${card.name} to wants`
+      }
+      title={disabled && disabledTitle ? disabledTitle : wanted ? "Remove from Wants" : "Add to Wants"}
     >
       <Heart
         className={`${mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} ${

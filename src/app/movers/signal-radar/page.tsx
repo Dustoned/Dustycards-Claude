@@ -14,6 +14,8 @@ import {
 } from "@/lib/games";
 import { getExternalSignalRadarData } from "@/lib/external-signal-radar";
 import { enrichExternalSignalRadarData } from "@/lib/external-signal-intelligence";
+import { getExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
+import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 import {
   getPersistedExternalSignalRadarData,
   mergeExternalSignalRadarWithFallback,
@@ -26,24 +28,35 @@ export const dynamic = "force-dynamic";
 export default async function SignalRadarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game?: string }>;
+  searchParams: Promise<{ game?: string; set?: string }>;
 }) {
-  const { game } = await searchParams;
-  const requestedPath = game
-    ? `/movers/signal-radar?${GAME_SEARCH_PARAM}=${encodeURIComponent(game)}`
+  const { game, set } = await searchParams;
+  const requestedQuery = new URLSearchParams();
+  if (game) requestedQuery.set(GAME_SEARCH_PARAM, game);
+  if (set) requestedQuery.set("set", set);
+  const requestedPath = requestedQuery.size
+    ? `/movers/signal-radar?${requestedQuery.toString()}`
     : "/movers/signal-radar";
   const user = await requirePageUser(requestedPath);
   const settings = await getServerUserSettings(user.id);
   const activeGame = parseVisibleGameFilter(game, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const [liveData, persistedData] = await Promise.all([
+  const [liveData, persistedData, newReleaseChases] = await Promise.all([
     getExternalSignalRadarData(activeGame),
     getPersistedExternalSignalRadarData(activeGame),
+    getExpansionChaseRadarData({
+      gameFilter: activeGame,
+      episodeId: set?.trim() || null,
+    }),
   ]);
   const data = await enrichExternalSignalRadarData(
     mergeExternalSignalRadarWithFallback(liveData, persistedData, activeGame)
   );
+  const cardQuickActions = await getCardQuickActionMap(user.id, [
+    ...data.signals.map((signal) => signal.cardId),
+    ...(newReleaseChases?.cards.map((card) => card.cardId) ?? []),
+  ]);
 
   const buildHref = (nextGame: TradingCardGameFilter) => {
     const gameValue = getGameFilterSearchParamValue(nextGame);
@@ -101,6 +114,8 @@ export default async function SignalRadarPage({
           signals={data.signals}
           sources={data.sources}
           generatedAt={data.generatedAt}
+          newReleaseChases={newReleaseChases}
+          cardQuickActions={cardQuickActions}
         />
       </div>
     </div>

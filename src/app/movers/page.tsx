@@ -24,6 +24,7 @@ import type { CollectionMoversData, MoversScope } from "@/lib/movers";
 import type { SealedMoversData } from "@/lib/sealed-movers";
 import type { PriceSource } from "@/lib/user-settings";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 
 export const dynamic = "force-dynamic";
 
@@ -434,6 +435,12 @@ export default async function MoversPage({
   const valueData = isValueScope ? (data as CollectionValueDriversData) : null;
   const sealedData = isSealedScope ? (data as SealedMoversData) : null;
   const cardData = !isValueScope && !isSealedScope ? (data as CollectionMoversData) : null;
+  const cardQuickActions = cardData
+    ? await getCardQuickActionMap(
+        user.id,
+        cardData.movers.map((item) => item.cardId)
+      )
+    : {};
   const updatedAt = sealedData?.updatedAt ?? cardData?.movers[0]?.latestFetchedAt ?? null;
   const pulseChart = valueData
     ? buildValuePulseChart(valueData)
@@ -753,6 +760,7 @@ export default async function MoversPage({
           <MoversBrowser
             key={`${activeScope}:${activeItemScope}:${activeTrend}`}
             movers={cardData.movers}
+            cardQuickActions={cardQuickActions}
             activeScope={activeScope as MoversScope}
             activeItemScope={activeItemScope}
             initialDirection={isGradingScope ? "all" : activeTrend}

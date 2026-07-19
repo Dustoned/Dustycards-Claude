@@ -1,32 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_SETTINGS,
   mergeSettings,
   parseStoredSettings,
   serializeSettings,
 } from "@/lib/user-settings";
 
 describe("user settings", () => {
-  it("defaults wiggle stereoscopy to disabled for existing settings", () => {
-    expect(DEFAULT_SETTINGS.wiggleStereoscopy).toBe(false);
-    expect(mergeSettings({}).wiggleStereoscopy).toBe(false);
-    expect(parseStoredSettings(JSON.stringify({ settingsVersion: 3 }))?.wiggleStereoscopy).toBe(
-      false
-    );
-  });
-
-  it("roundtrips an enabled wiggle stereoscopy preference", () => {
-    const settings = mergeSettings({ wiggleStereoscopy: true });
+  it("roundtrips known display preferences", () => {
+    const settings = mergeSettings({ card3dSize: "large", mobileCard3dSize: "medium" });
     const restored = parseStoredSettings(serializeSettings(settings));
 
-    expect(restored?.wiggleStereoscopy).toBe(true);
+    expect(restored).toMatchObject({
+      card3dSize: "large",
+      mobileCard3dSize: "medium",
+    });
   });
 
-  it("falls back safely when the stored wiggle stereoscopy value is invalid", () => {
+  it("drops retired preferences while preserving current settings", () => {
     const restored = parseStoredSettings(
-      JSON.stringify({ settingsVersion: 3, wiggleStereoscopy: "enabled" })
+      JSON.stringify({ settingsVersion: 3, card3dSize: "large", retiredPreference: true })
     );
 
-    expect(restored?.wiggleStereoscopy).toBe(false);
+    expect(restored?.card3dSize).toBe("large");
+    expect(serializeSettings(restored!)).not.toContain("retiredPreference");
   });
 });

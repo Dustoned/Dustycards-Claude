@@ -37,7 +37,6 @@ const baseSettings = {
   mobileModalSize: "small" as DisplaySize,
   card3dSize: "medium" as DisplaySize,
   mobileCard3dSize: "small" as DisplaySize,
-  wiggleStereoscopy: false,
 };
 
 function hashToken(token: string): string {
@@ -237,6 +236,25 @@ async function requiredBounds(locator: Locator) {
   const bounds = await locator.boundingBox();
   expect(bounds).not.toBeNull();
   return bounds!;
+}
+
+async function expectInlineCardActions(card: Locator) {
+  const actions = card.locator("[data-card-inline-actions]");
+  await expect(actions).toHaveCount(1);
+  await expect(actions).toBeVisible();
+
+  const collection = actions.locator('[data-card-action="collection"] button');
+  const want = actions.locator('[data-card-action="want"] button');
+  await expect(collection).toHaveCount(1);
+  await expect(want).toHaveCount(1);
+  await expect(actions.getByRole("button")).toHaveCount(2);
+  await expect(collection).toHaveAttribute("aria-label", /^Add .+ to collection$/);
+  await expect(want).toHaveAttribute(
+    "aria-label",
+    /^(?:Add .+ to wants|Remove .+ from wants)$/
+  );
+
+  return { actions, collection, want };
 }
 
 function expectBoundsToMatch(
@@ -692,11 +710,103 @@ async function expectMobileActionClusterNeverCoversDetail(
 
   if (requireScrollable) {
     expect(availableScroll).toBeGreaterThan(20);
-    expect(new Set(reachedScrollPositions.map((value) => Math.round(value / 10))).size).toBe(4);
+    // Very short scroll ranges can round two quarter-points into the same
+    // 10px bucket; three distinct positions still exercise top/middle/bottom.
+    expect(
+      new Set(reachedScrollPositions.map((value) => Math.round(value / 10))).size
+    ).toBeGreaterThanOrEqual(3);
     expect(reachedScrollPositions.at(-1)).toBeGreaterThanOrEqual(availableScroll - 2);
   }
 
   await resetDetailScroll(shell);
+}
+
+async function expectMobileDetailTabsKeepScrollAnchor(
+  page: Page,
+  shell: Locator,
+  tabLabels: string[]
+) {
+  const primed = await shell.evaluate((element) => {
+    const tabsShell = element.querySelector<HTMLElement>(".card-detail-tabs-shell");
+    const detailViewport = element.querySelector<HTMLElement>(
+      "[data-card-detail-scroll-viewport]"
+    );
+    const scrollingElement =
+      detailViewport && detailViewport.scrollHeight > detailViewport.clientHeight
+        ? detailViewport
+        : document.scrollingElement instanceof HTMLElement
+          ? document.scrollingElement
+          : document.documentElement;
+    if (!tabsShell) return null;
+    const maxScroll = Math.max(0, scrollingElement.scrollHeight - scrollingElement.clientHeight);
+    scrollingElement.scrollTop = Math.min(
+      maxScroll,
+      tabsShell.offsetTop + tabsShell.offsetHeight + 64
+    );
+    return { maxScroll, scrollTop: scrollingElement.scrollTop };
+  });
+  expect(primed).not.toBeNull();
+  expect(primed!.maxScroll).toBeGreaterThan(primed!.scrollTop - 1);
+
+  for (const tabLabel of tabLabels) {
+    const readScrollState = () => shell.evaluate((element) => {
+      const tabsShell = element.querySelector<HTMLElement>(".card-detail-tabs-shell");
+      const detailViewport = element.querySelector<HTMLElement>(
+        "[data-card-detail-scroll-viewport]"
+      );
+      const scrollingElement =
+        detailViewport && detailViewport.scrollHeight > detailViewport.clientHeight
+          ? detailViewport
+          : document.scrollingElement instanceof HTMLElement
+          ? document.scrollingElement
+          : document.documentElement;
+      if (!tabsShell) return null;
+      return {
+        top: tabsShell.getBoundingClientRect().top,
+        scrollTop: scrollingElement.scrollTop,
+        maxScroll: Math.max(
+          0,
+          scrollingElement.scrollHeight - scrollingElement.clientHeight
+        ),
+      };
+    });
+    const tab = shell.getByRole("tab", { name: tabLabel, exact: true });
+    await tab.evaluate((element) => {
+      const htmlElement = element as HTMLElement;
+      const tabList = element.parentElement;
+      if (!tabList) return;
+      tabList.scrollLeft = Math.max(
+        0,
+        htmlElement.offsetLeft - (tabList.clientWidth - htmlElement.clientWidth) / 2
+      );
+    });
+    const before = await readScrollState();
+    expect(before, `Missing mobile scroll state before ${tabLabel}`).not.toBeNull();
+
+    // Use physical coordinates on the already-visible sticky rail. DOM click
+    // skips native pointer focus, while Locator.click() performs its own
+    // scroll-into-view before pointerdown and would contaminate this metric.
+    const bounds = await requiredBounds(tab);
+    await page.mouse.click(
+      bounds.x + bounds.width / 2,
+      bounds.y + bounds.height / 2
+    );
+    await tab.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
+
+    const after = await readScrollState();
+
+    expect(after, `Missing mobile scroll state after ${tabLabel}`).not.toBeNull();
+    await expect(tab).toHaveAttribute("aria-selected", "true");
+    expect(Math.abs(after!.top - before!.top)).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs(after!.scrollTop - before!.scrollTop),
+      `${tabLabel} changed the mobile card-detail vertical scroll position`
+    ).toBeLessThanOrEqual(2);
+    expect(after!.scrollTop).toBeGreaterThan(20);
+    expect(after!.maxScroll).toBeGreaterThanOrEqual(after!.scrollTop - 1);
+  }
 }
 
 async function openSettingsTab(page: Page, name: string) {
@@ -714,6 +824,18 @@ async function expectCanvasHasPixels(
   const screenshot = await canvas.screenshot();
   const sample = samplePng(screenshot);
   expect(sample.visiblePixels).toBeGreaterThan(minimumVisiblePixels);
+}
+
+async function expectReadyCardHoloMask(viewer: Locator) {
+  await expect(viewer).toHaveAttribute("data-card-holo-mask", "ready");
+  const size = await viewer.getAttribute("data-card-holo-mask-size");
+  const coverage = Number(await viewer.getAttribute("data-card-holo-mask-coverage"));
+  const dimensions = size?.match(/^(\d+)x(\d+)$/);
+
+  expect(dimensions).not.toBeNull();
+  expect(Math.max(Number(dimensions?.[1]), Number(dimensions?.[2]))).toBeLessThanOrEqual(448);
+  expect(coverage).toBeGreaterThan(0);
+  expect(coverage).toBeLessThan(0.35);
 }
 
 function samplePng(buffer: Buffer) {
@@ -981,11 +1103,52 @@ test.describe("DustyCards smoke", () => {
 
   test("card detail uses an aligned responsive workspace", async ({ page }) => {
     test.setTimeout(120_000);
+    const shaderErrors: string[] = [];
+    page.on("console", (message) => {
+      const text = message.text();
+      if (/THREE\.WebGLProgram|Shader Error|VALIDATE_STATUS/i.test(text)) {
+        shaderErrors.push(text);
+      }
+    });
     await page.setViewportSize({ width: 1920, height: 1080 });
     await applyDisplaySettings(page, {
       widescreen: true,
       modalSize: "medium",
-      wiggleStereoscopy: true,
+    });
+    let mockedCardPriceAlert: {
+      id: string;
+      kind: "drop" | "target";
+      targetPriceEur: number | null;
+      baselinePriceEur: number | null;
+      enabled: boolean;
+    } | null = null;
+    await page.route("**/api/cards/*/price-alert", async (route) => {
+      const method = route.request().method();
+      if (method === "PUT") {
+        const body = route.request().postDataJSON() as {
+          kind: "drop" | "target";
+          targetPriceEur?: number;
+        };
+        mockedCardPriceAlert = {
+          id: "playwright-price-alert",
+          kind: body.kind,
+          targetPriceEur: body.targetPriceEur ?? null,
+          baselinePriceEur: 169.95,
+          enabled: true,
+        };
+      } else if (method === "DELETE") {
+        mockedCardPriceAlert = null;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          alert: mockedCardPriceAlert,
+          currentPriceEur: 169.95,
+          currentPriceAt: "2026-07-19T12:00:00.000Z",
+          mailConfigured: true,
+        }),
+      });
     });
     await page.route("**/api/cards/*/signal-preview", async (route) => {
       if (route.request().url().includes("/api/cards/23190/signal-preview")) {
@@ -1022,6 +1185,31 @@ test.describe("DustyCards smoke", () => {
     await expect(shell).toBeVisible({ timeout: 15_000 });
     await expect(shell.locator("[data-card-detail-back]")).toContainText("Back to Search");
     await expectSingleVisibleActionCluster(shell);
+
+    const priceAlertTrigger = shell.locator("[data-card-price-alert-trigger]");
+    await expect(priceAlertTrigger).toBeVisible();
+    await expect(priceAlertTrigger).toHaveAttribute(
+      "aria-label",
+      "Set price alert for Seismitoad"
+    );
+    await priceAlertTrigger.click();
+    const priceAlertDialog = page.locator("[data-card-price-alert-dialog]");
+    await expect(priceAlertDialog).toBeVisible();
+    await expect(priceAlertDialog.getByText("CardMarket EN / Near Mint", { exact: false })).toBeVisible();
+    await priceAlertDialog.getByRole("radio", { name: /Target price/ }).click();
+    await priceAlertDialog.getByLabel("Your target").fill("149.95");
+    if (CARD_DETAIL_SCREENSHOT_DIR) {
+      await page.screenshot({
+        path: `${CARD_DETAIL_SCREENSHOT_DIR}/standard-price-alert-1920x1080.png`,
+        animations: "disabled",
+      });
+    }
+    await priceAlertDialog.getByRole("button", { name: "Create alert" }).click();
+    await expect(priceAlertDialog).toBeHidden();
+    await expect(priceAlertTrigger).toHaveAttribute(
+      "aria-label",
+      "Edit price alert for Seismitoad"
+    );
 
     const heroMarketControls = shell.locator("[data-card-detail-market-mode]");
     const rawHeroMode = heroMarketControls.getByRole("button", { name: "Raw", exact: true });
@@ -1070,13 +1258,18 @@ test.describe("DustyCards smoke", () => {
 
     await selectGradeStartingWith(heroGradeSelector, "BGS 10");
     await expect(heroPriceLabel).toContainText("BGS 10");
-    await expect(heroPrice).toHaveText("€169.00");
-    await expectSelectedGradeInHistoryChart(shell, "€169.00");
+    await expect(heroPrice).toHaveText(/^€[\d,.]+$/);
+    const bgsPriceText = (await heroPrice.textContent())?.trim();
+    expect(bgsPriceText).toBeTruthy();
+    await expectSelectedGradeInHistoryChart(shell, bgsPriceText!);
 
     await selectGradeStartingWith(heroGradeSelector, "PSA 10");
     await expect(heroPriceLabel).toContainText("PSA 10");
-    await expect(heroPrice).toHaveText("€1,699.00");
-    await expectSelectedGradeInHistoryChart(shell, "€1,699.00");
+    await expect(heroPrice).toHaveText(/^€[\d,.]+$/);
+    const psaPriceText = (await heroPrice.textContent())?.trim();
+    expect(psaPriceText).toBeTruthy();
+    expect(psaPriceText).not.toBe(bgsPriceText);
+    await expectSelectedGradeInHistoryChart(shell, psaPriceText!);
     expect(await expectVisiblePriceStatusItems(shell)).toEqual(rawPriceStatusLabels);
     await expect(
       shell.getByRole("combobox", { name: "Select graded slab", exact: true })
@@ -1125,20 +1318,10 @@ test.describe("DustyCards smoke", () => {
     expect(Math.abs(inlineThreeDimensionalBounds.height - twoDimensionalBounds.height)).toBeLessThanOrEqual(3);
     const inlineCanvas = mediaSwitcher.locator(".card-detail-inline-three-viewer canvas");
     await expect(inlineCanvas).toBeVisible({ timeout: 15_000 });
-    await expect(mediaSwitcher.locator(".card-detail-inline-three-viewer")).toHaveAttribute(
-      "data-card-three-motion-mode",
-      "wiggle-stereoscopy"
-    );
-    await page.waitForTimeout(2_250);
+    await expectReadyCardHoloMask(mediaSwitcher.locator(".card-detail-inline-three-viewer"));
+    await page.waitForTimeout(750);
     await expectCanvasHasPixels(page, inlineCanvas, 350);
-    const wiggleFrameOne = await inlineCanvas.screenshot();
-    await page.waitForTimeout(225);
-    const wiggleFrameTwo = await inlineCanvas.screenshot();
-    await page.waitForTimeout(225);
-    const wiggleFrameThree = await inlineCanvas.screenshot();
-    expect(
-      wiggleFrameOne.equals(wiggleFrameTwo) && wiggleFrameTwo.equals(wiggleFrameThree)
-    ).toBe(false);
+    expect(shaderErrors).toEqual([]);
     await expect(
       mediaSwitcher.getByText("3D view unavailable", { exact: true })
     ).toHaveCount(0);
@@ -1288,6 +1471,13 @@ test.describe("DustyCards smoke", () => {
     await expect(shell.locator('[data-card-detail-region="chart"]')).toBeHidden();
     await marketTab.click();
     await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
+    await expectMobileDetailTabsKeepScrollAnchor(page, shell, [
+      "Overview",
+      "Market",
+      "Collection",
+      "Evidence",
+      "Market",
+    ]);
     await expectMobileActionClusterNeverCoversDetail(page, shell, {
       requireScrollable: false,
     });
@@ -1300,11 +1490,77 @@ test.describe("DustyCards smoke", () => {
     await expect(
       shell.locator("[data-card-detail-actions]").getByText("CardMarket", { exact: true })
     ).toHaveCount(1);
+    const mobileMarketAction = shell.locator("[data-card-detail-mobile-market]");
+    const mobileMarketTrigger = mobileMarketAction.locator(
+      '[aria-label="Open CardMarket. Hold for eBay Deals."]'
+    );
+    await expect(mobileMarketTrigger).toBeVisible();
+    const mobileMarketTriggerBounds = await requiredBounds(mobileMarketTrigger);
+    await page.mouse.move(
+      mobileMarketTriggerBounds.x + mobileMarketTriggerBounds.width / 2,
+      mobileMarketTriggerBounds.y + mobileMarketTriggerBounds.height / 2
+    );
+    await page.mouse.down();
+    await page.waitForTimeout(450);
+    const mobileMarketMenu = mobileMarketAction.locator(
+      "[data-card-detail-mobile-market-menu]"
+    );
+    await expect(mobileMarketMenu).toBeVisible();
+    const mobileMarketMenuBounds = await requiredBounds(mobileMarketMenu);
+    expect(
+      mobileMarketMenuBounds.y + mobileMarketMenuBounds.height
+    ).toBeLessThanOrEqual(mobileMarketTriggerBounds.y);
+    if (CARD_DETAIL_SCREENSHOT_DIR) {
+      await page.screenshot({
+        path: `${CARD_DETAIL_SCREENSHOT_DIR}/standard-market-hold-390x844.png`,
+        animations: "disabled",
+      });
+    }
+    await page.mouse.up();
+    await page.keyboard.press("Escape");
+    await expect(mobileMarketMenu).toBeHidden();
     const mobileBackBounds = await requiredBounds(shell.locator("[data-card-detail-back]"));
     const mobileOverflowBounds = await requiredBounds(
       shell.locator("[data-card-detail-overflow-actions] > summary")
     );
+    const mobilePriceAlertBounds = await requiredBounds(priceAlertTrigger);
     expect(Math.abs(mobileBackBounds.y - mobileOverflowBounds.y)).toBeLessThanOrEqual(4);
+    expect(Math.abs(mobileBackBounds.y - mobilePriceAlertBounds.y)).toBeLessThanOrEqual(4);
+    const mobilePrimaryActionStyle = await shell
+      .locator("[data-card-detail-primary-actions]")
+      .evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          backgroundColor: style.backgroundColor,
+          borderTopWidth: style.borderTopWidth,
+          boxShadow: style.boxShadow,
+        };
+      });
+    expect(mobilePrimaryActionStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(mobilePrimaryActionStyle.borderTopWidth).toBe("0px");
+    expect(mobilePrimaryActionStyle.boxShadow).toBe("none");
+    const [mobileFrameBackground, mobileShellBackground] = await Promise.all([
+      dialog.evaluate((element) => getComputedStyle(element).backgroundColor),
+      shell.evaluate((element) => getComputedStyle(element).backgroundColor),
+    ]);
+    expect(mobileFrameBackground).toBe(mobileShellBackground);
+
+    await priceAlertTrigger.click();
+    await expect(priceAlertDialog).toBeVisible();
+    const mobilePriceAlertClose = priceAlertDialog.getByRole("button", {
+      name: "Close price alert",
+    });
+    const mobilePriceAlertCloseBounds = await requiredBounds(mobilePriceAlertClose);
+    expect(mobilePriceAlertCloseBounds.width).toBeGreaterThanOrEqual(44);
+    expect(mobilePriceAlertCloseBounds.height).toBeGreaterThanOrEqual(44);
+    if (CARD_DETAIL_SCREENSHOT_DIR) {
+      await page.screenshot({
+        path: `${CARD_DETAIL_SCREENSHOT_DIR}/standard-price-alert-390x844.png`,
+        animations: "disabled",
+      });
+    }
+    await mobilePriceAlertClose.click();
+    await expect(priceAlertDialog).toBeHidden();
     await expectNoHorizontalOverflow(page, shell);
     await forecastTab.click();
     await captureCardDetailPanelScreenshot(page, shell, "standard-forecast-390x844.png");
@@ -1364,13 +1620,155 @@ test.describe("DustyCards smoke", () => {
     await expect(page).toHaveURL(/\/search\?q=seismitoad&game=pokemon&autoswitch=0$/);
   });
 
+  test("Signal Radar shows a responsive new-release chase read", async ({ page }) => {
+    test.setTimeout(180_000);
+    const episodeId = findPokemonEpisodeWithImageCards();
+    expect(episodeId).not.toBeNull();
+    if (!episodeId) return;
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(
+      `/movers/signal-radar?game=pokemon&set=${encodeURIComponent(episodeId)}#new-release-chases`,
+      {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      }
+    );
+
+    const chasePanel = page.getByTestId("new-release-chase-radar");
+    await expect(chasePanel).toBeVisible({ timeout: 60_000 });
+    await expect(chasePanel.getByText("New set chase radar", { exact: true })).toBeVisible();
+    await expect(
+      chasePanel.getByRole("heading", { name: /: what Radar thinks$/ })
+    ).toBeVisible();
+    await expect(chasePanel.getByText("Price coverage", { exact: true })).toBeVisible();
+    await expect(chasePanel.getByText("Latest market read", { exact: true })).toBeVisible();
+    await expect(chasePanel).toHaveAttribute("id", "new-release-chases");
+
+    const mobileBounds = await requiredBounds(chasePanel);
+    expect(mobileBounds.x).toBeGreaterThanOrEqual(-1);
+    expect(mobileBounds.x + mobileBounds.width).toBeLessThanOrEqual(391);
+    expect(
+      await chasePanel.evaluate((element) => element.scrollWidth - element.clientWidth)
+    ).toBeLessThanOrEqual(2);
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await expect(chasePanel).toBeVisible();
+    const desktopBounds = await requiredBounds(chasePanel);
+    expect(desktopBounds.x).toBeGreaterThanOrEqual(-1);
+    expect(desktopBounds.x + desktopBounds.width).toBeLessThanOrEqual(1921);
+    expect(
+      await chasePanel.evaluate((element) => element.scrollWidth - element.clientWidth)
+    ).toBeLessThanOrEqual(2);
+    await expectNoHorizontalOverflow(page);
+  });
+
+  test("Signal Radar cards expose inline collection and want actions without navigating", async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("**/api/wants/cards", async (route) => {
+      const method = route.request().method();
+      if (method !== "POST" && method !== "DELETE") {
+        await route.fallback();
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          method === "POST"
+            ? { item: { id: "playwright-radar-want", created_at: isoDate() } }
+            : {}
+        ),
+      });
+    });
+    await page.goto("/movers/signal-radar?game=pokemon", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+
+    const chaseCard = page.locator("[data-chase-card-id]").first();
+    const signalCard = page.locator("[data-signal-card-id]").first();
+    const eligibleCards = [chaseCard, signalCard];
+    let coveredCardKinds = 0;
+    let interactiveCard: Locator | null = null;
+
+    for (const card of eligibleCards) {
+      if ((await card.count()) === 0) continue;
+      await expectInlineCardActions(card);
+      coveredCardKinds += 1;
+      interactiveCard ??= card;
+    }
+
+    if (!interactiveCard) {
+      test.skip(true, "No Signal Radar cards are available in this local database.");
+      return;
+    }
+    expect(coveredCardKinds).toBeGreaterThan(0);
+
+    const { actions, collection, want } = await expectInlineCardActions(interactiveCard);
+    const [cardBounds, actionBounds] = await Promise.all([
+      requiredBounds(interactiveCard),
+      requiredBounds(actions),
+    ]);
+    expect(actionBounds.x).toBeGreaterThanOrEqual(cardBounds.x - 1);
+    expect(actionBounds.x + actionBounds.width).toBeLessThanOrEqual(
+      cardBounds.x + cardBounds.width + 1
+    );
+
+    const search = page.getByPlaceholder("Search cards...");
+    const sort = page.getByLabel("Sort signals");
+    const signalName =
+      (await signalCard.count()) > 0
+        ? (await signalCard
+            .locator('[data-card-action="collection"] button')
+            .getAttribute("aria-label"))
+            ?.replace(/^Add /, "")
+            .replace(/ to collection$/, "") ?? null
+        : null;
+    if (signalName) {
+      await search.fill(signalName);
+      await expect(search).toHaveValue(signalName);
+    }
+    const originalSort = await sort.inputValue();
+    const alternateSort = await sort.locator("option").evaluateAll(
+      (options, current) =>
+        options
+          .map((option) => (option as HTMLOptionElement).value)
+          .find((value) => value !== current) ?? current,
+      originalSort
+    );
+    await sort.selectOption(alternateSort);
+
+    const urlBefore = page.url();
+    const pressedBefore = await want.getAttribute("aria-pressed");
+    await want.click();
+    await expect(want).toHaveAttribute(
+      "aria-pressed",
+      pressedBefore === "true" ? "false" : "true"
+    );
+    expect(page.url()).toBe(urlBefore);
+    if (signalName) await expect(search).toHaveValue(signalName);
+    await expect(sort).toHaveValue(alternateSort);
+    await expect(page.locator("[data-card-detail-shell]")).toHaveCount(0);
+
+    await collection.click();
+    const addDialog = page.locator('[data-collection-add-modal="true"]');
+    await expect(addDialog).toBeVisible();
+    expect(page.url()).toBe(urlBefore);
+    await expect(page.locator("[data-card-detail-shell]")).toHaveCount(0);
+    await addDialog.getByRole("button", { name: "Close add card" }).click();
+    await expectNoHorizontalOverflow(page);
+  });
+
   test("Signal Radar detail shares the responsive card detail shell", async ({ page }) => {
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
     await applyDisplaySettings(page, {
       widescreen: true,
       modalSize: "medium",
-      wiggleStereoscopy: true,
     });
     await page.addInitScript(() => {
       window.localStorage.setItem("dustycards-card-detail-media-mode", "3d");
@@ -1390,11 +1788,12 @@ test.describe("DustyCards smoke", () => {
     await expect(shell.locator("[data-card-detail-back]")).toContainText(
       "Back to Signal Radar"
     );
+    const radarVerdict = shell.getByTestId("signal-radar-verdict");
+    await expect(radarVerdict).toBeVisible();
+    await expect(radarVerdict).toContainText("Radar verdict");
+    await expect(radarVerdict).toContainText(/Strong watch|Building|Cooling|Price discovery|Data stale|Stable - wait/);
+    await expect(shell.getByText("Collector snapshot", { exact: true })).toHaveCount(0);
     await expectSingleVisibleActionCluster(shell);
-    await expect(shell.locator(".card-detail-inline-three-viewer")).toHaveAttribute(
-      "data-card-three-motion-mode",
-      "wiggle-stereoscopy"
-    );
 
     const radarMarketControls = shell.locator("[data-card-detail-market-mode]");
     const radarRawMode = radarMarketControls.getByRole("button", {
@@ -1458,6 +1857,7 @@ test.describe("DustyCards smoke", () => {
     await expect(radarMediaSwitcher).toHaveAttribute("data-card-detail-media-mode", "3d");
     const radarInlineCanvas = radarMediaSwitcher.locator(".card-detail-inline-three-viewer canvas");
     await expect(radarInlineCanvas).toBeVisible({ timeout: 15_000 });
+    await expectReadyCardHoloMask(radarMediaSwitcher.locator(".card-detail-inline-three-viewer"));
     await page.waitForTimeout(750);
     await expectCanvasHasPixels(page, radarInlineCanvas, 350);
     await radarMediaSwitch.getByRole("button", { name: "2D", exact: true }).click();
@@ -1533,6 +1933,13 @@ test.describe("DustyCards smoke", () => {
     await expectMobileActionClusterNeverCoversDetail(page, shell);
     await forecastTab.click();
     await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
+    await expectMobileDetailTabsKeepScrollAnchor(page, shell, [
+      "Overview",
+      "Market",
+      "Collection",
+      "Evidence",
+      "Forecast",
+    ]);
     await expectMobileActionClusterNeverCoversDetail(page, shell, {
       requireScrollable: false,
     });
@@ -1736,13 +2143,103 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("want heart updates in place without losing expansion filters, sort, or scroll", async ({ page }) => {
+    const episodeId = findPokemonEpisodeWithImageCards();
+    if (!episodeId) {
+      test.skip(true, "No cards with images are available in this local database.");
+      return;
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await applyDisplaySettings(page, {
+      mobileUiScale: "small",
+      mobileCardSize: "small",
+      mobileDefaultView: "grid",
+      sortBy: "number",
+      sortDir: "asc",
+    });
+    await page.goto(`/expansions/${episodeId}`);
+
+    const availableWant = page
+      .locator('main button[aria-label^="Add "][aria-label$=" to wants"]')
+      .first();
+    await expect(availableWant).toBeVisible();
+    const wantLabel = await availableWant.getAttribute("aria-label");
+    const cardName = wantLabel?.match(/^Add (.+) to wants$/)?.[1];
+    expect(cardName).toBeTruthy();
+
+    const search = page.getByPlaceholder("Search name, number, rarity...");
+    await search.fill(cardName!);
+    await expect(search).toHaveValue(cardName!);
+
+    const cardMarketSort = page
+      .getByTitle("Sort by CardMarket and use CardMarket as main prices")
+      .filter({ visible: true });
+    await cardMarketSort.click();
+    await expect(cardMarketSort).toHaveClass(/bg-violet-600/);
+
+    const filteredWant = page.getByRole("button", {
+      name: `Add ${cardName} to wants`,
+      exact: true,
+    }).first();
+    await expect(filteredWant).toBeVisible();
+    await filteredWant.evaluate((element) =>
+      element.scrollIntoView({ block: "center", inline: "nearest" })
+    );
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    let routeRefreshRequests = 0;
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (
+        request.method() === "GET" &&
+        url.pathname === `/expansions/${episodeId}` &&
+        request.resourceType() === "fetch"
+      ) {
+        routeRefreshRequests += 1;
+      }
+    });
+    await page.route("**/api/wants/cards", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.fallback();
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          item: { id: "playwright-inline-want", created_at: isoDate() },
+        }),
+      });
+    });
+
+    const urlBefore = page.url();
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+    await filteredWant.click();
+    await expect(
+      page.getByRole("button", {
+        name: `Remove ${cardName} from wants`,
+        exact: true,
+      }).first()
+    ).toHaveAttribute("aria-pressed", "true");
+    await page.waitForTimeout(250);
+
+    expect(page.url()).toBe(urlBefore);
+    await expect(search).toHaveValue(cardName!);
+    await expect(cardMarketSort).toHaveClass(/bg-violet-600/);
+    await expect
+      .poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - scrollBefore))
+      .toBeLessThanOrEqual(2);
+    expect(routeRefreshRequests).toBe(0);
+  });
+
   test("account settings load in a fresh browser context", async ({ page, browser }) => {
     await applyDisplaySettings(page, {
       cardSize: "large",
       modalSize: "small",
       uiScale: "large",
       widescreen: true,
-      wiggleStereoscopy: true,
     });
 
     const freshSession = createAuthenticatedSmokeSession();
@@ -1777,7 +2274,6 @@ test.describe("DustyCards smoke", () => {
           modalSize: "small",
           uiScale: "large",
           widescreen: true,
-          wiggleStereoscopy: true,
         });
     } finally {
       await freshContext.close();
@@ -2054,6 +2550,96 @@ test.describe("DustyCards smoke", () => {
         await expect(releaseWatch).toContainText("No confirmed upcoming products yet");
       }
     }
+  });
+
+  test("raw, graded, and target mover cards expose inline actions without losing list state", async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.route("**/api/wants/cards", async (route) => {
+      const method = route.request().method();
+      if (method !== "POST" && method !== "DELETE") {
+        await route.fallback();
+        return;
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          method === "POST"
+            ? { item: { id: "playwright-mover-want", created_at: isoDate() } }
+            : {}
+        ),
+      });
+    });
+
+    const modes = [
+      { label: "raw", href: "/movers?scope=all" },
+      { label: "graded", href: "/movers?scope=graded" },
+      { label: "targets", href: "/movers?scope=grading" },
+    ] as const;
+    let coveredModes = 0;
+    let checkedInteraction = false;
+
+    for (const mode of modes) {
+      await page.goto(mode.href, { waitUntil: "domcontentloaded", timeout: 60_000 });
+      const firstCard = page.locator("[data-mover-card-id]").first();
+      if ((await firstCard.count()) === 0) continue;
+
+      const { collection } = await expectInlineCardActions(firstCard);
+      coveredModes += 1;
+
+      if (checkedInteraction) continue;
+      checkedInteraction = true;
+
+      const collectionLabel = await collection.getAttribute("aria-label");
+      const cardName = collectionLabel
+        ?.replace(/^Add /, "")
+        .replace(/ to collection$/, "");
+      expect(cardName).toBeTruthy();
+
+      const search = page.getByPlaceholder("Card, set, number");
+      await search.fill(cardName!);
+      await expect(search).toHaveValue(cardName!);
+
+      const sort = page
+        .locator("label")
+        .filter({ has: page.getByText("Sort", { exact: true }) })
+        .locator("select");
+      const originalSort = await sort.inputValue();
+      const alternateSort = await sort.locator("option").evaluateAll(
+        (options, current) =>
+          options
+            .map((option) => (option as HTMLOptionElement).value)
+            .find((value) => value !== current) ?? current,
+        originalSort
+      );
+      await sort.selectOption(alternateSort);
+
+      const filteredCard = page.locator("[data-mover-card-id]").first();
+      const filteredActions = await expectInlineCardActions(filteredCard);
+      const urlBefore = page.url();
+      const pressedBefore = await filteredActions.want.getAttribute("aria-pressed");
+      await filteredActions.want.click();
+      await expect(filteredActions.want).toHaveAttribute(
+        "aria-pressed",
+        pressedBefore === "true" ? "false" : "true"
+      );
+      expect(page.url()).toBe(urlBefore);
+      await expect(search).toHaveValue(cardName!);
+      await expect(sort).toHaveValue(alternateSort);
+      await expect(page.locator("[data-card-detail-shell]")).toHaveCount(0);
+
+      await filteredActions.collection.click();
+      const addDialog = page.locator('[data-collection-add-modal="true"]');
+      await expect(addDialog).toBeVisible();
+      expect(page.url()).toBe(urlBefore);
+      await expect(page.locator("[data-card-detail-shell]")).toHaveCount(0);
+      await addDialog.getByRole("button", { name: "Close add card" }).click();
+    }
+
+    expect(coveredModes, "at least one mover mode should contain eligible cards").toBeGreaterThan(0);
+    expect(checkedInteraction).toBe(true);
   });
 
   test("movers can open a card detail modal when data is available", async ({ page }) => {

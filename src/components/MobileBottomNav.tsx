@@ -31,6 +31,12 @@ import { useSettings } from "@/components/SettingsProvider";
 import type { DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
+import {
+  COLLECTION_CARD_ADDED_EVENT,
+  getCollectionCardAddedEffects,
+  type CollectionCardAddedDetail,
+} from "@/lib/collection-client-events";
+import { WANTS_CHANGED_EVENT } from "@/lib/wants-client-events";
 
 const PRIMARY_NAV_ITEMS: readonly MobileNavItem[] = [
   { href: "/", label: "Home", icon: Home, matches: ["home"] },
@@ -190,6 +196,9 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const [accountPopupOpen, setAccountPopupOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [cardsCount, setCardsCount] = useState(summary?.cards ?? 0);
+  const [forSaleCardsCount, setForSaleCardsCount] = useState(summary?.forSaleCards ?? 0);
+  const [wantsCount, setWantsCount] = useState(summary?.wants ?? 0);
   const moreScrollRef = useRef<HTMLDivElement | null>(null);
   const moreSections = getMoreMenuSections(settings.onePieceLibraryEnabled);
   const primaryActive = PRIMARY_NAV_ITEMS.some((item) =>
@@ -205,6 +214,53 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
       .find(({ item }) =>
         isNavItemActive(pathname, collectionTab, item.matches, item.excludeMatches)
       ) ?? null;
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() =>
+      setForSaleCardsCount(summary?.forSaleCards ?? 0)
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [summary?.forSaleCards]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setCardsCount(summary?.cards ?? 0));
+    return () => window.cancelAnimationFrame(frame);
+  }, [summary?.cards]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setWantsCount(summary?.wants ?? 0));
+    return () => window.cancelAnimationFrame(frame);
+  }, [summary?.wants]);
+
+  useEffect(() => {
+    function handleWantsChanged(event: Event) {
+      const detail = (event as CustomEvent<{ wanted?: boolean }>).detail;
+      if (typeof detail?.wanted !== "boolean") return;
+      setWantsCount((current) => Math.max(0, current + (detail.wanted ? 1 : -1)));
+    }
+
+    window.addEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+    return () => window.removeEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+  }, []);
+
+  useEffect(() => {
+    function handleCollectionCardAdded(event: Event) {
+      const detail = (event as CustomEvent<CollectionCardAddedDetail>).detail;
+      if (!detail) return;
+      const effects = getCollectionCardAddedEffects(detail);
+
+      if (effects.collectionCountDelta) {
+        setCardsCount((current) => current + effects.collectionCountDelta);
+      }
+      if (effects.forSaleCountDelta) {
+        setForSaleCardsCount((current) => current + effects.forSaleCountDelta);
+      }
+    }
+
+    window.addEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionCardAdded);
+    return () => window.removeEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionCardAdded);
+  }, []);
+
   function closeMoreMenu() {
     setMoreOpen(false);
     setAccountPopupOpen(false);
@@ -538,11 +594,11 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
 
               <div className="mt-3 grid grid-cols-3 gap-1.5">
                 {[
-                  ["Cards", summary.cards],
-                  ["Wants", summary.wants],
+                  ["Cards", cardsCount],
+                  ["Wants", wantsCount],
                   ["Binders", summary.binders],
                   ["Sealed", summary.sealedUnits],
-                  ["Selling", summary.forSaleCards],
+                  ["Selling", forSaleCardsCount],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-white/8 bg-black/18 px-2 py-2">
                     <p className="text-sm font-black leading-none text-white">{formatCount(Number(value))}</p>

@@ -44,6 +44,7 @@ import { formatCurrency, type CurrencyCode } from "@/lib/format";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import SuddenDropsAutoRefresh from "@/app/movers/sudden-drops/SuddenDropsAutoRefresh";
+import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +95,10 @@ export default async function SuddenDropsPage({
     }
   );
   const movers = data.items;
+  const cardQuickActions = await getCardQuickActionMap(
+    user.id,
+    movers.map((item) => item.cardId)
+  );
   const activeItemScope = "all";
   const cardScope = "all";
   const isAllScope = true;
@@ -254,6 +259,7 @@ export default async function SuddenDropsPage({
 
         <MoversBrowser
           movers={movers}
+          cardQuickActions={cardQuickActions}
           activeScope={cardScope}
           activeItemScope={activeItemScope}
           marketMode="sudden_drops"

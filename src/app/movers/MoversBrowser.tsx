@@ -12,6 +12,7 @@ import type { BuySignalLabel } from "@/lib/buy-signal";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import { parseGradingTargetLabel } from "@/lib/grading-targets";
 import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/movers";
+import type { CardQuickActionMap } from "@/lib/card-quick-actions";
 import {
   compareMoverItems,
   getMoverTileMinWidth,
@@ -70,6 +71,7 @@ interface Props {
   initialDirection?: DirectionFilter;
   highlightedCardId?: string | null;
   metricWindowLabel?: string;
+  cardQuickActions: CardQuickActionMap;
 }
 
 type FocusFilter =
@@ -223,6 +225,7 @@ export default function MoversBrowser({
   initialDirection = "all",
   highlightedCardId = null,
   metricWindowLabel,
+  cardQuickActions,
 }: Props) {
   const { displaySettings } = useSettings();
   const router = useRouter();
@@ -572,6 +575,7 @@ export default function MoversBrowser({
           spotlights={visibleSpotlights}
           previewCards={visiblePreviewCards}
           loadingCardId={loadingCardId}
+          cardQuickActions={cardQuickActions}
           onOpenCard={handleOpenMoverCard}
         />
       ) : null}
@@ -735,6 +739,7 @@ export default function MoversBrowser({
               movers={renderedMovers}
               minTileWidth={moverTileMinWidth}
               loadingCardId={loadingCardId}
+              cardQuickActions={cardQuickActions}
               displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
               highlightedCardId={activeHighlightedCardId}
               metricWindowLabel={metricWindowLabel}

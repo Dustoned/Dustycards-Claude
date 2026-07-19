@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import CachedImage from "@/components/CachedImage";
+import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import Link from "next/link";
 import { memo } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
@@ -10,6 +11,7 @@ import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import type { CollectionMoverItem } from "@/lib/movers";
+import type { CardQuickActionData, CardQuickActionMap } from "@/lib/card-quick-actions";
 
 interface PreviewCardConfig {
   title: string;
@@ -142,6 +144,28 @@ function handleOpenKey(event: KeyboardEvent<HTMLElement>, onOpen: () => void) {
 
   event.preventDefault();
   onOpen();
+}
+
+function getMoverQuickActionData(
+  item: CollectionMoverItem,
+  quickActions: CardQuickActionMap
+): CardQuickActionData {
+  return (
+    quickActions[item.cardId] ?? {
+      card: {
+        id: item.cardId,
+        name: item.name,
+        image_url: item.imageUrl,
+        episode: {
+          id: item.episodeId,
+          name: item.episodeName,
+          code: item.episodeCode,
+        },
+      },
+      owned: item.ownedCount > 0,
+      wantItem: null,
+    }
+  );
 }
 
 
@@ -509,6 +533,7 @@ const MoverTile = memo(function MoverTile({
   isHighlighted,
   metricWindowLabel,
   changeDisplay,
+  cardQuickActions,
   onOpen,
 }: {
   item: CollectionMoverItem;
@@ -517,6 +542,7 @@ const MoverTile = memo(function MoverTile({
   isHighlighted: boolean;
   metricWindowLabel?: string;
   changeDisplay: MoverChangeDisplay;
+  cardQuickActions: CardQuickActionMap;
   onOpen: (cardId: string) => void;
 }) {
   const open = () => onOpen(item.cardId);
@@ -639,6 +665,13 @@ const MoverTile = memo(function MoverTile({
           ) : null}
         </div>
       </div>
+
+      <div className="mt-2 flex justify-end border-t border-white/7 pt-2">
+        <CollectionCardQuickActions
+          data={getMoverQuickActionData(item, cardQuickActions)}
+          gradedLabel={displayMode === "graded" ? item.gradedLabel : null}
+        />
+      </div>
     </article>
   );
 });
@@ -648,12 +681,14 @@ function MoverSpotlightCard({
   item,
   windowKey,
   isLoading,
+  cardQuickActions,
   onOpenCard,
 }: {
   title: string;
   item: CollectionMoverItem | null;
   windowKey: "7d" | "30d";
   isLoading: boolean;
+  cardQuickActions: CardQuickActionMap;
   onOpenCard: (cardId: string) => void;
 }) {
   const pct = windowKey === "7d" ? item?.change7dPct ?? null : item?.change30dPct ?? null;
@@ -767,6 +802,14 @@ function MoverSpotlightCard({
           Not enough recent history yet to show a clear winner here.
         </p>
       )}
+      {item ? (
+        <div className="mt-3 flex justify-end border-t border-white/7 pt-2">
+          <CollectionCardQuickActions
+            data={getMoverQuickActionData(item, cardQuickActions)}
+            gradedLabel={item.source === "graded" ? item.gradedLabel : null}
+          />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -779,6 +822,7 @@ function PocketPreviewCard({
   href,
   hrefLabel = "Open page",
   loadingCardId,
+  cardQuickActions,
   onOpenCard,
   reasonMode = "raw",
 }: {
@@ -789,6 +833,7 @@ function PocketPreviewCard({
   href: string;
   hrefLabel?: string;
   loadingCardId: string | null;
+  cardQuickActions: CardQuickActionMap;
   onOpenCard: (cardId: string) => void;
   reasonMode?: MoverDisplayMode;
 }) {
@@ -821,10 +866,12 @@ function PocketPreviewCard({
           const displayScore = reasonMode === "target" ? item.moverScore : item.rankingScore;
 
           return (
-            <button
+            <article
               key={`${href}-${item.cardId}`}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onOpenCard(item.cardId)}
+              onKeyDown={(event) => handleOpenKey(event, () => onOpenCard(item.cardId))}
               className="min-w-0 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left outline-none transition-colors hover:border-white/14 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-emerald-400/50"
             >
               <div className="flex items-center justify-between gap-3">
@@ -862,7 +909,13 @@ function PocketPreviewCard({
                   </div>
                 );
               })()}
-            </button>
+              <div className="mt-2 flex justify-end border-t border-white/7 pt-2">
+                <CollectionCardQuickActions
+                  data={getMoverQuickActionData(item, cardQuickActions)}
+                  gradedLabel={reasonMode === "graded" ? item.gradedLabel : null}
+                />
+              </div>
+            </article>
           );
         })}
       </div>
@@ -884,11 +937,13 @@ export function MoverSpotlightSections({
   spotlights,
   previewCards,
   loadingCardId,
+  cardQuickActions,
   onOpenCard,
 }: {
   spotlights: SpotlightConfig[];
   previewCards: PreviewCardConfig[];
   loadingCardId: string | null;
+  cardQuickActions: CardQuickActionMap;
   onOpenCard: (cardId: string) => void;
 }) {
   return (
@@ -902,6 +957,7 @@ export function MoverSpotlightSections({
               item={spotlight.item}
               windowKey={spotlight.windowKey}
               isLoading={loadingCardId === spotlight.item?.cardId}
+              cardQuickActions={cardQuickActions}
               onOpenCard={onOpenCard}
             />
           ))}
@@ -920,6 +976,7 @@ export function MoverSpotlightSections({
               href={card.href}
               hrefLabel={card.hrefLabel}
               loadingCardId={loadingCardId}
+              cardQuickActions={cardQuickActions}
               onOpenCard={onOpenCard}
               reasonMode={card.reasonMode ?? "raw"}
             />
@@ -934,6 +991,7 @@ export function MoverGrid({
   movers,
   minTileWidth,
   loadingCardId,
+  cardQuickActions,
   displayMode,
   highlightedCardId,
   metricWindowLabel,
@@ -943,6 +1001,7 @@ export function MoverGrid({
   movers: readonly CollectionMoverItem[];
   minTileWidth: string;
   loadingCardId: string | null;
+  cardQuickActions: CardQuickActionMap;
   displayMode: MoverDisplayMode;
   highlightedCardId?: string | null;
   metricWindowLabel?: string;
@@ -966,6 +1025,7 @@ export function MoverGrid({
           isHighlighted={item.cardId === highlightedCardId}
           metricWindowLabel={metricWindowLabel}
           changeDisplay={changeDisplay}
+          cardQuickActions={cardQuickActions}
           onOpen={onOpenCard}
         />
       ))}

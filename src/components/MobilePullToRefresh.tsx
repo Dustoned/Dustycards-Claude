@@ -3,10 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
+import {
+  advanceMobilePullGesture,
+  beginMobilePullGesture,
+  cancelMobilePullGesture,
+  createIdleMobilePullGesture,
+  finishMobilePullGesture,
+  MOBILE_PULL_REFRESH_EDGE_GUARD_PX,
+  MOBILE_PULL_REFRESH_TRIGGER_PX,
+} from "@/lib/mobile-pull-to-refresh";
 
-const TRIGGER_PX = 72;
-const MAX_PULL_PX = 110;
-const RESISTANCE = 2.4;
 const SPIN_HOLD_MS = 700;
 
 function isMobileViewport(): boolean {
@@ -32,15 +38,26 @@ function isPullRefreshBlocked(): boolean {
   );
 }
 
-// Skip when the gesture starts inside an open dialog/overlay so its own
-// scrolling is not hijacked by a page refresh.
-function isInsideOverlay(target: EventTarget | null): boolean {
+function isExcludedStartTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
-  return Boolean(
+  if (
     target.closest(
-      "[role='dialog'], [data-no-pull-refresh], [data-mobile-more-backdrop], [data-mobile-more-sheet], .dc-modal-overlay, .dc-modal-panel"
+      "a, button, input, select, textarea, summary, [contenteditable='true'], [role='button'], [role='tab'], [role='tablist'], [role='dialog'], [data-no-pull-refresh], [data-mobile-more-backdrop], [data-mobile-more-sheet], .dc-modal-overlay, .dc-modal-panel, .card-detail-tabs-shell"
     )
-  );
+  ) return true;
+
+  let element: Element | null = target;
+  while (element && element !== document.body && element !== document.documentElement) {
+    const style = window.getComputedStyle(element);
+    if (style.position === "fixed" || style.position === "sticky") return true;
+    const overflowY = style.overflowY;
+    if (
+      (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+      element.scrollHeight > element.clientHeight + 1
+    ) return true;
+    element = element.parentElement;
+  }
+  return false;
 }
 
 export default function MobilePullToRefresh() {
@@ -49,24 +66,12 @@ export default function MobilePullToRefresh() {
   const [refreshing, setRefreshing] = useState(false);
   const [dragging, setDragging] = useState(false);
 
-  const pullRef = useRef(0);
   const refreshingRef = useRef(false);
-  const trackingRef = useRef(false);
-  const activeRef = useRef(false);
-  const anchorYRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    pullRef.current = pull;
-  }, [pull]);
-  useEffect(() => {
-    refreshingRef.current = refreshing;
-  }, [refreshing]);
+  const gestureRef = useRef(createIdleMobilePullGesture());
 
   useEffect(() => {
     function reset() {
-      trackingRef.current = false;
-      activeRef.current = false;
-      anchorYRef.current = null;
+      gestureRef.current = createIdleMobilePullGesture();
       setDragging(false);
       if (!refreshingRef.current) setPull(0);
     }
@@ -74,96 +79,90 @@ export default function MobilePullToRefresh() {
     function onStart(event: TouchEvent) {
       if (refreshingRef.current) return;
       if (!isMobileViewport()) return;
-      if (event.touches.length !== 1) return;
-      if (isPullRefreshBlocked()) return;
-      if (isInsideOverlay(event.target)) return;
-
-      // Track every gesture, not only ones that start at the top. The pull only
-      // arms once we are actually at the top, so a continuous scroll up to the
-      // top can flow straight into a refresh pull.
-      trackingRef.current = true;
-      activeRef.current = false;
-      anchorYRef.current = isAtTop() ? event.touches[0]?.clientY ?? 0 : null;
-    }
-
-    function onMove(event: TouchEvent) {
-      if (isPullRefreshBlocked()) {
-        reset();
-        return;
-      }
-      if (!trackingRef.current || refreshingRef.current) return;
-      const touch = event.touches[0];
-      if (!touch) return;
-
-      if (!isAtTop()) {
-        // Still scrolled: let the page scroll, and re-anchor when we reach the
-        // top so the pull distance is measured from there.
-        anchorYRef.current = null;
-        if (activeRef.current) {
-          activeRef.current = false;
-          setDragging(false);
-          setPull(0);
-        }
-        return;
-      }
-
-      if (anchorYRef.current == null) {
-        anchorYRef.current = touch.clientY;
-      }
-      const dy = touch.clientY - anchorYRef.current;
-      if (dy <= 0) {
-        if (activeRef.current) setPull(0);
-        return;
-      }
-
-      activeRef.current = true;
-      setDragging(true);
-      setPull(Math.min(MAX_PULL_PX, dy / RESISTANCE));
-      // Suppress the browser's native overscroll bounce while we handle it.
-      if (event.cancelable) event.preventDefault();
-    }
-
-    function onEnd() {
-      if (!trackingRef.current) return;
-      trackingRef.current = false;
-
-      if (isPullRefreshBlocked()) {
-        activeRef.current = false;
+      if (event.touches.length !== 1) {
+        gestureRef.current = cancelMobilePullGesture(gestureRef.current);
         setDragging(false);
         setPull(0);
         return;
       }
+      if (isPullRefreshBlocked()) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      const eligible =
+        isAtTop() &&
+        touch.clientX > MOBILE_PULL_REFRESH_EDGE_GUARD_PX &&
+        !isExcludedStartTarget(event.target);
+      gestureRef.current = beginMobilePullGesture(
+        { x: touch.clientX, y: touch.clientY },
+        eligible
+      );
+    }
 
+    function onMove(event: TouchEvent) {
+      if (gestureRef.current.phase === "idle" || gestureRef.current.phase === "cancelled") return;
+      if (refreshingRef.current) return;
+      const touch = event.touches[0];
+      const result = advanceMobilePullGesture(gestureRef.current, {
+        x: touch?.clientX ?? gestureRef.current.startX,
+        y: touch?.clientY ?? gestureRef.current.startY,
+        touchCount: event.touches.length,
+        rootAtTop: isAtTop(),
+      });
+      gestureRef.current = result.state;
+      setDragging(result.state.phase === "pulling");
+      setPull(result.state.pullPx);
+      if (result.preventDefault && event.cancelable) event.preventDefault();
+    }
+
+    function onEnd(event: TouchEvent) {
+      if (gestureRef.current.phase === "idle") return;
+      const finished = finishMobilePullGesture(
+        gestureRef.current,
+        event.touches.length
+      );
+      gestureRef.current = finished.state;
+      if (event.touches.length > 0) return;
       setDragging(false);
-      if (activeRef.current && pullRef.current >= TRIGGER_PX) {
+      if (finished.refresh && !isPullRefreshBlocked()) {
+        refreshingRef.current = true;
         setRefreshing(true);
-        setPull(TRIGGER_PX);
+        setPull(MOBILE_PULL_REFRESH_TRIGGER_PX);
         router.refresh();
         window.setTimeout(() => {
+          refreshingRef.current = false;
           setRefreshing(false);
           setPull(0);
         }, SPIN_HOLD_MS);
       } else {
         setPull(0);
       }
-      activeRef.current = false;
     }
 
     window.addEventListener("touchstart", onStart, { passive: true });
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onEnd, { passive: true });
-    window.addEventListener("touchcancel", reset, { passive: true });
+    function onCancel(event: TouchEvent) {
+      if (event.touches.length > 0) {
+        gestureRef.current = cancelMobilePullGesture(gestureRef.current);
+        setDragging(false);
+        setPull(0);
+        return;
+      }
+      reset();
+    }
+
+    window.addEventListener("touchcancel", onCancel, { passive: true });
 
     return () => {
       window.removeEventListener("touchstart", onStart);
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
-      window.removeEventListener("touchcancel", reset);
+      window.removeEventListener("touchcancel", onCancel);
     };
   }, [router]);
 
   const visible = pull > 0 || refreshing;
-  const progress = Math.min(1, pull / TRIGGER_PX);
+  const progress = Math.min(1, pull / MOBILE_PULL_REFRESH_TRIGGER_PX);
 
   return (
     <div

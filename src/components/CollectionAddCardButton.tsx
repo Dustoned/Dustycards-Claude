@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Check, Plus, ShoppingBag, X } from "lucide-react";
 import {
   COLLECTION_CONDITIONS,
   COLLECTION_GRADING_COMPANIES,
@@ -33,6 +33,10 @@ import {
   modalSelectClass as modalSelectClasses,
 } from "@/components/modal-glass-styles";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
+import type {
+  CollectionCardAddDestination,
+  CollectionCardAddedDetail,
+} from "@/lib/collection-client-events";
 
 type BinderOption = InlineBinderOption;
 
@@ -54,11 +58,15 @@ interface Props {
   label?: string;
   className?: string;
   stopPropagation?: boolean;
-  onAdded?: () => void | Promise<void>;
+  onAdded?: (detail: CollectionCardAddedDetail) => void | Promise<void>;
   initialBinderId?: string | null;
   lockedBinderName?: string | null;
   defaultCondition?: string | null;
   defaultPurchasePrice?: number | null;
+  refreshOnAdded?: boolean;
+  defaultCardKind?: CardKind;
+  defaultGradingCompany?: string | null;
+  defaultGradingGrade?: string | null;
 }
 
 function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", className?: string) {
@@ -89,6 +97,10 @@ export default function CollectionAddCardButton({
   lockedBinderName = null,
   defaultCondition = null,
   defaultPurchasePrice = null,
+  refreshOnAdded = true,
+  defaultCardKind = "raw",
+  defaultGradingCompany = null,
+  defaultGradingGrade = null,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -96,7 +108,8 @@ export default function CollectionAddCardButton({
   const [bindersLoading, setBindersLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [flashAdded, setFlashAdded] = useState(false);
+  const [flashDestination, setFlashDestination] =
+    useState<CollectionCardAddDestination | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [forSale, setForSale] = useState(false);
   const [binderId, setBinderId] = useState(initialBinderId ?? "");
@@ -107,9 +120,9 @@ export default function CollectionAddCardButton({
   const [language, setLanguage] = useState("English");
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState("");
-  const [cardKind, setCardKind] = useState<CardKind>("raw");
-  const [gradingCompany, setGradingCompany] = useState("");
-  const [gradingGrade, setGradingGrade] = useState("");
+  const [cardKind, setCardKind] = useState<CardKind>(defaultCardKind);
+  const [gradingCompany, setGradingCompany] = useState(defaultGradingCompany ?? "");
+  const [gradingGrade, setGradingGrade] = useState(defaultGradingGrade ?? "");
   const [bgsSubgrades, setBgsSubgrades] = useState<BgsSubgrades>({});
   const binderLocked = Boolean(initialBinderId && lockedBinderName);
 
@@ -147,10 +160,10 @@ export default function CollectionAddCardButton({
   }, [open]);
 
   useEffect(() => {
-    if (!flashAdded) return;
-    const timer = window.setTimeout(() => setFlashAdded(false), 1800);
+    if (!flashDestination) return;
+    const timer = window.setTimeout(() => setFlashDestination(null), 1800);
     return () => window.clearTimeout(timer);
-  }, [flashAdded]);
+  }, [flashDestination]);
 
   const availableBinders = useMemo(
     () =>
@@ -198,10 +211,17 @@ export default function CollectionAddCardButton({
         throw new Error(data.error ?? "Save failed");
       }
 
+      const addedDetail: CollectionCardAddedDetail = {
+        cardId: card.id,
+        destination: forSale ? "for-sale" : "collection",
+      };
+
       setOpen(false);
-      setFlashAdded(true);
-      await onAdded?.();
-      router.refresh();
+      setFlashDestination(addedDetail.destination);
+      await onAdded?.(addedDetail);
+      if (refreshOnAdded) {
+        router.refresh();
+      }
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Save failed");
     } finally {
@@ -217,7 +237,9 @@ export default function CollectionAddCardButton({
     setSaveError(null);
     setShowAdvanced(false);
     setForSale(false);
-    setCardKind("raw");
+    setCardKind(defaultCardKind);
+    setGradingCompany(defaultGradingCompany ?? "");
+    setGradingGrade(defaultGradingGrade ?? "");
     setBgsSubgrades({});
     setCondition(defaultCondition || "Near Mint");
     setPurchasePrice(defaultPurchasePrice != null ? String(defaultPurchasePrice) : "");
@@ -598,11 +620,37 @@ export default function CollectionAddCardButton({
         type="button"
         onClick={openModal}
         className={buttonClasses(mode, theme, className)}
-        aria-label={`Add ${card.name} to collection`}
-        title={`Add ${card.name} to collection`}
+        aria-label={
+          flashDestination === "for-sale"
+            ? `${card.name} saved for sale`
+            : flashDestination === "collection"
+              ? `${card.name} added to collection`
+              : `Add ${card.name} to collection`
+        }
+        title={
+          flashDestination === "for-sale"
+            ? "Saved for sale"
+            : flashDestination === "collection"
+              ? "Added to collection"
+              : `Add ${card.name} to collection`
+        }
       >
-        <Plus className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
-        {mode === "button" && <span>{flashAdded ? "Added" : label}</span>}
+        {flashDestination === "for-sale" ? (
+          <ShoppingBag className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        ) : flashDestination === "collection" ? (
+          <Check className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        ) : (
+          <Plus className={mode === "icon" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        )}
+        {mode === "button" && (
+          <span>
+            {flashDestination === "for-sale"
+              ? "For sale"
+              : flashDestination === "collection"
+                ? "Added"
+                : label}
+          </span>
+        )}
       </button>
 
       {addCardModal}

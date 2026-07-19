@@ -18,9 +18,16 @@ import {
   X,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
+import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import EmptyState from "@/components/EmptyState";
 import { SectionHeader } from "@/components/PageHeader";
+import NewReleaseChasePanel from "@/app/movers/signal-radar/NewReleaseChasePanel";
+import type {
+  CardQuickActionData,
+  CardQuickActionMap,
+} from "@/lib/card-quick-actions";
 import { textMatchesSearchQuery } from "@/lib/card-search";
+import type { ExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import { formatCurrency } from "@/lib/format";
 import type {
   ExternalCardSignal,
@@ -39,6 +46,8 @@ interface Props {
   signals: ExternalCardSignal[];
   sources: ExternalSignalSourceStatus[];
   generatedAt: string;
+  newReleaseChases?: ExpansionChaseRadarData | null;
+  cardQuickActions: CardQuickActionMap;
 }
 
 const CONFIDENCE_OPTIONS: Array<{ value: ConfidenceFilter; label: string }> = [
@@ -526,9 +535,11 @@ function CatalystPanel({ signal }: { signal: ExternalCardSignal }) {
 function CompactSignalCard({
   signal,
   marketMode,
+  quickActionData,
 }: {
   signal: ExternalCardSignal;
   marketMode: ExternalMarketMode;
+  quickActionData: CardQuickActionData | undefined;
 }) {
   const scenario =
     marketMode === "graded"
@@ -558,14 +569,14 @@ function CompactSignalCard({
     ...(ebayDemand?.status === "ready" && ebayDemand.scoreAdjustment !== 0 && ebayDemand.reason
       ? [`${marketMode === "graded" ? "eBay graded" : "eBay NM-English"}: ${ebayDemand.reason}`]
       : []),
-    ...(scarcity?.setRarityScore != null
-      ? [`${signal.rarity ?? "Card rarity"} is ${scarcity.setRarityLabel.toLowerCase()} in this set (${scarcity.setRarityScore}/100)`]
-      : []),
     ...(launchWindow
       ? ["Launch window: more upside potential with substantially higher uncertainty"]
       : releaseStabilization
         ? ["New-set stabilization is tempering the short-term forecast"]
         : []),
+    ...(scarcity?.setRarityScore != null
+      ? [`${signal.rarity ?? "Card rarity"} is ${scarcity.setRarityLabel.toLowerCase()} in this set (${scarcity.setRarityScore}/100)`]
+      : []),
     ...(confluence?.drivers.length ? confluence.drivers : signal.reasons),
   ][0] ?? "Market evidence is still developing.";
   const base180 = scenario?.points.find((point) => point.days === 180)?.base ?? null;
@@ -577,7 +588,10 @@ function CompactSignalCard({
   const outlookBadge = getScenarioOutlookBadge(scenario);
 
   return (
-    <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_14px_42px_rgba(0,0,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/24 sm:p-3.5">
+    <article
+      className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_14px_42px_rgba(0,0,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/24 sm:p-3.5"
+      data-signal-card-id={signal.cardId}
+    >
       <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-65" />
       <div className="grid min-w-0 grid-cols-[6.25rem_minmax(0,1fr)] items-start gap-3">
         <Link
@@ -659,13 +673,25 @@ function CompactSignalCard({
           <span className="line-clamp-2">{primaryReason}</span>
         </div>
       </div>
-      <Link
-        href={detailHref}
-        className="mt-2.5 inline-flex items-center justify-end gap-1 self-end text-[10px] font-semibold text-violet-200/62 transition hover:text-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-      >
-        Analysis
-        <ChevronRight className="h-3.5 w-3.5" />
-      </Link>
+      <div className="mt-auto flex min-w-0 items-center justify-between gap-2 pt-2.5">
+        {quickActionData ? (
+          <CollectionCardQuickActions
+            data={quickActionData}
+            gradedLabel={
+              marketMode === "graded"
+                ? signal.marketIntelligence?.graded.label ?? null
+                : null
+            }
+          />
+        ) : null}
+        <Link
+          href={detailHref}
+          className="ml-auto inline-flex min-h-11 shrink-0 items-center justify-end gap-1 rounded-lg px-2 text-[10px] font-semibold text-violet-200/62 transition hover:bg-violet-400/[0.08] hover:text-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+        >
+          Analysis
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
     </article>
   );
 }
@@ -891,7 +917,13 @@ export function ExternalSignalDetailCard({
   );
 }
 
-export default function ExternalSignalBrowser({ signals, sources, generatedAt }: Props) {
+export default function ExternalSignalBrowser({
+  signals,
+  sources,
+  generatedAt,
+  newReleaseChases,
+  cardQuickActions,
+}: Props) {
   const [search, setSearch] = useState("");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("all");
   const [origin, setOrigin] = useState<OriginFilter>("all");
@@ -899,11 +931,16 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
   const [sortKey, setSortKey] = useState<SortKey>("opportunity");
   const [visibleLimit, setVisibleLimit] = useState(36);
   const deferredSearch = useDeferredValue(search);
+  const newReleaseCardIds = useMemo(
+    () => new Set(newReleaseChases?.cards.map((card) => card.cardId) ?? []),
+    [newReleaseChases]
+  );
 
   const visibleSignals = useMemo(() => {
     const query = deferredSearch.trim();
     return signals
       .filter((signal) => {
+        if (newReleaseCardIds.has(signal.cardId)) return false;
         if (confidence !== "all" && signal.confidence.toLowerCase() !== confidence) return false;
         if (
           origin !== "all" &&
@@ -968,10 +1005,21 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
         }
         return right.externalScore - left.externalScore || left.rank - right.rank;
       });
-  }, [confidence, deferredSearch, marketMode, origin, signals, sortKey]);
+  }, [confidence, deferredSearch, marketMode, newReleaseCardIds, origin, signals, sortKey]);
+  const chaseSectionOwnsEverySignal =
+    signals.length > 0 && signals.every((signal) => newReleaseCardIds.has(signal.cardId));
+  const filtersAreDefault =
+    !deferredSearch.trim() && confidence === "all" && origin === "all" && marketMode === "raw";
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      {newReleaseChases ? (
+        <NewReleaseChasePanel
+          data={newReleaseChases}
+          cardQuickActions={cardQuickActions}
+        />
+      ) : null}
+
       <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3">
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto] lg:items-center">
           <label className="relative col-span-2 block min-w-0 lg:col-span-1">
@@ -981,13 +1029,13 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search cards..."
-              className="h-10 w-full rounded-xl border border-white/9 bg-black/24 pl-10 pr-9 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-violet-400/35 focus:ring-2 focus:ring-violet-500/12"
+              className="h-11 w-full rounded-xl border border-white/9 bg-black/24 pl-10 pr-11 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-violet-400/35 focus:ring-2 focus:ring-violet-500/12"
             />
             {search ? (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-white/35 transition hover:bg-white/8 hover:text-white"
+                className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-white/35 transition hover:bg-white/8 hover:text-white"
                 aria-label="Clear search"
               >
                 <X className="h-3.5 w-3.5" />
@@ -1002,7 +1050,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
                 type="button"
                 onClick={() => setConfidence(option.value)}
                 className={cx(
-                  "h-8 shrink-0 rounded-lg px-3 text-[11px] font-semibold transition",
+                  "min-h-11 shrink-0 rounded-lg px-3 text-xs font-semibold transition",
                   confidence === option.value
                     ? "bg-violet-500 text-white shadow-sm"
                     : "text-white/48 hover:bg-white/[0.06] hover:text-white"
@@ -1023,7 +1071,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
                   setVisibleLimit(36);
                 }}
                 className={cx(
-                  "h-8 min-w-0 flex-1 rounded-lg px-3 text-[11px] font-semibold capitalize transition lg:flex-none",
+                  "min-h-11 min-w-0 flex-1 rounded-lg px-3 text-xs font-semibold capitalize transition lg:flex-none",
                   marketMode === mode
                     ? "bg-violet-500 text-white shadow-sm"
                     : "text-white/48 hover:bg-white/[0.06] hover:text-white"
@@ -1040,7 +1088,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
             <select
               value={origin}
               onChange={(event) => setOrigin(event.target.value as OriginFilter)}
-              className="h-10 min-w-0 bg-transparent pr-2 text-[11px] font-semibold text-white/62 outline-none [color-scheme:dark]"
+              className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"
             >
               {ORIGIN_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1056,7 +1104,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
             <select
               value={sortKey}
               onChange={(event) => setSortKey(event.target.value as SortKey)}
-              className="h-10 min-w-0 bg-transparent pr-2 text-[11px] font-semibold text-white/62 outline-none [color-scheme:dark]"
+              className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"
             >
               {SORT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -1098,14 +1146,23 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
                 key={signal.cardId}
                 signal={signal}
                 marketMode={marketMode}
+                quickActionData={cardQuickActions[signal.cardId]}
               />
             ))}
           </div>
         ) : (
           <EmptyState
             icon={Radar}
-            title="No signals match these filters"
-            description="Clear the search or change a filter."
+            title={
+              chaseSectionOwnsEverySignal && filtersAreDefault
+                ? "New-set signals are shown above"
+                : "No signals match these filters"
+            }
+            description={
+              chaseSectionOwnsEverySignal && filtersAreDefault
+                ? "Radar removed the duplicate cards from this general list."
+                : "Clear the search or change a filter."
+            }
             actionHref={null}
           />
         )}
@@ -1114,7 +1171,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
             <button
               type="button"
               onClick={() => setVisibleLimit((current) => current + 36)}
-              className="rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-5 py-2.5 text-xs font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.12]"
+              className="min-h-11 rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-5 py-2.5 text-xs font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.12]"
             >
               Show more ({visibleSignals.length - visibleLimit})
             </button>
@@ -1137,7 +1194,7 @@ export default function ExternalSignalBrowser({ signals, sources, generatedAt }:
               target="_blank"
               rel="noreferrer"
               className={cx(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-semibold transition hover:bg-white/[0.07]",
+                "inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-semibold transition hover:bg-white/[0.07]",
                 source.ok
                   ? "border-emerald-300/14 bg-emerald-400/[0.055] text-emerald-100/70"
                   : "border-rose-300/14 bg-rose-400/[0.055] text-rose-100/70"

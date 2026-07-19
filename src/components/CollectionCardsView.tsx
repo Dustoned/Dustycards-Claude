@@ -15,6 +15,7 @@ import { cardMatchesSearchQuery } from "@/lib/card-search";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CachedImage from "@/components/CachedImage";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
+import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import EmptyState from "@/components/EmptyState";
 import { SectionHeader } from "@/components/PageHeader";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
@@ -39,6 +40,7 @@ import {
 import { rarityBadge } from "@/lib/rarity-styles";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import type { ModalCardData } from "@/components/card-modal/types";
+import type { CardQuickActionData } from "@/lib/card-quick-actions";
 import {
   modalActionRowClass,
   modalBodyClass,
@@ -177,6 +179,28 @@ function parseCurrencyInput(value: string): number | null {
 
 function formatPricePlaceholder(value: number | null | undefined): string {
   return value == null ? "0.00" : value.toFixed(2);
+}
+
+function getCollectionCardQuickActionData(item: CollectionCardViewItem): CardQuickActionData {
+  return {
+    card: {
+      id: item.card_id,
+      name: item.name,
+      image_url: item.image_url,
+      episode: {
+        id: item.episode_id,
+        name: item.episode_name,
+        code: item.episode_code,
+      },
+    },
+    owned: item.owned,
+    wantItem: item.want_item_id
+      ? {
+          id: item.want_item_id,
+          created_at: "",
+        }
+      : null,
+  };
 }
 
 export default function CollectionCardsView({
@@ -1821,21 +1845,20 @@ export default function CollectionCardsView({
                                   </button>
                                 ) : null
                               ) : (
-                                <CollectionAddCardButton
-                                  card={{
-                                    id: item.card_id,
-                                    name: item.name,
-                                    image_url: item.image_url,
-                                    episode: {
-                                      id: item.episode_id,
-                                      name: item.episode_name,
-                                      code: item.episode_code,
-                                    },
-                                  }}
-                                  initialBinderId={bulkAddBinder?.id ?? null}
-                                  lockedBinderName={bulkAddBinder?.name ?? null}
-                                  className="h-8 w-8 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
-                                />
+                                allowWantRemoval ? (
+                                  <CollectionAddCardButton
+                                    card={getCollectionCardQuickActionData(item).card}
+                                    initialBinderId={bulkAddBinder?.id ?? null}
+                                    lockedBinderName={bulkAddBinder?.name ?? null}
+                                    className="h-8 w-8 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
+                                  />
+                                ) : (
+                                  <CollectionCardQuickActions
+                                    data={getCollectionCardQuickActionData(item)}
+                                    initialBinderId={bulkAddBinder?.id ?? null}
+                                    lockedBinderName={bulkAddBinder?.name ?? null}
+                                  />
+                                )
                               ))}
                           </div>
 
@@ -2100,21 +2123,20 @@ export default function CollectionCardsView({
                                     </button>
                                   ) : null
                                 ) : (
-                                  <CollectionAddCardButton
-                                    card={{
-                                      id: item.card_id,
-                                      name: item.name,
-                                      image_url: item.image_url,
-                                      episode: {
-                                        id: item.episode_id,
-                                        name: item.episode_name,
-                                        code: item.episode_code,
-                                      },
-                                    }}
-                                    initialBinderId={bulkAddBinder?.id ?? null}
-                                    lockedBinderName={bulkAddBinder?.name ?? null}
-                                    className="h-[28px] w-[28px] rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
-                                  />
+                                  allowWantRemoval ? (
+                                    <CollectionAddCardButton
+                                      card={getCollectionCardQuickActionData(item).card}
+                                      initialBinderId={bulkAddBinder?.id ?? null}
+                                      lockedBinderName={bulkAddBinder?.name ?? null}
+                                      className="h-[28px] w-[28px] rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
+                                    />
+                                  ) : (
+                                    <CollectionCardQuickActions
+                                      data={getCollectionCardQuickActionData(item)}
+                                      initialBinderId={bulkAddBinder?.id ?? null}
+                                      lockedBinderName={bulkAddBinder?.name ?? null}
+                                    />
+                                  )
                                 ))}
                             </div>
                           </td>
@@ -2175,22 +2197,21 @@ export default function CollectionCardsView({
                   const trendPercent = getTileTrendPercent(item.current_value, costBasis);
                   const tileAction =
                     !activeSelectionMode && !item.owned ? (
-                      <CollectionAddCardButton
-                        card={{
-                          id: item.card_id,
-                          name: item.name,
-                          image_url: item.image_url,
-                          episode: {
-                            id: item.episode_id,
-                            name: item.episode_name,
-                            code: item.episode_code,
-                          },
-                        }}
-                        initialBinderId={bulkAddBinder?.id ?? null}
-                        lockedBinderName={bulkAddBinder?.name ?? null}
-                        className={collectionTileActionButtonClass(displaySettings.cardSize)}
-                        theme="dark"
-                      />
+                      allowWantRemoval ? (
+                        <CollectionAddCardButton
+                          card={getCollectionCardQuickActionData(item).card}
+                          initialBinderId={bulkAddBinder?.id ?? null}
+                          lockedBinderName={bulkAddBinder?.name ?? null}
+                          className={collectionTileActionButtonClass(displaySettings.cardSize)}
+                          theme="dark"
+                        />
+                      ) : (
+                        <CollectionCardQuickActions
+                          data={getCollectionCardQuickActionData(item)}
+                          initialBinderId={bulkAddBinder?.id ?? null}
+                          lockedBinderName={bulkAddBinder?.name ?? null}
+                        />
+                      )
                     ) : null;
                   const showWantPriceRowAction = allowWantRemoval && Boolean(tileAction);
 

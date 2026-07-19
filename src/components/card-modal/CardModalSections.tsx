@@ -30,6 +30,8 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CachedImage from "@/components/CachedImage";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
+import CardDetailMobileMarketAction from "@/components/card-detail/CardDetailMobileMarketAction";
+import CardPriceAlertButton from "@/components/card-detail/CardPriceAlertButton";
 import ReadableInfoTooltip from "@/components/card-detail/ReadableInfoTooltip";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import { DETAIL_MARKET_LINK_CLASS } from "@/components/detail-market-link-style";
@@ -1496,6 +1498,7 @@ export function CardModalDesktopActionGroup({
   researchingSignal = false,
   cardMarketHref,
   onOpenCardMarket,
+  onPriceAlertOpenChange,
 }: {
   card: ModalCardData;
   collectionItem: ModalCardData["collection_item"] | null;
@@ -1513,6 +1516,7 @@ export function CardModalDesktopActionGroup({
   researchingSignal?: boolean;
   cardMarketHref?: string;
   onOpenCardMarket?: () => void;
+  onPriceAlertOpenChange?: (open: boolean) => void;
 }) {
   const collectionCard = buildCollectionCard(card);
   const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
@@ -1529,6 +1533,12 @@ export function CardModalDesktopActionGroup({
   const hasOverflowActions = canManageCollectionItem || Boolean(onResearchSignal) || canManageCardPrices;
   const mobileMarketClass =
     "inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.045] px-2.5 text-[13px] font-bold text-white/72 transition hover:border-violet-200/28 hover:bg-violet-500/[0.12] hover:text-white";
+  const ebayHref = buildCardEbaySearchUrl({
+    name: card.name,
+    cardNumber: card.card_number,
+    gradingCompany: normalizeGradingCompanyLabel(card.collection_item?.grading_company),
+    gradingGrade: normalizeGradingGradeLabel(card.collection_item?.grading_grade),
+  });
 
   return (
     <div
@@ -1558,29 +1568,21 @@ export function CardModalDesktopActionGroup({
         className="!min-h-11 !flex-1 !whitespace-nowrap !rounded-xl !border-violet-300/20 !bg-violet-600/16 !px-2.5 !text-[13px] !font-bold !text-violet-50 hover:!border-violet-200/36 hover:!bg-violet-500/26 sm:!px-4 sm:!text-sm lg:!flex-none"
       />
 
-      {onOpenCardMarket ? (
-        <button
-          type="button"
-          onClick={onOpenCardMarket}
+      {onOpenCardMarket || cardMarketHref ? (
+        <CardDetailMobileMarketAction
+          cardMarketHref={cardMarketHref}
+          ebayHref={ebayHref}
+          onOpenCardMarket={onOpenCardMarket}
           className={mobileMarketClass}
-          data-card-detail-mobile-market
-        >
-          <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          CardMarket
-        </button>
-      ) : cardMarketHref ? (
-        <a
-          href={cardMarketHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={mobileMarketClass}
-          data-card-detail-mobile-market
-        >
-          <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          CardMarket
-        </a>
+        />
       ) : null}
       </div>
+
+      <CardPriceAlertButton
+        cardId={card.id}
+        cardName={card.name}
+        onOpenChange={onPriceAlertOpenChange}
+      />
 
       {hasOverflowActions ? (
       <details

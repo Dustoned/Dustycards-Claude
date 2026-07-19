@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
   Boxes,
@@ -27,6 +27,12 @@ import {
 import { useSettings } from "@/components/SettingsProvider";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import { GAME_SEARCH_PARAM } from "@/lib/games";
+import {
+  COLLECTION_CARD_ADDED_EVENT,
+  getCollectionCardAddedEffects,
+  type CollectionCardAddedDetail,
+} from "@/lib/collection-client-events";
+import { WANTS_CHANGED_EVENT } from "@/lib/wants-client-events";
 
 export interface DesktopSidebarSummary {
   cards: number;
@@ -137,10 +143,15 @@ function isActive(
   return pathname === `/${key}` || pathname.startsWith(`/${key}/`);
 }
 
-function navBadge(summary: DesktopSidebarSummary, badge: "cards" | "forSale" | "wants" | null) {
-  if (badge === "cards") return formatCount(summary.cards);
-  if (badge === "forSale") return summary.forSaleCards > 0 ? formatCount(summary.forSaleCards) : null;
-  if (badge === "wants") return formatCount(summary.wants);
+function navBadge(
+  badge: "cards" | "forSale" | "wants" | null,
+  cardsCount: number,
+  forSaleCardsCount: number,
+  wantsCount: number
+) {
+  if (badge === "cards") return formatCount(cardsCount);
+  if (badge === "forSale") return forSaleCardsCount > 0 ? formatCount(forSaleCardsCount) : null;
+  if (badge === "wants") return formatCount(wantsCount);
   return null;
 }
 
@@ -152,6 +163,9 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
   const tab = useLiveCollectionTab();
   const [accountOpen, setAccountOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [cardsCount, setCardsCount] = useState(summary.cards);
+  const [forSaleCardsCount, setForSaleCardsCount] = useState(summary.forSaleCards);
+  const [wantsCount, setWantsCount] = useState(summary.wants);
   const displayName = getDisplayName(summary.email);
   const roleLabel = summary.role === "admin" ? "Admin" : "Collector";
   const moverScope = searchParams.get("scope");
@@ -162,6 +176,50 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
       : moverScope === "collection" || moverView === "collection" || (pathname.startsWith("/movers") && !moverScope)
         ? "collection"
         : "all";
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setForSaleCardsCount(summary.forSaleCards));
+    return () => window.cancelAnimationFrame(frame);
+  }, [summary.forSaleCards]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setCardsCount(summary.cards));
+    return () => window.cancelAnimationFrame(frame);
+  }, [summary.cards]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setWantsCount(summary.wants));
+    return () => window.cancelAnimationFrame(frame);
+  }, [summary.wants]);
+
+  useEffect(() => {
+    function handleWantsChanged(event: Event) {
+      const detail = (event as CustomEvent<{ wanted?: boolean }>).detail;
+      if (typeof detail?.wanted !== "boolean") return;
+      setWantsCount((current) => Math.max(0, current + (detail.wanted ? 1 : -1)));
+    }
+
+    window.addEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+    return () => window.removeEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+  }, []);
+
+  useEffect(() => {
+    function handleCollectionCardAdded(event: Event) {
+      const detail = (event as CustomEvent<CollectionCardAddedDetail>).detail;
+      if (!detail) return;
+      const effects = getCollectionCardAddedEffects(detail);
+
+      if (effects.collectionCountDelta) {
+        setCardsCount((current) => current + effects.collectionCountDelta);
+      }
+      if (effects.forSaleCountDelta) {
+        setForSaleCardsCount((current) => current + effects.forSaleCountDelta);
+      }
+    }
+
+    window.addEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionCardAdded);
+    return () => window.removeEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionCardAdded);
+  }, []);
 
   function buildMarketModeHref(mode: SidebarMarketMode): string {
     const params = new URLSearchParams();
@@ -235,7 +293,12 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
 
                 const active = isActive(pathname, tab, item.key, moverScope);
                 const Icon = item.icon;
-                const badge = navBadge(summary, item.badge);
+                const badge = navBadge(
+                  item.badge,
+                  cardsCount,
+                  forSaleCardsCount,
+                  wantsCount
+                );
                 const href =
                   "marketMode" in item ? buildMarketModeHref(item.marketMode) : item.href;
 
@@ -288,7 +351,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
           >
             <div className="grid grid-cols-3 gap-1.5">
               {[
-                ["Cards", summary.cards],
+                ["Cards", cardsCount],
                 ["Binders", summary.binders],
                 ["Sealed", summary.sealedUnits],
               ].map(([label, value]) => (
@@ -370,7 +433,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                 {roleLabel === "Admin" ? "ADMIN" : "USER"}
               </span>
               <span className="min-w-0 truncate text-[10px] font-semibold leading-none text-white/56">
-                {formatCount(summary.cards)} cards
+                {formatCount(cardsCount)} cards
               </span>
             </span>
           </span>

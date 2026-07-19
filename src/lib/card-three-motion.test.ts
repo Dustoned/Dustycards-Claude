@@ -3,13 +3,9 @@ import {
   CARD_THREE_AUTO_ROTATE_IDLE_RESUME_MS,
   CARD_THREE_INLINE_IDLE_ROTATION_AMPLITUDE,
   CARD_THREE_INLINE_IDLE_ROTATION_SPEED,
-  CARD_THREE_WIGGLE_AMPLITUDE_RADIANS,
-  CARD_THREE_WIGGLE_PERIOD_MS,
   getCardThreeAutoRotateResumeDelay,
   getCardThreeInlineIdlePhase,
   getCardThreeInlineIdleRotation,
-  getCardThreeWiggleAngle,
-  getCardThreeWiggleCameraOffset,
   normalizeCardThreeRotationAngle,
 } from "@/lib/card-three-motion";
 
@@ -50,43 +46,5 @@ describe("card three motion", () => {
       8
     );
     expect(normalizeCardThreeRotationAngle(Math.PI * 3)).toBeCloseTo(Math.PI, 8);
-  });
-
-  it("creates a continuous zero-centered stereoscopic wiggle", () => {
-    const positivePeak = CARD_THREE_WIGGLE_PERIOD_MS / 4;
-    const negativePeak = (CARD_THREE_WIGGLE_PERIOD_MS * 3) / 4;
-
-    expect(getCardThreeWiggleAngle(0)).toBe(0);
-    expect(getCardThreeWiggleAngle(positivePeak)).toBeCloseTo(
-      CARD_THREE_WIGGLE_AMPLITUDE_RADIANS,
-      10
-    );
-    expect(getCardThreeWiggleAngle(negativePeak)).toBeCloseTo(
-      -CARD_THREE_WIGGLE_AMPLITUDE_RADIANS,
-      10
-    );
-    expect(getCardThreeWiggleAngle(CARD_THREE_WIGGLE_PERIOD_MS)).toBeCloseTo(0, 10);
-    expect(
-      getCardThreeWiggleAngle(CARD_THREE_WIGGLE_PERIOD_MS + positivePeak)
-    ).toBeCloseTo(CARD_THREE_WIGGLE_AMPLITUDE_RADIANS, 10);
-    expect(
-      getCardThreeWiggleAngle(CARD_THREE_WIGGLE_PERIOD_MS * 8 + negativePeak)
-    ).toBeCloseTo(-CARD_THREE_WIGGLE_AMPLITUDE_RADIANS, 10);
-  });
-
-  it("converts equal left and right view angles into symmetric camera offsets", () => {
-    const distance = 8;
-    const right = getCardThreeWiggleCameraOffset(
-      distance,
-      CARD_THREE_WIGGLE_AMPLITUDE_RADIANS
-    );
-    const left = getCardThreeWiggleCameraOffset(
-      distance,
-      -CARD_THREE_WIGGLE_AMPLITUDE_RADIANS
-    );
-
-    expect(right).toBeGreaterThan(0);
-    expect(left).toBeCloseTo(-right, 10);
-    expect(getCardThreeWiggleCameraOffset(distance, 0)).toBe(0);
   });
 });

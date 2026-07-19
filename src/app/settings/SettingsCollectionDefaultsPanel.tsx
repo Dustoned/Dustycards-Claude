@@ -242,12 +242,6 @@ export default function SettingsCollectionDefaultsPanel() {
               value={settings.card3dSize}
               onChange={(value) => set("card3dSize", value)}
             />
-            <ToggleRow
-              title="Wiggle stereoscopy"
-              description="Keep an idle 3D preview moving between nearby viewpoints for a motion-parallax depth effect. Reduced Motion keeps it still."
-              checked={settings.wiggleStereoscopy}
-              onChange={(value) => set("wiggleStereoscopy", value)}
-            />
           </div>
 
           <div className="border-t border-black/6 pt-5 dark:border-white/6">

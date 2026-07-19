@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.3",
+    releasedAt: "July 20, 2026",
+    title: "Price alerts and faster collector actions",
+    summary:
+      "DustyCards 3.8.3 adds card price alerts, in-place collector actions and a more reliable mobile detail experience.",
+    tone: "new",
+    highlights: [
+      "Every Card Detail and Signal Radar view can send a one-time email when the CardMarket price drops or reaches a chosen target.",
+      "Collection and Want actions are available directly on mover, target, Radar and collection cards without resetting filters, sort order or scroll position.",
+      "Signal Radar now explains the strongest chases from newly populated sets with a dedicated market read.",
+      "Mobile tabs preserve their scroll position, pull-to-refresh ignores accidental and multi-touch gestures, and floating actions no longer sit inside a dark toolbar.",
+      "Inline 3D previews return to calm card rotation with a cleaner artwork-aware holo mask and resume automatically after one idle minute.",
+    ],
+  },
+  {
     version: "3.8.2",
     releasedAt: "July 19, 2026",
     title: "Continuous stereoscopic motion",

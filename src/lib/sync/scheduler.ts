@@ -1,6 +1,11 @@
 import "server-only";
 
+import {
+  sweepCardPriceAlerts,
+  type CardPriceAlertSweepResult,
+} from "@/lib/card-price-alerts";
 import { db } from "@/lib/db";
+import { isMailConfigured } from "@/lib/mail";
 import { areScraperRequestsDisabled } from "@/lib/scraper-guard";
 import {
   getAutoPriceRefreshSnapshot,
@@ -55,6 +60,7 @@ export interface SyncSchedulerTickResult {
     finishedAt: string | null;
     error: string | null;
   };
+  priceAlerts: CardPriceAlertSweepResult;
   setLifecycle: SetLifecycleJobSnapshot;
   quota: {
     requestsRemaining: number | null;
@@ -100,6 +106,18 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   const checkedAt = new Date();
   const scraperDisabled = areScraperRequestsDisabled();
   const normalizedPriceCheckedAtCards = await reconcilePriceSourceCheckedAtFromSnapshots();
+  // Evaluate only prices that are already committed. New background refresh
+  // writes are intentionally picked up on the next scheduler tick.
+  const priceAlerts = await sweepCardPriceAlerts().catch(
+    (error: unknown): CardPriceAlertSweepResult => ({
+      configured: isMailConfigured(),
+      checked: 0,
+      triggered: 0,
+      emailsSent: 0,
+      alertsSent: 0,
+      errors: [error instanceof Error ? error.message : String(error)],
+    })
+  );
   const [priceSnapshot, existingPriceJob, quota] = await Promise.all([
     getAutoPriceRefreshSnapshot(),
     getAutoPriceRefreshJobSnapshot(),
@@ -177,6 +195,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     },
     historyDrain,
     externalRadar,
+    priceAlerts,
     setLifecycle,
     quota: {
       requestsRemaining: quota.requestsRemaining,

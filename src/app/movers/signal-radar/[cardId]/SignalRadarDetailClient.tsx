@@ -7,10 +7,10 @@ import {
   ArrowUpRight,
   Globe2,
   Loader2,
+  Radar,
   RefreshCw,
   Search,
   ShieldAlert,
-  Sparkles,
   X,
 } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
@@ -44,6 +44,12 @@ import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { buildCardMarketProxyUrl, getSafeDirectCardMarketCardUrl } from "@/lib/cardmarket";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import type { ExternalCardSignal, ExternalMarketMode } from "@/lib/external-signal-radar";
+import {
+  getExpansionChaseFreshness,
+  getExpansionChaseVerdict,
+  type ExpansionChaseFreshness,
+  type ExpansionChaseVerdictKey,
+} from "@/lib/expansion-chase-radar-core";
 import { formatCurrency } from "@/lib/format";
 import {
   GRADED_SLAB_ASPECT_CLASS,
@@ -117,6 +123,53 @@ function getForecastDirection(
   if (changePct == null || Math.abs(changePct) < 4) return "flat";
   if (changePct < 0) return "decline";
   return changePct >= 20 ? "strong-rise" : "rise";
+}
+
+function getRadarEvidenceLabel(input: {
+  signal: ExternalCardSignal;
+  scenarioDrivers: string[];
+  confluenceDrivers: string[];
+  freshness: ExpansionChaseFreshness;
+  scenarioConfidence: "High" | "Medium" | "Low" | undefined;
+}): { label: "Main risk" | "Evidence"; value: string } {
+  const negativeCatalyst = input.signal.catalysts?.find((catalyst) => catalyst.direction === "negative");
+  if (negativeCatalyst) {
+    return { label: "Main risk", value: negativeCatalyst.headline };
+  }
+
+  const riskDriver = input.scenarioDrivers.find((driver) =>
+    /risk|reprint|supply|volatile|volatility|weak|declin|downside|thin|uncertain/i.test(driver)
+  );
+  if (riskDriver) return { label: "Main risk", value: riskDriver };
+  if ((input.signal.riskScore ?? 0) >= 0.35) {
+    return { label: "Main risk", value: "Elevated catalyst risk" };
+  }
+  if (input.freshness === "aging") {
+    return { label: "Main risk", value: "Price quote is aging" };
+  }
+  if (input.scenarioConfidence === "Low") {
+    return { label: "Main risk", value: "Limited forecast evidence" };
+  }
+
+  const evidence = input.confluenceDrivers[0] ?? input.scenarioDrivers[0] ?? input.signal.reasons[0];
+  return {
+    label: "Evidence",
+    value: evidence ?? `${input.signal.evidence.length} verified market source${input.signal.evidence.length === 1 ? "" : "s"}`,
+  };
+}
+
+function radarVerdictTone(key: ExpansionChaseVerdictKey): string {
+  if (key === "strong_watch") return "text-cyan-100";
+  if (key === "building") return "text-violet-100";
+  if (key === "cooling" || key === "data_stale") return "text-amber-100";
+  return "text-white/88";
+}
+
+function radarFreshnessLabel(freshness: ExpansionChaseFreshness): string {
+  if (freshness === "fresh") return "Fresh market data";
+  if (freshness === "aging") return "Aging market data";
+  if (freshness === "stale") return "Stale market data";
+  return "Freshness unknown";
 }
 
 function DetailSurface({
@@ -281,12 +334,14 @@ export default function SignalRadarDetailClient({
   priceHistory,
   initialResearch = null,
   detailSize = "medium",
+  backSetId = null,
 }: {
   signal: ExternalCardSignal;
   card: ModalCardData;
   priceHistory: SignalRadarPriceHistoryData;
   initialResearch?: CardResearchSnapshot | null;
   detailSize?: CardDetailSize;
+  backSetId?: string | null;
 }) {
   const router = useRouter();
   const { displaySettings, currentUserRole } = useSettings();
@@ -376,6 +431,39 @@ export default function SignalRadarDetailClient({
     ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" }).format(new Date(card.episode_release_date))
     : "Unknown";
   const isBusy = refreshing || syncingHistory;
+  const radarFreshness = useMemo(() => {
+    const referenceDate = new Date(priceHistory.modelDate);
+    if (!Number.isFinite(referenceDate.getTime())) return "unknown";
+    const priceTimestamp =
+      effectiveMode === "graded"
+        ? card.ebay_sold_graded_synced_at ??
+          card.ebay_sold_graded_checked_at ??
+          card.price_fetched_at
+        : card.price_fetched_at;
+    return getExpansionChaseFreshness(priceTimestamp, referenceDate);
+  }, [
+    card.ebay_sold_graded_checked_at,
+    card.ebay_sold_graded_synced_at,
+    card.price_fetched_at,
+    effectiveMode,
+    priceHistory.modelDate,
+  ]);
+  const radarVerdict = getExpansionChaseVerdict({
+    scenario,
+    opportunityScore: score,
+    freshness: radarFreshness,
+    observedChange7dPct:
+      effectiveMode === "raw" && displayPrice != null && card.price?.cm_en_avg_7d
+        ? ((displayPrice - card.price.cm_en_avg_7d) / card.price.cm_en_avg_7d) * 100
+        : null,
+  });
+  const radarEvidence = getRadarEvidenceLabel({
+    signal,
+    scenarioDrivers: scenario?.drivers ?? [],
+    confluenceDrivers: confluence?.drivers ?? [],
+    freshness: radarFreshness,
+    scenarioConfidence: scenario?.confidence,
+  });
 
   async function runCardAction(action: "refresh" | "sync-history") {
     if (action === "refresh") {
@@ -470,36 +558,43 @@ export default function SignalRadarDetailClient({
         />
       </DetailSurface>
 
-      <section className="card-detail-surface">
+      <section className="card-detail-surface" data-testid="signal-radar-verdict">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="card-detail-eyebrow">Collector snapshot</p>
-            <h2 className="mt-2 text-xl font-extrabold text-white/92">
-              {collectionItem ? "A saved copy with context" : "Ready for your collection"}
+            <p className="card-detail-eyebrow">Radar verdict</p>
+            <h2 className={cx("mt-2 text-2xl font-black tracking-[-0.025em]", radarVerdictTone(radarVerdict.key))}>
+              {radarVerdict.label}
             </h2>
           </div>
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.07] text-violet-100/76">
-            <Sparkles className="h-4 w-4" />
+            <Radar className="h-4 w-4" aria-hidden="true" />
           </span>
         </div>
-        <dl className="card-detail-info-grid mt-4">
-          <div className="card-detail-info-cell">
-            <dt>Status</dt>
-            <dd>{collectionItem ? (collectionItem.read_only ? "Shared" : "Owned") : "Not owned"}</dd>
-          </div>
-          <div className="card-detail-info-cell">
-            <dt>Condition</dt>
-            <dd>{collectionItem?.condition ?? "--"}</dd>
-          </div>
-          <div className="card-detail-info-cell">
-            <dt>Language</dt>
-            <dd>{collectionItem?.language ?? "--"}</dd>
-          </div>
-          <div className="card-detail-info-cell">
-            <dt>Location</dt>
-            <dd>{collectionItem?.for_sale ? "For sale" : collectionItem?.binder_name ?? "Singles"}</dd>
-          </div>
-        </dl>
+        <p className="mt-2 max-w-[54ch] text-sm leading-6 text-white/48">{radarVerdict.summary}</p>
+        <div className="mt-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.08em] text-white/38">
+          <span
+            className={cx(
+              "h-1.5 w-1.5 shrink-0 rounded-full",
+              radarFreshness === "fresh"
+                ? "bg-cyan-300"
+                : radarFreshness === "aging"
+                  ? "bg-amber-300"
+                  : "bg-white/30"
+            )}
+            aria-hidden="true"
+          />
+          {radarFreshnessLabel(radarFreshness)}
+        </div>
+        <div className="mt-4">
+          <InfoGrid
+            items={[
+              ["Opportunity", `${score}/100`],
+              ["180d", scenario?.confidence === "Low" ? "Learning" : signedPercent(forecastChangePct)],
+              ["Confidence", scenario?.confidence ?? signal.confidence],
+              [radarEvidence.label, radarEvidence.value],
+            ]}
+          />
+        </div>
       </section>
     </div>
   );
@@ -559,7 +654,9 @@ export default function SignalRadarDetailClient({
         detailSize={displaySettings.modalSize ?? detailSize}
         navigation={{
           label: "Back to Signal Radar",
-          href: `/movers/signal-radar?game=${encodeURIComponent(signal.game)}`,
+          href: backSetId
+            ? `/movers/signal-radar?game=${encodeURIComponent(signal.game)}&set=${encodeURIComponent(backSetId)}#new-release-chases`
+            : `/movers/signal-radar?game=${encodeURIComponent(signal.game)}`,
         }}
         eyebrow={signal.manualResearch || signal.rank <= 0 ? "Signal Radar research profile" : `Signal Radar · Candidate #${signal.rank}`}
         title={card.name}
@@ -582,7 +679,7 @@ export default function SignalRadarDetailClient({
           { label: "Opportunity", value: `${score}/100`, hint: effectiveMode === "graded" ? "Graded setup" : "Raw setup", tone: "violet" },
           { label: "Setup strength", value: `${confluence?.score ?? "--"}/100`, hint: confluence?.label ?? "Building", tone: "violet" },
           { label: "Confidence", value: signal.confidence, hint: signal.pressureLabel, tone: "cyan" },
-          { label: "180-day model", value: signedPercent(forecastChangePct), hint: horizonPoint ? formatCurrency(horizonPoint.base, scenario?.currency ?? displayCurrency) : "Learning", tone: forecastChangePct != null && forecastChangePct >= 0 ? "cyan" : "warning" },
+          { label: "180-day model", value: scenario?.confidence === "Low" ? "Learning" : signedPercent(forecastChangePct), hint: scenario?.confidence === "Low" ? "Launch market" : horizonPoint ? formatCurrency(horizonPoint.base, scenario?.currency ?? displayCurrency) : "Learning", tone: forecastChangePct != null && forecastChangePct >= 0 ? "cyan" : "warning" },
         ]}
         media={
           <CardDetailMediaSwitcher

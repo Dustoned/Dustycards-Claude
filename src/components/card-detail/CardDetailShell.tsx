@@ -13,11 +13,55 @@ import {
 } from "lucide-react";
 import {
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+
+const MOBILE_CARD_DETAIL_MAX_WIDTH = 767;
+
+interface PendingTabScrollAnchor {
+  scrollElement: HTMLElement;
+  scrollTop: number;
+}
+
+function getVerticalScrollElement(element: HTMLElement): HTMLElement {
+  let candidate = element.parentElement;
+
+  while (candidate && candidate !== document.body) {
+    const overflowY = window.getComputedStyle(candidate).overflowY;
+    if (
+      /^(auto|scroll|overlay)$/.test(overflowY) &&
+      candidate.scrollHeight > candidate.clientHeight + 1
+    ) {
+      return candidate;
+    }
+    candidate = candidate.parentElement;
+  }
+
+  return document.scrollingElement instanceof HTMLElement
+    ? document.scrollingElement
+    : document.documentElement;
+}
+
+function centerTabInRail(tabList: HTMLElement, tab: HTMLElement) {
+  const listBounds = tabList.getBoundingClientRect();
+  const tabBounds = tab.getBoundingClientRect();
+  const targetLeft = Math.max(
+    0,
+    Math.min(
+      tabList.scrollWidth - tabList.clientWidth,
+      tabList.scrollLeft +
+        tabBounds.left +
+        tabBounds.width / 2 -
+        (listBounds.left + listBounds.width / 2)
+    )
+  );
+
+  tabList.scrollTo({ left: targetLeft, top: tabList.scrollTop, behavior: "auto" });
+}
 
 export type CardDetailMode = "standard" | "radar";
 export type CardDetailSize = "small" | "medium" | "large";
@@ -144,10 +188,82 @@ export default function CardDetailShell({
   const [activeTab, setActiveTab] = useState<CardDetailTabId>(() =>
     tabs.some((tab) => tab.id === initialTab) ? initialTab : fallbackTab
   );
+  const tabsShellRef = useRef<HTMLElement | null>(null);
   const tabListRef = useRef<HTMLDivElement | null>(null);
+  const pendingTabScrollAnchorRef = useRef<PendingTabScrollAnchor | null>(null);
   const reactId = useId().replace(/:/g, "");
   const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const showMobileChart = mobileChartTabs.includes(active?.id ?? fallbackTab);
+
+  function rememberMobileTabScrollAnchor(preserveExisting = false) {
+    if (window.innerWidth > MOBILE_CARD_DETAIL_MAX_WIDTH) return;
+    if (preserveExisting && pendingTabScrollAnchorRef.current) return;
+    const tabsShell = tabsShellRef.current;
+    if (!tabsShell) return;
+    const scrollElement = getVerticalScrollElement(tabsShell);
+    pendingTabScrollAnchorRef.current = {
+      scrollElement,
+      scrollTop: scrollElement.scrollTop,
+    };
+  }
+
+  useLayoutEffect(() => {
+    const pendingAnchor = pendingTabScrollAnchorRef.current;
+    const tabsShell = tabsShellRef.current;
+    pendingTabScrollAnchorRef.current = null;
+    if (!pendingAnchor || !tabsShell) return;
+
+    const { scrollElement } = pendingAnchor;
+    let cancelled = false;
+    let animationFrame = 0;
+    let frameCount = 0;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const restoreAnchor = () => {
+      if (cancelled) return;
+      scrollElement.scrollTop = pendingAnchor.scrollTop;
+    };
+
+    // Charts and tab panels can finish their layout over several frames. Keep
+    // the explicit position authoritative during that short commit window;
+    // otherwise Chromium can move a sticky rail long after React's first
+    // layout effect has restored it.
+    const restoreForCommitWindow = () => {
+      restoreAnchor();
+      frameCount += 1;
+      if (!cancelled && frameCount < 8) {
+        animationFrame = window.requestAnimationFrame(restoreForCommitWindow);
+      }
+    };
+
+    const stopRestoring = () => {
+      cancelled = true;
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+    };
+
+    restoreForCommitWindow();
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(restoreAnchor);
+      const layout = tabsShell.closest<HTMLElement>("[data-card-detail-canvas]");
+      if (layout) resizeObserver.observe(layout);
+    }
+
+    scrollElement.addEventListener("wheel", stopRestoring, { passive: true, once: true });
+    scrollElement.addEventListener("touchstart", stopRestoring, { passive: true, once: true });
+    scrollElement.addEventListener("pointerdown", stopRestoring, { passive: true, once: true });
+    scrollElement.addEventListener("keydown", stopRestoring, { once: true });
+    const releaseTimer = window.setTimeout(stopRestoring, 240);
+
+    return () => {
+      window.clearTimeout(releaseTimer);
+      scrollElement.removeEventListener("wheel", stopRestoring);
+      scrollElement.removeEventListener("touchstart", stopRestoring);
+      scrollElement.removeEventListener("pointerdown", stopRestoring);
+      scrollElement.removeEventListener("keydown", stopRestoring);
+      stopRestoring();
+    };
+  }, [activeTab]);
 
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
@@ -159,11 +275,14 @@ export default function CardDetailShell({
     if (event.key === "End") nextIndex = tabs.length - 1;
     const nextTab = tabs[nextIndex];
     if (!nextTab) return;
+    rememberMobileTabScrollAnchor();
     setActiveTab(nextTab.id);
     const buttons = tabListRef.current?.querySelectorAll<HTMLButtonElement>("[role=tab]");
     const nextButton = buttons?.[nextIndex];
-    nextButton?.focus();
-    nextButton?.scrollIntoView?.({ block: "nearest", inline: "center" });
+    nextButton?.focus({ preventScroll: true });
+    if (nextButton && tabListRef.current) {
+      centerTabInRail(tabListRef.current, nextButton);
+    }
   }
 
   return (
@@ -228,7 +347,11 @@ export default function CardDetailShell({
           {chart}
         </section>
 
-        <nav className="card-detail-tabs-shell" aria-label="Card detail sections">
+        <nav
+          ref={tabsShellRef}
+          className="card-detail-tabs-shell"
+          aria-label="Card detail sections"
+        >
           <div ref={tabListRef} className="card-detail-tabs" role="tablist">
             {tabs.map((tab, index) => {
               const selected = tab.id === active?.id;
@@ -242,9 +365,20 @@ export default function CardDetailShell({
                   aria-selected={selected}
                   aria-controls={`${reactId}-panel-${tab.id}`}
                   tabIndex={selected ? 0 : -1}
+                  onPointerDown={(event) => {
+                    if (event.isPrimary && event.button === 0) {
+                      rememberMobileTabScrollAnchor();
+                    }
+                  }}
                   onClick={(event) => {
+                    // Pointer focus can scroll a sticky tab rail before `click`
+                    // fires. Keep the pre-focus anchor captured on pointer down;
+                    // only measure here for keyboard/programmatic activation.
+                    rememberMobileTabScrollAnchor(event.detail > 0);
                     setActiveTab(tab.id);
-                    event.currentTarget.scrollIntoView?.({ block: "nearest", inline: "center" });
+                    if (tabListRef.current) {
+                      centerTabInRail(tabListRef.current, event.currentTarget);
+                    }
                   }}
                   onKeyDown={(event) => handleTabKeyDown(event, index)}
                   className="card-detail-tab"

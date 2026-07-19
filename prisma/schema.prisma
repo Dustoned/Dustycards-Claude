@@ -66,6 +66,7 @@ model User {
   sealedItems              CollectionSealed[]
   ebayListingCardOverrides EbayListingCardOverride[]
   ebayWatchedListings      EbayWatchedListing[]
+  cardPriceAlerts          CardPriceAlert[]
   cardSubmissions          CardSubmission[]
   socialRequestsSent       SocialConnection[]        @relation("SocialConnectionRequester")
   socialRequestsReceived   SocialConnection[]        @relation("SocialConnectionAddressee")
@@ -412,6 +413,7 @@ model Card {
   ebayDemandSnapshots          CardEbayDemandSnapshot[]
   ebayListingOverrides         EbayListingCardOverride[]
   ebayWatchedListings          EbayWatchedListing[]
+  priceAlerts                  CardPriceAlert[]
   prices                       Price[]
   sealedProducts               CardSealedProduct[]
   cardSubmissions              CardSubmission[]                  @relation("SubmissionCreatedCard")
@@ -655,6 +657,28 @@ model EbayWatchedListing {
   @@unique([user_id, marketplace_id, item_id])
   @@index([user_id, created_at])
   @@index([card_id])
+}
+
+model CardPriceAlert {
+  id                  String    @id @default(cuid())
+  user_id             String
+  card_id             String
+  kind                String
+  target_price_eur    Float?
+  baseline_price_eur  Float?
+  baseline_price_at   DateTime?
+  enabled             Boolean   @default(true)
+  triggered_at        DateTime?
+  triggered_price_eur Float?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [card_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, card_id])
+  @@index([enabled, updated_at])
+  @@index([card_id, enabled])
 }
 
 model CollectionBinder {

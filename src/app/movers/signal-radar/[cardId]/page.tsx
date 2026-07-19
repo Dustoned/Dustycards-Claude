@@ -20,11 +20,19 @@ export const dynamic = "force-dynamic";
 
 export default async function SignalRadarCardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ cardId: string }>;
+  searchParams: Promise<{ game?: string; fromSet?: string }>;
 }) {
   const { cardId } = await params;
-  const requestedPath = `/movers/signal-radar/${encodeURIComponent(cardId)}`;
+  const { game: requestedGame, fromSet } = await searchParams;
+  const requestedQuery = new URLSearchParams();
+  if (requestedGame) requestedQuery.set("game", requestedGame);
+  if (fromSet) requestedQuery.set("fromSet", fromSet);
+  const requestedPath = `/movers/signal-radar/${encodeURIComponent(cardId)}${
+    requestedQuery.size ? `?${requestedQuery.toString()}` : ""
+  }`;
   const user = await requirePageUser(requestedPath);
   const settings = await getServerUserSettings(user.id);
   const activeGame = settings.onePieceLibraryEnabled ? ALL_GAMES : POKEMON_GAME;
@@ -105,6 +113,7 @@ export default async function SignalRadarCardPage({
         }}
         initialResearch={initialResearch}
         detailSize={settings.modalSize}
+        backSetId={fromSet?.trim() || null}
       />
     </div>
   );

@@ -35,6 +35,11 @@ import {
   type BgsCanvasKind,
 } from "@/lib/graded-slab-canvas";
 import { getTextureImageUrl, isTcggoStorageImageUrl } from "@/lib/image-cache";
+import {
+  buildCardHoloMask,
+  getCardHoloMaskDimensions,
+  resolveCardHoloMaskTemplate,
+} from "@/lib/card-holo-mask";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
 import useModalA11y from "@/lib/useModalA11y";
@@ -42,8 +47,6 @@ import {
   getCardThreeAutoRotateResumeDelay,
   getCardThreeInlineIdlePhase,
   getCardThreeInlineIdleRotation,
-  getCardThreeWiggleAngle,
-  getCardThreeWiggleCameraOffset,
   normalizeCardThreeRotationAngle,
 } from "@/lib/card-three-motion";
 
@@ -52,6 +55,7 @@ const ACTIVE_SEGMENT_CLASS =
 
 interface ViewerCard {
   id: string;
+  game?: string | null;
   name: string;
   card_number: string | null;
   episode_id: string;
@@ -268,10 +272,96 @@ function createEdgeTexture(THREE: typeof import("three")) {
   return texture;
 }
 
+function createCardHoloMaskTexture(
+  THREE: typeof import("three"),
+  cardTexture: import("three").Texture,
+  game: string | null | undefined,
+  supertype: string | null | undefined
+) {
+  const template = resolveCardHoloMaskTemplate({ game, supertype });
+  const textureImage = cardTexture.image as
+    | HTMLImageElement
+    | HTMLCanvasElement
+    | ImageBitmap
+    | OffscreenCanvas
+    | undefined;
+  const sourceWidth =
+    textureImage && "naturalWidth" in textureImage && typeof textureImage.naturalWidth === "number"
+      ? textureImage.naturalWidth
+      : textureImage && "width" in textureImage && typeof textureImage.width === "number"
+        ? textureImage.width
+        : 0;
+  const sourceHeight =
+    textureImage && "naturalHeight" in textureImage && typeof textureImage.naturalHeight === "number"
+      ? textureImage.naturalHeight
+      : textureImage && "height" in textureImage && typeof textureImage.height === "number"
+        ? textureImage.height
+        : 0;
+  const dimensions = template === "none"
+    ? { width: 1, height: 1 }
+    : getCardHoloMaskDimensions(sourceWidth, sourceHeight);
+  const canvas = document.createElement("canvas");
+  canvas.width = dimensions.width;
+  canvas.height = dimensions.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  let sourceData: Uint8ClampedArray | null = null;
+
+  if (context && textureImage && template !== "none") {
+    try {
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        textureImage as CanvasImageSource,
+        0,
+        0,
+        dimensions.width,
+        dimensions.height
+      );
+      sourceData = context.getImageData(0, 0, dimensions.width, dimensions.height).data;
+    } catch (error) {
+      console.warn("Failed to analyze printed card details for the holo mask", error);
+    }
+  }
+
+  const mask = buildCardHoloMask(
+    {
+      width: dimensions.width,
+      height: dimensions.height,
+      data: sourceData,
+    },
+    template
+  );
+
+  if (context) {
+    const imageData = context.createImageData(mask.width, mask.height);
+    imageData.data.set(mask.data);
+    context.putImageData(imageData, 0, 0);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.NoColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.needsUpdate = true;
+
+  return {
+    texture,
+    status:
+      template === "none" ? "not-applicable" : mask.analyzed ? "ready" : "fallback",
+    width: mask.width,
+    height: mask.height,
+    coverage: mask.coverage,
+  } as const;
+}
+
 function createFoilOverlayMaterial(
   THREE: typeof import("three"),
   profile: FoilProfile,
-  cardTexture: import("three").Texture
+  cardTexture: import("three").Texture,
+  holoMaskTexture: import("three").Texture
 ) {
   const textureImage = cardTexture.image as
     | HTMLImageElement
@@ -298,6 +388,7 @@ function createFoilOverlayMaterial(
     uPointerUv: { value: new THREE.Vector2(0.5, 0.5) },
     uPointerStrength: { value: 0 },
     uCardTexture: { value: cardTexture },
+    uHoloMaskTexture: { value: holoMaskTexture },
     uTexelSize: { value: new THREE.Vector2(1 / textureWidth, 1 / textureHeight) },
   };
 
@@ -328,6 +419,7 @@ function createFoilOverlayMaterial(
       uniform vec2 uPointerUv;
       uniform float uPointerStrength;
       uniform sampler2D uCardTexture;
+      uniform sampler2D uHoloMaskTexture;
       uniform vec2 uTexelSize;
 
       varying vec2 vUv;
@@ -428,7 +520,7 @@ function createFoilOverlayMaterial(
           0.08 + artSaturation * 0.38 + artDetail * 0.58 + gradientStrength * 0.32 + (1.0 - artLuma) * 0.04,
           0.0,
           1.0
-        ) * readabilityMask;
+        ) * readabilityMask * texture2D(uHoloMaskTexture, vUv).r;
         float microBand = 1.0 - smoothstep(
           0.05,
           0.2,
@@ -1155,7 +1247,6 @@ export default function CardThreeViewer({
   const isInline = variant === "inline";
   const { displaySettings, isMobileViewport } = useSettings();
   const card3dSize = displaySettings.card3dSize;
-  const wiggleStereoscopy = displaySettings.wiggleStereoscopy;
   const [priceSource, setPriceSource] = useState<"cardmarket" | "tcgplayer">("cardmarket");
   const [gradedSource, setGradedSource] = useState<"cardmarket" | "ebay">("cardmarket");
   const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(
@@ -1224,6 +1315,11 @@ export default function CardThreeViewer({
     if (!renderHostElement) return;
     const renderHost: HTMLDivElement = renderHostElement;
     const host: HTMLDivElement = renderHostElement;
+    if (rootElement) {
+      rootElement.dataset.cardHoloMask = "loading";
+      delete rootElement.dataset.cardHoloMaskSize;
+      delete rootElement.dataset.cardHoloMaskCoverage;
+    }
     const sizeConfig = isInline
       ? {
           resetDistanceScale: 0.96,
@@ -1354,11 +1450,23 @@ export default function CardThreeViewer({
         insetTexture(backTexture, CARD_BACK_TEXTURE_INSET);
 
         const edgeTexture = createEdgeTexture(THREE);
+        const holoMask = createCardHoloMaskTexture(
+          THREE,
+          frontTexture,
+          card.game,
+          card.supertype
+        );
+        if (rootElement) {
+          rootElement.dataset.cardHoloMask = holoMask.status;
+          rootElement.dataset.cardHoloMaskSize = `${holoMask.width}x${holoMask.height}`;
+          rootElement.dataset.cardHoloMaskCoverage = holoMask.coverage.toFixed(3);
+        }
         const foilProfile = getFoilProfile(card.rarity);
         const { material: holoMaterial, uniforms: holoUniforms } = createFoilOverlayMaterial(
           THREE,
           foilProfile,
-          frontTexture
+          frontTexture,
+          holoMask.texture
         );
         if (isSlabViewer) {
           holoUniforms.uFoilStrength.value *= 0.72;
@@ -1739,7 +1847,6 @@ export default function CardThreeViewer({
 
         const targetRotation = { ...initialRotationRef.current };
         let inlineAutoRotationPhase = getCardThreeInlineIdlePhase(0, performance.now());
-        let wiggleStartedAt: number | null = null;
         const getFitCameraDistance = () =>
           Math.max(
             isInline
@@ -1785,22 +1892,15 @@ export default function CardThreeViewer({
         const resumeAutoRotation = () => {
           if (prefersReducedMotion || activePointers.size > 0) return;
           if (isInline) {
-            if (wiggleStereoscopy) {
-              targetRotation.x = initialRotationRef.current.x;
-              targetRotation.y = initialRotationRef.current.y;
-              targetRotation.z = initialRotationRef.current.z;
-              wiggleStartedAt = performance.now();
-            } else {
-              const normalizedTarget = normalizeCardThreeRotationAngle(targetRotation.y);
-              targetRotation.y = normalizedTarget;
-              cardGroup.rotation.y =
-                normalizedTarget +
-                normalizeCardThreeRotationAngle(cardGroup.rotation.y - normalizedTarget);
-              inlineAutoRotationPhase = getCardThreeInlineIdlePhase(
-                cardGroup.rotation.y,
-                performance.now()
-              );
-            }
+            const normalizedTarget = normalizeCardThreeRotationAngle(targetRotation.y);
+            targetRotation.y = normalizedTarget;
+            cardGroup.rotation.y =
+              normalizedTarget +
+              normalizeCardThreeRotationAngle(cardGroup.rotation.y - normalizedTarget);
+            inlineAutoRotationPhase = getCardThreeInlineIdlePhase(
+              cardGroup.rotation.y,
+              performance.now()
+            );
           }
           autoRotateRef.current = true;
         };
@@ -1836,8 +1936,6 @@ export default function CardThreeViewer({
           prefersReducedMotion = event.matches;
           if (prefersReducedMotion) {
             autoRotateRef.current = false;
-            camera.position.x = 0;
-            wiggleStartedAt = null;
             clearAutoRotationResumeTimer();
             return;
           }
@@ -2030,9 +2128,6 @@ export default function CardThreeViewer({
             ([entry]) => {
               isSceneVisible = entry?.isIntersecting ?? true;
               if (isSceneVisible) {
-                if (wiggleStereoscopy && autoRotateRef.current) {
-                  wiggleStartedAt = performance.now();
-                }
                 requestAnimationLoop?.();
               } else {
                 stopAnimationLoop();
@@ -2072,6 +2167,7 @@ export default function CardThreeViewer({
           frontTexture.dispose();
           backTexture.dispose();
           edgeTexture?.dispose();
+          holoMask.texture.dispose();
         };
 
         if (mounted) {
@@ -2081,44 +2177,29 @@ export default function CardThreeViewer({
         const animate = () => {
           animationFrameId = 0;
           if (!mounted || document.hidden || !isSceneVisible) return;
-          const now = performance.now();
           holoUniforms.uPointerUv.value.lerp(pointerTargetUv, 0.18);
           holoUniforms.uPointerStrength.value +=
             (pointerTargetStrength - holoUniforms.uPointerStrength.value) * 0.16;
           const minCameraDistance = applyCameraConstraints();
-          let targetCameraX = 0;
 
           if (autoRotateRef.current) {
             if (isInline) {
-              if (wiggleStereoscopy) {
-                wiggleStartedAt ??= now;
-                const elapsedMs = now - wiggleStartedAt;
-                targetRotation.x = initialRotationRef.current.x;
-                targetRotation.y = initialRotationRef.current.y;
-                targetRotation.z = initialRotationRef.current.z;
-                targetCameraX = getCardThreeWiggleCameraOffset(
-                  camera.position.z,
-                  getCardThreeWiggleAngle(elapsedMs)
-                );
-              } else {
-                targetRotation.y = getCardThreeInlineIdleRotation(
-                  now,
-                  inlineAutoRotationPhase
-                );
-                targetRotation.x =
-                  initialRotationRef.current.x + Math.sin(now * 0.00052) * 0.014;
-              }
+              targetRotation.y = getCardThreeInlineIdleRotation(
+                performance.now(),
+                inlineAutoRotationPhase
+              );
+              targetRotation.x =
+                initialRotationRef.current.x + Math.sin(performance.now() * 0.00052) * 0.014;
             } else {
               targetRotation.y += 0.0022;
               targetRotation.x =
-                initialRotationRef.current.x + Math.sin(now * 0.001) * 0.014;
+                initialRotationRef.current.x + Math.sin(performance.now() * 0.001) * 0.014;
             }
           }
 
           cardGroup.rotation.x += (targetRotation.x - cardGroup.rotation.x) * 0.16;
           cardGroup.rotation.y += (targetRotation.y - cardGroup.rotation.y) * 0.16;
           cardGroup.rotation.z = 0;
-          camera.position.x += (targetCameraX - camera.position.x) * 0.32;
           camera.position.z += (targetCameraDistance - camera.position.z) * 0.18;
           camera.position.z = clamp(camera.position.z, minCameraDistance, MAX_CAMERA_DISTANCE);
           const offsetX = getFramingOffset(
@@ -2163,9 +2244,6 @@ export default function CardThreeViewer({
           if (document.hidden) {
             stopAnimationLoop();
           } else {
-            if (wiggleStereoscopy && autoRotateRef.current) {
-              wiggleStartedAt = performance.now();
-            }
             requestAnimationLoop?.();
           }
         };
@@ -2212,7 +2290,9 @@ export default function CardThreeViewer({
     };
   }, [
     frontImageUrl,
+    card.game,
     card.rarity,
+    card.supertype,
     card.name,
     card.card_number,
     card.episode_name,
@@ -2222,7 +2302,6 @@ export default function CardThreeViewer({
     isBgsSlabViewer,
     isSlabViewer,
     card3dSize,
-    wiggleStereoscopy,
     isInline,
     isMobileViewport,
   ]);
@@ -2305,9 +2384,6 @@ export default function CardThreeViewer({
       aria-label={isInline ? undefined : `3D view of ${card.name}`}
       tabIndex={isInline ? undefined : -1}
       data-card-three-modal={isInline ? undefined : "true"}
-      data-card-three-motion-mode={
-        isInline ? (wiggleStereoscopy ? "wiggle-stereoscopy" : "swing") : "orbit"
-      }
       className={
         isInline
           ? "card-detail-inline-three-viewer relative aspect-[5/7] w-full touch-none overflow-hidden rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_50%_34%,rgba(124,92,255,0.13),rgba(8,8,12,0.96)_66%)]"

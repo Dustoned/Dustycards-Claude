@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-const LONG_PRESS_MS = 420;
-const MOVE_CANCEL_DISTANCE = 10;
+import {
+  hasMobileLongPressMoved,
+  MOBILE_LONG_PRESS_MS,
+} from "@/lib/mobile-long-press";
 
 function isCoarsePointer() {
   return (
@@ -80,14 +81,18 @@ export default function MobileHoverTooltip() {
           y: Math.max(rect.top - 10, 12),
         });
         suppressClickUntilRef.current = Date.now() + 650;
-      }, LONG_PRESS_MS);
+      }, MOBILE_LONG_PRESS_MS);
     }
 
     function handlePointerMove(event: PointerEvent) {
       const start = startRef.current;
       if (!start) return;
-      const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
-      if (distance > MOVE_CANCEL_DISTANCE) {
+      if (
+        hasMobileLongPressMoved(
+          { x: start.x, y: start.y },
+          { x: event.clientX, y: event.clientY }
+        )
+      ) {
         closeTooltip();
       }
     }

@@ -1605,7 +1605,8 @@ html.widescreen .settings-page {
     max-height: 100dvh !important;
     border: 0 !important;
     border-radius: 0 !important;
-    background: var(--dc-bg-main) !important;
+    /* Match the detail shell behind the transparent floating action dock. */
+    background: #050508 !important;
     box-shadow: none !important;
   }
 }
@@ -1643,6 +1644,10 @@ html.widescreen .settings-page {
 
 .card-detail-scroll-viewport {
   min-width: 0;
+  /* React swaps complete detail panels below a sticky tab rail. Letting the
+     browser pick its own anchor here can override our explicit scroll restore
+     after the next frame and move the entire mobile detail page. */
+  overflow-anchor: none;
 }
 
 .card-detail-experience[data-detail-size="small"] {
@@ -1780,22 +1785,20 @@ html.widescreen .settings-page {
   position: fixed;
   z-index: 220;
   right: 0.75rem;
-  bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  bottom: calc(0.7rem + env(safe-area-inset-bottom));
   left: 0.75rem;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
   gap: 0.5rem;
-  min-height: 3.5rem;
+  min-height: 2.75rem;
   isolation: isolate;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 1.2rem;
-  background: rgba(13, 12, 19, 0.965);
-  padding: 0.35rem;
-  box-shadow:
-    0 18px 54px rgba(0, 0, 0, 0.56),
-    inset 0 1px rgba(255, 255, 255, 0.055);
-  backdrop-filter: blur(22px) saturate(125%);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .card-detail-actions [data-card-detail-overflow-actions] {
@@ -2155,6 +2158,7 @@ html.widescreen .settings-page {
   grid-area: panel;
   min-width: 0;
   padding-bottom: 1rem;
+  overflow-anchor: none;
 }
 
 .card-detail-section-grid {
@@ -2446,6 +2450,13 @@ html.widescreen .settings-page {
   top: calc(var(--ui-header-height) + 0.65rem);
 }
 
+@container card-detail (max-width: 39.99rem) {
+  [data-card-detail-shell][data-card-detail-mode="radar"] .card-detail-tabs-shell {
+    /* The compact internal scroll viewport already starts below the route header. */
+    top: 0.65rem;
+  }
+}
+
 @media (max-width: 767px) {
   html:has(.card-detail-experience[data-card-detail-mode="radar"]),
   body:has(.card-detail-experience[data-card-detail-mode="radar"]) {
@@ -2461,6 +2472,19 @@ html.widescreen .settings-page {
 
   body.has-mobile-bottom-nav:has(.card-detail-experience) main {
     padding-bottom: 0;
+  }
+
+  /* Keep enough content below the sticky rail for short tabs. Without this,
+     mobile browsers clamp the scroll position while React swaps panels and the
+     entire detail page appears to jump back up. */
+  [data-card-detail-shell] .card-detail-panel {
+    min-height: max(
+      22rem,
+      calc(
+        100dvh - var(--card-detail-route-header-offset) -
+          var(--card-detail-mobile-action-reserve) - 4.5rem
+      )
+    );
   }
 }
 

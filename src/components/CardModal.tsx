@@ -189,6 +189,7 @@ export default function CardModal({
   }));
   const { displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
+  const [priceAlertOpen, setPriceAlertOpen] = useState(false);
   const [selectedSealedProduct, setSelectedSealedProduct] =
     useState<SealedModalProductData | null>(null);
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
@@ -311,7 +312,7 @@ export default function CardModal({
 
   useModalA11y({
     dialogRef: modalFrameRef,
-    enabled: !threeDOpen,
+    enabled: !threeDOpen && !priceAlertOpen,
     initialFocus: "dialog",
     onClose,
   });
@@ -931,6 +932,7 @@ export default function CardModal({
                   onAddedToCollection={refreshModalCardFromServer}
                   onClose={onClose}
                   onOpenCardMarket={() => void openCardMarket()}
+                  onPriceAlertOpenChange={setPriceAlertOpen}
                 />
               }
               tabs={tabs}

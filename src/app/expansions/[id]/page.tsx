@@ -1,7 +1,7 @@
 ﻿import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Calendar, CalendarClock, Coins, Layers, Package } from "lucide-react";
+import { ArrowLeft, Calendar, CalendarClock, Coins, Layers, Package, Radar } from "lucide-react";
 import {
   HeaderAction,
   HeaderStatCard,
@@ -513,6 +513,22 @@ export default async function ExpansionDetailPage({
                   label="Sealed"
                   value={sealedCountFormatted}
                   Icon={Package}
+                  tone="violet"
+                />
+              </Link>
+            ) : null}
+            {episode._count.cards > 0 && !isUpcomingEmptySet ? (
+              <Link
+                href={`/movers/signal-radar?game=pokemon&set=${encodeURIComponent(id)}#new-release-chases`}
+                prefetch={false}
+                className="group h-full min-w-0 rounded-[var(--ui-header-stat-radius)] no-underline outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300/45"
+                aria-label={`Open chase radar for ${episode.name}`}
+              >
+                <HeaderStatCard
+                  label="Chase Radar"
+                  value="Set read"
+                  hint="What Radar thinks"
+                  Icon={Radar}
                   tone="violet"
                 />
               </Link>
