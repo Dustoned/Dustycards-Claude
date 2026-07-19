@@ -2,8 +2,7 @@ export const CARD_THREE_AUTO_ROTATE_IDLE_RESUME_MS = 60_000;
 export const CARD_THREE_INLINE_IDLE_ROTATION_AMPLITUDE = 0.22;
 export const CARD_THREE_INLINE_IDLE_ROTATION_SPEED = 0.00038;
 export const CARD_THREE_WIGGLE_AMPLITUDE_RADIANS = Math.PI / 90;
-export const CARD_THREE_WIGGLE_CYCLES = 2;
-export const CARD_THREE_WIGGLE_DURATION_MS = 1_800;
+export const CARD_THREE_WIGGLE_PERIOD_MS = 900;
 
 export function normalizeCardThreeRotationAngle(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -46,13 +45,11 @@ export function getCardThreeInlineIdlePhase(
 
 export function getCardThreeWiggleAngle(elapsedMs: number): number {
   if (!Number.isFinite(elapsedMs) || elapsedMs <= 0) return 0;
-  if (elapsedMs >= CARD_THREE_WIGGLE_DURATION_MS) return 0;
 
-  const progress = elapsedMs / CARD_THREE_WIGGLE_DURATION_MS;
-  const envelope = Math.sin(Math.PI * progress) ** 2;
-  const phase = Math.PI * 2 * CARD_THREE_WIGGLE_CYCLES * progress;
+  const progress = (elapsedMs % CARD_THREE_WIGGLE_PERIOD_MS) / CARD_THREE_WIGGLE_PERIOD_MS;
+  const phase = Math.PI * 2 * progress;
 
-  return CARD_THREE_WIGGLE_AMPLITUDE_RADIANS * envelope * Math.sin(phase);
+  return CARD_THREE_WIGGLE_AMPLITUDE_RADIANS * Math.sin(phase);
 }
 
 export function getCardThreeWiggleCameraOffset(

@@ -244,7 +244,7 @@ export default function SettingsCollectionDefaultsPanel() {
             />
             <ToggleRow
               title="Wiggle stereoscopy"
-              description="Play a brief motion-parallax depth pulse when an idle 3D preview appears. Reduced Motion keeps it still."
+              description="Keep an idle 3D preview moving between nearby viewpoints for a motion-parallax depth effect. Reduced Motion keeps it still."
               checked={settings.wiggleStereoscopy}
               onChange={(value) => set("wiggleStereoscopy", value)}
             />

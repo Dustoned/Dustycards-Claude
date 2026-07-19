@@ -39,7 +39,6 @@ import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
 import useModalA11y from "@/lib/useModalA11y";
 import {
-  CARD_THREE_WIGGLE_DURATION_MS,
   getCardThreeAutoRotateResumeDelay,
   getCardThreeInlineIdlePhase,
   getCardThreeInlineIdleRotation,
@@ -1740,7 +1739,7 @@ export default function CardThreeViewer({
 
         const targetRotation = { ...initialRotationRef.current };
         let inlineAutoRotationPhase = getCardThreeInlineIdlePhase(0, performance.now());
-        let wigglePulseStartedAt: number | null = null;
+        let wiggleStartedAt: number | null = null;
         const getFitCameraDistance = () =>
           Math.max(
             isInline
@@ -1790,7 +1789,7 @@ export default function CardThreeViewer({
               targetRotation.x = initialRotationRef.current.x;
               targetRotation.y = initialRotationRef.current.y;
               targetRotation.z = initialRotationRef.current.z;
-              wigglePulseStartedAt = performance.now();
+              wiggleStartedAt = performance.now();
             } else {
               const normalizedTarget = normalizeCardThreeRotationAngle(targetRotation.y);
               targetRotation.y = normalizedTarget;
@@ -1838,7 +1837,7 @@ export default function CardThreeViewer({
           if (prefersReducedMotion) {
             autoRotateRef.current = false;
             camera.position.x = 0;
-            wigglePulseStartedAt = null;
+            wiggleStartedAt = null;
             clearAutoRotationResumeTimer();
             return;
           }
@@ -2032,7 +2031,7 @@ export default function CardThreeViewer({
               isSceneVisible = entry?.isIntersecting ?? true;
               if (isSceneVisible) {
                 if (wiggleStereoscopy && autoRotateRef.current) {
-                  wigglePulseStartedAt = performance.now();
+                  wiggleStartedAt = performance.now();
                 }
                 requestAnimationLoop?.();
               } else {
@@ -2092,8 +2091,8 @@ export default function CardThreeViewer({
           if (autoRotateRef.current) {
             if (isInline) {
               if (wiggleStereoscopy) {
-                wigglePulseStartedAt ??= now;
-                const elapsedMs = now - wigglePulseStartedAt;
+                wiggleStartedAt ??= now;
+                const elapsedMs = now - wiggleStartedAt;
                 targetRotation.x = initialRotationRef.current.x;
                 targetRotation.y = initialRotationRef.current.y;
                 targetRotation.z = initialRotationRef.current.z;
@@ -2101,10 +2100,6 @@ export default function CardThreeViewer({
                   camera.position.z,
                   getCardThreeWiggleAngle(elapsedMs)
                 );
-                if (elapsedMs >= CARD_THREE_WIGGLE_DURATION_MS) {
-                  autoRotateRef.current = false;
-                  wigglePulseStartedAt = null;
-                }
               } else {
                 targetRotation.y = getCardThreeInlineIdleRotation(
                   now,
@@ -2169,7 +2164,7 @@ export default function CardThreeViewer({
             stopAnimationLoop();
           } else {
             if (wiggleStereoscopy && autoRotateRef.current) {
-              wigglePulseStartedAt = performance.now();
+              wiggleStartedAt = performance.now();
             }
             requestAnimationLoop?.();
           }

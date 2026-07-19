@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.2",
+    releasedAt: "July 19, 2026",
+    title: "Continuous stereoscopic motion",
+    summary:
+      "DustyCards 3.8.2 keeps Wiggle Stereoscopy moving for as long as an inline 3D card remains idle and visible.",
+    tone: "fixed",
+    highlights: [
+      "Wiggle Stereoscopy no longer stops after its first short cycle.",
+      "Touch, drag, zoom and reset still pause automatic motion, which resumes after one idle minute.",
+      "Hidden cards avoid unnecessary animation work and Reduced Motion continues to keep previews still.",
+    ],
+  },
+  {
     version: "3.8.1",
     releasedAt: "July 19, 2026",
     title: "Card detail finishing pass",

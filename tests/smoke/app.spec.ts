@@ -1129,8 +1129,16 @@ test.describe("DustyCards smoke", () => {
       "data-card-three-motion-mode",
       "wiggle-stereoscopy"
     );
-    await page.waitForTimeout(750);
+    await page.waitForTimeout(2_250);
     await expectCanvasHasPixels(page, inlineCanvas, 350);
+    const wiggleFrameOne = await inlineCanvas.screenshot();
+    await page.waitForTimeout(225);
+    const wiggleFrameTwo = await inlineCanvas.screenshot();
+    await page.waitForTimeout(225);
+    const wiggleFrameThree = await inlineCanvas.screenshot();
+    expect(
+      wiggleFrameOne.equals(wiggleFrameTwo) && wiggleFrameTwo.equals(wiggleFrameThree)
+    ).toBe(false);
     await expect(
       mediaSwitcher.getByText("3D view unavailable", { exact: true })
     ).toHaveCount(0);

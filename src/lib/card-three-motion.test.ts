@@ -4,7 +4,7 @@ import {
   CARD_THREE_INLINE_IDLE_ROTATION_AMPLITUDE,
   CARD_THREE_INLINE_IDLE_ROTATION_SPEED,
   CARD_THREE_WIGGLE_AMPLITUDE_RADIANS,
-  CARD_THREE_WIGGLE_DURATION_MS,
+  CARD_THREE_WIGGLE_PERIOD_MS,
   getCardThreeAutoRotateResumeDelay,
   getCardThreeInlineIdlePhase,
   getCardThreeInlineIdleRotation,
@@ -52,21 +52,26 @@ describe("card three motion", () => {
     expect(normalizeCardThreeRotationAngle(Math.PI * 3)).toBeCloseTo(Math.PI, 8);
   });
 
-  it("creates a short zero-centered two-cycle stereoscopic wiggle", () => {
-    const firstPositivePeak = CARD_THREE_WIGGLE_DURATION_MS / 8;
-    const firstNegativePeak = (CARD_THREE_WIGGLE_DURATION_MS * 3) / 8;
+  it("creates a continuous zero-centered stereoscopic wiggle", () => {
+    const positivePeak = CARD_THREE_WIGGLE_PERIOD_MS / 4;
+    const negativePeak = (CARD_THREE_WIGGLE_PERIOD_MS * 3) / 4;
 
     expect(getCardThreeWiggleAngle(0)).toBe(0);
-    expect(getCardThreeWiggleAngle(firstPositivePeak)).toBeGreaterThan(0);
-    expect(getCardThreeWiggleAngle(firstNegativePeak)).toBeLessThan(0);
+    expect(getCardThreeWiggleAngle(positivePeak)).toBeCloseTo(
+      CARD_THREE_WIGGLE_AMPLITUDE_RADIANS,
+      10
+    );
+    expect(getCardThreeWiggleAngle(negativePeak)).toBeCloseTo(
+      -CARD_THREE_WIGGLE_AMPLITUDE_RADIANS,
+      10
+    );
+    expect(getCardThreeWiggleAngle(CARD_THREE_WIGGLE_PERIOD_MS)).toBeCloseTo(0, 10);
     expect(
-      Math.abs(getCardThreeWiggleAngle(firstPositivePeak))
-    ).toBeLessThanOrEqual(CARD_THREE_WIGGLE_AMPLITUDE_RADIANS);
+      getCardThreeWiggleAngle(CARD_THREE_WIGGLE_PERIOD_MS + positivePeak)
+    ).toBeCloseTo(CARD_THREE_WIGGLE_AMPLITUDE_RADIANS, 10);
     expect(
-      Math.abs(getCardThreeWiggleAngle(firstNegativePeak))
-    ).toBeLessThanOrEqual(CARD_THREE_WIGGLE_AMPLITUDE_RADIANS);
-    expect(getCardThreeWiggleAngle(CARD_THREE_WIGGLE_DURATION_MS)).toBe(0);
-    expect(getCardThreeWiggleAngle(CARD_THREE_WIGGLE_DURATION_MS + 500)).toBe(0);
+      getCardThreeWiggleAngle(CARD_THREE_WIGGLE_PERIOD_MS * 8 + negativePeak)
+    ).toBeCloseTo(-CARD_THREE_WIGGLE_AMPLITUDE_RADIANS, 10);
   });
 
   it("converts equal left and right view angles into symmetric camera offsets", () => {
