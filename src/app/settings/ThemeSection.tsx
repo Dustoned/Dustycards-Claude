@@ -30,6 +30,10 @@ import {
   type AppearancePalette,
   type AppearanceThemePreset,
 } from "@/lib/appearance-themes";
+import {
+  getAppearancePresetTone,
+  getVisibleAppearancePresets,
+} from "./theme-presentation";
 
 type PreviewViewport = "desktop" | "phone";
 type PaletteKey = keyof AppearancePalette;
@@ -112,17 +116,22 @@ function ThemePresetCard({
   onSelect: () => void;
 }) {
   const { palette } = preset;
+  const tone = getAppearancePresetTone(preset);
+  const light = tone === "light";
+  const selectionColor = light ? palette.primary : palette.primarySoft;
 
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={active}
+      aria-label={`${preset.name}, ${tone} appearance`}
       data-theme-preset={preset.id}
       data-theme-selected={active ? "true" : "false"}
-      className="group relative min-h-[7.75rem] min-w-0 overflow-hidden rounded-2xl border p-3 text-left transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      data-theme-tone={tone}
+      className="group relative min-h-[10.5rem] min-w-0 overflow-hidden rounded-2xl border p-3 text-left transition duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       style={{
-        background: `radial-gradient(circle at 86% 4%, ${palette.primary}32, transparent 48%), linear-gradient(145deg, ${palette.surfaceElevated}, ${palette.background})`,
+        background: `radial-gradient(circle at 86% 4%, ${palette.primary}26, transparent 48%), linear-gradient(145deg, ${palette.surfaceElevated}, ${palette.background})`,
         borderColor: active ? palette.primary : palette.border,
         boxShadow: active
           ? `0 0 0 1px ${palette.primary}55, 0 16px 34px ${palette.primary}20`
@@ -141,21 +150,78 @@ function ThemePresetCard({
             />
           ))}
         </span>
-        <span
-          className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${
-            active ? "opacity-100" : "opacity-0 group-hover:opacity-55"
-          }`}
-          style={{
-            backgroundColor: `${palette.primary}2E`,
-            borderColor: `${palette.primarySoft}50`,
-            color: palette.primarySoft,
-          }}
-          aria-hidden="true"
-        >
-          <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+        <span className="flex items-center gap-1.5">
+          {light ? (
+            <span
+              className="inline-flex min-h-6 items-center rounded-full border px-2 text-[9px] font-black uppercase tracking-[0.1em]"
+              style={{
+                backgroundColor: `${palette.primary}14`,
+                borderColor: `${palette.primary}2E`,
+                color: palette.primary,
+              }}
+            >
+              Light
+            </span>
+          ) : null}
+          <span
+            className={`inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${
+              active ? "opacity-100" : "opacity-0 group-hover:opacity-55"
+            }`}
+            style={{
+              backgroundColor: `${palette.primary}1F`,
+              borderColor: `${palette.primary}45`,
+              color: selectionColor,
+            }}
+            aria-hidden="true"
+          >
+            <Check className="h-3.5 w-3.5" strokeWidth={2.5} />
+          </span>
         </span>
       </span>
-      <span className="mt-4 block truncate text-sm font-bold">{preset.name}</span>
+
+      <span
+        className="mt-2.5 grid h-[3.4rem] grid-cols-[1.15rem_minmax(0,1fr)] gap-1 overflow-hidden rounded-xl border p-1"
+        style={{
+          backgroundColor: palette.background,
+          borderColor: palette.border,
+          boxShadow: `inset 0 1px 0 ${palette.textPrimary}0A`,
+        }}
+        aria-hidden="true"
+      >
+        <span
+          className="rounded-[0.42rem] border"
+          style={{ backgroundColor: palette.surface, borderColor: palette.border }}
+        />
+        <span className="grid min-w-0 grid-rows-[0.65rem_minmax(0,1fr)] gap-1">
+          <span
+            className="rounded-[0.35rem] border"
+            style={{ backgroundColor: palette.surface, borderColor: palette.border }}
+          />
+          <span className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,0.65fr)] gap-1">
+            <span
+              className="relative overflow-hidden rounded-[0.4rem] border"
+              style={{ backgroundColor: palette.surfaceElevated, borderColor: palette.border }}
+            >
+              <span
+                className="absolute inset-x-1.5 bottom-1 h-1 rounded-full"
+                style={{ background: `linear-gradient(90deg, ${palette.primary}, ${palette.secondary})` }}
+              />
+            </span>
+            <span className="grid gap-1">
+              <span
+                className="rounded-[0.32rem] border"
+                style={{ backgroundColor: palette.surfaceElevated, borderColor: palette.border }}
+              />
+              <span
+                className="rounded-[0.32rem]"
+                style={{ backgroundColor: palette.primary }}
+              />
+            </span>
+          </span>
+        </span>
+      </span>
+
+      <span className="mt-2.5 block truncate text-sm font-bold">{preset.name}</span>
       <span
         className="mt-1 block text-[11px] font-medium leading-snug"
         style={{ color: palette.textMuted }}
@@ -631,6 +697,7 @@ export default function ThemeSection() {
     contrastChecks.page >= 4.5 &&
     contrastChecks.surface >= 4.5 &&
     contrastChecks.button >= 4.5;
+  const visiblePresets = getVisibleAppearancePresets(APPEARANCE_THEME_PRESETS);
 
   function selectPreset(preset: AppearanceThemePreset) {
     set("appearance", { ...appearance, preset: preset.id });
@@ -684,8 +751,8 @@ export default function ThemeSection() {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-        {APPEARANCE_THEME_PRESETS.map((preset) => (
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4">
+        {visiblePresets.map((preset) => (
           <ThemePresetCard
             key={preset.id}
             preset={preset}

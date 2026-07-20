@@ -24,6 +24,24 @@ export const DIRECT_BROWSER_IMAGE_HOSTS = new Set([
 
 export const TCGGO_CARD_TRANSPARENT_TRIM_VARIANT = "tcggo-card-transparent-trim-v3";
 
+// Keep the number of generated files bounded while still covering the image
+// sizes used by card grids. The browser picks one candidate from the srcset;
+// detail and WebGL views deliberately keep using the original image.
+export const RESPONSIVE_IMAGE_WIDTHS = [
+  64,
+  96,
+  128,
+  160,
+  192,
+  256,
+  320,
+  384,
+  512,
+  640,
+  768,
+  1024,
+] as const;
+
 export type ImageCacheVariant = typeof TCGGO_CARD_TRANSPARENT_TRIM_VARIANT;
 
 export function isTcggoStorageImageUrl(value: string | URL | null | undefined): boolean {
@@ -68,10 +86,45 @@ export function getCachedImageUrl(value: string | null | undefined): string | nu
   return getProxiedImageUrl(value);
 }
 
-function getProxiedImageUrl(value: string): string {
+export function normalizeResponsiveImageWidth(
+  value: number | string | null | undefined
+): number | null {
+  if (value === null || value === undefined || value === "") return null;
+
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+
+  const requested = Math.ceil(parsed);
+  return (
+    RESPONSIVE_IMAGE_WIDTHS.find((candidate) => candidate >= requested) ??
+    RESPONSIVE_IMAGE_WIDTHS[RESPONSIVE_IMAGE_WIDTHS.length - 1]
+  );
+}
+
+/**
+ * Returns a same-origin, width-aware URL for cacheable remote artwork. This is
+ * used by next/image's custom loader, so list/grid images no longer download
+ * the full source file. Callers that need original pixels keep using
+ * `getCachedImageUrl` or `getTextureImageUrl`.
+ */
+export function getResponsiveCachedImageUrl(
+  value: string | null | undefined,
+  width: number | string | null | undefined
+): string | null {
+  if (!value) return null;
+  if (!isCacheableRemoteImageUrl(value)) return value;
+
+  const normalizedWidth = normalizeResponsiveImageWidth(width);
+  if (!normalizedWidth) return getCachedImageUrl(value);
+
+  return getProxiedImageUrl(value, normalizedWidth);
+}
+
+function getProxiedImageUrl(value: string, width: number | null = null): string {
   const variant = getImageCacheVariantForSourceUrl(value);
   const variantParam = variant ? `&variant=${encodeURIComponent(variant)}` : "";
-  return `/api/image-cache?url=${encodeURIComponent(value)}${variantParam}`;
+  const widthParam = width ? `&width=${width}` : "";
+  return `/api/image-cache?url=${encodeURIComponent(value)}${variantParam}${widthParam}`;
 }
 
 /**

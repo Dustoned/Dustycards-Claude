@@ -2,6 +2,10 @@ import { devices, expect, test, type Locator, type Page } from "@playwright/test
 import crypto from "node:crypto";
 import * as zlib from "node:zlib";
 import Database from "better-sqlite3";
+import {
+  DEFAULT_APPEARANCE_SETTINGS,
+  type AppearanceThemeId,
+} from "@/lib/appearance-themes";
 
 type DisplaySize = "small" | "medium" | "large";
 
@@ -10,6 +14,12 @@ const SETTINGS_COOKIE_NAME = "dustycards-settings";
 const SESSION_COOKIE_NAME = "dustycards-session";
 const BASE_URL = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`;
 const CARD_DETAIL_SCREENSHOT_DIR = process.env.CARD_DETAIL_SCREENSHOT_DIR?.trim() || null;
+const CARD_DETAIL_APPEARANCE_PRESET = (() => {
+  const value = process.env.CARD_DETAIL_APPEARANCE_PRESET?.trim();
+  return value === "porcelain-studio" || value === "blush-petal"
+    ? (value as AppearanceThemeId)
+    : null;
+})();
 const SMOKE_USER_ID = "playwright-smoke-admin";
 const SMOKE_USER_EMAIL = "playwright-smoke-admin@example.test";
 const SMOKE_SESSION_ID = "playwright-smoke-session";
@@ -37,6 +47,7 @@ const baseSettings = {
   mobileModalSize: "small" as DisplaySize,
   card3dSize: "medium" as DisplaySize,
   mobileCard3dSize: "small" as DisplaySize,
+  appearance: DEFAULT_APPEARANCE_SETTINGS,
 };
 
 function hashToken(token: string): string {
@@ -814,8 +825,15 @@ async function expectMobileDetailTabsKeepScrollAnchor(
   }
 }
 
-async function swipeBackFromMobileViewportEdge(page: Page) {
-  await page.evaluate(() => {
+async function swipeBackFromMobileViewportEdge(
+  page: Page,
+  options: {
+    targetSelector?: string;
+    finishWithCancel?: boolean;
+    durationMs?: number;
+  } = {}
+) {
+  await page.evaluate(async (gestureOptions) => {
     const originalMatchMedia = window.matchMedia.bind(window);
     window.matchMedia = ((query: string) => {
       const result = originalMatchMedia(query);
@@ -829,22 +847,43 @@ async function swipeBackFromMobileViewportEdge(page: Page) {
       });
     }) as typeof window.matchMedia;
 
-    const dispatchTouch = (type: "touchstart" | "touchmove" | "touchend", x: number) => {
+    const dispatchTouch = (
+      target: EventTarget,
+      type: "touchstart" | "touchmove" | "touchend" | "touchcancel",
+      x: number
+    ) => {
       const event = new Event(type, { bubbles: true, cancelable: true });
       Object.defineProperty(event, "touches", {
-        value: type === "touchend" ? [] : [{ clientX: x, clientY: 240 }],
+        value:
+          type === "touchend" || type === "touchcancel"
+            ? []
+            : [{ clientX: x, clientY: 240 }],
       });
-      window.dispatchEvent(event);
+      Object.defineProperty(event, "changedTouches", {
+        value: [{ clientX: x, clientY: 240 }],
+      });
+      target.dispatchEvent(event);
     };
 
     try {
-      dispatchTouch("touchstart", 2);
-      dispatchTouch("touchmove", 128);
-      dispatchTouch("touchend", 128);
+      const target = gestureOptions.targetSelector
+        ? document.querySelector(gestureOptions.targetSelector)
+        : window;
+      if (!target) throw new Error("Mobile edge-back target was not found");
+
+      dispatchTouch(target, "touchstart", 2);
+      dispatchTouch(target, "touchmove", 56);
+      await new Promise((resolve) => window.setTimeout(resolve, gestureOptions.durationMs ?? 20));
+      dispatchTouch(target, "touchmove", 142);
+      dispatchTouch(
+        target,
+        gestureOptions.finishWithCancel ? "touchcancel" : "touchend",
+        142
+      );
     } finally {
       window.matchMedia = originalMatchMedia;
     }
-  });
+  }, options);
 }
 
 async function openSettingsTab(page: Page, name: string) {
@@ -1303,6 +1342,14 @@ test.describe("DustyCards smoke", () => {
     await applyDisplaySettings(page, {
       widescreen: true,
       modalSize: "medium",
+      ...(CARD_DETAIL_APPEARANCE_PRESET
+        ? {
+            appearance: {
+              ...DEFAULT_APPEARANCE_SETTINGS,
+              preset: CARD_DETAIL_APPEARANCE_PRESET,
+            },
+          }
+        : {}),
     });
     let mockedCardPriceAlert: {
       id: string;
@@ -1623,6 +1670,20 @@ test.describe("DustyCards smoke", () => {
     await expectSingleVisibleActionCluster(shell);
     await expectNoHorizontalOverflow(page, shell);
 
+    await page.setViewportSize({ width: 700, height: 900 });
+    const tabletScrollLayers = await shell.evaluate((element) => {
+      const dialog = element.closest<HTMLElement>("[role='dialog']");
+      const detailViewport = element.querySelector<HTMLElement>(
+        "[data-card-detail-scroll-viewport]"
+      );
+      return {
+        dialog: dialog ? getComputedStyle(dialog).overflowY : null,
+        detailViewport: detailViewport ? getComputedStyle(detailViewport).overflowY : null,
+      };
+    });
+    expect(tabletScrollLayers).toEqual({ dialog: "hidden", detailViewport: "auto" });
+    await expectNoHorizontalOverflow(page, shell);
+
     await page.setViewportSize({ width: 390, height: 844 });
     await marketTab.click();
     await gradedHeroMode.click();
@@ -1753,6 +1814,19 @@ test.describe("DustyCards smoke", () => {
       elements.map((element) => element.getBoundingClientRect().width)
     );
     expect(Math.max(...mobilePrimaryWidths) - Math.min(...mobilePrimaryWidths)).toBeLessThanOrEqual(2);
+    await shell.evaluate((element) => {
+      (element as HTMLElement).style.setProperty("--card-detail-safe-area-left", "31px");
+      (element as HTMLElement).style.setProperty("--card-detail-safe-area-right", "5px");
+    });
+    const asymmetricDockBounds = await requiredBounds(
+      shell.locator("[data-card-detail-primary-actions]:visible")
+    );
+    expect(asymmetricDockBounds.x).toBeCloseTo(35, 0);
+    expect(390 - asymmetricDockBounds.x - asymmetricDockBounds.width).toBeCloseTo(12, 0);
+    await shell.evaluate((element) => {
+      (element as HTMLElement).style.removeProperty("--card-detail-safe-area-left");
+      (element as HTMLElement).style.removeProperty("--card-detail-safe-area-right");
+    });
     const [mobileFrameBackground, mobileShellBackground] = await Promise.all([
       dialog.evaluate((element) => getComputedStyle(element).backgroundColor),
       shell.evaluate((element) => getComputedStyle(element).backgroundColor),
@@ -1829,8 +1903,23 @@ test.describe("DustyCards smoke", () => {
     await expect(reopenedShell.locator('[data-card-detail-signal-state="error"]')).toContainText(
       "Simulated research failure"
     );
-    await swipeBackFromMobileViewportEdge(page);
+    const urlBeforeModalEdgeBack = page.url();
+    const lockedUnderlyingScrollY = await page.evaluate(() => {
+      const lockedTop = Number.parseFloat(document.body.style.top);
+      return Number.isFinite(lockedTop) ? Math.max(0, -lockedTop) : window.scrollY;
+    });
+    await swipeBackFromMobileViewportEdge(page, {
+      // Real iPhone gestures often start over this large interactive control.
+      // WebKit can finish the sequence as touchcancel after edge overscroll.
+      targetSelector: "[data-card-modal-root] [data-card-detail-back]",
+      finishWithCancel: true,
+      durationMs: 700,
+    });
     await expect(reopenedDialog).toBeHidden();
+    expect(page.url()).toBe(urlBeforeModalEdgeBack);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeCloseTo(lockedUnderlyingScrollY, 0);
     await expect(page).toHaveURL(/\/search\?q=seismitoad&game=pokemon&autoswitch=0$/);
   });
 
@@ -1859,6 +1948,20 @@ test.describe("DustyCards smoke", () => {
     await expect(chasePanel.getByText("Latest market read", { exact: true })).toBeVisible();
     await expect(chasePanel).toHaveAttribute("id", "new-release-chases");
 
+    const chaseCard = chasePanel.locator("[data-chase-card-id]").first();
+    if ((await chaseCard.count()) > 0) {
+      const chaseCardLink = chaseCard.locator("[data-chase-card-link]");
+      await expect(chaseCardLink).toBeVisible();
+      await expect(chaseCardLink).toHaveAttribute(
+        "aria-label",
+        /^Open full chase analysis for /u
+      );
+      await expect(chaseCardLink).toHaveAttribute(
+        "href",
+        /^\/movers\/signal-radar\/[^?]+\?game=pokemon&fromSet=/u
+      );
+    }
+
     const mobileBounds = await requiredBounds(chasePanel);
     expect(mobileBounds.x).toBeGreaterThanOrEqual(-1);
     expect(mobileBounds.x + mobileBounds.width).toBeLessThanOrEqual(391);
@@ -1876,6 +1979,28 @@ test.describe("DustyCards smoke", () => {
       await chasePanel.evaluate((element) => element.scrollWidth - element.clientWidth)
     ).toBeLessThanOrEqual(2);
     await expectNoHorizontalOverflow(page);
+
+    if ((await chaseCard.count()) > 0) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      const cardId = await chaseCard.getAttribute("data-chase-card-id");
+      expect(cardId).toBeTruthy();
+      await chaseCard.click({ position: { x: 16, y: 16 } });
+      await expect(page).toHaveURL(
+        new RegExp(`/movers/signal-radar/${cardId}\\?game=pokemon&fromSet=`),
+        { timeout: 60_000 }
+      );
+      await expect(
+        page.locator('[data-card-detail-shell][data-card-detail-mode="radar"]')
+      ).toBeVisible({ timeout: 60_000 });
+
+      await swipeBackFromMobileViewportEdge(page);
+      await expect(page).toHaveURL(
+        new RegExp(
+          `/movers/signal-radar\\?game=pokemon&set=${encodeURIComponent(episodeId)}#new-release-chases$`
+        ),
+        { timeout: 60_000 }
+      );
+    }
   });
 
   test("appearance presets and custom colours apply, preview, and persist", async ({ page }) => {
@@ -1886,6 +2011,64 @@ test.describe("DustyCards smoke", () => {
       const appearance = page.locator("[data-appearance-section]");
       const root = page.locator("html");
       await expect(appearance).toBeVisible();
+
+      const lightPresets = appearance.locator('[data-theme-tone="light"]');
+      await expect(lightPresets).toHaveCount(2);
+      await expect(appearance.locator('[data-theme-preset="amber-archive"]')).toHaveCount(0);
+      await expect(
+        appearance.locator('[data-theme-preset="porcelain-studio"]')
+      ).toContainText("Light");
+      await expect(
+        appearance.locator('[data-theme-preset="blush-petal"]')
+      ).toContainText("Light");
+
+      await appearance.locator('[data-theme-preset="porcelain-studio"]').click();
+      await expect(root).toHaveAttribute("data-appearance", "porcelain-studio");
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            getComputedStyle(document.documentElement).getPropertyValue("--dc-bg-main").trim()
+          )
+        )
+        .toBe("#F5F6FA");
+      await expect(root).toHaveAttribute("data-appearance-scheme", "light");
+      await expect
+        .poll(() => page.evaluate(() => getComputedStyle(document.documentElement).colorScheme))
+        .toContain("light");
+      await expectNoHorizontalOverflow(page);
+      if (CARD_DETAIL_SCREENSHOT_DIR) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({
+          path: `${CARD_DETAIL_SCREENSHOT_DIR}/porcelain-settings-1280x900.png`,
+          animations: "disabled",
+        });
+      }
+
+      await appearance.locator('[data-theme-preset="blush-petal"]').click();
+      await expect(root).toHaveAttribute("data-appearance", "blush-petal");
+      await expect(root).toHaveAttribute("data-appearance-scheme", "light");
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            getComputedStyle(document.documentElement).getPropertyValue("--dc-bg-main").trim()
+          )
+        )
+        .toBe("#FFF5FA");
+      if (CARD_DETAIL_SCREENSHOT_DIR) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({
+          path: `${CARD_DETAIL_SCREENSHOT_DIR}/blush-settings-1280x900.png`,
+          animations: "disabled",
+        });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await expectNoHorizontalOverflow(page);
+        await page.screenshot({
+          path: `${CARD_DETAIL_SCREENSHOT_DIR}/blush-settings-390x844.png`,
+          animations: "disabled",
+        });
+        await page.setViewportSize({ width: 1280, height: 900 });
+      }
 
       const rose = appearance.locator('[data-theme-preset="rose-quartz"]');
       await rose.click();

@@ -40,7 +40,9 @@ import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import EmptyState from "@/components/EmptyState";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
-const CollectionOverviewSections = nextDynamic(() => import("@/components/CollectionOverviewSections"));
+const ProgressiveCollectionOverviewSections = nextDynamic(
+  () => import("@/components/ProgressiveCollectionOverviewSections")
+);
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
 const BinderOverviewGrid = nextDynamic(() => import("@/components/BinderOverviewGrid"));
 const HomeFeaturedCardsPanel = nextDynamic(() => import("@/components/HomeFeaturedCardsPanel"));
@@ -486,6 +488,7 @@ export default async function HomePage({
     userId: user.id,
     activeTab,
     game: activeGame,
+    deferDetailedRows: activeTab === "complete",
   });
   const pricedCardCount = data.cards.filter((item) => item.current_value != null).length;
   const pricedSealedUnits = data.sealed.reduce(
@@ -731,15 +734,13 @@ export default async function HomePage({
       )} cards`,
     },
   ];
-  const instantTabs: CollectionPageTab[] =
-    activeTab === "overview" || activeTab === "complete"
-      ? ["overview", "complete", "singles", "binders", "sealed", "graded", "selling"]
-      : activeTab === "singles" || activeTab === "graded" || activeTab === "selling"
-        ? ["singles", "graded", "selling"]
-        : [activeTab];
+  // Keep only the visible tab in the RSC payload. Other tabs navigate normally
+  // and stream their own data instead of being serialized and hydrated up front.
+  const instantTabs: CollectionPageTab[] = [activeTab];
 
   return (
     <CollectionInstantTabs
+      key={activeTab}
       initialTab={activeTab}
       tabs={collectionTabs}
       instantTabs={instantTabs}
@@ -753,7 +754,7 @@ export default async function HomePage({
         ) : null
       }
       overviewSlot={
-        hasCollection ? (
+        activeTab === "overview" ? hasCollection ? (
         <div className="space-y-2.5 sm:space-y-3">
           <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
@@ -863,20 +864,24 @@ export default async function HomePage({
         </div>
         ) : (
           <FirstRunCollectionPanel browseHref={browseHref} collectionTitle={collectionTitle} />
-        )
+        ) : null
       }
       emptySlot={null}
       completeSlot={
-        <CollectionOverviewSections
-          gradedLooseSingles={gradedLooseSingles}
-          rawLooseSingles={rawLooseSingles}
-          showRawLooseSinglesSection={rawLooseSingles.length > 0}
-          binderCards={data.binderCards}
-          sealed={data.sealed}
-          binders={data.binders}
+        activeTab === "complete" ? (
+        <ProgressiveCollectionOverviewSections
+          key={activeGame}
+          endpoint={(() => {
+            const gameValue = getGameFilterSearchParamValue(activeGame);
+            return gameValue
+              ? `/api/collection/complete?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameValue)}`
+              : "/api/collection/complete";
+          })()}
         />
+        ) : null
       }
       singlesSlot={
+        activeTab === "singles" ? (
         <CollectionCardsView
           items={rawLooseSingles}
           allowCollectionRemoval
@@ -888,8 +893,10 @@ export default async function HomePage({
           forcedSortDir="desc"
           hideSortControls
         />
+        ) : null
       }
       gradedSlot={
+        activeTab === "graded" ? (
         <CollectionCardsView
           items={gradedCards}
           allowCollectionRemoval
@@ -901,8 +908,10 @@ export default async function HomePage({
           forcedSortDir="desc"
           hideSortControls
         />
+        ) : null
       }
       bindersSlot={
+        activeTab === "binders" ? (
         <div className="space-y-4">
           {data.binders.length === 0 ? (
             <div className="binder-panel rounded-2xl px-5 py-7 text-center sm:rounded-3xl sm:px-8 sm:py-9">
@@ -915,15 +924,19 @@ export default async function HomePage({
             <BinderOverviewGrid binders={data.binders} />
           )}
         </div>
+        ) : null
       }
       sealedSlot={
+        activeTab === "sealed" ? (
         <CollectionSealedView
           items={data.sealed}
           emptyTitle="No sealed in your collection"
           emptyText="Use the + button on any sealed product to add it here."
         />
+        ) : null
       }
       sellingSlot={
+        activeTab === "selling" ? (
         data.forSaleCards.length === 0 ? (
           <EmptyState
             title="Nothing marked for sale yet"
@@ -990,6 +1003,7 @@ export default async function HomePage({
           />
         </div>
         )
+        ) : null
       }
     />
   );

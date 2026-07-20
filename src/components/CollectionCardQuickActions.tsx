@@ -5,16 +5,15 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import type { CardQuickActionData } from "@/lib/card-quick-actions";
 import {
-  COLLECTION_CARD_ADDED_EVENT,
   dispatchCollectionCardAdded,
   getCollectionCardAddedEffects,
   resolveCollectionCardOwnedState,
+  subscribeCollectionCardAdded,
   type CollectionCardAddedDetail,
 } from "@/lib/collection-client-events";
 import {
   dispatchWantsChanged,
-  WANTS_CHANGED_EVENT,
-  type WantsChangedDetail,
+  subscribeWantsChanged,
 } from "@/lib/wants-client-events";
 import { parseGradingTargetLabel } from "@/lib/grading-targets";
 
@@ -46,25 +45,17 @@ export default function CollectionCardQuickActions({
   }, [data.card.id, data.owned, data.wantItem]);
 
   useEffect(() => {
-    function handleWantsChanged(event: Event) {
-      const detail = (event as CustomEvent<WantsChangedDetail>).detail;
-      if (!detail || detail.cardId !== data.card.id) return;
+    const unsubscribeWants = subscribeWantsChanged(data.card.id, (detail) => {
       setWantItem(detail.item);
-    }
-
-    function handleCollectionAdded(event: Event) {
-      const detail = (event as CustomEvent<CollectionCardAddedDetail>).detail;
-      if (!detail || detail.cardId !== data.card.id) return;
+    });
+    const unsubscribeCollection = subscribeCollectionCardAdded(data.card.id, (detail) => {
       if (getCollectionCardAddedEffects(detail).markOwned) {
         setOwned(true);
       }
-    }
-
-    window.addEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
-    window.addEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionAdded);
+    });
     return () => {
-      window.removeEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
-      window.removeEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionAdded);
+      unsubscribeWants();
+      unsubscribeCollection();
     };
   }, [data.card.id]);
 

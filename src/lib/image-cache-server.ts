@@ -3,12 +3,15 @@ import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { createConcurrencyLimiter } from "@/lib/concurrency-limiter";
 import {
   CACHEABLE_IMAGE_HOSTS,
   getImageCacheVariantForSourceUrl,
+  normalizeResponsiveImageWidth,
   TCGGO_CARD_TRANSPARENT_TRIM_VARIANT,
   type ImageCacheVariant,
 } from "@/lib/image-cache";
+import { trimResponsiveImageCache } from "@/lib/image-cache-maintenance";
 
 function resolveImageCacheDir() {
   return path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "image-cache");
@@ -20,10 +23,56 @@ const FETCH_TIMEOUT_MS = 30_000;
 // The remaining proxied image hosts accept parallel connections. Keep enough
 // slots available for one visible row without flooding the upstream CDNs.
 const MAX_REMOTE_IMAGE_FETCHES = 16;
+// Sharp decodes full source images before producing a thumbnail. Bounding the
+// number of decodes prevents a cold grid from multiplying CPU and native-memory
+// pressure by every simultaneously requested card.
+const MAX_IMAGE_TRANSFORMS = 3;
+const MAX_RESPONSIVE_CACHE_ENTRIES = 4_096;
+const MAX_RESPONSIVE_CACHE_BYTES = 256 * 1024 * 1024;
+// A pass reads metadata sequentially, so amortize it across a sizeable batch.
+// At current thumbnail sizes, 256 new variants are only a few MB of temporary
+// overshoot while avoiding repeated directory scans during a cold collection.
+const RESPONSIVE_CACHE_MAINTENANCE_INTERVAL = 256;
 
 let activeRemoteImageFetches = 0;
 const remoteImageFetchQueue: Array<() => void> = [];
 const pendingDownloads = new Map<string, Promise<EnsureImageResult>>();
+const pendingResponsiveImages = new Map<string, Promise<EnsureImageResult>>();
+const imageTransformLimiter = createConcurrencyLimiter(MAX_IMAGE_TRANSFORMS);
+let responsiveWritesSinceMaintenance = RESPONSIVE_CACHE_MAINTENANCE_INTERVAL - 1;
+let responsiveCacheMaintenanceScheduled = false;
+
+function scheduleResponsiveCacheMaintenance() {
+  responsiveWritesSinceMaintenance += 1;
+  if (
+    responsiveCacheMaintenanceScheduled ||
+    responsiveWritesSinceMaintenance < RESPONSIVE_CACHE_MAINTENANCE_INTERVAL
+  ) {
+    return;
+  }
+
+  responsiveWritesSinceMaintenance = 0;
+  responsiveCacheMaintenanceScheduled = true;
+  const timer = setTimeout(() => {
+    void trimResponsiveImageCache(IMAGE_CACHE_DIR, {
+      maxEntries: MAX_RESPONSIVE_CACHE_ENTRIES,
+      maxBytes: MAX_RESPONSIVE_CACHE_BYTES,
+    })
+      .catch((error: unknown) => {
+        console.warn(
+          "[image-cache] responsive cache maintenance failed:",
+          error instanceof Error ? error.message : String(error)
+        );
+      })
+      .finally(() => {
+        responsiveCacheMaintenanceScheduled = false;
+        if (responsiveWritesSinceMaintenance >= RESPONSIVE_CACHE_MAINTENANCE_INTERVAL) {
+          scheduleResponsiveCacheMaintenance();
+        }
+      });
+  }, 1_000);
+  timer.unref?.();
+}
 
 function joinRuntimeFile(dir: string, fileName: string): string {
   const normalizedDir = dir.replace(/[\\/]+$/, "");
@@ -34,6 +83,7 @@ interface ImageMeta {
   contentType: string;
   sourceUrl: string;
   variant?: ImageCacheVariant | null;
+  deliveryWidth?: number;
 }
 
 export interface EnsureImageResult {
@@ -46,11 +96,25 @@ export interface EnsureImageResult {
 
 export function getCachePaths(sourceUrl: string, variant: ImageCacheVariant | null = null) {
   const hashInput = variant ? `${sourceUrl}\n${variant}` : sourceUrl;
+  return getCachePathsForHashInput(hashInput);
+}
+
+function getCachePathsForHashInput(hashInput: string) {
   const hash = createHash("sha256").update(hashInput).digest("hex");
   return {
     imagePath: joinRuntimeFile(IMAGE_CACHE_DIR, `${hash}.img`),
     metaPath: joinRuntimeFile(IMAGE_CACHE_DIR, `${hash}.json`),
   };
+}
+
+function getResponsiveCachePaths(
+  sourceUrl: string,
+  variant: ImageCacheVariant | null,
+  width: number
+) {
+  return getCachePathsForHashInput(
+    `${sourceUrl}\ndelivery:webp\n${variant ?? "original"}\nwidth:${width}`
+  );
 }
 
 export function parseImageCacheVariant(
@@ -313,7 +377,7 @@ async function prepareCachedImageBuffer(
     return { buffer, contentType };
   }
 
-  const trimmed = await trimTransparentImagePadding(buffer);
+  const trimmed = await imageTransformLimiter.run(() => trimTransparentImagePadding(buffer));
   if (!trimmed) {
     return { buffer, contentType };
   }
@@ -323,6 +387,45 @@ async function prepareCachedImageBuffer(
   }
 
   return { buffer: trimmed, contentType: "image/png" };
+}
+
+async function prepareResponsiveImageBuffer(
+  buffer: Buffer,
+  contentType: string,
+  width: number
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  // Do not flatten animated artwork or rasterize SVG assets. Card and sealed
+  // thumbnails use the raster formats below and are safe to resize.
+  if (!/image\/(?:avif|jpe?g|png|webp)/i.test(contentType)) {
+    return null;
+  }
+
+  const image = sharp(buffer, { limitInputPixels: false });
+  const metadata = await image.metadata();
+  if (!metadata.width || metadata.width <= width) {
+    return null;
+  }
+
+  const resized = await image
+    .rotate()
+    .resize({
+      width,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .webp({
+      quality: 84,
+      alphaQuality: 90,
+      effort: 3,
+      smartSubsample: true,
+    })
+    .toBuffer();
+
+  if (!hasImageSignature(resized, "image/webp") || resized.byteLength > MAX_IMAGE_BYTES) {
+    return null;
+  }
+
+  return { buffer: resized, contentType: "image/webp" };
 }
 
 async function trimTransparentImagePadding(buffer: Buffer): Promise<Buffer | null> {
@@ -459,6 +562,95 @@ export async function ensureImageCached(
     () => pendingDownloads.delete(pendingKey)
   );
   return download;
+}
+
+export async function ensureResponsiveImageCached(
+  sourceUrl: URL,
+  options: {
+    variant?: ImageCacheVariant | null;
+    width?: number | string | null;
+  } = {}
+): Promise<EnsureImageResult> {
+  const width = normalizeResponsiveImageWidth(options.width);
+  const variant = options.variant ?? getImageCacheVariantForSourceUrl(sourceUrl);
+  if (!width) {
+    return ensureImageCached(sourceUrl, { variant });
+  }
+
+  const { imagePath, metaPath } = getResponsiveCachePaths(sourceUrl.href, variant, width);
+  const cachedMeta = await readMeta(metaPath);
+  if (cachedMeta) {
+    try {
+      const contentType = cachedMeta.contentType || "application/octet-stream";
+      if (await isCachedImageReadable(imagePath, contentType)) {
+        return {
+          imagePath,
+          contentType,
+          hit: true,
+          buffer: null,
+        };
+      }
+      await removeCachedImage(imagePath, metaPath);
+    } catch {
+      await removeCachedImage(imagePath, metaPath);
+    }
+  }
+
+  const pendingKey = `${sourceUrl.href}\n${variant ?? "original"}\nwidth:${width}`;
+  const inflight = pendingResponsiveImages.get(pendingKey);
+  if (inflight) return inflight;
+
+  const createResponsiveImage = (async () => {
+    const original = await ensureImageCached(sourceUrl, { variant });
+
+    let prepared: Awaited<ReturnType<typeof prepareResponsiveImageBuffer>>;
+    try {
+      prepared = await imageTransformLimiter.run(async () => {
+        // Cached originals are only read once a Sharp slot is available. This
+        // stops queued requests from retaining dozens of full-size Buffers.
+        const sourceBuffer =
+          original.buffer ??
+          (await fs.readFile(/*turbopackIgnore: true*/ original.imagePath));
+        return prepareResponsiveImageBuffer(sourceBuffer, original.contentType, width);
+      });
+    } catch {
+      // Responsive delivery is an optimization. A format Sharp cannot process
+      // must still render via the already validated original bytes.
+      return original;
+    }
+
+    if (!prepared) return original;
+
+    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
+    await Promise.all([
+      fs.writeFile(/*turbopackIgnore: true*/ imagePath, prepared.buffer),
+      fs.writeFile(
+        /*turbopackIgnore: true*/
+        metaPath,
+        JSON.stringify({
+          contentType: prepared.contentType,
+          sourceUrl: sourceUrl.href,
+          variant,
+          deliveryWidth: width,
+        } satisfies ImageMeta)
+      ),
+    ]);
+    scheduleResponsiveCacheMaintenance();
+
+    return {
+      imagePath,
+      contentType: prepared.contentType,
+      hit: false,
+      buffer: prepared.buffer,
+    };
+  })();
+
+  pendingResponsiveImages.set(pendingKey, createResponsiveImage);
+  createResponsiveImage.then(
+    () => pendingResponsiveImages.delete(pendingKey),
+    () => pendingResponsiveImages.delete(pendingKey)
+  );
+  return createResponsiveImage;
 }
 
 export interface WarmCardImagesOptions {

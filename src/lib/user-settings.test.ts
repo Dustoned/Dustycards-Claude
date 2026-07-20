@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_SETTINGS,
+  initSettingsScript,
   mergeSettings,
   parseStoredSettings,
   serializeSettings,
@@ -68,6 +69,167 @@ describe("user settings", () => {
     expect(restored.widescreen).toBe(true);
     expect(restored.appearance.custom.primary).toBe(
       DEFAULT_SETTINGS.appearance.custom.primary
+    );
+  });
+
+  it("prepaints a cookie-backed custom appearance before hydration", () => {
+    const setProperty = vi.fn();
+    const settings = mergeSettings({
+      appearance: {
+        preset: "custom",
+        custom: {
+          ...DEFAULT_SETTINGS.appearance.custom,
+          primary: "#D94F93",
+          background: "#0D080D",
+          surface: "#171018",
+        },
+      },
+      mobileUiScale: "large",
+    });
+    let cookie = `dustycards-settings=${encodeURIComponent(serializeSettings(settings))}`;
+    const classList = {
+      add: vi.fn(),
+      remove: vi.fn(),
+      toggle: vi.fn(),
+    };
+    const documentMock = {
+      get cookie() {
+        return cookie;
+      },
+      set cookie(value: string) {
+        cookie = value;
+      },
+      documentElement: {
+        dataset: {} as Record<string, string>,
+        classList,
+        style: { setProperty },
+      },
+    };
+    const windowMock = {
+      matchMedia: (query: string) => ({ matches: query.includes("max-width") }),
+      __dustycardsSettings: undefined,
+    };
+
+    Function("localStorage", "document", "window", initSettingsScript)(
+      { getItem: () => null },
+      documentMock,
+      windowMock
+    );
+
+    expect(windowMock.__dustycardsSettings).toMatchObject({
+      appearance: { preset: "custom" },
+      mobileUiScale: "large",
+    });
+    expect(documentMock.documentElement.dataset.appearance).toBe("custom");
+    expect(documentMock.documentElement.dataset.uiScale).toBe("large");
+    expect(setProperty).toHaveBeenCalledWith("--dc-bg-main", "#0D080D");
+    expect(setProperty).toHaveBeenCalledWith("--app-bg", "#0D080D");
+    expect(setProperty).toHaveBeenCalledWith("--dc-primary", "#D94F93");
+  });
+
+  it("does not let an empty browser store replace account settings", () => {
+    let cookie = "";
+    const documentMock = {
+      get cookie() {
+        return cookie;
+      },
+      set cookie(value: string) {
+        cookie = value;
+      },
+      documentElement: {
+        dataset: {} as Record<string, string>,
+        classList: { add: vi.fn(), remove: vi.fn(), toggle: vi.fn() },
+        style: { setProperty: vi.fn() },
+      },
+    };
+    const windowMock = {
+      matchMedia: () => ({ matches: false }),
+      __dustycardsSettings: { stale: true } as unknown,
+    };
+
+    Function("localStorage", "document", "window", initSettingsScript)(
+      { getItem: () => null },
+      documentMock,
+      windowMock
+    );
+
+    expect(windowMock.__dustycardsSettings).toBeUndefined();
+    expect(cookie).not.toContain("dustycards-settings=");
+  });
+
+  it.each([
+    ["porcelain-studio", "#F5F6FA", "#171927"],
+    ["blush-petal", "#FFF5FA", "#2C1725"],
+  ])("prepaints the %s light appearance before hydration", (preset, background, text) => {
+    const setProperty = vi.fn();
+    const classList = { add: vi.fn(), remove: vi.fn(), toggle: vi.fn() };
+    const settings = mergeSettings({
+      theme: "light",
+      appearance: { ...DEFAULT_SETTINGS.appearance, preset: preset as never },
+    });
+    const raw = serializeSettings(settings);
+    const localStorageMock = { getItem: () => raw, setItem: vi.fn() };
+    const documentMock = {
+      cookie: "",
+      documentElement: {
+        dataset: {} as Record<string, string>,
+        classList,
+        style: { setProperty },
+      },
+    };
+
+    Function("localStorage", "document", "window", initSettingsScript)(
+      localStorageMock,
+      documentMock,
+      { matchMedia: () => ({ matches: false }), __dustycardsSettings: undefined }
+    );
+
+    expect(documentMock.documentElement.dataset).toMatchObject({
+      appearance: preset,
+      appearanceScheme: "light",
+    });
+    expect(classList.add).toHaveBeenCalledWith("dark");
+    expect(setProperty).toHaveBeenCalledWith("--dc-bg-main", background);
+    expect(setProperty).toHaveBeenCalledWith("--color-white", text);
+    expect(setProperty).toHaveBeenCalledWith("--color-black", text);
+    expect(setProperty).toHaveBeenCalledWith("--dc-on-primary", "#FFFFFF");
+    expect(setProperty).toHaveBeenCalledWith("--dc-bg-main-rgb", expect.any(String));
+    expect(setProperty).toHaveBeenCalledWith("color-scheme", "light");
+  });
+
+  it("migrates amber archive during prepaint without showing the retired theme", () => {
+    const raw = JSON.stringify({
+      settingsVersion: 3,
+      appearance: { ...DEFAULT_SETTINGS.appearance, preset: "amber-archive" },
+    });
+    const setItem = vi.fn();
+    const documentMock = {
+      cookie: "",
+      documentElement: {
+        dataset: {} as Record<string, string>,
+        classList: { add: vi.fn(), remove: vi.fn(), toggle: vi.fn() },
+        style: { setProperty: vi.fn() },
+      },
+    };
+    const windowMock = {
+      matchMedia: () => ({ matches: false }),
+      __dustycardsSettings: undefined as unknown,
+    };
+
+    Function("localStorage", "document", "window", initSettingsScript)(
+      { getItem: () => raw, setItem },
+      documentMock,
+      windowMock
+    );
+
+    expect(documentMock.documentElement.dataset.appearance).toBe("porcelain-studio");
+    expect(documentMock.documentElement.dataset.appearanceScheme).toBe("light");
+    expect(windowMock.__dustycardsSettings).toMatchObject({
+      appearance: { preset: "porcelain-studio" },
+    });
+    expect(setItem).toHaveBeenCalledWith(
+      "dustycards-settings",
+      expect.stringContaining('"preset":"porcelain-studio"')
     );
   });
 });

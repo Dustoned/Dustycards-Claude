@@ -2019,14 +2019,26 @@ function shouldLoadDetailedBinders(activeTab: CollectionPageTab): boolean {
 }
 
 export async function getCollectionOverviewData(
-  options: { userId: string; activeTab?: CollectionPageTab; game?: TradingCardGameFilter }
+  options: {
+    userId: string;
+    activeTab?: CollectionPageTab;
+    game?: TradingCardGameFilter;
+    /**
+     * Keep the first document small when a client-owned view will request its
+     * detailed rows after hydration. Aggregate collection metrics still load.
+     */
+    deferDetailedRows?: boolean;
+  }
 ): Promise<CollectionOverviewData> {
   const activeTab = options?.activeTab ?? "overview";
   const game = options.game ?? POKEMON_GAME;
-  const loadDetailedCards = shouldLoadDetailedCards(activeTab);
-  const loadDetailedSealed = shouldLoadDetailedSealed(activeTab);
-  const loadDetailedBinders = shouldLoadDetailedBinders(activeTab);
-  const loadCollectionHistory = true;
+  const loadDetailedCards = !options.deferDetailedRows && shouldLoadDetailedCards(activeTab);
+  const loadDetailedSealed = !options.deferDetailedRows && shouldLoadDetailedSealed(activeTab);
+  const loadDetailedBinders = !options.deferDetailedRows && shouldLoadDetailedBinders(activeTab);
+  // The portfolio chart only exists on Overview. Other collection tabs use
+  // current-value metrics and should not pay for tens of thousands of history
+  // rows before their visible grid can render.
+  const loadCollectionHistory = activeTab === "overview";
   const timer = startPerformanceTimer("collection.overview", {
     activeTab,
     game,

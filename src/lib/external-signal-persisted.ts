@@ -67,6 +67,40 @@ function fallbackSource(game: TradingCardGame, fetchedAt: string): ExternalSigna
   };
 }
 
+function awaitingBackgroundSource(game: TradingCardGame): ExternalSignalSourceStatus {
+  const pokemon = game === POKEMON_GAME;
+  return {
+    game,
+    label: pokemon ? "Limitless Pokemon" : "Limitless One Piece",
+    url: pokemon ? "https://limitlesstcg.com/decks" : "https://onepiece.limitlesstcg.com/decks",
+    ok: false,
+    deckCount: 0,
+    fetchedAt: null,
+    message: "Waiting for the first background signal scan",
+  };
+}
+
+/**
+ * Render-path data for Signal Radar. External websites are deliberately never
+ * contacted from a page request: the scheduler owns those scans and persists
+ * their last successful result. A fresh installation gets a fast, honest
+ * empty state until that first background scan completes.
+ */
+export async function getExternalSignalRadarPageData(
+  gameFilter: TradingCardGameFilter
+): Promise<ExternalSignalRadarData> {
+  const persisted = await getPersistedExternalSignalRadarData(gameFilter);
+  if (persisted) return persisted;
+
+  return {
+    generatedAt: new Date().toISOString(),
+    signals: [],
+    sources: requestedGames(gameFilter).map(awaitingBackgroundSource),
+    unmatchedCount: 0,
+    scannedDeckCount: 0,
+  };
+}
+
 export async function getPersistedExternalSignalRadarData(
   gameFilter: TradingCardGameFilter
 ): Promise<ExternalSignalRadarData | null> {

@@ -19,6 +19,7 @@ const {
     }
   },
   dbMock: {
+    $queryRaw: vi.fn(),
     card: {
       findUnique: vi.fn(),
     },
@@ -225,6 +226,7 @@ const CARD_DETAIL_API_KEYS = [
 
 describe("GET /api/cards/[id]", () => {
   beforeEach(() => {
+    dbMock.$queryRaw.mockReset().mockResolvedValue([]);
     dbMock.card.findUnique.mockReset();
     dbMock.sealedProduct.findMany.mockReset().mockResolvedValue([]);
     dbMock.sealedProduct.count.mockReset().mockResolvedValue(0);
@@ -393,6 +395,7 @@ describe("GET /api/cards/[id]", () => {
       })
     );
     expect(dbMock.collectionCard.findMany).not.toHaveBeenCalled();
+    expect(dbMock.$queryRaw).toHaveBeenCalledTimes(2);
   });
 });
 

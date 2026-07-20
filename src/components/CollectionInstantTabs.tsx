@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { emitCollectionUrlChange } from "@/components/useLiveCollectionTab";
 import type { CollectionPageTab } from "@/lib/collection-data";
@@ -141,7 +142,6 @@ export default function CollectionInstantTabs({
   function selectTab(tab: CollectionTabMeta) {
     if (activeTab === tab.key) return;
     if (!canSelectInstant(tab.key)) {
-      window.location.assign(tab.href);
       return;
     }
 
@@ -209,9 +209,15 @@ export default function CollectionInstantTabs({
 
                           if (!instant && !active) {
                             return (
-                              <a key={tab.key} href={tab.href} className={tabClassName}>
+                              <Link
+                                key={tab.key}
+                                href={tab.href}
+                                prefetch={false}
+                                scroll={false}
+                                className={tabClassName}
+                              >
                                 <span className="truncate">{tab.label}</span>
-                              </a>
+                              </Link>
                             );
                           }
 

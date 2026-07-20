@@ -3,10 +3,12 @@
 import { useEffect, useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
+  captureCurrentScrollPosition,
+  createDeferredScrollPositionSaver,
   DUSTYCARDS_HISTORY_INDEX_KEY,
   getCurrentRouteKey,
   readSavedScrollPosition,
-  saveCurrentScrollPosition,
+  saveScrollPositionSnapshot,
 } from "@/lib/client-navigation-state";
 
 const HISTORY_INDEX_STORAGE_KEY = "dustycards:history-index";
@@ -109,16 +111,45 @@ export default function NavigationStateController() {
     const originalPushState = window.history.pushState.bind(window.history);
     const originalReplaceState = window.history.replaceState.bind(window.history);
 
+    const idleApi = window as unknown as {
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const requestIdleCallback = idleApi.requestIdleCallback?.bind(window);
+    const cancelIdleCallback = idleApi.cancelIdleCallback?.bind(window);
+    const canScheduleCancelableIdleSave = Boolean(
+      requestIdleCallback && cancelIdleCallback
+    );
+    const scrollSaver = createDeferredScrollPositionSaver({
+      capture: captureCurrentScrollPosition,
+      persist: saveScrollPositionSnapshot,
+      setDelay: (callback, delayMs) => window.setTimeout(callback, delayMs),
+      clearDelay: (handle) => window.clearTimeout(handle),
+      requestIdle: canScheduleCancelableIdleSave
+        ? (callback, timeoutMs) =>
+            requestIdleCallback?.(() => callback(), {
+              timeout: timeoutMs,
+            }) ?? 0
+        : undefined,
+      cancelIdle: canScheduleCancelableIdleSave
+        ? (handle) => cancelIdleCallback?.(handle)
+        : undefined,
+    });
+
     originalReplaceState(withHistoryIndex(window.history.state, currentIndex), "", window.location.href);
 
     window.history.pushState = (state, title, url) => {
-      saveCurrentScrollPosition();
+      scrollSaver.flush();
       currentIndex += 1;
       writeStoredHistoryIndex(currentIndex);
       return originalPushState(withHistoryIndex(state, currentIndex), title, url);
     };
 
     window.history.replaceState = (state, title, url) => {
+      scrollSaver.flush();
       const nextIndex =
         isStateObject(state) && typeof state[DUSTYCARDS_HISTORY_INDEX_KEY] === "number"
           ? state[DUSTYCARDS_HISTORY_INDEX_KEY]
@@ -126,15 +157,6 @@ export default function NavigationStateController() {
       currentIndex = nextIndex;
       writeStoredHistoryIndex(currentIndex);
       return originalReplaceState(withHistoryIndex(state, currentIndex), title, url);
-    };
-
-    let scrollFrame = 0;
-    const saveSoon = () => {
-      if (scrollFrame) return;
-      scrollFrame = window.requestAnimationFrame(() => {
-        scrollFrame = 0;
-        saveCurrentScrollPosition();
-      });
     };
 
     const handleDocumentClick = (event: MouseEvent) => {
@@ -156,7 +178,7 @@ export default function NavigationStateController() {
       try {
         const url = new URL(anchor.href);
         if (url.origin === window.location.origin) {
-          saveCurrentScrollPosition();
+          scrollSaver.flush();
         }
       } catch {
         // Ignore invalid anchors.
@@ -164,6 +186,9 @@ export default function NavigationStateController() {
     };
 
     const handlePopState = (event: PopStateEvent) => {
+      // The URL has already changed here. Persist the last in-memory snapshot,
+      // which still carries the route key from before the history traversal.
+      scrollSaver.flushPending();
       const nextIndex =
         isStateObject(event.state) && typeof event.state[DUSTYCARDS_HISTORY_INDEX_KEY] === "number"
           ? event.state[DUSTYCARDS_HISTORY_INDEX_KEY]
@@ -175,12 +200,12 @@ export default function NavigationStateController() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        saveCurrentScrollPosition();
+        scrollSaver.flush();
       }
     };
-    const handlePageExit = () => saveCurrentScrollPosition();
+    const handlePageExit = () => scrollSaver.flush();
 
-    window.addEventListener("scroll", saveSoon, { passive: true });
+    window.addEventListener("scroll", scrollSaver.schedule, { passive: true });
     window.addEventListener("pagehide", handlePageExit);
     window.addEventListener("beforeunload", handlePageExit);
     window.addEventListener("popstate", handlePopState);
@@ -191,13 +216,14 @@ export default function NavigationStateController() {
       window.history.pushState = originalPushState;
       window.history.replaceState = originalReplaceState;
       window.history.scrollRestoration = previousScrollRestoration;
-      if (scrollFrame) window.cancelAnimationFrame(scrollFrame);
-      window.removeEventListener("scroll", saveSoon);
+      scrollSaver.flush();
+      window.removeEventListener("scroll", scrollSaver.schedule);
       window.removeEventListener("pagehide", handlePageExit);
       window.removeEventListener("beforeunload", handlePageExit);
       window.removeEventListener("popstate", handlePopState);
       document.removeEventListener("click", handleDocumentClick, true);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      scrollSaver.cancel();
     };
   }, []);
 

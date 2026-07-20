@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Package } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
@@ -142,6 +142,35 @@ function ShowMoreResults({
   );
 }
 
+function SearchResultsSkeleton() {
+  return (
+    <section
+      role="status"
+      aria-label="Searching cards"
+      className="space-y-4"
+      data-search-results-skeleton
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div className="h-5 w-28 rounded-full bg-white/[0.08] motion-safe:animate-pulse" />
+        <div className="h-4 w-16 rounded-full bg-white/[0.055] motion-safe:animate-pulse" />
+      </div>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
+        {Array.from({ length: 6 }, (_, index) => (
+          <div
+            key={index}
+            className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.035] p-2.5"
+          >
+            <div className="aspect-[63/88] rounded-xl bg-white/[0.07] motion-safe:animate-pulse" />
+            <div className="mt-3 h-3.5 w-4/5 rounded-full bg-white/[0.08] motion-safe:animate-pulse" />
+            <div className="mt-2 h-3 w-1/2 rounded-full bg-white/[0.05] motion-safe:animate-pulse" />
+          </div>
+        ))}
+      </div>
+      <span className="sr-only">Searching...</span>
+    </section>
+  );
+}
+
 function compareNullablePrice(a: number | null, b: number | null, direction: 1 | -1): number {
   if (a == null && b == null) return 0;
   if (a == null) return 1;
@@ -176,7 +205,6 @@ function SearchPageContent({
   initialGameParam: string | null;
   initialAutoSwitchParam: string | null;
 }) {
-  const router = useRouter();
   const { displaySettings, isMobileViewport, settings } = useSettings();
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
@@ -256,94 +284,108 @@ function SearchPageContent({
   }, [results, trimmedQuery]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (trimmedQuery.length < MIN_SEARCH_LENGTH) {
-        abortRef.current?.abort();
-        abortRef.current = null;
+    if (trimmedQuery.length < MIN_SEARCH_LENGTH) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) return;
         setResults(null);
         setLoading(false);
-        return;
-      }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
 
-      const cachedResults = resultsCacheRef.current.get(searchCacheKey);
-      if (cachedResults) {
-        abortRef.current?.abort();
-        abortRef.current = null;
-        // Refresh LRU recency
-        resultsCacheRef.current.delete(searchCacheKey);
-        resultsCacheRef.current.set(searchCacheKey, cachedResults);
+    const cachedResults = resultsCacheRef.current.get(searchCacheKey);
+    if (cachedResults) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      // Refresh LRU recency
+      resultsCacheRef.current.delete(searchCacheKey);
+      resultsCacheRef.current.set(searchCacheKey, cachedResults);
+      let cancelled = false;
+      queueMicrotask(() => {
+        if (cancelled) return;
         setResults(cachedResults);
         setLoading(false);
-        return;
-      }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
 
-      const controller = new AbortController();
-      abortRef.current?.abort();
-      abortRef.current = controller;
+    const controller = new AbortController();
+    abortRef.current?.abort();
+    abortRef.current = controller;
 
-      setLoading(true);
+    setLoading(true);
 
-      void (async () => {
-        try {
-          const params = new URLSearchParams({ q: trimmedQuery });
-          const gameValue = getGameFilterSearchParamValue(activeGame);
-          if (gameValue) {
-            params.set(GAME_SEARCH_PARAM, gameValue);
-          }
-          if (!allowAutoSwitch) {
-            params.set(AUTO_SWITCH_SEARCH_PARAM, "0");
-          }
-          const res = await fetch(`/api/search?${params.toString()}`, {
-            signal: controller.signal,
-          });
-          if (!res.ok) throw new Error("search failed");
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ q: trimmedQuery });
+        const gameValue = getGameFilterSearchParamValue(activeGame);
+        if (gameValue) {
+          params.set(GAME_SEARCH_PARAM, gameValue);
+        }
+        if (!allowAutoSwitch) {
+          params.set(AUTO_SWITCH_SEARCH_PARAM, "0");
+        }
+        const res = await fetch(`/api/search?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error("search failed");
 
-          const data: SearchResults = await res.json();
-          if (abortRef.current === controller) {
-            const resultGame = data.game ?? activeGame;
+        const data: SearchResults = await res.json();
+        if (abortRef.current === controller) {
+          const resultGame = data.game ?? activeGame;
+          setWithLruEviction(
+            resultsCacheRef.current,
+            searchCacheKey,
+            data,
+            SEARCH_CACHE_MAX_ENTRIES
+          );
+          if (resultGame !== activeGame) {
             setWithLruEviction(
               resultsCacheRef.current,
-              searchCacheKey,
+              `${resultGame}:${allowAutoSwitch ? "auto" : "manual"}:${trimmedQuery}`,
               data,
               SEARCH_CACHE_MAX_ENTRIES
             );
-            if (resultGame !== activeGame) {
-              setWithLruEviction(
-                resultsCacheRef.current,
-                `${resultGame}:${allowAutoSwitch ? "auto" : "manual"}:${trimmedQuery}`,
-                data,
-                SEARCH_CACHE_MAX_ENTRIES
-              );
-            }
-            setResults(data);
+          }
+          setResults(data);
 
-            if (data.autoSwitchedFrom === activeGame && resultGame !== activeGame) {
-              const nextParams = new URLSearchParams({ q: trimmedQuery });
-              const gameValue = getGameFilterSearchParamValue(resultGame);
-              if (gameValue) {
-                nextParams.set(GAME_SEARCH_PARAM, gameValue);
-              }
-              router.replace(`/search?${nextParams.toString()}`, { scroll: false });
+          if (data.autoSwitchedFrom === activeGame && resultGame !== activeGame) {
+            const nextParams = new URLSearchParams({ q: trimmedQuery });
+            const nextGameValue = getGameFilterSearchParamValue(resultGame);
+            if (nextGameValue) {
+              nextParams.set(GAME_SEARCH_PARAM, nextGameValue);
             }
-          }
-        } catch (e) {
-          if (e instanceof Error && e.name === "AbortError") return;
-          if (abortRef.current === controller) {
-            setResults(null);
-          }
-        } finally {
-          if (abortRef.current === controller) {
-            setLoading(false);
+            window.history.replaceState(
+              window.history.state,
+              "",
+              `/search?${nextParams.toString()}`
+            );
           }
         }
-      })();
-    }, 280);
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        if (abortRef.current === controller) {
+          setResults(null);
+        }
+      } finally {
+        if (abortRef.current === controller) {
+          setLoading(false);
+        }
+      }
+    })();
 
     return () => {
-      window.clearTimeout(timer);
-      abortRef.current?.abort();
+      controller.abort();
+      if (abortRef.current === controller) abortRef.current = null;
     };
-  }, [activeGame, allowAutoSwitch, router, searchCacheKey, trimmedQuery]);
+  }, [activeGame, allowAutoSwitch, searchCacheKey, trimmedQuery]);
 
   async function openCard(card: SingleResult) {
     if (openingCardId === card.id) return;
@@ -544,12 +586,13 @@ function SearchPageContent({
       </div>
 
       {/* Loading */}
-      {loading && (
+      {loading && results && (
         <div className="mb-4 flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.035] px-4 py-3 text-sm text-white/45">
           <span className="inline-block w-4 h-4 border-2 border-gray-300 dark:border-gray-600 border-t-gray-600 dark:border-t-gray-300 rounded-full animate-spin" />
           Searching...
         </div>
       )}
+      {loading && !results ? <SearchResultsSkeleton /> : null}
 
       {!loading &&
         trimmedQuery.length < MIN_SEARCH_LENGTH &&

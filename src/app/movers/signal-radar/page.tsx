@@ -12,16 +12,13 @@ import {
   parseVisibleGameFilter,
   type TradingCardGameFilter,
 } from "@/lib/games";
-import { getExternalSignalRadarData } from "@/lib/external-signal-radar";
-import { enrichExternalSignalRadarData } from "@/lib/external-signal-intelligence";
-import { getExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 import {
-  getPersistedExternalSignalRadarData,
-  mergeExternalSignalRadarWithFallback,
+  getExternalSignalRadarPageData,
 } from "@/lib/external-signal-persisted";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { selectInitialSignalRadarCards } from "@/lib/signal-radar-progressive";
 
 export const dynamic = "force-dynamic";
 
@@ -42,21 +39,16 @@ export default async function SignalRadarPage({
   const activeGame = parseVisibleGameFilter(game, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const [liveData, persistedData, newReleaseChases] = await Promise.all([
-    getExternalSignalRadarData(activeGame),
-    getPersistedExternalSignalRadarData(activeGame),
-    getExpansionChaseRadarData({
-      gameFilter: activeGame,
-      episodeId: set?.trim() || null,
-    }),
-  ]);
-  const data = await enrichExternalSignalRadarData(
-    mergeExternalSignalRadarWithFallback(liveData, persistedData, activeGame)
+  const radarData = await getExternalSignalRadarPageData(activeGame);
+  // Keep the first render on persisted data only. Full structural/market
+  // enrichment is the expensive cold path and already belongs to the
+  // progressive feed below; doing it here delayed the shell by ~1.7s just to
+  // serialize twelve cards, then repeated the same work in the feed.
+  const initialSignals = selectInitialSignalRadarCards(radarData.signals, new Set());
+  const cardQuickActions = await getCardQuickActionMap(
+    user.id,
+    initialSignals.map((signal) => signal.cardId)
   );
-  const cardQuickActions = await getCardQuickActionMap(user.id, [
-    ...data.signals.map((signal) => signal.cardId),
-    ...(newReleaseChases?.cards.map((card) => card.cardId) ?? []),
-  ]);
 
   const buildHref = (nextGame: TradingCardGameFilter) => {
     const gameValue = getGameFilterSearchParamValue(nextGame);
@@ -73,6 +65,12 @@ export default async function SignalRadarPage({
   const marketHref = activeGameValue
     ? `/movers?${GAME_SEARCH_PARAM}=${activeGameValue}`
     : "/movers";
+  const progressiveQuery = new URLSearchParams();
+  if (activeGameValue) progressiveQuery.set(GAME_SEARCH_PARAM, activeGameValue);
+  if (set) progressiveQuery.set("set", set);
+  const progressiveHref = `/api/movers/signal-radar/feed${
+    progressiveQuery.size ? `?${progressiveQuery.toString()}` : ""
+  }`;
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -111,11 +109,14 @@ export default async function SignalRadarPage({
         />
 
         <ExternalSignalBrowser
-          signals={data.signals}
-          sources={data.sources}
-          generatedAt={data.generatedAt}
-          newReleaseChases={newReleaseChases}
+          key={`${activeGame}:${set ?? "all"}`}
+          signals={initialSignals}
+          sources={radarData.sources}
+          generatedAt={radarData.generatedAt}
+          newReleaseChases={null}
           cardQuickActions={cardQuickActions}
+          progressiveHref={progressiveHref}
+          totalSignalCount={radarData.signals.length}
         />
       </div>
     </div>

@@ -5,8 +5,7 @@ import { Heart } from "lucide-react";
 import {
   dispatchWantsChanged,
   resolveWantState,
-  WANTS_CHANGED_EVENT,
-  type WantsChangedDetail,
+  subscribeWantsChanged,
 } from "@/lib/wants-client-events";
 
 interface CollectionCardRef {
@@ -75,15 +74,9 @@ export default function CollectionWantButton({
   }, [card.id, initialWanted, wantItemId]);
 
   useEffect(() => {
-    function handleWantsChanged(event: Event) {
-      const detail = (event as CustomEvent<WantsChangedDetail>).detail;
-      if (!detail || detail.cardId !== card.id) return;
-
+    return subscribeWantsChanged(card.id, (detail) => {
       setWantState({ wanted: detail.wanted, itemId: detail.item?.id ?? null });
-    }
-
-    window.addEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
-    return () => window.removeEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+    });
   }, [card.id]);
 
   async function toggleWant(event: React.MouseEvent<HTMLButtonElement>) {

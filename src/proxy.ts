@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth-constants";
 
 const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_METADATA_PATHS = ["/icon", "/apple-icon"];
 const PUBLIC_API_PREFIXES = [
   "/api/app-version",
   "/api/health",
@@ -18,8 +19,13 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
-function isPublicFile(pathname: string): boolean {
-  return pathname.startsWith("/_next/") || pathname === "/favicon.ico" || /\.[^/]+$/.test(pathname);
+export function isPublicFile(pathname: string): boolean {
+  return (
+    pathname.startsWith("/_next/") ||
+    pathname === "/favicon.ico" ||
+    PUBLIC_METADATA_PATHS.includes(pathname) ||
+    /\.[^/]+$/.test(pathname)
+  );
 }
 
 export function proxy(request: NextRequest) {

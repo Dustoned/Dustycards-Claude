@@ -8,10 +8,8 @@ import {
   enrichExternalSignalRadarData,
 } from "@/lib/external-signal-intelligence";
 import {
-  getPersistedExternalSignalRadarData,
-  mergeExternalSignalRadarWithFallback,
+  getExternalSignalRadarPageData,
 } from "@/lib/external-signal-persisted";
-import { getExternalSignalRadarData } from "@/lib/external-signal-radar";
 import { ALL_GAMES, POKEMON_GAME, normalizeTradingCardGame } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
@@ -36,9 +34,8 @@ export default async function SignalRadarCardPage({
   const user = await requirePageUser(requestedPath);
   const settings = await getServerUserSettings(user.id);
   const activeGame = settings.onePieceLibraryEnabled ? ALL_GAMES : POKEMON_GAME;
-  const [liveData, persistedData, card] = await Promise.all([
-    getExternalSignalRadarData(activeGame),
-    getPersistedExternalSignalRadarData(activeGame),
+  const [radarData, card] = await Promise.all([
+    getExternalSignalRadarPageData(activeGame),
     getCardDetailPayload(cardId, user.id),
   ]);
 
@@ -46,9 +43,7 @@ export default async function SignalRadarCardPage({
   const game = normalizeTradingCardGame(card.game);
   const detailCard: ModalCardData = { ...card, game };
 
-  const data = await enrichExternalSignalRadarData(
-    mergeExternalSignalRadarWithFallback(liveData, persistedData, activeGame)
-  );
+  const data = await enrichExternalSignalRadarData(radarData);
   const initialResearch = await getCachedExternalCardResearch({
     cardId: card.id,
     game,

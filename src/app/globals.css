@@ -696,6 +696,16 @@ body {
   color: var(--dc-text-primary);
 }
 
+/* `viewport-fit=cover` lets the app paint behind iPhone chrome. Keep the
+   actual navigation and page content inside the top safe area as one unit. */
+[data-app-header] {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+[data-app-main] {
+  padding-top: calc(var(--ui-header-height) + env(safe-area-inset-top, 0px));
+}
+
 /* Sidebar styling using data attributes — bypasses the legacy bg-white/X override */
 [data-sidebar-item][data-active="true"] {
   background-color: rgb(var(--dc-primary-rgb) / 0.16);
@@ -996,11 +1006,11 @@ main > .page-container.binder-bottom-safe {
 
 @media (max-width: 767px) {
   /* Keep content clear for exactly the same range where MobileBottomNav is visible. */
-  body.has-mobile-bottom-nav main {
+  .has-mobile-bottom-nav main {
     padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
   }
 
-  body.has-mobile-bottom-nav main > .page-container {
+  .has-mobile-bottom-nav main > .page-container {
     padding-bottom: var(--ui-page-y) !important;
   }
 }
@@ -1633,6 +1643,8 @@ html.widescreen .settings-page {
   --card-detail-title-size: clamp(2rem, 4.8vw, 3rem);
   --card-detail-route-header-offset: 0rem;
   --card-detail-mobile-action-reserve: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+  --card-detail-safe-area-left: env(safe-area-inset-left, 0px);
+  --card-detail-safe-area-right: env(safe-area-inset-right, 0px);
   position: relative;
   isolation: isolate;
   min-width: 0;
@@ -1685,7 +1697,9 @@ html.widescreen .settings-page {
 }
 
 .card-detail-experience[data-card-detail-mode="radar"] {
-  --card-detail-route-header-offset: var(--ui-header-height);
+  --card-detail-route-header-offset: calc(
+    var(--ui-header-height) + env(safe-area-inset-top, 0px)
+  );
 }
 
 .card-modal-frame:has(> [data-card-detail-shell]) {
@@ -1723,8 +1737,8 @@ html.widescreen .settings-page {
 
   [data-card-detail-shell][data-card-detail-mode="radar"][data-has-actions="true"]
     .card-detail-scroll-viewport {
-    height: calc(100vh - var(--ui-header-height));
-    height: calc(100dvh - var(--ui-header-height));
+    height: calc(100vh - var(--card-detail-route-header-offset));
+    height: calc(100dvh - var(--card-detail-route-header-offset));
   }
 
   [data-card-detail-shell][data-has-actions="true"] .card-detail-layout {
@@ -1793,9 +1807,9 @@ html.widescreen .settings-page {
 .card-detail-primary-actions {
   position: fixed;
   z-index: 220;
-  right: calc(0.75rem + env(safe-area-inset-right, 0px));
+  right: max(0.75rem, calc(var(--card-detail-safe-area-right) + 0.25rem));
   bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
-  left: calc(0.75rem + env(safe-area-inset-left, 0px));
+  left: max(0.75rem, calc(var(--card-detail-safe-area-left) + 0.25rem));
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -2419,6 +2433,41 @@ html.widescreen .settings-page {
   }
 }
 
+/* At small-tablet widths the modal's sm: overflow rule and the detail
+   container query used to produce two nested vertical scrollers. Keep the
+   frame fixed to the padded viewport and let only the detail viewport scroll. */
+@media (min-width: 640px) and (max-width: 767px) {
+  .card-modal-frame:has(> [data-card-detail-shell]) {
+    height: calc(
+      100dvh - 1.75rem - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    ) !important;
+    min-height: 0 !important;
+    max-height: calc(
+      100dvh - 1.75rem - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px)
+    ) !important;
+    overflow-y: hidden !important;
+  }
+
+  .card-modal-frame > [data-card-detail-shell],
+  .card-modal-frame > [data-card-detail-shell] > .card-detail-query-container {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .card-modal-frame
+    > [data-card-detail-shell]
+    > .card-detail-query-container
+    > .card-detail-scroll-viewport {
+    height: 100%;
+    overflow-x: clip;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 @container card-detail (min-width: 62rem) {
   .card-detail-layout {
     grid-template-columns: minmax(18rem, 0.78fr) minmax(0, 1.22fr);
@@ -2510,7 +2559,7 @@ html.widescreen .settings-page {
 }
 
 .card-detail-experience[data-card-detail-mode="radar"] .card-detail-tabs-shell {
-  top: calc(var(--ui-header-height) + 0.65rem);
+  top: calc(var(--card-detail-route-header-offset) + 0.65rem);
 }
 
 @container card-detail (max-width: 39.99rem) {
@@ -2529,11 +2578,11 @@ html.widescreen .settings-page {
     overflow-y: visible;
   }
 
-  body.has-mobile-bottom-nav:has(.card-detail-experience) [data-mobile-bottom-nav] {
+  .has-mobile-bottom-nav:has(.card-detail-experience) [data-mobile-bottom-nav] {
     display: none;
   }
 
-  body.has-mobile-bottom-nav:has(.card-detail-experience) main {
+  .has-mobile-bottom-nav:has(.card-detail-experience) main {
     padding-bottom: 0;
   }
 
@@ -2620,3 +2669,385 @@ html.widescreen .settings-page {
     transition: none;
   }
 }
+
+/* Light appearance compatibility -----------------------------------------
+   Most legacy Tailwind utilities already resolve through the appearance
+   palette. Light presets and light custom palettes additionally need the few
+   remaining hand-authored graphite surfaces and white-alpha labels mapped
+   back to semantic theme tokens. Dark appearances retain their original,
+   high-contrast treatment. */
+html[data-appearance-scheme="light"] {
+  color-scheme: light;
+}
+
+html[data-appearance-scheme="light"]
+  :where(
+    [class~="bg-violet-500"],
+    [class~="bg-violet-600"],
+    [class~="bg-violet-700"],
+    [class~="bg-purple-500"],
+    [class~="bg-purple-600"],
+    [class~="bg-blue-500"],
+    [class~="bg-blue-600"],
+    [class~="bg-emerald-500"],
+    [class~="bg-emerald-600"],
+    [class~="bg-green-500"],
+    [class~="bg-green-600"],
+    [class~="bg-red-500"],
+    [class~="bg-red-600"],
+    [class~="bg-rose-500"],
+    [class~="bg-rose-600"],
+    [class*="bg-violet-600/85"],
+    [data-chart-range][data-active="true"],
+    .card-detail-media-switch-option[aria-pressed="true"],
+    .card-detail-market-mode-option[class*="bg-violet-"],
+    .card-detail-tab[aria-selected="true"]
+  ) {
+  --color-white: var(--dc-on-primary, #ffffff);
+  color: var(--dc-on-primary, #ffffff) !important;
+}
+
+/* Media badges and floating controls deliberately keep a dark scrim in a
+   light theme. Their foreground must therefore use the on-dark token instead
+   of the dark ink assigned to legacy `text-white` utilities. */
+html[data-appearance-scheme="light"]
+  :where(
+    [class*="bg-black/35"][class*="text-white"],
+    [class*="bg-black/40"][class*="text-white"],
+    [class*="bg-black/45"][class*="text-white"],
+    [class*="bg-black/50"][class*="text-white"],
+    [class*="bg-black/55"][class*="text-white"],
+    [class*="bg-black/58"][class*="text-white"],
+    [class*="bg-black/60"][class*="text-white"],
+    [class*="bg-black/65"][class*="text-white"],
+    [class*="bg-black/68"][class*="text-white"],
+    [class*="bg-black/70"][class*="text-white"],
+    [class*="bg-black/72"][class*="text-white"],
+    [class*="bg-black/75"][class*="text-white"],
+    [class*="bg-black/76"][class*="text-white"],
+    [class*="bg-black/78"][class*="text-white"],
+    [class*="bg-black/80"][class*="text-white"],
+    [class*="bg-black/85"][class*="text-white"],
+    [class*="bg-black/88"][class*="text-white"]
+  ) {
+  --color-white: #ffffff;
+  color: #ffffff !important;
+}
+
+html[data-appearance-scheme="light"]
+  body
+  :where(
+    [class*="bg-[#050508]"],
+    [class*="bg-[#070708]"],
+    [class*="bg-[#07070a]"],
+    [class*="bg-[#08080a]"],
+    [class*="bg-[#08080c]"],
+    [class*="bg-[#09090a]"],
+    [class*="bg-[#0b0b0d]"]
+  ):not([data-graded-slab-preview="true"] *) {
+  background-color: var(--dc-bg-main) !important;
+}
+
+html[data-appearance-scheme="light"]
+  body
+  :where(
+    [class*="bg-[#071012]"],
+    [class*="bg-[#081411]"],
+    [class*="bg-[#0b0b0f]"],
+    [class*="bg-[#0b0c11]"],
+    [class*="bg-[#0c0c0f]"],
+    [class*="bg-[#0f0f15]"],
+    [class*="bg-[#101011]"],
+    [class*="bg-[#101012]"],
+    [class*="bg-[#101014]"],
+    [class*="bg-[#101218]"],
+    [class*="bg-[#111019]"],
+    [class*="bg-[#111114]"],
+    [class*="bg-[#111116]"],
+    [class*="bg-[#111214]"],
+    [class*="bg-[#14141c]"]
+  ):not([data-graded-slab-preview="true"] *) {
+  background-color: var(--dc-surface-primary) !important;
+}
+
+html[data-appearance-scheme="light"]
+  body
+  :where(
+    [class*="bg-[#151518]"],
+    [class*="bg-[#15151a]"],
+    [class*="bg-[#17140d]"],
+    [class*="bg-[#171a22]"],
+    [class*="bg-[#1d1d24]"],
+    [class*="bg-[#1D2130]"]
+  ):not([data-graded-slab-preview="true"] *) {
+  background-color: var(--dc-surface-elevated) !important;
+}
+
+html[data-appearance-scheme="light"]
+  :where(.binder-panel, .binder-subpanel, .binder-overview-tile) {
+  box-shadow:
+    0 14px 36px rgb(var(--dc-primary-rgb) / 0.07),
+    0 3px 12px rgb(30 35 55 / 0.07);
+}
+
+html[data-appearance-scheme="light"]
+  [data-sidebar-account-toggle] {
+  background:
+    linear-gradient(135deg, rgb(var(--dc-primary-rgb) / 0.1), rgb(var(--dc-surface-elevated-rgb) / 0.72)),
+    var(--dc-surface-primary);
+  border-color: rgb(var(--dc-border-rgb) / 0.92);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.82);
+}
+
+html[data-appearance-scheme="light"]
+  :where([data-mobile-bottom-nav], [data-mobile-more-sheet], [data-mobile-action-sheet]) {
+  box-shadow:
+    0 -12px 34px rgb(var(--dc-primary-rgb) / 0.09),
+    0 -4px 16px rgb(30 35 55 / 0.1) !important;
+}
+
+html[data-appearance-scheme="light"]
+  :where([data-mobile-more-backdrop], [data-mobile-account-popup]) {
+  background: rgb(28 24 40 / 0.3) !important;
+}
+
+html[data-appearance-scheme="light"]
+  :where([data-readable-info-tooltip], [class*="bg-[#0c0c0f]"]) {
+  border-color: rgb(var(--dc-border-rgb) / 0.95) !important;
+  background: rgb(var(--dc-surface-elevated-rgb) / 0.98) !important;
+  color: var(--dc-text-primary) !important;
+  box-shadow:
+    0 20px 48px rgb(30 35 55 / 0.14),
+    0 4px 12px rgb(var(--dc-primary-rgb) / 0.06) !important;
+}
+
+html[data-appearance-scheme="light"]
+  .dc-modal-panel {
+  background: linear-gradient(
+    180deg,
+    var(--dc-surface-primary) 0%,
+    var(--dc-bg-main) 72%,
+    var(--dc-bg-main) 100%
+  );
+  box-shadow:
+    0 28px 70px rgb(30 35 55 / 0.16),
+    inset 0 1px 0 rgb(255 255 255 / 0.76);
+}
+
+html[data-appearance-scheme="light"]
+  .card-modal-frame[data-mobile-showcase="true"] {
+  background: var(--dc-bg-main) !important;
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-experience {
+  color: color-mix(in srgb, var(--dc-text-primary) 94%, transparent);
+  background:
+    linear-gradient(180deg, rgb(var(--dc-surface-primary-rgb) / 0.98), var(--dc-bg-main) 42rem),
+    var(--dc-bg-main);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-primary-actions {
+  border-color: rgb(var(--dc-border-rgb) / 0.95);
+  background: linear-gradient(
+    135deg,
+    rgb(var(--dc-surface-elevated-rgb) / 0.96),
+    rgb(var(--dc-surface-primary-rgb) / 0.94)
+  );
+  box-shadow:
+    0 16px 40px rgb(30 35 55 / 0.16),
+    0 5px 18px rgb(var(--dc-primary-rgb) / 0.1),
+    inset 0 1px rgb(255 255 255 / 0.78);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-media-switch {
+  border-color: rgb(var(--dc-border-rgb) / 0.95);
+  background: rgb(var(--dc-surface-primary-rgb) / 0.92);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.74),
+    0 8px 22px rgb(30 35 55 / 0.09);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-media-switch-option {
+  color: color-mix(in srgb, var(--dc-text-primary) 58%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-media-switch-option:hover {
+  color: color-mix(in srgb, var(--dc-text-primary) 84%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-inline-three-viewer {
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.72),
+    0 24px 50px rgb(30 35 55 / 0.13);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-identity {
+  border-color: rgb(var(--dc-border-rgb) / 0.94);
+  background: linear-gradient(
+    145deg,
+    rgb(var(--dc-surface-elevated-rgb) / 0.94),
+    rgb(var(--dc-surface-primary-rgb) / 0.96)
+  );
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.74),
+    0 18px 52px rgb(30 35 55 / 0.09);
+}
+
+html[data-appearance-scheme="light"]
+  :where(.card-detail-eyebrow, .card-detail-price-label, .card-detail-kpi-label) {
+  color: color-mix(in srgb, var(--dc-primary) 60%, var(--dc-text-muted));
+}
+
+html[data-appearance-scheme="light"]
+  :where(.card-detail-title, .card-detail-price) {
+  color: var(--dc-text-primary);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-subtitle {
+  color: color-mix(in srgb, var(--dc-text-primary) 52%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-price-block {
+  border-top-color: rgb(var(--dc-border-rgb) / 0.86);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-price-meta {
+  color: color-mix(in srgb, var(--dc-text-primary) 52%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-kpi {
+  border-color: rgb(var(--dc-border-rgb) / 0.88);
+  background: rgb(var(--dc-surface-elevated-rgb) / 0.62);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-kpi[data-tone="violet"] {
+  border-color: rgb(var(--dc-primary-rgb) / 0.2);
+  background: rgb(var(--dc-primary-rgb) / 0.075);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-kpi[data-tone="cyan"] {
+  border-color: rgb(var(--dc-cyan-rgb) / 0.2);
+  background: rgb(var(--dc-cyan-rgb) / 0.065);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-kpi[data-tone="positive"] {
+  border-color: rgb(var(--dc-success-rgb) / 0.2);
+  background: rgb(var(--dc-success-rgb) / 0.065);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-kpi[data-tone="warning"] {
+  border-color: rgb(var(--dc-gold-rgb) / 0.22);
+  background: rgb(var(--dc-gold-rgb) / 0.07);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-kpi-value {
+  color: color-mix(in srgb, var(--dc-text-primary) 92%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-kpi-hint {
+  color: color-mix(in srgb, var(--dc-text-primary) 48%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-chart > section {
+  border-color: rgb(var(--dc-border-rgb) / 0.94) !important;
+  background: linear-gradient(
+    145deg,
+    rgb(var(--dc-surface-elevated-rgb) / 0.94),
+    rgb(var(--dc-surface-primary-rgb) / 0.96)
+  ) !important;
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 0.72),
+    0 18px 48px rgb(30 35 55 / 0.09);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-tabs-shell {
+  border-color: rgb(var(--dc-border-rgb) / 0.94);
+  background: rgb(var(--dc-surface-primary-rgb) / 0.9);
+  box-shadow: 0 12px 34px rgb(30 35 55 / 0.11);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-tab {
+  color: color-mix(in srgb, var(--dc-text-primary) 58%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-tab:hover {
+  background: rgb(var(--dc-surface-hover-rgb) / 0.68);
+  color: color-mix(in srgb, var(--dc-text-primary) 86%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-surface {
+  border-color: rgb(var(--dc-border-rgb) / 0.92);
+  background: linear-gradient(
+    145deg,
+    rgb(var(--dc-surface-elevated-rgb) / 0.9),
+    rgb(var(--dc-surface-primary-rgb) / 0.95)
+  );
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.7);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-surface-title {
+  color: color-mix(in srgb, var(--dc-text-primary) 90%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-surface-copy {
+  color: color-mix(in srgb, var(--dc-text-primary) 54%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-info-grid {
+  border-color: rgb(var(--dc-border-rgb) / 0.9);
+  background: rgb(var(--dc-border-rgb) / 0.78);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-info-cell {
+  background: rgb(var(--dc-surface-primary-rgb) / 0.98);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-info-cell dt {
+  color: color-mix(in srgb, var(--dc-text-primary) 48%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-info-cell dd {
+  color: color-mix(in srgb, var(--dc-text-primary) 82%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-market-link {
+  border-color: rgb(var(--dc-border-rgb) / 0.94);
+  background: rgb(var(--dc-surface-elevated-rgb) / 0.66);
+  color: color-mix(in srgb, var(--dc-text-primary) 72%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-market-link:hover {
+  color: var(--dc-text-primary);
+}
+
+/* End light-appearance compatibility layer. */

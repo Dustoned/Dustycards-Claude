@@ -1318,6 +1318,9 @@ export default function ExpansionView({
             const gridPrice = getPriceBySource(card, primaryPriceSource);
             const gridCurrency = getPriceSourceCurrency(primaryPriceSource);
             const gridSelected = selectedCardIdSet.has(card.id);
+            // The fifth compact-grid card can become the interaction LCP when its
+            // add action scrolls into view. Keep only that extra preview eager.
+            const prioritizeInteractionPreview = index === EAGER_IMAGE_COUNT;
             return (
               <div
                 key={card.id}
@@ -1358,8 +1361,16 @@ export default function ExpansionView({
                         "rounded-[4.75%] object-fill"
                       )}
                       sizes={cardTrackWidth}
-                      loading={index < eagerImageCount ? "eager" : undefined}
-                      fetchPriority={index < 4 ? "high" : "auto"}
+                      loading={
+                        index < eagerImageCount || prioritizeInteractionPreview
+                          ? "eager"
+                          : undefined
+                      }
+                      fetchPriority={
+                        index < EAGER_IMAGE_COUNT || prioritizeInteractionPreview
+                          ? "high"
+                          : "auto"
+                      }
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center rounded-[4.75%] bg-black/6 text-xs text-gray-300 dark:bg-white/6">

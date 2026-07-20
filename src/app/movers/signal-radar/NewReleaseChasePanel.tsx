@@ -157,14 +157,22 @@ function ChaseCard({
   return (
     <article
       className={cx(
-        "group relative grid min-w-0 grid-cols-[5.25rem_minmax(0,1fr)] gap-3 overflow-hidden rounded-[1.25rem] border bg-[linear-gradient(145deg,rgba(20,22,32,0.98),rgba(11,13,20,0.98))] p-3 shadow-[0_16px_42px_rgba(0,0,0,0.22)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/28 sm:grid-cols-[6rem_minmax(0,1fr)]",
+        "group relative grid min-w-0 cursor-pointer grid-cols-[5.25rem_minmax(0,1fr)] gap-3 overflow-hidden rounded-[1.25rem] border bg-[linear-gradient(145deg,rgba(20,22,32,0.98),rgba(11,13,20,0.98))] p-3 shadow-[0_16px_42px_rgba(0,0,0,0.22)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/28 focus-within:border-violet-300/32 sm:grid-cols-[6rem_minmax(0,1fr)]",
         card.setRank === 1 ? "border-violet-300/24" : "border-white/10"
       )}
       data-chase-verdict={card.verdict.key}
       data-chase-card-id={card.cardId}
     >
+      <Link
+        href={detailHref}
+        aria-label={`Open full chase analysis for ${card.name}`}
+        className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400"
+        data-chase-card-link
+      >
+        <span className="sr-only">Open full chase analysis for {card.name}</span>
+      </Link>
       <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-70" />
-      <div className="relative aspect-[63/88] w-full overflow-hidden rounded-[0.75rem] border border-white/10 bg-black/30 shadow-lg shadow-black/30">
+      <div className="pointer-events-none relative aspect-[63/88] w-full overflow-hidden rounded-[0.75rem] border border-white/10 bg-black/30 shadow-lg shadow-black/30">
         {card.imageUrl ? (
           <CachedImage
             sourceUrl={card.imageUrl}
@@ -183,7 +191,7 @@ function ChaseCard({
         </span>
       </div>
 
-      <div className="flex min-w-0 flex-col">
+      <div className="pointer-events-none flex min-w-0 flex-col">
         <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="min-w-0">
             <span
@@ -216,7 +224,7 @@ function ChaseCard({
         ) : null}
       </div>
 
-        <dl className="col-span-2 grid min-w-0 grid-cols-3 gap-1.5">
+      <dl className="pointer-events-none col-span-2 grid min-w-0 grid-cols-3 gap-1.5">
           <div className="min-w-0 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5">
             <dt className="text-[11px] font-semibold text-white/56">Radar</dt>
             <dd className="mt-0.5 text-xs font-bold tabular-nums text-white/82">{card.opportunityScore}/100</dd>
@@ -237,16 +245,18 @@ function ChaseCard({
           </div>
         </dl>
 
-      <div className="col-span-2 flex min-w-0 items-center gap-2">
-        <Link
-          href={detailHref}
-          className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border border-violet-300/14 bg-violet-400/[0.07] px-3 text-xs font-bold text-violet-100/82 transition hover:border-violet-300/28 hover:bg-violet-400/[0.12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+      <div className="pointer-events-none col-span-2 flex min-w-0 items-center gap-2">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border border-violet-300/14 bg-violet-400/[0.07] px-3 text-xs font-bold text-violet-100/82 transition group-hover:border-violet-300/28 group-hover:bg-violet-400/[0.12]"
         >
           <span className="truncate">Full chase analysis</span>
           <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
-        </Link>
+        </span>
         {quickActionData ? (
-          <CollectionCardQuickActions data={quickActionData} />
+          <div className="pointer-events-auto relative z-10 shrink-0" data-chase-card-actions>
+            <CollectionCardQuickActions data={quickActionData} />
+          </div>
         ) : null}
       </div>
     </article>

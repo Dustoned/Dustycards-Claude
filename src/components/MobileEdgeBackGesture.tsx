@@ -6,12 +6,13 @@ import {
   getDustyHistoryIndex,
   saveCurrentScrollPosition,
 } from "@/lib/client-navigation-state";
-import { dispatchMobileEdgeBackRequest } from "@/lib/mobile-edge-back";
+import {
+  dispatchMobileEdgeBackRequest,
+  shouldCaptureMobileEdgeBackGesture,
+  shouldCompleteMobileEdgeBackGesture,
+} from "@/lib/mobile-edge-back";
 
 const EDGE_START_PX = 26;
-const MIN_SWIPE_PX = 76;
-const MAX_VERTICAL_DRIFT_PX = 64;
-const MIN_HORIZONTAL_RATIO = 1.45;
 const NAVIGATE_COOLDOWN_MS = 650;
 
 type GestureState = {
@@ -33,35 +34,30 @@ function isMobileGestureViewport(): boolean {
 function isInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
 
-  return Boolean(
+  if (
     target.closest(
-      [
-        "a",
-        "button",
-        "input",
-        "select",
-        "textarea",
-        "[contenteditable='true']",
-        "[role='button']",
-        "[role='slider']",
-        "[data-no-edge-swipe-back]",
-      ].join(",")
+      "input, select, textarea, [contenteditable='true'], [role='slider'], [data-no-edge-swipe-back]"
     )
+  ) {
+    return true;
+  }
+
+  // A CardModal is an in-app surface rather than a history entry. Let the
+  // edge gesture start over its large media/action controls as it would in a
+  // native detail sheet; the completed gesture closes the modal locally.
+  if (target.closest("[data-card-modal-root]")) return false;
+
+  return Boolean(
+    target.closest(["a", "button", "summary", "[role='button']"].join(","))
   );
 }
 
-function shouldNavigateBack(gesture: GestureState): boolean {
-  const dx = gesture.lastX - gesture.startX;
-  const dy = Math.abs(gesture.lastY - gesture.startY);
-  const elapsed = Math.max(1, performance.now() - gesture.startedAt);
-  const velocity = dx / elapsed;
-
-  return (
-    dx >= MIN_SWIPE_PX &&
-    dy <= MAX_VERTICAL_DRIFT_PX &&
-    dx / Math.max(1, dy) >= MIN_HORIZONTAL_RATIO &&
-    velocity > 0.22
-  );
+function getGestureDelta(gesture: GestureState) {
+  return {
+    deltaX: gesture.lastX - gesture.startX,
+    deltaY: Math.abs(gesture.lastY - gesture.startY),
+    elapsedMs: Math.max(1, performance.now() - gesture.startedAt),
+  };
 }
 
 export default function MobileEdgeBackGesture() {
@@ -121,18 +117,33 @@ export default function MobileEdgeBackGesture() {
       const dy = Math.abs(gesture.lastY - gesture.startY);
       if (dx < -8 || (dy > 32 && dy > Math.abs(dx))) {
         resetGesture();
+        return;
+      }
+
+      if (
+        event.cancelable &&
+        shouldCaptureMobileEdgeBackGesture(getGestureDelta(gesture))
+      ) {
+        event.preventDefault();
       }
     }
 
-    function handleTouchEnd() {
+    function finishGesture(event: TouchEvent) {
       const gesture = gestureRef.current;
       if (!gesture.tracking) return;
+
+      const finalTouch = event.changedTouches?.[0];
+      if (finalTouch) {
+        gesture.lastX = finalTouch.clientX;
+        gesture.lastY = finalTouch.clientY;
+      }
 
       resetGesture();
       const now = performance.now();
       if (
-        now - lastNavigateAtRef.current < NAVIGATE_COOLDOWN_MS ||
-        !shouldNavigateBack(gesture)
+        (lastNavigateAtRef.current > 0 &&
+          now - lastNavigateAtRef.current < NAVIGATE_COOLDOWN_MS) ||
+        !shouldCompleteMobileEdgeBackGesture(getGestureDelta(gesture))
       ) {
         return;
       }
@@ -150,15 +161,18 @@ export default function MobileEdgeBackGesture() {
     }
 
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: true });
-    window.addEventListener("touchend", handleTouchEnd, { passive: true });
-    window.addEventListener("touchcancel", resetGesture, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", finishGesture, { passive: true });
+    // WebKit can still report a cancellation after taking over an edge
+    // overscroll. Use its final touch position instead of silently dropping an
+    // otherwise complete gesture.
+    window.addEventListener("touchcancel", finishGesture, { passive: true });
 
     return () => {
       window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchEnd);
-      window.removeEventListener("touchcancel", resetGesture);
+      window.removeEventListener("touchend", finishGesture);
+      window.removeEventListener("touchcancel", finishGesture);
     };
   }, []);
 

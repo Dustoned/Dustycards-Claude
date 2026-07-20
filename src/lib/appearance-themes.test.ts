@@ -8,11 +8,13 @@ import {
   getAppearanceContrastChecks,
   getAppearancePreset,
   getContrastRatio,
+  getReadableForeground,
   isHexColor,
   mixHex,
   normalizeAppearancePalette,
   normalizeAppearanceSettings,
   normalizeHexColor,
+  resolveAppearanceColorScheme,
   resolveAppearancePalette,
   type AppearancePalette,
   type AppearanceSettings,
@@ -48,7 +50,8 @@ describe("appearance theme presets", () => {
       "lavender-bloom",
       "ocean-sapphire",
       "emerald-vault",
-      "amber-archive",
+      "porcelain-studio",
+      "blush-petal",
     ]);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids).not.toContain("custom");
@@ -58,6 +61,7 @@ describe("appearance theme presets", () => {
     for (const preset of APPEARANCE_THEME_PRESETS) {
       expect(preset.name.trim()).not.toBe("");
       expect(preset.description.trim()).not.toBe("");
+      expect(["dark", "light"]).toContain(preset.scheme);
       expect(Object.keys(preset.palette).sort()).toEqual([...APPEARANCE_PALETTE_KEYS].sort());
 
       for (const key of APPEARANCE_PALETTE_KEYS) {
@@ -166,6 +170,17 @@ describe("appearance color normalization", () => {
       DEFAULT_APPEARANCE_SETTINGS.preset
     );
   });
+
+  it("migrates the retired Amber Archive preset to the clean light replacement", () => {
+    const normalized = normalizeAppearanceSettings({
+      preset: "amber-archive",
+      custom: COMPLETE_CUSTOM_PALETTE,
+    });
+
+    expect(normalized.preset).toBe("porcelain-studio");
+    expect(normalized.custom).toEqual(COMPLETE_CUSTOM_PALETTE);
+    expect(APPEARANCE_THEME_PRESETS.map(({ id }) => id)).not.toContain("amber-archive");
+  });
 });
 
 describe("appearance palette resolution", () => {
@@ -206,6 +221,30 @@ describe("appearance palette resolution", () => {
       getAppearancePreset("collector-violet")?.palette
     );
   });
+
+  it("resolves explicit preset schemes and derives custom schemes from the canvas", () => {
+    for (const preset of APPEARANCE_THEME_PRESETS) {
+      expect(
+        resolveAppearanceColorScheme({
+          preset: preset.id,
+          custom: COMPLETE_CUSTOM_PALETTE,
+        })
+      ).toBe(preset.scheme);
+    }
+
+    expect(
+      resolveAppearanceColorScheme({
+        preset: "custom",
+        custom: { ...COMPLETE_CUSTOM_PALETTE, background: "#FAFAFC" },
+      })
+    ).toBe("light");
+    expect(
+      resolveAppearanceColorScheme({
+        preset: "custom",
+        custom: { ...COMPLETE_CUSTOM_PALETTE, background: "#090A0E" },
+      })
+    ).toBe("dark");
+  });
 });
 
 describe("appearance CSS variables", () => {
@@ -236,6 +275,7 @@ describe("appearance CSS variables", () => {
       "--dc-text-primary": "#F1F2F3",
       "--dc-text-secondary": "#D1D2D3",
       "--dc-text-muted": "#A1A2A3",
+      "--dc-on-primary": "#FFFFFF",
       "--dc-success": "#717273",
       "--dc-negative": "#818283",
       "--dc-cyan": "#616263",
@@ -246,6 +286,7 @@ describe("appearance CSS variables", () => {
       "--dc-primary-soft-rgb": "33 34 35",
       "--dc-secondary-rgb": "49 50 51",
       "--dc-bg-main-rgb": "4 5 6",
+      "--dc-on-primary-rgb": "255 255 255",
       "--dc-surface-primary-rgb": "20 21 22",
       "--dc-border-rgb": "68 69 70",
       "--dc-success-rgb": "113 114 115",
@@ -313,6 +354,39 @@ describe("appearance CSS variables", () => {
     }
   });
 
+  it.each(["porcelain-studio", "blush-petal"] as const)(
+    "builds dark-first readable utility ramps for %s",
+    (presetId) => {
+      const palette = getAppearancePreset(presetId)!.palette;
+      const variables = appearancePaletteToCssVariables(palette);
+
+      for (const variable of [
+        "--color-violet-100",
+        "--color-emerald-100",
+        "--color-red-100",
+        "--color-amber-100",
+        "--color-gray-100",
+      ]) {
+        expect(
+          getContrastRatio(variables[variable]!, palette.surface),
+          variable
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+
+      expect(
+        getContrastRatio(variables["--color-gray-900"]!, palette.surface)
+      ).toBeLessThan(1.2);
+      expect(
+        getContrastRatio(variables["--color-violet-950"]!, palette.surface)
+      ).toBeLessThan(1.3);
+      expect(variables["--color-white"]).toBe(palette.textPrimary);
+      expect(variables["--color-black"]).toBe(palette.textPrimary);
+      expect(
+        getContrastRatio(variables["--dc-on-primary"]!, palette.primary)
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  );
+
   it("normalizes lower-case palette values before emitting variables", () => {
     const variables = appearancePaletteToCssVariables({
       ...COMPLETE_CUSTOM_PALETTE,
@@ -341,11 +415,34 @@ describe("appearance CSS variables", () => {
     applyAppearanceToElement(element, appearance);
 
     expect(element.dataset.appearance).toBe("custom");
+    expect(element.dataset.appearanceScheme).toBe("dark");
     expect(setProperty).toHaveBeenCalledTimes(Object.keys(expected).length);
     expect(setProperty).toHaveBeenCalledWith("--dc-primary", "#010203");
     expect(setProperty).toHaveBeenCalledWith("--dc-primary-rgb", "1 2 3");
     expect(setProperty).toHaveBeenCalledWith("--color-violet-500", "#010203");
     expect(setProperty).toHaveBeenCalledWith("--color-gray-950", "#040506");
+  });
+
+  it("applies the migrated light scheme and updates the browser chrome color", () => {
+    const setProperty = vi.fn();
+    const setAttribute = vi.fn();
+    const element = {
+      dataset: {} as DOMStringMap,
+      style: { setProperty },
+      ownerDocument: {
+        querySelector: vi.fn(() => ({ setAttribute })),
+      },
+    } as unknown as HTMLElement;
+
+    applyAppearanceToElement(element, {
+      preset: "amber-archive",
+      custom: COMPLETE_CUSTOM_PALETTE,
+    } as unknown as AppearanceSettings);
+
+    expect(element.dataset.appearance).toBe("porcelain-studio");
+    expect(element.dataset.appearanceScheme).toBe("light");
+    expect(setProperty).toHaveBeenCalledWith("--dc-bg-main", "#F5F6FA");
+    expect(setAttribute).toHaveBeenCalledWith("content", "#F5F6FA");
   });
 });
 
@@ -388,9 +485,13 @@ describe("appearance contrast", () => {
       }
       expect(checks.page, `${preset.id}.page`).toBeGreaterThanOrEqual(7);
       expect(checks.surface, `${preset.id}.surface`).toBeGreaterThanOrEqual(7);
+      expect(checks.muted, `${preset.id}.muted`).toBeGreaterThanOrEqual(4.5);
       expect(checks.button, `${preset.id}.button`).toBeGreaterThanOrEqual(4.5);
       expect(
-        getContrastRatio(preset.palette.textPrimary, preset.palette.primaryHover),
+        getContrastRatio(
+          getReadableForeground(preset.palette.primary, preset.palette.textPrimary),
+          preset.palette.primaryHover
+        ),
         `${preset.id}.button-hover`
       ).toBeGreaterThanOrEqual(4.5);
     }

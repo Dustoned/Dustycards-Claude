@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
@@ -37,6 +37,7 @@ import type {
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
+import type { SignalRadarProgressivePayload } from "@/lib/signal-radar-progressive";
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
@@ -48,6 +49,8 @@ interface Props {
   generatedAt: string;
   newReleaseChases?: ExpansionChaseRadarData | null;
   cardQuickActions: CardQuickActionMap;
+  progressiveHref?: string | null;
+  totalSignalCount?: number;
 }
 
 const CONFIDENCE_OPTIONS: Array<{ value: ConfidenceFilter; label: string }> = [
@@ -74,6 +77,9 @@ const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
   { value: "hybrid", label: "Hybrid" },
   { value: "structural", label: "Scarcity & value" },
 ];
+
+const INITIAL_VISIBLE_SIGNALS = 12;
+const VISIBLE_SIGNAL_STEP = 12;
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -536,10 +542,12 @@ function CompactSignalCard({
   signal,
   marketMode,
   quickActionData,
+  prioritizeImage = false,
 }: {
   signal: ExternalCardSignal;
   marketMode: ExternalMarketMode;
   quickActionData: CardQuickActionData | undefined;
+  prioritizeImage?: boolean;
 }) {
   const scenario =
     marketMode === "graded"
@@ -605,6 +613,8 @@ function CompactSignalCard({
               alt={signal.name}
               fill
               sizes="(max-width: 640px) 88px, 100px"
+              loading={prioritizeImage ? "eager" : undefined}
+              preload={prioritizeImage}
               className="object-contain"
             />
           ) : (
@@ -918,19 +928,60 @@ export function ExternalSignalDetailCard({
 }
 
 export default function ExternalSignalBrowser({
-  signals,
+  signals: initialSignals,
   sources,
   generatedAt,
-  newReleaseChases,
-  cardQuickActions,
+  newReleaseChases: initialNewReleaseChases,
+  cardQuickActions: initialCardQuickActions,
+  progressiveHref = null,
+  totalSignalCount = initialSignals.length,
 }: Props) {
+  const [signals, setSignals] = useState(initialSignals);
+  const [cardQuickActions, setCardQuickActions] = useState(initialCardQuickActions);
+  const [newReleaseChases, setNewReleaseChases] = useState(initialNewReleaseChases);
+  const [progressiveState, setProgressiveState] = useState<"loading" | "ready" | "error">(
+    progressiveHref ? "loading" : "ready"
+  );
+  const [progressiveAttempt, setProgressiveAttempt] = useState(0);
   const [search, setSearch] = useState("");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("all");
   const [origin, setOrigin] = useState<OriginFilter>("all");
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
   const [sortKey, setSortKey] = useState<SortKey>("opportunity");
-  const [visibleLimit, setVisibleLimit] = useState(36);
+  const [visibleLimit, setVisibleLimit] = useState(INITIAL_VISIBLE_SIGNALS);
   const deferredSearch = useDeferredValue(search);
+  const retryProgressiveLoad = useCallback(() => {
+    setProgressiveState("loading");
+    setProgressiveAttempt((current) => current + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!progressiveHref) return;
+    const controller = new AbortController();
+    const href = progressiveHref;
+
+    async function loadRemainingSignals() {
+      try {
+        const response = await fetch(href, {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Request failed (${response.status})`);
+        const payload = (await response.json()) as SignalRadarProgressivePayload;
+        if (controller.signal.aborted) return;
+        setSignals(payload.signals);
+        setCardQuickActions((current) => ({ ...payload.cardQuickActions, ...current }));
+        setNewReleaseChases(payload.newReleaseChases);
+        setProgressiveState("ready");
+      } catch {
+        if (!controller.signal.aborted) setProgressiveState("error");
+      }
+    }
+
+    void loadRemainingSignals();
+    return () => controller.abort();
+  }, [progressiveAttempt, progressiveHref]);
   const newReleaseCardIds = useMemo(
     () => new Set(newReleaseChases?.cards.map((card) => card.cardId) ?? []),
     [newReleaseChases]
@@ -960,7 +1011,16 @@ export default function ExternalSignalBrowser({
         const eventLinked =
           (signal.sourceMode === "event" || signal.sourceMode === "hybrid") &&
           (signal.catalysts?.length ?? 0) > 0;
-        if (!eventLinked && !isWatchablePriceScenario(selectedScenario, selectedScore)) return false;
+        // The SSR preview deliberately contains the last persisted observations
+        // without the expensive market enrichment. Keep those useful cards
+        // visible while the progressive feed is loading (and on a retryable
+        // feed error); once the definitive payload arrives, apply the normal
+        // scenario gate to the fully enriched/ranked cohort.
+        if (
+          progressiveState === "ready" &&
+          !eventLinked &&
+          !isWatchablePriceScenario(selectedScenario, selectedScore)
+        ) return false;
         if (!query) return true;
         return textMatchesSearchQuery(
           `${signal.name} ${signal.episodeName} ${signal.episodeCode ?? ""} ${signal.cardNumber ?? ""} ${signal.rarity ?? ""} ${(signal.catalysts ?? []).map((catalyst) => `${catalyst.headline} ${catalyst.contextLabel ?? ""}`).join(" ")}`,
@@ -1005,7 +1065,16 @@ export default function ExternalSignalBrowser({
         }
         return right.externalScore - left.externalScore || left.rank - right.rank;
       });
-  }, [confidence, deferredSearch, marketMode, newReleaseCardIds, origin, signals, sortKey]);
+  }, [
+    confidence,
+    deferredSearch,
+    marketMode,
+    newReleaseCardIds,
+    origin,
+    progressiveState,
+    signals,
+    sortKey,
+  ]);
   const chaseSectionOwnsEverySignal =
     signals.length > 0 && signals.every((signal) => newReleaseCardIds.has(signal.cardId));
   const filtersAreDefault =
@@ -1018,6 +1087,29 @@ export default function ExternalSignalBrowser({
           data={newReleaseChases}
           cardQuickActions={cardQuickActions}
         />
+      ) : progressiveState === "loading" ? (
+        <section
+          className="binder-panel overflow-hidden rounded-[1.25rem] p-3 sm:p-4"
+          aria-label="Loading new release chase analysis"
+          aria-busy="true"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 shrink-0 rounded-xl bg-violet-300/[0.09] motion-safe:animate-pulse" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-3 w-28 rounded-full bg-white/[0.07] motion-safe:animate-pulse" />
+              <div className="h-5 max-w-md rounded-lg bg-white/[0.055] motion-safe:animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {[0, 1, 2].map((item) => (
+              <div
+                key={item}
+                className="h-14 rounded-xl border border-white/7 bg-white/[0.025] motion-safe:animate-pulse"
+              />
+            ))}
+          </div>
+          <span className="sr-only">Building the latest set chase read</span>
+        </section>
       ) : null}
 
       <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3">
@@ -1027,14 +1119,20 @@ export default function ExternalSignalBrowser({
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+              }}
               placeholder="Search cards..."
               className="h-11 w-full rounded-xl border border-white/9 bg-black/24 pl-10 pr-11 text-sm text-white outline-none transition placeholder:text-white/28 focus:border-violet-400/35 focus:ring-2 focus:ring-violet-500/12"
             />
             {search ? (
               <button
                 type="button"
-                onClick={() => setSearch("")}
+                onClick={() => {
+                  setSearch("");
+                  setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+                }}
                 className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-xl text-white/35 transition hover:bg-white/8 hover:text-white"
                 aria-label="Clear search"
               >
@@ -1048,7 +1146,10 @@ export default function ExternalSignalBrowser({
               <button
                 key={option.value}
                 type="button"
-                onClick={() => setConfidence(option.value)}
+                  onClick={() => {
+                    setConfidence(option.value);
+                    setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+                  }}
                 className={cx(
                   "min-h-11 shrink-0 rounded-lg px-3 text-xs font-semibold transition",
                   confidence === option.value
@@ -1068,7 +1169,7 @@ export default function ExternalSignalBrowser({
                 type="button"
                 onClick={() => {
                   setMarketMode(mode);
-                  setVisibleLimit(36);
+                  setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
                 }}
                 className={cx(
                   "min-h-11 min-w-0 flex-1 rounded-lg px-3 text-xs font-semibold capitalize transition lg:flex-none",
@@ -1087,7 +1188,10 @@ export default function ExternalSignalBrowser({
             <span className="sr-only">Filter signal origin</span>
             <select
               value={origin}
-              onChange={(event) => setOrigin(event.target.value as OriginFilter)}
+              onChange={(event) => {
+                setOrigin(event.target.value as OriginFilter);
+                setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+              }}
               className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"
             >
               {ORIGIN_OPTIONS.map((option) => (
@@ -1103,7 +1207,10 @@ export default function ExternalSignalBrowser({
             <span className="sr-only">Sort signals</span>
             <select
               value={sortKey}
-              onChange={(event) => setSortKey(event.target.value as SortKey)}
+              onChange={(event) => {
+                setSortKey(event.target.value as SortKey);
+                setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+              }}
               className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"
             >
               {SORT_OPTIONS.map((option) => (
@@ -1119,18 +1226,31 @@ export default function ExternalSignalBrowser({
       <section>
         <SectionHeader
           title="Radar cards"
-          count={visibleSignals.length}
+          count={progressiveState === "loading" ? totalSignalCount : visibleSignals.length}
           actions={
-            <span
-              className="text-[10px] font-medium text-white/32"
-              title="Time of the latest shared radar update"
-            >
-              {new Intl.DateTimeFormat("en-GB", {
-                dateStyle: "medium",
-                timeStyle: "short",
-                timeZone: "Europe/Amsterdam",
-              }).format(new Date(generatedAt))}
-            </span>
+            <div className="flex items-center gap-2 text-[10px] font-medium text-white/32">
+              {progressiveState === "loading" ? (
+                <span className="inline-flex items-center gap-1.5" aria-live="polite">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet-300 motion-safe:animate-pulse" />
+                  Loading full radar
+                </span>
+              ) : progressiveState === "error" ? (
+                <button
+                  type="button"
+                  onClick={retryProgressiveLoad}
+                  className="min-h-11 rounded-xl border border-amber-300/15 px-3 font-semibold text-amber-100/72 transition hover:bg-amber-300/[0.07]"
+                >
+                  Load all cards
+                </button>
+              ) : null}
+              <span title="Time of the latest shared radar update">
+                {new Intl.DateTimeFormat("en-GB", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                  timeZone: "Europe/Amsterdam",
+                }).format(new Date(generatedAt))}
+              </span>
+            </div>
           }
         />
 
@@ -1141,12 +1261,13 @@ export default function ExternalSignalBrowser({
               gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 25rem), 1fr))",
             }}
           >
-            {visibleSignals.slice(0, visibleLimit).map((signal) => (
+            {visibleSignals.slice(0, visibleLimit).map((signal, index) => (
               <CompactSignalCard
                 key={signal.cardId}
                 signal={signal}
                 marketMode={marketMode}
                 quickActionData={cardQuickActions[signal.cardId]}
+                prioritizeImage={index === 0}
               />
             ))}
           </div>
@@ -1170,7 +1291,7 @@ export default function ExternalSignalBrowser({
           <div className="mt-3 flex justify-center">
             <button
               type="button"
-              onClick={() => setVisibleLimit((current) => current + 36)}
+              onClick={() => setVisibleLimit((current) => current + VISIBLE_SIGNAL_STEP)}
               className="min-h-11 rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-5 py-2.5 text-xs font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.12]"
             >
               Show more ({visibleSignals.length - visibleLimit})

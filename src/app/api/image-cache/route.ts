@@ -2,7 +2,7 @@ import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  ensureImageCached,
+  ensureResponsiveImageCached,
   parseCacheableImageUrl,
   parseImageCacheVariant,
 } from "@/lib/image-cache-server";
@@ -25,9 +25,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unsupported image URL" }, { status: 400 });
   }
   const variant = parseImageCacheVariant(sourceUrl, request.nextUrl.searchParams.get("variant"));
+  const width = request.nextUrl.searchParams.get("width");
 
   try {
-    const result = await ensureImageCached(sourceUrl, { variant });
+    const result = await ensureResponsiveImageCached(sourceUrl, { variant, width });
     if (result.hit) {
       const stream = Readable.toWeb(
         createReadStream(/*turbopackIgnore: true*/ result.imagePath)

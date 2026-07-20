@@ -1,13 +1,21 @@
 "use client";
 
-import Image, { type ImageProps } from "next/image";
+import Image, { type ImageLoaderProps, type ImageProps } from "next/image";
 import { useMemo, useState } from "react";
-import { getCachedImageUrl } from "@/lib/image-cache";
+import {
+  getCachedImageUrl,
+  getResponsiveCachedImageUrl,
+  isCacheableRemoteImageUrl,
+} from "@/lib/image-cache";
 
 type CachedImageProps = Omit<ImageProps, "src" | "onLoad" | "onError"> & {
   sourceUrl: string;
   alt: string;
 };
+
+function responsiveImageLoader({ src, width }: ImageLoaderProps): string {
+  return getResponsiveCachedImageUrl(src, width) ?? src;
+}
 
 export default function CachedImage({
   sourceUrl,
@@ -33,12 +41,15 @@ function CachedImageInner({
   alt,
   className = "",
   style,
-  unoptimized = true,
+  unoptimized = false,
   ...props
 }: Omit<CachedImageProps, "sourceUrl"> & { sourceUrl: string; preferredUrl: string }) {
-  const [activeUrl, setActiveUrl] = useState(preferredUrl);
+  const [fallbackToSource, setFallbackToSource] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const useResponsiveDelivery =
+    !unoptimized && !fallbackToSource && isCacheableRemoteImageUrl(sourceUrl);
+  const activeUrl = fallbackToSource ? sourceUrl : preferredUrl;
 
   return (
     <>
@@ -53,15 +64,16 @@ function CachedImageInner({
       {!failed ? (
         <Image
           {...props}
-          src={activeUrl}
+          src={useResponsiveDelivery ? sourceUrl : activeUrl}
           alt={alt}
           className={`${className} transition-opacity duration-200`}
           style={{ ...style, opacity: loaded ? style?.opacity : 0 }}
-          unoptimized={unoptimized}
+          loader={useResponsiveDelivery ? responsiveImageLoader : undefined}
+          unoptimized={!useResponsiveDelivery}
           onLoad={() => setLoaded(true)}
           onError={() => {
-            if (activeUrl !== sourceUrl) {
-              setActiveUrl(sourceUrl);
+            if (!fallbackToSource && (useResponsiveDelivery || activeUrl !== sourceUrl)) {
+              setFallbackToSource(true);
               setLoaded(false);
               return;
             }

@@ -4,8 +4,11 @@ export type AppearanceThemeId =
   | "lavender-bloom"
   | "ocean-sapphire"
   | "emerald-vault"
-  | "amber-archive"
+  | "porcelain-studio"
+  | "blush-petal"
   | "custom";
+
+export type AppearanceColorScheme = "dark" | "light";
 
 export interface AppearancePalette {
   primary: string;
@@ -36,6 +39,7 @@ export interface AppearanceThemePreset {
   id: Exclude<AppearanceThemeId, "custom">;
   name: string;
   description: string;
+  scheme: AppearanceColorScheme;
   palette: AppearancePalette;
 }
 
@@ -64,12 +68,14 @@ export const APPEARANCE_THEME_PRESETS: readonly AppearanceThemePreset[] = [
     id: "collector-violet",
     name: "Collector Violet",
     description: "The refined DustyCards original.",
+    scheme: "dark",
     palette: COLLECTOR_VIOLET,
   },
   {
     id: "rose-quartz",
     name: "Rose Quartz",
     description: "Soft rose, plum and polished glass.",
+    scheme: "dark",
     palette: {
       primary: "#B83E7A",
       primaryHover: "#BF417F",
@@ -94,6 +100,7 @@ export const APPEARANCE_THEME_PRESETS: readonly AppearanceThemePreset[] = [
     id: "lavender-bloom",
     name: "Lavender Bloom",
     description: "Dreamy lilac with a subtle orchid glow.",
+    scheme: "dark",
     palette: {
       primary: "#7653D1",
       primaryHover: "#7D58D2",
@@ -118,6 +125,7 @@ export const APPEARANCE_THEME_PRESETS: readonly AppearanceThemePreset[] = [
     id: "ocean-sapphire",
     name: "Ocean Sapphire",
     description: "Deep navy with crisp cyan data accents.",
+    scheme: "dark",
     palette: {
       primary: "#2A66C7",
       primaryHover: "#3570CE",
@@ -142,6 +150,7 @@ export const APPEARANCE_THEME_PRESETS: readonly AppearanceThemePreset[] = [
     id: "emerald-vault",
     name: "Emerald Vault",
     description: "Museum green with modern aqua detail.",
+    scheme: "dark",
     palette: {
       primary: "#147A57",
       primaryHover: "#1E805C",
@@ -163,30 +172,64 @@ export const APPEARANCE_THEME_PRESETS: readonly AppearanceThemePreset[] = [
     },
   },
   {
-    id: "amber-archive",
-    name: "Amber Archive",
-    description: "Warm amber, leather and evening graphite.",
+    id: "porcelain-studio",
+    name: "Porcelain Studio",
+    description: "Clean white surfaces with refined violet and blue accents.",
+    scheme: "light",
     palette: {
-      primary: "#8A5A0A",
-      primaryHover: "#9A6816",
-      primarySoft: "#F0CD89",
-      secondary: "#E66E78",
-      background: "#0B0905",
-      surface: "#16120B",
-      surfaceElevated: "#211A0F",
-      surfaceHover: "#2C2215",
-      border: "#3D311D",
-      borderHover: "#5C4728",
-      textPrimary: "#FFF9EF",
-      textSecondary: "#E8D4B5",
-      textMuted: "#AE9270",
-      data: "#4DCFEA",
-      success: "#31C77D",
-      negative: "#EB6268",
-      warning: "#F2B84B",
+      primary: "#5B4CCB",
+      primaryHover: "#493DB2",
+      primarySoft: "#E0DCFF",
+      secondary: "#D94F86",
+      background: "#F5F6FA",
+      surface: "#FFFFFF",
+      surfaceElevated: "#F9FAFD",
+      surfaceHover: "#EEF0F6",
+      border: "#DCE0EA",
+      borderHover: "#B8C0D1",
+      textPrimary: "#171927",
+      textSecondary: "#3F4658",
+      textMuted: "#687086",
+      data: "#087EA4",
+      success: "#16845B",
+      negative: "#C73E57",
+      warning: "#9A6700",
+    },
+  },
+  {
+    id: "blush-petal",
+    name: "Blush Petal",
+    description: "Soft blush, rose and lilac across a bright airy canvas.",
+    scheme: "light",
+    palette: {
+      primary: "#A33F77",
+      primaryHover: "#893360",
+      primarySoft: "#F4C9DF",
+      secondary: "#7551B8",
+      background: "#FFF5FA",
+      surface: "#FFFDFE",
+      surfaceElevated: "#FFF9FC",
+      surfaceHover: "#F9EAF3",
+      border: "#EBCFDA",
+      borderHover: "#D7A9BD",
+      textPrimary: "#2C1725",
+      textSecondary: "#593B4D",
+      textMuted: "#7D6271",
+      data: "#277FA3",
+      success: "#187A58",
+      negative: "#C53F61",
+      warning: "#97620C",
     },
   },
 ] as const;
+
+/**
+ * Saved preset ids are user data, so retired themes must migrate instead of
+ * unexpectedly snapping back to the product default.
+ */
+export const LEGACY_APPEARANCE_PRESET_MIGRATIONS = {
+  "amber-archive": "porcelain-studio",
+} as const satisfies Readonly<Record<string, Exclude<AppearanceThemeId, "custom">>>;
 
 export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
   preset: "collector-violet",
@@ -237,16 +280,28 @@ export function normalizeAppearancePalette(
 
 export function normalizeAppearanceSettings(value: unknown): AppearanceSettings {
   const source = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const rawPreset = typeof source.preset === "string" ? source.preset : null;
+  const migratedPreset: string | null = rawPreset
+    ? migrateLegacyAppearancePreset(rawPreset)
+    : null;
   const preset =
-    typeof source.preset === "string" &&
-    (source.preset === "custom" || PRESET_BY_ID.has(source.preset as Exclude<AppearanceThemeId, "custom">))
-      ? (source.preset as AppearanceThemeId)
+    migratedPreset === "custom" ||
+    PRESET_BY_ID.has(migratedPreset as Exclude<AppearanceThemeId, "custom">)
+      ? (migratedPreset as AppearanceThemeId)
       : DEFAULT_APPEARANCE_SETTINGS.preset;
 
   return {
     preset,
     custom: normalizeAppearancePalette(source.custom),
   };
+}
+
+function migrateLegacyAppearancePreset(preset: string): string {
+  return Object.prototype.hasOwnProperty.call(LEGACY_APPEARANCE_PRESET_MIGRATIONS, preset)
+    ? LEGACY_APPEARANCE_PRESET_MIGRATIONS[
+        preset as keyof typeof LEGACY_APPEARANCE_PRESET_MIGRATIONS
+      ]
+    : preset;
 }
 
 export function getAppearancePreset(
@@ -260,6 +315,19 @@ export function resolveAppearancePalette(settings: AppearanceSettings): Appearan
     return normalizeAppearancePalette(settings.custom);
   }
   return getAppearancePreset(settings.preset)?.palette ?? COLLECTOR_VIOLET;
+}
+
+export function resolveAppearanceColorScheme(
+  settingsInput: AppearanceSettings
+): AppearanceColorScheme {
+  const settings = normalizeAppearanceSettings(settingsInput);
+  if (settings.preset !== "custom") {
+    return getAppearancePreset(settings.preset)?.scheme ?? "dark";
+  }
+
+  return relativeLuminance(resolveAppearancePalette(settings).background) >= 0.5
+    ? "light"
+    : "dark";
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -289,6 +357,27 @@ export function mixHex(first: string, second: string, secondWeight: number): str
 }
 
 function colorScale(base: string, soft: string, background: string): Record<string, string> {
+  if (relativeLuminance(background) >= 0.5) {
+    // The app deliberately keeps its dark-first utility branches active for
+    // appearance presets. On a light canvas, low-numbered colors therefore
+    // need to become readable foregrounds while high-numbered colors become
+    // quiet tint surfaces (for example dark:text-violet-100 paired with
+    // dark:bg-violet-950). This is role-aware rather than a conventional ramp.
+    return {
+      "50": mixHex(base, "#000000", 0.5),
+      "100": mixHex(base, "#000000", 0.38),
+      "200": mixHex(base, "#000000", 0.24),
+      "300": mixHex(base, "#000000", 0.1),
+      "400": base,
+      "500": base,
+      "600": mixHex(base, soft, 0.22),
+      "700": mixHex(base, soft, 0.44),
+      "800": mixHex(soft, background, 0.18),
+      "900": mixHex(soft, background, 0.48),
+      "950": mixHex(background, soft, 0.16),
+    };
+  }
+
   return {
     "50": mixHex(soft, "#FFFFFF", 0.72),
     "100": mixHex(soft, "#FFFFFF", 0.5),
@@ -320,6 +409,8 @@ export function appearancePaletteToCssVariables(
   paletteInput: AppearancePalette
 ): Record<string, string> {
   const palette = normalizeAppearancePalette(paletteInput);
+  const isLightAppearance = relativeLuminance(palette.background) >= 0.5;
+  const onPrimary = getReadableForeground(palette.primary, palette.textPrimary);
   const variables: Record<string, string> = {
     "--dc-primary": palette.primary,
     "--dc-primary-hover": palette.primaryHover,
@@ -336,6 +427,7 @@ export function appearancePaletteToCssVariables(
     "--dc-text-secondary": palette.textSecondary,
     "--dc-text-muted": palette.textMuted,
     "--dc-text-disabled": mixHex(palette.textMuted, palette.background, 0.38),
+    "--dc-on-primary": onPrimary,
     "--dc-success": palette.success,
     "--dc-success-hover": mixHex(palette.success, "#FFFFFF", 0.16),
     "--dc-success-bg": rgba(palette.success, 0.12),
@@ -362,14 +454,18 @@ export function appearancePaletteToCssVariables(
     "--dc-border-active-rgb": rgbString(palette.primary),
     "--dc-text-secondary-rgb": rgbString(palette.textSecondary),
     "--dc-text-muted-rgb": rgbString(palette.textMuted),
+    "--dc-on-primary-rgb": rgbString(onPrimary),
     "--dc-success-rgb": rgbString(palette.success),
     "--dc-negative-rgb": rgbString(palette.negative),
     "--dc-cyan-rgb": rgbString(palette.data),
     "--dc-gold-rgb": rgbString(palette.warning),
     "--dc-pink-rgb": rgbString(palette.secondary),
     "--app-bg": palette.background,
+    // These aliases intentionally preserve dark-first utility semantics. On a
+    // light appearance `text-white` becomes the dark ink token, while black
+    // alpha overlays still need a genuinely dark source color.
     "--color-white": palette.textPrimary,
-    "--color-black": palette.background,
+    "--color-black": isLightAppearance ? palette.textPrimary : palette.background,
   };
 
   addScale(
@@ -430,11 +526,20 @@ export function applyAppearanceToElement(
   appearanceInput: AppearanceSettings
 ) {
   const appearance = normalizeAppearanceSettings(appearanceInput);
-  const variables = appearancePaletteToCssVariables(resolveAppearancePalette(appearance));
+  const palette = resolveAppearancePalette(appearance);
+  const variables = appearancePaletteToCssVariables(palette);
   element.dataset.appearance = appearance.preset;
+  element.dataset.appearanceScheme = resolveAppearanceColorScheme(appearance);
   for (const [name, value] of Object.entries(variables)) {
     element.style.setProperty(name, value);
   }
+
+  // Keep installed PWAs and Safari's status-bar area visually continuous when
+  // a saved appearance is applied after the static document metadata.
+  const themeColorMeta = element.ownerDocument?.querySelector<HTMLMetaElement>(
+    'meta[name="theme-color"]'
+  );
+  themeColorMeta?.setAttribute("content", palette.background);
 }
 
 function relativeLuminance(hex: string): number {
@@ -455,11 +560,22 @@ export function getContrastRatio(foreground: string, background: string): number
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+export function getReadableForeground(background: string, preferred: string): string {
+  const candidates = [preferred, "#FFFFFF", "#000000"].map((color) =>
+    normalizeHexColor(color, "#000000")
+  );
+  return candidates.reduce((best, candidate) =>
+    getContrastRatio(candidate, background) > getContrastRatio(best, background)
+      ? candidate
+      : best
+  );
+}
+
 export function getAppearanceContrastChecks(palette: AppearancePalette) {
   return {
     page: getContrastRatio(palette.textPrimary, palette.background),
     surface: getContrastRatio(palette.textPrimary, palette.surface),
     muted: getContrastRatio(palette.textMuted, palette.surface),
-    button: getContrastRatio(palette.textPrimary, palette.primary),
+    button: getContrastRatio(getReadableForeground(palette.primary, palette.textPrimary), palette.primary),
   };
 }

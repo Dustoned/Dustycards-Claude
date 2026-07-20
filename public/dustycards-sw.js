@@ -1,4 +1,4 @@
-const CACHE_VERSION = "3.2.29";
+const CACHE_VERSION = "3.2.30";
 const STATIC_CACHE = `dustycards-static-${CACHE_VERSION}`;
 const PAGE_CACHE = "dustycards-pages-v1";
 const IMAGE_CACHE = "dustycards-images-v1";
@@ -6,6 +6,10 @@ const CACHE_PREFIX = "dustycards-";
 const MAX_STATIC_ENTRIES = 220;
 const MAX_PAGE_ENTRIES = 80;
 const MAX_IMAGE_ENTRIES = 1400;
+const CACHE_TRIM_WRITE_THRESHOLD = 32;
+const CACHE_TRIM_INTERVAL_MS = 2 * 60 * 1000;
+const CACHE_TRIM_BATCH_SIZE = 96;
+const cacheMaintenance = new Map();
 
 const OFFLINE_IMAGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="588" viewBox="0 0 420 588" role="img" aria-label="Image unavailable offline"><rect width="420" height="588" rx="24" fill="#101116"/><rect x="26" y="26" width="368" height="536" rx="18" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="3"/><text x="210" y="286" fill="rgba(255,255,255,0.72)" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="26" font-weight="700" text-anchor="middle">Offline</text><text x="210" y="326" fill="rgba(255,255,255,0.46)" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="18" font-weight="600" text-anchor="middle">Image not cached yet</text></svg>`;
 
@@ -68,7 +72,11 @@ async function trimCache(cacheName, maxEntries) {
     const overflow = keys.length - maxEntries;
     if (overflow <= 0) return;
 
-    await Promise.all(keys.slice(0, overflow).map((key) => cache.delete(key)));
+    await Promise.all(
+      keys
+        .slice(0, Math.min(overflow, CACHE_TRIM_BATCH_SIZE))
+        .map((key) => cache.delete(key))
+    );
   } catch {
     // Storage may be temporarily unavailable on some mobile browsers.
   }
@@ -77,33 +85,45 @@ async function trimCache(cacheName, maxEntries) {
 async function remember(cache, request, response, cacheName, maxEntries) {
   try {
     await cache.put(request, response.clone());
-    await trimCache(cacheName, maxEntries);
+
+    let state = cacheMaintenance.get(cacheName);
+    if (!state) {
+      state = { writes: 0, lastTrimAt: Date.now(), trimPromise: null };
+      cacheMaintenance.set(cacheName, state);
+    }
+    state.writes += 1;
+
+    const trimIsDue =
+      state.writes >= CACHE_TRIM_WRITE_THRESHOLD ||
+      Date.now() - state.lastTrimAt >= CACHE_TRIM_INTERVAL_MS;
+    if (!trimIsDue || state.trimPromise) return;
+
+    state.writes = 0;
+    state.lastTrimAt = Date.now();
+    state.trimPromise = trimCache(cacheName, maxEntries).finally(() => {
+      state.trimPromise = null;
+    });
+    await state.trimPromise;
   } catch {
     // Ignore cache write failures, usually quota or unsupported response details.
   }
 }
 
-async function touch(cache, request, response) {
-  try {
-    await cache.delete(request);
-    await cache.put(request, response.clone());
-  } catch {
-    // Cache recency is a best-effort optimization.
-  }
+function rememberInBackground(schedule, cache, request, response, cacheName, maxEntries) {
+  schedule(remember(cache, request, response, cacheName, maxEntries));
 }
 
-async function cacheFirst(request, cacheName, maxEntries, expectedKind) {
+async function cacheFirst(schedule, request, cacheName, maxEntries, expectedKind) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
   if (cached) {
-    touch(cache, request, cached.clone());
     return cached;
   }
 
   try {
     const response = await fetch(request);
     if (shouldCacheResponse(response, expectedKind)) {
-      await remember(cache, request, response, cacheName, maxEntries);
+      rememberInBackground(schedule, cache, request, response, cacheName, maxEntries);
     }
     return response;
   } catch (error) {
@@ -119,13 +139,13 @@ async function cacheFirst(request, cacheName, maxEntries, expectedKind) {
   }
 }
 
-async function networkFirst(request, cacheName, maxEntries, expectedKind) {
+async function networkFirst(schedule, request, cacheName, maxEntries, expectedKind) {
   const cache = await caches.open(cacheName);
 
   try {
     const response = await fetch(request);
     if (shouldCacheResponse(response, expectedKind)) {
-      await remember(cache, request, response, cacheName, maxEntries);
+      rememberInBackground(schedule, cache, request, response, cacheName, maxEntries);
     }
     return response;
   } catch {
@@ -133,6 +153,18 @@ async function networkFirst(request, cacheName, maxEntries, expectedKind) {
     if (cached) return cached;
     throw new Error("Offline and no cached response is available.");
   }
+}
+
+function respondWithBackground(event, strategy) {
+  let background = Promise.resolve();
+  const response = strategy((task) => {
+    background = task;
+  });
+
+  // Register waitUntil synchronously while the FetchEvent is active. The
+  // response promise resolves independently, so cache I/O never delays paint.
+  event.waitUntil(response.then(() => background, () => background));
+  event.respondWith(response);
 }
 
 self.addEventListener("install", (event) => {
@@ -180,16 +212,22 @@ self.addEventListener("fetch", (event) => {
   if (isBlockedRequest(url)) return;
 
   if (isImageRequest(request, url)) {
-    event.respondWith(cacheFirst(request, IMAGE_CACHE, MAX_IMAGE_ENTRIES, "image"));
+    respondWithBackground(event, (schedule) =>
+      cacheFirst(schedule, request, IMAGE_CACHE, MAX_IMAGE_ENTRIES, "image")
+    );
     return;
   }
 
   if (isStaticAssetRequest(request, url)) {
-    event.respondWith(cacheFirst(request, STATIC_CACHE, MAX_STATIC_ENTRIES, "asset"));
+    respondWithBackground(event, (schedule) =>
+      cacheFirst(schedule, request, STATIC_CACHE, MAX_STATIC_ENTRIES, "asset")
+    );
     return;
   }
 
   if (isPageRequest(request, url)) {
-    event.respondWith(networkFirst(request, PAGE_CACHE, MAX_PAGE_ENTRIES, "page"));
+    respondWithBackground(event, (schedule) =>
+      networkFirst(schedule, request, PAGE_CACHE, MAX_PAGE_ENTRIES, "page")
+    );
   }
 });

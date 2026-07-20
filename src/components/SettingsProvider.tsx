@@ -1,7 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { applyAppearanceToElement } from "@/lib/appearance-themes";
+import {
+  applyAppearanceToElement,
+  resolveAppearanceColorScheme,
+} from "@/lib/appearance-themes";
 import {
   buildResolvedThemeCookie,
   buildSettingsCookie,
@@ -9,7 +12,6 @@ import {
   initSettingsScript,
   mergeSettings,
   parseStoredSettings,
-  resolveTheme,
   serializeSettings,
   SETTINGS_STORAGE_KEY,
   type Card3dSize,
@@ -86,10 +88,9 @@ function getInitialSettings(initialSettings?: UserSettings | null): UserSettings
 }
 
 function saveToBrowser(s: UserSettings) {
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   localStorage.setItem(SETTINGS_STORAGE_KEY, serializeSettings(s));
   document.cookie = buildSettingsCookie(s);
-  document.cookie = buildResolvedThemeCookie(resolveTheme(s.theme, prefersDark));
+  document.cookie = buildResolvedThemeCookie(resolveAppearanceColorScheme(s.appearance));
 }
 
 async function saveToAccount(s: UserSettings) {
@@ -108,7 +109,14 @@ async function saveToAccount(s: UserSettings) {
 function applyTheme(theme: Theme) {
   document.documentElement.dataset.theme = theme;
   document.documentElement.classList.add("dark");
-  document.cookie = buildResolvedThemeCookie("dark");
+}
+
+function applyAppearance(appearance: AppearanceSettings) {
+  const scheme = resolveAppearanceColorScheme(appearance);
+  applyAppearanceToElement(document.documentElement, appearance);
+  document.documentElement.style.colorScheme = scheme;
+  document.documentElement.style.setProperty("--dc-color-scheme", scheme);
+  document.cookie = buildResolvedThemeCookie(scheme);
 }
 
 function applyWidescreen(on: boolean) {
@@ -208,7 +216,7 @@ export default function SettingsProvider({
 
   useEffect(() => {
     applyTheme(settings.theme);
-    applyAppearanceToElement(document.documentElement, settings.appearance);
+    applyAppearance(settings.appearance);
     applyWidescreen(displaySettings.widescreen);
     applyUiScale(displaySettings.uiScale);
   }, [displaySettings.uiScale, displaySettings.widescreen, settings.appearance, settings.theme]);
@@ -247,7 +255,7 @@ export default function SettingsProvider({
       }
       if (key === "theme") applyTheme(value as Theme);
       if (key === "appearance") {
-        applyAppearanceToElement(document.documentElement, value as AppearanceSettings);
+        applyAppearance(value as AppearanceSettings);
       }
       if (key === "widescreen") {
         const effectiveSettings = getDisplaySettings(next, isMobileViewport);

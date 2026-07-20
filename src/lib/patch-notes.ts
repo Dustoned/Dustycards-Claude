@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.6",
+    releasedAt: "July 20, 2026",
+    title: "Faster everywhere, brighter by choice",
+    summary:
+      "DustyCards 3.8.6 makes mobile navigation and heavy collection views feel immediate, and adds two complete light appearances.",
+    tone: "improved",
+    highlights: [
+      "Porcelain Studio brings a clean white collector workspace with violet and blue accents; Blush Petal adds a bright blush, rose and lilac alternative.",
+      "Amber Archive is retired and existing Amber settings migrate automatically to Porcelain Studio without a startup colour flash.",
+      "Light appearances now cover navigation, Card Detail, Signal Radar, charts, dialogs, tooltips, mobile actions and custom light palettes with readable contrast.",
+      "Collection Complete and Signal Radar stream their heavier data behind useful skeletons while the surrounding page becomes usable sooner.",
+      "Search, image caching, scroll restoration, Want and collection actions, pull-to-refresh and installed-app startup have all received focused mobile performance work.",
+      "New-release chase cards now open their full Signal Radar detail directly.",
+    ],
+  },
+  {
     version: "3.8.5",
     releasedAt: "July 20, 2026",
     title: "Equal mobile card actions",

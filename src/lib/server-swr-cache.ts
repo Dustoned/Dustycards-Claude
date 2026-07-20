@@ -20,8 +20,37 @@ export interface SwrCache<T> {
   clear(): void;
 }
 
-export function createSwrCache<T>(freshMs: number, staleMs: number): SwrCache<T> {
+export interface SwrCacheOptions {
+  /** Hard cap prevents high-cardinality page keys from retaining data forever. */
+  maxEntries?: number;
+}
+
+export function createSwrCache<T>(
+  freshMs: number,
+  staleMs: number,
+  options: SwrCacheOptions = {}
+): SwrCache<T> {
   const cache = new Map<string, SwrEntry<T>>();
+  const maxEntries = Math.max(1, Math.floor(options.maxEntries ?? 128));
+
+  const touch = (key: string, entry: SwrEntry<T>) => {
+    cache.delete(key);
+    cache.set(key, entry);
+  };
+
+  const prune = (now: number) => {
+    for (const [key, entry] of cache) {
+      if (entry.staleAt <= now) cache.delete(key);
+    }
+  };
+
+  const enforceCapacity = () => {
+    while (cache.size > maxEntries) {
+      const oldestKey = cache.keys().next().value as string | undefined;
+      if (oldestKey == null) return;
+      cache.delete(oldestKey);
+    }
+  };
 
   const store = (key: string, promise: Promise<T>): SwrEntry<T> => {
     const now = Date.now();
@@ -32,6 +61,7 @@ export function createSwrCache<T>(freshMs: number, staleMs: number): SwrCache<T>
       refreshing: false,
     };
     cache.set(key, entry);
+    enforceCapacity();
     // Never cache a rejection: drop it so the next caller retries.
     promise.catch(() => {
       if (cache.get(key) === entry) cache.delete(key);
@@ -42,13 +72,16 @@ export function createSwrCache<T>(freshMs: number, staleMs: number): SwrCache<T>
   return {
     get(key, fetcher) {
       const now = Date.now();
+      prune(now);
       const cached = cache.get(key);
 
       if (cached && cached.expiresAt > now) {
+        touch(key, cached);
         return cached.promise;
       }
 
       if (cached && cached.staleAt > now) {
+        touch(key, cached);
         if (!cached.refreshing) {
           cached.refreshing = true;
           const refreshed = fetcher();

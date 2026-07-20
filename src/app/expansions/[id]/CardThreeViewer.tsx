@@ -1385,7 +1385,8 @@ export default function CardThreeViewer({
           powerPreference: "high-performance",
         });
         renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        const maxRendererPixelRatio = isMobileViewport ? 1.25 : 2;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxRendererPixelRatio));
         renderer.setSize(host.clientWidth, host.clientHeight);
         renderer.domElement.style.width = "100%";
         renderer.domElement.style.height = "100%";
@@ -1411,7 +1412,10 @@ export default function CardThreeViewer({
               url,
               (texture) => {
                 texture.colorSpace = THREE.SRGBColorSpace;
-                texture.anisotropy = renderer?.capabilities.getMaxAnisotropy() ?? 1;
+                const availableAnisotropy = renderer?.capabilities.getMaxAnisotropy() ?? 1;
+                texture.anisotropy = isMobileViewport
+                  ? Math.min(availableAnisotropy, 4)
+                  : availableAnisotropy;
                 texture.generateMipmaps = true;
                 texture.minFilter = THREE.LinearMipmapLinearFilter;
                 texture.magFilter = THREE.LinearFilter;
@@ -2113,7 +2117,7 @@ export default function CardThreeViewer({
           camera.aspect = host.clientWidth / host.clientHeight;
           camera.updateProjectionMatrix();
           applyCameraConstraints();
-          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxRendererPixelRatio));
           renderer.setSize(host.clientWidth, host.clientHeight);
           updateFraming();
         };

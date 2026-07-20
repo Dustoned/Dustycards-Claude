@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import {
@@ -23,7 +23,14 @@ function isMobileViewport(): boolean {
 }
 
 function isAtTop(): boolean {
-  return (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+  const rootTop = document.scrollingElement?.scrollTop ?? 0;
+  return Math.max(
+    0,
+    window.scrollY,
+    rootTop,
+    document.documentElement.scrollTop,
+    document.body.scrollTop
+  ) <= 0.5;
 }
 
 function isPullRefreshBlocked(): boolean {
@@ -62,27 +69,53 @@ function isExcludedStartTarget(target: EventTarget | null): boolean {
 
 export default function MobilePullToRefresh() {
   const router = useRouter();
-  const [pull, setPull] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const [dragging, setDragging] = useState(false);
-
+  const indicatorRef = useRef<HTMLDivElement>(null);
+  const iconRef = useRef<SVGSVGElement>(null);
   const refreshingRef = useRef(false);
   const gestureRef = useRef(createIdleMobilePullGesture());
+  const visualRef = useRef({ pull: 0, dragging: false });
+  const visualFrameRef = useRef(0);
+  const refreshTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    function applyVisual() {
+      visualFrameRef.current = 0;
+      const indicator = indicatorRef.current;
+      const icon = iconRef.current;
+      if (!indicator || !icon) return;
+
+      const { pull, dragging } = visualRef.current;
+      const refreshing = refreshingRef.current;
+      const progress = Math.min(1, pull / MOBILE_PULL_REFRESH_TRIGGER_PX);
+      indicator.style.transform = `translateY(${Math.max(0, pull - 28)}px)`;
+      indicator.style.opacity = pull > 0 || refreshing ? "1" : "0";
+      indicator.style.transition = dragging
+        ? "none"
+        : "transform 0.2s ease, opacity 0.2s ease";
+      icon.classList.toggle("animate-spin", refreshing);
+      icon.style.transform = refreshing ? "" : `rotate(${progress * 270}deg)`;
+    }
+
+    function updateVisual(pull: number, dragging: boolean, force = false) {
+      const current = visualRef.current;
+      if (!force && current.pull === pull && current.dragging === dragging) return;
+      visualRef.current = { pull, dragging };
+      if (visualFrameRef.current) return;
+      visualFrameRef.current = window.requestAnimationFrame(applyVisual);
+    }
+
     function reset() {
       gestureRef.current = createIdleMobilePullGesture();
-      setDragging(false);
-      if (!refreshingRef.current) setPull(0);
+      if (!refreshingRef.current) updateVisual(0, false);
     }
 
     function onStart(event: TouchEvent) {
       if (refreshingRef.current) return;
+      gestureRef.current = createIdleMobilePullGesture();
+      updateVisual(0, false);
       if (!isMobileViewport()) return;
       if (event.touches.length !== 1) {
         gestureRef.current = cancelMobilePullGesture(gestureRef.current);
-        setDragging(false);
-        setPull(0);
         return;
       }
       if (isPullRefreshBlocked()) return;
@@ -109,8 +142,7 @@ export default function MobilePullToRefresh() {
         rootAtTop: isAtTop(),
       });
       gestureRef.current = result.state;
-      setDragging(result.state.phase === "pulling");
-      setPull(result.state.pullPx);
+      updateVisual(result.state.pullPx, result.state.phase === "pulling");
       if (result.preventDefault && event.cancelable) event.preventDefault();
     }
 
@@ -122,19 +154,20 @@ export default function MobilePullToRefresh() {
       );
       gestureRef.current = finished.state;
       if (event.touches.length > 0) return;
-      setDragging(false);
       if (finished.refresh && !isPullRefreshBlocked()) {
         refreshingRef.current = true;
-        setRefreshing(true);
-        setPull(MOBILE_PULL_REFRESH_TRIGGER_PX);
+        updateVisual(MOBILE_PULL_REFRESH_TRIGGER_PX, false, true);
         router.refresh();
-        window.setTimeout(() => {
+        if (refreshTimerRef.current != null) {
+          window.clearTimeout(refreshTimerRef.current);
+        }
+        refreshTimerRef.current = window.setTimeout(() => {
+          refreshTimerRef.current = null;
           refreshingRef.current = false;
-          setRefreshing(false);
-          setPull(0);
+          updateVisual(0, false, true);
         }, SPIN_HOLD_MS);
       } else {
-        setPull(0);
+        updateVisual(0, false);
       }
     }
 
@@ -144,8 +177,7 @@ export default function MobilePullToRefresh() {
     function onCancel(event: TouchEvent) {
       if (event.touches.length > 0) {
         gestureRef.current = cancelMobilePullGesture(gestureRef.current);
-        setDragging(false);
-        setPull(0);
+        updateVisual(0, false);
         return;
       }
       reset();
@@ -158,26 +190,34 @@ export default function MobilePullToRefresh() {
       window.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onEnd);
       window.removeEventListener("touchcancel", onCancel);
+      if (visualFrameRef.current) {
+        window.cancelAnimationFrame(visualFrameRef.current);
+        visualFrameRef.current = 0;
+      }
+      if (refreshTimerRef.current != null) {
+        window.clearTimeout(refreshTimerRef.current);
+        refreshTimerRef.current = null;
+      }
+      refreshingRef.current = false;
     };
   }, [router]);
 
-  const visible = pull > 0 || refreshing;
-  const progress = Math.min(1, pull / MOBILE_PULL_REFRESH_TRIGGER_PX);
-
   return (
     <div
+      ref={indicatorRef}
       aria-hidden
       className="pointer-events-none fixed inset-x-0 top-0 z-[120] flex justify-center lg:hidden"
       style={{
-        transform: `translateY(${Math.max(0, pull - 28)}px)`,
-        opacity: visible ? 1 : 0,
-        transition: dragging ? "none" : "transform 0.2s ease, opacity 0.2s ease",
+        transform: "translateY(0px)",
+        opacity: 0,
+        transition: "transform 0.2s ease, opacity 0.2s ease",
       }}
     >
       <div className="mt-2 flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-[#14141c] shadow-lg shadow-black/40">
         <RefreshCw
-          className={`h-4 w-4 text-violet-300 ${refreshing ? "animate-spin" : ""}`}
-          style={{ transform: refreshing ? undefined : `rotate(${progress * 270}deg)` }}
+          ref={iconRef}
+          className="h-4 w-4 text-violet-300"
+          style={{ transform: "rotate(0deg)" }}
         />
       </div>
     </div>

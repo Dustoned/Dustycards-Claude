@@ -17,6 +17,7 @@
 /polish-*-screenshots/
 /polish-screenshots-*/
 /.codex-screenshots/
+/.codex-temp/
 /playwright-report/
 /screenshots-ui/
 /test-results/

@@ -10,6 +10,8 @@ import {
   buildCardEbaySoldGradedPriceHistory,
   buildCardGradedPriceHistory,
   buildCardPriceHistory,
+  type CardEbaySoldGradedPriceHistorySnapshot,
+  type CardGradedPriceHistorySnapshot,
 } from "@/lib/price-history";
 import { getPullRateInfoForSetRarity } from "@/lib/pull-rates";
 import { ONE_PIECE_GAME } from "@/lib/games";
@@ -37,6 +39,52 @@ type CardDetailCollectionItem = {
     base_purchase_price: number | null;
   } | null;
 };
+
+async function loadDailyGradedHistory(cardId: string): Promise<{
+  cardMarket: CardGradedPriceHistorySnapshot[];
+  ebaySold: CardEbaySoldGradedPriceHistorySnapshot[];
+}> {
+  const [cardMarket, ebaySold] = await Promise.all([
+    db.$queryRaw<CardGradedPriceHistorySnapshot[]>`
+      SELECT label, price, fetched_at
+      FROM (
+        SELECT
+          label,
+          price,
+          fetched_at,
+          ROW_NUMBER() OVER (
+            PARTITION BY label, DATE(fetched_at)
+            ORDER BY fetched_at DESC, id DESC
+          ) AS row_num
+        FROM "CardGradedPriceSnapshot"
+        WHERE card_id = ${cardId}
+      )
+      WHERE row_num = 1
+      ORDER BY label ASC, fetched_at ASC
+    `,
+    db.$queryRaw<CardEbaySoldGradedPriceHistorySnapshot[]>`
+      SELECT label, median_price, currency, sample_size, fetched_at
+      FROM (
+        SELECT
+          label,
+          median_price,
+          currency,
+          sample_size,
+          fetched_at,
+          ROW_NUMBER() OVER (
+            PARTITION BY label, DATE(fetched_at)
+            ORDER BY fetched_at DESC, id DESC
+          ) AS row_num
+        FROM "CardEbaySoldGradedPriceSnapshot"
+        WHERE card_id = ${cardId}
+      )
+      WHERE row_num = 1
+      ORDER BY label ASC, fetched_at ASC
+    `,
+  ]);
+
+  return { cardMarket, ebaySold };
+}
 
 function buildDirectCostBasis(purchasePrice: number | null): CollectionCostBasis | null {
   return purchasePrice == null
@@ -231,24 +279,6 @@ export async function getCardDetailPayload(id: string, userId: string) {
           fetched_at: true,
         },
       },
-      ebaySoldGradedPriceSnapshots: {
-        orderBy: [{ label: "asc" }, { fetched_at: "asc" }],
-        select: {
-          label: true,
-          median_price: true,
-          currency: true,
-          sample_size: true,
-          fetched_at: true,
-        },
-      },
-      gradedPriceSnapshots: {
-        orderBy: [{ label: "asc" }, { fetched_at: "asc" }],
-        select: {
-          label: true,
-          price: true,
-          fetched_at: true,
-        },
-      },
     },
   });
 
@@ -262,6 +292,8 @@ export async function getCardDetailPayload(id: string, userId: string) {
       return null;
     }
   }
+
+  const dailyGradedHistoryPromise = loadDailyGradedHistory(card.id);
 
   const sealedProducts = await db.sealedProduct.findMany({
     where: {
@@ -335,14 +367,15 @@ export async function getCardDetailPayload(id: string, userId: string) {
     .reverse()
     .find((price) => getCurrentRawCardmarketValue(price) != null) ?? null;
   const priceHistory = buildCardPriceHistory(safePriceRows);
-  const gradedPriceHistory = buildCardGradedPriceHistory(card.gradedPriceSnapshots);
-  const [pullRateInfo, ebayDemand] = await Promise.all([
+  const [dailyGradedHistory, pullRateInfo, ebayDemand] = await Promise.all([
+    dailyGradedHistoryPromise,
     getPullRateInfoForSetRarity({
       setCode: card.episode.code,
       rarity: card.rarity,
     }),
     getEbayDemandPayload({ cardId: card.id, mode: "raw" }),
   ]);
+  const gradedPriceHistory = buildCardGradedPriceHistory(dailyGradedHistory.cardMarket);
   const pullRateInfoPayload = pullRateInfo
     ? {
         source: pullRateInfo.source,
@@ -358,10 +391,10 @@ export async function getCardDetailPayload(id: string, userId: string) {
   const collectionCostBasis = await getCardDetailCostBasis(collectionItem, userId);
   const hasUsdEbaySoldGradedPrices = card.ebaySoldGradedPrices.some(
     (price) => price.currency.toUpperCase() === "USD"
-  ) || card.ebaySoldGradedPriceSnapshots.some((price) => price.currency.toUpperCase() === "USD");
+  ) || dailyGradedHistory.ebaySold.some((price) => price.currency.toUpperCase() === "USD");
   const usdToEurRate = hasUsdEbaySoldGradedPrices ? await getUsdToEurRate() : null;
   const ebaySoldGradedPriceHistory = buildCardEbaySoldGradedPriceHistory(
-    card.ebaySoldGradedPriceSnapshots,
+    dailyGradedHistory.ebaySold,
     { usdToEurRate: usdToEurRate?.rate ?? null }
   );
   const ebaySoldGradedPrices = card.ebaySoldGradedPrices.map((price) => {

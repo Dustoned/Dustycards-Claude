@@ -13,7 +13,7 @@ import { GAME_SEARCH_PARAM, ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import { useSettings } from "@/components/SettingsProvider";
 
 const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
-const SEARCH_ROUTE_DEBOUNCE_MS = 260;
+const SEARCH_ROUTE_DEBOUNCE_MS = 180;
 
 export default function HeaderSearch() {
   const router = useRouter();
@@ -149,7 +149,12 @@ export default function HeaderSearch() {
       inputRef.current.value = "";
     }
     setMobileQuery("");
-    router.replace(buildEmptySearchHref(), { scroll: false });
+    const href = buildEmptySearchHref();
+    if (pathname === "/search") {
+      window.history.replaceState(window.history.state, "", href);
+      return;
+    }
+    router.replace(href, { scroll: false });
   }
 
   function routeToSearch(rawQuery: string, preferPush = false) {
@@ -170,6 +175,13 @@ export default function HeaderSearch() {
       params.set(GAME_SEARCH_PARAM, activeGameParam);
     }
     const href = `/search?${params.toString()}`;
+
+    if (pathname === "/search") {
+      // Next integrates native history updates with useSearchParams. Avoiding a
+      // full RSC navigation here lets the client search request start sooner.
+      window.history.replaceState(window.history.state, "", href);
+      return;
+    }
 
     if (preferPush && pathname !== "/search" && !startedSearchRef.current) {
       rememberSearchReturnPath(currentHref);
