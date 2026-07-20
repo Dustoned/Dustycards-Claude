@@ -16,12 +16,15 @@ import CachedImage from "@/components/CachedImage";
 import {
   CardListTile,
   CardListTileBody,
+  CardListTileFooter,
   CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
   CardListTilePrice,
 } from "@/components/CardListTile";
-import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
+import CollectionCardQuickActions, {
+  CollectionCardQuickActionsPlaceholder,
+} from "@/components/CollectionCardQuickActions";
 import type {
   CardQuickActionData,
   CardQuickActionMap,
@@ -172,8 +175,8 @@ function ChaseCard({
     <CardListTile
       interactive
       accent="radar"
+      layout="showcase"
       className={cx(
-        "grid-cols-[clamp(6.75rem,30vw,7.25rem)_minmax(0,1fr)] sm:grid-cols-[7.5rem_minmax(0,1fr)]",
         centerOnTwoColumnRow &&
           "md:col-span-2 md:w-full md:max-w-[28rem] md:justify-self-center 2xl:col-span-1 2xl:max-w-none"
       )}
@@ -241,19 +244,26 @@ function ChaseCard({
           </span>
         </CardListTileInsight>
 
-        <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+        <CardListTileFooter
+          data-chase-card-footer
+          className="max-[359px]:gap-1"
+        >
+          <span
+            data-card-analysis-link
+            data-chase-analysis-link
+            className="mr-auto inline-flex min-h-11 min-w-0 shrink items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100 max-[359px]:px-0.5"
+          >
+            Analysis
+            <ArrowUpRight className="h-3.5 w-3.5 max-[359px]:hidden" />
+          </span>
           {quickActionData ? (
             <div className="pointer-events-auto relative z-10 shrink-0" data-chase-card-actions>
               <CollectionCardQuickActions data={quickActionData} />
             </div>
           ) : (
-            <span />
+            <CollectionCardQuickActionsPlaceholder className="pointer-events-auto relative z-10" />
           )}
-          <span className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100">
-            Analysis
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </span>
-        </div>
+        </CardListTileFooter>
         <span className="sr-only">
           {showObservedMove ? "Seven-day move" : "Projected 180-day move"}: {showObservedMove
             ? signedWholePercent(card.changeVs7dPct)

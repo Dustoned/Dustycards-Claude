@@ -2048,6 +2048,10 @@ export async function getCollectionOverviewData(
     history: loadCollectionHistory,
   });
 
+  const baseQueryTimer = startPerformanceTimer("collection.overview.base-query", {
+    activeTab,
+    game,
+  });
   const [collectionCards, collectionSealed, binders, forSaleCards, soldCards] = await Promise.all([
     loadDetailedCards
       ? getCollectionCards({ userId: options.userId, game })
@@ -2059,6 +2063,7 @@ export async function getCollectionOverviewData(
     getForSaleCollectionCards({ userId: options.userId, game }),
     getSoldCollectionCards({ userId: options.userId, game }),
   ]);
+  baseQueryTimer.finish();
 
   const metricCards = collectionCards as CollectionCardMetricRecord[];
   const metricForSaleCards = forSaleCards as CollectionCardMetricRecord[];
@@ -2092,6 +2097,9 @@ export async function getCollectionOverviewData(
         .map((record) => record.card.id)
     ),
   ];
+  const historyQueryTimer = startPerformanceTimer("collection.overview.history-query", {
+    activeTab,
+  });
   const [cardHistory, sealedHistory, gradedHistory] = loadCollectionHistory
     ? await Promise.all([
         getCardHistoryRows([...cardQuantities.keys()], historyCutoff ?? undefined),
@@ -2099,6 +2107,11 @@ export async function getCollectionOverviewData(
         getGradedHistoryRows(overviewGradedCardIds, historyCutoff ?? undefined),
       ])
     : [[], [], []];
+  historyQueryTimer.finish({
+    cardRows: cardHistory.length,
+    sealedRows: sealedHistory.length,
+    gradedRows: gradedHistory.length,
+  });
 
   // Same rule as the drivers: raw copies chart raw, graded copies chart their
   // own graded price history — chart, value tile and drivers stay in sync.
@@ -2112,6 +2125,9 @@ export async function getCollectionOverviewData(
       gradingCompany: record.grading_company,
       gradingGrade: record.grading_grade,
     }));
+  const historyBuildTimer = startPerformanceTimer("collection.overview.history-build", {
+    activeTab,
+  });
   const combinedHistory = combineValueHistories(
     buildOwnedCardValueHistory(cardHistory, overviewRawChartQuantities),
     buildOwnedSealedValueHistory(sealedHistory, sealedQuantities),
@@ -2126,6 +2142,7 @@ export async function getCollectionOverviewData(
     label: point.label,
     value: point.total_market,
   }));
+  historyBuildTimer.finish({ points: combinedHistory.length });
   const binderCardIds = loadDetailedBinders
     ? [...new Set(metricCards.filter((record) => record.binder_id).map((record) => record.card.id))]
     : [];

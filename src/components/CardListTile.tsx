@@ -14,6 +14,7 @@ function cx(...values: Array<string | false | null | undefined>): string {
 }
 
 type TileState = "default" | "highlighted" | "selected";
+type TileLayout = "standard" | "showcase";
 
 const TILE_STATE_CLASS: Record<TileState, string> = {
   default:
@@ -24,12 +25,20 @@ const TILE_STATE_CLASS: Record<TileState, string> = {
     "border-blue-400/70 ring-2 ring-blue-400/45",
 };
 
+const TILE_LAYOUT_CLASS: Record<TileLayout, string> = {
+  standard:
+    "grid-cols-[clamp(5.75rem,26vw,6.5rem)_minmax(0,1fr)] max-[359px]:grid-cols-[5.5rem_minmax(0,1fr)] sm:grid-cols-[5.75rem_minmax(0,1fr)]",
+  showcase:
+    "grid-cols-[clamp(6.75rem,30vw,7.25rem)_minmax(0,1fr)] max-[359px]:grid-cols-[6rem_minmax(0,1fr)] sm:grid-cols-[7.5rem_minmax(0,1fr)]",
+};
+
 export interface CardListTileProps
   extends Omit<ComponentPropsWithoutRef<"article">, "children"> {
   children?: ReactNode;
   interactive?: boolean;
   state?: TileState;
   accent?: "market" | "radar" | "collection";
+  layout?: TileLayout;
 }
 
 export function CardListTile({
@@ -38,6 +47,7 @@ export function CardListTile({
   interactive = false,
   state = "default",
   accent = "market",
+  layout = "standard",
   ...props
 }: CardListTileProps) {
   return (
@@ -46,8 +56,10 @@ export function CardListTile({
       data-card-list-tile
       data-card-list-accent={accent}
       data-card-list-state={state}
+      data-card-list-layout={layout}
       className={cx(
-        "group/card-list relative grid min-w-0 grid-cols-[clamp(5.75rem,26vw,6.5rem)_minmax(0,1fr)] items-start gap-3 overflow-hidden rounded-[1.2rem] border bg-[linear-gradient(145deg,rgb(var(--dc-surface-elevated-rgb)/0.94),rgb(var(--dc-surface-primary-rgb)/0.97))] p-3 text-left shadow-[0_12px_34px_rgba(0,0,0,0.14)] outline-none transition-[border-color,background-color,box-shadow] max-[359px]:grid-cols-[5.5rem_minmax(0,1fr)] max-[359px]:gap-2.5 max-[359px]:p-2.5 sm:grid-cols-[5.75rem_minmax(0,1fr)]",
+        "group/card-list relative grid min-w-0 items-start gap-3 overflow-hidden rounded-[1.2rem] border bg-[linear-gradient(145deg,rgb(var(--dc-surface-elevated-rgb)/0.94),rgb(var(--dc-surface-primary-rgb)/0.97))] p-3 text-left shadow-[0_12px_34px_rgba(0,0,0,0.14)] outline-none transition-[border-color,background-color,box-shadow] max-[359px]:gap-2.5 max-[359px]:p-2.5",
+        TILE_LAYOUT_CLASS[layout],
         TILE_STATE_CLASS[state],
         interactive &&
           "cursor-pointer focus-visible:ring-2 focus-visible:ring-[rgb(var(--dc-primary-rgb)/0.55)]",

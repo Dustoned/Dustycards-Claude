@@ -271,28 +271,49 @@ async function expectInlineCardActions(card: Locator) {
 async function expectMobileCardListTileContract(page: Page, tile: Locator) {
   expect(page.viewportSize()?.width).toBe(390);
   await expect(tile).toBeVisible();
+  await expect(tile).toHaveAttribute("data-card-list-layout", "showcase");
   await expect(tile.locator("[data-card-list-media]")).toHaveCount(1);
   await expect(tile.locator("[data-card-list-price]")).toHaveCount(1);
   await expect(tile.locator("[data-card-inline-actions]")).toHaveCount(1);
+  await expect(tile.locator("[data-card-analysis-link]")).toHaveCount(1);
 
   const media = tile.locator("[data-card-list-media]");
   const price = tile.locator("[data-card-list-price]");
-  const title = tile
-    .locator(
-      "[data-card-list-body] h3.truncate, [data-card-list-body] p.truncate"
-    )
-    .first();
+  const analysis = tile.locator("[data-card-analysis-link]");
+  const headingTitle = tile.locator("[data-card-list-body] h3.truncate").first();
+  const title =
+    (await headingTitle.count()) > 0
+      ? headingTitle
+      : tile.locator("[data-card-list-body] p.truncate").first();
   const { collection, want } = await expectInlineCardActions(tile);
-  const [mediaBounds, priceBounds, titleBounds, collectionBounds, wantBounds] =
+  const [
+    cardBounds,
+    mediaBounds,
+    priceBounds,
+    titleBounds,
+    analysisBounds,
+    collectionBounds,
+    wantBounds,
+  ] =
     await Promise.all([
+      requiredBounds(tile),
       requiredBounds(media),
       requiredBounds(price),
       requiredBounds(title),
+      requiredBounds(analysis),
       requiredBounds(collection),
       requiredBounds(want),
     ]);
 
-  expect(mediaBounds.width).toBeGreaterThanOrEqual(88);
+  expect(mediaBounds.width).toBeGreaterThanOrEqual(104);
+  expect(titleBounds.height).toBeLessThanOrEqual(25);
+  expect(analysisBounds.x).toBeLessThan(collectionBounds.x);
+  expect(wantBounds.x + wantBounds.width).toBeLessThanOrEqual(
+    cardBounds.x + cardBounds.width - 8
+  );
+  expect(
+    cardBounds.y + cardBounds.height - (wantBounds.y + wantBounds.height)
+  ).toBeLessThanOrEqual(18);
   for (const [label, bounds] of [
     ["Add", collectionBounds],
     ["Want", wantBounds],
@@ -2066,7 +2087,7 @@ test.describe("DustyCards smoke", () => {
 
     try {
       await page.goto("/settings");
-      const appearance = page.locator("[data-appearance-section]");
+      const appearance = page.locator("[data-appearance-section]:visible");
       const root = page.locator("html");
       await expect(appearance).toBeVisible();
 
@@ -2203,6 +2224,15 @@ test.describe("DustyCards smoke", () => {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
+
+    // The first twelve cards arrive through the progressive feed when there is
+    // no immediately renderable persisted cohort. Wait for that honest loading
+    // state to resolve before deciding that this database has no Radar cards.
+    await page
+      .locator("[data-chase-card-id], [data-signal-card-id]")
+      .first()
+      .waitFor({ state: "attached", timeout: 60_000 })
+      .catch(() => undefined);
 
     const chaseCard = page.locator("[data-chase-card-id]").first();
     const signalCard = page.locator("[data-signal-card-id]").first();

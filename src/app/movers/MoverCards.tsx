@@ -5,15 +5,15 @@ import {
   CardListTile,
   CardListTileBody,
   CardListTileFooter,
+  CardListTileInsight,
   CardListTileMedia,
-  CardListTileMetrics,
   CardListTilePrice,
 } from "@/components/CardListTile";
 import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import Link from "next/link";
 import { memo } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
@@ -399,7 +399,7 @@ function MoverReasonChips({
       {reasons.map((reason, index) => (
         <span
           key={reason.label}
-          className={`${index >= mobileLimit ? "hidden sm:inline-flex" : "inline-flex"} rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${reasonChipClass(
+          className={`${index >= mobileLimit ? "hidden sm:inline-flex" : "inline-flex"} rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.08em] tabular-nums ${reasonChipClass(
             reason.tone
           )}`}
         >
@@ -415,29 +415,6 @@ function metricValueClass(toneValue?: number | null): string {
   if (toneValue < 0) return "text-rose-300";
   if (toneValue > 0) return "text-emerald-300";
   return "text-white/82";
-}
-
-function CompactMetric({
-  label,
-  value,
-  toneValue,
-  className,
-}: {
-  label: string;
-  value: string;
-  toneValue?: number | null;
-  className?: string;
-}) {
-  return (
-    <div className={`min-w-0 ${className ?? ""}`}>
-      <p className="truncate text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">
-        {label}
-      </p>
-      <p className={`mt-0.5 whitespace-nowrap text-[13px] font-semibold tabular-nums ${metricValueClass(toneValue)}`}>
-        {value}
-      </p>
-    </div>
-  );
 }
 
 function buildCompactMetrics(
@@ -546,6 +523,7 @@ const MoverTile = memo(function MoverTile({
   metricWindowLabel,
   changeDisplay,
   cardQuickActions,
+  prioritizeImage,
   onOpen,
 }: {
   item: CollectionMoverItem;
@@ -555,6 +533,7 @@ const MoverTile = memo(function MoverTile({
   metricWindowLabel?: string;
   changeDisplay: MoverChangeDisplay;
   cardQuickActions: CardQuickActionMap;
+  prioritizeImage: boolean;
   onOpen: (cardId: string) => void;
 }) {
   const open = () => onOpen(item.cardId);
@@ -567,6 +546,8 @@ const MoverTile = memo(function MoverTile({
     : formatTileCurrency(item.currentPrice, item.currency);
   const mobileBadgeCount = Number(Boolean(item.normalizedRarity)) + Number(Boolean(item.buySignal));
   const mobileReasonLimit = Math.max(0, 2 - mobileBadgeCount);
+  const primaryMetric = compactMetrics[0] ?? null;
+  const secondaryMetric = compactMetrics[1] ?? null;
 
   return (
     <CardListTile
@@ -577,6 +558,7 @@ const MoverTile = memo(function MoverTile({
       onKeyDown={(event) => handleOpenKey(event, open)}
       aria-label={`Open details for ${item.name}`}
       interactive
+      layout="showcase"
       state={isHighlighted ? "highlighted" : "default"}
       className="scroll-mt-24"
     >
@@ -593,79 +575,84 @@ const MoverTile = memo(function MoverTile({
             alt={item.name}
             fill
             className={getCardImageClassName(item.imageUrl, "rounded-[4.75%] object-fill")}
-            sizes="(max-width: 640px) 104px, 92px"
+            sizes="(max-width: 640px) 116px, 120px"
+            loading={prioritizeImage ? "eager" : undefined}
+            preload={prioritizeImage}
           />
         ) : undefined}
       </CardListTileMedia>
 
       <CardListTileBody>
-        <div className="flex items-start justify-between gap-2 sm:gap-3">
-          <div className="min-w-0">
-            <p className="block max-w-full truncate text-sm font-semibold leading-tight text-white sm:text-[15px]">
-              {item.name}
-            </p>
-            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10.5px] text-white/42 sm:text-[11px]">
-              <span className="shrink-0 tabular-nums">{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
-              <span className="text-white/20">·</span>
-              <Link
-                href={getExpansionHref(item.episodeId)}
-                prefetch={false}
-                onClick={stopCardOpen}
-                className="truncate transition-colors hover:text-white/80"
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
+          <div className="flex max-h-6 min-w-0 flex-wrap items-start gap-1 overflow-hidden sm:max-h-none">
+            {item.normalizedRarity ? (
+              <span
+                className={`inline-flex rounded-full px-2 py-1 text-[8px] font-bold uppercase tracking-[0.08em] ${rarityBadge(
+                  item.normalizedRarity
+                )}`}
               >
-                {item.episodeName}
-                {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
-              </Link>
-            </div>
+                {item.normalizedRarity}
+              </span>
+            ) : null}
+            <MoverBuySignalChip signal={item.buySignal} />
+            <MoverReasonChips
+              item={item}
+              mode={mode}
+              changeDisplay={changeDisplay}
+              mobileLimit={mobileReasonLimit}
+            />
           </div>
-
           <CardListTilePrice label={primaryLabel} value={primaryValue} />
-        </div>
-
-        <div className="mt-1.5 flex flex-wrap items-center gap-1 sm:mt-2 sm:gap-1.5">
-          {item.normalizedRarity ? (
-            <span
-              className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold ${rarityBadge(
-                item.normalizedRarity
-              )}`}
+          <h3 className="col-span-2 mt-1.5 truncate text-base font-bold leading-5 tracking-tight text-white transition group-hover/card-list:text-violet-100">
+            {item.name}
+          </h3>
+          <div className="col-span-2 mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-4 text-white/52">
+            <span className="shrink-0 tabular-nums">{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
+            <span className="text-white/20">·</span>
+            <Link
+              href={getExpansionHref(item.episodeId)}
+              prefetch={false}
+              onClick={stopCardOpen}
+              className="truncate transition-colors hover:text-white/80"
             >
-              {item.normalizedRarity}
-            </span>
-          ) : null}
-          <MoverBuySignalChip signal={item.buySignal} />
-          <MoverReasonChips
-            item={item}
-            mode={mode}
-            changeDisplay={changeDisplay}
-            mobileLimit={mobileReasonLimit}
-          />
-          {mode === "target" ? (
-            <span className="hidden rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/45 sm:inline-flex">
-              {item.grading?.tier === "pristine" ? "Pristine target" : "Grade target"}
-            </span>
-          ) : null}
-          {item.ownedCount > 0 ? (
-            <span className="hidden rounded-md border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/45 sm:inline-flex">
-              {item.ownedCount}× owned
-            </span>
-          ) : null}
+              {item.episodeName}
+              {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
+            </Link>
+          </div>
         </div>
 
-        {compactMetrics.length > 0 ? (
-          <CardListTileMetrics>
-            {compactMetrics.slice(0, 4).map((metric, index) => (
-              <CompactMetric
-                key={metric.label}
-                label={metric.label}
-                value={metric.value}
-                toneValue={metric.toneValue}
-                className={index >= 2 ? "hidden sm:block" : undefined}
-              />
-            ))}
-          </CardListTileMetrics>
+        {primaryMetric ? (
+          <CardListTileInsight>
+            <span
+              aria-hidden="true"
+              className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-300/70 shadow-[0_0_10px_rgba(196,181,253,0.42)]"
+            />
+            <span className="min-w-0 truncate tabular-nums">
+              <strong className={`font-bold ${metricValueClass(primaryMetric.toneValue)}`}>
+                {primaryMetric.label} {primaryMetric.value}
+              </strong>
+              {secondaryMetric ? (
+                <span className="text-white/42">
+                  {` · ${secondaryMetric.label} ${secondaryMetric.value}`}
+                </span>
+              ) : null}
+              {mode === "target" && item.grading ? (
+                <span className="hidden text-white/42 sm:inline">
+                  {` · ${item.grading.tier === "pristine" ? "Pristine" : "Grade"} target`}
+                </span>
+              ) : null}
+            </span>
+          </CardListTileInsight>
         ) : null}
 
-        <CardListTileFooter className="justify-end">
+        <CardListTileFooter className="max-[359px]:gap-1">
+          <span
+            data-card-analysis-link
+            className="mr-auto inline-flex min-h-11 min-w-0 shrink items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100 max-[359px]:px-0.5"
+          >
+            Analysis
+            <ChevronRight className="h-3.5 w-3.5 max-[359px]:hidden" />
+          </span>
           <CollectionCardQuickActions
             data={getMoverQuickActionData(item, cardQuickActions)}
             gradedLabel={displayMode === "graded" ? item.gradedLabel : null}
@@ -1016,7 +1003,7 @@ export function MoverGrid({
         justifyContent: "stretch",
       }}
     >
-      {movers.map((item) => (
+      {movers.map((item, index) => (
         <MoverTile
           key={`${item.cardId}:${item.gradedLabel ?? item.source}`}
           item={item}
@@ -1026,6 +1013,7 @@ export function MoverGrid({
           metricWindowLabel={metricWindowLabel}
           changeDisplay={changeDisplay}
           cardQuickActions={cardQuickActions}
+          prioritizeImage={index === 0}
           onOpen={onOpenCard}
         />
       ))}

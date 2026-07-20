@@ -1,5 +1,6 @@
 import nextDynamic from "next/dynamic";
 import Link from "next/link";
+import { Suspense } from "react";
 import {
   Activity,
   BarChart3,
@@ -24,7 +25,6 @@ import {
   type CollectionPageTab,
 } from "@/lib/collection-data";
 import { getServerUserSettings } from "@/lib/user-settings-server";
-import { getFeaturedCollectionCards } from "@/lib/featured-cards";
 import {
   GAME_FILTER_OPTIONS,
   GAME_SEARCH_PARAM,
@@ -38,6 +38,11 @@ import { requirePageUser } from "@/lib/page-auth";
 import { FAST_SUDDEN_DROP_MIN_AMOUNT } from "@/lib/home-sudden-drops-server";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import EmptyState from "@/components/EmptyState";
+import HomePageLoading from "@/components/HomePageLoading";
+import {
+  getHomeFeaturedCards,
+  getHomeValueDriversPreview,
+} from "@/lib/home-page-payload";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const ProgressiveCollectionOverviewSections = nextDynamic(
@@ -343,7 +348,7 @@ function FeaturedCardsPanel({
   cards: CollectionOverviewData["cards"];
   viewAllHref: string;
 }) {
-  const featured = getFeaturedCollectionCards(cards);
+  const featured = getHomeFeaturedCards(cards);
 
   if (featured.length === 0) return null;
 
@@ -457,7 +462,7 @@ function FirstRunCollectionPanel({
   );
 }
 
-export default async function HomePage({
+async function HomePageContent({
   searchParams,
 }: {
   searchParams: Promise<{ tab?: string; graded?: string; game?: string }>;
@@ -822,7 +827,7 @@ export default async function HomePage({
           {hasCollection && (
             <div className="home-insight-panels">
               <HomeValueDriversPanel
-                data={data.valueDrivers}
+                data={getHomeValueDriversPreview(data.valueDrivers)}
                 viewAllHref={buildValueDriversHref()}
               />
               <HomeSuddenDropsPanel
@@ -1006,5 +1011,17 @@ export default async function HomePage({
         ) : null
       }
     />
+  );
+}
+
+export default function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; graded?: string; game?: string }>;
+}) {
+  return (
+    <Suspense fallback={<HomePageLoading />}>
+      <HomePageContent searchParams={searchParams} />
+    </Suspense>
   );
 }

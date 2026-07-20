@@ -3,6 +3,35 @@ import type { ExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 
 export const INITIAL_SIGNAL_RADAR_CARD_COUNT = 12;
+export const INITIAL_SIGNAL_RADAR_FEED_DELAY_MS = 1_200;
+
+export function getSignalRadarFeedStartDelay(attempt: number): number {
+  return attempt === 0 ? INITIAL_SIGNAL_RADAR_FEED_DELAY_MS : 0;
+}
+
+export function scheduleSignalRadarFeedStart(
+  attempt: number,
+  start: (signal: AbortSignal) => void | Promise<void>
+): () => void {
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(() => {
+    if (!controller.signal.aborted) void start(controller.signal);
+  }, getSignalRadarFeedStartDelay(attempt));
+
+  return () => {
+    globalThis.clearTimeout(timer);
+    controller.abort();
+  };
+}
+
+export function commitSignalRadarFeedResult(
+  signal: AbortSignal,
+  commit: () => void
+): boolean {
+  if (signal.aborted) return false;
+  commit();
+  return true;
+}
 
 export interface SignalRadarProgressivePayload {
   signals: ExternalCardSignal[];

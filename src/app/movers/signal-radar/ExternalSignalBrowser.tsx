@@ -21,12 +21,15 @@ import CachedImage from "@/components/CachedImage";
 import {
   CardListTile,
   CardListTileBody,
+  CardListTileFooter,
   CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
   CardListTilePrice,
 } from "@/components/CardListTile";
-import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
+import CollectionCardQuickActions, {
+  CollectionCardQuickActionsPlaceholder,
+} from "@/components/CollectionCardQuickActions";
 import EmptyState from "@/components/EmptyState";
 import { SectionHeader } from "@/components/PageHeader";
 import NewReleaseChasePanel from "@/app/movers/signal-radar/NewReleaseChasePanel";
@@ -45,7 +48,11 @@ import type {
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
-import type { SignalRadarProgressivePayload } from "@/lib/signal-radar-progressive";
+import {
+  commitSignalRadarFeedResult,
+  scheduleSignalRadarFeedStart,
+  type SignalRadarProgressivePayload,
+} from "@/lib/signal-radar-progressive";
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
@@ -607,12 +614,16 @@ function CompactSignalCard({
     <CardListTile
       interactive
       accent="radar"
-      className="grid-cols-[clamp(6.75rem,30vw,7.25rem)_minmax(0,1fr)] sm:grid-cols-[7.5rem_minmax(0,1fr)]"
+      layout="showcase"
       data-signal-card-id={signal.cardId}
     >
       <CardListTileLink
         href={detailHref}
         label={`Open full analysis for ${signal.name}`}
+        // The leading Radar card is both visible immediately and the most
+        // likely detail target. Warm its complete RSC payload; later cards
+        // retain Next's lighter automatic prefetch via their loading boundary.
+        prefetch={prioritizeImage ? true : null}
       />
 
       <CardListTileMedia
@@ -689,7 +700,18 @@ function CompactSignalCard({
           </span>
         </CardListTileInsight>
 
-        <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+        <CardListTileFooter
+          data-signal-card-footer
+          className="max-[359px]:gap-1"
+        >
+          <span
+            data-card-analysis-link
+            data-signal-analysis-link
+            className="mr-auto inline-flex min-h-11 min-w-0 shrink items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100 max-[359px]:px-0.5"
+          >
+            Analysis
+            <ChevronRight className="h-3.5 w-3.5 max-[359px]:hidden" />
+          </span>
           {quickActionData ? (
             <div className="pointer-events-auto relative z-10 shrink-0">
               <CollectionCardQuickActions
@@ -702,13 +724,9 @@ function CompactSignalCard({
               />
             </div>
           ) : (
-            <span />
+            <CollectionCardQuickActionsPlaceholder className="pointer-events-auto relative z-10" />
           )}
-          <span className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100">
-            Analysis
-            <ChevronRight className="h-3.5 w-3.5" />
-          </span>
-        </div>
+        </CardListTileFooter>
       </CardListTileBody>
     </CardListTile>
   );
@@ -971,30 +989,34 @@ export default function ExternalSignalBrowser({
 
   useEffect(() => {
     if (!progressiveHref) return;
-    const controller = new AbortController();
     const href = progressiveHref;
 
-    async function loadRemainingSignals() {
+    async function loadRemainingSignals(signal: AbortSignal) {
       try {
         const response = await fetch(href, {
           cache: "no-store",
           credentials: "same-origin",
-          signal: controller.signal,
+          signal,
         });
         if (!response.ok) throw new Error(`Request failed (${response.status})`);
         const payload = (await response.json()) as SignalRadarProgressivePayload;
-        if (controller.signal.aborted) return;
-        setSignals(payload.signals);
-        setCardQuickActions((current) => ({ ...payload.cardQuickActions, ...current }));
-        setNewReleaseChases(payload.newReleaseChases);
-        setProgressiveState("ready");
+        commitSignalRadarFeedResult(signal, () => {
+          setSignals(payload.signals);
+          setCardQuickActions((current) => ({ ...payload.cardQuickActions, ...current }));
+          setNewReleaseChases(payload.newReleaseChases);
+          setProgressiveState("ready");
+        });
       } catch {
-        if (!controller.signal.aborted) setProgressiveState("error");
+        if (!signal.aborted) setProgressiveState("error");
       }
     }
 
-    void loadRemainingSignals();
-    return () => controller.abort();
+    // Give the already rendered Radar cards (and the leading detail prefetch)
+    // a short uncontended window. SQLite work in the full cohort enrichment is
+    // intentionally heavy; starting it in the same instant as a card tap made
+    // that detail request wait for the feed to finish. If navigation happens
+    // during this window, cleanup cancels the timer and the feed never starts.
+    return scheduleSignalRadarFeedStart(progressiveAttempt, loadRemainingSignals);
   }, [progressiveAttempt, progressiveHref]);
   const newReleaseCardIds = useMemo(
     () => new Set(newReleaseChases?.cards.map((card) => card.cardId) ?? []),

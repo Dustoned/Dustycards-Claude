@@ -147,7 +147,7 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
           }`}
         >
           <nav className="page-container relative mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-3 sm:px-6 lg:px-8">
-            <Link href="/" prefetch={false} className={`shrink-0 font-bold tracking-tight text-white transition-opacity hover:opacity-75 [font-size:var(--ui-brand-size)] ${currentUser ? "xl:hidden" : ""}`}>
+            <Link href="/" prefetch={currentUser ? null : false} className={`shrink-0 font-bold tracking-tight text-white transition-opacity hover:opacity-75 [font-size:var(--ui-brand-size)] ${currentUser ? "xl:hidden" : ""}`}>
               DustyCards
             </Link>
             {currentUser ? (

@@ -687,7 +687,11 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               <Link
                 key={`${item.href}:${item.label}`}
                 href={item.href}
-                prefetch={false}
+                // Home is revisited from almost every screen. Automatic
+                // prefetch warms its loading boundary without forcing the
+                // expensive personalized dashboard query to compete with the
+                // page the collector is currently using.
+                prefetch={item.href === "/" ? null : false}
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-[3.05rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 text-[9px] font-semibold transition-colors min-[390px]:text-[10px] ${
                   active

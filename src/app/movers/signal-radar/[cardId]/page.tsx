@@ -3,14 +3,9 @@ import SignalRadarDetailClient from "@/app/movers/signal-radar/[cardId]/SignalRa
 import type { ModalCardData } from "@/components/card-modal/types";
 import { getCardDetailPayload } from "@/lib/card-detail-data";
 import { getCachedExternalCardResearch } from "@/lib/external-card-research";
-import {
-  buildOnDemandExternalCardSignal,
-  enrichExternalSignalRadarData,
-} from "@/lib/external-signal-intelligence";
-import {
-  getExternalSignalRadarPageData,
-} from "@/lib/external-signal-persisted";
-import { ALL_GAMES, POKEMON_GAME, normalizeTradingCardGame } from "@/lib/games";
+import { buildOnDemandExternalCardSignal } from "@/lib/external-signal-intelligence";
+import { getExternalSignalRadarDetailContext } from "@/lib/external-signal-persisted";
+import { normalizeTradingCardGame } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
@@ -32,10 +27,8 @@ export default async function SignalRadarCardPage({
     requestedQuery.size ? `?${requestedQuery.toString()}` : ""
   }`;
   const user = await requirePageUser(requestedPath);
-  const settings = await getServerUserSettings(user.id);
-  const activeGame = settings.onePieceLibraryEnabled ? ALL_GAMES : POKEMON_GAME;
-  const [radarData, card] = await Promise.all([
-    getExternalSignalRadarPageData(activeGame),
+  const [settings, card] = await Promise.all([
+    getServerUserSettings(user.id),
     getCardDetailPayload(cardId, user.id),
   ]);
 
@@ -43,8 +36,13 @@ export default async function SignalRadarCardPage({
   const game = normalizeTradingCardGame(card.game);
   const detailCard: ModalCardData = { ...card, game };
 
-  const data = await enrichExternalSignalRadarData(radarData);
-  const initialResearch = await getCachedExternalCardResearch({
+  // A detail request only needs intelligence for this card. Enriching the
+  // complete Radar cohort here repeated the progressive feed's most expensive
+  // work and made a single mobile card open wait on dozens of unrelated cards.
+  // Read only this card's persisted rank/update time, then use the SWR-cached
+  // single-card intelligence path. Materialising every persisted signal here
+  // still cost an avoidable query/chunk pass on every detail navigation.
+  const researchInput = {
     cardId: card.id,
     game,
     name: card.name,
@@ -53,11 +51,11 @@ export default async function SignalRadarCardPage({
     episodeCode: card.episode_code,
     artist: card.artist,
     rarity: card.rarity,
-  });
-
-  let signal = data.signals.find((candidate) => candidate.cardId === cardId);
-  if (!signal) {
-    signal = await buildOnDemandExternalCardSignal({
+  } as const;
+  const initialResearchPromise = getCachedExternalCardResearch(researchInput);
+  const radarContext = await getExternalSignalRadarDetailContext(card.id, game);
+  const [focusedSignal, initialResearch] = await Promise.all([
+    buildOnDemandExternalCardSignal({
       id: card.id,
       game,
       name: card.name,
@@ -67,9 +65,14 @@ export default async function SignalRadarCardPage({
       episodeCode: card.episode_code,
       rarity: card.rarity,
       currentPrice: card.price?.cm_en_lowest_nm ?? null,
-    });
-  }
-  if (!signal) notFound();
+    }, {
+      observationRunId: radarContext.runId,
+    }),
+    initialResearchPromise,
+  ]);
+  const signal = radarContext.rank != null
+    ? { ...focusedSignal, rank: radarContext.rank }
+    : focusedSignal;
 
   const rawHistory = card.price_history.map((point) => ({
     date: point.date,
@@ -104,7 +107,7 @@ export default async function SignalRadarCardPage({
           graded: ebayGradedSeries?.points ?? cardMarketGradedSeries?.points ?? [],
           gradedCurrency,
           gradedLabel,
-          modelDate: data.generatedAt,
+          modelDate: radarContext.generatedAt,
         }}
         initialResearch={initialResearch}
         detailSize={settings.modalSize}

@@ -74,6 +74,18 @@ describe("CardListTile", () => {
     expect(markup).toContain("repeating-linear-gradient");
   });
 
+  it("offers one shared showcase layout for Radar, chases, and movers", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CardListTile, { layout: "showcase" })
+    );
+
+    expect(markup).toContain('data-card-list-layout="showcase"');
+    expect(markup).toContain(
+      "grid-cols-[clamp(6.75rem,30vw,7.25rem)_minmax(0,1fr)]"
+    );
+    expect(markup).toContain("sm:grid-cols-[7.5rem_minmax(0,1fr)]");
+  });
+
   it("provides a full-tile navigation layer with an accessible label", () => {
     const markup = renderToStaticMarkup(
       createElement(CardListTileLink, {

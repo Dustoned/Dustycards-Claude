@@ -80,6 +80,62 @@ function awaitingBackgroundSource(game: TradingCardGame): ExternalSignalSourceSt
   };
 }
 
+export interface ExternalSignalRadarDetailContext {
+  generatedAt: string;
+  rank: number | null;
+  runId: string | null;
+}
+
+/**
+ * Minimal persisted context for one Radar detail page. The list loader below
+ * deliberately materialises every observation and card image; a detail route
+ * only needs the snapshot time and (when it was in the competitive run) rank.
+ */
+export async function getExternalSignalRadarDetailContext(
+  cardId: string,
+  game: TradingCardGame,
+  now = new Date()
+): Promise<ExternalSignalRadarDetailContext> {
+  const run = await db.externalSignalRun.findFirst({
+    where: {
+      kind: "competitive",
+      status: "success",
+      observations: { some: { game } },
+    },
+    orderBy: [{ generated_at: "desc" }, { created_at: "desc" }],
+    select: { id: true, generated_at: true, created_at: true },
+  });
+  if (!run) return { generatedAt: now.toISOString(), rank: null, runId: null };
+
+  const generatedAt = (run.generated_at ?? run.created_at).toISOString();
+  const observation = await db.externalSignalObservation.findUnique({
+    where: { run_id_card_id: { run_id: run.id, card_id: cardId } },
+    select: { external_score: true, archetype_count: true },
+  });
+  if (!observation) return { generatedAt, rank: null, runId: run.id };
+
+  const preceding = await db.externalSignalObservation.count({
+    where: {
+      run_id: run.id,
+      game,
+      OR: [
+        { external_score: { gt: observation.external_score } },
+        {
+          external_score: observation.external_score,
+          archetype_count: { gt: observation.archetype_count },
+        },
+        {
+          external_score: observation.external_score,
+          archetype_count: observation.archetype_count,
+          card_id: { lt: cardId },
+        },
+      ],
+    },
+  });
+
+  return { generatedAt, rank: preceding + 1, runId: run.id };
+}
+
 /**
  * Render-path data for Signal Radar. External websites are deliberately never
  * contacted from a page request: the scheduler owns those scans and persists

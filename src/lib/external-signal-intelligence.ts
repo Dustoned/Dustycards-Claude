@@ -651,6 +651,11 @@ export interface OnDemandExternalSignalCard {
   currentPrice: number | null;
 }
 
+export interface OnDemandExternalSignalOptions {
+  now?: Date;
+  observationRunId?: string | null;
+}
+
 /**
  * Builds a single-card analysis without adding it to the ranked Radar cohort.
  * It uses local market/sealed/grading data and already-persisted catalysts only;
@@ -658,11 +663,13 @@ export interface OnDemandExternalSignalCard {
  */
 export async function buildOnDemandExternalCardSignal(
   card: OnDemandExternalSignalCard,
-  now = new Date()
+  options: OnDemandExternalSignalOptions = {}
 ): Promise<ExternalCardSignal> {
-  const cacheKey = `${card.id}:${card.currentPrice ?? "none"}`;
+  const now = options.now ?? new Date();
+  const observationRunId = options.observationRunId ?? null;
+  const cacheKey = `${card.id}:${card.currentPrice ?? "none"}:${observationRunId ?? "latest-success"}`;
   return onDemandSignalCache.get(cacheKey, () =>
-    buildOnDemandExternalCardSignalUncached(card, now)
+    buildOnDemandExternalCardSignalUncached(card, now, observationRunId)
   );
 }
 
@@ -678,12 +685,15 @@ function parseObservationArray<T>(value: string | null): T[] {
 
 async function buildOnDemandExternalCardSignalUncached(
   card: OnDemandExternalSignalCard,
-  now: Date
+  now: Date,
+  observationRunId: string | null
 ): Promise<ExternalCardSignal> {
   const [catalystsByCard, observation] = await Promise.all([
     loadActiveCatalysts([card.id], now),
     db.externalSignalObservation.findFirst({
-      where: { card_id: card.id },
+      where: observationRunId
+        ? { card_id: card.id, run_id: observationRunId }
+        : { card_id: card.id, run: { is: { status: "success" } } },
       orderBy: [{ observed_at: "desc" }, { id: "desc" }],
       select: {
         external_score: true,

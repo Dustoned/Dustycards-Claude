@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Heart, Plus } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import type { CardQuickActionData } from "@/lib/card-quick-actions";
@@ -16,6 +17,45 @@ import {
   subscribeWantsChanged,
 } from "@/lib/wants-client-events";
 import { parseGradingTargetLabel } from "@/lib/grading-targets";
+
+const INLINE_ACTION_CLUSTER_CLASS =
+  "inline-flex shrink-0 items-center gap-1 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.9)] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.16)] backdrop-blur-sm";
+
+export function CollectionCardQuickActionsPlaceholder({
+  className,
+}: {
+  className?: string;
+}) {
+  return (
+    <div
+      data-card-inline-actions
+      data-card-inline-actions-state="loading"
+      aria-busy="true"
+      className={`${INLINE_ACTION_CLUSTER_CLASS} ${className ?? ""}`}
+    >
+      <span data-card-action="collection" className="inline-flex">
+        <button
+          type="button"
+          disabled
+          aria-label="Collection action is loading"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-violet-300/16 bg-violet-500/10 text-violet-100/42 md:h-9 md:w-9"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </span>
+      <span data-card-action="want" className="inline-flex">
+        <button
+          type="button"
+          disabled
+          aria-label="Want action is loading"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-white/8 bg-white/[0.03] text-white/32 md:h-9 md:w-9"
+        >
+          <Heart className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </span>
+    </div>
+  );
+}
 
 export default function CollectionCardQuickActions({
   data,
@@ -71,7 +111,8 @@ export default function CollectionCardQuickActions({
   return (
     <div
       data-card-inline-actions
-      className={`inline-flex shrink-0 items-center gap-1 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.9)] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.16)] backdrop-blur-sm ${className ?? ""}`}
+      data-card-inline-actions-state="ready"
+      className={`${INLINE_ACTION_CLUSTER_CLASS} ${className ?? ""}`}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}

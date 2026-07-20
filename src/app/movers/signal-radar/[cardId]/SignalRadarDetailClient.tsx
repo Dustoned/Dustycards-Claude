@@ -34,7 +34,6 @@ import {
   CardModalRecentPricesPanel,
 } from "@/components/card-modal/CardModalSections";
 import type { ModalCardData } from "@/components/card-modal/types";
-import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import PriceHistoryPanel, {
   type PriceHistoryProjection,
   type PriceHistoryValuePoint,
@@ -69,6 +68,15 @@ const CardThreeViewer = dynamic(() => import("@/app/expansions/[id]/CardThreeVie
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
   loading: () => null,
+});
+const EbayCardDemandPanel = dynamic(() => import("@/components/ebay/EbayCardDemandPanel"), {
+  loading: () => (
+    <div
+      className="h-40 rounded-2xl border border-white/7 bg-white/[0.025] motion-safe:animate-pulse"
+      role="status"
+      aria-label="Loading eBay demand"
+    />
+  ),
 });
 
 export interface SignalRadarPriceHistoryData {

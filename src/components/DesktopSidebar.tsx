@@ -264,9 +264,9 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
     <aside className="pointer-events-none fixed inset-y-0 left-0 z-50 hidden h-dvh w-[16rem] xl:block">
       <div
         data-sidebar-scroll
-        className="pointer-events-auto flex h-[calc(100dvh-5.25rem)] min-h-0 w-full flex-col overflow-y-auto overscroll-contain border-r border-white/8 bg-[var(--dc-bg-main)] px-3 py-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent"
+        className="pointer-events-auto flex h-full min-h-0 w-full flex-col overflow-y-auto overscroll-contain border-r border-white/8 bg-[var(--dc-bg-main)] px-3 pb-24 pt-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent"
       >
-        <Link href="/" prefetch={false} className="mb-5 flex shrink-0 items-center gap-2.5 px-1">
+        <Link href="/" prefetch={null} className="mb-5 flex shrink-0 items-center gap-2.5 px-1">
           <span className="relative h-9 w-9 shrink-0 drop-shadow-[0_0_11px_rgb(var(--dc-primary-rgb)/0.72)]">
             <Image
               src="/assets/dustycards-master-ball-d.webp"
@@ -306,7 +306,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                   <Link
                     key={item.href}
                     href={href}
-                    prefetch={false}
+                    prefetch={item.href === "/" ? null : false}
                     aria-current={active ? "page" : undefined}
                     data-sidebar-item
                     data-active={active ? "true" : "false"}
