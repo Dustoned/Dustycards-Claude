@@ -1793,9 +1793,9 @@ html.widescreen .settings-page {
 .card-detail-primary-actions {
   position: fixed;
   z-index: 220;
-  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  right: calc(0.75rem + env(safe-area-inset-right, 0px));
   bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
-  left: max(0.75rem, env(safe-area-inset-left, 0px));
+  left: calc(0.75rem + env(safe-area-inset-left, 0px));
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -1820,6 +1820,19 @@ html.widescreen .settings-page {
     inset 0 1px rgba(255, 255, 255, 0.07);
   -webkit-backdrop-filter: blur(22px) saturate(130%);
   backdrop-filter: blur(22px) saturate(130%);
+}
+
+.card-detail-primary-actions > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.card-detail-primary-actions [data-card-detail-mobile-market] > :is(a, button) {
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0;
+  max-width: 100% !important;
 }
 
 .card-detail-mobile-actions-host {
@@ -2377,6 +2390,11 @@ html.widescreen .settings-page {
     backdrop-filter: none;
   }
 
+  .card-detail-primary-actions > * {
+    width: auto;
+    max-width: none;
+  }
+
   .card-detail-actions [data-card-detail-overflow-actions] {
     position: relative;
     z-index: auto;
@@ -2464,7 +2482,7 @@ html.widescreen .settings-page {
 }
 
 @media (pointer: coarse) {
-  [data-readable-tooltip-trigger] {
+  button[data-readable-tooltip-trigger] {
     width: 2.75rem;
     height: 2.75rem;
   }

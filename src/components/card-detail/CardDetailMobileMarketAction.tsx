@@ -199,7 +199,9 @@ export default function CardDetailMobileMarketAction({
   const triggerContent = (
     <>
       <ShoppingCart className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <span>CardMarket</span>
+      <span className="min-w-0 truncate" data-card-detail-mobile-market-label>
+        CardMarket
+      </span>
     </>
   );
   const menuItemClass =
@@ -208,9 +210,9 @@ export default function CardDetailMobileMarketAction({
   return (
     <div
       ref={rootRef}
-      className="relative min-w-0 flex-1"
+      className="relative grid min-h-11 w-full min-w-0 max-w-full"
       data-card-detail-mobile-market
-      data-readable-tooltip-trigger
+      data-mobile-hover-tooltip-ignore
     >
       {cardMarketHref ? (
         <a
@@ -218,7 +220,7 @@ export default function CardDetailMobileMarketAction({
           href={cardMarketHref}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${className} w-full touch-manipulation select-none [-webkit-touch-callout:none]`}
+          className={`${className} box-border h-full !w-full !max-w-full overflow-hidden touch-manipulation select-none [-webkit-touch-callout:none]`}
           {...triggerInteractionProps}
         >
           {triggerContent}
@@ -227,7 +229,7 @@ export default function CardDetailMobileMarketAction({
         <button
           ref={triggerRef as React.RefObject<HTMLButtonElement>}
           type="button"
-          className={`${className} w-full touch-manipulation select-none [-webkit-touch-callout:none]`}
+          className={`${className} box-border h-full !w-full !max-w-full overflow-hidden touch-manipulation select-none [-webkit-touch-callout:none]`}
           {...triggerInteractionProps}
         >
           {triggerContent}

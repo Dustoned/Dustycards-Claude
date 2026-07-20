@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { devices, expect, test, type Locator, type Page } from "@playwright/test";
 import crypto from "node:crypto";
 import * as zlib from "node:zlib";
 import Database from "better-sqlite3";
@@ -991,6 +991,136 @@ test.describe("DustyCards smoke", () => {
       await page.goto(path);
       await expect(page.locator("body")).toBeVisible();
       await expect(page.locator("body")).not.toContainText("Application error");
+    }
+  });
+
+  test("touch card detail actions keep equal contained widths", async ({ browser }) => {
+    test.setTimeout(60_000);
+    const touchContext = await browser.newContext({
+      ...devices["iPhone 13"],
+      baseURL: BASE_URL,
+      viewport: { width: 390, height: 844 },
+    });
+    const rawSettings = JSON.stringify(baseSettings);
+
+    try {
+      await touchContext.addCookies([
+        {
+          name: SESSION_COOKIE_NAME,
+          value: SMOKE_SESSION_TOKEN,
+          url: BASE_URL,
+          sameSite: "Lax",
+        },
+        {
+          name: SETTINGS_COOKIE_NAME,
+          value: encodeURIComponent(rawSettings),
+          url: BASE_URL,
+          sameSite: "Lax",
+        },
+      ]);
+      const touchPage = await touchContext.newPage();
+      await touchPage.addInitScript(
+        ({ key, raw }) => window.localStorage.setItem(key, raw),
+        { key: SETTINGS_STORAGE_KEY, raw: rawSettings }
+      );
+      await touchPage.goto("/search?q=seismitoad&game=pokemon&autoswitch=0");
+
+      const firstCard = touchPage
+        .locator(".dc-wide-grid-zone > [role='button']")
+        .filter({ hasText: "Seismitoad" })
+        .filter({ hasText: "#105/86" })
+        .first();
+      await expect(firstCard).toBeVisible({ timeout: 15_000 });
+      await firstCard.click({ position: { x: 10, y: 10 } });
+
+      const shell = touchPage
+        .getByRole("dialog", { name: "Seismitoad", exact: true })
+        .locator('[data-card-detail-shell][data-card-detail-mode="standard"]');
+      await expect(shell).toBeVisible({ timeout: 15_000 });
+      const dock = shell.locator("[data-card-detail-primary-actions]:visible");
+      await expect(dock).toHaveCount(1);
+
+      const layout = await dock.evaluate((element) => {
+        const dockBounds = element.getBoundingClientRect();
+        const slots = Array.from(element.children).map((slot) => {
+          const slotElement = slot as HTMLElement;
+          const control = slotElement.matches("button, a")
+            ? slotElement
+            : slotElement.querySelector<HTMLElement>(":scope > button, :scope > a");
+          const slotBounds = slotElement.getBoundingClientRect();
+          const controlBounds = control?.getBoundingClientRect() ?? null;
+          return {
+            slot: {
+              left: slotBounds.left,
+              right: slotBounds.right,
+              width: slotBounds.width,
+              height: slotBounds.height,
+            },
+            control: controlBounds
+              ? {
+                  left: controlBounds.left,
+                  right: controlBounds.right,
+                  width: controlBounds.width,
+                  height: controlBounds.height,
+                  scrollWidth: control?.scrollWidth ?? 0,
+                  clientWidth: control?.clientWidth ?? 0,
+                }
+              : null,
+          };
+        });
+        const marketTrigger = element.querySelector<HTMLElement>(
+          "[data-card-detail-mobile-market] > a, [data-card-detail-mobile-market] > button"
+        );
+        const marketLabel = element.querySelector<HTMLElement>(
+          "[data-card-detail-mobile-market-label]"
+        );
+        const marketTriggerBounds = marketTrigger?.getBoundingClientRect() ?? null;
+        const marketLabelBounds = marketLabel?.getBoundingClientRect() ?? null;
+
+        return {
+          coarsePointer: window.matchMedia("(pointer: coarse)").matches,
+          dockStyle: {
+            display: window.getComputedStyle(element).display,
+            gridAutoColumns: window.getComputedStyle(element).gridAutoColumns,
+          },
+          dock: {
+            left: dockBounds.left,
+            right: dockBounds.right,
+            width: dockBounds.width,
+          },
+          slots,
+          marketTrigger: marketTriggerBounds
+            ? { left: marketTriggerBounds.left, right: marketTriggerBounds.right }
+            : null,
+          marketLabel: marketLabelBounds
+            ? { left: marketLabelBounds.left, right: marketLabelBounds.right }
+            : null,
+        };
+      });
+
+      expect(layout.coarsePointer).toBe(true);
+      expect(layout.slots).toHaveLength(3);
+      const slotWidthDifference =
+        Math.max(...layout.slots.map(({ slot }) => slot.width)) -
+        Math.min(...layout.slots.map(({ slot }) => slot.width));
+      expect(slotWidthDifference, JSON.stringify(layout)).toBeLessThanOrEqual(2);
+      for (const { slot, control } of layout.slots) {
+        expect(control).not.toBeNull();
+        expect(slot.left).toBeGreaterThanOrEqual(layout.dock.left - 1);
+        expect(slot.right).toBeLessThanOrEqual(layout.dock.right + 1);
+        expect(slot.height).toBeGreaterThanOrEqual(44);
+        expect(Math.abs(control!.left - slot.left)).toBeLessThanOrEqual(1);
+        expect(Math.abs(control!.right - slot.right)).toBeLessThanOrEqual(1);
+        expect(control!.height).toBeGreaterThanOrEqual(44);
+        expect(control!.scrollWidth).toBeLessThanOrEqual(control!.clientWidth + 1);
+      }
+      expect(layout.marketTrigger).not.toBeNull();
+      expect(layout.marketLabel).not.toBeNull();
+      expect(layout.marketLabel!.left).toBeGreaterThanOrEqual(layout.marketTrigger!.left - 1);
+      expect(layout.marketLabel!.right).toBeLessThanOrEqual(layout.marketTrigger!.right + 1);
+      await expectNoHorizontalOverflow(touchPage, shell);
+    } finally {
+      await touchContext.close();
     }
   });
 

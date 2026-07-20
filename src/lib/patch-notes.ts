@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.5",
+    releasedAt: "July 20, 2026",
+    title: "Equal mobile card actions",
+    summary:
+      "DustyCards 3.8.5 keeps every floating Card Detail action aligned on real touchscreens.",
+    tone: "fixed",
+    highlights: [
+      "CardMarket no longer collapses to an icon-sized box while its label escapes beyond the border on iPhone and other coarse-pointer devices.",
+      "Add copy, Want and CardMarket now occupy three equal, bounded slots with safe-area-aware spacing and contained labels.",
+      "A dedicated touch-device regression check now measures the dock, each slot, each trigger and its visible label before release.",
+    ],
+  },
+  {
     version: "3.8.4",
     releasedAt: "July 20, 2026",
     title: "Collector themes and custom appearance",
