@@ -1370,6 +1370,10 @@ test.describe("DustyCards smoke", () => {
     expect(headerBounds).not.toBeNull();
     expect(bounds).not.toBeNull();
     expect(bounds!.width).toBeGreaterThan(4500);
+    const pageBottomPadding = await canvas.evaluate((element) =>
+      Number.parseFloat(window.getComputedStyle(element).paddingBottom)
+    );
+    expect(pageBottomPadding).toBeLessThanOrEqual(8.1);
     expect(Math.abs(bounds!.x - headerBounds!.x)).toBeLessThanOrEqual(1);
     expect(
       Math.abs(bounds!.x + bounds!.width - (headerBounds!.x + headerBounds!.width))

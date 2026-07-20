@@ -1282,12 +1282,15 @@ body :where(option) {
 }
 
 @media (min-width: 768px) {
+  /* Reusing the much larger vertical page inset at the end of every desktop
+     page produced a full-width dark band on high-DPI/widescreen displays. */
+  main > .page-container,
   main > .page-container.binder-bottom-safe {
-    padding-bottom: var(--ui-page-y) !important;
+    padding-bottom: 0.5rem !important;
   }
 
   .binder-bottom-safe {
-    padding-bottom: var(--ui-page-y);
+    padding-bottom: 0.5rem;
   }
 }
 

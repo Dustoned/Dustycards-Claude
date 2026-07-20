@@ -162,6 +162,7 @@ export default function CollectionInstantTabs({
   const isOverview = activeTab === "overview";
   const showCollectionSectionNav = activeTab !== "complete";
   const showControlStrip = Boolean(gameControls) || showCollectionSectionNav;
+  const contentSlot = isOverview ? emptySlot : activeSlot();
 
   return (
     <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
@@ -242,10 +243,7 @@ export default function CollectionInstantTabs({
           </div>
         )}
 
-        <div className="space-y-3">
-          {isOverview ? emptySlot : null}
-          {activeSlot()}
-        </div>
+        {contentSlot ? <div className="space-y-3">{contentSlot}</div> : null}
       </div>
     </div>
   );
