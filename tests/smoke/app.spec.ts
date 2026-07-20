@@ -20,8 +20,8 @@ const CARD_DETAIL_APPEARANCE_PRESET = (() => {
     ? (value as AppearanceThemeId)
     : null;
 })();
-const SMOKE_USER_ID = "playwright-smoke-admin";
-const SMOKE_USER_EMAIL = "playwright-smoke-admin@example.test";
+const SMOKE_USER_ID = "codex-test-account";
+const SMOKE_USER_EMAIL = "codex-test@example.test";
 const SMOKE_SESSION_ID = "playwright-smoke-session";
 const SMOKE_SESSION_TOKEN = "playwright-smoke-session-token";
 let activeSessionIds: string[] = [];
@@ -266,6 +266,64 @@ async function expectInlineCardActions(card: Locator) {
   );
 
   return { actions, collection, want };
+}
+
+async function expectMobileCardListTileContract(page: Page, tile: Locator) {
+  expect(page.viewportSize()?.width).toBe(390);
+  await expect(tile).toBeVisible();
+  await expect(tile.locator("[data-card-list-media]")).toHaveCount(1);
+  await expect(tile.locator("[data-card-list-price]")).toHaveCount(1);
+  await expect(tile.locator("[data-card-inline-actions]")).toHaveCount(1);
+
+  const media = tile.locator("[data-card-list-media]");
+  const price = tile.locator("[data-card-list-price]");
+  const title = tile
+    .locator(
+      "[data-card-list-body] h3.truncate, [data-card-list-body] p.truncate"
+    )
+    .first();
+  const { collection, want } = await expectInlineCardActions(tile);
+  const [mediaBounds, priceBounds, titleBounds, collectionBounds, wantBounds] =
+    await Promise.all([
+      requiredBounds(media),
+      requiredBounds(price),
+      requiredBounds(title),
+      requiredBounds(collection),
+      requiredBounds(want),
+    ]);
+
+  expect(mediaBounds.width).toBeGreaterThanOrEqual(88);
+  for (const [label, bounds] of [
+    ["Add", collectionBounds],
+    ["Want", wantBounds],
+  ] as const) {
+    expect(bounds.width, `${label} target width`).toBeGreaterThanOrEqual(44);
+    expect(bounds.height, `${label} target height`).toBeGreaterThanOrEqual(44);
+  }
+
+  const titleLayout = await title.evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      overflowX: styles.overflowX,
+      textOverflow: styles.textOverflow,
+      whiteSpace: styles.whiteSpace,
+    };
+  });
+  expect(titleLayout.whiteSpace).toBe("nowrap");
+  expect(titleLayout.overflowX).toBe("hidden");
+  expect(titleLayout.textOverflow).toBe("ellipsis");
+  expect(titleLayout.scrollHeight).toBeLessThanOrEqual(titleLayout.clientHeight + 1);
+
+  const titleAndPriceOverlap = !(
+    titleBounds.x + titleBounds.width <= priceBounds.x + 1 ||
+    priceBounds.x + priceBounds.width <= titleBounds.x + 1 ||
+    titleBounds.y + titleBounds.height <= priceBounds.y + 1 ||
+    priceBounds.y + priceBounds.height <= titleBounds.y + 1
+  );
+  expect(titleAndPriceOverlap, "card title and price overlap").toBe(false);
+  await expectNoHorizontalOverflow(page);
 }
 
 function expectBoundsToMatch(
@@ -2154,7 +2212,7 @@ test.describe("DustyCards smoke", () => {
 
     for (const card of eligibleCards) {
       if ((await card.count()) === 0) continue;
-      await expectInlineCardActions(card);
+      await expectMobileCardListTileContract(page, card);
       coveredCardKinds += 1;
       interactiveCard ??= card;
     }
@@ -2555,7 +2613,7 @@ test.describe("DustyCards smoke", () => {
 
   test("mobile collection add dialogs stay fixed in the viewport", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
+    await page.goto("/?tab=complete");
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
 
     await page.getByRole("button", { name: "Add Binder" }).click();
@@ -3011,7 +3069,7 @@ test.describe("DustyCards smoke", () => {
 
   test("raw, graded, and target mover cards expose inline actions without losing list state", async ({ page }) => {
     test.setTimeout(180_000);
-    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.route("**/api/wants/cards", async (route) => {
       const method = route.request().method();
       if (method !== "POST" && method !== "DELETE") {
@@ -3039,10 +3097,20 @@ test.describe("DustyCards smoke", () => {
     let checkedInteraction = false;
 
     for (const mode of modes) {
+      await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(mode.href, { waitUntil: "domcontentloaded", timeout: 60_000 });
       const firstCard = page.locator("[data-mover-card-id]").first();
+      const emptyState = page
+        .getByText(/No (?:grade targets|graded market items|market moves) found/, { exact: true })
+        .first();
+      await Promise.race([
+        firstCard.waitFor({ state: "attached", timeout: 45_000 }),
+        emptyState.waitFor({ state: "visible", timeout: 45_000 }),
+      ]).catch(() => undefined);
       if ((await firstCard.count()) === 0) continue;
 
+      await expectMobileCardListTileContract(page, firstCard);
+      await page.setViewportSize({ width: 1280, height: 900 });
       const { collection } = await expectInlineCardActions(firstCard);
       coveredModes += 1;
 

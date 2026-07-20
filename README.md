@@ -40,9 +40,20 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run smoke` | Playwright smoke test |
 | `npm run lint` | ESLint |
 | `npm run db:snapshot` | Refresh `data/dustycards.app.db` from the live DB |
+| `npm run db:snapshot:sanitize` | Inspect or safely sanitize an existing app snapshot |
 | `npm run images:cache` | Pre-cache card images locally |
 | `npm run sync:one-piece*` | One Piece catalog/metadata/price sync helpers |
 | `npm run backfill:*` | One-off data backfills (artists, printed card numbers) |
+
+Snapshot sanitation is a read-only dry run unless `--apply` is supplied. Applying
+requires a new backup path, verifies that backup as SQLite, and never overwrites an
+existing file:
+
+```bash
+npm run db:snapshot:sanitize -- --database data/dustycards.app.db
+npm run db:snapshot:sanitize -- --database data/dustycards.app.db \
+  --backup backups/dustycards.app.before-sanitize.db --apply
+```
 
 ## Docs
 

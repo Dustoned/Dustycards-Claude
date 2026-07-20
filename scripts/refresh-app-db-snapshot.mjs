@@ -2,21 +2,16 @@ import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  assertSnapshotIsSanitized,
+  sanitizeAppSnapshot,
+} from "./snapshot-sanitizer.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const LIVE_DB_PATH = resolve(__dirname, "../dustycards.db");
 const SNAPSHOT_DB_PATH = resolve(__dirname, "../data/dustycards.app.db");
-const TABLES_TO_CLEAR = [
-  "CollectionCardTag",
-  "CollectionCard",
-  "CollectionSealedTag",
-  "CollectionSealed",
-  "CollectionBinder",
-  "SyncLog",
-  "ApiQuotaSnapshot",
-];
 
 function prunePriceHistoryForSnapshot(db) {
   db.exec(`
@@ -86,18 +81,23 @@ liveDb.close();
 const db = new Database(SNAPSHOT_DB_PATH);
 
 try {
-  db.pragma("foreign_keys = OFF");
-
-  const clearTables = db.transaction(() => {
-    for (const tableName of TABLES_TO_CLEAR) {
-      db.prepare(`DELETE FROM "${tableName}"`).run();
-    }
-  });
-
-  clearTables();
+  const sanitation = sanitizeAppSnapshot(db);
   prunePriceHistoryForSnapshot(db);
   db.pragma("foreign_keys = ON");
+  assertSnapshotIsSanitized(db);
+
+  const quickCheck = db.pragma("quick_check", { simple: true });
+  if (quickCheck !== "ok") {
+    throw new Error(`App snapshot quick_check failed: ${quickCheck}`);
+  }
+
   db.exec("VACUUM");
+
+  const removedPrivateRows = Object.values(sanitation.removedRows).reduce(
+    (total, count) => total + count,
+    0
+  );
+  console.log(`Removed ${removedPrivateRows} private/operational rows from app snapshot.`);
 } finally {
   db.close();
 }

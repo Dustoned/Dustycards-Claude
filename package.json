@@ -17,6 +17,7 @@
     "ui:expansion-shot": "node scripts/desktop-expansion-shot.mjs",
     "backfill:ebay-sold-graded": "node scripts/backfill-ebay-sold-graded.mjs",
     "auth:bootstrap": "node scripts/bootstrap-admin.mjs",
+    "auth:codex-test": "node scripts/manage-codex-test-account.mjs",
     "backfill:tcgdex-artists": "node scripts/backfill-tcgdex-artists.mjs",
     "sync:one-piece": "node scripts/sync-one-piece-local.mjs",
     "sync:one-piece-meta": "node scripts/sync-one-piece-optcg-metadata.mjs",
@@ -24,6 +25,7 @@
     "sync:sealed-release-dates": "node scripts/sync-pokemon-sealed-release-dates.mjs",
     "backfill:printed-card-numbers": "node scripts/backfill-printed-card-numbers.mjs",
     "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs",
+    "db:snapshot:sanitize": "node scripts/sanitize-app-snapshot.mjs",
     "images:cache": "node scripts/cache-images.mjs"
   },
   "dependencies": {

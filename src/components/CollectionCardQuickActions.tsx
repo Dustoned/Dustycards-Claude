@@ -71,7 +71,7 @@ export default function CollectionCardQuickActions({
   return (
     <div
       data-card-inline-actions
-      className={`inline-flex shrink-0 items-center gap-1 rounded-xl border border-white/9 bg-black/28 p-1 shadow-[0_8px_24px_rgba(0,0,0,0.2)] backdrop-blur-sm ${className ?? ""}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.9)] p-1 shadow-[0_8px_24px_rgba(0,0,0,0.16)] backdrop-blur-sm ${className ?? ""}`}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
@@ -88,7 +88,7 @@ export default function CollectionCardQuickActions({
           defaultCardKind={gradedLabel ? "graded" : "raw"}
           defaultGradingCompany={parsedGrade.company}
           defaultGradingGrade={parsedGrade.grade != null ? String(parsedGrade.grade) : null}
-          className="!h-11 !w-11 !rounded-lg !border-violet-300/22 !bg-violet-500/18 !text-violet-100 hover:!border-violet-200/38 hover:!bg-violet-500/28 sm:!h-9 sm:!w-9"
+          className="!h-11 !w-11 !rounded-lg !border-violet-300/22 !bg-violet-500/18 !text-violet-100 hover:!border-violet-200/38 hover:!bg-violet-500/28 md:!h-9 md:!w-9"
         />
       </span>
       <span data-card-action="want" className="inline-flex">
@@ -101,7 +101,7 @@ export default function CollectionCardQuickActions({
           disabled={owned && !wantItem}
           disabledTitle={owned ? `${data.card.name} is already in your collection` : undefined}
           onChanged={setWantItem}
-          className="!h-11 !w-11 !rounded-lg !border-white/10 !bg-white/[0.045] !text-white/74 hover:!border-violet-200/30 hover:!bg-violet-500/16 hover:!text-violet-100 disabled:!cursor-not-allowed disabled:!opacity-35 sm:!h-9 sm:!w-9"
+          className="!h-11 !w-11 !rounded-lg !border-white/10 !bg-white/[0.045] !text-white/74 hover:!border-violet-200/30 hover:!bg-violet-500/16 hover:!text-violet-100 disabled:!cursor-not-allowed disabled:!opacity-35 md:!h-9 md:!w-9"
         />
       </span>
     </div>

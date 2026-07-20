@@ -7,6 +7,13 @@ import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import CachedImage from "@/components/CachedImage";
+import {
+  CardListTile,
+  CardListTileBody,
+  CardListTileFooter,
+  CardListTileMedia,
+  CardListTilePrice,
+} from "@/components/CardListTile";
 import type { ModalCardData } from "@/components/card-modal/types";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
@@ -1024,9 +1031,14 @@ export default function ExpansionView({
               const tableSelected = selectedCardIdSet.has(card.id);
               const cardMarketPrice = getCardMarketPrice(card);
               const tcgPlayerPrice = card.price?.tcp_market ?? null;
+              const primaryPrice = getPriceBySource(card, primaryPriceSource);
+              const primaryCurrency = getPriceSourceCurrency(primaryPriceSource);
+              const secondaryPrice = primaryPriceSource === "tcp" ? cardMarketPrice : tcgPlayerPrice;
+              const secondaryCurrency = primaryPriceSource === "tcp" ? "EUR" : "USD";
+              const secondaryLabel = primaryPriceSource === "tcp" ? "CardMarket" : "TCGPlayer";
 
               return (
-                <article
+                <CardListTile
                   key={card.id}
                   role="button"
                   tabIndex={0}
@@ -1038,127 +1050,112 @@ export default function ExpansionView({
                       handleCardClick(card);
                     }
                   }}
-                  className={`min-w-0 rounded-2xl border bg-white/72 p-3 shadow-sm shadow-black/5 transition-colors dark:bg-white/[0.045] ${
-                    tableSelected
-                      ? "border-blue-400/70 ring-2 ring-blue-400/50"
-                      : "border-black/8 dark:border-white/8"
-                  }`}
+                  interactive
+                  state={tableSelected ? "selected" : "default"}
                   style={{
                     contain: "layout paint style",
                     contentVisibility: "auto",
-                    containIntrinsicSize: "112px",
+                    containIntrinsicSize: "168px",
                   }}
                 >
-                  <div className="flex gap-3">
-                    <div
-                      className={getCardImageFrameClassName(
-                        card.image_url,
-                        "relative h-24 w-[4.25rem] shrink-0 overflow-hidden rounded-[4.75%] border border-transparent bg-transparent"
-                      )}
-                    >
-                      {card.image_url ? (
-                        <CachedImage
-                          sourceUrl={card.image_url}
-                          alt={card.name}
-                          fill
-                          className={getCardImageClassName(
-                            card.image_url,
-                            "rounded-[4.75%] object-fill"
-                          )}
-                          sizes="68px"
-                          loading={index < eagerImageCount ? "eager" : undefined}
-                          fetchPriority={index < 4 ? "high" : "auto"}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
-                          {card.name.slice(0, 2)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-gray-950 dark:text-white">
-                            {card.name}
-                          </p>
-                          <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-gray-500 dark:text-white/50">
-                            <span className="shrink-0">
-                              {card.card_number ? `#${card.card_number}` : "--"}
-                            </span>
-                            {showEpisodeMeta && hasCardEpisodeMeta(card) ? (
-                              <>
-                                <span className="text-gray-300 dark:text-white/20">•</span>
-                                <Link
-                                  href={getExpansionHref(card.episode_id)}
-                                  prefetch={false}
-                                  onClick={(event) => event.stopPropagation()}
-                                  className="min-w-0 truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
-                                >
-                                  {card.episode_name}
-                                  {card.episode_code ? (
-                                    <span className="ml-1 opacity-60">({card.episode_code})</span>
-                                  ) : null}
-                                </Link>
-                              </>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {!selectionMode && (
-                          <div className="flex shrink-0 items-center gap-1.5">
-                            <CollectionAddCardButton
-                              card={getCollectionButtonCard(card)}
-                              className="h-8 w-8 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
-                            />
-                            <CollectionWantButton
-                              card={getCollectionButtonCard(card)}
-                              initialWanted={Boolean(card.want_item)}
-                              wantItemId={card.want_item?.id ?? null}
-                              className="h-8 w-8 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
-                            />
-                          </div>
+                  <CardListTileMedia imageUrl={card.image_url} emptyLabel={card.name}>
+                    {card.image_url ? (
+                      <CachedImage
+                        sourceUrl={card.image_url}
+                        alt={card.name}
+                        fill
+                        className={getCardImageClassName(
+                          card.image_url,
+                          "rounded-[4.75%] object-fill"
                         )}
-                      </div>
+                        sizes="(max-width: 640px) 104px, 92px"
+                        loading={index < eagerImageCount ? "eager" : undefined}
+                        fetchPriority={index < 4 ? "high" : "auto"}
+                      />
+                    ) : undefined}
+                  </CardListTileMedia>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-xl border border-black/7 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.04]">
-                          <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-                            CardMarket
-                          </p>
-                          <p className="mt-1 whitespace-nowrap font-semibold tabular-nums text-gray-950 dark:text-white">
-                            {cardMarketPrice != null
-                              ? formatCurrency(cardMarketPrice, "EUR")
-                              : "No price"}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-black/7 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.04]">
-                          <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-                            TCGPlayer
-                          </p>
-                          <p className="mt-1 whitespace-nowrap font-semibold tabular-nums text-gray-950 dark:text-white">
-                            {tcgPlayerPrice != null
-                              ? formatCurrency(tcgPlayerPrice, "USD")
-                              : "No price"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {card.rarity ? (
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold leading-none ${rarityBadge(card.rarity)}`}
-                          >
-                            {normalizeRarityLabel(card.rarity) ?? card.rarity}
+                  <CardListTileBody>
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white sm:text-[15px]">
+                          {card.name}
+                        </p>
+                        <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-white/48">
+                          <span className="shrink-0 tabular-nums">
+                            {card.card_number ? `#${card.card_number}` : "--"}
                           </span>
-                        ) : null}
-                        <span className="inline-flex items-center rounded-full border border-black/8 bg-white/70 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55">
-                          Tap for details
-                        </span>
+                          {showEpisodeMeta && hasCardEpisodeMeta(card) ? (
+                            <>
+                              <span className="text-white/20">·</span>
+                              <Link
+                                href={getExpansionHref(card.episode_id)}
+                                prefetch={false}
+                                onClick={(event) => event.stopPropagation()}
+                                className="min-w-0 truncate transition-colors hover:text-white hover:underline underline-offset-2"
+                              >
+                                {card.episode_name}
+                                {card.episode_code ? (
+                                  <span className="ml-1 opacity-60">({card.episode_code})</span>
+                                ) : null}
+                              </Link>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
+                      <CardListTilePrice
+                        label={primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+                        value={
+                          primaryPrice != null
+                            ? formatCurrency(primaryPrice, primaryCurrency)
+                            : "—"
+                        }
+                      />
                     </div>
-                  </div>
-                </article>
+
+                    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+                      {card.rarity ? (
+                        <span
+                          className={`inline-flex max-w-full items-center truncate rounded-full px-2 py-1 text-[10px] font-semibold leading-none ${rarityBadge(card.rarity)}`}
+                        >
+                          {normalizeRarityLabel(card.rarity) ?? card.rarity}
+                        </span>
+                      ) : null}
+                      <span className="inline-flex min-w-0 items-center gap-1 rounded-md border border-[rgb(var(--dc-border-rgb)/0.74)] bg-[rgb(var(--dc-surface-hover-rgb)/0.42)] px-2 py-1 text-[10px] font-medium text-white/46">
+                        <span className="truncate">{secondaryLabel}</span>
+                        <span className="shrink-0 font-semibold tabular-nums text-white/78">
+                          {secondaryPrice != null
+                            ? formatCurrency(secondaryPrice, secondaryCurrency)
+                            : "—"}
+                        </span>
+                      </span>
+                    </div>
+
+                    {!selectionMode ? (
+                      <CardListTileFooter className="justify-end">
+                        <div
+                          className="flex shrink-0 items-center gap-1.5"
+                          onClick={(event) => event.stopPropagation()}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          <CollectionAddCardButton
+                            card={getCollectionButtonCard(card)}
+                            stopPropagation
+                            className="!h-11 !w-11 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
+                          />
+                          <CollectionWantButton
+                            card={getCollectionButtonCard(card)}
+                            initialWanted={Boolean(card.want_item)}
+                            wantItemId={card.want_item?.id ?? null}
+                            stopPropagation
+                            className="!h-11 !w-11 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
+                          />
+                        </div>
+                      </CardListTileFooter>
+                    ) : null}
+                  </CardListTileBody>
+                </CardListTile>
               );
             })}
           </div>

@@ -14,6 +14,14 @@ import CardBrowserToolbar, {
 import { cardMatchesSearchQuery } from "@/lib/card-search";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CachedImage from "@/components/CachedImage";
+import {
+  CardListTile,
+  CardListTileBody,
+  CardListTileFooter,
+  CardListTileMedia,
+  CardListTileMetrics,
+  CardListTilePrice,
+} from "@/components/CardListTile";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import EmptyState from "@/components/EmptyState";
@@ -1763,10 +1771,13 @@ export default function CollectionCardsView({
                       : null;
 
                   return (
-                    <article
+                    <CardListTile
                       key={selectionKey}
                       role="button"
                       tabIndex={0}
+                      accent="collection"
+                      interactive
+                      state={isSelected ? "selected" : "default"}
                       aria-pressed={activeSelectionMode ? isSelected : undefined}
                       aria-disabled={activeSelectionMode && !selectableInMode}
                       onClick={() => handleTileActivate(item, selectionKey, selectableInMode)}
@@ -1777,15 +1788,14 @@ export default function CollectionCardsView({
                           handleTileActivate(item, selectionKey, selectableInMode);
                         }
                       }}
-                      className={`min-w-0 rounded-2xl border bg-white/[0.045] p-3 shadow-sm shadow-black/20 transition-colors ${
-                        isSelected
-                          ? "border-blue-400/70 ring-2 ring-blue-400/50"
-                          : "border-white/8"
-                      } ${activeSelectionMode && !selectableInMode ? "cursor-not-allowed opacity-55" : "cursor-pointer"}`}
+                      className={activeSelectionMode && !selectableInMode ? "cursor-not-allowed opacity-55" : undefined}
                     >
-                      <div className="flex gap-3">
-                        <div className="relative h-24 w-[4.25rem] shrink-0 bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]">
-                          {item.image_url ? (
+                      <CardListTileMedia
+                        imageUrl={item.image_url}
+                        emptyLabel={item.name}
+                        className="border-transparent bg-transparent drop-shadow-[0_8px_14px_rgba(0,0,0,0.18)]"
+                      >
+                        {item.image_url ? (
                             <CachedImage
                               sourceUrl={item.image_url}
                               alt={item.name}
@@ -1793,134 +1803,140 @@ export default function CollectionCardsView({
                               className={`object-contain ${
                                 blurMissing && missing ? "blur-[2px] saturate-[0.72] opacity-55" : ""
                               }`}
-                              sizes="68px"
+                              sizes="(max-width: 359px) 88px, (max-width: 767px) 104px, 92px"
                               loading={index < eagerImageCount ? "eager" : undefined}
                               fetchPriority={index < 4 ? "high" : "auto"}
                             />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
-                              {item.name.slice(0, 2)}
+                          ) : undefined}
+                      </CardListTileMedia>
+
+                      <CardListTileBody>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-white">
+                              {item.name}
+                            </p>
+                            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-white/50">
+                              <span className="shrink-0">
+                                {item.card_number ? `#${item.card_number}` : "--"}
+                              </span>
+                              <Link
+                                href={getExpansionHref(item.episode_id)}
+                                prefetch={false}
+                                onClick={(event) => event.stopPropagation()}
+                                className="min-w-0 truncate transition-colors hover:text-white hover:underline underline-offset-2"
+                              >
+                                {item.episode_name}
+                                {item.episode_code ? (
+                                  <span className="ml-1 opacity-60">({item.episode_code})</span>
+                                ) : null}
+                              </Link>
                             </div>
-                          )}
+                          </div>
+                          <CardListTilePrice
+                            label={primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+                            value={
+                              displayPrice != null
+                                ? formatMarketCurrency(displayPrice, displayPriceCurrency)
+                                : "—"
+                            }
+                          />
                         </div>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-white">
-                                {item.name}
-                              </p>
-                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-white/50">
-                                <span className="shrink-0">
-                                  {item.card_number ? `#${item.card_number}` : "--"}
-                                </span>
-                                <Link
-                                  href={getExpansionHref(item.episode_id)}
-                                  prefetch={false}
-                                  onClick={(event) => event.stopPropagation()}
-                                  className="min-w-0 truncate transition-colors hover:text-white hover:underline underline-offset-2"
-                                >
-                                  {item.episode_name}
-                                  {item.episode_code ? (
-                                    <span className="ml-1 opacity-60">({item.episode_code})</span>
-                                  ) : null}
-                                </Link>
-                              </div>
-                            </div>
-
-                            {!activeSelectionMode &&
-                              (item.owned ? (
-                                canRemoveFromCollection &&
-                                (item.collection_item_id ||
-                                  (item.collection_item_ids?.length ?? 0) > 0) ? (
-                                  <button
-                                    type="button"
-                                    onClick={(event) => handleSingleRemove(event, item)}
-                                    disabled={removingItems}
-                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-                                    aria-label={`Remove ${item.name} from ${collectionRemovalLabel}`}
-                                    title={`Remove from ${collectionRemovalLabel}`}
-                                  >
-                                    <Minus className="h-3.5 w-3.5" />
-                                  </button>
-                                ) : null
-                              ) : (
-                                allowWantRemoval ? (
-                                  <CollectionAddCardButton
-                                    card={getCollectionCardQuickActionData(item).card}
-                                    initialBinderId={bulkAddBinder?.id ?? null}
-                                    lockedBinderName={bulkAddBinder?.name ?? null}
-                                    className="h-8 w-8 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
-                                  />
-                                ) : (
-                                  <CollectionCardQuickActions
-                                    data={getCollectionCardQuickActionData(item)}
-                                    initialBinderId={bulkAddBinder?.id ?? null}
-                                    lockedBinderName={bulkAddBinder?.name ?? null}
-                                  />
-                                )
-                              ))}
-                          </div>
-
-                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                            <div className="rounded-xl border border-black/7 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.04]">
-                              <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-                                {primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
-                              </p>
-                              <p className="mt-1 whitespace-nowrap font-semibold tabular-nums text-gray-950 dark:text-white">
-                                {displayPrice != null
-                                  ? formatMarketCurrency(displayPrice, displayPriceCurrency)
-                                  : "No price"}
-                              </p>
-                            </div>
-                            <div className="rounded-xl border border-black/7 bg-black/[0.025] px-2.5 py-2 dark:border-white/8 dark:bg-white/[0.04]">
-                              <p className="font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-                                P&amp;L
-                              </p>
-                              <p
-                                className={`mt-1 whitespace-nowrap font-semibold tabular-nums ${
-                                  pnl == null
-                                    ? "text-gray-400 dark:text-white/35"
-                                    : pnl >= 0
-                                      ? "text-emerald-600 dark:text-emerald-300"
-                                      : "text-rose-600 dark:text-rose-300"
-                                }`}
-                              >
-                                {pnl != null
-                                  ? `${pnl >= 0 ? "+" : ""}${formatCollectionCurrency(pnl)}`
-                                  : "--"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {item.rarity ? (
-                              <span
-                                className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold leading-none ${rarityBadge(item.rarity)}`}
-                              >
-                                {normalizeRarityLabel(item.rarity) ?? item.rarity}
-                              </span>
-                            ) : null}
-                            {costBasis != null ? (
-                              <span className="inline-flex items-center rounded-full border border-black/8 bg-white/70 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55">
-                                {costBasisLabel}: {formatCollectionCurrency(costBasis)}
-                              </span>
-                            ) : null}
-                            <span className="inline-flex items-center rounded-full border border-black/8 bg-white/70 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:bg-white/[0.04] dark:text-white/55">
-                              {missing && blurMissing
-                                ? "Missing"
-                                : item.owned_count && item.owned_count > 1
-                                  ? `x${item.owned_count} owned`
-                                  : item.owned
-                                    ? "Owned"
-                                    : item.want_item_id
-                                      ? "Wanted"
-                                      : "Available"}
+                        <div className="mt-1.5 flex max-h-6 flex-wrap items-start gap-1.5 overflow-hidden">
+                          {item.rarity ? (
+                            <span
+                              className={`inline-flex items-center rounded-md px-2 py-1 text-[10px] font-semibold leading-none ${rarityBadge(item.rarity)}`}
+                            >
+                              {normalizeRarityLabel(item.rarity) ?? item.rarity}
                             </span>
-                          </div>
+                          ) : null}
+                          <span className="inline-flex items-center rounded-md border border-[rgb(var(--dc-border-rgb)/0.74)] bg-[rgb(var(--dc-surface-hover-rgb)/0.42)] px-2 py-1 text-[10px] font-medium leading-none text-white/52">
+                            {missing && blurMissing
+                              ? "Missing"
+                              : item.owned_count && item.owned_count > 1
+                                ? `${item.owned_count}× owned`
+                                : item.owned
+                                  ? "Owned"
+                                  : item.want_item_id
+                                    ? "Wanted"
+                                    : "Available"}
+                          </span>
                         </div>
-                      </div>
-                    </article>
+
+                        <CardListTileMetrics className="text-xs sm:!grid-cols-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-[9.5px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                              {costBasisLabel}
+                            </p>
+                            <p className="mt-0.5 whitespace-nowrap text-[13px] font-semibold tabular-nums text-gray-950 dark:text-white">
+                              {costBasis != null ? formatCollectionCurrency(costBasis) : "—"}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-[9.5px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
+                              P&amp;L
+                            </p>
+                            <p
+                              className={`mt-0.5 whitespace-nowrap text-[13px] font-semibold tabular-nums ${
+                                pnl == null
+                                  ? "text-gray-400 dark:text-white/35"
+                                  : pnl >= 0
+                                    ? "text-emerald-600 dark:text-emerald-300"
+                                    : "text-rose-600 dark:text-rose-300"
+                              }`}
+                            >
+                              {pnl != null
+                                ? `${pnl >= 0 ? "+" : ""}${formatCollectionCurrency(pnl)}`
+                                : "—"}
+                            </p>
+                          </div>
+                        </CardListTileMetrics>
+
+                        {!activeSelectionMode &&
+                        (!item.owned ||
+                          (canRemoveFromCollection &&
+                            Boolean(
+                              item.collection_item_id ||
+                                (item.collection_item_ids?.length ?? 0) > 0
+                            ))) ? (
+                          <CardListTileFooter className="justify-end">
+                            <div
+                              className="flex shrink-0 items-center gap-1.5"
+                              onClick={(event) => event.stopPropagation()}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              {item.owned ? (
+                                <button
+                                  type="button"
+                                  onClick={(event) => handleSingleRemove(event, item)}
+                                  disabled={removingItems}
+                                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12 md:h-9 md:w-9"
+                                  aria-label={`Remove ${item.name} from ${collectionRemovalLabel}`}
+                                  title={`Remove from ${collectionRemovalLabel}`}
+                                >
+                                  <Minus className="h-3.5 w-3.5" />
+                                </button>
+                              ) : allowWantRemoval ? (
+                                <CollectionAddCardButton
+                                  card={getCollectionCardQuickActionData(item).card}
+                                  initialBinderId={bulkAddBinder?.id ?? null}
+                                  lockedBinderName={bulkAddBinder?.name ?? null}
+                                  className="h-11 w-11 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32 md:h-9 md:w-9"
+                                />
+                              ) : (
+                                <CollectionCardQuickActions
+                                  data={getCollectionCardQuickActionData(item)}
+                                  initialBinderId={bulkAddBinder?.id ?? null}
+                                  lockedBinderName={bulkAddBinder?.name ?? null}
+                                />
+                              )}
+                            </div>
+                          </CardListTileFooter>
+                        ) : null}
+                      </CardListTileBody>
+                    </CardListTile>
                   );
                 })}
               </div>

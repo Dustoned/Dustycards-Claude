@@ -1,6 +1,14 @@
 ﻿"use client";
 
 import CachedImage from "@/components/CachedImage";
+import {
+  CardListTile,
+  CardListTileBody,
+  CardListTileFooter,
+  CardListTileMedia,
+  CardListTileMetrics,
+  CardListTilePrice,
+} from "@/components/CardListTile";
 import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import Link from "next/link";
 import { memo } from "react";
@@ -376,20 +384,22 @@ function MoverReasonChips({
   item,
   mode,
   changeDisplay,
+  mobileLimit = 2,
 }: {
   item: CollectionMoverItem;
   mode: MoverDisplayMode;
   changeDisplay: MoverChangeDisplay;
+  mobileLimit?: number;
 }) {
   const reasons = getMoverReasons(item, mode, changeDisplay);
   if (reasons.length === 0) return null;
 
   return (
     <>
-      {reasons.map((reason) => (
+      {reasons.map((reason, index) => (
         <span
           key={reason.label}
-          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${reasonChipClass(
+          className={`${index >= mobileLimit ? "hidden sm:inline-flex" : "inline-flex"} rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums ${reasonChipClass(
             reason.tone
           )}`}
         >
@@ -411,13 +421,15 @@ function CompactMetric({
   label,
   value,
   toneValue,
+  className,
 }: {
   label: string;
   value: string;
   toneValue?: number | null;
+  className?: string;
 }) {
   return (
-    <div className="min-w-0">
+    <div className={`min-w-0 ${className ?? ""}`}>
       <p className="truncate text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">
         {label}
       </p>
@@ -553,20 +565,20 @@ const MoverTile = memo(function MoverTile({
   const primaryValue = isTarget
     ? formatScoreValue(item.moverScore)
     : formatTileCurrency(item.currentPrice, item.currency);
+  const mobileBadgeCount = Number(Boolean(item.normalizedRarity)) + Number(Boolean(item.buySignal));
+  const mobileReasonLimit = Math.max(0, 2 - mobileBadgeCount);
 
   return (
-    <article
+    <CardListTile
       role="button"
       tabIndex={0}
       data-mover-card-id={item.cardId}
       onClick={open}
       onKeyDown={(event) => handleOpenKey(event, open)}
       aria-label={`Open details for ${item.name}`}
-      className={`group relative flex h-full scroll-mt-24 cursor-pointer flex-col rounded-2xl border p-2.5 outline-none transition-colors hover:border-white/14 hover:bg-white/[0.055] focus-visible:ring-2 focus-visible:ring-emerald-400/50 sm:p-3 ${
-        isHighlighted
-          ? "border-rose-300/65 bg-rose-400/[0.105] shadow-[0_0_0_1px_rgba(251,113,133,0.32),0_0_34px_rgba(244,63,94,0.26)]"
-          : "border-white/8 bg-white/[0.035]"
-      }`}
+      interactive
+      state={isHighlighted ? "highlighted" : "default"}
+      className="scroll-mt-24"
     >
       {isLoading ? (
         <div className="absolute right-2.5 top-2.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-black/80 text-white sm:h-7 sm:w-7">
@@ -574,105 +586,93 @@ const MoverTile = memo(function MoverTile({
         </div>
       ) : null}
 
-      <div className="flex items-start gap-2.5 sm:gap-3">
-        <div
-          className={getCardImageFrameClassName(
-            item.imageUrl,
-            "relative h-[4.5rem] w-[3.2rem] shrink-0 overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_6px_12px_rgba(0,0,0,0.22)] sm:h-[5.25rem] sm:w-[3.7rem]"
-          )}
-        >
-          {item.imageUrl ? (
-            <CachedImage
-              sourceUrl={item.imageUrl}
-              alt={item.name}
-              fill
-              className={getCardImageClassName(item.imageUrl, "rounded-[4.75%] object-fill")}
-              sizes="(max-width: 640px) 52px, 64px"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-white/35">
-              {item.name.slice(0, 2)}
+      <CardListTileMedia imageUrl={item.imageUrl} emptyLabel={item.name}>
+        {item.imageUrl ? (
+          <CachedImage
+            sourceUrl={item.imageUrl}
+            alt={item.name}
+            fill
+            className={getCardImageClassName(item.imageUrl, "rounded-[4.75%] object-fill")}
+            sizes="(max-width: 640px) 104px, 92px"
+          />
+        ) : undefined}
+      </CardListTileMedia>
+
+      <CardListTileBody>
+        <div className="flex items-start justify-between gap-2 sm:gap-3">
+          <div className="min-w-0">
+            <p className="block max-w-full truncate text-sm font-semibold leading-tight text-white sm:text-[15px]">
+              {item.name}
+            </p>
+            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10.5px] text-white/42 sm:text-[11px]">
+              <span className="shrink-0 tabular-nums">{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
+              <span className="text-white/20">·</span>
+              <Link
+                href={getExpansionHref(item.episodeId)}
+                prefetch={false}
+                onClick={stopCardOpen}
+                className="truncate transition-colors hover:text-white/80"
+              >
+                {item.episodeName}
+                {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
+              </Link>
             </div>
-          )}
+          </div>
+
+          <CardListTilePrice label={primaryLabel} value={primaryValue} />
         </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2 sm:gap-3">
-            <div className="min-w-0">
-              <p className="block max-w-full truncate text-sm font-semibold leading-tight text-white sm:text-[15px]">
-                {item.name}
-              </p>
-              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10.5px] text-white/42 sm:text-[11px]">
-                <span className="shrink-0 tabular-nums">{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
-                <span className="text-white/20">·</span>
-                <Link
-                  href={getExpansionHref(item.episodeId)}
-                  prefetch={false}
-                  onClick={stopCardOpen}
-                  className="truncate transition-colors hover:text-white/80"
-                >
-                  {item.episodeName}
-                  {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
-                </Link>
-              </div>
-            </div>
-
-            <div className="shrink-0 text-right">
-              <p className="text-base font-bold leading-none tabular-nums text-white sm:text-lg">
-                {primaryValue}
-              </p>
-              <p className="mt-1 text-[9px] font-medium uppercase tracking-[0.12em] text-white/32 sm:text-[9.5px]">
-                {primaryLabel}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-1.5 flex flex-wrap items-center gap-1 sm:mt-2 sm:gap-1.5">
-            {item.normalizedRarity ? (
-              <span
-                className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold ${rarityBadge(
-                  item.normalizedRarity
-                )}`}
-              >
-                {item.normalizedRarity}
-              </span>
-            ) : null}
-            <MoverBuySignalChip signal={item.buySignal} />
-            <MoverReasonChips item={item} mode={mode} changeDisplay={changeDisplay} />
-            {mode === "target" ? (
-              <span className="inline-flex rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/45">
-                {item.grading?.tier === "pristine" ? "Pristine target" : "Grade target"}
-              </span>
-            ) : null}
-            {item.ownedCount > 0 ? (
-              <span className="inline-flex rounded-md border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/45">
-                {item.ownedCount}× owned
-              </span>
-            ) : null}
-          </div>
-
-          {compactMetrics.length > 0 ? (
-            <div className="mt-2.5 grid grid-cols-4 gap-x-2 gap-y-1.5 border-t border-white/8 pt-2 sm:mt-3 sm:gap-x-3 sm:gap-y-2 sm:pt-2.5">
-              {compactMetrics.slice(0, 4).map((metric) => (
-                <CompactMetric
-                  key={metric.label}
-                  label={metric.label}
-                  value={metric.value}
-                  toneValue={metric.toneValue}
-                />
-              ))}
-            </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1 sm:mt-2 sm:gap-1.5">
+          {item.normalizedRarity ? (
+            <span
+              className={`inline-flex rounded-md px-2 py-0.5 text-[10px] font-semibold ${rarityBadge(
+                item.normalizedRarity
+              )}`}
+            >
+              {item.normalizedRarity}
+            </span>
+          ) : null}
+          <MoverBuySignalChip signal={item.buySignal} />
+          <MoverReasonChips
+            item={item}
+            mode={mode}
+            changeDisplay={changeDisplay}
+            mobileLimit={mobileReasonLimit}
+          />
+          {mode === "target" ? (
+            <span className="hidden rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/45 sm:inline-flex">
+              {item.grading?.tier === "pristine" ? "Pristine target" : "Grade target"}
+            </span>
+          ) : null}
+          {item.ownedCount > 0 ? (
+            <span className="hidden rounded-md border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/45 sm:inline-flex">
+              {item.ownedCount}× owned
+            </span>
           ) : null}
         </div>
-      </div>
 
-      <div className="mt-2 flex justify-end border-t border-white/7 pt-2">
-        <CollectionCardQuickActions
-          data={getMoverQuickActionData(item, cardQuickActions)}
-          gradedLabel={displayMode === "graded" ? item.gradedLabel : null}
-        />
-      </div>
-    </article>
+        {compactMetrics.length > 0 ? (
+          <CardListTileMetrics>
+            {compactMetrics.slice(0, 4).map((metric, index) => (
+              <CompactMetric
+                key={metric.label}
+                label={metric.label}
+                value={metric.value}
+                toneValue={metric.toneValue}
+                className={index >= 2 ? "hidden sm:block" : undefined}
+              />
+            ))}
+          </CardListTileMetrics>
+        ) : null}
+
+        <CardListTileFooter className="justify-end">
+          <CollectionCardQuickActions
+            data={getMoverQuickActionData(item, cardQuickActions)}
+            gradedLabel={displayMode === "graded" ? item.gradedLabel : null}
+          />
+        </CardListTileFooter>
+      </CardListTileBody>
+    </CardListTile>
   );
 });
 
@@ -1010,7 +1010,7 @@ export function MoverGrid({
 }) {
   return (
     <div
-      className="grid auto-rows-fr items-stretch gap-2.5 sm:gap-3 lg:gap-4"
+      className="grid gap-2.5 sm:gap-3 lg:gap-4"
       style={{
         gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
         justifyContent: "stretch",

@@ -12,6 +12,13 @@ import {
   useState,
 } from "react";
 import { CalendarDays, Clock3, ExternalLink, Package, Search, X } from "lucide-react";
+import {
+  CardListTile,
+  CardListTileBody,
+  CardListTileMedia,
+  CardListTileMetrics,
+  CardListTilePrice,
+} from "@/components/CardListTile";
 import { SectionHeader } from "@/components/PageHeader";
 import CachedImage from "@/components/CachedImage";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
@@ -289,112 +296,112 @@ const SealedMoverTile = memo(function SealedMoverTile({
   };
 
   return (
-    <article
+    <CardListTile
+      interactive
+      accent="market"
       role="button"
       tabIndex={0}
       aria-label={`Open sealed details for ${item.name}`}
       onClick={openDetails}
       onKeyDown={handleKeyDown}
-      className="group flex h-full cursor-pointer flex-col rounded-2xl border border-white/8 bg-white/[0.035] p-2.5 outline-none transition-colors hover:border-white/14 hover:bg-white/[0.055] focus-visible:ring-2 focus-visible:ring-emerald-400/50 sm:p-3"
+      className="focus-visible:ring-emerald-400/50"
     >
-      <div className="flex min-w-0 items-start gap-2.5 text-left sm:gap-3">
-        <span className="relative aspect-square w-[3.5rem] shrink-0 overflow-hidden rounded-lg bg-black/20 sm:w-[4.25rem]">
-          {item.imageUrl ? (
-            <CachedImage
-              sourceUrl={item.imageUrl}
-              alt={item.name}
-              fill
-              sizes="(max-width: 640px) 56px, 68px"
-              className="object-contain p-1.5"
-              unoptimized
-            />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-white/35">
-              <Package className="h-5 w-5 sm:h-6 sm:w-6" />
-            </span>
-          )}
-        </span>
-
-        <span className="min-w-0 flex-1">
-          <span className="flex items-start justify-between gap-2 sm:gap-3">
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold text-white sm:text-[15px]">
-                {item.name}
-              </span>
-              <span className="mt-0.5 block truncate text-[10.5px] font-medium text-white/42 sm:text-[11px]">
-                {item.episodeName}
-                {item.episodeCode ? ` · ${item.episodeCode}` : ""}
-              </span>
-            </span>
-            <span className="shrink-0 text-right">
-              <span className="block text-base font-bold leading-none tabular-nums text-white sm:text-lg">
-                {formatCurrency(item.currentPrice, "EUR")}
-              </span>
-              <span className="mt-1 block text-[9px] font-medium uppercase tracking-[0.12em] text-white/32 sm:text-[9.5px]">
-                Current
-              </span>
-            </span>
+      <CardListTileMedia imageUrl={item.imageUrl} kind="product" emptyLabel="Product image">
+        {item.imageUrl ? (
+          <CachedImage
+            sourceUrl={item.imageUrl}
+            alt={item.name}
+            fill
+            sizes="(max-width: 640px) 104px, 92px"
+            className="object-contain p-2"
+            unoptimized
+          />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-white/35">
+            <Package className="h-7 w-7" />
           </span>
-          <span className="mt-1.5 flex flex-wrap items-center gap-1 sm:mt-2 sm:gap-1.5">
-            <span className="rounded-md border border-white/8 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-white/55">
-              {item.categoryLabel}
-            </span>
-            {item.ownedCount > 0 ? (
-              <span className="rounded-md border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/45">
-                {item.ownedCount}× owned
-              </span>
-            ) : null}
-            {reason ? (
-              <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${reason.className}`}>
-                {reason.label}
-              </span>
-            ) : null}
+        )}
+      </CardListTileMedia>
+
+      <CardListTileBody>
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-bold leading-[1.15rem] text-white transition-colors group-hover/card-list:text-violet-100 sm:text-[15px] sm:leading-5">
+              {item.name}
+            </h3>
+            <p className="mt-0.5 truncate text-[10.5px] font-medium text-white/42 sm:text-[11px]">
+              {item.episodeName}
+              {item.episodeCode ? ` · ${item.episodeCode}` : ""}
+            </p>
+          </div>
+          <CardListTilePrice
+            label="Current"
+            value={formatCurrency(item.currentPrice, "EUR")}
+          />
+        </div>
+
+        <div className="mt-1.5 flex max-h-6 flex-wrap items-start gap-1 overflow-hidden sm:mt-2 sm:max-h-none sm:gap-1.5">
+          <span className="rounded-md border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-surface-hover-rgb)/0.5)] px-2 py-0.5 text-[10px] font-medium text-white/55">
+            {item.categoryLabel}
           </span>
-        </span>
-      </div>
+          {item.ownedCount > 0 ? (
+            <span className="rounded-md border border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-surface-hover-rgb)/0.4)] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/45">
+              {item.ownedCount}× owned
+            </span>
+          ) : null}
+          {reason ? (
+            <span className={`rounded-md border px-2 py-0.5 text-[10px] font-semibold ${reason.className}`}>
+              {reason.label}
+            </span>
+          ) : null}
+        </div>
 
-      <div className="mt-2.5 grid grid-cols-3 gap-x-2 border-t border-white/8 pt-2 sm:mt-3 sm:gap-x-3 sm:pt-2.5">
-        <div className="min-w-0">
-          <p className="text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">7D</p>
-          <p className={`mt-0.5 text-[12px] font-semibold tabular-nums sm:text-[13px] ${toneClass(item.change7dPct)}`}>
-            {formatPercent(item.change7dPct)}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">30D</p>
-          <p className={`mt-0.5 text-[12px] font-semibold tabular-nums sm:text-[13px] ${toneClass(item.change30dPct)}`}>
-            {formatPercent(item.change30dPct)}
-          </p>
-        </div>
-        <div className="min-w-0">
-          <p className="text-[9.5px] font-medium uppercase tracking-[0.13em] text-white/30">Low / Peak</p>
-          <p className="mt-0.5 whitespace-nowrap text-[12px] font-semibold tabular-nums text-white/82 sm:text-[13px]">
-            {formatCurrency(item.lowPrice, "EUR")} / {formatCurrency(item.highPrice, "EUR")}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-2.5 flex items-center justify-between gap-2 text-[10px] font-medium text-white/35">
-        <span className="tabular-nums">
-          {item.historyPoints.toLocaleString("en-US")} recent /{" "}
-          {item.lifetimeHistoryPoints.toLocaleString("en-US")} lifetime
-        </span>
-        <a
-          href={buildSealedEbaySearchUrl({
-            name: item.name,
-            episodeName: item.episodeName,
-            episodeCode: item.episodeCode,
-          })}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 rounded-md border border-white/8 px-2 py-1 font-semibold text-white/60 transition-colors hover:bg-white/[0.05] hover:text-white/80"
-          onClick={(event) => event.stopPropagation()}
+        <CardListTileMetrics
+          className="gap-x-2 sm:gap-x-3"
+          style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
         >
-          Deals
-          <ExternalLink className="h-3 w-3" />
-        </a>
-      </div>
-    </article>
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-[0.13em] text-white/30">7D</p>
+            <p className={`mt-0.5 text-[12px] font-semibold tabular-nums sm:text-[13px] ${toneClass(item.change7dPct)}`}>
+              {formatPercent(item.change7dPct)}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-[0.13em] text-white/30">30D</p>
+            <p className={`mt-0.5 text-[12px] font-semibold tabular-nums sm:text-[13px] ${toneClass(item.change30dPct)}`}>
+              {formatPercent(item.change30dPct)}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[9px] font-medium uppercase tracking-[0.13em] text-white/30">Range</p>
+            <p className="mt-0.5 truncate text-[11px] font-semibold tabular-nums text-white/82 sm:text-[12px]">
+              {formatCurrency(item.lowPrice, "EUR")}–{formatCurrency(item.highPrice, "EUR")}
+            </p>
+          </div>
+        </CardListTileMetrics>
+
+        <div className="mt-2 flex min-w-0 items-center justify-between gap-2 text-[10px] font-medium text-white/35">
+          <span className="min-w-0 truncate tabular-nums">
+            {item.historyPoints.toLocaleString("en-US")} recent /{" "}
+            {item.lifetimeHistoryPoints.toLocaleString("en-US")} lifetime
+          </span>
+          <a
+            href={buildSealedEbaySearchUrl({
+              name: item.name,
+              episodeName: item.episodeName,
+              episodeCode: item.episodeCode,
+            })}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative z-10 inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-[rgb(var(--dc-border-rgb)/0.82)] px-2.5 font-semibold text-white/60 transition-colors hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.62)] hover:text-white/80 sm:min-h-9 sm:px-2"
+            onClick={(event) => event.stopPropagation()}
+          >
+            Deals
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      </CardListTileBody>
+    </CardListTile>
   );
 });
 
@@ -710,7 +717,7 @@ export default function SealedMoversBrowser({ data }: Props) {
           </div>
         ) : (
           <>
-            <div className="grid auto-rows-fr items-stretch gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3 2xl:grid-cols-4">
               {renderedMovers.map((item) => (
                 <SealedMoverTile
                   key={item.productId}

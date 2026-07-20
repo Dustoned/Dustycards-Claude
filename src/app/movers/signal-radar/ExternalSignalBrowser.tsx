@@ -18,6 +18,14 @@ import {
   X,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
+import {
+  CardListTile,
+  CardListTileBody,
+  CardListTileInsight,
+  CardListTileLink,
+  CardListTileMedia,
+  CardListTilePrice,
+} from "@/components/CardListTile";
 import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import EmptyState from "@/components/EmptyState";
 import { SectionHeader } from "@/components/PageHeader";
@@ -596,113 +604,113 @@ function CompactSignalCard({
   const outlookBadge = getScenarioOutlookBadge(scenario);
 
   return (
-    <article
-      className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_14px_42px_rgba(0,0,0,0.2)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/24 sm:p-3.5"
+    <CardListTile
+      interactive
+      accent="radar"
+      className="grid-cols-[clamp(6.75rem,30vw,7.25rem)_minmax(0,1fr)] sm:grid-cols-[7.5rem_minmax(0,1fr)]"
       data-signal-card-id={signal.cardId}
     >
-      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-65" />
-      <div className="grid min-w-0 grid-cols-[6.25rem_minmax(0,1fr)] items-start gap-3">
-        <Link
-          href={detailHref}
-          className="relative aspect-[63/88] w-[6.25rem] shrink-0 overflow-hidden rounded-[0.7rem] border border-white/10 bg-black/25 shadow-lg shadow-black/25 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-          aria-label={`Open full analysis for ${signal.name}`}
-        >
-          {signal.imageUrl ? (
-            <CachedImage
-              sourceUrl={signal.imageUrl}
-              alt={signal.name}
-              fill
-              sizes="(max-width: 640px) 88px, 100px"
-              loading={prioritizeImage ? "eager" : undefined}
-              preload={prioritizeImage}
-              className="object-contain"
-            />
-          ) : (
-            <span className="absolute inset-0 flex items-center justify-center text-white/22">
-              <Boxes className="h-7 w-7" />
-            </span>
-          )}
-          <span className="absolute left-1.5 top-1.5 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/75 px-1.5 text-[10px] font-black text-white">
-            #{signal.rank}
-          </span>
-        </Link>
+      <CardListTileLink
+        href={detailHref}
+        label={`Open full analysis for ${signal.name}`}
+      />
 
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]", getConfidenceClasses(signal.confidence))}>
-                  {signal.confidence}
-                </span>
-                <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/45">
-                  {signal.sourceMode === "structural" ? "Scarcity" : signal.sourceMode === "event" ? "Event" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament"}
-                </span>
-                {outlookBadge ? (
-                  <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]", outlookBadge.classes)}>
-                    {outlookBadge.label}
-                  </span>
-                ) : null}
-                {eventLinked && primaryCatalyst ? (
-                  <span className="max-w-full truncate rounded-full border border-amber-300/15 bg-amber-400/[0.07] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-amber-100/70">
-                    {primaryCatalyst.evidenceLevel} source
-                  </span>
-                ) : null}
-              </div>
-              <Link href={detailHref} className="mt-2 block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">
-                <h3 className="line-clamp-2 text-base font-bold leading-5 tracking-tight text-white transition group-hover:text-violet-100">{signal.name}</h3>
-              </Link>
-              <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-white/42">
-                {signal.episodeName}{signal.cardNumber ? ` / ${signal.cardNumber}` : ""}{signal.rarity ? ` / ${signal.rarity}` : ""}
-              </p>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-[8px] font-semibold uppercase tracking-[0.1em] text-white/30">{marketMode}</p>
-              <p className="mt-0.5 text-sm font-bold tabular-nums text-white">
-                {scenario ? formatCurrency(scenario.currentPrice, scenario.currency) : formatCurrency(signal.currentPrice, signal.currency)}
-              </p>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <div className="mt-3 border-t border-white/8 pt-2.5">
-        <p
-          className="text-[10px] font-semibold tabular-nums text-violet-100/72"
-          title="Score combines the selected market scenario with the available demand and supply evidence."
-        >
-          Score {effectiveScore}
-          {scenario && base180 != null && scenarioChangePercent != null ? (
-            <>
-              {" · "}{formatCurrency(scenario.currentPrice, scenario.currency)} → {formatCurrency(base180, scenario.currency)} ({scenarioChangePercent >= 0 ? "+" : ""}{scenarioChangePercent.toFixed(0)}%)
-            </>
-          ) : null}
-        </p>
-        <div className="mt-2 flex min-w-0 items-start gap-2 text-[10px] leading-4 text-white/48">
-          <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-emerald-300/62" />
-          <span className="line-clamp-2">{primaryReason}</span>
-        </div>
-      </div>
-      <div className="mt-auto flex min-w-0 items-center justify-between gap-2 pt-2.5">
-        {quickActionData ? (
-          <CollectionCardQuickActions
-            data={quickActionData}
-            gradedLabel={
-              marketMode === "graded"
-                ? signal.marketIntelligence?.graded.label ?? null
-                : null
-            }
+      <CardListTileMedia
+        imageUrl={signal.imageUrl}
+        className="pointer-events-none relative z-[1]"
+      >
+        {signal.imageUrl ? (
+          <CachedImage
+            sourceUrl={signal.imageUrl}
+            alt={signal.name}
+            fill
+            sizes="(max-width: 640px) 116px, 120px"
+            loading={prioritizeImage ? "eager" : undefined}
+            preload={prioritizeImage}
+            className="object-contain"
           />
-        ) : null}
-        <Link
-          href={detailHref}
-          className="ml-auto inline-flex min-h-11 shrink-0 items-center justify-end gap-1 rounded-lg px-2 text-[10px] font-semibold text-violet-200/62 transition hover:bg-violet-400/[0.08] hover:text-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
-        >
-          Analysis
-          <ChevronRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
-    </article>
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-white/22">
+            <Boxes className="h-7 w-7" />
+          </span>
+        )}
+        <span className="absolute left-1.5 top-1.5 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/75 px-1.5 text-[10px] font-black text-white">
+          #{signal.rank}
+        </span>
+      </CardListTileMedia>
+
+      <CardListTileBody className="pointer-events-none relative z-[1]">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
+            <div className="flex max-h-6 min-w-0 flex-wrap items-start gap-1.5 overflow-hidden sm:max-h-none">
+              <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]", getConfidenceClasses(signal.confidence))}>
+                {signal.confidence}
+              </span>
+              <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/45">
+                {signal.sourceMode === "structural" ? "Scarcity" : signal.sourceMode === "event" ? "Event" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament"}
+              </span>
+              {outlookBadge ? (
+                <span className={cx("hidden rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em] sm:inline-flex", outlookBadge.classes)}>
+                  {outlookBadge.label}
+                </span>
+              ) : null}
+              {eventLinked && primaryCatalyst ? (
+                <span className="hidden max-w-full truncate rounded-full border border-amber-300/15 bg-amber-400/[0.07] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-amber-100/70 xl:inline-flex">
+                  {primaryCatalyst.evidenceLevel} source
+                </span>
+              ) : null}
+            </div>
+          <CardListTilePrice
+            label={marketMode}
+            value={scenario ? formatCurrency(scenario.currentPrice, scenario.currency) : formatCurrency(signal.currentPrice, signal.currency)}
+          />
+          <h3 className="col-span-2 mt-1.5 truncate text-base font-bold leading-5 tracking-tight text-white transition group-hover/card-list:text-violet-100">
+            {signal.name}
+          </h3>
+          <p className="col-span-2 mt-0.5 truncate text-[10px] leading-4 text-white/52">
+            {signal.episodeName}{signal.cardNumber ? ` / ${signal.cardNumber}` : ""}{signal.rarity ? ` / ${signal.rarity}` : ""}
+          </p>
+        </div>
+
+        <CardListTileInsight>
+          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300/62" />
+          <span className="line-clamp-2">
+            <strong
+              className="font-bold tabular-nums text-violet-100/76"
+              title="Score combines the selected market scenario with the available demand and supply evidence."
+            >
+              Score {effectiveScore}
+            </strong>
+            <span className="hidden sm:inline">
+              {scenario && base180 != null && scenarioChangePercent != null
+                ? ` · ${formatCurrency(scenario.currentPrice, scenario.currency)} → ${formatCurrency(base180, scenario.currency)} (${scenarioChangePercent >= 0 ? "+" : ""}${scenarioChangePercent.toFixed(0)}%)`
+                : ""}
+            </span>
+            {" · "}{primaryReason}
+          </span>
+        </CardListTileInsight>
+
+        <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+          {quickActionData ? (
+            <div className="pointer-events-auto relative z-10 shrink-0">
+              <CollectionCardQuickActions
+                data={quickActionData}
+                gradedLabel={
+                  marketMode === "graded"
+                    ? signal.marketIntelligence?.graded.label ?? null
+                    : null
+                }
+              />
+            </div>
+          ) : (
+            <span />
+          )}
+          <span className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100">
+            Analysis
+            <ChevronRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+      </CardListTileBody>
+    </CardListTile>
   );
 }
 
@@ -731,7 +739,13 @@ export function ExternalSignalDetailCard({
         : "Watch";
 
   return (
-    <article className="group relative min-w-0 overflow-hidden rounded-[1.6rem] border border-white/10 bg-[linear-gradient(145deg,rgba(21,24,35,0.98),rgba(12,14,22,0.98))] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.22)] transition duration-200 hover:border-violet-300/22 sm:p-4">
+    <article
+      className="group relative min-w-0 overflow-hidden rounded-[1.6rem] border border-[rgb(var(--dc-border-rgb)/0.92)] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.18)] transition duration-200 hover:border-violet-300/22 sm:p-4"
+      style={{
+        background:
+          "linear-gradient(145deg, rgb(var(--dc-surface-elevated-rgb) / 0.98), rgb(var(--dc-surface-primary-rgb) / 0.98))",
+      }}
+    >
       <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-65" />
       <div className="flex min-w-0 items-start gap-3 sm:gap-4">
         <div className="relative aspect-[63/88] w-[8rem] shrink-0 self-start overflow-hidden rounded-[0.85rem] border border-white/10 bg-black/25 shadow-lg shadow-black/25 sm:w-[11rem] xl:w-[14rem]">
@@ -1141,7 +1155,7 @@ export default function ExternalSignalBrowser({
             ) : null}
           </label>
 
-          <div className="col-span-2 flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 lg:col-span-1">
+          <div className="col-span-2 flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:col-span-1">
             {CONFIDENCE_OPTIONS.map((option) => (
               <button
                 key={option.value}

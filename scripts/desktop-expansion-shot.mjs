@@ -10,8 +10,8 @@ const OUT_DIR = path.resolve(process.cwd(), "screenshots-ui", "desktop-expansion
 const SESSION_COOKIE_NAME = "dustycards-session";
 const SETTINGS_COOKIE_NAME = "dustycards-settings";
 const SETTINGS_STORAGE_KEY = "dustycards-settings";
-const SMOKE_USER_ID = "ui-review-admin";
-const SMOKE_USER_EMAIL = "ui-review-admin@example.test";
+const SMOKE_USER_ID = "codex-test-account";
+const SMOKE_USER_EMAIL = "codex-test@example.test";
 const SMOKE_SESSION_ID = "ui-review-session";
 const SMOKE_SESSION_TOKEN = "ui-review-session-token";
 

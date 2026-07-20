@@ -13,6 +13,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
+import {
+  CardListTile,
+  CardListTileBody,
+  CardListTileInsight,
+  CardListTileLink,
+  CardListTileMedia,
+  CardListTilePrice,
+} from "@/components/CardListTile";
 import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import type {
   CardQuickActionData,
@@ -136,11 +144,15 @@ function ChaseCard({
   episodeId,
   game,
   quickActionData,
+  centerOnTwoColumnRow = false,
+  prioritizeImage = false,
 }: {
   card: ExpansionChaseRadarCard;
   episodeId: string;
   game: TradingCardGame;
   quickActionData: CardQuickActionData | undefined;
+  centerOnTwoColumnRow?: boolean;
+  prioritizeImage?: boolean;
 }) {
   const projectedReturn = modelReturn(card);
   const showObservedMove =
@@ -154,31 +166,38 @@ function ChaseCard({
         item !== "post-release stabilization"
     ) ?? null;
 
+  const insight = driver ?? card.verdict.summary;
+
   return (
-    <article
+    <CardListTile
+      interactive
+      accent="radar"
       className={cx(
-        "group relative grid min-w-0 cursor-pointer grid-cols-[5.25rem_minmax(0,1fr)] gap-3 overflow-hidden rounded-[1.25rem] border bg-[linear-gradient(145deg,rgba(20,22,32,0.98),rgba(11,13,20,0.98))] p-3 shadow-[0_16px_42px_rgba(0,0,0,0.22)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-300/28 focus-within:border-violet-300/32 sm:grid-cols-[6rem_minmax(0,1fr)]",
-        card.setRank === 1 ? "border-violet-300/24" : "border-white/10"
+        "grid-cols-[clamp(6.75rem,30vw,7.25rem)_minmax(0,1fr)] sm:grid-cols-[7.5rem_minmax(0,1fr)]",
+        centerOnTwoColumnRow &&
+          "md:col-span-2 md:w-full md:max-w-[28rem] md:justify-self-center 2xl:col-span-1 2xl:max-w-none"
       )}
       data-chase-verdict={card.verdict.key}
       data-chase-card-id={card.cardId}
     >
-      <Link
+      <CardListTileLink
         href={detailHref}
-        aria-label={`Open full chase analysis for ${card.name}`}
-        className="absolute inset-0 z-0 rounded-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400"
+        label={`Open full chase analysis for ${card.name}`}
         data-chase-card-link
+      />
+
+      <CardListTileMedia
+        imageUrl={card.imageUrl}
+        className="pointer-events-none relative z-[1]"
       >
-        <span className="sr-only">Open full chase analysis for {card.name}</span>
-      </Link>
-      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/55 to-transparent opacity-70" />
-      <div className="pointer-events-none relative aspect-[63/88] w-full overflow-hidden rounded-[0.75rem] border border-white/10 bg-black/30 shadow-lg shadow-black/30">
         {card.imageUrl ? (
           <CachedImage
             sourceUrl={card.imageUrl}
             alt={card.name}
             fill
-            sizes="(max-width: 640px) 84px, 96px"
+            sizes="(max-width: 640px) 116px, 120px"
+            loading={prioritizeImage ? "eager" : undefined}
+            preload={prioritizeImage}
             className="object-contain"
           />
         ) : (
@@ -187,79 +206,63 @@ function ChaseCard({
           </span>
         )}
         <span className="absolute left-1.5 top-1.5 rounded-md border border-white/15 bg-black/78 px-1.5 py-1 text-[9px] font-black text-white shadow-sm">
-          SET #{card.setRank}
+          #{card.setRank}
         </span>
-      </div>
+      </CardListTileMedia>
 
-      <div className="pointer-events-none flex min-w-0 flex-col">
-        <div className="flex min-w-0 items-start justify-between gap-2">
-          <div className="min-w-0">
-            <span
-              className={cx(
-                "inline-flex rounded-lg border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em]",
-                verdictClasses(card.verdict.key)
-              )}
-            >
-              {card.verdict.label}
-            </span>
-            <h3 className="mt-2 line-clamp-2 text-[15px] font-extrabold leading-5 tracking-tight text-white transition group-hover:text-violet-100">
-              {card.name}
-            </h3>
-            <p className="mt-0.5 truncate text-[11px] text-white/58">
-              {card.cardNumber ? `#${card.cardNumber} · ` : ""}{card.rarity ?? "Rarity pending"}
-            </p>
-          </div>
-          <p className="shrink-0 text-sm font-extrabold tabular-nums text-white">
-            {formatCurrency(card.currentPrice, card.currency)}
+      <CardListTileBody className="pointer-events-none relative z-[1]">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
+          <span
+            className={cx(
+              "inline-flex max-w-full justify-self-start truncate rounded-lg border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em]",
+              verdictClasses(card.verdict.key)
+            )}
+          >
+            {card.verdict.label}
+          </span>
+          <CardListTilePrice
+            label="Raw"
+            value={formatCurrency(card.currentPrice, card.currency)}
+          />
+          <h3 className="col-span-2 mt-1.5 truncate text-[15px] font-extrabold leading-5 tracking-tight text-white transition group-hover/card-list:text-violet-100">
+            {card.name}
+          </h3>
+          <p className="col-span-2 mt-0.5 truncate text-[11px] text-white/58">
+            {card.cardNumber ? `#${card.cardNumber} · ` : ""}{card.rarity ?? "Rarity pending"}
           </p>
         </div>
 
-        <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/68">
-          {card.verdict.summary}
-        </p>
-        {driver ? (
-          <p className="mt-1 line-clamp-1 text-[11px] font-medium text-white/52">
-            {driver}
-          </p>
-        ) : null}
-      </div>
+        <CardListTileInsight>
+          <Radar className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300/72" />
+          <span className="line-clamp-2">
+            <strong className="font-bold text-white/76">Score {card.opportunityScore}</strong>
+            {" · "}
+            {insight}
+          </span>
+        </CardListTileInsight>
 
-      <dl className="pointer-events-none col-span-2 grid min-w-0 grid-cols-3 gap-1.5">
-          <div className="min-w-0 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5">
-            <dt className="text-[11px] font-semibold text-white/56">Radar</dt>
-            <dd className="mt-0.5 text-xs font-bold tabular-nums text-white/82">{card.opportunityScore}/100</dd>
-          </div>
-          <div className="min-w-0 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5">
-            <dt className="text-[11px] font-semibold text-white/56">{showObservedMove ? "vs 7d" : "180d"}</dt>
-            <dd className={cx("mt-0.5 text-xs font-bold tabular-nums", displayedMove != null && displayedMove < 0 ? "text-rose-200/82" : "text-cyan-200/82")}>
-              {showObservedMove
-                ? signedWholePercent(card.changeVs7dPct)
-                : projectedReturn == null || card.scenarioConfidence === "Low"
-                  ? "Learning"
-                  : signedWholePercent(projectedReturn)}
-            </dd>
-          </div>
-          <div className="min-w-0 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5">
-            <dt className="text-[11px] font-semibold text-white/56">Confidence</dt>
-            <dd className="mt-0.5 truncate text-xs font-bold text-white/82">{card.scenarioConfidence ?? "Learning"}</dd>
-          </div>
-        </dl>
-
-      <div className="pointer-events-none col-span-2 flex min-w-0 items-center gap-2">
-        <span
-          aria-hidden="true"
-          className="pointer-events-none inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border border-violet-300/14 bg-violet-400/[0.07] px-3 text-xs font-bold text-violet-100/82 transition group-hover:border-violet-300/28 group-hover:bg-violet-400/[0.12]"
-        >
-          <span className="truncate">Full chase analysis</span>
-          <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+        <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+          {quickActionData ? (
+            <div className="pointer-events-auto relative z-10 shrink-0" data-chase-card-actions>
+              <CollectionCardQuickActions data={quickActionData} />
+            </div>
+          ) : (
+            <span />
+          )}
+          <span className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100">
+            Analysis
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </span>
+        </div>
+        <span className="sr-only">
+          {showObservedMove ? "Seven-day move" : "Projected 180-day move"}: {showObservedMove
+            ? signedWholePercent(card.changeVs7dPct)
+            : projectedReturn == null || card.scenarioConfidence === "Low"
+              ? "Learning"
+              : signedWholePercent(displayedMove)}. Confidence {card.scenarioConfidence ?? "Learning"}.
         </span>
-        {quickActionData ? (
-          <div className="pointer-events-auto relative z-10 shrink-0" data-chase-card-actions>
-            <CollectionCardQuickActions data={quickActionData} />
-          </div>
-        ) : null}
-      </div>
-    </article>
+      </CardListTileBody>
+    </CardListTile>
   );
 }
 
@@ -278,7 +281,11 @@ export default function NewReleaseChasePanel({
     <section
       id="new-release-chases"
       aria-label={`New release chase radar for ${data.episode.name}`}
-      className="relative overflow-hidden rounded-[1.6rem] border border-violet-300/14 bg-[radial-gradient(circle_at_12%_0%,rgba(124,92,255,0.13),transparent_32%),linear-gradient(145deg,rgba(17,18,28,0.98),rgba(8,10,16,0.98))] p-3.5 shadow-[0_22px_70px_rgba(0,0,0,0.24)] sm:p-5"
+      className="relative overflow-hidden rounded-[1.6rem] border border-[rgb(var(--dc-border-rgb)/0.92)] p-3.5 shadow-[0_22px_70px_rgba(0,0,0,0.18)] sm:p-5"
+      style={{
+        background:
+          "radial-gradient(circle at 12% 0%, rgb(var(--dc-primary-rgb) / 0.13), transparent 32%), linear-gradient(145deg, rgb(var(--dc-surface-elevated-rgb) / 0.98), rgb(var(--dc-surface-primary-rgb) / 0.98))",
+      }}
       data-testid="new-release-chase-radar"
     >
       <div className="pointer-events-none absolute inset-x-16 top-0 h-px bg-gradient-to-r from-transparent via-violet-300/70 to-transparent" />
@@ -336,13 +343,17 @@ export default function NewReleaseChasePanel({
 
       {visibleCards.length > 0 ? (
         <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 2xl:grid-cols-3">
-          {visibleCards.map((card) => (
+          {visibleCards.map((card, index) => (
             <ChaseCard
               key={card.cardId}
               card={card}
               episodeId={data.episode.id}
               game={data.episode.game}
               quickActionData={cardQuickActions[card.cardId]}
+              prioritizeImage={index === 0}
+              centerOnTwoColumnRow={
+                visibleCards.length % 2 === 1 && index === visibleCards.length - 1
+              }
             />
           ))}
         </div>
