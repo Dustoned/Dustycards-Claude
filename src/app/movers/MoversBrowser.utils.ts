@@ -1,6 +1,4 @@
 import type { CollectionMoverItem } from "@/lib/movers";
-import { getRichMoverTrackWidth } from "@/lib/display-scale";
-import type { CardSize } from "@/lib/user-settings";
 
 export type SortKey =
   | "move"
@@ -20,13 +18,6 @@ export type SortKey =
   | "name";
 
 export type DirectionFilter = "all" | "risers" | "fallers";
-
-export function getMoverTileMinWidth(
-  cardSize: CardSize,
-  widescreen: boolean
-): string {
-  return getRichMoverTrackWidth(cardSize, widescreen);
-}
 
 export function buildSortSummary(sortKey: SortKey, direction: DirectionFilter): string {
   switch (sortKey) {

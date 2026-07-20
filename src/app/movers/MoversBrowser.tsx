@@ -6,7 +6,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { SectionHeader } from "@/components/PageHeader";
-import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { BuySignalLabel } from "@/lib/buy-signal";
 import { textMatchesSearchQuery } from "@/lib/card-search";
@@ -15,7 +14,6 @@ import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/mo
 import type { CardQuickActionMap } from "@/lib/card-quick-actions";
 import {
   compareMoverItems,
-  getMoverTileMinWidth,
   matchesDirection,
   type DirectionFilter,
   type SortKey,
@@ -227,7 +225,6 @@ export default function MoversBrowser({
   metricWindowLabel,
   cardQuickActions,
 }: Props) {
-  const { displaySettings } = useSettings();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -253,10 +250,6 @@ export default function MoversBrowser({
   const normalizedSearch = deferredSearch.trim().toLowerCase();
   const showBuySignalFilter = !isSuddenDropMode;
   const showTrendFilter = !isGradingScope && !isSuddenDropMode;
-  const moverTileMinWidth = getMoverTileMinWidth(
-    displaySettings.cardSize,
-    displaySettings.widescreen
-  );
   const matchesBuySignalFilter = useCallback(
     (item: CollectionMoverItem | null | undefined) =>
       Boolean(
@@ -737,7 +730,6 @@ export default function MoversBrowser({
           <>
             <MoverGrid
               movers={renderedMovers}
-              minTileWidth={moverTileMinWidth}
               loadingCardId={loadingCardId}
               cardQuickActions={cardQuickActions}
               displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}

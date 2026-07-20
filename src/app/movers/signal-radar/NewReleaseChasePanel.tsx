@@ -17,6 +17,7 @@ import {
   CardListTile,
   CardListTileBody,
   CardListTileFooter,
+  CardListTileGrid,
   CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
@@ -147,14 +148,12 @@ function ChaseCard({
   episodeId,
   game,
   quickActionData,
-  centerOnTwoColumnRow = false,
   prioritizeImage = false,
 }: {
   card: ExpansionChaseRadarCard;
   episodeId: string;
   game: TradingCardGame;
   quickActionData: CardQuickActionData | undefined;
-  centerOnTwoColumnRow?: boolean;
   prioritizeImage?: boolean;
 }) {
   const projectedReturn = modelReturn(card);
@@ -176,10 +175,6 @@ function ChaseCard({
       interactive
       accent="radar"
       layout="showcase"
-      className={cx(
-        centerOnTwoColumnRow &&
-          "md:col-span-2 md:w-full md:max-w-[28rem] md:justify-self-center 2xl:col-span-1 2xl:max-w-none"
-      )}
       data-chase-verdict={card.verdict.key}
       data-chase-card-id={card.cardId}
     >
@@ -352,7 +347,7 @@ export default function NewReleaseChasePanel({
       </dl>
 
       {visibleCards.length > 0 ? (
-        <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        <CardListTileGrid className="mt-4">
           {visibleCards.map((card, index) => (
             <ChaseCard
               key={card.cardId}
@@ -361,12 +356,9 @@ export default function NewReleaseChasePanel({
               game={data.episode.game}
               quickActionData={cardQuickActions[card.cardId]}
               prioritizeImage={index === 0}
-              centerOnTwoColumnRow={
-                visibleCards.length % 2 === 1 && index === visibleCards.length - 1
-              }
             />
           ))}
-        </div>
+        </CardListTileGrid>
       ) : (
         <div className="mt-4 flex min-h-28 items-center gap-3 rounded-xl border border-dashed border-white/10 bg-black/16 px-4 py-5">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-300/14 bg-amber-400/[0.07] text-amber-100/70">

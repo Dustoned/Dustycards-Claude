@@ -22,6 +22,7 @@ import {
   CardListTile,
   CardListTileBody,
   CardListTileFooter,
+  CardListTileGrid,
   CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
@@ -1291,12 +1292,7 @@ export default function ExternalSignalBrowser({
         />
 
         {visibleSignals.length > 0 ? (
-          <div
-            className="grid min-w-0 gap-3"
-            style={{
-              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 25rem), 1fr))",
-            }}
-          >
+          <CardListTileGrid>
             {visibleSignals.slice(0, visibleLimit).map((signal, index) => (
               <CompactSignalCard
                 key={signal.cardId}
@@ -1306,7 +1302,7 @@ export default function ExternalSignalBrowser({
                 prioritizeImage={index === 0}
               />
             ))}
-          </div>
+          </CardListTileGrid>
         ) : (
           <EmptyState
             icon={Radar}

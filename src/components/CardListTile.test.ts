@@ -5,6 +5,8 @@ import {
   CardListTile,
   CardListTileBody,
   CardListTileFooter,
+  CardListTileGrid,
+  CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
   CardListTileMetrics,
@@ -75,15 +77,41 @@ describe("CardListTile", () => {
   });
 
   it("offers one shared showcase layout for Radar, chases, and movers", () => {
-    const markup = renderToStaticMarkup(
+    const tileMarkup = renderToStaticMarkup(
       createElement(CardListTile, { layout: "showcase" })
     );
 
-    expect(markup).toContain('data-card-list-layout="showcase"');
-    expect(markup).toContain(
+    expect(tileMarkup).toContain('data-card-list-layout="showcase"');
+    expect(tileMarkup).toContain(
       "grid-cols-[clamp(6.75rem,30vw,7.25rem)_minmax(0,1fr)]"
     );
-    expect(markup).toContain("sm:grid-cols-[7.5rem_minmax(0,1fr)]");
+    expect(tileMarkup).toContain("sm:grid-cols-[7.5rem_minmax(0,1fr)]");
+
+    const gridMarkup = renderToStaticMarkup(
+      createElement(CardListTileGrid, null, createElement(CardListTile))
+    );
+    expect(gridMarkup).toContain('data-card-list-grid="true"');
+    expect(gridMarkup).toContain(
+      "grid-template-columns:repeat(auto-fit, minmax(min(100%, 25rem), 1fr))"
+    );
+  });
+
+  it("keeps the shared price clearly above body-copy size", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CardListTilePrice, { label: "Raw", value: "€549" })
+    );
+
+    expect(markup).toContain("text-[19px]");
+    expect(markup).toContain("sm:text-xl");
+  });
+
+  it("reserves one shared insight baseline across market cards", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CardListTileInsight, null, "One concise reason")
+    );
+
+    expect(markup).toContain("min-h-[2.1rem]");
+    expect(markup).toContain("sm:min-h-[25px]");
   });
 
   it("provides a full-tile navigation layer with an accessible label", () => {

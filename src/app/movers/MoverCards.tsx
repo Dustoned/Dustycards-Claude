@@ -5,6 +5,7 @@ import {
   CardListTile,
   CardListTileBody,
   CardListTileFooter,
+  CardListTileGrid,
   CardListTileInsight,
   CardListTileMedia,
   CardListTilePrice,
@@ -15,7 +16,6 @@ import { memo } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
-import { getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import type { CollectionMoverItem } from "@/lib/movers";
@@ -976,7 +976,6 @@ export function MoverSpotlightSections({
 
 export function MoverGrid({
   movers,
-  minTileWidth,
   loadingCardId,
   cardQuickActions,
   displayMode,
@@ -986,7 +985,6 @@ export function MoverGrid({
   onOpenCard,
 }: {
   movers: readonly CollectionMoverItem[];
-  minTileWidth: string;
   loadingCardId: string | null;
   cardQuickActions: CardQuickActionMap;
   displayMode: MoverDisplayMode;
@@ -996,13 +994,7 @@ export function MoverGrid({
   onOpenCard: (cardId: string) => void;
 }) {
   return (
-    <div
-      className="grid gap-2.5 sm:gap-3 lg:gap-4"
-      style={{
-        gridTemplateColumns: getFixedTrackGridTemplate(minTileWidth),
-        justifyContent: "stretch",
-      }}
-    >
+    <CardListTileGrid>
       {movers.map((item, index) => (
         <MoverTile
           key={`${item.cardId}:${item.gradedLabel ?? item.source}`}
@@ -1017,6 +1009,6 @@ export function MoverGrid({
           onOpen={onOpenCard}
         />
       ))}
-    </div>
+    </CardListTileGrid>
   );
 }

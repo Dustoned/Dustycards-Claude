@@ -32,6 +32,27 @@ const TILE_LAYOUT_CLASS: Record<TileLayout, string> = {
     "grid-cols-[clamp(6.75rem,30vw,7.25rem)_minmax(0,1fr)] max-[359px]:grid-cols-[6rem_minmax(0,1fr)] sm:grid-cols-[7.5rem_minmax(0,1fr)]",
 };
 
+export const CARD_LIST_SHOWCASE_GRID_TEMPLATE =
+  "repeat(auto-fit, minmax(min(100%, 25rem), 1fr))";
+
+export function CardListTileGrid({
+  className,
+  style,
+  ...props
+}: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      {...props}
+      data-card-list-grid
+      className={cx("grid min-w-0 gap-3", className)}
+      style={{
+        ...style,
+        gridTemplateColumns: CARD_LIST_SHOWCASE_GRID_TEMPLATE,
+      }}
+    />
+  );
+}
+
 export interface CardListTileProps
   extends Omit<ComponentPropsWithoutRef<"article">, "children"> {
   children?: ReactNode;
@@ -154,7 +175,7 @@ export function CardListTilePrice({
     >
       <p
         className={cx(
-          "whitespace-nowrap text-[17px] font-extrabold leading-5 tabular-nums text-white",
+          "whitespace-nowrap text-[19px] font-extrabold leading-6 tabular-nums text-white sm:text-xl",
           valueClassName
         )}
       >
@@ -194,7 +215,7 @@ export function CardListTileInsight({
       {...props}
       data-card-list-insight
       className={cx(
-        "mt-2 flex min-w-0 items-start gap-1.5 text-[11px] font-medium leading-[1.05rem] text-white/60",
+        "mt-2 flex min-h-[2.1rem] min-w-0 items-start gap-1.5 text-[11px] font-medium leading-[1.05rem] text-white/60 sm:min-h-[25px]",
         className
       )}
     />
