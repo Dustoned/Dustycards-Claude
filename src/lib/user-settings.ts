@@ -1,3 +1,15 @@
+import {
+  DEFAULT_APPEARANCE_SETTINGS,
+  normalizeAppearanceSettings,
+  type AppearanceSettings,
+} from "@/lib/appearance-themes";
+
+export type {
+  AppearancePalette,
+  AppearanceSettings,
+  AppearanceThemeId,
+} from "@/lib/appearance-themes";
+
 export type Theme = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
 export type CardView = "table" | "grid" | "binder";
@@ -12,6 +24,7 @@ export type PriceSource = "cm_en" | "tcp";
 
 export interface UserSettings {
   theme: Theme;
+  appearance: AppearanceSettings;
   widescreen: boolean;
   onePieceLibraryEnabled: boolean;
   uiScale: UiScale;
@@ -43,6 +56,10 @@ const SETTINGS_VERSION = 3;
 
 export const DEFAULT_SETTINGS: UserSettings = {
   theme: "system",
+  appearance: {
+    preset: DEFAULT_APPEARANCE_SETTINGS.preset,
+    custom: { ...DEFAULT_APPEARANCE_SETTINGS.custom },
+  },
   widescreen: false,
   onePieceLibraryEnabled: false,
   uiScale: "medium",
@@ -96,6 +113,7 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
 
   return {
     theme: pickEnumValue(source.theme, ["light", "dark", "system"], DEFAULT_SETTINGS.theme),
+    appearance: normalizeAppearanceSettings(source.appearance),
     widescreen:
       typeof source.widescreen === "boolean" ? source.widescreen : DEFAULT_SETTINGS.widescreen,
     onePieceLibraryEnabled:
@@ -255,6 +273,10 @@ export const initSettingsScript = `
     var rawUi = phone ? (s.mobileUiScale || 'small') : (s.uiScale || 'medium');
     var ui = ['small', 'medium', 'large'].indexOf(rawUi) >= 0 ? rawUi : (phone ? 'small' : 'medium');
     document.documentElement.dataset.theme = t;
+    document.documentElement.dataset.appearance =
+      s.appearance && typeof s.appearance.preset === 'string'
+        ? s.appearance.preset
+        : 'collector-violet';
     document.documentElement.dataset.uiScale = ui;
     document.documentElement.classList.remove('ui-scale-small', 'ui-scale-medium', 'ui-scale-large');
     document.documentElement.classList.add('ui-scale-' + ui);

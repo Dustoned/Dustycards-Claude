@@ -264,10 +264,10 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
     <aside className="pointer-events-none fixed inset-y-0 left-0 z-50 hidden h-dvh w-[16rem] xl:block">
       <div
         data-sidebar-scroll
-        className="pointer-events-auto flex h-[calc(100dvh-5.25rem)] min-h-0 w-full flex-col overflow-y-auto overscroll-contain border-r border-white/8 bg-[#08080c] px-3 py-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent"
+        className="pointer-events-auto flex h-[calc(100dvh-5.25rem)] min-h-0 w-full flex-col overflow-y-auto overscroll-contain border-r border-white/8 bg-[var(--dc-bg-main)] px-3 py-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent"
       >
         <Link href="/" prefetch={false} className="mb-5 flex shrink-0 items-center gap-2.5 px-1">
-          <span className="relative h-9 w-9 shrink-0 drop-shadow-[0_0_11px_rgba(124,92,255,0.72)]">
+          <span className="relative h-9 w-9 shrink-0 drop-shadow-[0_0_11px_rgb(var(--dc-primary-rgb)/0.72)]">
             <Image
               src="/assets/dustycards-master-ball-d.webp"
               alt=""
@@ -312,7 +312,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                     data-active={active ? "true" : "false"}
                     className={`group flex min-h-[34px] items-center gap-3 rounded-lg px-2.5 text-[13px] font-medium transition-colors ${
                       active
-                        ? "text-white shadow-[inset_0_0_0_1px_rgba(179,155,255,0.28),0_0_22px_rgba(124,92,255,0.18)]"
+                        ? "text-white shadow-[inset_0_0_0_1px_rgb(var(--dc-primary-soft-rgb)/0.28),0_0_22px_rgb(var(--dc-primary-rgb)/0.18)]"
                         : "text-white/62 hover:text-white"
                     }`}
                   >
@@ -382,7 +382,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                     data-active={active ? "true" : "false"}
                     className={`flex min-h-[28px] items-center gap-2.5 rounded-lg px-2 text-[12px] font-medium transition-colors ${
                       active
-                        ? "text-white shadow-[inset_0_0_0_1px_rgba(179,155,255,0.28),0_0_18px_rgba(124,92,255,0.14)]"
+                        ? "text-white shadow-[inset_0_0_0_1px_rgb(var(--dc-primary-soft-rgb)/0.28),0_0_18px_rgb(var(--dc-primary-rgb)/0.14)]"
                         : "text-white/62 hover:text-white"
                     }`}
                   >
@@ -417,7 +417,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
         >
           <span
             data-sidebar-avatar
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black text-violet-100 shadow-[0_0_18px_rgba(124,92,255,0.22)]"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black text-violet-100 shadow-[0_0_18px_rgb(var(--dc-primary-rgb)/0.22)]"
           >
             {summary.email.slice(0, 1).toUpperCase()}
           </span>

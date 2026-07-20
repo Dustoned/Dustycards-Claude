@@ -12,6 +12,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  createContext,
+  useContext,
   useId,
   useLayoutEffect,
   useRef,
@@ -19,8 +21,10 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 const MOBILE_CARD_DETAIL_MAX_WIDTH = 767;
+const MOBILE_ACTION_PORTAL_MAX_WIDTH = 640;
 
 interface PendingTabScrollAnchor {
   scrollElement: HTMLElement;
@@ -111,6 +115,21 @@ interface CardDetailShellProps {
   className?: string;
 }
 
+interface MobileActionPortalContextValue {
+  enabled: boolean;
+  target: HTMLDivElement | null;
+}
+
+const MobileActionPortalContext = createContext<MobileActionPortalContextValue>({
+  enabled: false,
+  target: null,
+});
+
+export function CardDetailMobileActionPortal({ children }: { children: ReactNode }) {
+  const { enabled, target } = useContext(MobileActionPortalContext);
+  return enabled && target ? createPortal(children, target) : children;
+}
+
 const DEFAULT_TAB_ICONS: Record<CardDetailTabId, LucideIcon> = {
   overview: Layers3,
   market: ChartNoAxesCombined,
@@ -190,10 +209,39 @@ export default function CardDetailShell({
   );
   const tabsShellRef = useRef<HTMLElement | null>(null);
   const tabListRef = useRef<HTMLDivElement | null>(null);
+  const shellRef = useRef<HTMLElement | null>(null);
   const pendingTabScrollAnchorRef = useRef<PendingTabScrollAnchor | null>(null);
+  const [mobileActionHost, setMobileActionHost] = useState<HTMLDivElement | null>(null);
+  const [useMobileActionPortal, setUseMobileActionPortal] = useState(false);
   const reactId = useId().replace(/:/g, "");
   const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const showMobileChart = mobileChartTabs.includes(active?.id ?? fallbackTab);
+  const actionContent = actions ? (
+    <div className="card-detail-actions" aria-label="Card actions" data-card-detail-actions>
+      {actions}
+    </div>
+  ) : null;
+
+  useLayoutEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+
+    const updatePortalMode = () => {
+      setUseMobileActionPortal(
+        shell.getBoundingClientRect().width < MOBILE_ACTION_PORTAL_MAX_WIDTH
+      );
+    };
+
+    updatePortalMode();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updatePortalMode, { passive: true });
+      return () => window.removeEventListener("resize", updatePortalMode);
+    }
+
+    const observer = new ResizeObserver(updatePortalMode);
+    observer.observe(shell);
+    return () => observer.disconnect();
+  }, []);
 
   function rememberMobileTabScrollAnchor(preserveExisting = false) {
     if (window.innerWidth > MOBILE_CARD_DETAIL_MAX_WIDTH) return;
@@ -286,29 +334,30 @@ export default function CardDetailShell({
   }
 
   return (
-    <article
-      className={`card-detail-experience ${className}`}
-      data-card-detail-shell
-      data-card-detail-mode={mode}
-      data-detail-size={detailSize}
-      data-active-tab={active?.id}
-      data-has-actions={actions ? "true" : "false"}
+    <MobileActionPortalContext.Provider
+      value={{ enabled: useMobileActionPortal, target: mobileActionHost }}
     >
-      <div className="card-detail-ambient" aria-hidden="true" />
-      <div className="card-detail-scroll-viewport" data-card-detail-scroll-viewport>
-        <div className="card-detail-layout" data-card-detail-canvas>
-        <header className="card-detail-toolbar">
-          <BackControl navigation={navigation} />
-          <div className="card-detail-toolbar-status" role="status" aria-live="polite">{status}</div>
-          {actions ? (
-            <div className="card-detail-actions" aria-label="Card actions" data-card-detail-actions>
-              {actions}
-            </div>
-          ) : null}
-          <div className="card-detail-mobile-status" role="status" aria-live="polite">
-            {status}
-          </div>
-        </header>
+      <article
+        ref={shellRef}
+        className={`card-detail-experience ${className}`}
+        data-card-detail-shell
+        data-card-detail-mode={mode}
+        data-detail-size={detailSize}
+        data-active-tab={active?.id}
+        data-has-actions={actions ? "true" : "false"}
+      >
+        <div className="card-detail-ambient" aria-hidden="true" />
+        <div className="card-detail-query-container">
+          <div className="card-detail-scroll-viewport" data-card-detail-scroll-viewport>
+            <div className="card-detail-layout" data-card-detail-canvas>
+            <header className="card-detail-toolbar">
+              <BackControl navigation={navigation} />
+              <div className="card-detail-toolbar-status" role="status" aria-live="polite">{status}</div>
+              {actionContent}
+              <div className="card-detail-mobile-status" role="status" aria-live="polite">
+                {status}
+              </div>
+            </header>
 
         <div className="card-detail-media" data-card-detail-region="media">
           <div className="card-detail-media-frame">{media}</div>
@@ -368,6 +417,12 @@ export default function CardDetailShell({
                   onPointerDown={(event) => {
                     if (event.isPrimary && event.button === 0) {
                       rememberMobileTabScrollAnchor();
+                      if (window.innerWidth <= MOBILE_CARD_DETAIL_MAX_WIDTH) {
+                        // Mobile browsers may scroll a sticky tab into view as
+                        // part of their default pointer-focus handling. Focus it
+                        // explicitly without movement before that default runs.
+                        event.currentTarget.focus({ preventScroll: true });
+                      }
                     }
                   }}
                   onClick={(event) => {
@@ -400,8 +455,16 @@ export default function CardDetailShell({
           >
             {active?.content}
           </section>
+            </div>
+          </div>
         </div>
-      </div>
-    </article>
+        <div
+          ref={setMobileActionHost}
+          className="card-detail-mobile-actions-host"
+          data-card-detail-mobile-actions-host
+          aria-hidden={!useMobileActionPortal || !actions ? "true" : undefined}
+        />
+      </article>
+    </MobileActionPortalContext.Provider>
   );
 }

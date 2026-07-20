@@ -6,6 +6,7 @@ import {
   getDustyHistoryIndex,
   saveCurrentScrollPosition,
 } from "@/lib/client-navigation-state";
+import { dispatchMobileEdgeBackRequest } from "@/lib/mobile-edge-back";
 
 const EDGE_START_PX = 26;
 const MIN_SWIPE_PX = 76;
@@ -65,7 +66,6 @@ function shouldNavigateBack(gesture: GestureState): boolean {
 
 export default function MobileEdgeBackGesture() {
   const pathname = usePathname() ?? "/";
-  const pathnameRef = useRef(pathname);
   const gestureRef = useRef<GestureState>({
     tracking: false,
     startX: 0,
@@ -77,7 +77,6 @@ export default function MobileEdgeBackGesture() {
   const lastNavigateAtRef = useRef(0);
 
   useEffect(() => {
-    pathnameRef.current = pathname;
     gestureRef.current.tracking = false;
   }, [pathname]);
 
@@ -87,7 +86,6 @@ export default function MobileEdgeBackGesture() {
     }
 
     function handleTouchStart(event: TouchEvent) {
-      if (pathnameRef.current === "/") return;
       if (!isMobileGestureViewport()) return;
       if (event.touches.length !== 1) return;
       if (isInteractiveTarget(event.target)) return;
@@ -140,6 +138,9 @@ export default function MobileEdgeBackGesture() {
       }
 
       lastNavigateAtRef.current = now;
+      if (dispatchMobileEdgeBackRequest()) {
+        return;
+      }
       if (getDustyHistoryIndex() <= 0) {
         return;
       }

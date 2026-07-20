@@ -96,8 +96,8 @@ export default function RouteProgressBar() {
         className="h-full rounded-r-full"
         style={{
           width: `${width}%`,
-          background: "linear-gradient(90deg, #7c5cff, #5d8bff)",
-          boxShadow: "0 0 10px rgba(124,92,255,0.7)",
+          background: "var(--dc-primary-gradient)",
+          boxShadow: "0 0 10px rgb(var(--dc-primary-rgb) / 0.7)",
           transition: "width 220ms ease",
         }}
       />

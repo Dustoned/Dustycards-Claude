@@ -15,6 +15,11 @@ import NavigationStateController from "@/components/NavigationStateController";
 import OfflineCacheRegistration from "@/components/OfflineCacheRegistration";
 import RouteProgressBar from "@/components/RouteProgressBar";
 import SettingsProvider from "@/components/SettingsProvider";
+import {
+  appearancePaletteToCssVariables,
+  normalizeAppearanceSettings,
+  resolveAppearancePalette,
+} from "@/lib/appearance-themes";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -40,6 +45,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  viewportFit: "cover",
 };
 
 function detectInitialMobileViewport(headerStore: Headers) {
@@ -95,6 +101,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     : initialSettings?.uiScale ?? "medium";
   const initialWidescreen = !initialMobileViewport && (initialSettings?.widescreen ?? false);
   const initialTheme = initialSettings?.theme ?? "system";
+  const initialAppearance = normalizeAppearanceSettings(initialSettings?.appearance);
+  const initialAppearanceStyles = appearancePaletteToCssVariables(
+    resolveAppearancePalette(initialAppearance)
+  );
   const serverDark = true;
   const sidebarSummary = currentUser
     ? await getDesktopSidebarSummary(currentUser.id, currentUser.email, currentUser.role)
@@ -120,8 +130,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         var phone = window.matchMedia && window.matchMedia("(max-width: 767px)").matches;
         var rawUi = phone ? settings.mobileUiScale : settings.uiScale;
         var ui = ["small", "medium", "large"].indexOf(rawUi) >= 0 ? rawUi : (phone ? "small" : "medium");
+        var appearance = settings.appearance && typeof settings.appearance === "object"
+          ? settings.appearance
+          : { preset: "collector-violet" };
+        var appearanceName = typeof appearance.preset === "string"
+          ? appearance.preset
+          : "collector-violet";
         window.__dustycardsSettings = settings;
         document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.appearance = appearanceName;
         document.documentElement.dataset.uiScale = ui;
         document.documentElement.classList.remove("ui-scale-small", "ui-scale-medium", "ui-scale-large");
         document.documentElement.classList.add("ui-scale-" + ui);
@@ -134,7 +151,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   `;
   const prepaintThemeStyles = `
     html {
-      background-color: #07080B;
+      background-color: var(--dc-bg-main, #07080B);
       color-scheme: dark;
     }
 
@@ -144,31 +161,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     }
 
     [data-app-header] {
-      background-color: #07080B;
-      border-color: #252A38;
+      background-color: var(--dc-bg-main, #07080B);
+      border-color: var(--dc-border, #252A38);
     }
 
     html.dark,
     html[data-theme="dark"] {
-      background-color: #07080B;
+      background-color: var(--dc-bg-main, #07080B);
       color-scheme: dark;
     }
 
     html.dark [data-app-header],
     html[data-theme="dark"] [data-app-header] {
-      background-color: #07080B;
-      border-color: #252A38;
+      background-color: var(--dc-bg-main, #07080B);
+      border-color: var(--dc-border, #252A38);
     }
 
     @media (prefers-color-scheme: dark) {
       html[data-theme="system"] {
-        background-color: #07080B;
+        background-color: var(--dc-bg-main, #07080B);
         color-scheme: dark;
       }
 
       html[data-theme="system"] [data-app-header] {
-        background-color: #07080B;
-        border-color: #252A38;
+        background-color: var(--dc-bg-main, #07080B);
+        border-color: var(--dc-border, #252A38);
       }
     }
   `;
@@ -188,7 +205,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       lang="en"
       className={htmlClassName}
       data-theme={initialTheme}
+      data-appearance={initialAppearance.preset}
       data-ui-scale={initialUiScale}
+      style={initialAppearanceStyles as React.CSSProperties}
       suppressHydrationWarning
     >
       <head>

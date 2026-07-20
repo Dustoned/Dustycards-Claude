@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { applyAppearanceToElement } from "@/lib/appearance-themes";
 import {
   buildResolvedThemeCookie,
   buildSettingsCookie,
@@ -12,6 +13,9 @@ import {
   serializeSettings,
   SETTINGS_STORAGE_KEY,
   type Card3dSize,
+  type AppearancePalette,
+  type AppearanceSettings,
+  type AppearanceThemeId,
   type CardSize,
   type CardView,
   type ModalSize,
@@ -24,6 +28,9 @@ import {
 } from "@/lib/user-settings";
 
 export type {
+  AppearancePalette,
+  AppearanceSettings,
+  AppearanceThemeId,
   Theme,
   CardView,
   Card3dSize,
@@ -201,9 +208,10 @@ export default function SettingsProvider({
 
   useEffect(() => {
     applyTheme(settings.theme);
+    applyAppearanceToElement(document.documentElement, settings.appearance);
     applyWidescreen(displaySettings.widescreen);
     applyUiScale(displaySettings.uiScale);
-  }, [displaySettings.uiScale, displaySettings.widescreen, settings.theme]);
+  }, [displaySettings.uiScale, displaySettings.widescreen, settings.appearance, settings.theme]);
 
   useEffect(() => {
     if (settings.theme !== "system") {
@@ -238,6 +246,9 @@ export default function SettingsProvider({
         void saveToAccount(next).catch(() => undefined);
       }
       if (key === "theme") applyTheme(value as Theme);
+      if (key === "appearance") {
+        applyAppearanceToElement(document.documentElement, value as AppearanceSettings);
+      }
       if (key === "widescreen") {
         const effectiveSettings = getDisplaySettings(next, isMobileViewport);
         applyWidescreen(effectiveSettings.widescreen);

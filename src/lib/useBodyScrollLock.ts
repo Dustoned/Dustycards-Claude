@@ -12,9 +12,11 @@ let restoreState:
       left: string;
       right: string;
       width: string;
-      overscrollBehavior: string;
+      overscrollBehaviorX: string;
+      overscrollBehaviorY: string;
       documentElementOverflow: string;
-      documentElementOverscrollBehavior: string;
+      documentElementOverscrollBehaviorX: string;
+      documentElementOverscrollBehaviorY: string;
       hadBodyScrollLockClass: boolean;
       hadDocumentElementScrollLockClass: boolean;
       scrollY: number;
@@ -41,9 +43,11 @@ export default function useBodyScrollLock(active = true) {
         left: body.style.left,
         right: body.style.right,
         width: body.style.width,
-        overscrollBehavior: body.style.overscrollBehavior,
+        overscrollBehaviorX: body.style.overscrollBehaviorX,
+        overscrollBehaviorY: body.style.overscrollBehaviorY,
         documentElementOverflow: documentElement.style.overflow,
-        documentElementOverscrollBehavior: documentElement.style.overscrollBehavior,
+        documentElementOverscrollBehaviorX: documentElement.style.overscrollBehaviorX,
+        documentElementOverscrollBehaviorY: documentElement.style.overscrollBehaviorY,
         hadBodyScrollLockClass: body.classList.contains("dc-scroll-locked"),
         hadDocumentElementScrollLockClass: documentElement.classList.contains("dc-scroll-locked"),
         scrollY,
@@ -52,14 +56,16 @@ export default function useBodyScrollLock(active = true) {
       documentElement.classList.add("dc-scroll-locked");
       body.classList.add("dc-scroll-locked");
       documentElement.style.overflow = "hidden";
-      documentElement.style.overscrollBehavior = "none";
+      documentElement.style.overscrollBehaviorX = "auto";
+      documentElement.style.overscrollBehaviorY = "none";
       body.style.overflow = "hidden";
       body.style.position = "fixed";
       body.style.top = `-${scrollY}px`;
       body.style.left = "0";
       body.style.right = "0";
       body.style.width = "100%";
-      body.style.overscrollBehavior = "none";
+      body.style.overscrollBehaviorX = "auto";
+      body.style.overscrollBehaviorY = "none";
 
       if (scrollbarWidth > 0) {
         body.style.paddingRight = `${scrollbarWidth}px`;
@@ -85,9 +91,11 @@ export default function useBodyScrollLock(active = true) {
       body.style.left = nextState.left;
       body.style.right = nextState.right;
       body.style.width = nextState.width;
-      body.style.overscrollBehavior = nextState.overscrollBehavior;
+      body.style.overscrollBehaviorX = nextState.overscrollBehaviorX;
+      body.style.overscrollBehaviorY = nextState.overscrollBehaviorY;
       documentElement.style.overflow = nextState.documentElementOverflow;
-      documentElement.style.overscrollBehavior = nextState.documentElementOverscrollBehavior;
+      documentElement.style.overscrollBehaviorX = nextState.documentElementOverscrollBehaviorX;
+      documentElement.style.overscrollBehaviorY = nextState.documentElementOverscrollBehaviorY;
 
       if (!nextState.hadDocumentElementScrollLockClass) {
         documentElement.classList.remove("dc-scroll-locked");

@@ -30,6 +30,7 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CachedImage from "@/components/CachedImage";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
+import { CardDetailMobileActionPortal } from "@/components/card-detail/CardDetailShell";
 import CardDetailMobileMarketAction from "@/components/card-detail/CardDetailMobileMarketAction";
 import CardPriceAlertButton from "@/components/card-detail/CardPriceAlertButton";
 import ReadableInfoTooltip from "@/components/card-detail/ReadableInfoTooltip";
@@ -491,12 +492,12 @@ function getBuySignalMarkerClass(label: string): string {
   if (label === "buy" || label === "strong_buy") {
     return "border-emerald-100/90 bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,0.11),0_0_16px_rgba(52,211,153,0.20)]";
   }
-  return "border-violet-100/90 bg-violet-400 shadow-[0_0_0_4px_rgba(124,92,255,0.12),0_0_16px_rgba(124,92,255,0.20)]";
+  return "border-violet-100/90 bg-violet-400 shadow-[0_0_0_4px_rgb(var(--dc-primary-rgb)/0.12),0_0_16px_rgb(var(--dc-primary-rgb)/0.20)]";
 }
 
 function getBuySignalTrackClass(compact: boolean): string {
   const height = compact ? "h-2" : "h-2.5";
-  return `${height} relative overflow-visible rounded-full border border-white/[0.065] bg-[linear-gradient(90deg,rgba(251,113,133,0.30)_0%,rgba(255,255,255,0.075)_34%,rgba(124,92,255,0.18)_50%,rgba(255,255,255,0.075)_66%,rgba(52,211,153,0.28)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_16px_rgba(124,92,255,0.08)]`;
+  return `${height} relative overflow-visible rounded-full border border-white/[0.065] bg-[linear-gradient(90deg,rgb(var(--dc-negative-rgb)/0.30)_0%,rgba(255,255,255,0.075)_34%,rgb(var(--dc-primary-rgb)/0.18)_50%,rgba(255,255,255,0.075)_66%,rgb(var(--dc-success-rgb)/0.28)_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_16px_rgb(var(--dc-primary-rgb)/0.08)]`;
 }
 
 function getBuySignalReasonItems(
@@ -536,7 +537,7 @@ export function CardModalBuySignalPanel({
     return (
       <section
         data-buy-signal-panel
-        className="min-w-0 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.024))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.06)]"
+        className="min-w-0 rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.024))] px-3 py-2.5 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.06)]"
       >
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <div className="flex min-w-0 items-center gap-2">
@@ -602,7 +603,7 @@ export function CardModalBuySignalPanel({
   return (
     <section
       data-buy-signal-panel
-      className={`min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.024))] shadow-[inset_0_1px_0_rgba(179,155,255,0.06)] ${
+      className={`min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.052),rgba(255,255,255,0.024))] shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.06)] ${
         compact ? "p-3.5" : "p-4"
       }`}
     >
@@ -1545,38 +1546,42 @@ export function CardModalDesktopActionGroup({
       className="card-detail-action-cluster min-w-0 items-center justify-end gap-2"
       aria-label="Card actions"
     >
-      <div
-        className="card-detail-primary-actions min-w-0 items-center justify-end gap-2"
-        data-card-detail-primary-actions
-      >
-      <CollectionAddCardButton
-        card={collectionCard}
-        mode="button"
-        theme="dark"
-        label="Add copy"
-        className="!min-h-11 !flex-1 !whitespace-nowrap !rounded-xl !border-violet-300/24 !bg-violet-500/22 !px-2.5 !text-[13px] !font-bold !text-white hover:!border-violet-200/38 hover:!bg-violet-500/30 sm:!px-4 sm:!text-sm lg:!flex-none"
-        onAdded={onAddedToCollection}
-      />
+      <CardDetailMobileActionPortal>
+        <div
+          className="card-detail-primary-actions min-w-0 items-center justify-end gap-2"
+          role="group"
+          aria-label="Primary card actions"
+          data-card-detail-primary-actions
+        >
+          <CollectionAddCardButton
+            card={collectionCard}
+            mode="button"
+            theme="dark"
+            label="Add copy"
+            className="!min-h-11 !flex-1 !whitespace-nowrap !rounded-xl !border-violet-300/24 !bg-violet-500/22 !px-2.5 !text-[13px] !font-bold !text-white hover:!border-violet-200/38 hover:!bg-violet-500/30 sm:!px-4 sm:!text-sm lg:!flex-none"
+            onAdded={onAddedToCollection}
+          />
 
-      <CollectionWantButton
-        card={collectionCard}
-        mode="button"
-        theme="dark"
-        label="Want"
-        initialWanted={Boolean(card.want_item)}
-        wantItemId={card.want_item?.id ?? null}
-        className="!min-h-11 !flex-1 !whitespace-nowrap !rounded-xl !border-violet-300/20 !bg-violet-600/16 !px-2.5 !text-[13px] !font-bold !text-violet-50 hover:!border-violet-200/36 hover:!bg-violet-500/26 sm:!px-4 sm:!text-sm lg:!flex-none"
-      />
+          <CollectionWantButton
+            card={collectionCard}
+            mode="button"
+            theme="dark"
+            label="Want"
+            initialWanted={Boolean(card.want_item)}
+            wantItemId={card.want_item?.id ?? null}
+            className="!min-h-11 !flex-1 !whitespace-nowrap !rounded-xl !border-violet-300/20 !bg-violet-600/16 !px-2.5 !text-[13px] !font-bold !text-violet-50 hover:!border-violet-200/36 hover:!bg-violet-500/26 sm:!px-4 sm:!text-sm lg:!flex-none"
+          />
 
-      {onOpenCardMarket || cardMarketHref ? (
-        <CardDetailMobileMarketAction
-          cardMarketHref={cardMarketHref}
-          ebayHref={ebayHref}
-          onOpenCardMarket={onOpenCardMarket}
-          className={mobileMarketClass}
-        />
-      ) : null}
-      </div>
+          {onOpenCardMarket || cardMarketHref ? (
+            <CardDetailMobileMarketAction
+              cardMarketHref={cardMarketHref}
+              ebayHref={ebayHref}
+              onOpenCardMarket={onOpenCardMarket}
+              className={mobileMarketClass}
+            />
+          ) : null}
+        </div>
+      </CardDetailMobileActionPortal>
 
       <CardPriceAlertButton
         cardId={card.id}
@@ -1848,7 +1853,7 @@ function MobileInfoRow({
   return (
     <div
       data-mobile-info-row
-      className={`flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-white/10 bg-[#0b0b0d] p-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.04)] ${
+      className={`flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-white/10 bg-[#0b0b0d] p-2.5 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.04)] ${
         wide ? "col-span-2" : ""
       }`}
     >
@@ -1993,7 +1998,7 @@ export function CardModalMobileShowcase({
 
   return (
     <div data-mobile-showcase-root className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_24%,rgba(124,92,255,0.28),transparent_34%),radial-gradient(circle_at_30%_22%,rgba(56,189,248,0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_52%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_24%,rgb(var(--dc-primary-rgb)/0.28),transparent_34%),radial-gradient(circle_at_30%_22%,rgb(var(--dc-cyan-rgb)/0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_52%)]" />
 
       <div className="relative z-20 flex items-center justify-between">
         <MobileDetailIconButton label="Back to collection" onClick={onClose}>
@@ -2105,7 +2110,7 @@ export function CardModalMobileShowcase({
 
       <div className="relative z-10 mt-1 flex flex-col items-center">
         <div className="relative w-[min(58vw,18rem)] max-w-full min-[430px]:w-[min(55vw,18rem)]">
-          <div className="pointer-events-none absolute -inset-10 rounded-[3rem] bg-[radial-gradient(circle,rgba(124,92,255,0.28),rgba(56,189,248,0.10)_42%,transparent_70%)] blur-2xl" />
+          <div className="pointer-events-none absolute -inset-10 rounded-[3rem] bg-[radial-gradient(circle,rgb(var(--dc-primary-rgb)/0.28),rgb(var(--dc-cyan-rgb)/0.10)_42%,transparent_70%)] blur-2xl" />
           {card.image_url ? (
             <button
               type="button"
@@ -2171,7 +2176,7 @@ export function CardModalMobileShowcase({
 
       <div className="relative z-10 mt-4">
         <div className="relative min-w-0">
-          <span className="absolute right-0 top-0 shrink-0 rounded-full border border-violet-300/20 bg-violet-500/18 px-3 py-2 text-sm font-semibold text-violet-100 shadow-[0_14px_34px_rgba(124,92,255,0.18)]">
+          <span className="absolute right-0 top-0 shrink-0 rounded-full border border-violet-300/20 bg-violet-500/18 px-3 py-2 text-sm font-semibold text-violet-100 shadow-[0_14px_34px_rgb(var(--dc-primary-rgb)/0.18)]">
             {conditionLabel}
           </span>
 
@@ -2198,7 +2203,7 @@ export function CardModalMobileShowcase({
         </div>
 
         <div className="mt-4 grid grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] gap-2.5">
-          <div data-mobile-showcase-card className="overflow-hidden rounded-[18px] border border-white/10 bg-[#0b0b0d] p-3.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.045)]">
+          <div data-mobile-showcase-card className="overflow-hidden rounded-[18px] border border-white/10 bg-[#0b0b0d] p-3.5 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.045)]">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
               <p className="max-w-full text-[1.42rem] font-bold leading-none tabular-nums text-white min-[390px]:text-[1.62rem]">
                 {formatCurrency(activeCardMarketCurrentValue, "EUR")}
@@ -2216,7 +2221,7 @@ export function CardModalMobileShowcase({
             <p className="mt-2 truncate text-[12px] font-medium text-white/48">CardMarket</p>
           </div>
 
-          <div data-mobile-showcase-card className="rounded-[18px] border border-white/10 bg-[#0b0b0d] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(179,155,255,0.045)]">
+          <div data-mobile-showcase-card className="rounded-[18px] border border-white/10 bg-[#0b0b0d] px-3.5 py-3 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.045)]">
             <div className="flex items-center justify-between gap-1.5 border-b border-white/[0.07] pb-2">
               <p className="shrink-0 whitespace-nowrap text-[13px] font-medium text-white/46">
                 7d avg
@@ -2259,7 +2264,7 @@ export function CardModalMobileShowcase({
         </nav>
 
         {showOverview && (
-          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-3 shadow-[inset_0_1px_0_rgba(179,155,255,0.04)]">
+          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-3 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.04)]">
             <div className="grid grid-cols-2 gap-2">
               <MobileInfoRow
                 icon={<Sparkles className="h-4 w-4" />}
@@ -2372,7 +2377,7 @@ export function CardModalMobileShowcase({
         )}
 
         {showChart && (
-          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgba(179,155,255,0.04)]">
+          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.04)]">
             <PriceHistoryPanel
               title="Price History"
               currency="EUR"
@@ -2407,14 +2412,14 @@ export function CardModalMobileShowcase({
         </div>
       ) : null}
 
-      <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(179,155,255,0.05)]">
+      <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.05)]">
         <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
           <CollectionAddCardButton
             card={collectionCard}
             mode="button"
             theme="dark"
             label={collectionItem && !readOnlyCollectionItem ? "Add Copy" : "Add to Collection"}
-            className="!min-h-12 !rounded-2xl !border-violet-300/35 !bg-violet-600/72 !px-2 !text-[13px] !font-bold !shadow-[0_16px_34px_rgba(124,92,255,0.24)]"
+            className="!min-h-12 !rounded-2xl !border-violet-300/35 !bg-violet-600/72 !px-2 !text-[13px] !font-bold !shadow-[0_16px_34px_rgb(var(--dc-primary-rgb)/0.24)]"
             onAdded={onAddedToCollection}
           />
           <CollectionWantButton
@@ -2451,7 +2456,7 @@ export function CardModalMobileShowcase({
           type="button"
           onClick={onResearchSignal}
           disabled={researchingSignal}
-          className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/24 bg-[linear-gradient(135deg,rgba(124,92,255,0.24),rgba(56,189,248,0.08))] px-3 text-[13px] font-bold text-violet-50 transition hover:border-violet-200/38 hover:bg-violet-500/[0.20] disabled:cursor-wait disabled:opacity-60"
+          className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/24 bg-[linear-gradient(135deg,rgb(var(--dc-primary-rgb)/0.24),rgb(var(--dc-cyan-rgb)/0.08))] px-3 text-[13px] font-bold text-violet-50 transition hover:border-violet-200/38 hover:bg-violet-500/[0.20] disabled:cursor-wait disabled:opacity-60"
         >
           {researchingSignal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
           {researchingSignal ? "Building signal analysis..." : "Research this card"}
@@ -3707,7 +3712,7 @@ export function CardModalCardLinksPanel({
             type="button"
             onClick={onResearchSignal}
             disabled={researchingSignal}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/24 bg-[linear-gradient(135deg,rgba(124,92,255,0.22),rgba(56,189,248,0.07))] px-3 text-sm font-semibold text-violet-50 transition hover:border-violet-200/38 hover:bg-violet-500/[0.18] disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/24 bg-[linear-gradient(135deg,rgb(var(--dc-primary-rgb)/0.22),rgb(var(--dc-cyan-rgb)/0.07))] px-3 text-sm font-semibold text-violet-50 transition hover:border-violet-200/38 hover:bg-violet-500/[0.18] disabled:cursor-wait disabled:opacity-60"
           >
             {researchingSignal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
             {researchingSignal ? "Building signal analysis..." : "Research this card"}

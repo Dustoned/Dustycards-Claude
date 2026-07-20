@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.4",
+    releasedAt: "July 20, 2026",
+    title: "Collector themes and custom appearance",
+    summary:
+      "DustyCards 3.8.4 adds six polished collector themes, a complete custom palette editor and the final mobile Card Detail refinements.",
+    tone: "new",
+    highlights: [
+      "Collector Violet, Rose Quartz, Lavender Bloom, Ocean Sapphire, Emerald Vault and Amber Archive now restyle the complete app from one consistent appearance system.",
+      "Custom appearance offers seventeen color controls, contrast guidance and a live desktop or phone home-page preview before changes are applied.",
+      "Appearance is saved with the existing user settings and painted before the app becomes visible, preventing a flash of the previous theme while loading.",
+      "Navigation, charts, Card Detail, Signal Radar, 3D accents, market states and mobile surfaces now share semantic theme colors without changing meaningful forecast or price signals.",
+      "Mobile Card Detail actions float cleanly above the safe area, tabs preserve the reading position and a left-edge back swipe closes the active detail layer first.",
+    ],
+  },
+  {
     version: "3.8.3",
     releasedAt: "July 20, 2026",
     title: "Price alerts and faster collector actions",

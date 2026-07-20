@@ -405,7 +405,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
           <div
             data-mobile-more-sheet
             data-no-pull-refresh
-            className="relative w-full max-w-md max-h-[calc(100dvh_-_6.6rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] touch-pan-y overscroll-y-none overflow-hidden rounded-[28px] border border-white/10 bg-[#08090d]/98 shadow-[0_-18px_60px_rgba(124,92,255,0.22),0_-30px_90px_rgba(0,0,0,0.72)] backdrop-blur-2xl"
+            className="relative w-full max-w-md max-h-[calc(100dvh_-_6.6rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] touch-pan-y overscroll-y-none overflow-hidden rounded-[28px] border border-white/10 bg-[rgb(var(--dc-bg-main-rgb)/0.98)] shadow-[0_-18px_60px_rgb(var(--dc-primary-rgb)/0.22),0_-30px_90px_rgba(0,0,0,0.72)] backdrop-blur-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="absolute inset-x-0 top-0 z-20 flex justify-center pt-2">
@@ -418,7 +418,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               data-no-pull-refresh
               className="max-h-[inherit] touch-pan-y overflow-y-auto overscroll-y-none px-3 pb-3 pt-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              <div className="-mx-3 -mt-5 mb-3 border-b border-white/8 bg-[#08090d]/94 px-3 pb-3 pt-5 backdrop-blur-2xl">
+              <div className="-mx-3 -mt-5 mb-3 border-b border-white/8 bg-[rgb(var(--dc-bg-main-rgb)/0.94)] px-3 pb-3 pt-5 backdrop-blur-2xl">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[19px] font-black leading-tight tracking-tight text-white">More</p>
@@ -444,10 +444,10 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                   type="button"
                   onClick={openAccountPopup}
                   data-mobile-account-card
-                  className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[22px] border border-violet-300/16 bg-[linear-gradient(145deg,rgba(124,92,255,0.18),rgba(255,255,255,0.045))] p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                  className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[22px] border border-violet-300/16 bg-[linear-gradient(145deg,rgb(var(--dc-primary-rgb)/0.18),rgba(255,255,255,0.045))] p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                   aria-label="Open account details"
                 >
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-violet-300/24 bg-violet-500/22 text-base font-black text-violet-50 shadow-[0_0_26px_rgba(124,92,255,0.22)]">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-violet-300/24 bg-violet-500/22 text-base font-black text-violet-50 shadow-[0_0_26px_rgb(var(--dc-primary-rgb)/0.22)]">
                     {accountInitial}
                   </span>
                   <span className="min-w-0">
@@ -502,7 +502,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                             title={item.label}
                             className={`grid min-h-12 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-2 transition-colors ${
                               active
-                                ? "bg-violet-500/[0.16] text-violet-50 shadow-[inset_2px_0_0_rgba(179,155,255,0.58)]"
+                                ? "bg-violet-500/[0.16] text-violet-50 shadow-[inset_2px_0_0_rgb(var(--dc-primary-soft-rgb)/0.58)]"
                                 : "bg-transparent text-white/70 hover:bg-white/[0.045] hover:text-white"
                             }`}
                           >
@@ -551,7 +551,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
           }}
         >
           <div
-            className="w-full max-w-sm rounded-[24px] border border-violet-300/18 bg-[#08090d]/98 p-3 shadow-[0_28px_90px_rgba(124,92,255,0.22),0_28px_90px_rgba(0,0,0,0.72)]"
+            className="w-full max-w-sm rounded-[24px] border border-violet-300/18 bg-[rgb(var(--dc-bg-main-rgb)/0.98)] p-3 shadow-[0_28px_90px_rgb(var(--dc-primary-rgb)/0.22),0_28px_90px_rgba(0,0,0,0.72)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -572,9 +572,9 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               </button>
             </div>
 
-            <div className="rounded-[20px] border border-white/10 bg-[linear-gradient(145deg,rgba(124,92,255,0.16),rgba(255,255,255,0.035))] p-3">
+            <div className="rounded-[20px] border border-white/10 bg-[linear-gradient(145deg,rgb(var(--dc-primary-rgb)/0.16),rgba(255,255,255,0.035))] p-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] border border-violet-300/24 bg-violet-500/22 text-xl font-black text-violet-50 shadow-[0_0_28px_rgba(124,92,255,0.22)]">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] border border-violet-300/24 bg-violet-500/22 text-xl font-black text-violet-50 shadow-[0_0_28px_rgb(var(--dc-primary-rgb)/0.22)]">
                   {accountInitial}
                 </div>
                 <div className="min-w-0">
@@ -671,7 +671,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
       <nav
         data-mobile-bottom-nav
         aria-label="Mobile navigation"
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-violet-300/12 bg-[linear-gradient(180deg,rgba(16,18,24,0.98),rgba(7,8,11,1))] px-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_45px_rgba(0,0,0,0.58),0_-10px_42px_rgba(124,92,255,0.14)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-violet-300/12 bg-[linear-gradient(180deg,rgb(var(--dc-surface-primary-rgb)/0.98),rgb(var(--dc-bg-main-rgb)/1))] px-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_45px_rgba(0,0,0,0.58),0_-10px_42px_rgb(var(--dc-primary-rgb)/0.14)] md:hidden"
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {PRIMARY_NAV_ITEMS.map((item) => {
@@ -691,12 +691,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-[3.05rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 text-[9px] font-semibold transition-colors min-[390px]:text-[10px] ${
                   active
-                    ? "border-violet-300/35 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgba(124,92,255,0.18)]"
+                    ? "border-violet-300/35 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgb(var(--dc-primary-rgb)/0.18)]"
                     : "border-transparent text-white/45 hover:bg-violet-500/[0.08] hover:text-white/80"
                 }`}
               >
                 <Icon
-                  className={`h-5 w-5 shrink-0 ${active ? "text-violet-100 drop-shadow-[0_0_14px_rgba(124,92,255,0.36)]" : ""}`}
+                  className={`h-5 w-5 shrink-0 ${active ? "text-violet-100 drop-shadow-[0_0_14px_rgb(var(--dc-primary-rgb)/0.36)]" : ""}`}
                   aria-hidden="true"
                 />
                 <span className="truncate">{item.label}</span>
@@ -714,12 +714,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
             aria-expanded={moreOpen}
             className={`flex min-h-[3.05rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 text-[9px] font-semibold transition-colors hover:bg-violet-500/[0.08] hover:text-white/80 min-[390px]:text-[10px] ${
               moreActive
-                ? "border-violet-300/35 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgba(124,92,255,0.18)]"
+                ? "border-violet-300/35 bg-violet-500/[0.16] text-violet-50 shadow-[0_0_22px_rgb(var(--dc-primary-rgb)/0.18)]"
                 : "border-transparent text-white/45"
             }`}
           >
             <MoreHorizontal
-              className={`h-5 w-5 shrink-0 ${moreActive ? "text-violet-100 drop-shadow-[0_0_14px_rgba(124,92,255,0.36)]" : ""}`}
+              className={`h-5 w-5 shrink-0 ${moreActive ? "text-violet-100 drop-shadow-[0_0_14px_rgb(var(--dc-primary-rgb)/0.36)]" : ""}`}
             />
             <span className="truncate">More</span>
           </button>

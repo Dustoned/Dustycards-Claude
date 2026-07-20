@@ -36,6 +36,7 @@ import useModalA11y from "@/lib/useModalA11y";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import { formatCurrency } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
+import { MOBILE_EDGE_BACK_EVENT } from "@/lib/mobile-edge-back";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import {
   CardModalActiveListingsPanel,
@@ -221,6 +222,30 @@ export default function CardModal({
     useState<CardMarketHistorySeriesKey>("cm_market_en");
   const modalFrameRef = useRef<HTMLDivElement | null>(null);
   const threeDClosingGuardUntilRef = useRef(0);
+
+  useEffect(() => {
+    const handleMobileEdgeBack = (event: Event) => {
+      event.preventDefault();
+
+      if (threeDOpen) {
+        setThreeDOpen(false);
+        return;
+      }
+      if (selectedSealedProduct) {
+        setSelectedSealedProduct(null);
+        return;
+      }
+      if (priceAlertOpen) {
+        setPriceAlertOpen(false);
+        return;
+      }
+
+      onClose();
+    };
+
+    window.addEventListener(MOBILE_EDGE_BACK_EVENT, handleMobileEdgeBack);
+    return () => window.removeEventListener(MOBILE_EDGE_BACK_EVENT, handleMobileEdgeBack);
+  }, [onClose, priceAlertOpen, selectedSealedProduct, threeDOpen]);
 
   const collectionItem = modalCard.collection_item ?? null;
   const layout = getCardModalLayoutClasses(
@@ -804,8 +829,8 @@ export default function CardModal({
   return (
     <>
       <div
-        className="dc-modal-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#050507] px-0 py-0 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top))] sm:pb-[calc(1rem+env(safe-area-inset-bottom))] md:block md:bg-[#08080c] md:p-0 xl:left-[16rem]"
-        style={{ overscrollBehavior: "contain" }}
+        className="dc-modal-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-hidden bg-[#050507] px-0 py-0 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:block md:overflow-y-auto md:bg-[#08080c] md:p-0 xl:left-[16rem]"
+        style={{ overscrollBehaviorX: "auto", overscrollBehaviorY: "contain" }}
         onClick={onClose}
       >
         <div
@@ -818,7 +843,7 @@ export default function CardModal({
             aria-modal="true"
             aria-label={modalCard.name}
             tabIndex={-1}
-            className="card-modal-frame dc-modal-panel relative h-dvh max-h-dvh w-full max-w-full overflow-y-auto overscroll-contain rounded-none border border-white/12 bg-[#050506] [scrollbar-gutter:stable] shadow-none outline-none md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
+            className="card-modal-frame dc-modal-panel relative h-dvh max-h-dvh w-full max-w-full overflow-hidden rounded-none border border-white/12 bg-[#050506] [scrollbar-gutter:stable] shadow-none outline-none sm:overflow-y-auto md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
             data-modal-size={displaySettings.modalSize}
             data-mobile-showcase="true"
           >
