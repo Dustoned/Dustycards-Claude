@@ -2626,6 +2626,21 @@ test.describe("DustyCards smoke", () => {
 
     await headerSearch.fill("charizard");
     await expect(page).toHaveURL(/\/search\?q=charizard/);
+
+    await page.goto("/search?q=Mew&game=pokemon&autoswitch=0");
+    await page.getByRole("button", { name: "Open search" }).click();
+    const resumedSearch = page.getByPlaceholder("Search cards...");
+    await expect(resumedSearch).toHaveValue("Mew");
+
+    // A route update may finish while the user pauses mid-query. The mobile
+    // search overlay must remain mounted and accept the rest of the text.
+    await page.waitForTimeout(450);
+    await expect(resumedSearch).toBeVisible();
+    await resumedSearch.type(" ex");
+    await expect(resumedSearch).toHaveValue("Mew ex");
+    await expect(page).toHaveURL(/q=Mew(?:\+|%20)ex&game=pokemon&autoswitch=0/);
+    await expect(page.getByRole("heading", { name: 'Results for "Mew ex"' })).toBeVisible();
+    await expect(resumedSearch).toBeVisible();
   });
 
   test("mobile menu closes when tapping outside the menu", async ({ page }) => {

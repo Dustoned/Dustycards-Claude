@@ -20,13 +20,14 @@ import {
 import CachedImage from "@/components/CachedImage";
 import {
   CardListTile,
+  CardListTileAnalysisLink,
   CardListTileBody,
   CardListTileFooter,
   CardListTileGrid,
+  CardListTileHeader,
   CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
-  CardListTilePrice,
 } from "@/components/CardListTile";
 import CollectionCardQuickActions, {
   CollectionCardQuickActionsPlaceholder,
@@ -652,8 +653,9 @@ function CompactSignalCard({
       </CardListTileMedia>
 
       <CardListTileBody className="pointer-events-none relative z-[1]">
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
-            <div className="flex max-h-6 min-w-0 flex-wrap items-start gap-1.5 overflow-hidden sm:max-h-none">
+        <CardListTileHeader
+          badges={
+            <>
               <span className={cx("rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]", getConfidenceClasses(signal.confidence))}>
                 {signal.confidence}
               </span>
@@ -670,18 +672,17 @@ function CompactSignalCard({
                   {primaryCatalyst.evidenceLevel} source
                 </span>
               ) : null}
-            </div>
-          <CardListTilePrice
-            label={marketMode}
-            value={scenario ? formatCurrency(scenario.currentPrice, scenario.currency) : formatCurrency(signal.currentPrice, signal.currency)}
-          />
-          <h3 className="col-span-2 mt-1.5 truncate text-base font-bold leading-5 tracking-tight text-white transition group-hover/card-list:text-violet-100">
-            {signal.name}
-          </h3>
-          <p className="col-span-2 mt-0.5 truncate text-[10px] leading-4 text-white/52">
-            {signal.episodeName}{signal.cardNumber ? ` / ${signal.cardNumber}` : ""}{signal.rarity ? ` / ${signal.rarity}` : ""}
-          </p>
-        </div>
+            </>
+          }
+          priceLabel={marketMode}
+          priceValue={scenario ? formatCurrency(scenario.currentPrice, scenario.currency) : formatCurrency(signal.currentPrice, signal.currency)}
+          title={signal.name}
+          meta={
+            <span className="truncate">
+              {signal.episodeName}{signal.cardNumber ? ` / ${signal.cardNumber}` : ""}{signal.rarity ? ` / ${signal.rarity}` : ""}
+            </span>
+          }
+        />
 
         <CardListTileInsight>
           <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300/62" />
@@ -705,14 +706,12 @@ function CompactSignalCard({
           data-signal-card-footer
           className="max-[359px]:gap-1"
         >
-          <span
-            data-card-analysis-link
+          <CardListTileAnalysisLink
             data-signal-analysis-link
-            className="mr-auto inline-flex min-h-11 min-w-0 shrink items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100 max-[359px]:px-0.5"
           >
             Analysis
             <ChevronRight className="h-3.5 w-3.5 max-[359px]:hidden" />
-          </span>
+          </CardListTileAnalysisLink>
           {quickActionData ? (
             <div className="pointer-events-auto relative z-10 shrink-0">
               <CollectionCardQuickActions

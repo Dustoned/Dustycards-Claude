@@ -105,6 +105,8 @@ interface CardResearchSnapshot {
   cached: boolean;
   provider: string;
   creditsUsed: number;
+  tavilyCreditsUsed?: number;
+  scrapedoCreditsUsed?: number;
   queriesRun: number;
   results: CardResearchResult[];
 }
@@ -295,7 +297,17 @@ function ResearchDialog({
               <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-black/18 px-4 py-3 text-xs font-semibold text-white/42">
                 <span className="rounded-full border border-white/8 bg-white/[0.035] px-2.5 py-1 uppercase">{research.provider}</span>
                 <span>{research.queriesRun} {research.queriesRun === 1 ? "query" : "queries"}</span>
-                <span>{research.creditsUsed} credits</span>
+                <span>
+                  {research.provider === "scrapedo"
+                    ? research.scrapedoCreditsUsed ?? 0
+                    : research.provider === "tavily"
+                      ? research.tavilyCreditsUsed ?? research.creditsUsed
+                      : research.creditsUsed}{" "}
+                  credits
+                </span>
+                {research.provider === "scrapedo" && research.creditsUsed > 0 ? (
+                  <span>{research.creditsUsed} Firecrawl fallback credits</span>
+                ) : null}
                 {research.cached ? <span className="text-cyan-100/65">Cached for 24 hours</span> : null}
               </div>
               {research.results.length ? (
@@ -628,7 +640,10 @@ export default function SignalRadarDetailClient({
   );
 
   const collectionPanel = (
-    <div className="card-detail-section-grid" data-columns="2">
+    <div
+      className="card-detail-section-grid card-detail-collection-grid"
+      data-columns="2"
+    >
       <CardModalOwnedCopyPanel card={card} collectionItem={collectionItem} showActions={false} />
       <CardModalActiveListingsPanel
         card={card}

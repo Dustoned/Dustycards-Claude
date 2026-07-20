@@ -157,6 +157,69 @@ export function CardListTileBody({
   );
 }
 
+export function CardListTileHeader({
+  badges,
+  priceLabel,
+  priceValue,
+  title,
+  meta,
+  className,
+  badgesClassName,
+  titleClassName,
+  metaClassName,
+}: {
+  badges?: ReactNode;
+  priceLabel?: ReactNode;
+  priceValue: ReactNode;
+  title: ReactNode;
+  meta?: ReactNode;
+  className?: string;
+  badgesClassName?: string;
+  titleClassName?: string;
+  metaClassName?: string;
+}) {
+  return (
+    <div
+      data-card-list-header
+      className={cx(
+        "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2",
+        className
+      )}
+    >
+      <div
+        data-card-list-badges
+        className={cx(
+          "flex h-6 min-w-0 flex-nowrap items-start gap-1.5 overflow-hidden",
+          badgesClassName
+        )}
+      >
+        {badges}
+      </div>
+      <CardListTilePrice label={priceLabel} value={priceValue} />
+      <h3
+        data-card-list-title
+        className={cx(
+          "col-span-2 mt-1.5 min-w-0 truncate text-base font-bold leading-5 tracking-tight text-white transition group-hover/card-list:text-violet-100",
+          titleClassName
+        )}
+      >
+        {title}
+      </h3>
+      {meta != null ? (
+        <div
+          data-card-list-meta
+          className={cx(
+            "col-span-2 mt-0.5 flex min-h-4 min-w-0 items-center gap-1.5 overflow-hidden text-[10px] leading-4 text-white/52",
+            metaClassName
+          )}
+        >
+          {meta}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function CardListTilePrice({
   label,
   value,
@@ -232,6 +295,22 @@ export function CardListTileFooter({
       data-card-list-footer
       className={cx(
         "relative z-10 mt-auto flex min-h-11 min-w-0 items-end justify-between gap-2 pt-2",
+        className
+      )}
+    />
+  );
+}
+
+export function CardListTileAnalysisLink({
+  className,
+  ...props
+}: HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span
+      {...props}
+      data-card-analysis-link
+      className={cx(
+        "mr-auto inline-flex min-h-11 min-w-0 shrink items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100 max-[359px]:px-0.5",
         className
       )}
     />

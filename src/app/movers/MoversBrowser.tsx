@@ -5,6 +5,16 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
+import {
+  CardListTile,
+  CardListTileBody,
+  CardListTileFooter,
+  CardListTileGrid,
+  CardListTileHeader,
+  CardListTileInsight,
+  CardListTileMedia,
+} from "@/components/CardListTile";
+import { CollectionCardQuickActionsPlaceholder } from "@/components/CollectionCardQuickActions";
 import { SectionHeader } from "@/components/PageHeader";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { BuySignalLabel } from "@/lib/buy-signal";
@@ -14,6 +24,7 @@ import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/mo
 import type { CardQuickActionMap } from "@/lib/card-quick-actions";
 import {
   compareMoverItems,
+  groupMoverVariantsByCard,
   matchesDirection,
   type DirectionFilter,
   type SortKey,
@@ -197,14 +208,30 @@ function buildFocusOptions({
 
 function MoverGridFallback() {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <CardListTileGrid aria-busy="true" aria-label="Loading market cards">
       {Array.from({ length: 4 }).map((_, index) => (
-        <div
-          key={index}
-          className="h-80 animate-pulse rounded-[24px] border border-black/8 bg-black/[0.03] dark:border-white/8 dark:bg-white/[0.04]"
-        />
+        <CardListTile key={index} layout="showcase" className="pointer-events-none">
+          <CardListTileMedia imageUrl="loading">
+            <span className="absolute inset-0 bg-white/[0.055] motion-safe:animate-pulse" />
+          </CardListTileMedia>
+          <CardListTileBody>
+            <CardListTileHeader
+              badges={<span className="h-6 w-16 rounded-full bg-white/[0.07] motion-safe:animate-pulse" />}
+              priceLabel={<span className="inline-block h-2 w-8 rounded bg-white/[0.055]" />}
+              priceValue={<span className="inline-block h-5 w-16 rounded-md bg-white/[0.08] motion-safe:animate-pulse" />}
+              title={<span className="inline-block h-4 w-3/5 rounded bg-white/[0.08] motion-safe:animate-pulse" />}
+              meta={<span className="h-3 w-4/5 rounded bg-white/[0.055] motion-safe:animate-pulse" />}
+            />
+            <CardListTileInsight>
+              <span className="mt-1 h-3 w-full rounded bg-white/[0.05] motion-safe:animate-pulse" />
+            </CardListTileInsight>
+            <CardListTileFooter className="justify-end">
+              <CollectionCardQuickActionsPlaceholder />
+            </CardListTileFooter>
+          </CardListTileBody>
+        </CardListTile>
       ))}
-    </div>
+    </CardListTileGrid>
   );
 }
 
@@ -379,16 +406,31 @@ export default function MoversBrowser({
     normalizedSearch,
     sortKey,
   ]);
+  const groupGradeVariants = isGradingScope || isGradedScope;
+  const visibleMoverGroups = useMemo(
+    () =>
+      groupGradeVariants
+        ? groupMoverVariantsByCard(visibleMovers)
+        : visibleMovers.map((item) => ({ cardId: item.cardId, variants: [item] })),
+    [groupGradeVariants, visibleMovers]
+  );
+  const allMoverGroupCount = useMemo(
+    () =>
+      groupGradeVariants ? groupMoverVariantsByCard(movers).length : movers.length,
+    [groupGradeVariants, movers]
+  );
   const highlightedVisibleIndex = useMemo(
     () =>
       activeHighlightedCardId
-        ? visibleMovers.findIndex((item) => item.cardId === activeHighlightedCardId)
+        ? visibleMoverGroups.findIndex((group) => group.cardId === activeHighlightedCardId)
         : -1,
-    [activeHighlightedCardId, visibleMovers]
+    [activeHighlightedCardId, visibleMoverGroups]
   );
   const [renderState, setRenderState] = useState({ key: "", limit: INITIAL_MOVER_RENDER_COUNT });
-  const renderKey = `${visibleMovers.length}:${visibleMovers[0]?.cardId ?? ""}:${
-    visibleMovers[visibleMovers.length - 1]?.cardId ?? ""
+  const renderKey = `${visibleMoverGroups.length}:${visibleMovers.length}:${
+    visibleMoverGroups[0]?.cardId ?? ""
+  }:${
+    visibleMoverGroups[visibleMoverGroups.length - 1]?.cardId ?? ""
   }:${sortKey}:${direction}:${activeFocusFilter}:${buySignalFilter}:${normalizedSearch}`;
   const minimumRenderLimit =
     highlightedVisibleIndex >= 0
@@ -398,11 +440,11 @@ export default function MoversBrowser({
     renderState.key === renderKey
       ? Math.max(renderState.limit, minimumRenderLimit)
       : minimumRenderLimit;
-  const renderedMovers = useMemo(
-    () => visibleMovers.slice(0, renderLimit),
-    [renderLimit, visibleMovers]
+  const renderedMoverGroups = useMemo(
+    () => visibleMoverGroups.slice(0, renderLimit),
+    [renderLimit, visibleMoverGroups]
   );
-  const hasMoreMovers = renderLimit < visibleMovers.length;
+  const hasMoreMovers = renderLimit < visibleMoverGroups.length;
   const hasDirectionFilter = showTrendFilter && direction !== defaultDirection;
 
   useEffect(() => {
@@ -426,7 +468,7 @@ export default function MoversBrowser({
             current.key === renderKey ? current.limit : INITIAL_MOVER_RENDER_COUNT;
           const nextLimit = Math.min(
             currentLimit + MOVER_RENDER_BATCH_SIZE,
-            visibleMovers.length
+            visibleMoverGroups.length
           );
 
           if (current.key === renderKey && nextLimit === current.limit) {
@@ -447,7 +489,7 @@ export default function MoversBrowser({
     return () => {
       observer.disconnect();
     };
-  }, [hasMoreMovers, renderKey, renderLimit, visibleMovers.length]);
+  }, [hasMoreMovers, renderKey, renderLimit, visibleMoverGroups.length]);
 
   useEffect(() => {
     if (!activeHighlightedCardId || highlightedVisibleIndex < 0) {
@@ -580,8 +622,8 @@ export default function MoversBrowser({
           description={description}
           actions={
             <p className="shrink-0 text-sm text-white/46">
-              {visibleMovers.length.toLocaleString("en-US")} /{" "}
-              {movers.length.toLocaleString("en-US")} visible
+              {visibleMoverGroups.length.toLocaleString("en-US")} /{" "}
+              {allMoverGroupCount.toLocaleString("en-US")} {groupGradeVariants ? "cards" : "visible"}
             </p>
           }
         />
@@ -708,7 +750,7 @@ export default function MoversBrowser({
           </div>
         </div>
 
-        {visibleMovers.length === 0 ? (
+        {visibleMoverGroups.length === 0 ? (
           <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-5 py-7 text-center sm:rounded-[24px] sm:px-8 sm:py-8">
             <p className="text-lg font-semibold text-white">
               {emptyTitle}
@@ -729,7 +771,7 @@ export default function MoversBrowser({
         ) : (
           <>
             <MoverGrid
-              movers={renderedMovers}
+              moverGroups={renderedMoverGroups}
               loadingCardId={loadingCardId}
               cardQuickActions={cardQuickActions}
               displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
@@ -744,8 +786,8 @@ export default function MoversBrowser({
                 className="mt-5 flex h-10 items-center justify-center text-xs font-semibold text-gray-400 dark:text-white/35"
                 aria-live="polite"
               >
-                Loading more cards ({renderedMovers.length.toLocaleString("en-US")} /{" "}
-                {visibleMovers.length.toLocaleString("en-US")})
+                Loading more cards ({renderedMoverGroups.length.toLocaleString("en-US")} /{" "}
+                {visibleMoverGroups.length.toLocaleString("en-US")})
               </div>
             ) : null}
           </>

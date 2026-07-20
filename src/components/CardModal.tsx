@@ -787,7 +787,10 @@ export default function CardModal({
   );
 
   const collectionPanel = (
-    <div className="card-detail-section-grid" data-columns="2">
+    <div
+      className="card-detail-section-grid card-detail-collection-grid"
+      data-columns="2"
+    >
       <CardModalOwnedCopyPanel
         card={modalCard}
         collectionItem={collectionItem}

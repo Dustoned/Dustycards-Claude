@@ -195,6 +195,7 @@ function buildValuePulseChart(data: CollectionValueDriversData): PulseChartData 
 
 function buildMoverPulseChart(
   items: Array<{
+    cardId?: string;
     name: string;
     currency: "EUR" | "USD";
     currentPrice: number;
@@ -202,8 +203,15 @@ function buildMoverPulseChart(
   }>,
   fallbackTitle: string
 ): PulseChartData {
+  const selectedCardIds = new Set<string>();
   const selected = items
     .filter((item) => item.recentPriceSeries.length > 1)
+    .filter((item) => {
+      if (!item.cardId) return true;
+      if (selectedCardIds.has(item.cardId)) return false;
+      selectedCardIds.add(item.cardId);
+      return true;
+    })
     .slice(0, 12);
   const totalsByDate = new Map<string, { label: string; value: number }>();
 
@@ -242,12 +250,15 @@ function buildMoverPulseChart(
 function pickStrongestMover(
   items: CollectionMoversData["movers"],
   metric: "change7dPct" | "change30dPct",
-  direction: "up" | "down"
+  direction: "up" | "down",
+  excludedCardIds: ReadonlySet<string> = new Set()
 ) {
   return (
     [...items]
-      .filter((item) =>
-        direction === "up" ? (item[metric] ?? 0) > 0 : (item[metric] ?? 0) < 0
+      .filter(
+        (item) =>
+          !excludedCardIds.has(item.cardId) &&
+          (direction === "up" ? (item[metric] ?? 0) > 0 : (item[metric] ?? 0) < 0)
       )
       .sort((a, b) =>
         direction === "up"
@@ -557,11 +568,24 @@ export default async function MoversPage({
           tone: "sky",
         },
       ] satisfies SummaryMetric[]);
+  const topCardRiser =
+    cardData && !isGradingScope
+      ? pickStrongestMover(cardData.movers, "change7dPct", "up")
+      : null;
+  const topCardDrop =
+    cardData && !isGradingScope
+      ? pickStrongestMover(
+          cardData.movers,
+          "change7dPct",
+          "down",
+          topCardRiser ? new Set([topCardRiser.cardId]) : new Set()
+        )
+      : null;
   const cardSpotlights =
     cardData && !isGradingScope
       ? [
-          { title: "Top 7D riser", item: pickStrongestMover(cardData.movers, "change7dPct", "up"), windowKey: "7d" as const },
-          { title: "Top 7D drop", item: pickStrongestMover(cardData.movers, "change7dPct", "down"), windowKey: "7d" as const },
+          { title: "Top 7D riser", item: topCardRiser, windowKey: "7d" as const },
+          { title: "Top 7D drop", item: topCardDrop, windowKey: "7d" as const },
         ]
       : [];
   const marketPreviewCards =
@@ -598,7 +622,7 @@ export default async function MoversPage({
       : [];
   return (
     <div
-      className="page-container mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-8 lg:px-8"
+      className="page-container mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-8 lg:px-8"
     >
       <div className="flex w-full flex-col gap-3 sm:gap-6">
         <div className="min-w-0">

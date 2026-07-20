@@ -1099,8 +1099,75 @@ describe("GET /api/search", () => {
     );
   });
 
-  it("returns direct card and sealed results with the highest prices first", async () => {
+  it("keeps ordinary short words in card names instead of treating them as set codes", async () => {
     dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "mew-ex",
+        name: "Mew ex",
+        card_number: "193",
+        rarity: "Special Illustration Rare",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: { id: "set", name: "Paldean Fates", code: "PAF" },
+        prices: [{ cm_en_lowest_nm: 75, tcp_market: 80 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=Mew%20ex"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.parsed).toEqual({
+      name: "Mew ex",
+      cardNumber: null,
+      setCode: null,
+      rawCardRef: null,
+    });
+    expect(body.singles[0].id).toBe("mew-ex");
+  });
+
+  it("does not parse card names ending in a number as compact set references", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "porygon2",
+        name: "Porygon2",
+        card_number: "72",
+        rarity: "Rare",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: { id: "set", name: "Test Set", code: "TST" },
+        prices: [{ cm_en_lowest_nm: 4, tcp_market: 5 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=Porygon2"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.parsed).toEqual({
+      name: "Porygon2",
+      cardNumber: null,
+      setCode: null,
+      rawCardRef: null,
+    });
+  });
+
+  it("ranks exact direct matches before more expensive partial matches", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "exact-card",
+        name: "Pikachu",
+        card_number: "004",
+        rarity: "Common",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: { id: "set", name: "Test Set", code: "TST" },
+        prices: [{ cm_en_lowest_nm: 1, tcp_market: 1.5 }],
+      },
       {
         id: "cheap-card",
         name: "Budget Pikachu",
@@ -1134,6 +1201,16 @@ describe("GET /api/search", () => {
     ]);
     dbMock.sealedProduct.findMany.mockResolvedValue([
       {
+        id: "exact-sealed",
+        name: "Pikachu",
+        image_url: null,
+        cardmarket_url: null,
+        cm_lowest: 5,
+        cm_avg_7d: null,
+        cm_avg_30d: null,
+        episode: { id: "set", name: "Test Set", code: "TST" },
+      },
+      {
         id: "cheap-sealed",
         name: "Budget Pikachu Box",
         image_url: null,
@@ -1161,13 +1238,63 @@ describe("GET /api/search", () => {
 
     expect(response.status).toBe(200);
     expect(body.singles.map((card: { id: string }) => card.id)).toEqual([
+      "exact-card",
       "premium-card",
       "mid-card",
       "cheap-card",
     ]);
     expect(body.sealed.map((product: { id: string }) => product.id)).toEqual([
+      "exact-sealed",
       "premium-sealed",
       "cheap-sealed",
+    ]);
+  });
+
+  it("keeps fuzzy relevance ahead of price after loading card details", async () => {
+    const exactTypoCandidate = {
+      id: "exact-typo",
+      name: "Charzrd",
+      card_number: "001",
+      rarity: "Rare",
+      supertype: "Pokemon",
+      image_url: null,
+      episode: { id: "set", name: "Test Set", code: "TST" },
+    };
+    const expensiveFuzzyCandidate = {
+      ...exactTypoCandidate,
+      id: "expensive-fuzzy",
+      name: "Charizard",
+      card_number: "002",
+    };
+
+    dbMock.card.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([expensiveFuzzyCandidate, exactTypoCandidate])
+      .mockResolvedValueOnce([
+        {
+          ...expensiveFuzzyCandidate,
+          prices: [{ cm_en_lowest_nm: 500, tcp_market: 520 }],
+        },
+        {
+          ...exactTypoCandidate,
+          prices: [{ cm_en_lowest_nm: 2, tcp_market: 3 }],
+        },
+      ]);
+    dbMock.sealedProduct.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    dbMock.episode.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=charzrd"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(true);
+    expect(body.singles.map((card: { id: string }) => card.id)).toEqual([
+      "exact-typo",
+      "expensive-fuzzy",
     ]);
   });
 });

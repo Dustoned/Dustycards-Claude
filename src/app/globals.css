@@ -2239,6 +2239,14 @@ html.widescreen .settings-page {
   min-width: 0;
 }
 
+/* Collection content is intentionally asymmetric: the owned-copy summary is
+   compact, while sealed products may need considerably more room. Keeping the
+   row top-aligned prevents the short summary card from inheriting the height
+   of the product panel beside it. */
+.card-detail-collection-grid {
+  align-items: start;
+}
+
 .card-detail-surface {
   min-width: 0;
   overflow: hidden;
@@ -2426,6 +2434,10 @@ html.widescreen .settings-page {
 
   .card-detail-section-grid[data-columns="2"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .card-detail-section-grid.card-detail-collection-grid[data-columns="2"] {
+    grid-template-columns: minmax(18rem, 0.72fr) minmax(0, 1.28fr);
   }
 
   .card-detail-info-grid {

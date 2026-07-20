@@ -3,8 +3,6 @@ import { db } from "@/lib/db";
 import {
   getFirecrawlConfigSnapshot,
   getFirecrawlProviderCreditUsage,
-  scrapeFirecrawlPage,
-  searchFirecrawlWeb,
   toFirecrawlApiError,
   type FirecrawlPageScrapeResult,
   type FirecrawlWebSearchResponse,
@@ -18,6 +16,12 @@ import {
   scopeGameId,
   type TradingCardGame,
 } from "@/lib/games";
+import {
+  firecrawlCreditsUsed,
+  scrapePageWithFallback,
+  searchWebWithFallback,
+} from "@/lib/scrape-provider";
+import { getScrapeDoConfigSnapshot } from "@/lib/scrapedo";
 import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
 
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30;
@@ -1369,28 +1373,37 @@ export async function getCardSubmissionFirecrawlUsage(
   };
 }
 
-async function assertFirecrawlBudget(userId: string, estimatedCredits: number) {
+async function assertScraperBudget(userId: string, estimatedCredits: number) {
   const config = getFirecrawlConfigSnapshot();
+  const scrapeDoConfigured = getScrapeDoConfigSnapshot().configured;
   const [usage, provider] = await Promise.all([
     getFirecrawlUsage(userId),
     getFirecrawlProviderCreditUsage(),
   ]);
 
-  if (usage.monthlyUsed + estimatedCredits > config.monthlyCreditBudget) {
-    throw new CardSubmissionError("Firecrawl monthly budget is reached.", 429);
-  }
-  if (provider && provider.remainingCredits - estimatedCredits < 25) {
-    throw new CardSubmissionError(
-      `Firecrawl provider balance is too low; ${provider.remainingCredits} credits remain and 25 are kept in reserve.`,
-      429
-    );
-  }
-
   if (USER_DAILY_ATTEMPT_LIMIT > 0 && usage.dailyAttemptsUsed >= USER_DAILY_ATTEMPT_LIMIT) {
-    throw new CardSubmissionError("Daily Firecrawl submit limit reached for this user.", 429);
+    throw new CardSubmissionError("Daily card lookup limit reached for this user.", 429);
   }
 
-  return { config, usage };
+  let firecrawlBlockedReason: string | null = null;
+  if (!config.configured) {
+    firecrawlBlockedReason = "Firecrawl is not configured.";
+  } else if (usage.monthlyUsed + estimatedCredits > config.monthlyCreditBudget) {
+    firecrawlBlockedReason = "Firecrawl monthly budget is reached.";
+  } else if (provider && provider.remainingCredits - estimatedCredits < 25) {
+    firecrawlBlockedReason =
+      `Firecrawl provider balance is too low; ${provider.remainingCredits} credits remain and 25 are kept in reserve.`;
+  }
+
+  if (firecrawlBlockedReason && !scrapeDoConfigured) {
+    throw new CardSubmissionError(firecrawlBlockedReason, 429);
+  }
+
+  return {
+    config,
+    usage,
+    firecrawlAllowed: !firecrawlBlockedReason,
+  };
 }
 
 type DuplicateCandidateCard = {
@@ -1869,6 +1882,7 @@ interface CardMarketVersionsDiscovery {
   creditsUsed: number;
   warnings: string[];
   scrapedPages: Array<{
+    provider: "firecrawl" | "scrapedo";
     title: string | null;
     sourceUrl: string;
     markdownLength: number;
@@ -1879,7 +1893,8 @@ interface CardMarketVersionsDiscovery {
 async function hydrateMissingCardMarketVariantImages(
   input: Pick<NormalizedSubmissionInput, "condition">,
   variants: CardMarketVariantPreview[],
-  scrapedPages: CardMarketVersionsDiscovery["scrapedPages"]
+  scrapedPages: CardMarketVersionsDiscovery["scrapedPages"],
+  skipFirecrawl: boolean
 ): Promise<{
   variants: CardMarketVariantPreview[];
   scrapeCount: number;
@@ -1902,11 +1917,12 @@ async function hydrateMissingCardMarketVariantImages(
     }
 
     try {
-      const scrape = await scrapeFirecrawlPage(variant.cardmarketUrl);
+      const scrape = await scrapePageWithFallback(variant.cardmarketUrl, { skipFirecrawl });
       scrapeCount += 1;
       hydratedCount += 1;
-      creditsUsed += scrape.creditsUsed ?? 1;
+      creditsUsed += firecrawlCreditsUsed(scrape, 1);
       scrapedPages.push({
+        provider: scrape.provider,
         title: scrape.title,
         sourceUrl: scrape.sourceUrl,
         markdownLength: scrape.markdown.length,
@@ -1932,7 +1948,8 @@ async function hydrateMissingCardMarketVariantImages(
 
 async function discoverCardMarketVersionPreviews(
   input: NormalizedSubmissionInput,
-  duplicateCards: DuplicateCardPreview[]
+  duplicateCards: DuplicateCardPreview[],
+  skipFirecrawl: boolean
 ): Promise<CardMarketVersionsDiscovery> {
   const warnings: string[] = [];
   const scrapedPages: CardMarketVersionsDiscovery["scrapedPages"] = [];
@@ -1953,10 +1970,11 @@ async function discoverCardMarketVersionPreviews(
 
   const scrapeVersionsUrl = async (versionsUrl: string) => {
     try {
-      const scrape = await scrapeFirecrawlPage(versionsUrl);
+      const scrape = await scrapePageWithFallback(versionsUrl, { skipFirecrawl });
       scrapeCount += 1;
-      creditsUsed += scrape.creditsUsed ?? 1;
+      creditsUsed += firecrawlCreditsUsed(scrape, 1);
       scrapedPages.push({
+        provider: scrape.provider,
         title: scrape.title,
         sourceUrl: scrape.sourceUrl,
         markdownLength: scrape.markdown.length,
@@ -1978,13 +1996,15 @@ async function discoverCardMarketVersionPreviews(
 
   if (variants.length === 0) {
     try {
-      searchResponse = await searchFirecrawlWeb({
+      const providerSearch = await searchWebWithFallback({
         query: buildVersionsSearchQuery(input),
         limit: CARDMARKET_VARIANT_SEARCH_LIMIT,
         includeDomains: [CARDMARKET_DOMAIN],
+        skipFirecrawl,
       });
+      searchResponse = providerSearch;
       searchCount = 1;
-      creditsUsed += searchResponse.creditsUsed ?? 2;
+      creditsUsed += firecrawlCreditsUsed(providerSearch, 2);
       if (searchResponse.warning) warnings.push(searchResponse.warning);
 
       for (const versionsUrl of pickVersionsPageCandidates(searchResponse, input)) {
@@ -2012,7 +2032,8 @@ async function discoverCardMarketVersionPreviews(
   const hydrated = await hydrateMissingCardMarketVariantImages(
     input,
     variantsWithExistingCards,
-    scrapedPages
+    scrapedPages,
+    skipFirecrawl
   );
   scrapeCount += hydrated.scrapeCount;
   creditsUsed += hydrated.creditsUsed;
@@ -2375,9 +2396,9 @@ export async function previewCardSubmission(
   }
 
   const estimatedCredits = input.cardmarketUrl ? 1 : 8;
-  let guard: Awaited<ReturnType<typeof assertFirecrawlBudget>>;
+  let guard: Awaited<ReturnType<typeof assertScraperBudget>>;
   try {
-    guard = await assertFirecrawlBudget(userId, estimatedCredits);
+    guard = await assertScraperBudget(userId, estimatedCredits);
   } catch (error) {
     if (!input.cardmarketUrl) {
       const message =
@@ -2409,7 +2430,8 @@ export async function previewCardSubmission(
     if (!selectedUrl) {
       const discovery = await discoverCardMarketVersionPreviews(
         input,
-        knownDuplicateResult.cards
+        knownDuplicateResult.cards,
+        !guard.firecrawlAllowed
       );
       searchResponse = discovery.searchResponse;
       searchCount = discovery.searchCount;
@@ -2460,9 +2482,11 @@ export async function previewCardSubmission(
       });
     }
 
-    const scrape = await scrapeFirecrawlPage(selectedUrl);
+    const scrape = await scrapePageWithFallback(selectedUrl, {
+      skipFirecrawl: !guard.firecrawlAllowed,
+    });
     scrapeCount += 1;
-    creditsUsed += scrape.creditsUsed ?? 1;
+    creditsUsed += firecrawlCreditsUsed(scrape, 1);
     const parsed = parseCardMarketScrape(scrape, input.condition);
     const parsedCardMarketUrl = normalizeCardMarketUrl(parsed.sourceUrl) ?? selectedUrl;
     warnings.push(...parsed.warnings);
@@ -2477,13 +2501,14 @@ export async function previewCardSubmission(
         cardmarketId: extractCardMarketProductId(parsedCardMarketUrl),
         warnings: [
           ...warnings,
-          "Firecrawl found a CardMarket page that is already linked to a local card.",
+          `${scrape.provider === "firecrawl" ? "Firecrawl" : "Scrape.do"} found a CardMarket page that is already linked to a local card.`,
         ],
         searchCount,
         scrapeCount,
         creditsUsed,
         firecrawlSearchJson: searchResponse,
         firecrawlScrapeJson: {
+          provider: scrape.provider,
           title: parsed.title,
           sourceUrl: parsed.sourceUrl,
           gradedPrices: parsed.gradedPrices,
@@ -2524,6 +2549,7 @@ export async function previewCardSubmission(
         warnings_json: serializeJson(warnings),
         firecrawl_search_json: serializeJson(searchResponse),
         firecrawl_scrape_json: serializeJson({
+          provider: scrape.provider,
           title: parsed.title,
           sourceUrl: parsed.sourceUrl,
           gradedPrices: parsed.gradedPrices,
@@ -3145,7 +3171,10 @@ export async function refreshAdminCardSubmission(submissionId: string): Promise<
     cardmarketUrl: submission.cardmarket_url ?? submission.input_cardmarket_url,
     condition: submission.detected_condition ?? submission.input_condition,
   });
-  await assertFirecrawlBudget(submission.user_id ?? "admin", input.cardmarketUrl ? 1 : 3);
+  const guard = await assertScraperBudget(
+    submission.user_id ?? "admin",
+    input.cardmarketUrl ? 1 : 3
+  );
 
   let selectedUrl = input.cardmarketUrl;
   let searchResponse: FirecrawlWebSearchResponse | null = null;
@@ -3153,19 +3182,23 @@ export async function refreshAdminCardSubmission(submissionId: string): Promise<
   let creditsUsed = 0;
 
   if (!selectedUrl) {
-    searchResponse = await searchFirecrawlWeb({
+    const providerSearch = await searchWebWithFallback({
       query: buildSearchQuery(input),
       limit: 3,
       includeDomains: [CARDMARKET_DOMAIN],
+      skipFirecrawl: !guard.firecrawlAllowed,
     });
+    searchResponse = providerSearch;
     searchCount = 1;
-    creditsUsed += searchResponse.creditsUsed ?? 2;
+    creditsUsed += firecrawlCreditsUsed(providerSearch, 2);
     selectedUrl = pickSearchCandidate(searchResponse, input);
   }
   if (!selectedUrl) throw new CardSubmissionError("No CardMarket URL found for refresh.", 404);
 
-  const scrape = await scrapeFirecrawlPage(selectedUrl);
-  creditsUsed += scrape.creditsUsed ?? 1;
+  const scrape = await scrapePageWithFallback(selectedUrl, {
+    skipFirecrawl: !guard.firecrawlAllowed,
+  });
+  creditsUsed += firecrawlCreditsUsed(scrape, 1);
   const parsed = parseCardMarketScrape(scrape, input.condition);
   if (!parsed.imageUrl || parsed.nmPriceEur == null) {
     throw new CardSubmissionError(parsed.warnings[0] ?? "Refresh did not find image and price.", 422);
@@ -3234,6 +3267,7 @@ export async function refreshAdminCardSubmission(submissionId: string): Promise<
         warnings_json: serializeJson(parsed.warnings),
         firecrawl_search_json: serializeJson(searchResponse),
         firecrawl_scrape_json: serializeJson({
+          provider: scrape.provider,
           title: parsed.title,
           sourceUrl: parsed.sourceUrl,
           gradedPrices: parsed.gradedPrices,

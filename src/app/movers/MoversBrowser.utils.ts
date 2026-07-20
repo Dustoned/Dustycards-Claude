@@ -19,6 +19,47 @@ export type SortKey =
 
 export type DirectionFilter = "all" | "risers" | "fallers";
 
+export interface MoverVariantGroup<
+  T extends Pick<CollectionMoverItem, "cardId" | "gradedLabel" | "source">,
+> {
+  cardId: string;
+  variants: T[];
+}
+
+/**
+ * Keeps the current sort order while collapsing grade-company variants of one
+ * physical card into a single render group. Exact duplicate grade rows are
+ * ignored so stale/imported market rows cannot create duplicate selectors.
+ */
+export function groupMoverVariantsByCard<
+  T extends Pick<CollectionMoverItem, "cardId" | "gradedLabel" | "source">,
+>(items: readonly T[]): MoverVariantGroup<T>[] {
+  const groups: MoverVariantGroup<T>[] = [];
+  const byCardId = new Map<string, MoverVariantGroup<T>>();
+  const variantKeysByCardId = new Map<string, Set<string>>();
+
+  for (const item of items) {
+    let group = byCardId.get(item.cardId);
+    if (!group) {
+      group = { cardId: item.cardId, variants: [] };
+      byCardId.set(item.cardId, group);
+      variantKeysByCardId.set(item.cardId, new Set());
+      groups.push(group);
+    }
+
+    const normalizedLabel =
+      item.gradedLabel?.trim().toLocaleLowerCase("en-US") || "ungraded";
+    const variantKey = `${item.source}:${normalizedLabel}`;
+    const variantKeys = variantKeysByCardId.get(item.cardId)!;
+    if (variantKeys.has(variantKey)) continue;
+
+    variantKeys.add(variantKey);
+    group.variants.push(item);
+  }
+
+  return groups;
+}
+
 export function buildSortSummary(sortKey: SortKey, direction: DirectionFilter): string {
   switch (sortKey) {
     case "tcggo_score":

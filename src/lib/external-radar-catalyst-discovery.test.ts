@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS,
   EXTERNAL_CATALYST_MAX_BACKLOG_INSERTS_PER_RUN,
+  EXTERNAL_CATALYST_MAX_SCRAPEDO_SEARCHES_PER_RUN,
   EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN,
   EXTERNAL_CATALYST_QUERY_VERSION,
   EXTERNAL_CATALYST_SEARCH_LIMIT,
@@ -16,6 +17,7 @@ import type {
   FirecrawlPageScrapeResult,
   FirecrawlWebSearchResponse,
 } from "@/lib/firecrawl";
+import { FirecrawlBudgetError } from "@/lib/firecrawl-budget";
 
 function makeStore(known: string[] = []): ExternalCatalystDiscoveryStore & {
   created: string[];
@@ -314,6 +316,109 @@ describe("external catalyst discovery orchestration", () => {
       searchesExecuted: 5,
     });
     expect(deps.fallbackSearchWeb).toHaveBeenCalledTimes(5);
+  });
+
+  it("uses Scrape.do without touching Firecrawl when its budget reservation is exhausted", async () => {
+    const deps = dependencies({ store: makeStore(), searchResults: {} });
+    deps.runBudgetedRequest = vi.fn(async () => {
+      throw new FirecrawlBudgetError("Firecrawl monthly budget is reached.");
+    });
+    deps.scrapeDoSearchWeb = vi.fn(async () => ({
+      results: [],
+      creditsUsed: 10,
+      warning: null,
+    }));
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates: [candidates[0]], now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(result).toMatchObject({
+      status: "success",
+      searchesExecuted: EXTERNAL_CATALYST_MAX_SCRAPEDO_SEARCHES_PER_RUN,
+      creditsUsed: 0,
+      scrapedoCreditsUsed: 20,
+    });
+    expect(deps.searchWeb).not.toHaveBeenCalled();
+    expect(deps.scrapeDoSearchWeb).toHaveBeenCalledTimes(
+      EXTERNAL_CATALYST_MAX_SCRAPEDO_SEARCHES_PER_RUN
+    );
+  });
+
+  it("short-circuits after a successful Firecrawl search", async () => {
+    const deps = dependencies({
+      store: makeStore(),
+      searchResults: {
+        pokemon: { results: [], creditsUsed: 1, warning: null },
+      },
+    });
+    deps.scrapeDoSearchWeb = vi.fn(async () => ({
+      results: [],
+      creditsUsed: 10,
+      warning: null,
+    }));
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates: [candidates[0]], now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(result).toMatchObject({ creditsUsed: 5, scrapedoCreditsUsed: 0 });
+    expect(deps.searchWeb).toHaveBeenCalledTimes(5);
+    expect(deps.scrapeDoSearchWeb).not.toHaveBeenCalled();
+  });
+
+  it("falls back to Scrape.do for a known URL when Firecrawl cannot reserve scrape credits", async () => {
+    const store = makeStore();
+    const deps = dependencies({
+      store,
+      searchResults: {
+        pokemon: {
+          results: [
+            {
+              title: "Meowth support",
+              description: "Meowth ex gets support",
+              url: "https://pokebeach.com/news/scrapedo-fallback",
+            },
+          ],
+          creditsUsed: 1,
+          warning: null,
+        },
+      },
+    });
+    deps.runBudgetedRequest = vi.fn(async (request) => {
+      if (request.operation === "catalyst-scrape") {
+        throw new FirecrawlBudgetError("Firecrawl scrape budget is reached.");
+      }
+      const response = await request.request();
+      return {
+        executed: true,
+        result: response,
+        creditsUsed: request.getCreditsUsed(response) ?? request.estimatedCredits,
+        reservationId: request.idempotencyKey,
+      };
+    });
+    deps.scrapeDoPage = vi.fn(async (url: string) => ({
+      ...scrape(url, "New support announced"),
+      creditsUsed: 3,
+      metadata: { provider: "scrapedo", publishedTime: "2026-07-12T08:00:00Z" },
+    }));
+
+    const result = await runExternalCatalystDiscovery(
+      { candidates: [candidates[0]], now: new Date("2026-07-12T12:00:00Z") },
+      deps
+    );
+
+    expect(result).toMatchObject({
+      status: "success",
+      sourcesScraped: 1,
+      creditsUsed: 5,
+      scrapedoCreditsUsed: 3,
+    });
+    expect(deps.scrapePage).not.toHaveBeenCalled();
+    expect(deps.scrapeDoPage).toHaveBeenCalledTimes(1);
+    expect(store.persisted).toEqual(["https://pokebeach.com/news/scrapedo-fallback"]);
   });
 
   it("uses a new scrape reservation bucket so a failed source can retry later", async () => {

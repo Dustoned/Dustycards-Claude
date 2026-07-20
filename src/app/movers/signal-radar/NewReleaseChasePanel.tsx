@@ -15,13 +15,14 @@ import {
 import CachedImage from "@/components/CachedImage";
 import {
   CardListTile,
+  CardListTileAnalysisLink,
   CardListTileBody,
   CardListTileFooter,
   CardListTileGrid,
+  CardListTileHeader,
   CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
-  CardListTilePrice,
 } from "@/components/CardListTile";
 import CollectionCardQuickActions, {
   CollectionCardQuickActionsPlaceholder,
@@ -209,26 +210,26 @@ function ChaseCard({
       </CardListTileMedia>
 
       <CardListTileBody className="pointer-events-none relative z-[1]">
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
-          <span
-            className={cx(
-              "inline-flex max-w-full justify-self-start truncate rounded-lg border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em]",
-              verdictClasses(card.verdict.key)
-            )}
-          >
-            {card.verdict.label}
-          </span>
-          <CardListTilePrice
-            label="Raw"
-            value={formatCurrency(card.currentPrice, card.currency)}
-          />
-          <h3 className="col-span-2 mt-1.5 truncate text-[15px] font-extrabold leading-5 tracking-tight text-white transition group-hover/card-list:text-violet-100">
-            {card.name}
-          </h3>
-          <p className="col-span-2 mt-0.5 truncate text-[11px] text-white/58">
-            {card.cardNumber ? `#${card.cardNumber} · ` : ""}{card.rarity ?? "Rarity pending"}
-          </p>
-        </div>
+        <CardListTileHeader
+          badges={
+            <span
+              className={cx(
+                "inline-flex max-w-full truncate rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]",
+                verdictClasses(card.verdict.key)
+              )}
+            >
+              {card.verdict.label}
+            </span>
+          }
+          priceLabel="Raw"
+          priceValue={formatCurrency(card.currentPrice, card.currency)}
+          title={card.name}
+          meta={
+            <span className="truncate">
+              {card.cardNumber ? `#${card.cardNumber} · ` : ""}{card.rarity ?? "Rarity pending"}
+            </span>
+          }
+        />
 
         <CardListTileInsight>
           <Radar className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300/72" />
@@ -243,14 +244,12 @@ function ChaseCard({
           data-chase-card-footer
           className="max-[359px]:gap-1"
         >
-          <span
-            data-card-analysis-link
+          <CardListTileAnalysisLink
             data-chase-analysis-link
-            className="mr-auto inline-flex min-h-11 min-w-0 shrink items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100 max-[359px]:px-0.5"
           >
             Analysis
             <ArrowUpRight className="h-3.5 w-3.5 max-[359px]:hidden" />
-          </span>
+          </CardListTileAnalysisLink>
           {quickActionData ? (
             <div className="pointer-events-auto relative z-10 shrink-0" data-chase-card-actions>
               <CollectionCardQuickActions data={quickActionData} />

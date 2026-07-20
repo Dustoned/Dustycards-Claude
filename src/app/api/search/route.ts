@@ -132,7 +132,16 @@ function isLikelySetCodeToken(value: string): boolean {
   const normalized = token.toLowerCase();
   if (NON_SET_CODE_TOKENS.has(normalized)) return false;
 
-  return SET_CODE_RE.test(token) || PLAIN_SET_CODE_RE.test(token);
+  // Plain words such as Mew, Mega, Iron, Team and Dark are card-name tokens,
+  // not set codes. An alphabetic code is only safe as a structured hint when
+  // the user wrote it explicitly in uppercase (for example "SHF 73").
+  return SET_CODE_RE.test(token) || (PLAIN_SET_CODE_RE.test(token) && token === token.toUpperCase());
+}
+
+type SearchRankingMode = "direct" | "fuzzy";
+
+function isUnambiguousSetCodeToken(value: string): boolean {
+  return SET_CODE_RE.test(value.trim());
 }
 
 function parseCompactCardReference(value: string): {
@@ -143,6 +152,12 @@ function parseCompactCardReference(value: string): {
   const compact = value.trim().replace(/^#+/, "").replace(/\s+/g, "");
   const match = COMPACT_CARD_REF_RE.exec(compact);
   if (!match) return null;
+
+  // Compact references are useful (for example swsh001), but long prefixes
+  // are overwhelmingly card names such as Porygon2 rather than set codes.
+  const prefix = match[1];
+  const isKnownShortPrefix = /^(?:op|st|eb|prb)$/i.test(prefix);
+  if ((!isKnownShortPrefix && prefix.length < 3) || prefix.length > 5) return null;
 
   return {
     setCode: match[1],
@@ -304,7 +319,7 @@ function parseSearchQuery(raw: string, game: TradingCardGame = POKEMON_GAME): Pa
     }
   }
 
-  const codeIdx = tokens.findIndex((token) => isLikelySetCodeToken(token));
+  const codeIdx = tokens.findIndex((token) => isUnambiguousSetCodeToken(token));
 
   if (codeIdx !== -1 && tokens.length > 1) {
     const setCode = tokens[codeIdx];
@@ -579,10 +594,24 @@ function buildSetScopedCardNumberCondition(
 }
 
 function buildCardFreeTextCondition(query: string): Prisma.CardWhereInput {
+  const tokens = searchTokens(query);
   const conditions: Prisma.CardWhereInput[] = [
     nameContains<Prisma.CardWhereInput>(query),
     { episode: nameContains<Prisma.EpisodeWhereInput>(query, "name") },
+    { episode: fieldContains<Prisma.EpisodeWhereInput>(query, "code") },
   ];
+
+  if (tokens.length > 1) {
+    conditions.push({
+      AND: tokens.map((token) => ({
+        OR: [
+          fieldContains<Prisma.CardWhereInput>(token),
+          { episode: fieldContains<Prisma.EpisodeWhereInput>(token, "name") },
+          { episode: fieldContains<Prisma.EpisodeWhereInput>(token, "code") },
+        ],
+      })),
+    });
+  }
 
   if (/\d/.test(query)) {
     conditions.push(fieldContains<Prisma.CardWhereInput>(query, "card_number"));
@@ -600,6 +629,27 @@ function buildCardFreeTextCondition(query: string): Prisma.CardWhereInput {
   }
 
   return conditions.length === 1 ? conditions[0] : { OR: conditions };
+}
+
+function buildEpisodeFreeTextCondition(query: string): Prisma.EpisodeWhereInput {
+  const tokens = searchTokens(query);
+  const conditions: Prisma.EpisodeWhereInput[] = [
+    fieldContains<Prisma.EpisodeWhereInput>(query, "name"),
+    fieldContains<Prisma.EpisodeWhereInput>(query, "code"),
+  ];
+
+  if (tokens.length > 1) {
+    conditions.push({
+      AND: tokens.map((token) => ({
+        OR: [
+          fieldContains<Prisma.EpisodeWhereInput>(token, "name"),
+          fieldContains<Prisma.EpisodeWhereInput>(token, "code"),
+        ],
+      })),
+    });
+  }
+
+  return { OR: conditions };
 }
 
 function buildCardSearchText(card: {
@@ -720,6 +770,7 @@ function sealedNameContains(name: string): Prisma.SealedProductWhereInput {
       OR: [
         fieldContains<Prisma.SealedProductWhereInput>(name),
         { episode: fieldContains<Prisma.EpisodeWhereInput>(name, "name") },
+        { episode: fieldContains<Prisma.EpisodeWhereInput>(name, "code") },
       ],
     };
   }
@@ -730,6 +781,7 @@ function sealedNameContains(name: string): Prisma.SealedProductWhereInput {
         OR: [
           fieldContains<Prisma.SealedProductWhereInput>(name),
           { episode: fieldContains<Prisma.EpisodeWhereInput>(name, "name") },
+          { episode: fieldContains<Prisma.EpisodeWhereInput>(name, "code") },
         ],
       },
       {
@@ -737,6 +789,7 @@ function sealedNameContains(name: string): Prisma.SealedProductWhereInput {
           OR: [
             fieldContains<Prisma.SealedProductWhereInput>(token),
             { episode: fieldContains<Prisma.EpisodeWhereInput>(token, "name") },
+            { episode: fieldContains<Prisma.EpisodeWhereInput>(token, "code") },
           ],
         })),
       },
@@ -850,6 +903,35 @@ function compareSingleSearchPriceDesc(
   return comparePriceDesc(a.tcp_market, b.tcp_market);
 }
 
+function getTextRelevanceScore(
+  value: string,
+  query: string,
+  mode: SearchRankingMode
+): number {
+  return mode === "fuzzy"
+    ? fuzzyRelevanceScore(value, query)
+    : relevanceScore(value, query);
+}
+
+function getCardResultRelevanceScore(
+  card: {
+    name: string;
+    card_number: string | null;
+    episode_name?: string | null;
+    episode_code?: string | null;
+    episode?: { name: string; code: string | null };
+  },
+  query: string,
+  mode: SearchRankingMode
+): number {
+  // Name identity is the strongest signal. The combined text still makes set
+  // codes, card numbers and expansion names rank correctly.
+  return (
+    getTextRelevanceScore(card.name, query, mode) * 3 +
+    getTextRelevanceScore(buildCardSearchText(card), query, mode)
+  );
+}
+
 function getFuzzyExpansionMinScore(rawQuery: string): number {
   return searchTokens(rawQuery).length > 1 ? FUZZY_EXPANSION_MULTI_TOKEN_MIN_SCORE : 1;
 }
@@ -953,7 +1035,11 @@ function buildFuzzyExpansionCandidateWhere(rawQuery: string): Prisma.EpisodeWher
   return combineWhere("OR", conditions);
 }
 
-function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) {
+function formatSingleResults(
+  cards: SearchCardRecord[],
+  relevanceQuery: string,
+  rankingMode: SearchRankingMode = "direct"
+) {
   return cards
     .map((card) => {
       const wantItem = card.wants?.[0] ?? null;
@@ -980,16 +1066,16 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
       };
     })
     .sort((a, b) => {
-      const priceDiff = compareSingleSearchPriceDesc(a, b);
-      if (priceDiff !== 0) return priceDiff;
-
       if (relevanceQuery.trim()) {
         const scoreDiff = compareRelevance(
-          relevanceScore(buildCardSearchText(a), relevanceQuery),
-          relevanceScore(buildCardSearchText(b), relevanceQuery)
+          getCardResultRelevanceScore(a, relevanceQuery, rankingMode),
+          getCardResultRelevanceScore(b, relevanceQuery, rankingMode)
         );
         if (scoreDiff !== 0) return scoreDiff;
       }
+
+      const priceDiff = compareSingleSearchPriceDesc(a, b);
+      if (priceDiff !== 0) return priceDiff;
 
       const nameCmp = a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
       if (nameCmp !== 0) return nameCmp;
@@ -1001,7 +1087,11 @@ function formatSingleResults(cards: SearchCardRecord[], relevanceQuery: string) 
     });
 }
 
-function formatSealedResults(sealed: SearchSealedRecord[], relevanceQuery: string) {
+function formatSealedResults(
+  sealed: SearchSealedRecord[],
+  relevanceQuery: string,
+  rankingMode: SearchRankingMode = "direct"
+) {
   return sealed
     .map((product) => ({
       id: product.id,
@@ -1014,27 +1104,35 @@ function formatSealedResults(sealed: SearchSealedRecord[], relevanceQuery: strin
       episode: product.episode,
     }))
     .sort((a, b) => {
-      const priceDiff = comparePriceDesc(a.cm_lowest, b.cm_lowest);
-      if (priceDiff !== 0) return priceDiff;
-
       const aScore =
-        relevanceScore(a.name, relevanceQuery) +
-        Math.floor(relevanceScore(a.episode.name, relevanceQuery) / 2);
+        getTextRelevanceScore(a.name, relevanceQuery, rankingMode) * 2 +
+        getTextRelevanceScore(a.episode.name, relevanceQuery, rankingMode) +
+        getTextRelevanceScore(a.episode.code ?? "", relevanceQuery, rankingMode);
       const bScore =
-        relevanceScore(b.name, relevanceQuery) +
-        Math.floor(relevanceScore(b.episode.name, relevanceQuery) / 2);
+        getTextRelevanceScore(b.name, relevanceQuery, rankingMode) * 2 +
+        getTextRelevanceScore(b.episode.name, relevanceQuery, rankingMode) +
+        getTextRelevanceScore(b.episode.code ?? "", relevanceQuery, rankingMode);
       const scoreDiff = compareRelevance(aScore, bScore);
       if (scoreDiff !== 0) return scoreDiff;
+
+      const priceDiff = comparePriceDesc(a.cm_lowest, b.cm_lowest);
+      if (priceDiff !== 0) return priceDiff;
 
       return a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
     });
 }
 
-function formatExpansionResults(expansions: SearchExpansionRecord[], relevanceQuery: string) {
+function formatExpansionResults(
+  expansions: SearchExpansionRecord[],
+  relevanceQuery: string,
+  rankingMode: SearchRankingMode = "direct"
+) {
   return expansions.sort((a, b) => {
     const scoreDiff = compareRelevance(
-      relevanceScore(a.name, relevanceQuery),
-      relevanceScore(b.name, relevanceQuery)
+      getTextRelevanceScore(a.name, relevanceQuery, rankingMode) * 2 +
+        getTextRelevanceScore(a.code ?? "", relevanceQuery, rankingMode),
+      getTextRelevanceScore(b.name, relevanceQuery, rankingMode) * 2 +
+        getTextRelevanceScore(b.code ?? "", relevanceQuery, rankingMode)
     );
     if (scoreDiff !== 0) return scoreDiff;
 
@@ -1219,9 +1317,9 @@ async function runFuzzyFallback(
     .slice(0, 12)
     .map((entry) => entry.episode);
 
-  const formattedSingles = formatSingleResults(singles, rawQuery);
-  const formattedSealed = formatSealedResults(sealed, rawQuery);
-  const formattedExpansions = formatExpansionResults(expansions, rawQuery);
+  const formattedSingles = formatSingleResults(singles, rawQuery, "fuzzy");
+  const formattedSealed = formatSealedResults(sealed, rawQuery, "fuzzy");
+  const formattedExpansions = formatExpansionResults(expansions, rawQuery, "fuzzy");
 
   return {
     singles: formattedSingles,
@@ -1288,7 +1386,6 @@ async function runDirectSearch(
   const isSetOnlyCardSearch = Boolean(setCode && !cardNumber && !name);
   const singleResultLimit = isSetOnlyCardSearch ? DIRECT_CARD_CANDIDATE_LIMIT : MAX_RESULTS;
   const expansionQuery = shouldSearchExpansions ? name ?? "" : "";
-  const expansionNameVariants = shouldSearchExpansions ? nameVariants(expansionQuery) : [];
 
   const sealedWhere: Prisma.SealedProductWhereInput | undefined =
     name && setCode
@@ -1316,13 +1413,7 @@ async function runDirectSearch(
         buildVisibleEpisodeWhere(activeGame),
         setCode && !cardNumber
           ? episodeMatchesSetCode(setCode)
-          : expansionNameVariants.length === 1
-            ? { name: { contains: expansionQuery } }
-            : {
-                OR: expansionNameVariants.map((variant) => ({
-                  name: { contains: variant },
-                })),
-              },
+          : buildEpisodeFreeTextCondition(expansionQuery),
       ])
     : undefined;
 

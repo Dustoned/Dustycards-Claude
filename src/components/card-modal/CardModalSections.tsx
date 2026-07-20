@@ -1533,7 +1533,7 @@ export function CardModalDesktopActionGroup({
     "flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white disabled:cursor-not-allowed disabled:opacity-45";
   const hasOverflowActions = canManageCollectionItem || Boolean(onResearchSignal) || canManageCardPrices;
   const mobileMarketClass =
-    "flex min-h-11 w-full min-w-0 max-w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.045] px-2.5 text-[13px] font-bold text-white/72 transition hover:border-violet-200/28 hover:bg-violet-500/[0.12] hover:text-white";
+    "flex min-h-11 w-full min-w-0 max-w-full items-center justify-center gap-1 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.045] px-2 text-[13px] font-bold text-white/72 transition hover:border-violet-200/28 hover:bg-violet-500/[0.12] hover:text-white";
   const ebayHref = buildCardEbaySearchUrl({
     name: card.name,
     cardNumber: card.card_number,

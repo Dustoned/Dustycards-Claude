@@ -26,12 +26,18 @@ import {
   type FirecrawlPageScrapeResult,
   type FirecrawlWebSearchResponse,
 } from "@/lib/firecrawl";
+import {
+  getScrapeDoConfigSnapshot,
+  scrapeScrapeDoPage,
+  searchScrapeDoWeb,
+} from "@/lib/scrapedo";
 import { getTavilyConfigSnapshot, searchTavilyWeb } from "@/lib/tavily";
 
 export const EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS = 24 * 60 * 60_000;
 export const EXTERNAL_CATALYST_QUERY_VERSION = 5;
 export const EXTERNAL_CATALYST_SEARCH_LIMIT = 5;
 export const EXTERNAL_CATALYST_MAX_SCRAPES_PER_RUN = 4;
+export const EXTERNAL_CATALYST_MAX_SCRAPEDO_SEARCHES_PER_RUN = 2;
 export const EXTERNAL_CATALYST_RETRY_BACKOFF_MS = 72 * 60 * 60_000;
 // Trusted URLs that miss the daily scrape budget are queued as pending rows so
 // later runs work through them; the cap bounds daily table growth.
@@ -80,6 +86,8 @@ export interface ExternalCatalystDiscoveryResult {
   matches: CatalystCardMatch[];
   searchProvider: "tavily" | "firecrawl";
   tavilyCreditsUsed: number;
+  scrapedoCreditsUsed: number;
+  /** Firecrawl credits recorded by the Firecrawl ledger. */
   creditsUsed: number;
   backlogQueued?: number;
   backlogProcessed?: number;
@@ -167,7 +175,9 @@ export interface ExternalCatalystDiscoveryDependencies {
   }) => Promise<FirecrawlWebSearchResponse>;
   searchProvider?: "tavily" | "firecrawl";
   fallbackSearchWeb?: ExternalCatalystDiscoveryDependencies["searchWeb"];
+  scrapeDoSearchWeb?: ExternalCatalystDiscoveryDependencies["searchWeb"];
   scrapePage: typeof scrapeFirecrawlPage;
+  scrapeDoPage?: typeof scrapeScrapeDoPage;
   runBudgetedRequest: BudgetedRequestRunner;
   store: ExternalCatalystDiscoveryStore;
 }
@@ -492,11 +502,14 @@ const prismaCatalystStore: ExternalCatalystDiscoveryStore = {
 };
 
 const tavilyConfigured = getTavilyConfigSnapshot().configured;
+const scrapeDoConfigured = getScrapeDoConfigSnapshot().configured;
 const DEFAULT_DEPENDENCIES: ExternalCatalystDiscoveryDependencies = {
   searchWeb: tavilyConfigured ? searchTavilyWeb : searchFirecrawlWeb,
   searchProvider: tavilyConfigured ? "tavily" : "firecrawl",
   fallbackSearchWeb: tavilyConfigured ? searchFirecrawlWeb : undefined,
+  scrapeDoSearchWeb: scrapeDoConfigured ? searchScrapeDoWeb : undefined,
   scrapePage: scrapeFirecrawlPage,
+  scrapeDoPage: scrapeDoConfigured ? scrapeScrapeDoPage : undefined,
   runBudgetedRequest: runBudgetedFirecrawlRequest,
   store: prismaCatalystStore,
 };
@@ -620,6 +633,7 @@ function baseResult(due: boolean): ExternalCatalystDiscoveryResult {
     matches: [],
     searchProvider: tavilyConfigured ? "tavily" : "firecrawl",
     tavilyCreditsUsed: 0,
+    scrapedoCreditsUsed: 0,
     creditsUsed: 0,
     backlogQueued: 0,
     backlogProcessed: 0,
@@ -664,59 +678,90 @@ export async function runExternalCatalystDiscovery(
   result.queriesPlanned = queries.length;
   const discoveredByUrl = new Map<string, DiscoveredCatalystSource>();
 
+  const searchInput = (query: CatalystSearchQuery) => ({
+    query: query.query,
+    limit: EXTERNAL_CATALYST_SEARCH_LIMIT,
+    includeDomains: query.allowedDomains,
+    tbs: "sbd:1,qdr:m",
+    topic: query.topic,
+  });
+  let scrapeDoSearchesExecuted = 0;
+
+  const runScrapeDoSearch = async (
+    query: CatalystSearchQuery,
+    priorError: unknown
+  ): Promise<FirecrawlWebSearchResponse | null> => {
+    if (!dependencies.scrapeDoSearchWeb) throw priorError;
+    if (scrapeDoSearchesExecuted >= EXTERNAL_CATALYST_MAX_SCRAPEDO_SEARCHES_PER_RUN) {
+      return null;
+    }
+    scrapeDoSearchesExecuted += 1;
+    const response = await dependencies.scrapeDoSearchWeb(searchInput(query));
+    result.scrapedoCreditsUsed += response.creditsUsed ?? 0;
+    return response;
+  };
+
+  const runFirecrawlSearchWithFallback = async (input: {
+    query: CatalystSearchQuery;
+    searchWeb: ExternalCatalystDiscoveryDependencies["searchWeb"];
+    operation: string;
+    idempotencyPrefix: string;
+  }): Promise<FirecrawlWebSearchResponse | null> => {
+    // Capture a successful provider response separately. If only the ledger
+    // completion fails after Firecrawl returned data, re-use that response and
+    // do not spend a second provider credit for the same query.
+    const providerState: { response: FirecrawlWebSearchResponse | null } = {
+      response: null,
+    };
+    try {
+      const budgeted = await dependencies.runBudgetedRequest<FirecrawlWebSearchResponse>({
+        consumer: FIRECRAWL_CONSUMER,
+        operation: input.operation,
+        idempotencyKey: `${input.idempotencyPrefix}:${discoveryBucket(now)}:${hash(`${input.query.game}\u0000${input.query.query}`)}`,
+        estimatedCredits: SEARCH_ESTIMATED_CREDITS,
+        request: async () => {
+          providerState.response = await input.searchWeb(searchInput(input.query));
+          return providerState.response;
+        },
+        getCreditsUsed: (response) => response.creditsUsed,
+      });
+      if (!budgeted.executed || !budgeted.result) return null;
+      result.creditsUsed += budgeted.creditsUsed;
+      return budgeted.result;
+    } catch (error) {
+      const providerResponse = providerState.response;
+      if (!(error instanceof FirecrawlBudgetError)) {
+        result.creditsUsed += providerResponse?.creditsUsed ?? SEARCH_ESTIMATED_CREDITS;
+      }
+      if (providerResponse) return providerResponse;
+      return runScrapeDoSearch(input.query, error);
+    }
+  };
+
   for (const query of queries) {
     try {
       let searchResponse: FirecrawlWebSearchResponse | null = null;
       if (searchProvider === "tavily") {
         try {
-          searchResponse = await dependencies.searchWeb({
-            query: query.query,
-            limit: EXTERNAL_CATALYST_SEARCH_LIMIT,
-            includeDomains: query.allowedDomains,
-            tbs: "sbd:1,qdr:m",
-            topic: query.topic,
-          });
+          searchResponse = await dependencies.searchWeb(searchInput(query));
           result.tavilyCreditsUsed += searchResponse.creditsUsed ?? 1;
         } catch (tavilyError) {
-          if (!dependencies.fallbackSearchWeb) throw tavilyError;
-          const fallback = await dependencies.runBudgetedRequest<FirecrawlWebSearchResponse>({
-            consumer: FIRECRAWL_CONSUMER,
-            operation: "catalyst-search-fallback",
-            idempotencyKey: `external-catalyst:search-fallback:${discoveryBucket(now)}:${hash(`${query.game}\u0000${query.query}`)}`,
-            estimatedCredits: SEARCH_ESTIMATED_CREDITS,
-            request: () =>
-              dependencies.fallbackSearchWeb!({
-                query: query.query,
-                limit: EXTERNAL_CATALYST_SEARCH_LIMIT,
-                includeDomains: query.allowedDomains,
-                tbs: "sbd:1,qdr:m",
-                topic: query.topic,
-              }),
-            getCreditsUsed: (response) => response.creditsUsed,
-          });
-          if (!fallback.executed || !fallback.result) continue;
-          searchResponse = fallback.result;
-          result.creditsUsed += fallback.creditsUsed;
+          searchResponse = dependencies.fallbackSearchWeb
+            ? await runFirecrawlSearchWithFallback({
+                query,
+                searchWeb: dependencies.fallbackSearchWeb,
+                operation: "catalyst-search-fallback",
+                idempotencyPrefix: "external-catalyst:search-fallback",
+              })
+            : await runScrapeDoSearch(query, tavilyError);
         }
       } else {
-        const budgeted = await dependencies.runBudgetedRequest<FirecrawlWebSearchResponse>({
-          consumer: FIRECRAWL_CONSUMER,
+        searchResponse = await runFirecrawlSearchWithFallback({
+          query,
+          searchWeb: dependencies.searchWeb,
           operation: "catalyst-search",
-          idempotencyKey: `external-catalyst:search:${discoveryBucket(now)}:${hash(`${query.game}\u0000${query.query}`)}`,
-          estimatedCredits: SEARCH_ESTIMATED_CREDITS,
-          request: () =>
-            dependencies.searchWeb({
-              query: query.query,
-              limit: EXTERNAL_CATALYST_SEARCH_LIMIT,
-              includeDomains: query.allowedDomains,
-              tbs: "sbd:1,qdr:m",
-              topic: query.topic,
-            }),
-          getCreditsUsed: (response) => response.creditsUsed,
+          idempotencyPrefix: "external-catalyst:search",
         });
-        if (!budgeted.executed || !budgeted.result) continue;
-        searchResponse = budgeted.result;
-        result.creditsUsed += budgeted.creditsUsed;
       }
 
       if (!searchResponse) continue;
@@ -740,11 +785,6 @@ export async function runExternalCatalystDiscovery(
         });
       }
     } catch (error) {
-      // The budget layer counts a failed provider request conservatively. A
-      // budget rejection itself did not consume credits.
-      if (searchProvider === "firecrawl" && !(error instanceof FirecrawlBudgetError)) {
-        result.creditsUsed += SEARCH_ESTIMATED_CREDITS;
-      }
       result.errors.push({ stage: "search", message: errorMessage(error), query: query.query });
     }
   }
@@ -802,6 +842,45 @@ export async function runExternalCatalystDiscovery(
     ...selected.map((source) => ({ source, existingId: null as string | null })),
   ];
 
+  const scrapeWithProviderFallback = async (
+    source: DiscoveredCatalystSource
+  ): Promise<FirecrawlPageScrapeResult | null> => {
+    const providerState: { response: FirecrawlPageScrapeResult | null } = {
+      response: null,
+    };
+    try {
+      const budgeted = await dependencies.runBudgetedRequest<FirecrawlPageScrapeResult>({
+        consumer: FIRECRAWL_CONSUMER,
+        operation: "catalyst-scrape",
+        idempotencyKey: `external-catalyst:scrape:${discoveryBucket(now)}:${source.urlHash}`,
+        estimatedCredits: SCRAPE_ESTIMATED_CREDITS,
+        sourceUrl: source.canonicalUrl,
+        request: async () => {
+          providerState.response = await dependencies.scrapePage(source.canonicalUrl, {
+            onlyMainContent: true,
+            fastMode: true,
+            maxAge: 6 * 60 * 60_000,
+          });
+          return providerState.response;
+        },
+        getCreditsUsed: (scrape) => scrape.creditsUsed,
+      });
+      if (!budgeted.executed || !budgeted.result) return null;
+      result.creditsUsed += budgeted.creditsUsed;
+      return budgeted.result;
+    } catch (error) {
+      const providerResponse = providerState.response;
+      if (!(error instanceof FirecrawlBudgetError)) {
+        result.creditsUsed += providerResponse?.creditsUsed ?? SCRAPE_ESTIMATED_CREDITS;
+      }
+      if (providerResponse) return providerResponse;
+      if (!dependencies.scrapeDoPage) throw error;
+      const scrape = await dependencies.scrapeDoPage(source.canonicalUrl);
+      result.scrapedoCreditsUsed += scrape.creditsUsed ?? 0;
+      return scrape;
+    }
+  };
+
   for (const { source, existingId } of scrapeQueue) {
     let sourceRow: { id: string } | null;
     if (existingId) {
@@ -857,26 +936,12 @@ export async function runExternalCatalystDiscovery(
     }
 
     try {
-      const budgeted = await dependencies.runBudgetedRequest<FirecrawlPageScrapeResult>({
-        consumer: FIRECRAWL_CONSUMER,
-        operation: "catalyst-scrape",
-        idempotencyKey: `external-catalyst:scrape:${discoveryBucket(now)}:${source.urlHash}`,
-        estimatedCredits: SCRAPE_ESTIMATED_CREDITS,
-        sourceUrl: source.canonicalUrl,
-        request: () =>
-          dependencies.scrapePage(source.canonicalUrl, {
-            onlyMainContent: true,
-            fastMode: true,
-            maxAge: 6 * 60 * 60_000,
-          }),
-        getCreditsUsed: (scrape) => scrape.creditsUsed,
-      });
-      if (!budgeted.executed || !budgeted.result) continue;
-      result.creditsUsed += budgeted.creditsUsed;
+      const scrape = await scrapeWithProviderFallback(source);
+      if (!scrape) continue;
       result.sourcesScraped += 1;
       const dedupedMatches = analyzeScrapedCatalystSource(
         source,
-        budgeted.result,
+        scrape,
         candidates
       );
       result.matches.push(...dedupedMatches);
@@ -885,7 +950,7 @@ export async function runExternalCatalystDiscovery(
         result.catalystsPersisted += await dependencies.store.persistScrapedSource({
           sourceId: sourceRow.id,
           source,
-          scrape: budgeted.result,
+          scrape,
           matches: dedupedMatches,
           now,
         });
@@ -897,9 +962,6 @@ export async function runExternalCatalystDiscovery(
         });
       }
     } catch (error) {
-      if (!(error instanceof FirecrawlBudgetError)) {
-        result.creditsUsed += SCRAPE_ESTIMATED_CREDITS;
-      }
       result.errors.push({
         stage: "scrape",
         message: errorMessage(error),

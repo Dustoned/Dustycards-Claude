@@ -3,9 +3,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   CardListTile,
+  CardListTileAnalysisLink,
   CardListTileBody,
   CardListTileFooter,
   CardListTileGrid,
+  CardListTileHeader,
   CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
@@ -103,6 +105,36 @@ describe("CardListTile", () => {
 
     expect(markup).toContain("text-[19px]");
     expect(markup).toContain("sm:text-xl");
+  });
+
+  it("locks market, Radar, and chase cards to one mobile header and footer geometry", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        CardListTile,
+        { layout: "showcase" },
+        createElement(CardListTileHeader, {
+          badges: createElement("span", null, "High"),
+          priceLabel: "Raw",
+          priceValue: "€549",
+          title: "Poliwhirl",
+          meta: createElement("span", null, "#176 · 151"),
+        }),
+        createElement(
+          CardListTileFooter,
+          null,
+          createElement(CardListTileAnalysisLink, null, "Analysis")
+        )
+      )
+    );
+
+    expect(markup).toContain('data-card-list-header="true"');
+    expect(markup).toContain('data-card-list-badges="true"');
+    expect(markup).toContain('data-card-list-title="true"');
+    expect(markup).toContain('data-card-list-meta="true"');
+    expect(markup).toContain("flex h-6");
+    expect(markup).toContain("truncate text-base");
+    expect(markup).toContain("min-h-4");
+    expect(markup).toContain('data-card-analysis-link="true"');
   });
 
   it("reserves one shared insight baseline across market cards", () => {

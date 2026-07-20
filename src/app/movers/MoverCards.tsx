@@ -3,16 +3,17 @@
 import CachedImage from "@/components/CachedImage";
 import {
   CardListTile,
+  CardListTileAnalysisLink,
   CardListTileBody,
   CardListTileFooter,
   CardListTileGrid,
+  CardListTileHeader,
   CardListTileInsight,
   CardListTileMedia,
-  CardListTilePrice,
 } from "@/components/CardListTile";
 import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
 import Link from "next/link";
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
@@ -417,6 +418,12 @@ function metricValueClass(toneValue?: number | null): string {
   return "text-white/82";
 }
 
+function getMoverVariantKey(item: CollectionMoverItem): string {
+  const normalizedLabel =
+    item.gradedLabel?.trim().toLocaleLowerCase("en-US") || "ungraded";
+  return `${item.source}:${normalizedLabel}`;
+}
+
 function buildCompactMetrics(
   item: CollectionMoverItem,
   mode: MoverDisplayMode,
@@ -516,7 +523,7 @@ function buildCompactMetrics(
 
 
 const MoverTile = memo(function MoverTile({
-  item,
+  variants,
   isLoading,
   displayMode,
   isHighlighted,
@@ -526,7 +533,7 @@ const MoverTile = memo(function MoverTile({
   prioritizeImage,
   onOpen,
 }: {
-  item: CollectionMoverItem;
+  variants: readonly CollectionMoverItem[];
   isLoading: boolean;
   displayMode: MoverDisplayMode;
   isHighlighted: boolean;
@@ -536,9 +543,18 @@ const MoverTile = memo(function MoverTile({
   prioritizeImage: boolean;
   onOpen: (cardId: string) => void;
 }) {
+  const [selectedVariantKey, setSelectedVariantKey] = useState(
+    () => (variants[0] ? getMoverVariantKey(variants[0]) : "")
+  );
+  const item =
+    variants.find((variant) => getMoverVariantKey(variant) === selectedVariantKey) ??
+    variants[0];
+  if (!item) return null;
+
   const open = () => onOpen(item.cardId);
   const mode = displayMode;
   const isTarget = mode === "target";
+  const showGradeVariants = mode !== "raw" && variants.length > 1;
   const compactMetrics = buildCompactMetrics(item, mode, metricWindowLabel, changeDisplay);
   const primaryLabel = isTarget ? "Grade score" : item.gradedLabel ?? "Current";
   const primaryValue = isTarget
@@ -583,43 +599,46 @@ const MoverTile = memo(function MoverTile({
       </CardListTileMedia>
 
       <CardListTileBody>
-        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2">
-          <div className="flex max-h-6 min-w-0 flex-wrap items-start gap-1 overflow-hidden sm:max-h-none">
-            {item.normalizedRarity ? (
-              <span
-                className={`inline-flex rounded-full px-2 py-1 text-[8px] font-bold uppercase tracking-[0.08em] ${rarityBadge(
-                  item.normalizedRarity
-                )}`}
+        <CardListTileHeader
+          badges={
+            <>
+              {item.normalizedRarity ? (
+                <span
+                  className={`inline-flex rounded-full px-2 py-1 text-[8px] font-bold uppercase tracking-[0.08em] ${rarityBadge(
+                    item.normalizedRarity
+                  )}`}
+                >
+                  {item.normalizedRarity}
+                </span>
+              ) : null}
+              <MoverBuySignalChip signal={item.buySignal} />
+              <MoverReasonChips
+                item={item}
+                mode={mode}
+                changeDisplay={changeDisplay}
+                mobileLimit={mobileReasonLimit}
+              />
+            </>
+          }
+          priceLabel={primaryLabel}
+          priceValue={primaryValue}
+          title={item.name}
+          meta={
+            <>
+              <span className="shrink-0 tabular-nums">{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
+              <span className="text-white/20">·</span>
+              <Link
+                href={getExpansionHref(item.episodeId)}
+                prefetch={false}
+                onClick={stopCardOpen}
+                className="truncate transition-colors hover:text-white/80"
               >
-                {item.normalizedRarity}
-              </span>
-            ) : null}
-            <MoverBuySignalChip signal={item.buySignal} />
-            <MoverReasonChips
-              item={item}
-              mode={mode}
-              changeDisplay={changeDisplay}
-              mobileLimit={mobileReasonLimit}
-            />
-          </div>
-          <CardListTilePrice label={primaryLabel} value={primaryValue} />
-          <h3 className="col-span-2 mt-1.5 truncate text-base font-bold leading-5 tracking-tight text-white transition group-hover/card-list:text-violet-100">
-            {item.name}
-          </h3>
-          <div className="col-span-2 mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-4 text-white/52">
-            <span className="shrink-0 tabular-nums">{item.cardNumber ? `#${item.cardNumber}` : "--"}</span>
-            <span className="text-white/20">·</span>
-            <Link
-              href={getExpansionHref(item.episodeId)}
-              prefetch={false}
-              onClick={stopCardOpen}
-              className="truncate transition-colors hover:text-white/80"
-            >
-              {item.episodeName}
-              {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
-            </Link>
-          </div>
-        </div>
+                {item.episodeName}
+                {item.episodeCode ? <span className="ml-1 opacity-60">({item.episodeCode})</span> : null}
+              </Link>
+            </>
+          }
+        />
 
         {primaryMetric ? (
           <CardListTileInsight>
@@ -645,14 +664,67 @@ const MoverTile = memo(function MoverTile({
           </CardListTileInsight>
         ) : null}
 
-        <CardListTileFooter className="max-[359px]:gap-1">
-          <span
-            data-card-analysis-link
-            className="mr-auto inline-flex min-h-11 min-w-0 shrink items-center gap-1 px-1.5 text-[10px] font-bold text-violet-200/72 transition group-hover/card-list:text-violet-100 max-[359px]:px-0.5"
+        {showGradeVariants ? (
+          <div
+            data-mover-grade-variants
+            role="radiogroup"
+            aria-label={`Grade variants for ${item.name}`}
+            className="mt-1 flex min-w-0 touch-pan-x flex-nowrap gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
+            {variants.map((variant) => {
+              const variantKey = getMoverVariantKey(variant);
+              const isSelected = variantKey === getMoverVariantKey(item);
+              const variantValue = isTarget
+                ? variant.grading?.gradedPrice ?? variant.currentPrice
+                : variant.currentPrice;
+              const formattedVariantValue = formatTileCurrency(
+                variantValue,
+                variant.currency
+              );
+
+              return (
+                <button
+                  key={variantKey}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-label={`${variant.gradedLabel ?? "Graded"}, ${formattedVariantValue}${
+                    isTarget ? `, score ${formatScoreValue(variant.moverScore)}` : ""
+                  }`}
+                  title={
+                    isTarget
+                      ? `${variant.gradedLabel ?? "Graded"}: ${formattedVariantValue} target · score ${formatScoreValue(variant.moverScore)}`
+                      : `${variant.gradedLabel ?? "Graded"}: ${formattedVariantValue}`
+                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setSelectedVariantKey(variantKey);
+                  }}
+                  onKeyDown={(event) => event.stopPropagation()}
+                  className={`inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[9px] font-bold tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/55 md:min-h-8 ${
+                    isSelected
+                      ? "border-violet-300/45 bg-violet-400/18 text-violet-100"
+                      : "border-[rgb(var(--dc-border-rgb)/0.76)] bg-[rgb(var(--dc-surface-hover-rgb)/0.48)] text-white/48 hover:border-violet-300/28 hover:text-white/78"
+                  }`}
+                >
+                  <span className="whitespace-nowrap">{variant.gradedLabel ?? "Graded"}</span>
+                  <span
+                    aria-hidden="true"
+                    className={`hidden sm:inline ${isSelected ? "text-white/72" : "text-white/32"}`}
+                  >
+                    {formattedVariantValue}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <CardListTileFooter className="max-[359px]:gap-1">
+          <CardListTileAnalysisLink>
             Analysis
             <ChevronRight className="h-3.5 w-3.5 max-[359px]:hidden" />
-          </span>
+          </CardListTileAnalysisLink>
           <CollectionCardQuickActions
             data={getMoverQuickActionData(item, cardQuickActions)}
             gradedLabel={displayMode === "graded" ? item.gradedLabel : null}
@@ -975,7 +1047,7 @@ export function MoverSpotlightSections({
 }
 
 export function MoverGrid({
-  movers,
+  moverGroups,
   loadingCardId,
   cardQuickActions,
   displayMode,
@@ -984,7 +1056,10 @@ export function MoverGrid({
   changeDisplay = "percent",
   onOpenCard,
 }: {
-  movers: readonly CollectionMoverItem[];
+  moverGroups: ReadonlyArray<{
+    cardId: string;
+    variants: CollectionMoverItem[];
+  }>;
   loadingCardId: string | null;
   cardQuickActions: CardQuickActionMap;
   displayMode: MoverDisplayMode;
@@ -995,13 +1070,13 @@ export function MoverGrid({
 }) {
   return (
     <CardListTileGrid>
-      {movers.map((item, index) => (
+      {moverGroups.map((group, index) => (
         <MoverTile
-          key={`${item.cardId}:${item.gradedLabel ?? item.source}`}
-          item={item}
-          isLoading={loadingCardId === item.cardId}
+          key={`${group.cardId}:${group.variants.map(getMoverVariantKey).join("|")}`}
+          variants={group.variants}
+          isLoading={loadingCardId === group.cardId}
           displayMode={displayMode}
-          isHighlighted={item.cardId === highlightedCardId}
+          isHighlighted={group.cardId === highlightedCardId}
           metricWindowLabel={metricWindowLabel}
           changeDisplay={changeDisplay}
           cardQuickActions={cardQuickActions}

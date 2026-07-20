@@ -1,19 +1,54 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db", () => ({ db: {} }));
-vi.mock("@/lib/firecrawl", () => ({ searchFirecrawlWeb: vi.fn() }));
-vi.mock("@/lib/firecrawl-budget", () => ({ runBudgetedFirecrawlRequest: vi.fn() }));
-vi.mock("@/lib/tavily", () => ({
+const mocks = vi.hoisted(() => ({
+  appSettingFindUnique: vi.fn(),
+  appSettingUpsert: vi.fn(),
   getTavilyConfigSnapshot: vi.fn(() => ({ configured: false })),
   searchTavilyWeb: vi.fn(),
+  runBudgetedFirecrawlRequest: vi.fn(),
+  searchFirecrawlWeb: vi.fn(),
+  getScrapeDoConfigSnapshot: vi.fn(() => ({ configured: false })),
+  searchScrapeDoWeb: vi.fn(),
+}));
+
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/db", () => ({
+  db: {
+    appSetting: {
+      findUnique: mocks.appSettingFindUnique,
+      upsert: mocks.appSettingUpsert,
+    },
+  },
+}));
+vi.mock("@/lib/firecrawl", () => ({ searchFirecrawlWeb: mocks.searchFirecrawlWeb }));
+vi.mock("@/lib/firecrawl-budget", () => ({
+  FirecrawlBudgetError: class FirecrawlBudgetError extends Error {
+    status: number;
+
+    constructor(message: string, status = 429) {
+      super(message);
+      this.name = "FirecrawlBudgetError";
+      this.status = status;
+    }
+  },
+  runBudgetedFirecrawlRequest: mocks.runBudgetedFirecrawlRequest,
+}));
+vi.mock("@/lib/tavily", () => ({
+  getTavilyConfigSnapshot: mocks.getTavilyConfigSnapshot,
+  searchTavilyWeb: mocks.searchTavilyWeb,
+}));
+vi.mock("@/lib/scrapedo", () => ({
+  getScrapeDoConfigSnapshot: mocks.getScrapeDoConfigSnapshot,
+  searchScrapeDoWeb: mocks.searchScrapeDoWeb,
 }));
 
 import {
   buildExternalCardResearchQueries,
   rankExternalCardResearchResults,
+  researchExternalRadarCard,
   type ExternalCardResearchInput,
 } from "@/lib/external-card-research";
+import { FirecrawlBudgetError } from "@/lib/firecrawl-budget";
 
 type ResearchHit = Parameters<typeof rankExternalCardResearchResults>[0][number];
 
@@ -27,6 +62,14 @@ const input: ExternalCardResearchInput = {
   artist: "YASHIRO Nanaco",
   rarity: "Special Illustration Rare",
 };
+
+beforeEach(() => {
+  for (const mock of Object.values(mocks)) mock.mockReset();
+  mocks.appSettingFindUnique.mockResolvedValue(null);
+  mocks.appSettingUpsert.mockResolvedValue({});
+  mocks.getTavilyConfigSnapshot.mockReturnValue({ configured: false });
+  mocks.getScrapeDoConfigSnapshot.mockReturnValue({ configured: false });
+});
 
 function hit(
   url: string,
@@ -204,5 +247,105 @@ describe("external card research result ranking", () => {
     expect(ranked).toHaveLength(10);
     expect(ranked.every((result) => result.url.startsWith("https://source-"))).toBe(true);
     expect(ranked.some((result) => result.domain === "irrelevant.example")).toBe(false);
+  });
+});
+
+describe("external card research provider fallback", () => {
+  it("uses Scrape.do when Firecrawl cannot reserve credits and keeps ledgers separate", async () => {
+    mocks.getScrapeDoConfigSnapshot.mockReturnValue({ configured: true });
+    mocks.runBudgetedFirecrawlRequest.mockRejectedValue(
+      new FirecrawlBudgetError("Firecrawl monthly budget is reached.")
+    );
+    mocks.searchScrapeDoWeb.mockResolvedValue({
+      results: [
+        {
+          url: "https://collector.example/umbreon",
+          title: "Umbreon ex 161/131 Prismatic Evolutions market update",
+          description: "Fresh collector demand and supply context.",
+        },
+      ],
+      creditsUsed: 10,
+      warning: null,
+    });
+
+    const research = await researchExternalRadarCard(
+      { ...input, cardId: "scrapedo-budget-fallback" },
+      new Date("2026-07-13T12:00:00.000Z")
+    );
+
+    expect(research).toMatchObject({
+      provider: "scrapedo",
+      creditsUsed: 0,
+      tavilyCreditsUsed: 0,
+      scrapedoCreditsUsed: 10,
+      queriesRun: 1,
+    });
+    expect(research.results).toHaveLength(1);
+    expect(mocks.searchFirecrawlWeb).not.toHaveBeenCalled();
+    expect(mocks.searchScrapeDoWeb).toHaveBeenCalledTimes(1);
+  });
+
+  it("short-circuits after Firecrawl succeeds instead of calling Scrape.do", async () => {
+    mocks.getScrapeDoConfigSnapshot.mockReturnValue({ configured: true });
+    mocks.searchFirecrawlWeb.mockResolvedValue({
+      results: [
+        {
+          url: "https://collector.example/umbreon-firecrawl",
+          title: "Umbreon ex 161/131 Prismatic Evolutions market update",
+          description: "Fresh collector demand and supply context.",
+        },
+      ],
+      creditsUsed: 1,
+      warning: null,
+    });
+    mocks.runBudgetedFirecrawlRequest.mockImplementation(async (request) => {
+      const response = await request.request();
+      return {
+        executed: true,
+        result: response,
+        creditsUsed: request.getCreditsUsed(response) ?? request.estimatedCredits,
+        reservationId: request.idempotencyKey,
+      };
+    });
+
+    const research = await researchExternalRadarCard(
+      { ...input, cardId: "firecrawl-short-circuit" },
+      new Date("2026-07-13T12:00:00.000Z")
+    );
+
+    expect(research).toMatchObject({
+      provider: "firecrawl",
+      creditsUsed: 1,
+      tavilyCreditsUsed: 0,
+      scrapedoCreditsUsed: 0,
+      queriesRun: 1,
+    });
+    expect(mocks.searchFirecrawlWeb).toHaveBeenCalledTimes(1);
+    expect(mocks.searchScrapeDoWeb).not.toHaveBeenCalled();
+  });
+
+  it("short-circuits after Tavily succeeds without touching either fallback", async () => {
+    mocks.getTavilyConfigSnapshot.mockReturnValue({ configured: true });
+    mocks.getScrapeDoConfigSnapshot.mockReturnValue({ configured: true });
+    mocks.searchTavilyWeb.mockResolvedValue({
+      results: [],
+      creditsUsed: 1,
+      warning: null,
+    });
+
+    const research = await researchExternalRadarCard(
+      { ...input, cardId: "tavily-short-circuit" },
+      new Date("2026-07-13T12:00:00.000Z")
+    );
+
+    expect(research).toMatchObject({
+      provider: "tavily",
+      creditsUsed: 0,
+      tavilyCreditsUsed: 3,
+      scrapedoCreditsUsed: 0,
+      queriesRun: 3,
+    });
+    expect(mocks.runBudgetedFirecrawlRequest).not.toHaveBeenCalled();
+    expect(mocks.searchScrapeDoWeb).not.toHaveBeenCalled();
   });
 });

@@ -4,16 +4,19 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Search, X } from "lucide-react";
 import {
+  buildSearchHref,
   buildPathWithQuery,
   clearSearchReturnPath,
   readSearchReturnPath,
   rememberSearchReturnPath,
+  replaceSearchHistory,
+  shouldSyncSearchInputValue,
 } from "@/lib/search-navigation";
 import { GAME_SEARCH_PARAM, ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import { useSettings } from "@/components/SettingsProvider";
 
 const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
-const SEARCH_ROUTE_DEBOUNCE_MS = 180;
+const SEARCH_ROUTE_DEBOUNCE_MS = 300;
 
 export default function HeaderSearch() {
   const router = useRouter();
@@ -27,6 +30,7 @@ export default function HeaderSearch() {
   const shouldRestoreFocusRef = useRef(false);
   const searchDebounceRef = useRef<number | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [desktopQuery, setDesktopQuery] = useState(activeQuery);
   const [mobileQuery, setMobileQuery] = useState(activeQuery);
   const currentHref = buildPathWithQuery(pathname, searchParams);
   const gameParam = searchParams.get(GAME_SEARCH_PARAM);
@@ -44,9 +48,26 @@ export default function HeaderSearch() {
     const input = inputRef.current;
     const nextValue = pathname === "/search" ? activeQuery : "";
 
-    if (input && input.value !== nextValue) {
-      input.value = nextValue;
-    }
+    setDesktopQuery((currentValue) =>
+      shouldSyncSearchInputValue(
+        currentValue,
+        nextValue,
+        Boolean(input && document.activeElement === input)
+      )
+        ? nextValue
+        : currentValue
+    );
+
+    const mobileInput = mobileInputRef.current;
+    setMobileQuery((currentValue) =>
+      shouldSyncSearchInputValue(
+        currentValue,
+        nextValue,
+        Boolean(mobileInput && document.activeElement === mobileInput)
+      )
+        ? nextValue
+        : currentValue
+    );
 
     if (pathname === "/search") {
       startedSearchRef.current = false;
@@ -91,9 +112,7 @@ export default function HeaderSearch() {
 
   function resetSearchInputs() {
     clearPendingSearchRoute();
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
+    setDesktopQuery("");
     setMobileQuery("");
     setMobileOpen(false);
   }
@@ -122,36 +141,33 @@ export default function HeaderSearch() {
   }
 
   function buildEmptySearchHref() {
-    const params = new URLSearchParams();
-    const currentGameParam = searchParams.get(GAME_SEARCH_PARAM);
-    const currentAutoSwitchParam = searchParams.get(AUTO_SWITCH_SEARCH_PARAM);
-
-    if (
+    const liveParams = new URL(window.location.href).searchParams;
+    const currentGameParam =
+      liveParams.get(GAME_SEARCH_PARAM) ?? searchParams.get(GAME_SEARCH_PARAM);
+    const currentAutoSwitchParam =
+      liveParams.get(AUTO_SWITCH_SEARCH_PARAM) ??
+      searchParams.get(AUTO_SWITCH_SEARCH_PARAM);
+    const preservedGame =
       settings.onePieceLibraryEnabled &&
       (currentGameParam === ONE_PIECE_GAME || currentGameParam === POKEMON_GAME)
-    ) {
-      params.set(GAME_SEARCH_PARAM, currentGameParam);
-    }
+        ? currentGameParam
+        : null;
 
-    if (currentAutoSwitchParam === "0") {
-      params.set(AUTO_SWITCH_SEARCH_PARAM, currentAutoSwitchParam);
-    }
-
-    const query = params.toString();
-    return query ? `/search?${query}` : "/search";
+    return buildSearchHref({
+      game: preservedGame,
+      autoSwitch: currentAutoSwitchParam,
+    });
   }
 
   function clearSearchQuery() {
     startedSearchRef.current = false;
     shouldRestoreFocusRef.current = true;
 
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
+    setDesktopQuery("");
     setMobileQuery("");
     const href = buildEmptySearchHref();
     if (pathname === "/search") {
-      window.history.replaceState(window.history.state, "", href);
+      replaceSearchHistory(href);
       return;
     }
     router.replace(href, { scroll: false });
@@ -166,24 +182,36 @@ export default function HeaderSearch() {
       return;
     }
 
-    if (pathname === "/search") {
+    const liveUrl = new URL(window.location.href);
+    const livePathname = liveUrl.pathname;
+
+    if (livePathname === "/search") {
       startedSearchRef.current = false;
     }
 
-    const params = new URLSearchParams({ q: trimmed });
-    if (activeGameParam) {
-      params.set(GAME_SEARCH_PARAM, activeGameParam);
-    }
-    const href = `/search?${params.toString()}`;
+    const liveGameParam = liveUrl.searchParams.get(GAME_SEARCH_PARAM);
+    const preservedGame =
+      settings.onePieceLibraryEnabled &&
+      (liveGameParam === ONE_PIECE_GAME || liveGameParam === POKEMON_GAME)
+        ? liveGameParam
+        : activeGameParam;
+    const href = buildSearchHref({
+      query: trimmed,
+      game: preservedGame,
+      autoSwitch:
+        liveUrl.searchParams.get(AUTO_SWITCH_SEARCH_PARAM) ??
+        searchParams.get(AUTO_SWITCH_SEARCH_PARAM),
+    });
 
-    if (pathname === "/search") {
-      // Next integrates native history updates with useSearchParams. Avoiding a
-      // full RSC navigation here lets the client search request start sooner.
-      window.history.replaceState(window.history.state, "", href);
+    if (livePathname === "/search") {
+      // Keep the persistent header mounted while typing. SearchPage listens to
+      // this scoped event because the app's global history wrapper intentionally
+      // owns native replaceState for scroll restoration.
+      replaceSearchHistory(href);
       return;
     }
 
-    if (preferPush && pathname !== "/search" && !startedSearchRef.current) {
+    if (preferPush && livePathname !== "/search" && !startedSearchRef.current) {
       rememberSearchReturnPath(currentHref);
       startedSearchRef.current = true;
       shouldRestoreFocusRef.current = true;
@@ -229,7 +257,8 @@ export default function HeaderSearch() {
       rememberSearchReturnPath(currentHref);
     }
     startedSearchRef.current = false;
-    setMobileQuery(pathname === "/search" ? activeQuery : "");
+    const liveQuery = new URL(window.location.href).searchParams.get("q") ?? "";
+    setMobileQuery(pathname === "/search" ? liveQuery : "");
     setMobileOpen(true);
   }
 
@@ -276,8 +305,12 @@ export default function HeaderSearch() {
             ref={inputRef}
             name="q"
             type="text"
-            defaultValue={activeQuery}
-            onChange={(event) => handleChange(event.target.value)}
+            value={desktopQuery}
+            onChange={(event) => {
+              const nextQuery = event.target.value;
+              setDesktopQuery(nextQuery);
+              handleChange(nextQuery);
+            }}
             placeholder="Search cards, sealed, expansions..."
             className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-white outline-none placeholder:text-white/40 [font-size:var(--ui-nav-link-size)]"
             autoComplete="off"

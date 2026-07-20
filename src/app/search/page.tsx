@@ -40,6 +40,7 @@ import {
   readRecentSearches,
   rememberRecentSearch,
 } from "@/lib/recent-searches";
+import { SEARCH_NAVIGATION_EVENT } from "@/lib/search-navigation";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
@@ -206,7 +207,10 @@ function SearchPageContent({
   initialAutoSwitchParam: string | null;
 }) {
   const { displaySettings, isMobileViewport, settings } = useSettings();
-  const [results, setResults] = useState<SearchResults | null>(null);
+  const [resultState, setResultState] = useState<{
+    key: string;
+    data: SearchResults;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
@@ -224,9 +228,10 @@ function SearchPageContent({
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const allowAutoSwitch = initialAutoSwitchParam !== "0";
+  const searchCacheKey = `${activeGame}:${allowAutoSwitch ? "auto" : "manual"}:${trimmedQuery}`;
+  const results = resultState?.key === searchCacheKey ? resultState.data : null;
   const displayGame =
     settings.onePieceLibraryEnabled && results?.game ? results.game : activeGame;
-  const searchCacheKey = `${activeGame}:${allowAutoSwitch ? "auto" : "manual"}:${trimmedQuery}`;
 
   function buildGameHref(game: TradingCardGameFilter) {
     const params = new URLSearchParams();
@@ -290,7 +295,7 @@ function SearchPageContent({
       let cancelled = false;
       queueMicrotask(() => {
         if (cancelled) return;
-        setResults(null);
+        setResultState(null);
         setLoading(false);
       });
       return () => {
@@ -308,7 +313,7 @@ function SearchPageContent({
       let cancelled = false;
       queueMicrotask(() => {
         if (cancelled) return;
-        setResults(cachedResults);
+        setResultState({ key: searchCacheKey, data: cachedResults });
         setLoading(false);
       });
       return () => {
@@ -354,25 +359,12 @@ function SearchPageContent({
               SEARCH_CACHE_MAX_ENTRIES
             );
           }
-          setResults(data);
-
-          if (data.autoSwitchedFrom === activeGame && resultGame !== activeGame) {
-            const nextParams = new URLSearchParams({ q: trimmedQuery });
-            const nextGameValue = getGameFilterSearchParamValue(resultGame);
-            if (nextGameValue) {
-              nextParams.set(GAME_SEARCH_PARAM, nextGameValue);
-            }
-            window.history.replaceState(
-              window.history.state,
-              "",
-              `/search?${nextParams.toString()}`
-            );
-          }
+          setResultState({ key: searchCacheKey, data });
         }
       } catch (e) {
         if (e instanceof Error && e.name === "AbortError") return;
         if (abortRef.current === controller) {
-          setResults(null);
+          setResultState(null);
         }
       } finally {
         if (abortRef.current === controller) {
@@ -491,6 +483,9 @@ function SearchPageContent({
     const gameValue = getGameFilterSearchParamValue(activeGame);
     if (gameValue) {
       params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+    if (!allowAutoSwitch) {
+      params.set(AUTO_SWITCH_SEARCH_PARAM, "0");
     }
     return `/search?${params.toString()}`;
   }
@@ -978,17 +973,58 @@ function SearchPageContent({
   );
 }
 
-export default function SearchPage() {
-  const searchParams = useSearchParams();
-  const initialQuery = searchParams.get("q") ?? "";
-  const initialGameParam = searchParams.get(GAME_SEARCH_PARAM);
-  const initialAutoSwitchParam = searchParams.get(AUTO_SWITCH_SEARCH_PARAM);
+function LiveSearchPageContent({
+  routeQuery,
+  routeGame,
+  routeAutoSwitch,
+}: {
+  routeQuery: string;
+  routeGame: string | null;
+  routeAutoSwitch: string | null;
+}) {
+  const [liveLocation, setLiveLocation] = useState({
+    query: routeQuery,
+    game: routeGame,
+    autoSwitch: routeAutoSwitch,
+  });
+
+  useEffect(() => {
+    const handleSearchNavigation = (event: Event) => {
+      const href = (event as CustomEvent<{ href?: string }>).detail?.href;
+      const url = new URL(href ?? window.location.href, window.location.href);
+
+      setLiveLocation({
+        query: url.searchParams.get("q") ?? "",
+        game: url.searchParams.get(GAME_SEARCH_PARAM),
+        autoSwitch: url.searchParams.get(AUTO_SWITCH_SEARCH_PARAM),
+      });
+    };
+
+    window.addEventListener(SEARCH_NAVIGATION_EVENT, handleSearchNavigation);
+    return () => window.removeEventListener(SEARCH_NAVIGATION_EVENT, handleSearchNavigation);
+  }, []);
 
   return (
     <SearchPageContent
-      initialQuery={initialQuery}
-      initialGameParam={initialGameParam}
-      initialAutoSwitchParam={initialAutoSwitchParam}
+      initialQuery={liveLocation.query}
+      initialGameParam={liveLocation.game}
+      initialAutoSwitchParam={liveLocation.autoSwitch}
+    />
+  );
+}
+
+export default function SearchPage() {
+  const searchParams = useSearchParams();
+  const routeQuery = searchParams.get("q") ?? "";
+  const routeGame = searchParams.get(GAME_SEARCH_PARAM);
+  const routeAutoSwitch = searchParams.get(AUTO_SWITCH_SEARCH_PARAM);
+
+  return (
+    <LiveSearchPageContent
+      key={searchParams.toString()}
+      routeQuery={routeQuery}
+      routeGame={routeGame}
+      routeAutoSwitch={routeAutoSwitch}
     />
   );
 }

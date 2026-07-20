@@ -3,9 +3,13 @@ import "server-only";
 import { db } from "@/lib/db";
 import {
   searchFirecrawlWeb,
+  type FirecrawlWebSearchResponse,
   type FirecrawlWebSearchResult,
 } from "@/lib/firecrawl";
-import { runBudgetedFirecrawlRequest } from "@/lib/firecrawl-budget";
+import {
+  FirecrawlBudgetError,
+  runBudgetedFirecrawlRequest,
+} from "@/lib/firecrawl-budget";
 import {
   classifyCatalystDocument,
   getTrustedCatalystSource,
@@ -15,6 +19,10 @@ import {
   type CatalystKind,
   type ExternalRadarGame,
 } from "@/lib/external-radar-catalysts-core";
+import {
+  getScrapeDoConfigSnapshot,
+  searchScrapeDoWeb,
+} from "@/lib/scrapedo";
 import { getTavilyConfigSnapshot, searchTavilyWeb } from "@/lib/tavily";
 
 const RESEARCH_CACHE_TTL_MS = 24 * 60 * 60_000;
@@ -23,7 +31,7 @@ const MAX_RESULTS = 10;
 const TAVILY_RESULTS_PER_QUERY = 5;
 const FIRECRAWL_FALLBACK_RESULTS = 8;
 
-type ResearchProvider = "tavily" | "firecrawl";
+type ResearchProvider = "tavily" | "firecrawl" | "scrapedo";
 type ResearchSourceTier = "trusted" | "discovery";
 
 export interface ExternalCardResearchInput {
@@ -53,7 +61,11 @@ export interface ExternalCardResearch {
   generatedAt: string;
   cached: boolean;
   provider: ResearchProvider;
+  /** Firecrawl credits recorded by the Firecrawl budget ledger. */
   creditsUsed: number;
+  tavilyCreditsUsed: number;
+  /** Scrape.do credits are kept separate from the Firecrawl budget ledger. */
+  scrapedoCreditsUsed: number;
   queriesRun: number;
   results: ExternalCardResearchResult[];
 }
@@ -80,6 +92,14 @@ interface SearchLens {
 interface SearchHit {
   result: FirecrawlWebSearchResult;
   lens: SearchLens;
+}
+
+interface ResearchSearchRun {
+  hits: SearchHit[];
+  creditsUsed: number;
+  tavilyCreditsUsed: number;
+  scrapedoCreditsUsed: number;
+  queriesRun: number;
 }
 
 interface StoredResearch extends Omit<ExternalCardResearch, "cached"> {
@@ -168,6 +188,22 @@ function parseStoredResearch(value: string, now: Date): ExternalCardResearch | n
     return {
       ...(parsed as unknown as StoredResearch),
       cached: true,
+      creditsUsed:
+        parsed.provider === "firecrawl" && typeof parsed.creditsUsed === "number"
+          ? Math.max(0, parsed.creditsUsed)
+          : 0,
+      tavilyCreditsUsed:
+        typeof parsed.tavilyCreditsUsed === "number" &&
+        Number.isFinite(parsed.tavilyCreditsUsed)
+          ? Math.max(0, parsed.tavilyCreditsUsed)
+          : parsed.provider === "tavily" && typeof parsed.creditsUsed === "number"
+            ? Math.max(0, parsed.creditsUsed)
+            : 0,
+      scrapedoCreditsUsed:
+        typeof parsed.scrapedoCreditsUsed === "number" &&
+        Number.isFinite(parsed.scrapedoCreditsUsed)
+          ? Math.max(0, parsed.scrapedoCreditsUsed)
+          : 0,
     };
   } catch {
     return null;
@@ -202,6 +238,8 @@ async function persistResearch(
     generatedAt: research.generatedAt,
     provider: research.provider,
     creditsUsed: research.creditsUsed,
+    tavilyCreditsUsed: research.tavilyCreditsUsed,
+    scrapedoCreditsUsed: research.scrapedoCreditsUsed,
     queriesRun: research.queriesRun,
     results: research.results,
   };
@@ -338,7 +376,7 @@ export function rankExternalCardResearchResults(
 
 async function runTavilyResearch(
   lenses: readonly SearchLens[]
-): Promise<{ hits: SearchHit[]; creditsUsed: number; queriesRun: number }> {
+): Promise<ResearchSearchRun> {
   const settled = await Promise.allSettled(
     lenses.map(async (lens) => ({
       lens,
@@ -360,34 +398,84 @@ async function runTavilyResearch(
     hits.push(...item.value.response.results.map((result) => ({ result, lens: item.value.lens })));
   }
   if (!queriesRun) throw new ExternalCardResearchError("The card research provider is temporarily unavailable.", 502);
-  return { hits, creditsUsed, queriesRun };
+  return {
+    hits,
+    creditsUsed: 0,
+    tavilyCreditsUsed: creditsUsed,
+    scrapedoCreditsUsed: 0,
+    queriesRun,
+  };
 }
 
 async function runFirecrawlFallback(
   input: ExternalCardResearchInput,
   lens: SearchLens,
   now: Date
-): Promise<{ hits: SearchHit[]; creditsUsed: number; queriesRun: number }> {
+): Promise<ResearchSearchRun> {
   const day = now.toISOString().slice(0, 10);
-  const budgeted = await runBudgetedFirecrawlRequest({
-    consumer: "external-signal-catalysts",
-    operation: "manual-card-research",
-    idempotencyKey: `external-card-research:v${RESEARCH_VERSION}:${day}:${input.game}:${input.cardId}`,
-    estimatedCredits: 2,
-    request: () =>
-      searchFirecrawlWeb({
-        query: `${lens.query} latest news market supply`,
-        limit: FIRECRAWL_FALLBACK_RESULTS,
-        tbs: "sbd:1,qdr:y",
-      }),
-    getCreditsUsed: (response) => response.creditsUsed,
-  });
+  const providerState: { response: FirecrawlWebSearchResponse | null } = {
+    response: null,
+  };
+  let budgeted: {
+    executed: boolean;
+    result: FirecrawlWebSearchResponse | null;
+    creditsUsed: number;
+    reservationId: string;
+  };
+  try {
+    budgeted = await runBudgetedFirecrawlRequest({
+      consumer: "external-signal-catalysts",
+      operation: "manual-card-research",
+      idempotencyKey: `external-card-research:v${RESEARCH_VERSION}:${day}:${input.game}:${input.cardId}`,
+      estimatedCredits: 2,
+      request: async () => {
+        providerState.response = await searchFirecrawlWeb({
+          query: `${lens.query} latest news market supply`,
+          limit: FIRECRAWL_FALLBACK_RESULTS,
+          tbs: "sbd:1,qdr:y",
+        });
+        return providerState.response;
+      },
+      getCreditsUsed: (response) => response?.creditsUsed,
+    });
+  } catch (error) {
+    // The provider may already have returned while only ledger finalization
+    // failed. Re-use that paid response instead of calling Scrape.do as well.
+    const providerResponse = providerState.response;
+    if (providerResponse) {
+      return {
+        hits: providerResponse.results.map((result) => ({ result, lens })),
+        creditsUsed: providerResponse.creditsUsed ?? 2,
+        tavilyCreditsUsed: 0,
+        scrapedoCreditsUsed: 0,
+        queriesRun: 1,
+      };
+    }
+    throw error;
+  }
   if (!budgeted.executed || !budgeted.result) {
     throw new ExternalCardResearchError("Research for this card is already running or was recently completed.", 409);
   }
   return {
     hits: budgeted.result.results.map((result) => ({ result, lens })),
     creditsUsed: budgeted.creditsUsed,
+    tavilyCreditsUsed: 0,
+    scrapedoCreditsUsed: 0,
+    queriesRun: 1,
+  };
+}
+
+async function runScrapeDoFallback(lens: SearchLens): Promise<ResearchSearchRun> {
+  const response = await searchScrapeDoWeb({
+    query: `${lens.query} latest news market supply`,
+    limit: FIRECRAWL_FALLBACK_RESULTS,
+    tbs: "sbd:1,qdr:y",
+  });
+  return {
+    hits: response.results.map((result) => ({ result, lens })),
+    creditsUsed: 0,
+    tavilyCreditsUsed: 0,
+    scrapedoCreditsUsed: response.creditsUsed ?? 0,
     queriesRun: 1,
   };
 }
@@ -400,18 +488,37 @@ async function runFreshResearch(
 ): Promise<ExternalCardResearch> {
   const lenses = buildExternalCardResearchQueries(input, now);
   let provider: ResearchProvider;
-  let search: { hits: SearchHit[]; creditsUsed: number; queriesRun: number };
+  let search: ResearchSearchRun;
+
+  const runFirecrawlThenScrapeDo = async (): Promise<ResearchSearchRun> => {
+    try {
+      return await runFirecrawlFallback(input, lenses[0], now);
+    } catch (error) {
+      // An existing idempotency reservation means another request owns this
+      // exact research run. Starting Scrape.do here would duplicate the work.
+      if (error instanceof ExternalCardResearchError && error.status === 409) throw error;
+      if (!getScrapeDoConfigSnapshot().configured) throw error;
+      const fallback = await runScrapeDoFallback(lenses[0]);
+      return {
+        ...fallback,
+        // Operational Firecrawl failures are conservatively charged by its
+        // ledger. Budget rejections happen before a provider request and cost 0.
+        creditsUsed: error instanceof FirecrawlBudgetError ? 0 : 2,
+      };
+    }
+  };
+
   if (getTavilyConfigSnapshot().configured) {
     try {
       search = await runTavilyResearch(lenses);
       provider = "tavily";
     } catch {
-      search = await runFirecrawlFallback(input, lenses[0], now);
-      provider = "firecrawl";
+      search = await runFirecrawlThenScrapeDo();
+      provider = search.scrapedoCreditsUsed > 0 ? "scrapedo" : "firecrawl";
     }
   } else {
-    search = await runFirecrawlFallback(input, lenses[0], now);
-    provider = "firecrawl";
+    search = await runFirecrawlThenScrapeDo();
+    provider = search.scrapedoCreditsUsed > 0 ? "scrapedo" : "firecrawl";
   }
 
   const research: ExternalCardResearch = {
@@ -420,6 +527,8 @@ async function runFreshResearch(
     cached: false,
     provider,
     creditsUsed: search.creditsUsed,
+    tavilyCreditsUsed: search.tavilyCreditsUsed,
+    scrapedoCreditsUsed: search.scrapedoCreditsUsed,
     queriesRun: search.queriesRun,
     results: rankExternalCardResearchResults(search.hits, input),
   };

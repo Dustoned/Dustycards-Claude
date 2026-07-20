@@ -256,6 +256,7 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
             due: catalyst.due,
             searchProvider: catalyst.searchProvider,
             tavilyCreditsUsed: catalyst.tavilyCreditsUsed,
+            scrapedoCreditsUsed: catalyst.scrapedoCreditsUsed,
             creditsUsed: catalyst.creditsUsed,
             sourcesScraped: catalyst.sourcesScraped,
             catalystsPersisted: catalyst.catalystsPersisted,
