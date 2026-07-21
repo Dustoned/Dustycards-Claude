@@ -102,6 +102,8 @@ describe("Scrape.do provider adapter", () => {
     expect(request[0].searchParams.get("token")).toBe("sdo-test-secret");
     expect(request[0].searchParams.get("url")).toBe("https://example.com/start");
     expect(request[0].searchParams.has("render")).toBe(false);
+    expect(request[0].searchParams.has("geoCode")).toBe(false);
+    expect(request[0].searchParams.has("timeout")).toBe(false);
     expect(request[0].searchParams.has("output")).toBe(false);
   });
 
@@ -121,6 +123,9 @@ describe("Scrape.do provider adapter", () => {
     const result = await scrapeScrapeDoPage("https://example.com/card", {
       output: "markdown",
       render: true,
+      geoCode: "DE",
+      providerTimeoutMs: 90_000,
+      timeoutMs: 100_000,
     });
 
     expect(result).toMatchObject({
@@ -133,6 +138,8 @@ describe("Scrape.do provider adapter", () => {
     });
     const requestUrl = (fetchMock.mock.calls[0] as unknown as [URL])[0];
     expect(requestUrl.searchParams.get("render")).toBe("true");
+    expect(requestUrl.searchParams.get("geoCode")).toBe("de");
+    expect(requestUrl.searchParams.get("timeout")).toBe("90000");
     expect(requestUrl.searchParams.get("output")).toBe("markdown");
   });
 

@@ -36,6 +36,9 @@ import { scrapeScrapeDoPage } from "@/lib/scrapedo";
 const JOB_TYPE = "new-release-chase-prices";
 const JOB_STALE_MS = 10 * 60_000;
 const JOB_HEARTBEAT_MS = 30_000;
+const CARDMARKET_RENDERED_REQUEST_CREDITS = 5;
+const CARDMARKET_PROVIDER_TIMEOUT_MS = 65_000;
+const CARDMARKET_TRANSPORT_TIMEOUT_MS = 75_000;
 
 let activeJob: Promise<void> | null = null;
 
@@ -430,7 +433,7 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
     const reservation = await reserveScrapeDoCredits({
       operation: "cardmarket-english-nm",
       idempotencyKey: `chase:${candidate.episodeId}:${candidate.cardId}:${bucket}`,
-      estimatedCredits: 1,
+      estimatedCredits: CARDMARKET_RENDERED_REQUEST_CREDITS,
       sourceUrl: candidate.cardmarketUrl,
       now,
     });
@@ -450,14 +453,20 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
     });
     const scrape = await scrapeScrapeDoPage(candidate.cardmarketUrl, {
       output: "html",
-      render: false,
-      timeoutMs: 45_000,
+      // CardMarket consistently times out through Scrape.do's plain
+      // datacenter route. The DE browser profile returns the complete static
+      // offer table quickly and costs five credits per successful request.
+      render: true,
+      geoCode: "de",
+      providerTimeoutMs: CARDMARKET_PROVIDER_TIMEOUT_MS,
+      timeoutMs: CARDMARKET_TRANSPORT_TIMEOUT_MS,
     });
     const strict = parseStrictCardMarketEnglishNmPrice(scrape);
     if (!strict || !scrapeMatchesCandidate(candidate, scrape)) {
       throw new Error("CardMarket did not return a verified English Near Mint offer for this card.");
     }
-    const creditsUsed = readMetadataNumber(scrape.creditsUsed) ?? 1;
+    const creditsUsed =
+      readMetadataNumber(scrape.creditsUsed) ?? CARDMARKET_RENDERED_REQUEST_CREDITS;
     const remainingCredits = readMetadataNumber(scrape.metadata.remainingCredits);
     await completeScrapeDoReservation(reservation.id, {
       creditsUsed,
@@ -517,7 +526,7 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
     return {
       cardId: candidate.cardId,
       status: "failed",
-      creditsUsed: reservationId ? 1 : 0,
+      creditsUsed: reservationId ? CARDMARKET_RENDERED_REQUEST_CREDITS : 0,
       error: error instanceof Error ? error.message : String(error),
     };
   }

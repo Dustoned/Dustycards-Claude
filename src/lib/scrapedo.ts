@@ -27,6 +27,11 @@ export interface ScrapeDoPageScrapeOptions {
   output?: "html" | "markdown";
   /** Explicit opt-in: Scrape.do charges more when Chromium rendering is enabled. */
   render?: boolean;
+  /** Optional two-letter proxy country used for locale-sensitive marketplaces. */
+  geoCode?: string;
+  /** Timeout enforced by Scrape.do for the upstream target request. */
+  providerTimeoutMs?: number;
+  /** Local transport timeout; keep this above providerTimeoutMs. */
   timeoutMs?: number;
 }
 
@@ -348,7 +353,13 @@ function buildEndpoint(path: string): URL {
 
 function responseMetadata(
   response: Response,
-  input: { sourceUrl: string; render: boolean; output: "html" | "markdown" }
+  input: {
+    sourceUrl: string;
+    render: boolean;
+    output: "html" | "markdown";
+    geoCode: string | null;
+    providerTimeoutMs: number | null;
+  }
 ): Record<string, unknown> {
   return {
     provider: "scrapedo",
@@ -360,6 +371,8 @@ function responseMetadata(
     initialStatusCode: parseHeaderStatus(response.headers, "Scrape.do-Initial-Status-Code"),
     contentType: response.headers.get("content-type"),
     rendered: input.render,
+    geoCode: input.geoCode,
+    providerTimeoutMs: input.providerTimeoutMs,
     output: input.output,
   };
 }
@@ -375,10 +388,18 @@ export async function scrapeScrapeDoPage(
 
   const output = options.output ?? "html";
   const render = options.render === true;
+  const geoCode = options.geoCode?.trim().toLowerCase();
+  const normalizedGeoCode = geoCode && /^[a-z]{2}$/.test(geoCode) ? geoCode : null;
+  const providerTimeoutMs =
+    options.providerTimeoutMs == null
+      ? null
+      : getPositiveInteger(options.providerTimeoutMs, 60_000, 5_000, 120_000);
   const endpoint = buildEndpoint("/");
   endpoint.searchParams.set("token", requireApiKey());
   endpoint.searchParams.set("url", targetUrl);
   if (render) endpoint.searchParams.set("render", "true");
+  if (normalizedGeoCode) endpoint.searchParams.set("geoCode", normalizedGeoCode);
+  if (providerTimeoutMs != null) endpoint.searchParams.set("timeout", String(providerTimeoutMs));
   if (output === "markdown") endpoint.searchParams.set("output", "markdown");
 
   const response = await fetchScrapeDo(
@@ -405,6 +426,8 @@ export async function scrapeScrapeDoPage(
     sourceUrl: resolvedUrl,
     render,
     output,
+    geoCode: normalizedGeoCode,
+    providerTimeoutMs,
   });
   const creditsUsed = parseHeaderNumber(response.headers, "Scrape.do-Request-Cost");
 
