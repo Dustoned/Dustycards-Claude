@@ -239,6 +239,9 @@ done
 tar -cf - -C "$release_dir" . | tar --no-overwrite-dir -xf - -C "$RemoteAppPath"
 chown dustycards:dustycards "$RemoteAppPath"
 chmod 0755 "$RemoteAppPath"
+# The sealed-release timer writes its persistent JSON cache here as the
+# unprivileged app user. Keep the directory writable after root-run deploys.
+install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/data"
 
 cd "$RemoteAppPath"
 if [ -f .env ]; then
