@@ -2738,13 +2738,30 @@ test.describe("DustyCards smoke", () => {
     );
     expect(undersizedTargets).toEqual([]);
 
+    const pageScrollBeforeSheetScroll = await page.evaluate(() => window.scrollY);
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    );
+    expect(await scrollRegion.evaluate((element) => element.scrollTop)).toBe(0);
+
     const headerTopBeforeScroll = (await header.boundingBox())?.y ?? Number.NaN;
     await scrollRegion.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
     await expect.poll(() => scrollRegion.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    );
+    const bottomScrollEdge = await scrollRegion.evaluate((element) => ({
+      scrollTop: element.scrollTop,
+      maxScrollTop: element.scrollHeight - element.clientHeight,
+    }));
+    expect(Math.abs(bottomScrollEdge.scrollTop - bottomScrollEdge.maxScrollTop)).toBeLessThanOrEqual(
+      0.5
+    );
     const headerTopAfterScroll = (await header.boundingBox())?.y ?? Number.NaN;
     expect(Math.abs(headerTopAfterScroll - headerTopBeforeScroll)).toBeLessThanOrEqual(1);
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBeforeSheetScroll);
     const logoutButton = sheet.getByRole("button", { name: "Log out", exact: true });
     await expect(logoutButton).toBeVisible();
     await expectNoHorizontalOverflow(page);
@@ -3271,6 +3288,30 @@ test.describe("DustyCards smoke", () => {
         await expect(releaseWatch).toContainText("No confirmed upcoming products yet");
       }
     }
+  });
+
+  test("mobile market pockets reuse the premium mover tile contract", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/movers?scope=all", { waitUntil: "domcontentloaded", timeout: 60_000 });
+
+    const pockets = page.locator("[data-market-pocket-preview]");
+    const pocketCount = await pockets.count();
+    if (pocketCount === 0) {
+      test.skip(true, "No Market Pocket previews are available in this local database.");
+      return;
+    }
+    expect(pocketCount).toBeLessThanOrEqual(3);
+    const pocketTiles = pockets.locator("[data-card-list-tile]");
+    if ((await pocketTiles.count()) === 0) {
+      test.skip(true, "No Market Pocket cards are available in this local database.");
+      return;
+    }
+
+    await expectMobileCardListTileContract(page, pocketTiles.first());
+    await expect(pocketTiles.locator("[data-card-list-media]")).toHaveCount(
+      await pocketTiles.count()
+    );
+    await expectNoHorizontalOverflow(page);
   });
 
   test("raw, graded, and target mover cards expose inline actions without losing list state", async ({ page }) => {

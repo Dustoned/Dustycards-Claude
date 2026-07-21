@@ -247,7 +247,6 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const [cardsCount, setCardsCount] = useState(summary?.cards ?? 0);
   const [forSaleCardsCount, setForSaleCardsCount] = useState(summary?.forSaleCards ?? 0);
   const [wantsCount, setWantsCount] = useState(summary?.wants ?? 0);
-  const moreScrollRef = useRef<HTMLDivElement | null>(null);
   const moreDialogRef = useRef<HTMLDivElement | null>(null);
   const moreCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -444,99 +443,6 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
     return () => window.removeEventListener(MOBILE_EDGE_BACK_EVENT, handleMobileEdgeBack);
   }, [closeMoreMenu, moreOpen]);
 
-  useEffect(() => {
-    if (!moreOpen) return;
-
-    const scrollEdgePadding = 2;
-    let lastTouchY = 0;
-
-    function preventTouchDefault(event: TouchEvent) {
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-    }
-
-    function keepScrollInsideSheet(scrollElement: HTMLDivElement) {
-      const maxScrollTop = scrollElement.scrollHeight - scrollElement.clientHeight;
-
-      if (maxScrollTop <= 0) {
-        return;
-      }
-
-      if (scrollElement.scrollTop <= 0) {
-        scrollElement.scrollTop = scrollEdgePadding;
-      } else if (scrollElement.scrollTop >= maxScrollTop) {
-        scrollElement.scrollTop = Math.max(0, maxScrollTop - scrollEdgePadding);
-      }
-    }
-
-    function handleScroll() {
-      const scrollElement = moreScrollRef.current;
-      if (scrollElement) {
-        keepScrollInsideSheet(scrollElement);
-      }
-    }
-
-    function handleTouchStart(event: TouchEvent) {
-      lastTouchY = event.touches[0]?.clientY ?? 0;
-
-      const scrollElement = moreScrollRef.current;
-      const target = event.target;
-
-      if (scrollElement && target instanceof Node && scrollElement.contains(target)) {
-        keepScrollInsideSheet(scrollElement);
-      }
-    }
-
-    function handleTouchMove(event: TouchEvent) {
-      const scrollElement = moreScrollRef.current;
-      const target = event.target;
-
-      if (!scrollElement || !(target instanceof Node) || !scrollElement.contains(target)) {
-        preventTouchDefault(event);
-        return;
-      }
-
-      const nextTouchY = event.touches[0]?.clientY ?? lastTouchY;
-      const deltaY = nextTouchY - lastTouchY;
-      lastTouchY = nextTouchY;
-
-      const maxScrollTop = scrollElement.scrollHeight - scrollElement.clientHeight;
-
-      if (maxScrollTop <= 0) {
-        preventTouchDefault(event);
-        return;
-      }
-
-      const atTop = scrollElement.scrollTop <= scrollEdgePadding;
-      const atBottom = scrollElement.scrollTop >= maxScrollTop - scrollEdgePadding;
-
-      if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
-        keepScrollInsideSheet(scrollElement);
-        preventTouchDefault(event);
-      }
-    }
-
-    const scrollElement = moreScrollRef.current;
-    const passiveCaptureOptions = { capture: true, passive: true };
-    const activeCaptureOptions = { capture: true, passive: false };
-
-    if (scrollElement) {
-      keepScrollInsideSheet(scrollElement);
-    }
-    scrollElement?.addEventListener("scroll", handleScroll, { passive: true });
-    document.addEventListener("touchstart", handleTouchStart, passiveCaptureOptions);
-    document.addEventListener("touchmove", handleTouchMove, activeCaptureOptions);
-    window.addEventListener("touchmove", handleTouchMove, activeCaptureOptions);
-
-    return () => {
-      scrollElement?.removeEventListener("scroll", handleScroll);
-      document.removeEventListener("touchstart", handleTouchStart, passiveCaptureOptions);
-      document.removeEventListener("touchmove", handleTouchMove, activeCaptureOptions);
-      window.removeEventListener("touchmove", handleTouchMove, activeCaptureOptions);
-    };
-  }, [moreOpen]);
-
   return (
     <div
       ref={moreDialogRef}
@@ -563,18 +469,12 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
             data-mobile-more-sheet
             data-no-pull-refresh
             aria-labelledby="mobile-more-title"
-            className="pointer-events-auto fixed inset-x-2 bottom-[calc(4.7rem+env(safe-area-inset-bottom))] top-[calc(0.6rem+env(safe-area-inset-top))] z-[60] mx-auto max-w-md overflow-hidden rounded-[28px] border border-[rgb(var(--dc-border-rgb)/0.95)] bg-[linear-gradient(180deg,rgb(var(--dc-surface-primary-rgb)/0.99),rgb(var(--dc-bg-main-rgb)/0.99))] shadow-[0_28px_90px_rgb(var(--dc-primary-rgb)/0.18),0_28px_90px_rgba(0,0,0,0.68)] md:hidden"
+            className="pointer-events-auto fixed inset-x-2 bottom-[calc(4.7rem+env(safe-area-inset-bottom))] top-[calc(0.6rem+env(safe-area-inset-top))] z-[60] mx-auto flex max-w-md flex-col overflow-hidden rounded-[28px] border border-[rgb(var(--dc-border-rgb)/0.95)] bg-[linear-gradient(180deg,rgb(var(--dc-surface-primary-rgb)/0.99),rgb(var(--dc-bg-main-rgb)/0.99))] shadow-[0_28px_90px_rgb(var(--dc-primary-rgb)/0.18),0_28px_90px_rgba(0,0,0,0.68)] md:hidden"
           >
-            <div
-              ref={moreScrollRef}
-              data-mobile-more-scroll
-              data-no-pull-refresh
-              className="h-full touch-pan-y overflow-y-auto overscroll-y-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            <header
+              data-mobile-more-header
+              className="relative z-20 flex min-h-[4.35rem] shrink-0 items-center justify-between gap-3 border-b border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-surface-primary-rgb)/0.98)] px-3 py-2.5"
             >
-              <header
-                data-mobile-more-header
-                className="sticky top-0 z-20 flex min-h-[4.35rem] items-center justify-between gap-3 border-b border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-surface-primary-rgb)/0.94)] px-3 py-2.5 backdrop-blur-2xl"
-              >
                 <div className="flex min-w-0 items-center gap-2.5">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[rgb(var(--dc-primary-soft-rgb)/0.2)] bg-[rgb(var(--dc-primary-rgb)/0.14)] text-[var(--dc-primary-soft)]">
                     <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
@@ -600,8 +500,13 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
-              </header>
+            </header>
 
+            <div
+              data-mobile-more-scroll
+              data-no-pull-refresh
+              className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
               <div className="space-y-3 px-3 pb-4 pt-3">
                 <section
                   data-mobile-more-profile

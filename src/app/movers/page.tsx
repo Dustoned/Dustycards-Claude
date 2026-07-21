@@ -446,11 +446,20 @@ export default async function MoversPage({
   const valueData = isValueScope ? (data as CollectionValueDriversData) : null;
   const sealedData = isSealedScope ? (data as SealedMoversData) : null;
   const cardData = !isValueScope && !isSealedScope ? (data as CollectionMoversData) : null;
-  const cardQuickActions = cardData
-    ? await getCardQuickActionMap(
-        user.id,
-        cardData.movers.map((item) => item.cardId)
+  const cardQuickActionIds = cardData
+    ? Array.from(
+        new Set(
+          [
+            ...cardData.movers,
+            ...cardData.cheapestHighRarityMovers.slice(0, 4),
+            ...cardData.suddenDropDeals.slice(0, 4),
+            ...cardData.discountedHighRarity.slice(0, 4),
+          ].map((item) => item.cardId)
+        )
       )
+    : [];
+  const cardQuickActions = cardData
+    ? await getCardQuickActionMap(user.id, cardQuickActionIds)
     : {};
   const updatedAt = sealedData?.updatedAt ?? cardData?.movers[0]?.latestFetchedAt ?? null;
   const pulseChart = valueData

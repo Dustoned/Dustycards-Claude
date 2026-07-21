@@ -898,93 +898,52 @@ function PocketPreviewCard({
   reasonMode?: MoverDisplayMode;
 }) {
   return (
-    <article className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
+    <article
+      data-market-pocket-preview={title}
+      className="rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.88)] bg-[rgb(var(--dc-surface-primary-rgb)/0.72)] p-4"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/36">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--dc-text-muted)]">
             {eyebrow}
           </p>
-          <h2 className="mt-1 text-lg font-bold tracking-tight text-white">
+          <h2 className="mt-1 text-lg font-bold tracking-tight text-[var(--dc-text-primary)]">
             {title}
           </h2>
-          <p className="mt-1.5 max-w-2xl text-[13px] leading-snug text-white/48">{description}</p>
+          <p className="mt-1.5 max-w-2xl text-[13px] leading-snug text-[var(--dc-text-muted)]">{description}</p>
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-2xl font-bold tracking-tight tabular-nums text-white">
+          <p className="text-2xl font-bold tracking-tight tabular-nums text-[var(--dc-text-primary)]">
             {items.length.toLocaleString("en-US")}
           </p>
-          <p className="text-[10px] uppercase tracking-[0.14em] text-white/34">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--dc-text-disabled)]">
             cards
           </p>
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {items.slice(0, 4).map((item) => {
-          const isLoading = loadingCardId === item.cardId;
-          const displayScore = reasonMode === "target" ? item.moverScore : item.rankingScore;
-
-          return (
-            <article
-              key={`${href}-${item.cardId}`}
-              role="button"
-              tabIndex={0}
-              onClick={() => onOpenCard(item.cardId)}
-              onKeyDown={(event) => handleOpenKey(event, () => onOpenCard(item.cardId))}
-              className="min-w-0 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5 text-left outline-none transition-colors hover:border-white/14 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-emerald-400/50"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="truncate text-[13px] font-semibold text-white">
-                  {item.name}
-                </p>
-                <span className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${getToneClass(displayScore)}`}>
-                  {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  {displayScore >= 0 ? "+" : ""}
-                  {displayScore.toFixed(1)}
-                </span>
-              </div>
-              <div className="mt-1 flex items-center justify-between gap-3 text-[11px] text-white/45">
-                <span className="truncate">
-                  {item.episodeName}
-                  {item.episodeCode ? ` (${item.episodeCode})` : ""}
-                </span>
-                <span className="tabular-nums">{formatCurrency(item.currentPrice, item.currency)}</span>
-              </div>
-              {(() => {
-                const reasons = getMoverReasons(item, reasonMode);
-                if (reasons.length === 0) return null;
-                return (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {reasons.map((reason) => (
-                      <span
-                        key={reason.label}
-                        className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${reasonChipClass(
-                          reason.tone
-                        )}`}
-                      >
-                        {reason.label}
-                      </span>
-                    ))}
-                  </div>
-                );
-              })()}
-              <div className="mt-2 flex justify-end border-t border-white/7 pt-2">
-                <CollectionCardQuickActions
-                  data={getMoverQuickActionData(item, cardQuickActions)}
-                  gradedLabel={reasonMode === "graded" ? item.gradedLabel : null}
-                />
-              </div>
-            </article>
-          );
-        })}
-      </div>
+      <CardListTileGrid className="mt-3">
+        {items.slice(0, 4).map((item, index) => (
+          <MoverTile
+            key={`${href}-${item.cardId}`}
+            variants={[item]}
+            isLoading={loadingCardId === item.cardId}
+            displayMode={reasonMode}
+            isHighlighted={false}
+            changeDisplay="percent"
+            cardQuickActions={cardQuickActions}
+            prioritizeImage={index === 0}
+            onOpen={onOpenCard}
+          />
+        ))}
+      </CardListTileGrid>
 
       <div className="mt-4">
         <Link
           href={href}
           prefetch={false}
-          className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-white/75 transition-colors hover:border-white/16 hover:bg-white/[0.08] hover:text-white"
+          className="inline-flex min-h-11 items-center rounded-full border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.66)] px-3 text-xs font-semibold text-[var(--dc-text-secondary)] transition-colors hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)] hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.78)] hover:text-[var(--dc-text-primary)]"
         >
           {hrefLabel}
         </Link>
