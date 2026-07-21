@@ -373,9 +373,13 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
     <div
       ref={rootRef}
       data-desktop-top-navigation
-      className="flex h-[var(--ui-desktop-nav-height)] min-w-0 flex-1 items-stretch justify-between gap-5"
+      className="relative flex h-[var(--ui-desktop-nav-height)] min-w-0 flex-1 items-center justify-center"
     >
-      <nav className="flex min-w-0 items-stretch" aria-label="Marketplace navigation">
+      <nav
+        data-desktop-top-navigation-links
+        className="flex h-full min-w-0 items-stretch justify-center"
+        aria-label="Marketplace navigation"
+      >
         <Link
           href={DESKTOP_HOME_ITEM.href}
           prefetch={null}
@@ -484,7 +488,8 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
       </nav>
 
       <div
-        className="relative flex h-full shrink-0 items-center border-l border-[var(--dc-border)] pl-4"
+        data-desktop-top-navigation-account
+        className="absolute right-0 top-1/2 flex shrink-0 -translate-y-1/2 items-center"
         onBlur={(event) => {
           const nextTarget = event.relatedTarget;
           if (!nextTarget || !event.currentTarget.contains(nextTarget as Node)) {
@@ -499,9 +504,9 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
           aria-expanded={accountOpen}
           aria-controls="desktop-top-account-panel"
           onClick={() => setOpenMenu((current) => (current === "Account" ? null : "Account"))}
-          className={`flex min-h-10 items-center gap-2 rounded-lg px-2 text-left transition-colors hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.6)] hover:text-white ${
+          className={`flex min-h-9 items-center gap-2 rounded-full border border-[rgb(var(--dc-border-rgb)/0.8)] bg-[rgb(var(--dc-surface-primary-rgb)/0.58)] px-2.5 text-left shadow-sm shadow-black/20 transition-colors hover:border-[rgb(var(--dc-border-hover-rgb)/0.9)] hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] hover:text-white ${
             accountSectionActive
-              ? "bg-[rgb(var(--dc-primary-rgb)/0.12)] text-white"
+              ? "border-[rgb(var(--dc-primary-rgb)/0.34)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-white"
               : "text-white/70"
           }`}
         >

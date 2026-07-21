@@ -1358,6 +1358,31 @@ test.describe("DustyCards smoke", () => {
     await expect(desktopTopNavigation).toBeVisible();
     await expect(page.locator("html")).toHaveAttribute("data-desktop-navigation", "top");
 
+    const topNavigationLinks = page.locator("[data-desktop-top-navigation-links]");
+    const topNavigationAccount = page.locator("[data-desktop-top-navigation-account]");
+    const desktopSearchShell = page.locator("form.dc-search-shell");
+    const [navigationLinksBox, navigationAccountBox, desktopSearchShellBox] = await Promise.all([
+      topNavigationLinks.boundingBox(),
+      topNavigationAccount.boundingBox(),
+      desktopSearchShell.boundingBox(),
+    ]);
+    expect(navigationLinksBox).not.toBeNull();
+    expect(navigationAccountBox).not.toBeNull();
+    expect(desktopSearchShellBox).not.toBeNull();
+    expect(
+      Math.abs(
+        navigationLinksBox!.x + navigationLinksBox!.width / 2 -
+          (desktopSearchShellBox!.x + desktopSearchShellBox!.width / 2)
+      )
+    ).toBeLessThanOrEqual(1);
+    expect(navigationLinksBox!.x + navigationLinksBox!.width).toBeLessThanOrEqual(
+      navigationAccountBox!.x
+    );
+    const accountButtonRadius = await page
+      .locator("[data-top-navigation-account]")
+      .evaluate((element) => Number.parseFloat(window.getComputedStyle(element).borderTopRightRadius));
+    expect(accountButtonRadius).toBeGreaterThanOrEqual(17);
+
     const topHeaderBox = await page.locator("[data-app-header]").boundingBox();
     const topMainPadding = await page.locator("[data-app-main]").evaluate((element) =>
       Number.parseFloat(window.getComputedStyle(element).paddingLeft)

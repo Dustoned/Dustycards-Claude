@@ -722,6 +722,14 @@ body {
     --ui-app-header-height: calc(var(--ui-header-height) + var(--ui-desktop-nav-height));
   }
 
+  html[data-desktop-navigation="top"] [data-app-header] form.dc-search-shell {
+    position: absolute;
+    top: calc((var(--ui-header-height) - var(--ui-header-search-height)) / 2);
+    left: 50%;
+    width: min(var(--ui-header-search-max), calc(100% - 28rem));
+    transform: translateX(-50%);
+  }
+
   html[data-desktop-navigation="sidebar"] {
     --ui-shell-start: 16rem;
   }
@@ -729,7 +737,15 @@ body {
   html[data-desktop-navigation="top"] [data-app-desktop-navigation-row] {
     display: flex;
     height: var(--ui-desktop-nav-height);
-    border-top: 1px solid rgb(var(--dc-border-rgb) / 0.5);
+    align-items: center;
+  }
+
+  html[data-desktop-navigation="top"] [data-desktop-top-navigation-links] {
+    /* Keep the menu visually anchored beneath the centered search field,
+       independent of the brand and account controls on either side. */
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
   html[data-desktop-navigation="sidebar"] [data-desktop-sidebar] {
