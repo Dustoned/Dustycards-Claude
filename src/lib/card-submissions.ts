@@ -1104,6 +1104,11 @@ interface ExtractedConditionPrice {
   warnings: string[];
 }
 
+export interface StrictCardMarketEnglishNmPrice {
+  priceEur: number;
+  offerCount: number;
+}
+
 function extractCardMarketArticleRows(html: string): string[] {
   const starts = [
     ...html.matchAll(/<div\b[^>]*\bid=["']articleRow[^"']*["'][^>]*>/gi),
@@ -1178,6 +1183,34 @@ function extractArticleConditionPrice(
     price: null,
     warnings: [`No English or Japanese ${condition} price was found in CardMarket offer rows.`],
   };
+}
+
+/**
+ * Automation-safe CardMarket parser. Unlike the interactive submission parser
+ * this deliberately has no text, unknown-language, or Japanese fallback: a
+ * Chase Watch quote is accepted only from explicit English Near Mint offer
+ * rows and graded seller comments are ignored.
+ */
+export function parseStrictCardMarketEnglishNmPrice(
+  scrape: FirecrawlPageScrapeResult
+): StrictCardMarketEnglishNmPrice | null {
+  const prices: number[] = [];
+  for (const row of extractCardMarketArticleRows(scrape.html)) {
+    const productAttributes =
+      row.match(
+        /<div\b[^>]*class=["'][^"']*\bproduct-attributes\b[^"']*["'][^>]*>[\s\S]*?<\/div>/i
+      )?.[0] ?? "";
+    if (!productAttributes || !windowMatchesCondition(productAttributes, "Near Mint")) {
+      continue;
+    }
+    if (languageFromText(productAttributes) !== "English") continue;
+    const comment = extractCardMarketArticleComment(row);
+    if (extractGradingLabelMatches(comment).length > 0) continue;
+    const price = extractCardMarketArticlePrice(row);
+    if (price != null) prices.push(price);
+  }
+  if (prices.length === 0) return null;
+  return { priceEur: Math.min(...prices), offerCount: prices.length };
 }
 
 function extractConditionPrice(

@@ -414,6 +414,7 @@ model Card {
   ebayListingOverrides         EbayListingCardOverride[]
   ebayWatchedListings          EbayWatchedListing[]
   priceAlerts                  CardPriceAlert[]
+  newReleaseChasePriceWatch    NewReleaseChasePriceWatch?
   prices                       Price[]
   sealedProducts               CardSealedProduct[]
   cardSubmissions              CardSubmission[]                  @relation("SubmissionCreatedCard")
@@ -811,6 +812,12 @@ model Price {
   // move forward for an unchanged refresh observation.
   changed_at DateTime?
 
+  // Provenance for the English NM quote. Older rows remain null and are
+  // treated as legacy TCGGo snapshots.
+  source          String?
+  source_provider String?
+  source_url      String?
+
   // CardMarket prices per language
   cm_en_lowest_nm Float?
   cm_de_lowest_nm Float?
@@ -832,6 +839,58 @@ model Price {
   @@index([card_id, fetched_at])
   @@index([card_id, fetched_at, id])
   @@index([fetched_at])
+  @@index([source, fetched_at])
+}
+
+model NewReleaseChasePriceWatch {
+  card_id                 String    @id
+  episode_id              String
+  candidate_rank          Int
+  status                  String    @default("scheduled")
+  first_seen_at           DateTime  @default(now())
+  last_attempt_at         DateTime?
+  last_success_at         DateTime?
+  next_attempt_at         DateTime?
+  consecutive_failures    Int       @default(0)
+  provider                String?
+  last_error              String?
+  candidate_price         Float?
+  candidate_observed_at   DateTime?
+  candidate_confirmations Int       @default(0)
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+
+  card Card @relation(fields: [card_id], references: [id], onDelete: Cascade)
+
+  @@index([episode_id, candidate_rank])
+  @@index([status, next_attempt_at])
+  @@index([next_attempt_at])
+}
+
+model ScrapeDoCreditLedger {
+  id                String    @id @default(cuid())
+  period_key        String
+  day_key           String
+  consumer          String
+  operation         String
+  idempotency_key   String    @unique
+  status            String    @default("reserved")
+  estimated_credits Int
+  credits_used      Int       @default(0)
+  remaining_credits Int?
+  source_url        String?
+  details_json      String?
+  reserved_at       DateTime  @default(now())
+  expires_at        DateTime
+  finished_at       DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  @@index([period_key, status])
+  @@index([day_key, status])
+  @@index([consumer, period_key, status])
+  @@index([consumer, day_key, status])
+  @@index([status, expires_at])
 }
 
 model SyncLog {
@@ -912,43 +971,43 @@ model ExternalSignalRun {
 }
 
 model ExternalSignalObservation {
-  id                     String    @id @default(cuid())
-  run_id                 String
-  card_id                String
-  game                   String
-  card_name              String
-  episode_code           String?
-  card_number            String?
-  model_version          String    @default("v1")
-  price_band             String?
-  reference_source       String?
-  reference_price        Float?
-  reference_price_at     DateTime?
-  is_episode_entry       Boolean   @default(false)
-  entry_outlook          String?
+  id                            String    @id @default(cuid())
+  run_id                        String
+  card_id                       String
+  game                          String
+  card_name                     String
+  episode_code                  String?
+  card_number                   String?
+  model_version                 String    @default("v1")
+  price_band                    String?
+  reference_source              String?
+  reference_price               Float?
+  reference_price_at            DateTime?
+  is_episode_entry              Boolean   @default(false)
+  entry_outlook                 String?
   entry_expected_return_pct_180 Float?
-  entry_opportunity_score Float?
-  entry_scenario_json    String?
-  external_score         Float
-  competitive_score      Float     @default(0)
-  confidence             String
-  pressure_label         String
-  current_price          Float?
-  currency               String
-  max_deck_share_percent Float
-  max_inclusion_percent  Float
-  archetype_count        Int
-  catalyst_score         Float     @default(0)
-  hype_score             Float     @default(0)
-  risk_score             Float     @default(0)
-  hit_rate_15x_90        Float?
-  hit_rate_2x_90         Float?
-  hit_rate_3x_180        Float?
-  sample_size_90         Int?
-  sample_size_180        Int?
-  reasons_json           String
-  evidence_json          String
-  observed_at            DateTime  @default(now())
+  entry_opportunity_score       Float?
+  entry_scenario_json           String?
+  external_score                Float
+  competitive_score             Float     @default(0)
+  confidence                    String
+  pressure_label                String
+  current_price                 Float?
+  currency                      String
+  max_deck_share_percent        Float
+  max_inclusion_percent         Float
+  archetype_count               Int
+  catalyst_score                Float     @default(0)
+  hype_score                    Float     @default(0)
+  risk_score                    Float     @default(0)
+  hit_rate_15x_90               Float?
+  hit_rate_2x_90                Float?
+  hit_rate_3x_180               Float?
+  sample_size_90                Int?
+  sample_size_180               Int?
+  reasons_json                  String
+  evidence_json                 String
+  observed_at                   DateTime  @default(now())
 
   run      ExternalSignalRun       @relation(fields: [run_id], references: [id], onDelete: Cascade)
   outcomes ExternalSignalOutcome[]

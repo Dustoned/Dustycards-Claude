@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
@@ -56,16 +56,66 @@ function signedWholePercent(value: number | null): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(0)}%`;
 }
 
-function formatQuoteAge(value: string | null, generatedAt: string): string {
-  if (!value) return "No quote yet";
+function formatLiveAge(value: string | null, nowMs: number): string {
+  if (!value) return "Awaiting first direct check";
   const timestamp = new Date(value).getTime();
-  const generatedTimestamp = new Date(generatedAt).getTime();
-  if (!Number.isFinite(timestamp) || !Number.isFinite(generatedTimestamp)) return "No quote yet";
-  const hours = Math.max(0, Math.floor((generatedTimestamp - timestamp) / 3_600_000));
-  if (hours < 1) return "Updated this hour";
+  if (!Number.isFinite(timestamp)) return "Awaiting first direct check";
+  const minutes = Math.max(0, Math.floor((nowMs - timestamp) / 60_000));
+  if (minutes < 1) return "Updated just now";
+  if (minutes < 60) return `Updated ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
   if (hours < 24) return `Updated ${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `Updated ${days}d ago`;
+  return `Updated ${Math.floor(hours / 24)}d ago`;
+}
+
+function formatNextCheck(value: string | null, nowMs: number): string {
+  if (!value) return "No check scheduled";
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "No check scheduled";
+  const remainingMinutes = Math.ceil((timestamp - nowMs) / 60_000);
+  if (remainingMinutes <= 0) return "Check due now";
+  if (remainingMinutes < 60) return `Next check in ${remainingMinutes}m`;
+  const hours = Math.floor(remainingMinutes / 60);
+  const minutes = remainingMinutes % 60;
+  return `Next check in ${hours}h${minutes ? ` ${minutes}m` : ""}`;
+}
+
+function watchStateLabel(state: ExpansionChaseRadarData["priceWatch"]["state"]): string {
+  switch (state) {
+    case "current": return "Current";
+    case "due_soon": return "Due soon";
+    case "queued": return "Queued";
+    case "updating": return "Refreshing";
+    case "delayed": return "Delayed";
+    case "paused": return "Budget paused";
+    case "confirming": return "Confirming move";
+    default: return "Unavailable";
+  }
+}
+
+function liveWatchState(
+  state: ExpansionChaseRadarData["priceWatch"]["state"],
+  nextRefreshAt: string | null,
+  nowMs: number
+): ExpansionChaseRadarData["priceWatch"]["state"] {
+  if (state !== "current" && state !== "due_soon") return state;
+  const next = nextRefreshAt ? new Date(nextRefreshAt).getTime() : Number.NaN;
+  if (!Number.isFinite(next)) return state;
+  if (next < nowMs - 15 * 60_000) return "delayed";
+  if (next <= nowMs + 15 * 60_000) return "due_soon";
+  return "current";
+}
+
+function watchScheduleCopy(
+  state: ExpansionChaseRadarData["priceWatch"]["state"],
+  nextRefreshAt: string | null,
+  nowMs: number
+): string {
+  if (state === "paused") return "Automatic checks paused";
+  if (state === "updating") return "Checking CardMarket now";
+  if (state === "confirming") return "Confirming unusual price move";
+  if (state === "unavailable") return "Direct price unavailable";
+  return formatNextCheck(nextRefreshAt, nowMs);
 }
 
 function readinessCopy(data: ExpansionChaseRadarData): {
@@ -150,12 +200,14 @@ function ChaseCard({
   game,
   quickActionData,
   prioritizeImage = false,
+  nowMs,
 }: {
   card: ExpansionChaseRadarCard;
   episodeId: string;
   game: TradingCardGame;
   quickActionData: CardQuickActionData | undefined;
   prioritizeImage?: boolean;
+  nowMs: number;
 }) {
   const projectedReturn = modelReturn(card);
   const showObservedMove =
@@ -224,11 +276,22 @@ function ChaseCard({
           priceLabel="Raw"
           priceValue={formatCurrency(card.currentPrice, card.currency)}
           title={card.name}
-          meta={
+          meta={card.watch.enabled ? (
+            <span className="flex min-w-0 items-center gap-1.5 truncate">
+              <span className="truncate">
+                {card.cardNumber ? `#${card.cardNumber} / ` : ""}{card.rarity ?? "Rarity pending"}
+              </span>
+              <span className="shrink-0 text-cyan-100/52">
+                {card.priceSource === "cardmarket-direct"
+                  ? `/ Direct EN/NM / ${formatLiveAge(card.watch.lastSuccessAt, nowMs).replace("Updated ", "")}`
+                  : "/ Awaiting direct check"}
+              </span>
+            </span>
+          ) : (
             <span className="truncate">
               {card.cardNumber ? `#${card.cardNumber} · ` : ""}{card.rarity ?? "Rarity pending"}
             </span>
-          }
+          )}
         />
 
         <CardListTileInsight>
@@ -242,20 +305,21 @@ function ChaseCard({
 
         <CardListTileFooter
           data-chase-card-footer
-          className="max-[359px]:gap-1"
+          className="max-[359px]:flex-col max-[359px]:items-stretch max-[359px]:gap-1"
         >
           <CardListTileAnalysisLink
             data-chase-analysis-link
+            className="max-[359px]:w-full max-[359px]:justify-center"
           >
             Analysis
             <ArrowUpRight className="h-3.5 w-3.5 max-[359px]:hidden" />
           </CardListTileAnalysisLink>
           {quickActionData ? (
-            <div className="pointer-events-auto relative z-10 shrink-0" data-chase-card-actions>
+            <div className="pointer-events-auto relative z-10 shrink-0 max-[359px]:self-end" data-chase-card-actions>
               <CollectionCardQuickActions data={quickActionData} />
             </div>
           ) : (
-            <CollectionCardQuickActionsPlaceholder className="pointer-events-auto relative z-10" />
+            <CollectionCardQuickActionsPlaceholder className="pointer-events-auto relative z-10 max-[359px]:self-end" />
           )}
         </CardListTileFooter>
         <span className="sr-only">
@@ -278,7 +342,17 @@ export default function NewReleaseChasePanel({
   cardQuickActions: CardQuickActionMap;
 }) {
   const [showAll, setShowAll] = useState(false);
+  const [nowMs, setNowMs] = useState(() => new Date(data.generatedAt).getTime());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const status = readinessCopy(data);
+  const effectiveWatchState = liveWatchState(
+    data.priceWatch.state,
+    data.priceWatch.nextRefreshAt,
+    nowMs
+  );
   const visibleCards = showAll ? data.cards : data.cards.slice(0, INITIAL_CARD_LIMIT);
 
   return (
@@ -321,7 +395,10 @@ export default function NewReleaseChasePanel({
         </Link>
       </div>
 
-      <dl className="mt-4 grid grid-cols-1 divide-y divide-white/8 overflow-hidden rounded-xl border border-white/9 bg-black/20 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+      <dl
+        className="mt-4 grid grid-cols-1 divide-y divide-white/8 overflow-hidden rounded-xl border border-white/9 bg-black/20 sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+        data-testid="new-release-chase-watch-status"
+      >
         <div className="flex items-center gap-3 px-3 py-2.5">
           <Clock3 className="h-4 w-4 shrink-0 text-violet-200/62" />
           <div className="min-w-0">
@@ -332,15 +409,45 @@ export default function NewReleaseChasePanel({
         <div className="flex items-center gap-3 px-3 py-2.5">
           <BarChart3 className="h-4 w-4 shrink-0 text-cyan-200/62" />
           <div className="min-w-0">
-            <dt className="text-[11px] font-semibold text-white/40">Price coverage</dt>
-            <dd className="mt-0.5 truncate text-sm font-bold text-white/76">{data.pricedCardCount} of {data.episode.localCardCount} cards priced</dd>
+            <dt className="text-[11px] font-semibold text-white/40">
+              {data.priceWatch.enabled ? "Direct chase watch" : "Price coverage"}
+            </dt>
+            {data.priceWatch.enabled ? (
+              <>
+                <dd className="mt-0.5 truncate text-sm font-bold text-white/76">
+                  {data.priceWatch.sourceLabel} / EN/NM
+                </dd>
+                <dd className="truncate text-[11px] text-white/38">
+                  {data.priceWatch.currentCount}/{data.priceWatch.trackedCount} tracked prices current
+                </dd>
+              </>
+            ) : (
+              <dd className="mt-0.5 truncate text-sm font-bold text-white/76">
+                {data.pricedCardCount} of {data.episode.localCardCount} cards priced
+              </dd>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3 px-3 py-2.5">
-          {data.freshness === "stale" ? <ShieldAlert className="h-4 w-4 shrink-0 text-rose-200/62" /> : <Radar className="h-4 w-4 shrink-0 text-violet-200/62" />}
+          {effectiveWatchState === "paused" || effectiveWatchState === "delayed" ? <ShieldAlert className="h-4 w-4 shrink-0 text-rose-200/62" /> : <Radar className="h-4 w-4 shrink-0 text-violet-200/62" />}
           <div className="min-w-0">
-            <dt className="text-[11px] font-semibold text-white/40">Latest market read</dt>
-            <dd className="mt-0.5 truncate text-sm font-bold text-white/76">{formatQuoteAge(data.priceAsOf, data.generatedAt)}</dd>
+            <dt className="text-[11px] font-semibold text-white/40">
+              {data.priceWatch.enabled ? watchStateLabel(effectiveWatchState) : "Latest market read"}
+            </dt>
+            {data.priceWatch.enabled ? (
+              <>
+                <dd className="mt-0.5 truncate text-sm font-bold text-white/76" data-testid="new-release-chase-next-check">
+                  {watchScheduleCopy(effectiveWatchState, data.priceWatch.nextRefreshAt, nowMs)}
+                </dd>
+                <dd className="truncate text-[11px] text-white/38">
+                  {formatLiveAge(data.priceWatch.lastSuccessAt, nowMs)}
+                </dd>
+              </>
+            ) : (
+              <dd className="mt-0.5 truncate text-sm font-bold text-white/76">
+                {formatLiveAge(data.priceAsOf, nowMs)}
+              </dd>
+            )}
           </div>
         </div>
       </dl>
@@ -355,6 +462,7 @@ export default function NewReleaseChasePanel({
               game={data.episode.game}
               quickActionData={cardQuickActions[card.cardId]}
               prioritizeImage={index === 0}
+              nowMs={nowMs}
             />
           ))}
         </CardListTileGrid>

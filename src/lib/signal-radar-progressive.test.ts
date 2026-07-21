@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   INITIAL_SIGNAL_RADAR_FEED_DELAY_MS,
+  MIN_CHASE_WATCH_REVALIDATE_DELAY_MS,
   commitSignalRadarFeedResult,
+  getChaseWatchRevalidateDelayMs,
   getSignalRadarFeedStartDelay,
   scheduleSignalRadarFeedStart,
   selectInitialSignalRadarCards,
@@ -9,6 +11,17 @@ import {
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 
 describe("selectInitialSignalRadarCards", () => {
+  it("revalidates Chase Watch just after its scheduled background check", () => {
+    const now = new Date("2026-07-21T12:00:00Z").getTime();
+    expect(
+      getChaseWatchRevalidateDelayMs("2026-07-21T14:00:00Z", now)
+    ).toBe(2 * 60 * 60_000 + MIN_CHASE_WATCH_REVALIDATE_DELAY_MS);
+    expect(
+      getChaseWatchRevalidateDelayMs("2026-07-21T11:00:00Z", now)
+    ).toBe(MIN_CHASE_WATCH_REVALIDATE_DELAY_MS);
+    expect(getChaseWatchRevalidateDelayMs(null, now)).toBeNull();
+  });
+
   it("gives initial detail navigation a short uncontended window", () => {
     expect(getSignalRadarFeedStartDelay(0)).toBe(INITIAL_SIGNAL_RADAR_FEED_DELAY_MS);
     expect(getSignalRadarFeedStartDelay(1)).toBe(0);

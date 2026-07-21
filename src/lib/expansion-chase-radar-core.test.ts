@@ -91,6 +91,10 @@ describe("expansion chase candidate selection", () => {
     const selected = selectExpansionChaseCandidates([
       card("common", { currentPrice: 0.2 }),
       card("sir", { rarity: "Special Illustration Rare", currentPrice: 20 }),
+      card("unpriced-sir", {
+        rarity: "Special Illustration Rare",
+        currentPrice: null,
+      }),
       card("secret-number", {
         rarity: "Mystery Finish",
         printedCardNumber: "121/88",
@@ -102,6 +106,7 @@ describe("expansion chase candidate selection", () => {
 
     expect(selected.map((item) => item.id)).toEqual([
       "sir",
+      "unpriced-sir",
       "secret-number",
       "future-rarity",
     ]);

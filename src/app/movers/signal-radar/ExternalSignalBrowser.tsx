@@ -52,7 +52,11 @@ import type {
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
 import {
   commitSignalRadarFeedResult,
+  CHASE_WATCH_RETRY_DELAY_MS,
+  getChaseWatchRevalidateDelayMs,
+  MIN_CHASE_WATCH_REVALIDATE_DELAY_MS,
   scheduleSignalRadarFeedStart,
+  type SignalRadarChaseWatchPayload,
   type SignalRadarProgressivePayload,
 } from "@/lib/signal-radar-progressive";
 
@@ -67,6 +71,7 @@ interface Props {
   newReleaseChases?: ExpansionChaseRadarData | null;
   cardQuickActions: CardQuickActionMap;
   progressiveHref?: string | null;
+  chaseWatchHref?: string | null;
   totalSignalCount?: number;
 }
 
@@ -704,16 +709,17 @@ function CompactSignalCard({
 
         <CardListTileFooter
           data-signal-card-footer
-          className="max-[359px]:gap-1"
+          className="max-[359px]:flex-col max-[359px]:items-stretch max-[359px]:gap-1"
         >
           <CardListTileAnalysisLink
             data-signal-analysis-link
+            className="max-[359px]:w-full max-[359px]:justify-center"
           >
             Analysis
             <ChevronRight className="h-3.5 w-3.5 max-[359px]:hidden" />
           </CardListTileAnalysisLink>
           {quickActionData ? (
-            <div className="pointer-events-auto relative z-10 shrink-0">
+            <div className="pointer-events-auto relative z-10 shrink-0 max-[359px]:self-end">
               <CollectionCardQuickActions
                 data={quickActionData}
                 gradedLabel={
@@ -724,7 +730,7 @@ function CompactSignalCard({
               />
             </div>
           ) : (
-            <CollectionCardQuickActionsPlaceholder className="pointer-events-auto relative z-10" />
+            <CollectionCardQuickActionsPlaceholder className="pointer-events-auto relative z-10 max-[359px]:self-end" />
           )}
         </CardListTileFooter>
       </CardListTileBody>
@@ -966,6 +972,7 @@ export default function ExternalSignalBrowser({
   newReleaseChases: initialNewReleaseChases,
   cardQuickActions: initialCardQuickActions,
   progressiveHref = null,
+  chaseWatchHref = null,
   totalSignalCount = initialSignals.length,
 }: Props) {
   const [signals, setSignals] = useState(initialSignals);
@@ -1018,6 +1025,56 @@ export default function ExternalSignalBrowser({
     // during this window, cleanup cancels the timer and the feed never starts.
     return scheduleSignalRadarFeedStart(progressiveAttempt, loadRemainingSignals);
   }, [progressiveAttempt, progressiveHref]);
+  useEffect(() => {
+    const nextRefreshAt = newReleaseChases?.priceWatch.nextRefreshAt;
+    if (!chaseWatchHref || !newReleaseChases?.priceWatch.enabled || !nextRefreshAt) return;
+
+    const controller = new AbortController();
+    let timer: number | null = null;
+    const schedule = (delayMs: number) => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => void refresh(), delayMs);
+    };
+    const refresh = async () => {
+      if (document.visibilityState !== "visible") {
+        schedule(MIN_CHASE_WATCH_REVALIDATE_DELAY_MS);
+        return;
+      }
+      try {
+        const response = await fetch(chaseWatchHref, {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Request failed (${response.status})`);
+        const payload = (await response.json()) as SignalRadarChaseWatchPayload;
+        if (controller.signal.aborted) return;
+        setNewReleaseChases(payload.newReleaseChases);
+        const nextDelay = getChaseWatchRevalidateDelayMs(
+          payload.newReleaseChases?.priceWatch.nextRefreshAt
+        );
+        if (nextDelay != null) schedule(nextDelay);
+      } catch {
+        if (!controller.signal.aborted) schedule(CHASE_WATCH_RETRY_DELAY_MS);
+      }
+    };
+    const initialDelay = getChaseWatchRevalidateDelayMs(nextRefreshAt);
+    if (initialDelay != null) schedule(initialDelay);
+    const onVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        new Date(nextRefreshAt).getTime() <= Date.now()
+      ) {
+        schedule(MIN_CHASE_WATCH_REVALIDATE_DELAY_MS);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      controller.abort();
+      if (timer) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [chaseWatchHref, newReleaseChases?.priceWatch.enabled, newReleaseChases?.priceWatch.nextRefreshAt]);
   const newReleaseCardIds = useMemo(
     () => new Set(newReleaseChases?.cards.map((card) => card.cardId) ?? []),
     [newReleaseChases]

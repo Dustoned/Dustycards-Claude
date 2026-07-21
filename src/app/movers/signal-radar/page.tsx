@@ -71,6 +71,9 @@ export default async function SignalRadarPage({
   const progressiveHref = `/api/movers/signal-radar/feed${
     progressiveQuery.size ? `?${progressiveQuery.toString()}` : ""
   }`;
+  const chaseWatchHref = `/api/movers/signal-radar/chase-watch${
+    progressiveQuery.size ? `?${progressiveQuery.toString()}` : ""
+  }`;
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -116,6 +119,7 @@ export default async function SignalRadarPage({
           newReleaseChases={null}
           cardQuickActions={cardQuickActions}
           progressiveHref={progressiveHref}
+          chaseWatchHref={chaseWatchHref}
           totalSignalCount={radarData.signals.length}
         />
       </div>

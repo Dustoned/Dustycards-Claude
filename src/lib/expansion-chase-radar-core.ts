@@ -156,7 +156,9 @@ export function selectExpansionChaseCandidates(
     MAX_EXPANSION_CHASE_CANDIDATE_LIMIT
   );
   const priced = cards.filter((card) => validPrice(card.currentPrice));
-  const explicit = priced.filter(
+  // Premium/secret-numbered printings remain eligible before TCGGo has its
+  // first price. This lets New Chase Watch bootstrap the launch quote itself.
+  const explicit = cards.filter(
     (card) =>
       getExpansionChaseRarityWeight(card.rarity) >= 58 ||
       isSecretNumberedExpansionCard(card)

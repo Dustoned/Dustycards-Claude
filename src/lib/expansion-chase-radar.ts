@@ -28,6 +28,16 @@ import {
   type TradingCardGame,
   type TradingCardGameFilter,
 } from "@/lib/games";
+import {
+  getNewReleaseChaseNextAttemptAt,
+  getNewReleaseChaseWatchCadence,
+  getNewReleaseChaseWatchUiState,
+  type NewReleaseChaseWatchUiState,
+  NEW_RELEASE_CHASE_WATCH_PROVIDER,
+  NEW_RELEASE_CHASE_WATCH_SOURCE,
+} from "@/lib/new-release-chase-watch-core";
+import { getNewReleaseChaseScrapeDoBudgetSnapshot } from "@/lib/scrapedo-budget";
+import { getLatestNewReleaseChaseWatchEpisodes } from "@/lib/new-release-chase-watch-server";
 
 const NON_STALE_FRESHNESS = new Set<ExpansionChaseFreshness>(["fresh", "aging"]);
 
@@ -55,9 +65,9 @@ export interface ExpansionChaseRadarCard {
   imageUrl: string | null;
   cardNumber: string | null;
   rarity: string | null;
-  currentPrice: number;
+  currentPrice: number | null;
   currency: "EUR";
-  priceAsOf: string;
+  priceAsOf: string | null;
   changeVs7dPct: number | null;
   changeVs30dPct: number | null;
   freshness: ExpansionChaseFreshness;
@@ -65,6 +75,30 @@ export interface ExpansionChaseRadarCard {
   scenarioConfidence: ExternalPriceScenario["confidence"] | null;
   scenario: ExternalPriceScenario | null;
   verdict: ExpansionChaseVerdict;
+  priceSource: "cardmarket-direct" | "tcggo";
+  watch: {
+    enabled: boolean;
+    state: NewReleaseChaseWatchUiState;
+    cadenceMinutes: number | null;
+    lastSuccessAt: string | null;
+    nextRefreshAt: string | null;
+    provider: "scrapedo" | null;
+  };
+}
+
+export interface ExpansionChasePriceWatchSummary {
+  enabled: boolean;
+  state: NewReleaseChaseWatchUiState;
+  sourceLabel: "Direct CardMarket";
+  language: "English";
+  condition: "Near Mint";
+  provider: "scrapedo";
+  trackedCount: number;
+  currentCount: number;
+  lastSuccessAt: string | null;
+  nextRefreshAt: string | null;
+  dailyCreditsUsed: number;
+  dailyCreditLimit: number;
 }
 
 export interface ExpansionChaseRadarData {
@@ -78,6 +112,7 @@ export interface ExpansionChaseRadarData {
   currentPricedCardCount: number;
   priceAsOf: string | null;
   releaseAgeDays: number | null;
+  priceWatch: ExpansionChasePriceWatchSummary;
   cards: ExpansionChaseRadarCard[];
 }
 
@@ -140,8 +175,17 @@ function newestDate(values: Array<Date | null>): Date | null {
   return newest;
 }
 
-function changePercent(current: number, baseline: number | null | undefined): number | null {
-  if (baseline == null || !Number.isFinite(baseline) || baseline <= 0) return null;
+function changePercent(
+  current: number | null | undefined,
+  baseline: number | null | undefined
+): number | null {
+  if (
+    current == null ||
+    !Number.isFinite(current) ||
+    baseline == null ||
+    !Number.isFinite(baseline) ||
+    baseline <= 0
+  ) return null;
   return Number((((current - baseline) / baseline) * 100).toFixed(1));
 }
 
@@ -222,6 +266,23 @@ export async function getExpansionChaseRadarData(
     candidateInputs,
     options.candidateLimit ?? DEFAULT_EXPANSION_CHASE_CANDIDATE_LIMIT
   );
+  const selectedCandidateRank = new Map(
+    selectedCandidates.map((card, index) => [card.id, index + 1])
+  );
+  const sourceCardById = new Map(cards.map((card) => [card.id, card]));
+  const [watchStates, watchBudget, scheduledWatchEpisodes] = await Promise.all([
+    selectedCandidates.length
+      ? db.newReleaseChasePriceWatch.findMany({
+          where: { card_id: { in: selectedCandidates.map((card) => card.id) } },
+        })
+      : [],
+    getNewReleaseChaseScrapeDoBudgetSnapshot(now),
+    getLatestNewReleaseChaseWatchEpisodes(now),
+  ]);
+  const watchEpisodeScheduled = scheduledWatchEpisodes.some(
+    (scheduledEpisode) => scheduledEpisode?.id === episode.id
+  );
+  const watchStateByCard = new Map(watchStates.map((state) => [state.card_id, state]));
   const candidatesById = new Map(selectedCandidates.map((card) => [card.id, card]));
   const game = normalizeTradingCardGame(episode.game);
   const seeds: ExternalCardSignal[] = selectedCandidates.map((card) => {
@@ -263,13 +324,15 @@ export async function getExpansionChaseRadarData(
   const ranked = rankExpansionChaseSignals(enriched);
   const rankedCards = ranked.flatMap((signal, index): ExpansionChaseRadarCard[] => {
     const candidate = candidatesById.get(signal.cardId);
-    if (!candidate || candidate.currentPrice == null || !candidate.priceFetchedAt) return [];
-    const priceAsOf =
-      candidate.priceFetchedAt instanceof Date
+    if (!candidate) return [];
+    const priceAsOf = candidate.priceFetchedAt
+      ? candidate.priceFetchedAt instanceof Date
         ? candidate.priceFetchedAt
-        : new Date(candidate.priceFetchedAt);
-    if (!Number.isFinite(priceAsOf.getTime())) return [];
-    const freshness = getExpansionChaseFreshness(priceAsOf, now);
+        : new Date(candidate.priceFetchedAt)
+      : null;
+    const validPriceAsOf =
+      priceAsOf && Number.isFinite(priceAsOf.getTime()) ? priceAsOf : null;
+    const freshness = getExpansionChaseFreshness(validPriceAsOf, now);
     const latestPrice = latestPrices.get(signal.cardId);
     const changeVs7dPct = changePercent(
       candidate.currentPrice,
@@ -282,6 +345,36 @@ export async function getExpansionChaseRadarData(
     const scenario = signal.marketIntelligence?.rawScenario ?? null;
     const opportunityScore =
       signal.marketIntelligence?.rawOpportunityScore ?? signal.externalScore;
+    const candidateRank = selectedCandidateRank.get(signal.cardId) ?? index + 1;
+    const persistedWatch = watchStateByCard.get(signal.cardId);
+    const watchPolicy = getNewReleaseChaseWatchCadence({
+      releaseDate: episode.release_date,
+      firstSeenAt: persistedWatch?.first_seen_at ?? null,
+      candidateRank,
+      now,
+    });
+    const nextRefreshAt = watchPolicy.active
+      ? persistedWatch?.next_attempt_at ??
+        getNewReleaseChaseNextAttemptAt({
+          releaseDate: episode.release_date,
+          firstSeenAt: persistedWatch?.first_seen_at ?? null,
+          candidateRank,
+          lastSuccessAt: persistedWatch?.last_success_at ?? null,
+          now,
+        })
+      : null;
+    const watchEnabled =
+      watchEpisodeScheduled &&
+      watchPolicy.active &&
+      Boolean(sourceCardById.get(signal.cardId)?.cardmarket_id);
+    const watchState = getNewReleaseChaseWatchUiState({
+      enabled: watchEnabled,
+      status: persistedWatch?.status,
+      nextAttemptAt: nextRefreshAt,
+      paused: !watchBudget.configured || watchBudget.paused,
+      now,
+    });
+    const directPrice = latestPrice?.row.source === NEW_RELEASE_CHASE_WATCH_SOURCE;
     return [{
       setRank: index + 1,
       cardId: signal.cardId,
@@ -291,7 +384,7 @@ export async function getExpansionChaseRadarData(
       rarity: signal.rarity,
       currentPrice: candidate.currentPrice,
       currency: "EUR",
-      priceAsOf: priceAsOf.toISOString(),
+      priceAsOf: validPriceAsOf?.toISOString() ?? null,
       changeVs7dPct,
       changeVs30dPct,
       freshness,
@@ -304,8 +397,51 @@ export async function getExpansionChaseRadarData(
         freshness,
         observedChange7dPct: changeVs7dPct,
       }),
+      priceSource: directPrice ? "cardmarket-direct" : "tcggo",
+      watch: {
+        enabled: watchEnabled,
+        state: watchState,
+        cadenceMinutes: watchPolicy.cadenceMs
+          ? Math.round(watchPolicy.cadenceMs / 60_000)
+          : null,
+        lastSuccessAt: persistedWatch?.last_success_at?.toISOString() ??
+          (directPrice ? validPriceAsOf?.toISOString() ?? null : null),
+        nextRefreshAt: nextRefreshAt?.toISOString() ?? null,
+        provider: watchEnabled ? NEW_RELEASE_CHASE_WATCH_PROVIDER : null,
+      },
     }];
   });
+
+  const trackedCards = rankedCards.filter((card) => card.watch.enabled);
+  const watchLastSuccessAt = newestDate(
+    trackedCards.map((card) =>
+      card.watch.lastSuccessAt ? new Date(card.watch.lastSuccessAt) : null
+    )
+  );
+  const watchNextRefreshAt = trackedCards.reduce<Date | null>((earliest, card) => {
+    const value = card.watch.nextRefreshAt ? new Date(card.watch.nextRefreshAt) : null;
+    if (!value || !Number.isFinite(value.getTime())) return earliest;
+    return !earliest || value < earliest ? value : earliest;
+  }, null);
+  const currentWatchCards = trackedCards.filter((card) => {
+    if (card.priceSource !== "cardmarket-direct") return false;
+    if (!card.watch.lastSuccessAt || !card.watch.cadenceMinutes) return false;
+    const lastSuccessAt = new Date(card.watch.lastSuccessAt).getTime();
+    if (!Number.isFinite(lastSuccessAt)) return false;
+    return now.getTime() - lastSuccessAt <= card.watch.cadenceMinutes * 60_000 + 15 * 60_000;
+  });
+  const summaryState = (() => {
+    const states = trackedCards.map((card) => card.watch.state);
+    if (states.length === 0) return "unavailable";
+    if (!watchBudget.configured || watchBudget.paused || states.includes("paused")) return "paused";
+    if (states.includes("updating")) return "updating";
+    if (states.includes("confirming")) return "confirming";
+    if (states.includes("delayed") || states.includes("unavailable")) return "delayed";
+    if (states.includes("queued")) return "queued";
+    if (states.includes("due_soon")) return "due_soon";
+    if (states.includes("current")) return "current";
+    return "unavailable";
+  })() satisfies NewReleaseChaseWatchUiState;
 
   return {
     generatedAt: now.toISOString(),
@@ -330,6 +466,20 @@ export async function getExpansionChaseRadarData(
     currentPricedCardCount: currentPricedCards.length,
     priceAsOf: latestPriceAt?.toISOString() ?? null,
     releaseAgeDays: readiness.releaseAgeDays,
+    priceWatch: {
+      enabled: trackedCards.length > 0,
+      state: summaryState,
+      sourceLabel: "Direct CardMarket",
+      language: "English",
+      condition: "Near Mint",
+      provider: NEW_RELEASE_CHASE_WATCH_PROVIDER,
+      trackedCount: trackedCards.length,
+      currentCount: currentWatchCards.length,
+      lastSuccessAt: watchLastSuccessAt?.toISOString() ?? null,
+      nextRefreshAt: watchNextRefreshAt?.toISOString() ?? null,
+      dailyCreditsUsed: watchBudget.dailyUsed,
+      dailyCreditLimit: watchBudget.dailyLimit,
+    },
     cards: rankedCards,
   };
 }

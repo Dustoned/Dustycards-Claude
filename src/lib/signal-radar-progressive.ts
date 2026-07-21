@@ -4,6 +4,27 @@ import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 
 export const INITIAL_SIGNAL_RADAR_CARD_COUNT = 12;
 export const INITIAL_SIGNAL_RADAR_FEED_DELAY_MS = 1_200;
+export const MIN_CHASE_WATCH_REVALIDATE_DELAY_MS = 60_000;
+export const CHASE_WATCH_RETRY_DELAY_MS = 5 * 60_000;
+
+export function getChaseWatchRevalidateDelayMs(
+  nextRefreshAt: string | null | undefined,
+  nowMs = Date.now()
+): number | null {
+  if (!nextRefreshAt) return null;
+  const nextMs = new Date(nextRefreshAt).getTime();
+  if (!Number.isFinite(nextMs)) return null;
+  // Give the five-minute scheduler a small landing window, while still
+  // checking promptly when the tab is reopened after the deadline.
+  return Math.max(
+    MIN_CHASE_WATCH_REVALIDATE_DELAY_MS,
+    nextMs - nowMs + MIN_CHASE_WATCH_REVALIDATE_DELAY_MS
+  );
+}
+
+export interface SignalRadarChaseWatchPayload {
+  newReleaseChases: ExpansionChaseRadarData | null;
+}
 
 export function getSignalRadarFeedStartDelay(attempt: number): number {
   return attempt === 0 ? INITIAL_SIGNAL_RADAR_FEED_DELAY_MS : 0;

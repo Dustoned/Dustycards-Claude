@@ -720,14 +720,15 @@ const MoverTile = memo(function MoverTile({
           </div>
         ) : null}
 
-        <CardListTileFooter className="max-[359px]:gap-1">
-          <CardListTileAnalysisLink>
+        <CardListTileFooter className="max-[359px]:flex-col max-[359px]:items-stretch max-[359px]:gap-1">
+          <CardListTileAnalysisLink className="max-[359px]:w-full max-[359px]:justify-center">
             Analysis
             <ChevronRight className="h-3.5 w-3.5 max-[359px]:hidden" />
           </CardListTileAnalysisLink>
           <CollectionCardQuickActions
             data={getMoverQuickActionData(item, cardQuickActions)}
             gradedLabel={displayMode === "graded" ? item.gradedLabel : null}
+            className="max-[359px]:self-end"
           />
         </CardListTileFooter>
       </CardListTileBody>

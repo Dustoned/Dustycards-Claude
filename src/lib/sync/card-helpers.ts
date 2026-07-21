@@ -79,10 +79,18 @@ const ONE_PIECE_VARIANT_RARITIES = new Set([
 
 export interface ExistingPriceRecord extends PriceSnapshotData {
   id: string;
+  fetched_at?: Date;
+  source?: string | null;
+  source_provider?: string | null;
+  source_url?: string | null;
 }
 
 const latestPriceSnapshotSelect = {
   id: true,
+  fetched_at: true,
+  source: true,
+  source_provider: true,
+  source_url: true,
   cm_en_lowest_nm: true,
   cm_de_lowest_nm: true,
   cm_fr_lowest_nm: true,

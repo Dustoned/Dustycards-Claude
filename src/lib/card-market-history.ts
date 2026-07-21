@@ -25,6 +25,9 @@ export interface CardMarketHistoryIdentity {
 export interface CardMarketHistoryPriceRow {
   card_id: string;
   fetched_at: Date;
+  source?: string | null;
+  source_provider?: string | null;
+  source_url?: string | null;
   cm_en_lowest_nm: number | null;
   cm_de_lowest_nm: number | null;
   cm_fr_lowest_nm: number | null;
@@ -260,6 +263,9 @@ export async function loadLatestSafeEnglishNmPrices(
           take: 1,
           select: {
             fetched_at: true,
+            source: true,
+            source_provider: true,
+            source_url: true,
             cm_en_lowest_nm: true,
             cm_de_lowest_nm: true,
             cm_fr_lowest_nm: true,
@@ -343,6 +349,9 @@ export async function loadSafeCardMarketHistoryRows(
         select: {
           card_id: true,
           fetched_at: true,
+          source: true,
+          source_provider: true,
+          source_url: true,
           cm_en_lowest_nm: true,
           cm_de_lowest_nm: true,
           cm_fr_lowest_nm: true,

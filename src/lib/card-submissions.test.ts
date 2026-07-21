@@ -4,6 +4,7 @@ import {
   getCardMarketUrlGame,
   normalizeSubmissionText,
   parseCardMarketScrape,
+  parseStrictCardMarketEnglishNmPrice,
   parseCardMarketVersionsScrape,
 } from "@/lib/card-submissions";
 import type { FirecrawlPageScrapeResult } from "@/lib/firecrawl";
@@ -296,6 +297,27 @@ describe("card submission parsing", () => {
     expect(parsed.language).toBe("English");
     expect(parsed.condition).toBe("Near Mint");
     expect(parsed.nmPriceEur).toBe(140);
+  });
+
+  it("accepts only explicit ungraded English NM offer rows for automatic chase prices", () => {
+    const parsed = parseStrictCardMarketEnglishNmPrice(
+      makeScrape({
+        markdown: "English Near Mint 1.00 EUR",
+        html: [
+          makeCardMarketArticleRow({ condition: "Near Mint", price: "140,00 EUR" }),
+          makeCardMarketArticleRow({ condition: "Near Mint", language: "Japanese", price: "80,00 EUR" }),
+          makeCardMarketArticleRow({ condition: "Excellent", price: "90,00 EUR" }),
+          makeCardMarketArticleRow({ condition: "Near Mint", price: "70,00 EUR", comment: "PSA 10" }),
+        ].join(""),
+      })
+    );
+
+    expect(parsed).toEqual({ priceEur: 140, offerCount: 1 });
+    expect(
+      parseStrictCardMarketEnglishNmPrice(
+        makeScrape({ markdown: "English Near Mint 1.00 EUR", html: "" })
+      )
+    ).toBeNull();
   });
 
   it("extracts graded CardMarket prices from seller comments", () => {

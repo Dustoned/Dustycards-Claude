@@ -18,6 +18,10 @@ import {
 import { maybeStartCardHistoryQuotaDrainJob } from "@/lib/sync/card-history-auto-drain";
 import { maybeStartExternalSignalRadarJob } from "@/lib/sync/external-signal-radar-job";
 import {
+  maybeStartNewReleaseChasePriceJob,
+  type NewReleaseChasePriceJobSnapshot,
+} from "@/lib/sync/new-release-chase-price-job";
+import {
   getSetLifecycleObservationBucket,
   maybeRunSetLifecycleJob,
   type SetLifecycleJobSnapshot,
@@ -60,6 +64,7 @@ export interface SyncSchedulerTickResult {
     finishedAt: string | null;
     error: string | null;
   };
+  chaseWatch: NewReleaseChasePriceJobSnapshot;
   priceAlerts: CardPriceAlertSweepResult;
   setLifecycle: SetLifecycleJobSnapshot;
   quota: {
@@ -79,6 +84,7 @@ async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<voi
     result.priceRefresh.running ||
     result.historyDrain.running ||
     result.externalRadar.running ||
+    result.chaseWatch.running ||
     result.setLifecycle.running;
   const status = result.scraperDisabled ? "paused" : hasRunningWork ? "running" : "success";
 
@@ -105,6 +111,13 @@ async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<voi
 export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   const checkedAt = new Date();
   const scraperDisabled = areScraperRequestsDisabled();
+  // Launch-market chase prices get first access to the scheduler. Their
+  // direct CardMarket quote is more current than TCGGo's daily snapshot and
+  // must land before a normal batch can select the same cards.
+  const chaseWatch = await maybeStartNewReleaseChasePriceJob({
+    skip: scraperDisabled,
+    now: checkedAt,
+  });
   const normalizedPriceCheckedAtCards = await reconcilePriceSourceCheckedAtFromSnapshots();
   // Evaluate only prices that are already committed. New background refresh
   // writes are intentionally picked up on the next scheduler tick.
@@ -125,8 +138,9 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   ]);
   const pricePendingCards =
     priceSnapshot.dueCards + priceSnapshot.missingPriceCards + priceSnapshot.submittedCardCandidates;
+  const shouldLetChaseWatchFinishFirst = chaseWatch.running && chaseWatch.dueCards > 0;
   const priceRefresh =
-    !scraperDisabled && pricePendingCards > 0
+    !scraperDisabled && !shouldLetChaseWatchFinishFirst && pricePendingCards > 0
       ? await startAutoPriceRefreshJob()
       : {
           started: false,
@@ -195,6 +209,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     },
     historyDrain,
     externalRadar,
+    chaseWatch,
     priceAlerts,
     setLifecycle,
     quota: {

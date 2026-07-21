@@ -45,6 +45,7 @@ import {
   type GradedCreateRow,
   type PriceSnapshotData,
 } from "@/lib/sync/card-helpers";
+import { preserveRecentDirectEnglishNmPrice } from "@/lib/sync/direct-cardmarket-protection";
 import {
   assessEpisodeSourceCheck,
   buildEpisodeSourceCheckUpdate,
@@ -1178,6 +1179,9 @@ type PriceCreateRow = {
   card_id: string;
   fetched_at: Date;
   changed_at: Date;
+  source?: string | null;
+  source_provider?: string | null;
+  source_url?: string | null;
 } & PriceSnapshotData;
 
 function queuePriceSnapshotWrite(
@@ -1188,10 +1192,19 @@ function queuePriceSnapshotWrite(
   options: { refreshAllPrices: boolean },
   priceCreates: PriceCreateRow[],
   priceRefreshes: string[]
-): "new" | "refreshed" | "none" {
-  const plan = planPriceSnapshotWrite(
+): "new" | "refreshed" | "none" | "protected" {
+  const protectedPrice = preserveRecentDirectEnglishNmPrice(
     latestPrice,
     nextPrice,
+    fetchedAt
+  );
+  // `fetched_at` is the proof that the English/NM quote was really checked.
+  // A normal TCGGo observation must not advance it while a fresher direct
+  // CardMarket quote is protected, otherwise stale direct data looks new.
+  if (protectedPrice.preserveExistingSnapshot) return "protected";
+  const plan = planPriceSnapshotWrite(
+    latestPrice,
+    protectedPrice.price,
     options.refreshAllPrices
   );
 
@@ -1200,7 +1213,10 @@ function queuePriceSnapshotWrite(
       card_id: cardId,
       fetched_at: fetchedAt,
       changed_at: fetchedAt,
-      ...nextPrice,
+      source: protectedPrice.source,
+      source_provider: protectedPrice.sourceProvider,
+      source_url: protectedPrice.sourceUrl,
+      ...protectedPrice.price,
     });
   }
 
@@ -2320,7 +2336,7 @@ async function syncEpisodeCards(
           },
         });
         refreshedPrices += 1;
-      } else if (options.refreshAllPrices || !latestPrice) {
+      } else if (writeMode !== "protected" && (options.refreshAllPrices || !latestPrice)) {
         await tx.card.update({
           where: { id: card.id },
           data: {
@@ -3227,7 +3243,7 @@ async function refreshEpisodeDueCards(
         shouldUpdateCard = true;
         refreshedPrices += 1;
         refreshedCards += 1;
-      } else {
+      } else if (writeMode !== "protected") {
         cardUpdateData.price_source_status = "unavailable";
         cardUpdateData.price_source_checked_at = fetchedAt;
         shouldUpdateCard = true;
@@ -3387,7 +3403,7 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
             },
           });
           refreshedPrices += 1;
-        } else {
+        } else if (writeMode !== "protected") {
           await tx.card.update({
             where: { id: cardId },
             data: {
