@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cardMarketChaseIdentityMatches,
   evaluateNewReleaseChasePriceGuard,
   getNewReleaseChaseFailureDelayMs,
   getNewReleaseChaseWatchCadence,
@@ -89,5 +90,38 @@ describe("new release chase watch policy", () => {
     expect(getNewReleaseChaseFailureDelayMs(0, 12 * 60 * 60_000)).toBe(30 * 60_000);
     expect(getNewReleaseChaseFailureDelayMs(2, 12 * 60 * 60_000)).toBe(2 * 60 * 60_000);
     expect(getNewReleaseChaseFailureDelayMs(10, 3 * 60 * 60_000)).toBe(3 * 60 * 60_000);
+  });
+
+  it("accepts CardMarket's canonical redirect while preserving exact printing identity", () => {
+    const base = {
+      expectedName: "Mega Darkrai ex",
+      expectedCardNumber: "116",
+      expectedProductId: "895901",
+      parsedName: "Mega Darkrai ex",
+      parsedCardNumber: "PBL116",
+      resolvedUrl:
+        "https://www.cardmarket.com/en/Pokemon/Products/Singles/Pitch-Black/Mega-Darkrai-ex-V3-PBL116?language=1&minCondition=2",
+    };
+
+    expect(cardMarketChaseIdentityMatches(base)).toBe(true);
+    expect(
+      cardMarketChaseIdentityMatches({
+        ...base,
+        targetUrl:
+          "https://www.cardmarket.com/Pokemon/Products?idProduct=895901&language=1&minCondition=2",
+      })
+    ).toBe(true);
+    expect(
+      cardMarketChaseIdentityMatches({ ...base, parsedCardNumber: "PBL120" })
+    ).toBe(false);
+    expect(
+      cardMarketChaseIdentityMatches({
+        ...base,
+        targetUrl: "https://www.cardmarket.com/Pokemon/Products?idProduct=895905",
+      })
+    ).toBe(false);
+    expect(
+      cardMarketChaseIdentityMatches({ ...base, parsedName: "Morpeko ex" })
+    ).toBe(false);
   });
 });

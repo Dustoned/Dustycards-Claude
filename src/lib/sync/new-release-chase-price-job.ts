@@ -13,6 +13,7 @@ import {
   type TradingCardGame,
 } from "@/lib/games";
 import {
+  cardMarketChaseIdentityMatches,
   evaluateNewReleaseChasePriceGuard,
   getNewReleaseChaseCadenceBucket,
   getNewReleaseChaseFailureDelayMs,
@@ -95,42 +96,23 @@ function maxDate(values: Array<Date | null>): Date | null {
   }, null);
 }
 
-function normalizeIdentity(value: string | null | undefined): string {
-  return (value ?? "")
-    .normalize("NFKD")
-    .toLocaleLowerCase("en")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .trim();
-}
-
-function normalizeCardNumber(value: string | null | undefined): string {
-  return (value ?? "").toLocaleLowerCase("en").replace(/[^a-z0-9]/g, "");
-}
-
 function scrapeMatchesCandidate(
   candidate: WatchCandidate,
   scrape: Awaited<ReturnType<typeof scrapeScrapeDoPage>>
 ): boolean {
   const resolvedGame = getCardMarketUrlGame(scrape.sourceUrl);
   if (resolvedGame && resolvedGame !== candidate.game) return false;
-  try {
-    const resolvedProductId = new URL(scrape.sourceUrl).searchParams.get("idProduct");
-    if (resolvedProductId !== candidate.cardmarketId) return false;
-  } catch {
-    return false;
-  }
-
   const parsed = parseCardMarketScrape(scrape);
-  const expectedName = normalizeIdentity(candidate.name);
-  const parsedName = normalizeIdentity(parsed.name);
-  if (!expectedName || !parsedName || expectedName !== parsedName) {
-    return false;
-  }
-  const expectedNumber = normalizeCardNumber(candidate.cardNumber);
-  const parsedNumber = normalizeCardNumber(parsed.cardNumber);
-  if (expectedNumber && parsedNumber && expectedNumber !== parsedNumber) return false;
-  return true;
+  return cardMarketChaseIdentityMatches({
+    expectedName: candidate.name,
+    expectedCardNumber: candidate.cardNumber,
+    expectedProductId: candidate.cardmarketId,
+    parsedName: parsed.name,
+    parsedCardNumber: parsed.cardNumber,
+    resolvedUrl: scrape.sourceUrl,
+    targetUrl:
+      typeof scrape.metadata.targetUrl === "string" ? scrape.metadata.targetUrl : null,
+  });
 }
 
 async function loadWatchCandidates(now: Date, persistState: boolean): Promise<WatchCandidate[]> {
@@ -462,8 +444,11 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
       timeoutMs: CARDMARKET_TRANSPORT_TIMEOUT_MS,
     });
     const strict = parseStrictCardMarketEnglishNmPrice(scrape);
-    if (!strict || !scrapeMatchesCandidate(candidate, scrape)) {
-      throw new Error("CardMarket did not return a verified English Near Mint offer for this card.");
+    if (!strict) {
+      throw new Error("CardMarket did not return an explicit English Near Mint offer.");
+    }
+    if (!scrapeMatchesCandidate(candidate, scrape)) {
+      throw new Error("CardMarket returned a different card printing than requested.");
     }
     const creditsUsed =
       readMetadataNumber(scrape.creditsUsed) ?? CARDMARKET_RENDERED_REQUEST_CREDITS;

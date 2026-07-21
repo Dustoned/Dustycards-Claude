@@ -1288,6 +1288,7 @@ function extractNameFromTitle(title: string | null, fallbackSlugName: string | n
   if (!cleaned) return fallbackSlugName;
   const withoutNumber = cleaned
     .replace(/\([^)]*\b[A-Z]{2,4}\d{1,3}[-\s]?\d{1,3}(?:#\d+)?[^)]*\)/gi, "")
+    .replace(/\(\s*#?\d{1,4}\s*\)/g, "")
     .replace(/\b[A-Z]{2,4}\d{1,3}[-\s]?\d{1,3}(?:#\d+)?\b/gi, "")
     .replace(/\b\d{1,4}\/\d{1,4}(?:#\d+)?\b/gi, "")
     .replace(/\s+/g, " ")

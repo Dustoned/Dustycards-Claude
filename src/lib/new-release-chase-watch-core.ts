@@ -17,6 +17,67 @@ export type NewReleaseChaseWatchUiState =
   | "confirming"
   | "unavailable";
 
+function normalizeChaseIdentity(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFKD")
+    .toLocaleLowerCase("en")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function cardNumberOrdinal(value: string | null | undefined): string {
+  const text = (value ?? "").trim().toLocaleLowerCase("en");
+  const relevant = text.includes("/") ? text.split("/", 1)[0] : text;
+  return relevant.match(/\d+/g)?.at(-1)?.replace(/^0+(?=\d)/, "") ?? "";
+}
+
+function cardMarketProductId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value).searchParams.get("idProduct")?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * CardMarket redirects numeric product URLs to canonical SEO URLs. Verify the
+ * response against either the retained product id or an exact name + printed
+ * ordinal so that a legitimate redirect is accepted without allowing a
+ * different printing through.
+ */
+export function cardMarketChaseIdentityMatches(input: {
+  expectedName: string;
+  expectedCardNumber?: string | null;
+  expectedProductId: string;
+  parsedName?: string | null;
+  parsedCardNumber?: string | null;
+  resolvedUrl: string;
+  targetUrl?: string | null;
+}): boolean {
+  const expectedName = normalizeChaseIdentity(input.expectedName);
+  const parsedName = normalizeChaseIdentity(input.parsedName);
+  if (!expectedName || !parsedName || expectedName !== parsedName) return false;
+
+  const observedProductIds = [input.resolvedUrl, input.targetUrl]
+    .map(cardMarketProductId)
+    .filter((value): value is string => Boolean(value));
+  if (
+    observedProductIds.some((productId) => productId !== input.expectedProductId)
+  ) {
+    return false;
+  }
+  const productIdVerified = observedProductIds.includes(input.expectedProductId);
+
+  const expectedNumber = cardNumberOrdinal(input.expectedCardNumber);
+  const parsedNumber = cardNumberOrdinal(input.parsedCardNumber);
+  if (expectedNumber && parsedNumber && expectedNumber !== parsedNumber) return false;
+  if (expectedNumber && !parsedNumber && !productIdVerified) return false;
+
+  return productIdVerified || Boolean(expectedNumber && parsedNumber);
+}
+
 function validDate(value: Date | string | null | undefined): Date | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);

@@ -75,6 +75,18 @@ describe("card submission parsing", () => {
     expect(parsed.cardNumber).toBe("OP09-061");
   });
 
+  it("removes a plain parenthesized collector number from the product title", () => {
+    const parsed = parseCardMarketScrape(
+      makeScrape({
+        title: "Mega Darkrai ex (116) - Pitch Black | Cardmarket",
+        sourceUrl:
+          "https://www.cardmarket.com/en/Pokemon/Products/Singles/Pitch-Black/Mega-Darkrai-ex-V3-PBL116",
+      })
+    );
+
+    expect(parsed.name).toBe("Mega Darkrai ex");
+  });
+
   it("matches One Piece variant suffixes by the submitted base number", () => {
     expect(cardNumberMatchesSubmittedBase("OP09-061", "OP09-061#1")).toBe(true);
     expect(cardNumberMatchesSubmittedBase("OP09-061", "OP09-061#3")).toBe(true);
