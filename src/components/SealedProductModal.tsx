@@ -224,7 +224,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
   return (
     <>
     <div
-      className="dc-modal-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#050507] p-2 sm:p-4 md:block md:bg-[#08080c] md:p-0 xl:left-[16rem]"
+      className="dc-modal-overlay dc-sidebar-offset-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#050507] p-2 sm:p-4 md:block md:bg-[#08080c] md:p-0"
       style={{ overscrollBehavior: "contain" }}
       onClick={onClose}
     >

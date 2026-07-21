@@ -270,6 +270,9 @@
   --app-bg: var(--dc-bg-main);
   --font-sans: var(--font-geist-sans);
   --ui-header-height: 3.55rem;
+  --ui-desktop-nav-height: 2.875rem;
+  --ui-app-header-height: var(--ui-header-height);
+  --ui-shell-start: 0rem;
   --ui-header-gap: 0.75rem;
   --ui-header-search-height: 2.55rem;
   --ui-header-search-max: 42rem;
@@ -699,11 +702,47 @@ body {
 /* `viewport-fit=cover` lets the app paint behind iPhone chrome. Keep the
    actual navigation and page content inside the top safe area as one unit. */
 [data-app-header] {
+  left: var(--ui-shell-start);
   padding-top: env(safe-area-inset-top, 0px);
+  border-color: rgb(var(--dc-border-rgb) / 0.72);
+  background-color: rgb(var(--dc-bg-main-rgb) / 0.9);
 }
 
 [data-app-main] {
-  padding-top: calc(var(--ui-header-height) + env(safe-area-inset-top, 0px));
+  padding-top: calc(var(--ui-app-header-height) + env(safe-area-inset-top, 0px));
+  padding-left: var(--ui-shell-start);
+}
+
+[data-app-desktop-navigation-row] {
+  display: none;
+}
+
+@media (min-width: 1280px) {
+  html[data-desktop-navigation="top"] {
+    --ui-app-header-height: calc(var(--ui-header-height) + var(--ui-desktop-nav-height));
+  }
+
+  html[data-desktop-navigation="sidebar"] {
+    --ui-shell-start: 16rem;
+  }
+
+  html[data-desktop-navigation="top"] [data-app-desktop-navigation-row] {
+    display: flex;
+    height: var(--ui-desktop-nav-height);
+    border-top: 1px solid rgb(var(--dc-border-rgb) / 0.5);
+  }
+
+  html[data-desktop-navigation="sidebar"] [data-desktop-sidebar] {
+    display: block;
+  }
+
+  html[data-desktop-navigation="sidebar"] [data-app-brand] {
+    display: none;
+  }
+
+  html[data-desktop-navigation="sidebar"] .dc-sidebar-offset-overlay {
+    left: 16rem;
+  }
 }
 
 /* Sidebar styling using data attributes — bypasses the legacy bg-white/X override */
@@ -1701,7 +1740,7 @@ html.widescreen .settings-page {
 
 .card-detail-experience[data-card-detail-mode="radar"] {
   --card-detail-route-header-offset: calc(
-    var(--ui-header-height) + env(safe-area-inset-top, 0px)
+    var(--ui-app-header-height) + env(safe-area-inset-top, 0px)
   );
 }
 

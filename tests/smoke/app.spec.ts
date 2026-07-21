@@ -28,6 +28,7 @@ let activeSessionIds: string[] = [];
 
 const baseSettings = {
   theme: "system",
+  desktopNavigation: "top" as "top" | "sidebar",
   widescreen: false,
   uiScale: "medium" as DisplaySize,
   mobileUiScale: "small" as DisplaySize,
@@ -1308,7 +1309,8 @@ test.describe("DustyCards smoke", () => {
 
     const headerMenu = page.getByRole("button", { name: "Open menu" });
     const bottomNav = page.locator("[data-mobile-bottom-nav]");
-    const sidebar = page.locator("aside").first();
+    const sidebar = page.locator("[data-desktop-sidebar]");
+    const desktopTopNavigation = page.locator("[data-desktop-top-navigation]");
 
     await expect(bottomNav).toBeVisible();
     await expect(headerMenu).toBeHidden();
@@ -1348,10 +1350,40 @@ test.describe("DustyCards smoke", () => {
     await page.setViewportSize({ width: 1279, height: 900 });
     await expect(headerMenu).toBeVisible();
     await expect(sidebar).toBeHidden();
+    await expect(desktopTopNavigation).toBeHidden();
 
     await page.setViewportSize({ width: 1280, height: 900 });
     await expect(headerMenu).toBeHidden();
-    await expect(sidebar).toBeVisible();
+    await expect(sidebar).toBeHidden();
+    await expect(desktopTopNavigation).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-desktop-navigation", "top");
+
+    const topHeaderBox = await page.locator("[data-app-header]").boundingBox();
+    const topMainPadding = await page.locator("[data-app-main]").evaluate((element) =>
+      Number.parseFloat(window.getComputedStyle(element).paddingLeft)
+    );
+    expect(topHeaderBox?.x ?? Number.NaN).toBeLessThanOrEqual(1);
+    expect(topMainPadding).toBeLessThanOrEqual(1);
+
+    await applyDisplaySettings(page, { desktopNavigation: "sidebar" });
+    await page.reload();
+
+    await expect(page.locator("html")).toHaveAttribute("data-desktop-navigation", "sidebar");
+    await expect(page.locator("[data-desktop-top-navigation]")).toBeHidden();
+    await expect(page.locator("[data-desktop-sidebar]")).toBeVisible();
+    const sidebarHeaderBox = await page.locator("[data-app-header]").boundingBox();
+    const sidebarMainPadding = await page.locator("[data-app-main]").evaluate((element) =>
+      Number.parseFloat(window.getComputedStyle(element).paddingLeft)
+    );
+    expect(sidebarHeaderBox?.x ?? Number.NaN).toBeGreaterThanOrEqual(255);
+    expect(sidebarMainPadding).toBeGreaterThanOrEqual(255);
+    await expectNoHorizontalOverflow(page);
+
+    await applyDisplaySettings(page, { desktopNavigation: "top" });
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-desktop-navigation", "top");
+    await expect(page.locator("[data-desktop-top-navigation]")).toBeVisible();
+    await expect(page.locator("[data-desktop-sidebar]")).toBeHidden();
   });
 
   test("widescreen keeps headers and grids inside one page canvas", async ({ page }) => {

@@ -20,6 +20,7 @@ import {
   type AppearanceThemeId,
   type CardSize,
   type CardView,
+  type DesktopNavigation,
   type ModalSize,
   type PriceSource,
   type SortBy,
@@ -35,6 +36,7 @@ export type {
   AppearanceThemeId,
   Theme,
   CardView,
+  DesktopNavigation,
   Card3dSize,
   CardSize,
   SortBy,
@@ -121,6 +123,10 @@ function applyAppearance(appearance: AppearanceSettings) {
 
 function applyWidescreen(on: boolean) {
   document.documentElement.classList.toggle("widescreen", on);
+}
+
+function applyDesktopNavigation(navigation: DesktopNavigation) {
+  document.documentElement.dataset.desktopNavigation = navigation;
 }
 
 function applyUiScale(scale: UiScale) {
@@ -217,9 +223,16 @@ export default function SettingsProvider({
   useEffect(() => {
     applyTheme(settings.theme);
     applyAppearance(settings.appearance);
+    applyDesktopNavigation(settings.desktopNavigation);
     applyWidescreen(displaySettings.widescreen);
     applyUiScale(displaySettings.uiScale);
-  }, [displaySettings.uiScale, displaySettings.widescreen, settings.appearance, settings.theme]);
+  }, [
+    displaySettings.uiScale,
+    displaySettings.widescreen,
+    settings.appearance,
+    settings.desktopNavigation,
+    settings.theme,
+  ]);
 
   useEffect(() => {
     if (settings.theme !== "system") {
@@ -256,6 +269,9 @@ export default function SettingsProvider({
       if (key === "theme") applyTheme(value as Theme);
       if (key === "appearance") {
         applyAppearance(value as AppearanceSettings);
+      }
+      if (key === "desktopNavigation") {
+        applyDesktopNavigation(value as DesktopNavigation);
       }
       if (key === "widescreen") {
         const effectiveSettings = getDisplaySettings(next, isMobileViewport);

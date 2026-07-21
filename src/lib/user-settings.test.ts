@@ -8,6 +8,24 @@ import {
 } from "@/lib/user-settings";
 
 describe("user settings", () => {
+  it("defaults desktop navigation to the top header", () => {
+    expect(DEFAULT_SETTINGS.desktopNavigation).toBe("top");
+    expect(mergeSettings({}).desktopNavigation).toBe("top");
+  });
+
+  it("roundtrips the classic desktop sidebar preference", () => {
+    const settings = mergeSettings({ desktopNavigation: "sidebar" });
+    const restored = parseStoredSettings(serializeSettings(settings));
+
+    expect(restored?.desktopNavigation).toBe("sidebar");
+  });
+
+  it("repairs an invalid desktop navigation preference", () => {
+    const settings = mergeSettings({ desktopNavigation: "rail" as never });
+
+    expect(settings.desktopNavigation).toBe("top");
+  });
+
   it("roundtrips known display preferences", () => {
     const settings = mergeSettings({ card3dSize: "large", mobileCard3dSize: "medium" });
     const restored = parseStoredSettings(serializeSettings(settings));
@@ -125,6 +143,30 @@ describe("user settings", () => {
     expect(setProperty).toHaveBeenCalledWith("--dc-bg-main", "#0D080D");
     expect(setProperty).toHaveBeenCalledWith("--app-bg", "#0D080D");
     expect(setProperty).toHaveBeenCalledWith("--dc-primary", "#D94F93");
+  });
+
+  it("prepaints the stored desktop navigation before hydration", () => {
+    const raw = serializeSettings(mergeSettings({ desktopNavigation: "sidebar" }));
+    const documentMock = {
+      cookie: "",
+      documentElement: {
+        dataset: {} as Record<string, string>,
+        classList: { add: vi.fn(), remove: vi.fn(), toggle: vi.fn() },
+        style: { setProperty: vi.fn() },
+      },
+    };
+    const windowMock = {
+      matchMedia: () => ({ matches: false }),
+      __dustycardsSettings: undefined,
+    };
+
+    Function("localStorage", "document", "window", initSettingsScript)(
+      { getItem: () => raw, setItem: vi.fn() },
+      documentMock,
+      windowMock
+    );
+
+    expect(documentMock.documentElement.dataset.desktopNavigation).toBe("sidebar");
   });
 
   it("does not let an empty browser store replace account settings", () => {

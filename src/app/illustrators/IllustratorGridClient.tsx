@@ -135,7 +135,7 @@ export default function IllustratorGridClient({
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      <div className="glass sticky top-[calc(var(--ui-header-height)+0.75rem)] z-20 rounded-3xl border border-white/8 bg-[#0b0c11]/96 p-2.5 shadow-lg shadow-black/30 backdrop-blur-xl sm:p-4">
+      <div className="glass sticky top-[calc(var(--ui-app-header-height)+0.75rem)] z-20 rounded-3xl border border-white/8 bg-[#0b0c11]/96 p-2.5 shadow-lg shadow-black/30 backdrop-blur-xl sm:p-4">
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
         <div className="relative min-w-0">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-white/38" />

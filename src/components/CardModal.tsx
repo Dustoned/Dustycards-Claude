@@ -833,7 +833,7 @@ export default function CardModal({
     <>
       <div
         data-card-modal-root
-        className="dc-modal-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-hidden bg-[#050507] px-0 py-0 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:block md:overflow-y-auto md:bg-[#08080c] md:p-0 xl:left-[16rem]"
+        className="dc-modal-overlay dc-sidebar-offset-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-hidden bg-[#050507] px-0 py-0 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:block md:overflow-y-auto md:bg-[#08080c] md:p-0"
         style={{ overscrollBehaviorX: "auto", overscrollBehaviorY: "contain" }}
         onClick={onClose}
       >

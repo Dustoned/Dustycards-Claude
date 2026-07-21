@@ -833,7 +833,7 @@ export default function ThemeSection() {
               ))}
             </div>
 
-            <div className="order-first min-w-0 lg:order-none lg:sticky lg:top-[calc(var(--ui-header-height)+1rem)]">
+            <div className="order-first min-w-0 lg:order-none lg:sticky lg:top-[calc(var(--ui-app-header-height)+1rem)]">
               <div className="mb-2.5 flex min-w-0 items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/42">Live home preview</p>

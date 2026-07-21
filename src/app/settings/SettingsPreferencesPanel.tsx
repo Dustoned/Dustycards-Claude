@@ -1,11 +1,12 @@
 ﻿"use client";
 
 import type { ReactNode } from "react";
-import { Library, Mail, Maximize2, Smartphone } from "lucide-react";
+import { Check, Library, Mail, Maximize2, PanelLeft, PanelTop, Smartphone } from "lucide-react";
 import {
   type Card3dSize,
   type CardSize,
   type CardView,
+  type DesktopNavigation,
   type ModalSize,
   type UiScale,
   useSettings,
@@ -36,6 +37,21 @@ const PHONE_VIEW_OPTIONS: Option<CardView>[] = [
   { value: "grid", label: "Grid", description: "Two cards" },
   { value: "table", label: "List", description: "Thin rows" },
   { value: "binder", label: "Binder", description: "Grid fallback" },
+];
+
+const DESKTOP_NAVIGATION_OPTIONS: Option<DesktopNavigation>[] = [
+  {
+    value: "top",
+    label: "Top navigation",
+    description: "Use the full-width marketplace header and horizontal menus.",
+    icon: <PanelTop className="h-5 w-5" aria-hidden="true" />,
+  },
+  {
+    value: "sidebar",
+    label: "Sidebar",
+    description: "Keep the classic navigation fixed on the left.",
+    icon: <PanelLeft className="h-5 w-5" aria-hidden="true" />,
+  },
 ];
 
 const ACTIVE_OPTION_CLASS =
@@ -127,6 +143,86 @@ function CompactSelectRow<T extends string>({
   );
 }
 
+function DesktopNavigationControl({
+  value,
+  onChange,
+}: {
+  value: DesktopNavigation;
+  onChange: (value: DesktopNavigation) => void;
+}) {
+  return (
+    <fieldset className="min-w-0 border-t border-black/6 pt-4 dark:border-white/6">
+      <legend className="sr-only">Desktop navigation</legend>
+      <div className="mb-2.5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+          Desktop navigation
+        </p>
+        <p className="mt-1 text-xs text-gray-400">
+          Choose how the main navigation is arranged on larger screens.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {DESKTOP_NAVIGATION_OPTIONS.map((option) => {
+          const active = option.value === value;
+
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onChange(option.value)}
+              className={`group relative grid min-h-[5.5rem] min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-xl border p-3 text-left transition ${
+                active
+                  ? "border-violet-400/45 bg-violet-600/[0.14] text-gray-950 shadow-[inset_0_0_0_1px_rgba(139,92,246,0.08)] dark:text-white"
+                  : "border-black/8 bg-black/[0.025] text-gray-700 hover:border-black/14 hover:bg-black/[0.045] dark:border-white/8 dark:bg-white/[0.025] dark:text-white/62 dark:hover:border-white/18 dark:hover:bg-white/[0.055] dark:hover:text-white"
+              }`}
+            >
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                  active
+                    ? "bg-violet-600 text-white"
+                    : "bg-black/[0.055] text-gray-500 group-hover:text-gray-800 dark:bg-white/[0.055] dark:text-white/45 dark:group-hover:text-white/75"
+                }`}
+              >
+                {option.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <span className="text-sm font-semibold">{option.label}</span>
+                  {option.value === "top" ? (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] ${
+                        active
+                          ? "bg-violet-600/15 text-violet-700 dark:bg-violet-300/12 dark:text-violet-200"
+                          : "bg-black/[0.055] text-gray-400 dark:bg-white/[0.055] dark:text-white/35"
+                      }`}
+                    >
+                      Default
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-gray-400">
+                  {option.description}
+                </span>
+              </span>
+              <span
+                aria-hidden="true"
+                className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border transition ${
+                  active
+                    ? "border-violet-500 bg-violet-600 text-white"
+                    : "border-black/10 text-transparent dark:border-white/12"
+                }`}
+              >
+                <Check className="h-3 w-3" />
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
 function ToggleRow({
   title,
   description,
@@ -199,6 +295,11 @@ export default function SettingsPreferencesPanel() {
               options={SIZE_OPTIONS}
               value={settings.uiScale}
               onChange={(value) => set("uiScale", value)}
+            />
+
+            <DesktopNavigationControl
+              value={settings.desktopNavigation}
+              onChange={(value) => set("desktopNavigation", value)}
             />
 
             <div className="border-t border-black/6 pt-3 dark:border-white/6">

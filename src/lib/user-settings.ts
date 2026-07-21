@@ -24,10 +24,12 @@ export type ModalSize = DisplaySize;
 export type UiScale = DisplaySize;
 export type Card3dSize = DisplaySize;
 export type PriceSource = "cm_en" | "tcp";
+export type DesktopNavigation = "top" | "sidebar";
 
 export interface UserSettings {
   theme: Theme;
   appearance: AppearanceSettings;
+  desktopNavigation: DesktopNavigation;
   widescreen: boolean;
   onePieceLibraryEnabled: boolean;
   uiScale: UiScale;
@@ -63,6 +65,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     preset: DEFAULT_APPEARANCE_SETTINGS.preset,
     custom: { ...DEFAULT_APPEARANCE_SETTINGS.custom },
   },
+  desktopNavigation: "top",
   widescreen: false,
   onePieceLibraryEnabled: false,
   uiScale: "medium",
@@ -117,6 +120,11 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
   return {
     theme: pickEnumValue(source.theme, ["light", "dark", "system"], DEFAULT_SETTINGS.theme),
     appearance: normalizeAppearanceSettings(source.appearance),
+    desktopNavigation: pickEnumValue(
+      source.desktopNavigation,
+      ["top", "sidebar"],
+      DEFAULT_SETTINGS.desktopNavigation
+    ),
     widescreen:
       typeof source.widescreen === "boolean" ? source.widescreen : DEFAULT_SETTINGS.widescreen,
     onePieceLibraryEnabled:
@@ -374,6 +382,10 @@ export const initSettingsScript = `
     var ui = ['small', 'medium', 'large'].indexOf(rawUi) >= 0 ? rawUi : (phone ? 'small' : 'medium');
     document.documentElement.dataset.theme = t;
     document.documentElement.dataset.uiScale = ui;
+    var desktopNavigation = ['top', 'sidebar'].indexOf(s.desktopNavigation) >= 0
+      ? s.desktopNavigation
+      : 'top';
+    document.documentElement.dataset.desktopNavigation = desktopNavigation;
     document.documentElement.classList.remove('ui-scale-small', 'ui-scale-medium', 'ui-scale-large');
     document.documentElement.classList.add('ui-scale-' + ui);
     document.documentElement.classList.add('dark');

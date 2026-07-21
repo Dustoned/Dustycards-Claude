@@ -1,11 +1,28 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Menu, X } from "lucide-react";
+import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
+import {
+  buildNavigationMarketHref,
+  formatNavigationCount,
+  getNavigationBadge,
+  getNavigationDisplayName,
+  isNavigationItemActive,
+  NAVIGATION_ACCOUNT_ITEMS,
+  NAVIGATION_SECTIONS,
+  type NavigationItem,
+  type NavigationSummary,
+} from "@/components/navigation-model";
+import {
+  COLLECTION_CARD_ADDED_EVENT,
+  getCollectionCardAddedEffects,
+  type CollectionCardAddedDetail,
+} from "@/lib/collection-client-events";
+import { WANTS_CHANGED_EVENT } from "@/lib/wants-client-events";
 
 interface NavItem {
   href: string;
@@ -16,22 +33,10 @@ interface NavItem {
   excludeMatches?: ReadonlyArray<string>;
 }
 
-interface NavGroup {
-  label: string;
-  matches: ReadonlyArray<string>;
-  items: ReadonlyArray<NavItem>;
-}
-
 const HOME_ITEM: NavItem = {
   href: "/",
   label: "Home",
   matches: ["home"],
-};
-
-const COLLECTION_ITEM: NavItem = {
-  href: "/?tab=complete",
-  label: "Collection",
-  matches: ["collection"],
 };
 
 const WANTS_ITEM: NavItem = {
@@ -95,12 +100,6 @@ const SIGNAL_RADAR_ITEM: NavItem = {
   matches: ["/movers/signal-radar"],
 };
 
-const MARKET_TOP_ITEM: NavItem = {
-  href: "/movers",
-  label: "Market",
-  matches: ["/movers", "tab:selling"],
-};
-
 const BASE_BROWSE_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/expansions", label: "Expansions", matches: ["/expansions"] },
   { href: "/categories", label: "Categories", matches: ["/categories"] },
@@ -118,20 +117,6 @@ const SUBMIT_CARD_ITEM: NavItem = {
   label: "Submit Card",
   matches: ["/submit-card"],
 };
-
-function getNavGroups(onePieceEnabled: boolean): ReadonlyArray<NavGroup> {
-  return [
-    {
-      label: "Browse",
-      matches: onePieceEnabled
-        ? ["/expansions", "/categories", "/illustrators", "/one-piece", "/submit-card"]
-        : ["/expansions", "/categories", "/illustrators", "/submit-card"],
-      items: onePieceEnabled
-        ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
-        : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
-    },
-  ];
-}
 
 const SETTINGS_ITEM: NavItem = {
   href: "/settings",
@@ -195,26 +180,6 @@ function isTopLevelActive(pathname: string, tab: string | null, item: NavItem): 
   return isActive(pathname, item.matches, item.excludeMatches);
 }
 
-function desktopLinkClasses(active: boolean): string {
-  return `inline-flex h-[calc(var(--ui-header-search-height)-0.55rem)] items-center rounded-full border border-transparent px-3 font-semibold transition-colors [font-size:var(--ui-nav-link-size)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/45 ${
-    active
-      ? "border-violet-400/40 bg-violet-600 text-white"
-      : "text-white/55 hover:bg-white/[0.07] hover:text-white"
-  }`;
-}
-
-function desktopTriggerClasses(active: boolean): string {
-  return `${desktopLinkClasses(active)} gap-1.5`;
-}
-
-function menuLinkClasses(active: boolean): string {
-  return `block rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-    active
-      ? "bg-white/[0.09] text-white"
-      : "text-white/68 hover:bg-white/[0.06] hover:text-white"
-  }`;
-}
-
 function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
   label: string;
   items: ReadonlyArray<NavItem>;
@@ -243,141 +208,379 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
   ];
 }
 
-export function HeaderNav() {
+type DesktopMenuGroup = {
+  label: string;
+  items: readonly NavigationItem[];
+};
+
+const ALL_NAVIGATION_ITEMS = NAVIGATION_SECTIONS.flatMap((section) => section.items);
+
+function getNavigationItem(key: string): NavigationItem {
+  const item = ALL_NAVIGATION_ITEMS.find((candidate) => candidate.key === key);
+  if (!item) throw new Error(`Missing navigation item: ${key}`);
+  return item;
+}
+
+const DESKTOP_HOME_ITEM = getNavigationItem("home");
+const DESKTOP_RADAR_ITEM = getNavigationItem("market-radar");
+
+function getDesktopMenuGroups(onePieceEnabled: boolean): readonly DesktopMenuGroup[] {
+  const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "graded"]);
+  const browseKeys = new Set(["expansions", "one-piece", "categories", "illustrators"]);
+  const marketKeys = new Set([
+    "market-raw",
+    "market-graded",
+    "market-targets",
+    "market-sealed",
+    "selling",
+  ]);
+  const moreKeys = new Set(["wants", "social", "submit-card"]);
+  const visibleItems = ALL_NAVIGATION_ITEMS.filter(
+    (item) => item.key !== "one-piece" || onePieceEnabled
+  );
+
+  return [
+    { label: "Collection", items: visibleItems.filter((item) => collectionKeys.has(item.key)) },
+    { label: "Sets", items: visibleItems.filter((item) => browseKeys.has(item.key)) },
+    { label: "Market", items: visibleItems.filter((item) => marketKeys.has(item.key)) },
+    { label: "More", items: visibleItems.filter((item) => moreKeys.has(item.key)) },
+  ];
+}
+
+function desktopTopLinkClasses(active: boolean): string {
+  return `relative inline-flex h-full min-h-10 items-center gap-1.5 border-b-2 px-3 text-[13px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--dc-primary)] ${
+    active
+      ? "border-[var(--dc-primary)] text-white"
+      : "border-transparent text-white/58 hover:text-white"
+  }`;
+}
+
+function desktopMenuLinkClasses(active: boolean): string {
+  return `group flex min-h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors ${
+    active
+      ? "bg-[rgb(var(--dc-primary-rgb)/0.14)] text-white"
+      : "text-white/64 hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] hover:text-white"
+  }`;
+}
+
+export function HeaderNav({ summary }: { summary: NavigationSummary }) {
+  const { settings } = useSettings();
+
+  if (settings.desktopNavigation !== "top") return null;
+  return <DesktopMarketplaceNavigation summary={summary} />;
+}
+
+function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary }) {
   const pathname = usePathname() ?? "/";
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const tab = useLiveCollectionTab();
   const { settings } = useSettings();
-  const onePieceEnabled = settings.onePieceLibraryEnabled;
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
-  const navRef = useRef<HTMLDivElement>(null);
-  const navGroups = getNavGroups(onePieceEnabled);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [cardsCount, setCardsCount] = useState(summary.cards);
+  const [forSaleCardsCount, setForSaleCardsCount] = useState(summary.forSaleCards);
+  const [wantsCount, setWantsCount] = useState(summary.wants);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const moverScope = searchParams.get("scope");
+  const menuGroups = getDesktopMenuGroups(settings.onePieceLibraryEnabled);
+  const displayName = getNavigationDisplayName(summary.email);
 
   useEffect(() => {
-    if (!openGroup) return;
+    const frame = window.requestAnimationFrame(() => {
+      setCardsCount(summary.cards);
+      setForSaleCardsCount(summary.forSaleCards);
+      setWantsCount(summary.wants);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [summary.cards, summary.forSaleCards, summary.wants]);
 
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenGroup(null);
-    };
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && !navRef.current?.contains(target)) {
-        setOpenGroup(null);
+  useEffect(() => {
+    function handleWantsChanged(event: Event) {
+      const detail = (event as CustomEvent<{ wanted?: boolean }>).detail;
+      if (typeof detail?.wanted !== "boolean") return;
+      setWantsCount((current) => Math.max(0, current + (detail.wanted ? 1 : -1)));
+    }
+
+    function handleCollectionCardAdded(event: Event) {
+      const detail = (event as CustomEvent<CollectionCardAddedDetail>).detail;
+      if (!detail) return;
+      const effects = getCollectionCardAddedEffects(detail);
+      if (effects.collectionCountDelta) {
+        setCardsCount((current) => current + effects.collectionCountDelta);
       }
-    };
+      if (effects.forSaleCountDelta) {
+        setForSaleCardsCount((current) => current + effects.forSaleCountDelta);
+      }
+    }
 
-    document.addEventListener("keydown", handleKey);
-    document.addEventListener("pointerdown", handlePointerDown);
-
+    window.addEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+    window.addEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionCardAdded);
     return () => {
-      document.removeEventListener("keydown", handleKey);
+      window.removeEventListener(WANTS_CHANGED_EVENT, handleWantsChanged);
+      window.removeEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionCardAdded);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!openMenu) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenMenu(null);
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && !rootRef.current?.contains(target)) setOpenMenu(null);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-  }, [openGroup]);
+  }, [openMenu]);
+
+  function itemHref(item: NavigationItem): string {
+    return item.marketMode
+      ? buildNavigationMarketHref(item.marketMode, pathname, searchParams)
+      : item.href;
+  }
+
+  function itemActive(item: NavigationItem): boolean {
+    return isNavigationItemActive(pathname, tab, item.key, moverScope);
+  }
+
+  async function logout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      router.replace("/login");
+      router.refresh();
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  const homeActive = itemActive(DESKTOP_HOME_ITEM);
+  const radarActive = itemActive(DESKTOP_RADAR_ITEM);
+  const accountSectionActive = NAVIGATION_ACCOUNT_ITEMS.some(itemActive);
+  const accountOpen = openMenu === "Account";
 
   return (
     <div
-      ref={navRef}
-      className="hidden shrink-0 items-center gap-1 rounded-full border border-white/9 bg-white/[0.045] p-1 shadow-sm shadow-black/20 2xl:flex"
+      ref={rootRef}
+      data-desktop-top-navigation
+      className="flex h-[var(--ui-desktop-nav-height)] min-w-0 flex-1 items-stretch justify-between gap-5"
     >
-      {[HOME_ITEM, COLLECTION_ITEM, WANTS_ITEM, MARKET_TOP_ITEM].map((item) => {
-        const active = isTopLevelActive(pathname, tab, item);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            prefetch={false}
-            aria-current={active ? "page" : undefined}
-            className={desktopLinkClasses(active)}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+      <nav className="flex min-w-0 items-stretch" aria-label="Marketplace navigation">
+        <Link
+          href={DESKTOP_HOME_ITEM.href}
+          prefetch={null}
+          aria-current={homeActive ? "page" : undefined}
+          className={desktopTopLinkClasses(homeActive)}
+        >
+          Home
+        </Link>
 
-      {navGroups.map((group) => {
-        const active = isActive(pathname, group.matches);
-        const isOpen = openGroup === group.label;
-        return (
-          <div
-            key={group.label}
-            className="relative"
-            onMouseEnter={() => setOpenGroup(group.label)}
-            onMouseLeave={() =>
-              setOpenGroup((current) => (current === group.label ? null : current))
-            }
-            onBlur={(event) => {
-              const nextTarget = event.relatedTarget;
-              if (!nextTarget || !event.currentTarget.contains(nextTarget as Node)) {
-                setOpenGroup((current) => (current === group.label ? null : current));
+        {menuGroups.map((group) => {
+          const active =
+            group.label === "Market"
+              ? pathname.startsWith("/movers") && !pathname.startsWith("/movers/signal-radar")
+              : group.items.some(itemActive);
+          const isOpen = openMenu === group.label;
+
+          return (
+            <div
+              key={group.label}
+              className="relative h-full"
+              onMouseEnter={() => setOpenMenu(group.label)}
+              onMouseLeave={() =>
+                setOpenMenu((current) => (current === group.label ? null : current))
               }
-            }}
-          >
-            <button
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={isOpen}
-              onClick={() =>
-                setOpenGroup((current) => (current === group.label ? null : group.label))
-              }
-              onKeyDown={(event) => {
-                if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setOpenGroup(group.label);
+              onBlur={(event) => {
+                const nextTarget = event.relatedTarget;
+                if (!nextTarget || !event.currentTarget.contains(nextTarget as Node)) {
+                  setOpenMenu((current) => (current === group.label ? null : current));
                 }
               }}
-              className={desktopTriggerClasses(active)}
             >
-              {group.label}
-              <ChevronDown
-                className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                aria-hidden="true"
-              />
-            </button>
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={isOpen}
+                onClick={() =>
+                  setOpenMenu((current) => (current === group.label ? null : group.label))
+                }
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setOpenMenu(group.label);
+                  }
+                }}
+                className={desktopTopLinkClasses(active)}
+              >
+                {group.label}
+                <ChevronDown
+                  aria-hidden="true"
+                  className={`h-3.5 w-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                />
+              </button>
 
-            {isOpen && (
-              <div className="absolute left-0 top-full z-50 min-w-[12rem] pt-2">
-                <div
-                  role="menu"
-                  aria-label={`${group.label} navigation`}
-                  className="rounded-2xl border border-white/10 bg-zinc-950/96 p-2 shadow-xl shadow-black/45 backdrop-blur-xl"
-                >
-                  {group.items.map((item) => {
-                    const itemActive = isActive(pathname, item.matches, item.excludeMatches);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        prefetch={false}
-                        role="menuitem"
-                        aria-current={itemActive ? "page" : undefined}
-                        onClick={() => setOpenGroup(null)}
-                        className={menuLinkClasses(itemActive)}
-                      >
-                        {item.label}
-                      </Link>
-                    );
-                  })}
+              {isOpen ? (
+                <div className="absolute left-0 top-full z-[75] min-w-[16rem] pt-2">
+                  <div
+                    role="menu"
+                    aria-label={`${group.label} navigation`}
+                    className="rounded-xl border border-[var(--dc-border)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.98)] p-2 shadow-2xl shadow-black/35 backdrop-blur-xl"
+                  >
+                    {group.items.map((item) => {
+                      const activeItem = itemActive(item);
+                      const Icon = item.icon;
+                      const badge = getNavigationBadge(
+                        item.badge,
+                        cardsCount,
+                        forSaleCardsCount,
+                        wantsCount
+                      );
+
+                      return (
+                        <Link
+                          key={item.key}
+                          href={itemHref(item)}
+                          prefetch={item.href === "/" ? null : false}
+                          role="menuitem"
+                          aria-current={activeItem ? "page" : undefined}
+                          onClick={() => setOpenMenu(null)}
+                          className={desktopMenuLinkClasses(activeItem)}
+                        >
+                          <Icon className="h-4 w-4 shrink-0 text-white/42 group-hover:text-white/70" />
+                          <span className="min-w-0 flex-1">{item.label}</span>
+                          {badge !== null ? (
+                            <span className="rounded-md bg-[rgb(var(--dc-surface-hover-rgb)/0.8)] px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white/55">
+                              {badge}
+                            </span>
+                          ) : null}
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        );
-      })}
+              ) : null}
+            </div>
+          );
+        })}
 
-      {[ACCOUNT_ITEM, SETTINGS_ITEM].map((item) => {
-        const active = isActive(pathname, item.matches);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            prefetch={false}
-            aria-current={active ? "page" : undefined}
-            className={desktopLinkClasses(active)}
+        <Link
+          href={DESKTOP_RADAR_ITEM.href}
+          prefetch={false}
+          aria-current={radarActive ? "page" : undefined}
+          className={desktopTopLinkClasses(radarActive)}
+        >
+          Signal Radar
+        </Link>
+      </nav>
+
+      <div
+        className="relative flex h-full shrink-0 items-center border-l border-[var(--dc-border)] pl-4"
+        onBlur={(event) => {
+          const nextTarget = event.relatedTarget;
+          if (!nextTarget || !event.currentTarget.contains(nextTarget as Node)) {
+            setOpenMenu((current) => (current === "Account" ? null : current));
+          }
+        }}
+      >
+        <button
+          type="button"
+          data-top-navigation-account
+          aria-haspopup="menu"
+          aria-expanded={accountOpen}
+          aria-controls="desktop-top-account-panel"
+          onClick={() => setOpenMenu((current) => (current === "Account" ? null : "Account"))}
+          className={`flex min-h-10 items-center gap-2 rounded-lg px-2 text-left transition-colors hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.6)] hover:text-white ${
+            accountSectionActive
+              ? "bg-[rgb(var(--dc-primary-rgb)/0.12)] text-white"
+              : "text-white/70"
+          }`}
+        >
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[rgb(var(--dc-primary-rgb)/0.2)] text-xs font-black text-violet-100">
+            {summary.email.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="hidden min-w-0 2xl:block">
+            <span className="block max-w-28 truncate text-xs font-bold leading-tight text-white">
+              {displayName}
+            </span>
+            <span className="block text-[9px] font-semibold uppercase tracking-[0.08em] text-white/38">
+              {summary.role === "admin" ? "Admin" : "Collector"}
+            </span>
+          </span>
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${accountOpen ? "rotate-180" : ""}`} />
+        </button>
+
+        {accountOpen ? (
+          <div
+            id="desktop-top-account-panel"
+            role="menu"
+            aria-label="Account navigation"
+            className="absolute right-0 top-full z-[75] w-[18rem] pt-2"
           >
-            {item.label}
-          </Link>
-        );
-      })}
+            <div className="rounded-xl border border-[var(--dc-border)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.98)] p-2.5 shadow-2xl shadow-black/35 backdrop-blur-xl">
+              <div className="px-1.5 pb-2">
+                <p className="truncate text-sm font-bold text-white">{displayName}</p>
+                <p className="truncate text-xs text-white/42">{summary.email}</p>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 border-y border-[var(--dc-border)] py-2">
+                {[
+                  ["Cards", cardsCount],
+                  ["Binders", summary.binders],
+                  ["Sealed", summary.sealedUnits],
+                ].map(([label, value]) => (
+                  <div key={label as string} className="rounded-lg bg-[rgb(var(--dc-surface-hover-rgb)/0.55)] px-2 py-1.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-white/36">
+                      {label}
+                    </p>
+                    <p className="mt-0.5 text-sm font-black tabular-nums text-white">
+                      {formatNavigationCount(Number(value))}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 grid gap-0.5">
+                {NAVIGATION_ACCOUNT_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  const active = itemActive(item);
+                  return (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      prefetch={false}
+                      role="menuitem"
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setOpenMenu(null)}
+                      className={desktopMenuLinkClasses(active)}
+                    >
+                      <Icon className="h-4 w-4 text-white/46" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={loggingOut}
+                  onClick={() => void logout()}
+                  className="flex min-h-10 items-center gap-3 rounded-lg px-3 text-left text-[13px] font-semibold text-white/64 transition-colors hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] hover:text-white disabled:cursor-wait disabled:opacity-60"
+                >
+                  <LogOut className="h-4 w-4 text-white/46" />
+                  {loggingOut ? "Logging out..." : "Log out"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

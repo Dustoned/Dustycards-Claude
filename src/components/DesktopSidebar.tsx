@@ -5,157 +5,39 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3,
-  Boxes,
-  Brush,
   ChevronDown,
   ChevronUp,
-  FolderOpen,
-  Heart,
-  Home,
-  LibraryBig,
   LogOut,
-  PackageOpen,
-  Radar,
-  Search,
-  Settings,
-  ShoppingBag,
-  Sparkles,
-  UserRound,
-  UsersRound,
 } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
-import { GAME_SEARCH_PARAM } from "@/lib/games";
 import {
   COLLECTION_CARD_ADDED_EVENT,
   getCollectionCardAddedEffects,
   type CollectionCardAddedDetail,
 } from "@/lib/collection-client-events";
 import { WANTS_CHANGED_EVENT } from "@/lib/wants-client-events";
+import {
+  buildNavigationMarketHref,
+  formatNavigationCount,
+  getNavigationBadge,
+  getNavigationDisplayName,
+  isNavigationItemActive,
+  NAVIGATION_ACCOUNT_ITEMS,
+  NAVIGATION_SECTIONS,
+  type NavigationSummary,
+} from "@/components/navigation-model";
 
-export interface DesktopSidebarSummary {
-  cards: number;
-  forSaleCards: number;
-  binders: number;
-  sealedUnits: number;
-  wants: number;
-  email: string;
-  role: "admin" | "user";
-}
-
-const NAV_SECTIONS = [
-  {
-    label: "Collection",
-    items: [
-      { href: "/", label: "Home", icon: Home, badge: null, key: "home" },
-      {
-        href: "/?tab=complete",
-        label: "Complete Collection",
-        icon: LibraryBig,
-        badge: "cards",
-        key: "complete",
-      },
-      { href: "/?tab=singles", label: "Loose Singles", icon: Sparkles, badge: null, key: "singles" },
-      { href: "/?tab=binders", label: "Binders", icon: Boxes, badge: null, key: "binders" },
-      { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "sealed" },
-      { href: "/?tab=graded", label: "Graded", icon: LibraryBig, badge: null, key: "graded" },
-      { href: "/wants", label: "Wants", icon: Heart, badge: "wants", key: "wants" },
-      { href: "/social", label: "Social", icon: UsersRound, badge: null, key: "social" },
-    ],
-  },
-  {
-    label: "Browse",
-    items: [
-      { href: "/expansions", label: "Pokemon Sets", icon: FolderOpen, badge: null, key: "expansions" },
-      {
-        href: "/one-piece/expansions",
-        label: "One Piece Sets",
-        icon: FolderOpen,
-        badge: null,
-        key: "one-piece",
-      },
-      { href: "/categories", label: "Categories", icon: Sparkles, badge: null, key: "categories" },
-      { href: "/illustrators", label: "Illustrators", icon: Brush, badge: null, key: "illustrators" },
-      { href: "/submit-card", label: "Submit Card", icon: Search, badge: null, key: "submit-card" },
-    ],
-  },
-  {
-    label: "Market",
-    items: [
-      { href: "/movers", label: "Raw", icon: BarChart3, badge: null, key: "market-raw", marketMode: "raw" },
-      { href: "/movers?scope=graded", label: "Graded", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
-      { href: "/movers?scope=grading", label: "Targets", icon: Sparkles, badge: null, key: "market-targets", marketMode: "targets" },
-      { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
-      { href: "/movers/signal-radar", label: "Signal Radar", icon: Radar, badge: null, key: "market-radar" },
-      { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
-    ],
-  },
-] as const;
-
-const ACCOUNT_ITEMS = [
-  { href: "/settings", label: "Settings", icon: Settings, key: "settings" },
-  { href: "/account", label: "Account", icon: UserRound, key: "account" },
-] as const;
-
-function formatCount(value: number): string {
-  return value.toLocaleString("en-US");
-}
-
-function getDisplayName(email: string): string {
-  const localPart = email.split("@")[0]?.trim();
-  if (!localPart) return "Dusty";
-
-  const firstSegment = localPart.split(/[._-]/)[0] ?? localPart;
-  return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
-}
-
-type SidebarMarketMode = "raw" | "graded" | "targets" | "sealed";
-
-function isActive(
-  pathname: string,
-  tab: string | null,
-  key: string,
-  moverScope?: string | null
-): boolean {
-  if (key === "home") return pathname === "/" && (!tab || tab === "overview");
-  if (key === "complete") return pathname === "/" && (tab === "complete" || tab === "cards");
-  if (key === "singles") return pathname === "/" && tab === "singles";
-  if (key === "binders") return (pathname === "/" && tab === "binders") || pathname.startsWith("/binders");
-  if (key === "sealed") return pathname === "/" && tab === "sealed";
-  if (key === "graded") return pathname === "/" && tab === "graded";
-  if (key === "selling") return pathname === "/" && tab === "selling";
-  if (key === "market-raw") {
-    return (
-      pathname.startsWith("/movers") &&
-      !pathname.startsWith("/movers/signal-radar") &&
-      !["graded", "grading", "sealed", "value"].includes(moverScope ?? "")
-    );
-  }
-  if (key === "market-graded") return pathname.startsWith("/movers") && moverScope === "graded";
-  if (key === "market-targets") return pathname.startsWith("/movers") && moverScope === "grading";
-  if (key === "market-sealed") return pathname.startsWith("/movers") && moverScope === "sealed";
-  if (key === "market-radar") return pathname.startsWith("/movers/signal-radar");
-  if (key === "expansions") return pathname.startsWith("/expansions");
-  if (key === "one-piece") return pathname.startsWith("/one-piece");
-  if (key === "categories") return pathname.startsWith("/categories");
-  if (key === "illustrators") return pathname.startsWith("/illustrators");
-  return pathname === `/${key}` || pathname.startsWith(`/${key}/`);
-}
-
-function navBadge(
-  badge: "cards" | "forSale" | "wants" | null,
-  cardsCount: number,
-  forSaleCardsCount: number,
-  wantsCount: number
-) {
-  if (badge === "cards") return formatCount(cardsCount);
-  if (badge === "forSale") return forSaleCardsCount > 0 ? formatCount(forSaleCardsCount) : null;
-  if (badge === "wants") return formatCount(wantsCount);
-  return null;
-}
+export type DesktopSidebarSummary = NavigationSummary;
 
 export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSummary }) {
+  const { settings } = useSettings();
+
+  if (settings.desktopNavigation !== "sidebar") return null;
+  return <DesktopSidebarContent summary={summary} />;
+}
+
+function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) {
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -166,16 +48,9 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
   const [cardsCount, setCardsCount] = useState(summary.cards);
   const [forSaleCardsCount, setForSaleCardsCount] = useState(summary.forSaleCards);
   const [wantsCount, setWantsCount] = useState(summary.wants);
-  const displayName = getDisplayName(summary.email);
+  const displayName = getNavigationDisplayName(summary.email);
   const roleLabel = summary.role === "admin" ? "Admin" : "Collector";
   const moverScope = searchParams.get("scope");
-  const moverView = searchParams.get("view");
-  const currentMarketItemScope =
-    moverScope === "all" || moverView === "all"
-      ? "all"
-      : moverScope === "collection" || moverView === "collection" || (pathname.startsWith("/movers") && !moverScope)
-        ? "collection"
-        : "all";
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setForSaleCardsCount(summary.forSaleCards));
@@ -221,32 +96,6 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
     return () => window.removeEventListener(COLLECTION_CARD_ADDED_EVENT, handleCollectionCardAdded);
   }, []);
 
-  function buildMarketModeHref(mode: SidebarMarketMode): string {
-    const params = new URLSearchParams();
-    const game = searchParams.get(GAME_SEARCH_PARAM);
-    const source = searchParams.get("source");
-    const trend = searchParams.get("trend");
-
-    if (game) params.set(GAME_SEARCH_PARAM, game);
-    if (source) params.set("source", source);
-    if (trend && (mode === "raw" || mode === "graded")) params.set("trend", trend);
-
-    if (mode === "raw") {
-      params.set("scope", currentMarketItemScope === "all" ? "all" : "collection");
-    } else if (mode === "graded") {
-      params.set("scope", "graded");
-      if (currentMarketItemScope === "collection") params.set("view", "collection");
-    } else if (mode === "targets") {
-      params.set("scope", "grading");
-      if (currentMarketItemScope === "collection") params.set("view", "collection");
-    } else {
-      params.set("scope", "sealed");
-      if (currentMarketItemScope === "collection") params.set("view", "collection");
-    }
-
-    return `/movers?${params.toString()}`;
-  }
-
   async function logout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -261,7 +110,10 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
   }
 
   return (
-    <aside className="pointer-events-none fixed inset-y-0 left-0 z-50 hidden h-dvh w-[16rem] xl:block">
+    <aside
+      data-desktop-sidebar
+      className="pointer-events-none fixed inset-y-0 left-0 z-50 hidden h-dvh w-[16rem]"
+    >
       <div
         data-sidebar-scroll
         className="pointer-events-auto flex h-full min-h-0 w-full flex-col overflow-y-auto overscroll-contain border-r border-white/8 bg-[var(--dc-bg-main)] px-3 pb-24 pt-4 pr-2.5 [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent"
@@ -281,7 +133,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
         </Link>
 
         <nav className="grid gap-4" aria-label="Desktop navigation">
-          {NAV_SECTIONS.map((section) => (
+          {NAVIGATION_SECTIONS.map((section) => (
             <div key={section.label} className="grid gap-px">
               <p className="mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">
                 {section.label}
@@ -291,16 +143,18 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                   return null;
                 }
 
-                const active = isActive(pathname, tab, item.key, moverScope);
+                const active = isNavigationItemActive(pathname, tab, item.key, moverScope);
                 const Icon = item.icon;
-                const badge = navBadge(
+                const badge = getNavigationBadge(
                   item.badge,
                   cardsCount,
                   forSaleCardsCount,
                   wantsCount
                 );
                 const href =
-                  "marketMode" in item ? buildMarketModeHref(item.marketMode) : item.href;
+                  item.marketMode
+                    ? buildNavigationMarketHref(item.marketMode, pathname, searchParams)
+                    : item.href;
 
                 return (
                   <Link
@@ -363,15 +217,15 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                     {label}
                   </p>
                   <p className="mt-0.5 text-[12px] font-black tabular-nums text-white">
-                    {formatCount(Number(value))}
+                    {formatNavigationCount(Number(value))}
                   </p>
                 </div>
               ))}
             </div>
 
             <nav className="mt-2 grid gap-px border-t border-white/8 pt-2" aria-label="Account navigation">
-              {ACCOUNT_ITEMS.map((item) => {
-                const active = isActive(pathname, tab, item.key, moverScope);
+              {NAVIGATION_ACCOUNT_ITEMS.map((item) => {
+                const active = isNavigationItemActive(pathname, tab, item.key, moverScope);
                 const Icon = item.icon;
                 return (
                   <Link
@@ -433,7 +287,7 @@ export default function DesktopSidebar({ summary }: { summary: DesktopSidebarSum
                 {roleLabel === "Admin" ? "ADMIN" : "USER"}
               </span>
               <span className="min-w-0 truncate text-[10px] font-semibold leading-none text-white/56">
-                {formatCount(cardsCount)} cards
+                {formatNavigationCount(cardsCount)} cards
               </span>
             </span>
           </span>

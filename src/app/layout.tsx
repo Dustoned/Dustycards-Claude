@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { Geist } from "next/font/google";
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
-import { HeaderMobileMenu } from "@/components/HeaderNav";
+import { HeaderMobileMenu, HeaderNav } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
 import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import MobileBottomNav from "@/components/MobileBottomNav";
@@ -142,14 +143,30 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
         {currentUser && sidebarSummary ? <DesktopSidebar summary={sidebarSummary} /> : null}
         <header
           data-app-header
-          className={`fixed right-0 top-0 z-50 border-b border-white/8 bg-[#08080c]/85 backdrop-blur-xl ${
-            currentUser ? "left-0 xl:left-[16rem]" : "left-0"
-          }`}
+          className="fixed left-0 right-0 top-0 z-50 border-b border-white/8 bg-[#08080c]/85 backdrop-blur-xl"
         >
-          <nav className="page-container relative mx-auto flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)] px-3 sm:px-6 lg:px-8">
-            <Link href="/" prefetch={currentUser ? null : false} className={`shrink-0 font-bold tracking-tight text-white transition-opacity hover:opacity-75 [font-size:var(--ui-brand-size)] ${currentUser ? "xl:hidden" : ""}`}>
-              DustyCards
-            </Link>
+          <div className="page-container relative mx-auto px-3 sm:px-6 lg:px-8">
+            <div className="flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)]">
+              <Link
+                href="/"
+                prefetch={currentUser ? null : false}
+                data-app-brand
+                className="flex shrink-0 items-center gap-2.5 font-bold tracking-tight text-white transition-opacity hover:opacity-80 [font-size:var(--ui-brand-size)]"
+              >
+                {currentUser ? (
+                  <span className="relative hidden h-8 w-8 shrink-0 xl:block">
+                    <Image
+                      src="/assets/dustycards-master-ball-d.webp"
+                      alt=""
+                      fill
+                      priority
+                      sizes="32px"
+                      className="object-contain drop-shadow-[0_0_10px_rgb(var(--dc-primary-rgb)/0.55)]"
+                    />
+                  </span>
+                ) : null}
+                <span>DustyCards</span>
+              </Link>
             {currentUser ? (
               <>
                 <HeaderMobileMenu />
@@ -159,13 +176,17 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
             ) : (
               <div className="flex-1" />
             )}
-          </nav>
+            </div>
+            {currentUser && sidebarSummary ? (
+              <div data-app-desktop-navigation-row>
+                <HeaderNav summary={sidebarSummary} />
+              </div>
+            ) : null}
+          </div>
         </header>
         <main
           data-app-main
-          className={`flex-1 pt-[var(--ui-header-height)] ${
-            currentUser ? "xl:pl-[16rem]" : ""
-          }`}
+          className="flex-1"
         >
           {children}
         </main>
@@ -184,6 +205,11 @@ function AppLaunchShell() {
         <strong>DustyCards</strong>
         <div data-app-launch-search aria-hidden="true" />
       </header>
+      <div data-app-launch-desktop-nav aria-hidden="true">
+        {Array.from({ length: 6 }, (_, index) => (
+          <span key={index} data-app-launch-nav-link />
+        ))}
+      </div>
       <aside data-app-launch-sidebar aria-hidden="true">
         <div data-app-launch-brand />
         {Array.from({ length: 7 }, (_, index) => (
@@ -279,6 +305,26 @@ const prepaintThemeStyles = `
     background: var(--dc-surface-primary, #101218);
   }
 
+  [data-app-launch-desktop-nav] {
+    position: fixed;
+    inset: calc(56px + env(safe-area-inset-top, 0px)) 0 auto;
+    z-index: 2;
+    display: none;
+    height: 44px;
+    align-items: center;
+    gap: 24px;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--dc-border, #252A38);
+    background: var(--dc-bg-main, #07080B);
+  }
+
+  [data-app-launch-nav-link] {
+    width: 76px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--dc-surface-hover, #1D2130);
+  }
+
   [data-app-launch-brand], [data-app-launch-nav-row], [data-app-launch-line],
   [data-app-launch-card-media], [data-app-launch-search] {
     background-image: linear-gradient(100deg, var(--dc-surface-primary, #101218) 8%, var(--dc-surface-hover, #1D2130) 18%, var(--dc-surface-primary, #101218) 33%);
@@ -309,9 +355,11 @@ const prepaintThemeStyles = `
   }
 
   @media (min-width: 1280px) {
-    [data-app-launch-header] { left: 224px; }
-    [data-app-launch-sidebar] { display: block; }
-    [data-app-launch-main] { padding-left: 248px; }
+    html[data-desktop-navigation="top"] [data-app-launch-desktop-nav] { display: flex; }
+    html[data-desktop-navigation="top"] [data-app-launch-main] { padding-top: calc(124px + env(safe-area-inset-top, 0px)); }
+    html[data-desktop-navigation="sidebar"] [data-app-launch-header] { left: 256px; }
+    html[data-desktop-navigation="sidebar"] [data-app-launch-sidebar] { display: block; width: 256px; }
+    html[data-desktop-navigation="sidebar"] [data-app-launch-main] { padding-left: 280px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -328,6 +376,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       data-appearance={defaultAppearance.preset}
       data-appearance-scheme="dark"
       data-ui-scale="medium"
+      data-desktop-navigation="top"
       style={defaultAppearanceStyles as React.CSSProperties}
       suppressHydrationWarning
     >

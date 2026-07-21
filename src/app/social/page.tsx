@@ -430,7 +430,7 @@ export default async function SocialPage({
     <div className="page-container mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
       <div className="grid min-w-0 gap-5 lg:grid-cols-[20rem_minmax(0,1fr)] lg:gap-6">
         <aside className="min-w-0">
-          <div className="sticky top-[calc(var(--ui-header-height)+1rem)] grid gap-3">
+          <div className="sticky top-[calc(var(--ui-app-header-height)+1rem)] grid gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-violet-300/18 bg-violet-500/[0.12] text-violet-100">
