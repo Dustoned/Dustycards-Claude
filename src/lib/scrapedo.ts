@@ -46,11 +46,22 @@ export interface ScrapeDoWebSearchOptions {
 
 export class ScrapeDoRequestError extends Error {
   status: number;
+  creditsUsed: number;
+  remainingCredits: number | null;
 
-  constructor(message: string, status: number) {
+  constructor(
+    message: string,
+    status: number,
+    options: { creditsUsed?: number | null; remainingCredits?: number | null } = {}
+  ) {
     super(message);
     this.name = "ScrapeDoRequestError";
     this.status = status;
+    this.creditsUsed = Math.max(0, Math.ceil(options.creditsUsed ?? 0));
+    this.remainingCredits =
+      options.remainingCredits != null && Number.isFinite(options.remainingCredits)
+        ? Math.max(0, Math.floor(options.remainingCredits))
+        : null;
   }
 }
 
@@ -409,7 +420,17 @@ export async function scrapeScrapeDoPage(
   );
   const body = await response.text().catch(() => "");
   if (!response.ok) {
-    throw new ScrapeDoRequestError(`Scrape.do scrape failed with status ${response.status}.`, response.status);
+    throw new ScrapeDoRequestError(
+      `Scrape.do scrape failed with status ${response.status}.`,
+      response.status,
+      {
+        creditsUsed: parseHeaderNumber(response.headers, "Scrape.do-Request-Cost"),
+        remainingCredits: parseHeaderNumber(
+          response.headers,
+          "Scrape.do-Remaining-Credits"
+        ),
+      }
+    );
   }
 
   const resolvedUrl =
@@ -522,7 +543,17 @@ export async function searchScrapeDoWeb(
   );
   const data = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
-    throw new ScrapeDoRequestError(`Scrape.do search failed with status ${response.status}.`, response.status);
+    throw new ScrapeDoRequestError(
+      `Scrape.do search failed with status ${response.status}.`,
+      response.status,
+      {
+        creditsUsed: parseHeaderNumber(response.headers, "Scrape.do-Request-Cost"),
+        remainingCredits: parseHeaderNumber(
+          response.headers,
+          "Scrape.do-Remaining-Credits"
+        ),
+      }
+    );
   }
 
   const rawResults = isRecord(data) && Array.isArray(data.organic_results)

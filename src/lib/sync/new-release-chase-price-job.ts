@@ -32,7 +32,7 @@ import {
   reserveScrapeDoCredits,
   ScrapeDoBudgetError,
 } from "@/lib/scrapedo-budget";
-import { scrapeScrapeDoPage } from "@/lib/scrapedo";
+import { scrapeScrapeDoPage, ScrapeDoRequestError } from "@/lib/scrapedo";
 
 const JOB_TYPE = "new-release-chase-prices";
 const JOB_STALE_MS = 10 * 60_000;
@@ -411,6 +411,7 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
   // three-, six-, or twelve-hour price cadence.
   const bucket = getNewReleaseChaseCadenceBucket(now, 30 * 60_000);
   let reservationId: string | null = null;
+  let chargedCredits = 0;
   try {
     const reservation = await reserveScrapeDoCredits({
       operation: "cardmarket-english-nm",
@@ -444,25 +445,29 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
       timeoutMs: CARDMARKET_TRANSPORT_TIMEOUT_MS,
     });
     const strict = parseStrictCardMarketEnglishNmPrice(scrape);
-    if (!strict) {
-      throw new Error("CardMarket did not return an explicit English Near Mint offer.");
-    }
-    if (!scrapeMatchesCandidate(candidate, scrape)) {
-      throw new Error("CardMarket returned a different card printing than requested.");
-    }
-    const creditsUsed =
+    const identityMatches = strict ? scrapeMatchesCandidate(candidate, scrape) : false;
+    chargedCredits =
       readMetadataNumber(scrape.creditsUsed) ?? CARDMARKET_RENDERED_REQUEST_CREDITS;
     const remainingCredits = readMetadataNumber(scrape.metadata.remainingCredits);
+    // A successful provider response is billable even when our stricter
+    // offer or printing validation rejects its content.
     await completeScrapeDoReservation(reservation.id, {
-      creditsUsed,
+      creditsUsed: chargedCredits,
       remainingCredits,
       details: {
         cardId: candidate.cardId,
-        offerCount: strict.offerCount,
+        offerCount: strict?.offerCount ?? 0,
+        identityMatched: identityMatches,
         resolvedUrl: scrape.sourceUrl,
       },
     });
     reservationId = null;
+    if (!strict) {
+      throw new Error("CardMarket did not return an explicit English Near Mint offer.");
+    }
+    if (!identityMatches) {
+      throw new Error("CardMarket returned a different card printing than requested.");
+    }
 
     const guard = evaluateNewReleaseChasePriceGuard({
       currentPrice: candidate.currentPrice,
@@ -484,7 +489,12 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
           last_error: null,
         },
       });
-      return { cardId: candidate.cardId, status: "confirming", creditsUsed, error: null };
+      return {
+        cardId: candidate.cardId,
+        status: "confirming",
+        creditsUsed: chargedCredits,
+        error: null,
+      };
     }
     if (!guard.accept) throw new Error("CardMarket returned an invalid EN/NM price.");
 
@@ -504,14 +514,26 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
         candidate_confirmations: 0,
       },
     });
-    return { cardId: candidate.cardId, status: "updated", creditsUsed, error: null };
+    return {
+      cardId: candidate.cardId,
+      status: "updated",
+      creditsUsed: chargedCredits,
+      error: null,
+    };
   } catch (error) {
-    if (reservationId) await failScrapeDoReservation(reservationId, error).catch(() => {});
+    if (reservationId) {
+      const providerFailure = error instanceof ScrapeDoRequestError ? error : null;
+      chargedCredits = providerFailure?.creditsUsed ?? CARDMARKET_RENDERED_REQUEST_CREDITS;
+      await failScrapeDoReservation(reservationId, error, {
+        creditsUsed: chargedCredits,
+        remainingCredits: providerFailure?.remainingCredits ?? null,
+      }).catch(() => {});
+    }
     await markCandidateFailure(candidate, now, error);
     return {
       cardId: candidate.cardId,
       status: "failed",
-      creditsUsed: reservationId ? CARDMARKET_RENDERED_REQUEST_CREDITS : 0,
+      creditsUsed: chargedCredits,
       error: error instanceof Error ? error.message : String(error),
     };
   }

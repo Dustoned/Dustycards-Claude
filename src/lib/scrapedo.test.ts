@@ -162,8 +162,38 @@ describe("Scrape.do provider adapter", () => {
 
     const error = await scrapeScrapeDoPage("https://example.com").catch((caught) => caught);
     expect(error).toBeInstanceOf(ScrapeDoRequestError);
-    expect(error).toMatchObject({ status: 502, message: "Scrape.do request failed." });
+    expect(error).toMatchObject({
+      status: 502,
+      message: "Scrape.do request failed.",
+      creditsUsed: 0,
+      remainingCredits: null,
+    });
     expect(String(error)).not.toContain("do-not-leak-this-token");
+  });
+
+  it("keeps failed provider responses out of the credit budget", async () => {
+    process.env.SCRAPEDO_API_KEY = "sdo-test-secret";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response("upstream failed", {
+          status: 502,
+          headers: {
+            "Scrape.do-Request-Cost": "0",
+            "Scrape.do-Remaining-Credits": "925",
+          },
+        })
+      )
+    );
+
+    const error = await scrapeScrapeDoPage("https://example.com").catch(
+      (caught) => caught
+    );
+    expect(error).toMatchObject({
+      status: 502,
+      creditsUsed: 0,
+      remainingCredits: 925,
+    });
   });
 
   it("maps Google organic search, enforces domains, recency, limits and the 10-credit fallback", async () => {

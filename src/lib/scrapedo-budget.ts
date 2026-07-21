@@ -271,15 +271,24 @@ export async function completeScrapeDoReservation(
 
 export async function failScrapeDoReservation(
   reservationId: string,
-  error: unknown
+  error: unknown,
+  input: { creditsUsed?: number; remainingCredits?: number | null } = {}
 ): Promise<void> {
   const row = await db.scrapeDoCreditLedger.findUnique({ where: { id: reservationId } });
   if (!row) return;
+  const creditsUsed =
+    input.creditsUsed != null && Number.isFinite(input.creditsUsed)
+      ? Math.max(0, Math.ceil(input.creditsUsed))
+      : row.estimated_credits;
   await db.scrapeDoCreditLedger.update({
     where: { id: reservationId },
     data: {
       status: "failed",
-      credits_used: row.estimated_credits,
+      credits_used: creditsUsed,
+      remaining_credits:
+        input.remainingCredits != null && Number.isFinite(input.remainingCredits)
+          ? Math.max(0, Math.floor(input.remainingCredits))
+          : null,
       details_json: JSON.stringify({
         error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
       }),
