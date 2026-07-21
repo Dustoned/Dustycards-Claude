@@ -1380,12 +1380,12 @@ test.describe("DustyCards smoke", () => {
     expect(navigationLinksBox!.x + navigationLinksBox!.width).toBeLessThanOrEqual(
       navigationAccountBox!.x
     );
-    const navigationCenterY = navigationLinksBox!.y + navigationLinksBox!.height / 2;
+    const searchCenterY = desktopSearchShellBox!.y + desktopSearchShellBox!.height / 2;
     expect(
-      Math.abs(desktopBrandBox!.y + desktopBrandBox!.height / 2 - navigationCenterY)
+      Math.abs(desktopBrandBox!.y + desktopBrandBox!.height / 2 - searchCenterY)
     ).toBeLessThanOrEqual(1);
     expect(
-      Math.abs(navigationAccountBox!.y + navigationAccountBox!.height / 2 - navigationCenterY)
+      Math.abs(navigationAccountBox!.y + navigationAccountBox!.height / 2 - searchCenterY)
     ).toBeLessThanOrEqual(1);
     expect(desktopSearchShellBox!.y + desktopSearchShellBox!.height).toBeLessThanOrEqual(
       navigationLinksBox!.y
@@ -1397,6 +1397,17 @@ test.describe("DustyCards smoke", () => {
 
     const topHeaderBox = await page.locator("[data-app-header]").boundingBox();
     expect(topHeaderBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(98);
+    const topAccountButton = page.locator("[data-top-navigation-account]");
+    await topAccountButton.click();
+    const topAccountPanel = page.locator("#desktop-top-account-panel");
+    await expect(topAccountPanel).toBeVisible();
+    const topAccountPanelBox = await topAccountPanel.boundingBox();
+    expect(topAccountPanelBox).not.toBeNull();
+    expect(topAccountPanelBox!.y).toBeGreaterThanOrEqual(
+      (topHeaderBox?.y ?? 0) + (topHeaderBox?.height ?? 0)
+    );
+    await topAccountButton.click();
+    await expect(topAccountPanel).toBeHidden();
     const topMainPadding = await page.locator("[data-app-main]").evaluate((element) =>
       Number.parseFloat(window.getComputedStyle(element).paddingLeft)
     );
@@ -1442,7 +1453,7 @@ test.describe("DustyCards smoke", () => {
     expect(bounds!.width).toBeGreaterThan(4500);
     const headerContainerBounds = await page.locator("[data-app-header-container]").boundingBox();
     expect(headerContainerBounds).not.toBeNull();
-    expect(headerContainerBounds!.width).toBeLessThanOrEqual(1536);
+    expect(headerContainerBounds!.width).toBeLessThanOrEqual(2304);
     expect(
       Math.abs(headerContainerBounds!.x + headerContainerBounds!.width / 2 - 2560)
     ).toBeLessThanOrEqual(1);

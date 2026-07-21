@@ -729,19 +729,11 @@ body {
   html[data-desktop-navigation="top"] [data-app-header-container],
   html.widescreen[data-desktop-navigation="top"] [data-app-header-container] {
     width: 100%;
-    max-width: 96rem !important;
+    max-width: 144rem !important;
   }
 
   html[data-desktop-navigation="top"] [data-app-header-primary-row] {
     height: var(--ui-desktop-header-primary-height);
-  }
-
-  html[data-desktop-navigation="top"] [data-app-brand] {
-    /* The search owns the first row; brand, nav and account share the
-       second baseline so the header no longer reads as four loose islands. */
-    transform: translateY(
-      calc((var(--ui-desktop-header-primary-height) + var(--ui-desktop-nav-height)) / 2)
-    );
   }
 
   html[data-desktop-navigation="top"] [data-app-header] form.dc-search-shell {
@@ -770,6 +762,21 @@ body {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
+  }
+
+  html[data-desktop-navigation="top"] [data-desktop-top-navigation-account] {
+    /* The account belongs with the brand and search in the primary row.
+       HeaderNav lives in row two, so lift only this control onto row one. */
+    top: calc(var(--ui-desktop-header-primary-height) / -2);
+  }
+
+  html[data-desktop-navigation="top"] #desktop-top-account-panel {
+    /* Keep the opened panel below the complete two-row header even though
+       its trigger is visually lifted into the primary row. */
+    top: calc(
+      100% + var(--ui-desktop-header-primary-height) / 2 +
+        var(--ui-desktop-nav-height) - 0.75rem
+    );
   }
 
   html[data-desktop-navigation="sidebar"] [data-desktop-sidebar] {
