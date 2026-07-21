@@ -145,8 +145,14 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
           data-app-header
           className="fixed left-0 right-0 top-0 z-50 border-b border-white/8 bg-[#08080c]/85 backdrop-blur-xl"
         >
-          <div className="page-container relative mx-auto px-3 sm:px-6 lg:px-8">
-            <div className="flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)]">
+          <div
+            data-app-header-container
+            className="page-container relative mx-auto px-3 sm:px-6 lg:px-8"
+          >
+            <div
+              data-app-header-primary-row
+              className="flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)]"
+            >
               <Link
                 href="/"
                 prefetch={currentUser ? null : false}

@@ -504,7 +504,7 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
           aria-expanded={accountOpen}
           aria-controls="desktop-top-account-panel"
           onClick={() => setOpenMenu((current) => (current === "Account" ? null : "Account"))}
-          className={`flex min-h-9 items-center gap-2 rounded-full border border-[rgb(var(--dc-border-rgb)/0.8)] bg-[rgb(var(--dc-surface-primary-rgb)/0.58)] px-2.5 text-left shadow-sm shadow-black/20 transition-colors hover:border-[rgb(var(--dc-border-hover-rgb)/0.9)] hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] hover:text-white ${
+          className={`flex min-h-10 items-center gap-2 rounded-full border border-[rgb(var(--dc-border-rgb)/0.8)] bg-[rgb(var(--dc-surface-primary-rgb)/0.58)] px-2.5 text-left shadow-sm shadow-black/20 transition-colors hover:border-[rgb(var(--dc-border-hover-rgb)/0.9)] hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] hover:text-white ${
             accountSectionActive
               ? "border-[rgb(var(--dc-primary-rgb)/0.34)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-white"
               : "text-white/70"

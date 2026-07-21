@@ -1361,14 +1361,16 @@ test.describe("DustyCards smoke", () => {
     const topNavigationLinks = page.locator("[data-desktop-top-navigation-links]");
     const topNavigationAccount = page.locator("[data-desktop-top-navigation-account]");
     const desktopSearchShell = page.locator("form.dc-search-shell");
-    const [navigationLinksBox, navigationAccountBox, desktopSearchShellBox] = await Promise.all([
+    const [navigationLinksBox, navigationAccountBox, desktopSearchShellBox, desktopBrandBox] = await Promise.all([
       topNavigationLinks.boundingBox(),
       topNavigationAccount.boundingBox(),
       desktopSearchShell.boundingBox(),
+      page.getByRole("link", { name: "DustyCards" }).boundingBox(),
     ]);
     expect(navigationLinksBox).not.toBeNull();
     expect(navigationAccountBox).not.toBeNull();
     expect(desktopSearchShellBox).not.toBeNull();
+    expect(desktopBrandBox).not.toBeNull();
     expect(
       Math.abs(
         navigationLinksBox!.x + navigationLinksBox!.width / 2 -
@@ -1378,12 +1380,23 @@ test.describe("DustyCards smoke", () => {
     expect(navigationLinksBox!.x + navigationLinksBox!.width).toBeLessThanOrEqual(
       navigationAccountBox!.x
     );
+    const navigationCenterY = navigationLinksBox!.y + navigationLinksBox!.height / 2;
+    expect(
+      Math.abs(desktopBrandBox!.y + desktopBrandBox!.height / 2 - navigationCenterY)
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(navigationAccountBox!.y + navigationAccountBox!.height / 2 - navigationCenterY)
+    ).toBeLessThanOrEqual(1);
+    expect(desktopSearchShellBox!.y + desktopSearchShellBox!.height).toBeLessThanOrEqual(
+      navigationLinksBox!.y
+    );
     const accountButtonRadius = await page
       .locator("[data-top-navigation-account]")
       .evaluate((element) => Number.parseFloat(window.getComputedStyle(element).borderTopRightRadius));
     expect(accountButtonRadius).toBeGreaterThanOrEqual(17);
 
     const topHeaderBox = await page.locator("[data-app-header]").boundingBox();
+    expect(topHeaderBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(98);
     const topMainPadding = await page.locator("[data-app-main]").evaluate((element) =>
       Number.parseFloat(window.getComputedStyle(element).paddingLeft)
     );
@@ -1427,6 +1440,12 @@ test.describe("DustyCards smoke", () => {
     expect(headerBounds).not.toBeNull();
     expect(bounds).not.toBeNull();
     expect(bounds!.width).toBeGreaterThan(4500);
+    const headerContainerBounds = await page.locator("[data-app-header-container]").boundingBox();
+    expect(headerContainerBounds).not.toBeNull();
+    expect(headerContainerBounds!.width).toBeLessThanOrEqual(1536);
+    expect(
+      Math.abs(headerContainerBounds!.x + headerContainerBounds!.width / 2 - 2560)
+    ).toBeLessThanOrEqual(1);
     const pageBottomPadding = await canvas.evaluate((element) =>
       Number.parseFloat(window.getComputedStyle(element).paddingBottom)
     );

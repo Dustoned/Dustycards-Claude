@@ -719,12 +719,36 @@ body {
 
 @media (min-width: 1280px) {
   html[data-desktop-navigation="top"] {
-    --ui-app-header-height: calc(var(--ui-header-height) + var(--ui-desktop-nav-height));
+    --ui-desktop-header-primary-height: calc(var(--ui-header-height) - 0.35rem);
+    --ui-desktop-nav-height: 2.5rem;
+    --ui-app-header-height: calc(
+      var(--ui-desktop-header-primary-height) + var(--ui-desktop-nav-height)
+    );
+  }
+
+  html[data-desktop-navigation="top"] [data-app-header-container],
+  html.widescreen[data-desktop-navigation="top"] [data-app-header-container] {
+    width: 100%;
+    max-width: 96rem !important;
+  }
+
+  html[data-desktop-navigation="top"] [data-app-header-primary-row] {
+    height: var(--ui-desktop-header-primary-height);
+  }
+
+  html[data-desktop-navigation="top"] [data-app-brand] {
+    /* The search owns the first row; brand, nav and account share the
+       second baseline so the header no longer reads as four loose islands. */
+    transform: translateY(
+      calc((var(--ui-desktop-header-primary-height) + var(--ui-desktop-nav-height)) / 2)
+    );
   }
 
   html[data-desktop-navigation="top"] [data-app-header] form.dc-search-shell {
     position: absolute;
-    top: calc((var(--ui-header-height) - var(--ui-header-search-height)) / 2);
+    top: calc(
+      (var(--ui-desktop-header-primary-height) - var(--ui-header-search-height)) / 2
+    );
     left: 50%;
     width: min(var(--ui-header-search-max), calc(100% - 28rem));
     transform: translateX(-50%);
