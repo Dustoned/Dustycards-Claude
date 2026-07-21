@@ -729,7 +729,11 @@ body {
   html[data-desktop-navigation="top"] [data-app-header-container],
   html.widescreen[data-desktop-navigation="top"] [data-app-header-container] {
     width: 100%;
-    max-width: 144rem !important;
+    max-width: none !important;
+  }
+
+  html[data-desktop-navigation="top"] [data-app-header] {
+    border-bottom-color: transparent;
   }
 
   html[data-desktop-navigation="top"] [data-app-header-primary-row] {
@@ -754,6 +758,7 @@ body {
     display: flex;
     height: var(--ui-desktop-nav-height);
     align-items: center;
+    border-top: 1px solid rgb(var(--dc-border-rgb) / 0.58);
   }
 
   html[data-desktop-navigation="top"] [data-desktop-top-navigation-links] {

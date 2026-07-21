@@ -1397,6 +1397,16 @@ test.describe("DustyCards smoke", () => {
 
     const topHeaderBox = await page.locator("[data-app-header]").boundingBox();
     expect(topHeaderBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(98);
+    const desktopNavigationRow = page.locator("[data-app-desktop-navigation-row]");
+    const navigationDivider = await desktopNavigationRow.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      return {
+        width: Number.parseFloat(style.borderTopWidth),
+        color: style.borderTopColor,
+      };
+    });
+    expect(navigationDivider.width).toBeGreaterThanOrEqual(1);
+    expect(navigationDivider.color).not.toBe("rgba(0, 0, 0, 0)");
     const topAccountButton = page.locator("[data-top-navigation-account]");
     await topAccountButton.click();
     const topAccountPanel = page.locator("#desktop-top-account-panel");
@@ -1453,10 +1463,18 @@ test.describe("DustyCards smoke", () => {
     expect(bounds!.width).toBeGreaterThan(4500);
     const headerContainerBounds = await page.locator("[data-app-header-container]").boundingBox();
     expect(headerContainerBounds).not.toBeNull();
-    expect(headerContainerBounds!.width).toBeLessThanOrEqual(2304);
+    expect(headerContainerBounds!.width).toBeGreaterThanOrEqual(5100);
     expect(
       Math.abs(headerContainerBounds!.x + headerContainerBounds!.width / 2 - 2560)
     ).toBeLessThanOrEqual(1);
+    const [wideBrandBox, wideAccountBox] = await Promise.all([
+      page.getByRole("link", { name: "DustyCards" }).boundingBox(),
+      page.locator("[data-desktop-top-navigation-account]").boundingBox(),
+    ]);
+    expect(wideBrandBox).not.toBeNull();
+    expect(wideAccountBox).not.toBeNull();
+    expect(wideBrandBox!.x).toBeLessThanOrEqual(40);
+    expect(wideAccountBox!.x + wideAccountBox!.width).toBeGreaterThanOrEqual(5080);
     const pageBottomPadding = await canvas.evaluate((element) =>
       Number.parseFloat(window.getComputedStyle(element).paddingBottom)
     );
