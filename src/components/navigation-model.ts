@@ -9,7 +9,6 @@ import {
   LibraryBig,
   PackageOpen,
   Radar,
-  Repeat2,
   Search,
   Settings,
   ShoppingBag,
@@ -78,7 +77,6 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
         key: "one-piece",
       },
       { href: "/categories", label: "Categories", icon: Sparkles, badge: null, key: "categories" },
-      { href: "/reprints", label: "Reprints", icon: Repeat2, badge: null, key: "reprints" },
       { href: "/illustrators", label: "Illustrators", icon: Brush, badge: null, key: "illustrators" },
       { href: "/submit-card", label: "Submit Card", icon: Search, badge: null, key: "submit-card" },
     ],
@@ -140,7 +138,6 @@ export function isNavigationItemActive(
   if (key === "expansions") return pathname.startsWith("/expansions");
   if (key === "one-piece") return pathname.startsWith("/one-piece");
   if (key === "categories") return pathname.startsWith("/categories");
-  if (key === "reprints") return pathname.startsWith("/reprints");
   if (key === "illustrators") return pathname.startsWith("/illustrators");
   return pathname === `/${key}` || pathname.startsWith(`/${key}/`);
 }

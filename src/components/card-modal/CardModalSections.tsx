@@ -3542,12 +3542,17 @@ export function CardModalRecentPricesPanel({
 export function CardModalRelatedPrintingsPanel({
   card,
   onNavigate,
+  context = "standard",
 }: {
   card: ModalCardData;
   onNavigate?: () => void;
+  context?: "standard" | "radar";
 }) {
   const printings = card.related_printings ?? [];
   if (printings.length === 0) return null;
+
+  const visiblePrintings = printings.slice(0, 3);
+  const hasMore = printings.length > visiblePrintings.length;
 
   const currentPrice = card.price?.cm_en_lowest_nm ?? null;
   const availablePrices = printings
@@ -3560,7 +3565,7 @@ export function CardModalRelatedPrintingsPanel({
 
   return (
     <section
-      className="card-detail-surface card-detail-related-printings"
+      className={`card-detail-surface card-detail-related-printings ${printings.length === 1 ? "card-detail-related-printings--compact" : ""}`}
       data-card-related-printings
     >
       <div className="flex min-w-0 items-start justify-between gap-4">
@@ -3577,84 +3582,122 @@ export function CardModalRelatedPrintingsPanel({
       </div>
 
       <div className="card-detail-printing-rail mt-4" aria-label="Other card printings">
-        {printings.map((printing) => {
+        {visiblePrintings.map((printing) => {
           const isLowest = printing.price != null && printing.price === lowestPrice;
           const isCheaper =
             printing.price != null && currentPrice != null && printing.price < currentPrice;
           const detailHref = `${getExpansionHref(printing.episode_id)}?card=${encodeURIComponent(printing.id)}`;
+          const ebayHref = buildCardEbaySearchUrl({
+            name: printing.name,
+            cardNumber: printing.card_number,
+          });
 
           return (
             <article key={printing.id} className="card-detail-printing-card">
               <Link
                 href={detailHref}
                 onClick={onNavigate}
-                className="group flex min-w-0 flex-1 gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
+                className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
                 aria-label={`View ${printing.name} from ${printing.episode_name}`}
-              >
-                <div
-                  className={getCardImageFrameClassName(
-                    printing.image_url,
-                    "relative aspect-[63/88] w-[4.35rem] shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]"
-                  )}
-                >
-                  {printing.image_url ? (
-                    <CachedImage
-                      sourceUrl={printing.image_url}
-                      alt=""
-                      fill
-                      sizes="70px"
-                      className={getCardImageClassName(printing.image_url, "object-fill")}
-                      unoptimized
-                    />
-                  ) : null}
-                </div>
+              />
 
-                <div className="flex min-w-0 flex-1 flex-col py-0.5">
-                  <p className="truncate text-sm font-bold text-white/88 transition group-hover:text-white">
-                    {printing.name}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/42">
-                    {printing.episode_name}
-                    {printing.card_number ? ` · #${printing.card_number}` : ""}
-                  </p>
-                  <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-white/30">
-                    {printing.rarity ?? "Standard printing"}
-                  </p>
-                  <div className="mt-auto flex items-end justify-between gap-2 pt-2">
-                    <div className="min-w-0">
-                      <p className="text-base font-black tabular-nums text-white/92">
-                        {formatCurrency(printing.price, "EUR")}
-                      </p>
-                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-white/28">
-                        English NM
-                      </p>
-                    </div>
-                    {isLowest || isCheaper ? (
-                      <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.07em] text-emerald-200/78">
-                        {isLowest ? "Lowest" : "Cheaper"}
-                      </span>
-                    ) : null}
+              <div
+                className={getCardImageFrameClassName(
+                  printing.image_url,
+                  "pointer-events-none relative z-10 aspect-[63/88] w-[6.75rem] shrink-0 self-start overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] shadow-[0_12px_24px_rgba(0,0,0,0.24)]"
+                )}
+              >
+                {printing.image_url ? (
+                  <CachedImage
+                    sourceUrl={printing.image_url}
+                    alt=""
+                    fill
+                    sizes="108px"
+                    className={getCardImageClassName(printing.image_url, "object-fill")}
+                    unoptimized
+                  />
+                ) : null}
+              </div>
+
+              <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 flex-col py-0.5">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <span className="inline-flex min-h-5 max-w-full items-center rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2 text-[9px] font-black uppercase tracking-[0.07em] text-violet-100/62">
+                    Reprint
+                  </span>
+                  <div className="shrink-0 text-right">
+                    <p className="text-lg font-black tabular-nums text-white/94">
+                      {formatCurrency(printing.price, "EUR")}
+                    </p>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-white/28">
+                      English NM
+                    </p>
                   </div>
                 </div>
-              </Link>
 
-              {printing.cardmarket_url ? (
+                <p className="mt-2 truncate text-base font-black text-white/92">
+                  {printing.name}
+                </p>
+                <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/42">
+                  {printing.episode_name}
+                  {printing.card_number ? ` · #${printing.card_number}` : ""}
+                </p>
+                <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-white/30">
+                  {printing.rarity ?? "Standard printing"}
+                </p>
+
+                <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-100/60">
+                    View card
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </span>
+                  {isLowest || isCheaper ? (
+                    <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.07em] text-emerald-200/78">
+                      {isLowest ? "Lowest" : "Cheaper"}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className={`relative z-20 col-span-full grid gap-2 ${printing.cardmarket_url ? "grid-cols-2" : "grid-cols-1"}`}>
+                {printing.cardmarket_url ? (
+                  <a
+                    href={printing.cardmarket_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.075] bg-white/[0.025] px-2 text-xs font-bold text-white/54 transition hover:border-violet-300/22 hover:bg-violet-400/[0.07] hover:text-white"
+                    aria-label={`Open ${printing.name} on CardMarket`}
+                  >
+                    <ShoppingCart className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">CardMarket</span>
+                  </a>
+                ) : null}
                 <a
-                  href={printing.cardmarket_url}
+                  href={ebayHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.025] px-3 text-xs font-bold text-white/54 transition hover:border-violet-300/22 hover:bg-violet-400/[0.07] hover:text-white"
-                  aria-label={`Open ${printing.name} on CardMarket`}
+                  className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.075] bg-white/[0.025] px-2 text-xs font-bold text-white/54 transition hover:border-violet-300/22 hover:bg-violet-400/[0.07] hover:text-white"
+                  aria-label={`Find ${printing.name} on eBay`}
                 >
-                  <ShoppingCart className="h-3.5 w-3.5" />
-                  CardMarket
-                  <ExternalLink className="h-3 w-3 opacity-55" />
+                  eBay Deals
+                  <ExternalLink className="h-3 w-3 shrink-0 opacity-55" />
                 </a>
-              ) : null}
+              </div>
             </article>
           );
         })}
       </div>
+
+      {hasMore ? (
+        <Link
+          href={`/reprints/${encodeURIComponent(card.id)}${context === "radar" ? "?from=radar" : ""}`}
+          prefetch={false}
+          onClick={onNavigate}
+          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/15 bg-violet-400/[0.055] px-4 text-sm font-bold text-violet-100/78 transition hover:border-violet-300/25 hover:bg-violet-400/[0.09] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
+        >
+          Show all {printings.length} reprints
+          <ChevronRight className="h-4 w-4" />
+        </Link>
+      ) : null}
     </section>
   );
 }

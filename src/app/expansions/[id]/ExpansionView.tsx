@@ -89,6 +89,7 @@ interface Props {
   };
   onVisibleCardsChange?: (cards: CardData[]) => void;
   warmCardImages?: boolean;
+  initialCardId?: string | null;
 }
 
 interface FilterOption {
@@ -230,11 +231,14 @@ export default function ExpansionView({
   episode,
   onVisibleCardsChange,
   warmCardImages = true,
+  initialCardId = null,
 }: Props) {
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
   const [search, setSearch] = useState("");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [selected, setSelected] = useState<CardData | null>(null);
+  const [selected, setSelected] = useState<CardData | null>(() =>
+    initialCardId ? cards.find((card) => card.id === initialCardId) ?? null : null
+  );
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);

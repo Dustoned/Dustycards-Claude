@@ -20,6 +20,7 @@ interface Props {
   };
   priceSnapshots?: EpisodePriceHistorySnapshot[];
   showPriceHistory?: boolean;
+  initialCardId?: string | null;
 }
 
 export default function ExpansionCardsSection({
@@ -28,6 +29,7 @@ export default function ExpansionCardsSection({
   episode,
   priceSnapshots = [],
   showPriceHistory = true,
+  initialCardId = null,
 }: Props) {
   const [visibleCards, setVisibleCards] = useState<CardData[]>(cards);
 
@@ -96,6 +98,7 @@ export default function ExpansionCardsSection({
         cards={cards}
         episode={episode}
         onVisibleCardsChange={setVisibleCards}
+        initialCardId={initialCardId}
       />
     </div>
   );

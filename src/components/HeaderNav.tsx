@@ -103,7 +103,6 @@ const SIGNAL_RADAR_ITEM: NavItem = {
 const BASE_BROWSE_ITEMS: ReadonlyArray<NavItem> = [
   { href: "/expansions", label: "Expansions", matches: ["/expansions"] },
   { href: "/categories", label: "Categories", matches: ["/categories"] },
-  { href: "/reprints", label: "Reprints", matches: ["/reprints"] },
   { href: "/illustrators", label: "Illustrators", matches: ["/illustrators"] },
 ];
 
@@ -227,7 +226,7 @@ const DESKTOP_RADAR_ITEM = getNavigationItem("market-radar");
 
 function getDesktopMenuGroups(onePieceEnabled: boolean): readonly DesktopMenuGroup[] {
   const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "graded", "wants"]);
-  const browseKeys = new Set(["expansions", "one-piece", "categories", "reprints", "illustrators"]);
+  const browseKeys = new Set(["expansions", "one-piece", "categories", "illustrators"]);
   const marketKeys = new Set([
     "market-raw",
     "market-graded",

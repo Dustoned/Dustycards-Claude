@@ -96,14 +96,15 @@ export default async function ExpansionDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; sealed?: string }>;
+  searchParams: Promise<{ tab?: string; sealed?: string; card?: string }>;
 }) {
   const { id } = await params;
-  const { tab, sealed } = await searchParams;
+  const { tab, sealed, card: initialCardId } = await searchParams;
   const requestedTab = tab === "sealed" ? "sealed" : "cards";
   const nextParams = new URLSearchParams();
   if (tab) nextParams.set("tab", tab);
   if (sealed) nextParams.set("sealed", sealed);
+  if (initialCardId) nextParams.set("card", initialCardId);
   const nextQuery = nextParams.toString();
   const user = await requirePageUser(`/expansions/${id}${nextQuery ? `?${nextQuery}` : ""}`);
 
@@ -610,11 +611,12 @@ export default async function ExpansionDetailPage({
           </div>
         ) : (
           <ExpansionCardsSection
-            key={episode.id}
+            key={`${episode.id}:${initialCardId ?? "list"}`}
             cards={cards}
             totalCards={episode._count.cards}
             episode={{ id: episode.id, name: episode.name, code: episode.code }}
             showPriceHistory={false}
+            initialCardId={initialCardId ?? null}
           />
         )
       ) : (

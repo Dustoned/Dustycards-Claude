@@ -621,7 +621,7 @@ export default function SignalRadarDetailClient({
           />
         </div>
       </section>
-      <CardModalRelatedPrintingsPanel card={card} />
+      <CardModalRelatedPrintingsPanel card={card} context="radar" />
     </div>
   );
 

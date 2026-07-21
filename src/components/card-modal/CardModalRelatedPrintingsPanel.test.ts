@@ -32,6 +32,19 @@ function makeCard(related = true): ModalCardData {
   } as unknown as ModalCardData;
 }
 
+function makeCardWithFourPrintings(): ModalCardData {
+  const card = makeCard();
+  const first = card.related_printings?.[0];
+  if (!first) throw new Error("Expected a related printing fixture");
+  card.related_printings = Array.from({ length: 4 }, (_, index) => ({
+    ...first,
+    id: `reprint-card-${index + 1}`,
+    episode_id: `set-${index + 1}`,
+    episode_name: `Set ${index + 1}`,
+  }));
+  return card;
+}
+
 describe("CardModalRelatedPrintingsPanel", () => {
   it("stays absent when there is no verified reprint", () => {
     expect(
@@ -53,5 +66,21 @@ describe("CardModalRelatedPrintingsPanel", () => {
     expect(markup).toContain("Lowest");
     expect(markup).toContain("/expansions/paldean-fates?card=reprint-card");
     expect(markup).toContain("CardMarket");
+    expect(markup).toContain("eBay Deals");
+    expect(markup).toContain("ebay.nl");
+    expect(markup).not.toContain("Show all");
+  });
+
+  it("keeps the detail panel compact and links to the card-specific page", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CardModalRelatedPrintingsPanel, {
+        card: makeCardWithFourPrintings(),
+        context: "radar",
+      })
+    );
+
+    expect(markup).toContain("Show all 4 reprints");
+    expect(markup).toContain("/reprints/current-card?from=radar");
+    expect(markup).not.toContain("Set 4");
   });
 });
