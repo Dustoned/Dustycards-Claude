@@ -131,7 +131,9 @@ describe("CardListTile", () => {
     expect(markup).toContain('data-card-list-badges="true"');
     expect(markup).toContain('data-card-list-title="true"');
     expect(markup).toContain('data-card-list-meta="true"');
-    expect(markup).toContain("flex h-6");
+    expect(markup).toContain("flex min-h-6");
+    expect(markup).toContain("flex-wrap");
+    expect(markup).toContain("[&amp;&gt;*]:whitespace-nowrap");
     expect(markup).toContain("truncate text-base");
     expect(markup).toContain("min-h-4");
     expect(markup).toContain('data-card-analysis-link="true"');

@@ -189,7 +189,7 @@ export function CardListTileHeader({
       <div
         data-card-list-badges
         className={cx(
-          "flex h-6 min-w-0 flex-nowrap items-start gap-1.5 overflow-hidden",
+          "flex min-h-6 min-w-0 flex-wrap items-start gap-1.5 overflow-visible [&>*]:max-w-full [&>*]:shrink-0 [&>*]:whitespace-nowrap",
           badgesClassName
         )}
       >

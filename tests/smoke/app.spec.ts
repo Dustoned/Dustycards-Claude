@@ -338,6 +338,19 @@ async function expectMobileCardListTileContract(page: Page, tile: Locator) {
   expect(titleLayout.textOverflow).toBe("ellipsis");
   expect(titleLayout.scrollHeight).toBeLessThanOrEqual(titleLayout.clientHeight + 1);
 
+  const badgeLayout = await tile.locator("[data-card-list-badges]").evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    clippedChildren: Array.from(element.children).filter((child) => {
+      const childBounds = child.getBoundingClientRect();
+      if (childBounds.width === 0 && childBounds.height === 0) return false;
+      const containerBounds = element.getBoundingClientRect();
+      return childBounds.top < containerBounds.top - 1 || childBounds.bottom > containerBounds.bottom + 1;
+    }).length,
+  }));
+  expect(badgeLayout.scrollHeight).toBeLessThanOrEqual(badgeLayout.clientHeight + 1);
+  expect(badgeLayout.clippedChildren).toBe(0);
+
   const titleAndPriceOverlap = !(
     titleBounds.x + titleBounds.width <= priceBounds.x + 1 ||
     priceBounds.x + priceBounds.width <= titleBounds.x + 1 ||
