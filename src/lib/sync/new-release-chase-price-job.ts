@@ -65,6 +65,18 @@ type WatchCandidate = {
   ambiguousSource: boolean;
 };
 
+export interface NewReleaseChaseManualRefreshResult {
+  cardId: string;
+  status: "updated" | "confirming" | "failed" | "skipped" | "inactive" | "deduped";
+  creditsUsed: number;
+  error: string | null;
+}
+
+interface RefreshCandidateOptions {
+  manual?: boolean;
+  requestId?: string;
+}
+
 export interface NewReleaseChasePriceJobSnapshot {
   started: boolean;
   running: boolean;
@@ -391,7 +403,11 @@ async function markCandidateFailure(
   });
 }
 
-async function refreshCandidate(candidate: WatchCandidate, now: Date) {
+async function refreshCandidate(
+  candidate: WatchCandidate,
+  now: Date,
+  options: RefreshCandidateOptions = {}
+): Promise<NewReleaseChaseManualRefreshResult> {
   if (candidate.ambiguousSource) {
     const error = new Error("Ambiguous CardMarket product mapping; automatic update skipped.");
     await markCandidateFailure(candidate, now, error);
@@ -414,11 +430,15 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
   let chargedCredits = 0;
   try {
     const reservation = await reserveScrapeDoCredits({
-      operation: "cardmarket-english-nm",
-      idempotencyKey: `chase:${candidate.episodeId}:${candidate.cardId}:${bucket}`,
+      consumer: options.manual ? "new-release-chase-manual" : undefined,
+      operation: options.manual ? "cardmarket-english-nm-manual" : "cardmarket-english-nm",
+      idempotencyKey: options.manual
+        ? `chase-manual:${candidate.episodeId}:${candidate.cardId}:${options.requestId ?? `${now.getTime()}`}`
+        : `chase:${candidate.episodeId}:${candidate.cardId}:${bucket}`,
       estimatedCredits: CARDMARKET_RENDERED_REQUEST_CREDITS,
       sourceUrl: candidate.cardmarketUrl,
       now,
+      bypassAutomaticLimits: options.manual,
     });
     reservationId = reservation.id;
     if (!reservation.created) {
@@ -537,6 +557,31 @@ async function refreshCandidate(candidate: WatchCandidate, now: Date) {
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/**
+ * Performs one deliberate admin-triggered Chase Watch lookup. Unlike the
+ * scheduler this ignores the automatic credit allowance and cadence, while
+ * retaining printing identity, English/Near Mint and unusual-move guards.
+ */
+export async function refreshNewReleaseChasePriceNow(
+  cardId: string,
+  options: { now?: Date; requestId?: string } = {}
+): Promise<NewReleaseChaseManualRefreshResult> {
+  const normalizedCardId = cardId.trim();
+  if (!normalizedCardId) throw new Error("A card id is required.");
+
+  const now = options.now ?? new Date();
+  const candidates = await loadWatchCandidates(now, true);
+  const candidate = candidates.find((item) => item.cardId === normalizedCardId);
+  if (!candidate) {
+    throw new Error("This card is not part of the active new-release Chase Watch.");
+  }
+
+  return refreshCandidate(candidate, now, {
+    manual: true,
+    requestId: options.requestId ?? crypto.randomUUID(),
+  });
 }
 
 async function runJob(jobId: string): Promise<void> {

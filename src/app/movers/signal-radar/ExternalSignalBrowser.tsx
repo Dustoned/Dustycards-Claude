@@ -72,6 +72,7 @@ interface Props {
   cardQuickActions: CardQuickActionMap;
   progressiveHref?: string | null;
   chaseWatchHref?: string | null;
+  manualChaseRefreshHref?: string | null;
   totalSignalCount?: number;
 }
 
@@ -973,6 +974,7 @@ export default function ExternalSignalBrowser({
   cardQuickActions: initialCardQuickActions,
   progressiveHref = null,
   chaseWatchHref = null,
+  manualChaseRefreshHref = null,
   totalSignalCount = initialSignals.length,
 }: Props) {
   const [signals, setSignals] = useState(initialSignals);
@@ -1179,6 +1181,8 @@ export default function ExternalSignalBrowser({
         <NewReleaseChasePanel
           data={newReleaseChases}
           cardQuickActions={cardQuickActions}
+          manualRefreshHref={manualChaseRefreshHref}
+          onDataChange={setNewReleaseChases}
         />
       ) : progressiveState === "loading" ? (
         <section

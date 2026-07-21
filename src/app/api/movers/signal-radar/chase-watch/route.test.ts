@@ -1,27 +1,36 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { authMock, chaseMock, settingsMock } = vi.hoisted(() => ({
-  authMock: { requireUser: vi.fn(), authErrorResponse: vi.fn() },
+const { authMock, chaseMock, settingsMock, refreshMock } = vi.hoisted(() => ({
+  authMock: { requireUser: vi.fn(), requireAdmin: vi.fn(), authErrorResponse: vi.fn() },
   chaseMock: { getExpansionChaseRadarData: vi.fn() },
   settingsMock: { getServerUserSettings: vi.fn() },
+  refreshMock: { refreshNewReleaseChasePriceNow: vi.fn() },
 }));
 
 vi.mock("@/lib/auth", () => authMock);
 vi.mock("@/lib/expansion-chase-radar", () => chaseMock);
 vi.mock("@/lib/user-settings-server", () => settingsMock);
+vi.mock("@/lib/sync/new-release-chase-price-job", () => refreshMock);
 
-import { GET } from "@/app/api/movers/signal-radar/chase-watch/route";
+import { GET, POST } from "@/app/api/movers/signal-radar/chase-watch/route";
 
 describe("Signal Radar Chase Watch refresh", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authMock.requireUser.mockResolvedValue({ id: "user-1" });
+    authMock.requireAdmin.mockResolvedValue({ id: "admin-1", role: "admin" });
     authMock.authErrorResponse.mockReturnValue(null);
     settingsMock.getServerUserSettings.mockResolvedValue({ onePieceLibraryEnabled: true });
     chaseMock.getExpansionChaseRadarData.mockResolvedValue({
       episode: { id: "episode-415" },
       priceWatch: { state: "current" },
+    });
+    refreshMock.refreshNewReleaseChasePriceNow.mockResolvedValue({
+      cardId: "card-1",
+      status: "updated",
+      creditsUsed: 5,
+      error: null,
     });
   });
 
@@ -59,5 +68,47 @@ describe("Signal Radar Chase Watch refresh", () => {
 
     expect(response.status).toBe(401);
     expect(chaseMock.getExpansionChaseRadarData).not.toHaveBeenCalled();
+  });
+
+  it("lets an admin manually refresh one card and returns the updated panel", async () => {
+    const response = await POST(
+      new NextRequest(
+        "http://localhost/api/movers/signal-radar/chase-watch?game=pokemon&set=episode-415",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardId: "card-1" }),
+        }
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(authMock.requireAdmin).toHaveBeenCalledOnce();
+    expect(refreshMock.refreshNewReleaseChasePriceNow).toHaveBeenCalledWith("card-1");
+    expect(chaseMock.getExpansionChaseRadarData).toHaveBeenCalledWith({
+      gameFilter: "pokemon",
+      episodeId: "episode-415",
+    });
+    expect(body.ok).toBe(true);
+    expect(body.result.status).toBe("updated");
+  });
+
+  it("rejects manual refreshes from non-admin users", async () => {
+    authMock.requireAdmin.mockRejectedValue(new Error("Forbidden"));
+    authMock.authErrorResponse.mockReturnValue(
+      Response.json({ error: "Forbidden" }, { status: 403 })
+    );
+
+    const response = await POST(
+      new NextRequest("http://localhost/api/movers/signal-radar/chase-watch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId: "card-1" }),
+      })
+    );
+
+    expect(response.status).toBe(403);
+    expect(refreshMock.refreshNewReleaseChasePriceNow).not.toHaveBeenCalled();
   });
 });

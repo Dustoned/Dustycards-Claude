@@ -7,8 +7,11 @@ import {
   BarChart3,
   Boxes,
   ChevronDown,
+  Check,
   Clock3,
+  CircleAlert,
   Radar,
+  RefreshCw,
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
@@ -201,6 +204,8 @@ function ChaseCard({
   quickActionData,
   prioritizeImage = false,
   nowMs,
+  refreshState,
+  onRefresh,
 }: {
   card: ExpansionChaseRadarCard;
   episodeId: string;
@@ -208,6 +213,8 @@ function ChaseCard({
   quickActionData: CardQuickActionData | undefined;
   prioritizeImage?: boolean;
   nowMs: number;
+  refreshState?: { phase: "idle" | "loading" | "success" | "confirming" | "error"; message?: string };
+  onRefresh?: () => void;
 }) {
   const projectedReturn = modelReturn(card);
   const showObservedMove =
@@ -314,14 +321,56 @@ function ChaseCard({
             Analysis
             <ArrowUpRight className="h-3.5 w-3.5 max-[359px]:hidden" />
           </CardListTileAnalysisLink>
-          {quickActionData ? (
-            <div className="pointer-events-auto relative z-10 shrink-0 max-[359px]:self-end" data-chase-card-actions>
+          <div className="pointer-events-auto relative z-10 flex shrink-0 items-center gap-1.5 max-[359px]:self-end" data-chase-card-actions>
+            {onRefresh ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onRefresh();
+                }}
+                disabled={refreshState?.phase === "loading"}
+                className={cx(
+                  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 disabled:cursor-wait",
+                  refreshState?.phase === "success"
+                    ? "border-emerald-300/28 bg-emerald-400/[0.11] text-emerald-200"
+                    : refreshState?.phase === "confirming"
+                      ? "border-amber-300/28 bg-amber-400/[0.1] text-amber-200"
+                      : refreshState?.phase === "error"
+                        ? "border-rose-300/28 bg-rose-400/[0.1] text-rose-200"
+                        : "border-[rgb(var(--dc-border-rgb)/0.95)] bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] text-white/62 hover:border-violet-300/30 hover:text-violet-100"
+                )}
+                aria-label={refreshState?.phase === "loading" ? `Refreshing ${card.name} price` : `Refresh ${card.name} price now`}
+                title={refreshState?.message ?? "Refresh this CardMarket EN/NM price now"}
+                data-chase-manual-sync
+              >
+                {refreshState?.phase === "loading" ? (
+                  <RefreshCw className="h-4 w-4 motion-safe:animate-spin" />
+                ) : refreshState?.phase === "success" ? (
+                  <Check className="h-4 w-4" />
+                ) : refreshState?.phase === "confirming" || refreshState?.phase === "error" ? (
+                  <CircleAlert className="h-4 w-4" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </button>
+            ) : null}
+            {quickActionData ? (
               <CollectionCardQuickActions data={quickActionData} />
-            </div>
-          ) : (
-            <CollectionCardQuickActionsPlaceholder className="pointer-events-auto relative z-10 max-[359px]:self-end" />
-          )}
+            ) : (
+              <CollectionCardQuickActionsPlaceholder />
+            )}
+          </div>
         </CardListTileFooter>
+        {refreshState?.phase && refreshState.phase !== "idle" && refreshState.phase !== "loading" ? (
+          <span className={cx(
+            "mt-1 line-clamp-2 text-right text-[9px] leading-4",
+            refreshState.phase === "success" ? "text-emerald-200/72" : refreshState.phase === "confirming" ? "text-amber-200/72" : "text-rose-200/72"
+          )} aria-live="polite">
+            {refreshState.message}
+          </span>
+        ) : null}
         <span className="sr-only">
           {showObservedMove ? "Seven-day move" : "Projected 180-day move"}: {showObservedMove
             ? signedWholePercent(card.changeVs7dPct)
@@ -337,11 +386,16 @@ function ChaseCard({
 export default function NewReleaseChasePanel({
   data,
   cardQuickActions,
+  manualRefreshHref = null,
+  onDataChange,
 }: {
   data: ExpansionChaseRadarData;
   cardQuickActions: CardQuickActionMap;
+  manualRefreshHref?: string | null;
+  onDataChange?: (data: ExpansionChaseRadarData) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
+  const [refreshStates, setRefreshStates] = useState<Record<string, { phase: "idle" | "loading" | "success" | "confirming" | "error"; message?: string }>>({});
   const [nowMs, setNowMs] = useState(() => new Date(data.generatedAt).getTime());
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
@@ -354,6 +408,45 @@ export default function NewReleaseChasePanel({
     nowMs
   );
   const visibleCards = showAll ? data.cards : data.cards.slice(0, INITIAL_CARD_LIMIT);
+  const refreshCard = async (cardId: string) => {
+    if (!manualRefreshHref || refreshStates[cardId]?.phase === "loading") return;
+    setRefreshStates((current) => ({ ...current, [cardId]: { phase: "loading" } }));
+    try {
+      const response = await fetch(manualRefreshHref, {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId }),
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        result?: { status?: string; error?: string | null };
+        newReleaseChases?: ExpansionChaseRadarData;
+      };
+      if (payload.newReleaseChases) onDataChange?.(payload.newReleaseChases);
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.result?.error || payload.error || "Price refresh failed.");
+      }
+      const confirming = payload.result?.status === "confirming";
+      setRefreshStates((current) => ({
+        ...current,
+        [cardId]: {
+          phase: confirming ? "confirming" : "success",
+          message: confirming ? "Large move found. Tap again to confirm it." : "Direct EN/NM price updated.",
+        },
+      }));
+    } catch (error) {
+      setRefreshStates((current) => ({
+        ...current,
+        [cardId]: {
+          phase: "error",
+          message: error instanceof Error ? error.message : "Price refresh failed.",
+        },
+      }));
+    }
+  };
 
   return (
     <section
@@ -463,6 +556,8 @@ export default function NewReleaseChasePanel({
               quickActionData={cardQuickActions[card.cardId]}
               prioritizeImage={index === 0}
               nowMs={nowMs}
+              refreshState={refreshStates[card.cardId]}
+              onRefresh={manualRefreshHref && card.watch.enabled ? () => void refreshCard(card.cardId) : undefined}
             />
           ))}
         </CardListTileGrid>

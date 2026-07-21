@@ -120,6 +120,7 @@ export default async function SignalRadarPage({
           cardQuickActions={cardQuickActions}
           progressiveHref={progressiveHref}
           chaseWatchHref={chaseWatchHref}
+          manualChaseRefreshHref={user.role === "admin" ? chaseWatchHref : null}
           totalSignalCount={radarData.signals.length}
         />
       </div>

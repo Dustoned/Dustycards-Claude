@@ -142,6 +142,12 @@ export async function reserveScrapeDoCredits(input: {
   estimatedCredits?: number;
   sourceUrl?: string | null;
   now?: Date;
+  /**
+   * Reserved for an explicit, authenticated user action. The request is still
+   * written to the credit ledger, but it does not consume or obey the
+   * automatic Chase Watch allowance.
+   */
+  bypassAutomaticLimits?: boolean;
 }): Promise<ScrapeDoCreditReservation> {
   const consumer = input.consumer?.trim() || NEW_RELEASE_CHASE_SCRAPEDO_CONSUMER;
   const estimatedCredits = Math.max(1, Math.ceil(input.estimatedCredits ?? 1));
@@ -171,27 +177,29 @@ export async function reserveScrapeDoCredits(input: {
         };
       }
 
-      const [usage, limits] = await Promise.all([
-        usageFor(tx, consumer, now),
-        Promise.resolve(getNewReleaseChaseScrapeDoLimits()),
-      ]);
-      if (usage.monthlyUsed + estimatedCredits > limits.monthly) {
-        throw new ScrapeDoBudgetError(
-          `Chase Watch Scrape.do monthly budget is reached (${usage.monthlyUsed}/${limits.monthly}).`
-        );
-      }
-      if (usage.dailyUsed + estimatedCredits > limits.daily) {
-        throw new ScrapeDoBudgetError(
-          `Chase Watch Scrape.do daily budget is reached (${usage.dailyUsed}/${limits.daily}).`
-        );
-      }
-      if (
-        usage.lastProviderRemaining != null &&
-        usage.lastProviderRemaining - estimatedCredits < limits.providerReserve
-      ) {
-        throw new ScrapeDoBudgetError(
-          `Scrape.do provider balance is low (${usage.lastProviderRemaining} credits); ${limits.providerReserve} are kept in reserve.`
-        );
+      if (!input.bypassAutomaticLimits) {
+        const [usage, limits] = await Promise.all([
+          usageFor(tx, consumer, now),
+          Promise.resolve(getNewReleaseChaseScrapeDoLimits()),
+        ]);
+        if (usage.monthlyUsed + estimatedCredits > limits.monthly) {
+          throw new ScrapeDoBudgetError(
+            `Chase Watch Scrape.do monthly budget is reached (${usage.monthlyUsed}/${limits.monthly}).`
+          );
+        }
+        if (usage.dailyUsed + estimatedCredits > limits.daily) {
+          throw new ScrapeDoBudgetError(
+            `Chase Watch Scrape.do daily budget is reached (${usage.dailyUsed}/${limits.daily}).`
+          );
+        }
+        if (
+          usage.lastProviderRemaining != null &&
+          usage.lastProviderRemaining - estimatedCredits < limits.providerReserve
+        ) {
+          throw new ScrapeDoBudgetError(
+            `Scrape.do provider balance is low (${usage.lastProviderRemaining} credits); ${limits.providerReserve} are kept in reserve.`
+          );
+        }
       }
 
       const window = getScrapeDoBudgetWindow(now);
