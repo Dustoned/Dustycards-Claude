@@ -74,12 +74,10 @@ export function getSafeDirectCardMarketCardUrl(
 ): string | null {
   if (!isDirectCardMarketUrl(url)) return null;
   if (getCardMarketUrlGame(url) !== game) return null;
-  // TCGGo currently provides almost every One Piece card as a CardMarket
-  // idProduct URL. Sending those through the TCGGo fallback breaks because
-  // DustyCards uses scoped IDs (for example `one-piece:28806`) while that
-  // redirect endpoint expects its own unscoped identifier. CardMarket can
-  // resolve the product ID directly, so keep the validated same-game URL.
-  if (isCardMarketProductIdUrl(url) && game !== "one-piece") return null;
+  // Keep same-game idProduct URLs direct for every game. Sending a known
+  // CardMarket product through TCGGo first can drop the language/condition
+  // query during its redirect and, on iOS, makes the eventual window.open
+  // vulnerable to popup blocking after an async lookup.
   return withCardMarketFilters(url);
 }
 
@@ -87,8 +85,13 @@ export function resolveCardMarketCardUrl(card: {
   id: string;
   game: TradingCardGame;
   cardmarket_url?: string | null;
+  cardmarket_id?: string | null;
 }): string {
-  return getSafeDirectCardMarketCardUrl(card.cardmarket_url, card.game) ?? buildCardMarketProxyUrl(card.id);
+  return (
+    getSafeDirectCardMarketCardUrl(card.cardmarket_url, card.game) ??
+    (card.cardmarket_id ? buildCardMarketProductUrl(card.cardmarket_id, card.game) : null) ??
+    buildCardMarketProxyUrl(card.id)
+  );
 }
 
 function slugifyCardMarketProductName(name: string): string {

@@ -23,18 +23,35 @@ describe("CardMarket card URL resolution", () => {
     ).toBe("https://www.tcggo.com/external/cm/48399");
   });
 
-  it("treats idProduct card URLs as unsafe direct links", () => {
+  it("keeps Pokemon idProduct URLs direct so English NM filters survive", () => {
     const url = "https://www.cardmarket.com/Pokemon/Products?idProduct=775295&language=1";
 
     expect(isCardMarketProductIdUrl(url)).toBe(true);
-    expect(getSafeDirectCardMarketCardUrl(url, POKEMON_GAME)).toBeNull();
+    expect(getSafeDirectCardMarketCardUrl(url, POKEMON_GAME)).toBe(
+      "https://www.cardmarket.com/Pokemon/Products?idProduct=775295&language=1&minCondition=2"
+    );
     expect(
       resolveCardMarketCardUrl({
         id: "18459",
         game: POKEMON_GAME,
         cardmarket_url: url,
       })
-    ).toBe("https://www.tcggo.com/external/cm/18459");
+    ).toBe(
+      "https://www.cardmarket.com/Pokemon/Products?idProduct=775295&language=1&minCondition=2"
+    );
+  });
+
+  it("builds a filtered direct link from a known product id when the stored URL is missing", () => {
+    expect(
+      resolveCardMarketCardUrl({
+        id: "18459",
+        game: POKEMON_GAME,
+        cardmarket_id: "775295",
+        cardmarket_url: null,
+      })
+    ).toBe(
+      "https://www.cardmarket.com/Pokemon/Products?idProduct=775295&language=1&minCondition=2"
+    );
   });
 
   it("keeps validated One Piece idProduct URLs direct instead of using the scoped-ID proxy", () => {

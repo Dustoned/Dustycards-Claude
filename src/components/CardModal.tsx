@@ -14,9 +14,9 @@ import { CardDetailMarketControls } from "@/components/card-detail/CardDetailMar
 import { buildCardDetailSignalTabs } from "@/components/card-detail/CardDetailSignalTabs";
 import { orderCardDetailTabs } from "@/components/card-detail/card-detail-tabs";
 import {
-  buildCardMarketProxyUrl,
   getSafeDirectCardMarketCardUrl,
   isDirectCardMarketUrl,
+  resolveCardMarketCardUrl,
 } from "@/lib/cardmarket";
 import {
   GRADED_SLAB_ASPECT_CLASS,
@@ -500,7 +500,12 @@ export default function CardModal({
 
   function getCardMarketUrl(): string {
     const stored = resolvedUrl ?? modalCard.cardmarket_url;
-    return getSafeDirectCardMarketCardUrl(stored, modalCard.game) ?? buildCardMarketProxyUrl(modalCard.id);
+    return resolveCardMarketCardUrl({
+      id: modalCard.id,
+      game: modalCard.game,
+      cardmarket_id: modalCard.cardmarket_id,
+      cardmarket_url: stored,
+    });
   }
 
   async function openCardMarket() {
@@ -960,6 +965,7 @@ export default function CardModal({
                   onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
                   onAddedToCollection={refreshModalCardFromServer}
                   onClose={onClose}
+                  cardMarketHref={storedCardMarketUrl}
                   onOpenCardMarket={() => void openCardMarket()}
                   onPriceAlertOpenChange={setPriceAlertOpen}
                 />

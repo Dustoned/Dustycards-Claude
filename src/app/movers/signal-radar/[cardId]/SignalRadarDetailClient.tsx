@@ -40,7 +40,7 @@ import PriceHistoryPanel, {
 } from "@/components/PriceHistoryPanel";
 import { useSettings } from "@/components/SettingsProvider";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
-import { buildCardMarketProxyUrl, getSafeDirectCardMarketCardUrl } from "@/lib/cardmarket";
+import { resolveCardMarketCardUrl } from "@/lib/cardmarket";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import type { ExternalCardSignal, ExternalMarketMode } from "@/lib/external-signal-radar";
 import {
@@ -439,8 +439,12 @@ export default function SignalRadarDetailClient({
         }
       : null;
   const researchResults = research?.results ?? [];
-  const cardMarketHref =
-    getSafeDirectCardMarketCardUrl(card.cardmarket_url, card.game) ?? buildCardMarketProxyUrl(card.id);
+  const cardMarketHref = resolveCardMarketCardUrl({
+    id: card.id,
+    game: card.game,
+    cardmarket_id: card.cardmarket_id,
+    cardmarket_url: card.cardmarket_url,
+  });
   const ebayHref = buildCardEbaySearchUrl({
     name: card.name,
     cardNumber: card.card_number,

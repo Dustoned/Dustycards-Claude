@@ -1939,6 +1939,11 @@ test.describe("DustyCards smoke", () => {
       '[aria-label="Open CardMarket. Hold for eBay Deals."]'
     );
     await expect(mobileMarketTrigger).toBeVisible();
+    const mobileCardMarketHref = await mobileMarketTrigger.getAttribute("href");
+    expect(mobileCardMarketHref).toMatch(/^https:\/\/www\.cardmarket\.com\//u);
+    const mobileCardMarketUrl = new URL(mobileCardMarketHref!);
+    expect(mobileCardMarketUrl.searchParams.get("language")).toBe("1");
+    expect(mobileCardMarketUrl.searchParams.get("minCondition")).toBe("2");
     const mobileMarketTriggerBounds = await requiredBounds(mobileMarketTrigger);
     await page.mouse.move(
       mobileMarketTriggerBounds.x + mobileMarketTriggerBounds.width / 2,

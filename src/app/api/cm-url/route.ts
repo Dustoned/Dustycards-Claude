@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-validation";
 import {
   buildCardMarketProxyUrl,
+  buildCardMarketProductUrl,
   getSafeDirectCardMarketCardUrl,
 } from "@/lib/cardmarket";
 import { db } from "@/lib/db";
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
 
   const card = await db.card.findUnique({
     where: { id: cardId },
-    select: { game: true, cardmarket_url: true },
+    select: { game: true, cardmarket_id: true, cardmarket_url: true },
   });
 
   if (!card) {
@@ -48,6 +49,12 @@ export async function GET(request: NextRequest) {
   if (directUrl) {
     await syncDirectUrlIfChanged(cardId, card.cardmarket_url, directUrl);
     return NextResponse.json({ url: directUrl });
+  }
+
+  if (card.cardmarket_id) {
+    const productUrl = buildCardMarketProductUrl(card.cardmarket_id, game);
+    await syncDirectUrlIfChanged(cardId, card.cardmarket_url, productUrl);
+    return NextResponse.json({ url: productUrl });
   }
 
   return NextResponse.json({ url: buildCardMarketProxyUrl(cardId) });
