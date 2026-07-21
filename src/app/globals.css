@@ -733,7 +733,21 @@ body {
   }
 
   html[data-desktop-navigation="top"] [data-app-header] {
-    border-bottom-color: transparent;
+    border-bottom-width: 0;
+  }
+
+  html[data-desktop-navigation="top"] [data-app-header]::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    top: calc(
+      env(safe-area-inset-top, 0px) + var(--ui-desktop-header-primary-height)
+    );
+    right: 0;
+    left: 0;
+    height: 1px;
+    pointer-events: none;
+    background: rgb(var(--dc-border-rgb) / 0.58);
   }
 
   html[data-desktop-navigation="top"] [data-app-header-primary-row] {
@@ -758,7 +772,6 @@ body {
     display: flex;
     height: var(--ui-desktop-nav-height);
     align-items: center;
-    border-top: 1px solid rgb(var(--dc-border-rgb) / 0.58);
   }
 
   html[data-desktop-navigation="top"] [data-desktop-top-navigation-links] {

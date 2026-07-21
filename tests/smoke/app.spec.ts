@@ -1397,16 +1397,22 @@ test.describe("DustyCards smoke", () => {
 
     const topHeaderBox = await page.locator("[data-app-header]").boundingBox();
     expect(topHeaderBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(98);
-    const desktopNavigationRow = page.locator("[data-app-desktop-navigation-row]");
-    const navigationDivider = await desktopNavigationRow.evaluate((element) => {
-      const style = window.getComputedStyle(element);
+    const navigationDivider = await page.locator("[data-app-header]").evaluate((element) => {
+      const style = window.getComputedStyle(element, "::after");
+      const headerStyle = window.getComputedStyle(element);
       return {
-        width: Number.parseFloat(style.borderTopWidth),
-        color: style.borderTopColor,
+        width: Number.parseFloat(style.height),
+        color: style.backgroundColor,
+        left: Number.parseFloat(style.left),
+        right: Number.parseFloat(style.right),
+        headerBottomWidth: Number.parseFloat(headerStyle.borderBottomWidth),
       };
     });
     expect(navigationDivider.width).toBeGreaterThanOrEqual(1);
     expect(navigationDivider.color).not.toBe("rgba(0, 0, 0, 0)");
+    expect(navigationDivider.left).toBe(0);
+    expect(navigationDivider.right).toBe(0);
+    expect(navigationDivider.headerBottomWidth).toBe(0);
     const topAccountButton = page.locator("[data-top-navigation-account]");
     await topAccountButton.click();
     const topAccountPanel = page.locator("#desktop-top-account-panel");
