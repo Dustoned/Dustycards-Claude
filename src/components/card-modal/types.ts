@@ -104,6 +104,20 @@ export interface ModalCardData {
       code: string | null;
     };
   }>;
+  related_printings?: Array<{
+    id: string;
+    name: string;
+    card_number: string | null;
+    rarity: string | null;
+    image_url: string | null;
+    cardmarket_url: string | null;
+    episode_id: string;
+    episode_name: string;
+    episode_code: string | null;
+    episode_release_date: string | null;
+    price: number | null;
+    match_type: "reprint";
+  }>;
   collection_item?: {
     id: string;
     binder_id: string | null;

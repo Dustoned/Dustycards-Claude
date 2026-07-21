@@ -32,6 +32,7 @@ import {
   CardModalOwnedCopyPanel,
   CardModalPreview,
   CardModalRecentPricesPanel,
+  CardModalRelatedPrintingsPanel,
 } from "@/components/card-modal/CardModalSections";
 import type { ModalCardData } from "@/components/card-modal/types";
 import PriceHistoryPanel, {
@@ -620,6 +621,7 @@ export default function SignalRadarDetailClient({
           />
         </div>
       </section>
+      <CardModalRelatedPrintingsPanel card={card} />
     </div>
   );
 

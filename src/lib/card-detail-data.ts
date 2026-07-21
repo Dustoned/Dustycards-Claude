@@ -22,6 +22,7 @@ import { buildBuySignal } from "@/lib/buy-signal";
 import { buildCardMarketStats } from "@/lib/card-market-stats";
 import { getEbayDemandPayload } from "@/lib/ebay-demand";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
+import { loadRelatedCardPrintings } from "@/lib/card-printings";
 
 type CardDetailCollectionItem = {
   id: string;
@@ -199,6 +200,7 @@ export async function getCardDetailPayload(id: string, userId: string) {
       cardmarket_id: true,
       cardmarket_url: true,
       tcggo_url: true,
+      tcgid: true,
       price_source_status: true,
       price_source_checked_at: true,
       tcggo_score: true,
@@ -295,7 +297,7 @@ export async function getCardDetailPayload(id: string, userId: string) {
 
   const dailyGradedHistoryPromise = loadDailyGradedHistory(card.id);
 
-  const sealedProducts = await db.sealedProduct.findMany({
+  const sealedProductsPromise = db.sealedProduct.findMany({
     where: {
       game: card.game,
       OR: [
@@ -335,7 +337,7 @@ export async function getCardDetailPayload(id: string, userId: string) {
       _count: { select: { contentSets: true } },
     },
   });
-  const sealedProductCount = await db.sealedProduct.count({
+  const sealedProductCountPromise = db.sealedProduct.count({
     where: {
       game: card.game,
       OR: [
@@ -346,9 +348,7 @@ export async function getCardDetailPayload(id: string, userId: string) {
     },
   });
 
-  const safePriceRows =
-    (
-      await loadSafeCardMarketHistoryRows([
+  const safePriceRowsPromise = loadSafeCardMarketHistoryRows([
         {
           id: card.id,
           game: card.game,
@@ -359,8 +359,16 @@ export async function getCardDetailPayload(id: string, userId: string) {
           cardmarketId: card.cardmarket_id,
           cardmarketUrl: card.cardmarket_url,
         },
-      ])
-    ).get(card.id) ?? [];
+      ]);
+  const relatedPrintingsPromise = loadRelatedCardPrintings(card);
+  const [sealedProducts, sealedProductCount, safePriceRowsByCard, relatedPrintings] =
+    await Promise.all([
+      sealedProductsPromise,
+      sealedProductCountPromise,
+      safePriceRowsPromise,
+      relatedPrintingsPromise,
+    ]);
+  const safePriceRows = safePriceRowsByCard.get(card.id) ?? [];
 
   const latestSourceSnapshot = safePriceRows[safePriceRows.length - 1] ?? null;
   const latestEnglishNmSnapshot = [...safePriceRows]
@@ -579,6 +587,7 @@ export async function getCardDetailPayload(id: string, userId: string) {
         code: product.episode.code,
       },
     })),
+    related_printings: relatedPrintings,
     collection_item: collectionItemPayload,
     want_item: wantItem
       ? {

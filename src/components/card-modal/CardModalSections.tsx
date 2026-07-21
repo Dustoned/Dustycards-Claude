@@ -3539,6 +3539,126 @@ export function CardModalRecentPricesPanel({
   );
 }
 
+export function CardModalRelatedPrintingsPanel({
+  card,
+  onNavigate,
+}: {
+  card: ModalCardData;
+  onNavigate?: () => void;
+}) {
+  const printings = card.related_printings ?? [];
+  if (printings.length === 0) return null;
+
+  const currentPrice = card.price?.cm_en_lowest_nm ?? null;
+  const availablePrices = printings
+    .map((printing) => printing.price)
+    .filter((price): price is number => price != null);
+  const comparisonPrices = currentPrice == null
+    ? availablePrices
+    : [currentPrice, ...availablePrices];
+  const lowestPrice = comparisonPrices.length > 0 ? Math.min(...comparisonPrices) : null;
+
+  return (
+    <section
+      className="card-detail-surface card-detail-related-printings"
+      data-card-related-printings
+    >
+      <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="card-detail-eyebrow">Reprint comparison</p>
+          <h2 className="card-detail-surface-title mt-1.5">Reprints</h2>
+          <p className="card-detail-surface-copy">
+            The same card and artwork, reissued in another set or holo treatment. Compare editions before you buy.
+          </p>
+        </div>
+        <span className="inline-flex shrink-0 items-center rounded-full border border-violet-300/16 bg-violet-400/[0.07] px-2.5 py-1 text-[11px] font-bold text-violet-100/72">
+          {printings.length} verified {printings.length === 1 ? "option" : "options"}
+        </span>
+      </div>
+
+      <div className="card-detail-printing-rail mt-4" aria-label="Other card printings">
+        {printings.map((printing) => {
+          const isLowest = printing.price != null && printing.price === lowestPrice;
+          const isCheaper =
+            printing.price != null && currentPrice != null && printing.price < currentPrice;
+          const detailHref = `${getExpansionHref(printing.episode_id)}?card=${encodeURIComponent(printing.id)}`;
+
+          return (
+            <article key={printing.id} className="card-detail-printing-card">
+              <Link
+                href={detailHref}
+                onClick={onNavigate}
+                className="group flex min-w-0 flex-1 gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
+                aria-label={`View ${printing.name} from ${printing.episode_name}`}
+              >
+                <div
+                  className={getCardImageFrameClassName(
+                    printing.image_url,
+                    "relative aspect-[63/88] w-[4.35rem] shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.035]"
+                  )}
+                >
+                  {printing.image_url ? (
+                    <CachedImage
+                      sourceUrl={printing.image_url}
+                      alt=""
+                      fill
+                      sizes="70px"
+                      className={getCardImageClassName(printing.image_url, "object-fill")}
+                      unoptimized
+                    />
+                  ) : null}
+                </div>
+
+                <div className="flex min-w-0 flex-1 flex-col py-0.5">
+                  <p className="truncate text-sm font-bold text-white/88 transition group-hover:text-white">
+                    {printing.name}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/42">
+                    {printing.episode_name}
+                    {printing.card_number ? ` · #${printing.card_number}` : ""}
+                  </p>
+                  <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-white/30">
+                    {printing.rarity ?? "Standard printing"}
+                  </p>
+                  <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                    <div className="min-w-0">
+                      <p className="text-base font-black tabular-nums text-white/92">
+                        {formatCurrency(printing.price, "EUR")}
+                      </p>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-white/28">
+                        English NM
+                      </p>
+                    </div>
+                    {isLowest || isCheaper ? (
+                      <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.07em] text-emerald-200/78">
+                        {isLowest ? "Lowest" : "Cheaper"}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </Link>
+
+              {printing.cardmarket_url ? (
+                <a
+                  href={printing.cardmarket_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.075] bg-white/[0.025] px-3 text-xs font-bold text-white/54 transition hover:border-violet-300/22 hover:bg-violet-400/[0.07] hover:text-white"
+                  aria-label={`Open ${printing.name} on CardMarket`}
+                >
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                  CardMarket
+                  <ExternalLink className="h-3 w-3 opacity-55" />
+                </a>
+              ) : null}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export function CardModalActiveListingsPanel({
   card,
   onOpenSealedProduct,

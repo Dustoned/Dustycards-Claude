@@ -46,6 +46,7 @@ import {
   CardModalOwnedCopyPanel,
   CardModalPreview,
   CardModalRecentPricesPanel,
+  CardModalRelatedPrintingsPanel,
   getPreferredCardModalGradedDisplayPrice,
   type CardModalGradedDisplayPrice,
 } from "./card-modal/CardModalSections";
@@ -767,6 +768,7 @@ export default function CardModal({
         </dl>
 
       </section>
+      <CardModalRelatedPrintingsPanel card={modalCard} onNavigate={onClose} />
     </div>
   );
 

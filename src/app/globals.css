@@ -2346,6 +2346,37 @@ html.widescreen .settings-page {
   min-width: 0;
 }
 
+.card-detail-related-printings {
+  grid-column: 1 / -1;
+}
+
+.card-detail-printing-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(15.5rem, 82%);
+  gap: 0.75rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+  scrollbar-width: none;
+  padding-bottom: 0.2rem;
+}
+
+.card-detail-printing-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.card-detail-printing-card {
+  display: flex;
+  min-width: 0;
+  scroll-snap-align: start;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 1rem;
+  background: rgba(4, 4, 7, 0.34);
+  padding: 0.75rem;
+}
+
 /* Collection content is intentionally asymmetric: the owned-copy summary is
    compact, while sealed products may need considerably more room. Keeping the
    row top-aligned prevents the short summary card from inheriting the height
@@ -2543,6 +2574,13 @@ html.widescreen .settings-page {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .card-detail-printing-rail {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+
   .card-detail-section-grid.card-detail-collection-grid[data-columns="2"] {
     grid-template-columns: minmax(18rem, 0.72fr) minmax(0, 1.28fr);
   }
@@ -2588,6 +2626,10 @@ html.widescreen .settings-page {
 }
 
 @container card-detail (min-width: 62rem) {
+  .card-detail-printing-rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .card-detail-layout {
     grid-template-columns: minmax(18rem, 0.78fr) minmax(0, 1.22fr);
     grid-template-areas:
@@ -2763,6 +2805,10 @@ html.widescreen .settings-page {
 
   .card-detail-section-grid[data-columns="2"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .card-detail-printing-rail {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -3134,6 +3180,12 @@ html[data-appearance-scheme="light"]
 html[data-appearance-scheme="light"]
   .card-detail-surface-copy {
   color: color-mix(in srgb, var(--dc-text-primary) 54%, transparent);
+}
+
+html[data-appearance-scheme="light"]
+  .card-detail-printing-card {
+  border-color: rgb(var(--dc-border-rgb) / 0.88);
+  background: rgb(var(--dc-surface-primary-rgb) / 0.7);
 }
 
 html[data-appearance-scheme="light"]
