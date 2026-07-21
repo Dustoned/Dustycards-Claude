@@ -2085,6 +2085,26 @@ test.describe("DustyCards smoke", () => {
     ).toBeLessThanOrEqual(2);
     await expectNoHorizontalOverflow(page);
 
+    await page.setViewportSize({ width: 320, height: 844 });
+    await expect(chasePanel).toBeVisible();
+    expect(
+      await chasePanel.evaluate((element) => element.scrollWidth - element.clientWidth)
+    ).toBeLessThanOrEqual(2);
+    await expectNoHorizontalOverflow(page);
+    if ((await chaseCard.count()) > 0) {
+      const footer = chaseCard.locator("[data-chase-card-footer]");
+      const analysis = chaseCard.locator("[data-chase-analysis-link]");
+      const actions = chaseCard.locator("[data-chase-card-actions]");
+      await expect(footer).toBeVisible();
+      if ((await actions.count()) > 0) {
+        const analysisBounds = await requiredBounds(analysis);
+        const actionBounds = await requiredBounds(actions);
+        expect(analysisBounds.y + analysisBounds.height).toBeLessThanOrEqual(
+          actionBounds.y + 1
+        );
+      }
+    }
+
     await page.setViewportSize({ width: 1920, height: 1080 });
     await expect(chasePanel).toBeVisible();
     const desktopBounds = await requiredBounds(chasePanel);
@@ -2679,17 +2699,122 @@ test.describe("DustyCards smoke", () => {
     await expect(resumedSearch).toBeVisible();
   });
 
-  test("mobile menu closes when tapping outside the menu", async ({ page }) => {
+  test("mobile More hub stays accessible, contained, and free of primary-nav duplicates", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
-    await page.getByRole("button", { name: "More" }).click();
-    await expect(page.locator("[data-mobile-more-sheet]")).toBeVisible();
+    const moreTrigger = page.getByRole("button", { name: "More", exact: true });
+    await moreTrigger.click();
 
-    await page.locator("[data-mobile-more-backdrop]").click({ position: { x: 4, y: 4 } });
+    const dialog = page.locator('[data-mobile-navigation-root][role="dialog"]');
+    const sheet = page.locator("[data-mobile-more-sheet]");
+    const scrollRegion = page.locator("[data-mobile-more-scroll]");
+    const header = page.locator("[data-mobile-more-header]");
+    const bottomNav = page.locator("[data-mobile-bottom-nav]");
+    const closeButton = page.getByRole("button", { name: "Close navigation menu" });
 
-    await expect(page.locator("[data-mobile-more-sheet]")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "More" })).toBeVisible();
+    await expect(dialog).toBeVisible();
+    await expect(sheet).toBeVisible();
+    await expect(dialog).toHaveAttribute("aria-modal", "true");
+    await expect(bottomNav).toBeVisible();
+    await expect(closeButton).toBeFocused();
+    await expect(sheet.locator('a[href="/movers/signal-radar"]')).toBeVisible();
+    await expect(sheet.getByRole("link", { name: /Submit card/ })).toBeVisible();
+    await expect(sheet.getByRole("link", { name: /For sale/ })).toBeVisible();
+    await expect(sheet.getByRole("link", { name: "Account", exact: true })).toBeVisible();
+    await expect(sheet.getByRole("link", { name: "Settings", exact: true })).toBeVisible();
+
+    for (const primaryHref of ["/", "/?tab=complete", "/wants", "/movers"]) {
+      await expect(sheet.locator(`a[href="${primaryHref}"]`)).toHaveCount(0);
+    }
+
+    const undersizedTargets = await dialog.locator("a, button").evaluateAll((targets) =>
+      targets
+        .map((target) => ({
+          label: target.getAttribute("aria-label") || target.textContent?.trim() || "unnamed",
+          height: target.getBoundingClientRect().height,
+        }))
+        .filter((target) => target.height < 43.5)
+    );
+    expect(undersizedTargets).toEqual([]);
+
+    const headerTopBeforeScroll = (await header.boundingBox())?.y ?? Number.NaN;
+    await scrollRegion.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    await expect.poll(() => scrollRegion.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    const headerTopAfterScroll = (await header.boundingBox())?.y ?? Number.NaN;
+    expect(Math.abs(headerTopAfterScroll - headerTopBeforeScroll)).toBeLessThanOrEqual(1);
+    const logoutButton = sheet.getByRole("button", { name: "Log out", exact: true });
+    await expect(logoutButton).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+
+    await logoutButton.click();
+    const cancelLogoutButton = sheet.getByRole("button", { name: "Cancel", exact: true });
+    await expect(cancelLogoutButton).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(logoutButton).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(sheet).toHaveCount(0);
+    await expect(moreTrigger).toBeFocused();
+
+    await moreTrigger.click();
+    await expect(sheet).toBeVisible();
+
+    await sheet.getByRole("link", { name: "Settings", exact: true }).click();
+    await expect(page).toHaveURL(`${BASE_URL}/settings`);
+    await expect(sheet).toHaveCount(0);
+    await expect(moreTrigger).not.toBeFocused();
+
+    await moreTrigger.click();
+    await expect(sheet).toBeVisible();
+
+    await page.locator("[data-mobile-more-backdrop]").click({ position: { x: 2, y: 120 } });
+
+    await expect(sheet).toHaveCount(0);
+    await expect(moreTrigger).toBeVisible();
+  });
+
+  test("mobile More hub clears the bottom navigation and remains readable in a light theme", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await applyDisplaySettings(page, {
+      appearance: {
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        preset: "porcelain-studio",
+      },
+    });
+    await page.goto("/");
+    await page.getByRole("button", { name: "More", exact: true }).click();
+
+    const sheet = page.locator("[data-mobile-more-sheet]");
+    const bottomNav = page.locator("[data-mobile-bottom-nav]");
+    await expect(sheet).toBeVisible();
+    await expect(bottomNav).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("data-appearance-scheme", "light");
+
+    const [sheetBox, bottomNavBox] = await Promise.all([
+      sheet.boundingBox(),
+      bottomNav.boundingBox(),
+    ]);
+    expect(sheetBox).not.toBeNull();
+    expect(bottomNavBox).not.toBeNull();
+    expect((sheetBox?.y ?? 0) + (sheetBox?.height ?? 0)).toBeLessThanOrEqual(
+      (bottomNavBox?.y ?? 0) + 1
+    );
+
+    const sheetMetrics = await sheet.evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      return {
+        right: element.getBoundingClientRect().right,
+        viewportWidth: window.innerWidth,
+        background: style.backgroundImage || style.backgroundColor,
+        text: style.color,
+      };
+    });
+    expect(sheetMetrics.right).toBeLessThanOrEqual(sheetMetrics.viewportWidth + 1);
+    expect(sheetMetrics.background).not.toBe("none");
+    expect(sheetMetrics.text).not.toBe("rgba(0, 0, 0, 0)");
+    await expectNoHorizontalOverflow(page);
   });
 
   test("mobile collection add dialogs stay fixed in the viewport", async ({ page }) => {
