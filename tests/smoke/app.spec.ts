@@ -1426,6 +1426,16 @@ test.describe("DustyCards smoke", () => {
     expect(navigationDivider.left).toBe(0);
     expect(navigationDivider.right).toBe(0);
     expect(navigationDivider.headerBottomWidth).toBe(0);
+    const collectionMenuTrigger = topNavigationLinks.getByRole("button", {
+      name: "Collection",
+      exact: true,
+    });
+    await collectionMenuTrigger.press("ArrowDown");
+    const collectionMenu = page.getByRole("menu", { name: "Collection navigation" });
+    await expect(collectionMenu).toBeVisible();
+    await expect(collectionMenu.getByRole("menuitem", { name: /Wants/u })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(collectionMenu).toBeHidden();
     const topAccountButton = page.locator("[data-top-navigation-account]");
     await topAccountButton.click();
     const topAccountPanel = page.locator("#desktop-top-account-panel");

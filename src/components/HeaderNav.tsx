@@ -194,9 +194,9 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         COLLECTION_BINDERS_ITEM,
         COLLECTION_SEALED_ITEM,
         COLLECTION_GRADED_ITEM,
+        WANTS_ITEM,
       ],
     },
-    { label: "Wants", items: [WANTS_ITEM] },
     {
       label: "Browse",
       items: onePieceEnabled
@@ -225,7 +225,7 @@ const DESKTOP_HOME_ITEM = getNavigationItem("home");
 const DESKTOP_RADAR_ITEM = getNavigationItem("market-radar");
 
 function getDesktopMenuGroups(onePieceEnabled: boolean): readonly DesktopMenuGroup[] {
-  const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "graded"]);
+  const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "graded", "wants"]);
   const browseKeys = new Set(["expansions", "one-piece", "categories", "illustrators"]);
   const marketKeys = new Set([
     "market-raw",
@@ -234,7 +234,7 @@ function getDesktopMenuGroups(onePieceEnabled: boolean): readonly DesktopMenuGro
     "market-sealed",
     "selling",
   ]);
-  const moreKeys = new Set(["wants", "social", "submit-card"]);
+  const moreKeys = new Set(["social", "submit-card"]);
   const visibleItems = ALL_NAVIGATION_ITEMS.filter(
     (item) => item.key !== "one-piece" || onePieceEnabled
   );
