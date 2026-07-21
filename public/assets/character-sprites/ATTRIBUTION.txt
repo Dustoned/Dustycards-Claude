@@ -1,0 +1,10 @@
+Pokémon icon sprites imported from https://pokemondb.net/sprites.
+Pokémon images and names © Nintendo / Creatures Inc. / GAME FREAK inc.
+Trainer sprites imported from https://archives.bulbagarden.net/wiki/Category:Trainer_sprites.
+The Trainer sprites category and all namespace-14 subcategories are traversed recursively.
+One canonical sprite is selected per trainer; every selected file and source URL is in manifest.json.
+Trainer identities and aliases are catalogued separately from archive filenames; some identities use a monogram when no suitable source sprite exists.
+Bulbagarden Archives describes most Pokémon media as unlicensed fair-use material;
+the surrounding Archives content is available under CC BY-NC-SA 2.5:
+https://creativecommons.org/licenses/by-nc-sa/2.5/
+Files are locally normalized to transparent 64×64 lossless WebP for DustyCards UI use.

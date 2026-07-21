@@ -90,6 +90,7 @@ interface Props {
   onVisibleCardsChange?: (cards: CardData[]) => void;
   warmCardImages?: boolean;
   initialCardId?: string | null;
+  cardDetailBackLabel?: string;
 }
 
 interface FilterOption {
@@ -232,6 +233,7 @@ export default function ExpansionView({
   onVisibleCardsChange,
   warmCardImages = true,
   initialCardId = null,
+  cardDetailBackLabel = "Back to Expansion",
 }: Props) {
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
   const [search, setSearch] = useState("");
@@ -1500,7 +1502,7 @@ export default function ExpansionView({
             selectedDetails?.collection_item?.id ?? "none"
           }:${selectedDetails?.price_fetched_at ?? selectedModalCard.price_fetched_at ?? "none"}`}
           card={selectedModalCard}
-          backLabel="Back to Expansion"
+          backLabel={cardDetailBackLabel}
           onClose={closeDetails}
         />
       )}

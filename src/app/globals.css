@@ -788,15 +788,6 @@ body {
     top: calc(var(--ui-desktop-header-primary-height) / -2);
   }
 
-  html[data-desktop-navigation="top"] #desktop-top-account-panel {
-    /* Keep the opened panel below the complete two-row header even though
-       its trigger is visually lifted into the primary row. */
-    top: calc(
-      100% + var(--ui-desktop-header-primary-height) / 2 +
-        var(--ui-desktop-nav-height) - 0.75rem
-    );
-  }
-
   html[data-desktop-navigation="sidebar"] [data-desktop-sidebar] {
     display: block;
   }
@@ -1820,8 +1811,8 @@ html.widescreen .settings-page {
     "toolbar"
     "media"
     "identity"
-    "tabs"
     "chart"
+    "tabs"
     "panel";
   gap: 0.9rem;
   width: min(100%, 144rem);
@@ -2202,6 +2193,15 @@ html.widescreen .settings-page {
   margin-top: 1rem;
 }
 
+.card-detail-kpis--hero {
+  display: none;
+}
+
+.card-detail-kpis--market {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
 .card-detail-kpi {
   min-width: 0;
   min-height: 5.25rem;
@@ -2452,6 +2452,103 @@ html.widescreen .settings-page {
   color: rgba(255, 255, 255, 0.78);
 }
 
+.card-detail-info-cell--character-subject-wide {
+  grid-column: span 2;
+}
+
+.card-detail-info-cell--subject-pull-odds {
+  grid-column: span 2;
+}
+
+.card-detail-character-list {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.card-detail-character-chip {
+  display: inline-flex;
+  min-height: 2.75rem;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgb(var(--dc-border-rgb) / 0.92);
+  border-radius: 0.75rem;
+  background: linear-gradient(
+    145deg,
+    rgb(var(--dc-surface-elevated-rgb) / 0.9),
+    rgb(var(--dc-surface-primary-rgb) / 0.86)
+  );
+  padding: 0.3rem 0.65rem 0.3rem 0.35rem;
+  color: color-mix(in srgb, var(--dc-text-primary) 86%, transparent);
+  box-shadow: inset 0 1px 0 rgb(var(--dc-primary-soft-rgb) / 0.055);
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.card-detail-character-chip:hover {
+  border-color: rgb(var(--dc-border-active-rgb) / 0.66);
+  background: rgb(var(--dc-primary-rgb) / 0.12);
+  color: var(--dc-text-primary);
+  transform: translateY(-1px);
+}
+
+.card-detail-character-chip:focus-visible {
+  outline: 2px solid rgb(var(--dc-primary-soft-rgb) / 0.9);
+  outline-offset: 2px;
+}
+
+.card-detail-character-sprite {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--dc-text-primary) 72%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.card-detail-character-sprite img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.card-detail-character-chip[data-pixel-art="true"] .card-detail-character-sprite img {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.card-detail-character-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  font-weight: 720;
+  line-height: 1.2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-detail-character-chip {
+    transition: none;
+  }
+
+  .card-detail-character-chip:hover {
+    transform: none;
+  }
+}
+
 .card-detail-market-links {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2482,6 +2579,14 @@ html.widescreen .settings-page {
 }
 
 @container card-detail (min-width: 40rem) {
+  .card-detail-kpis--hero {
+    display: grid;
+  }
+
+  .card-detail-kpis--market {
+    display: none;
+  }
+
   .card-detail-layout {
     grid-template-columns: minmax(14rem, 0.72fr) minmax(0, 1.28fr);
     grid-template-areas:
@@ -2599,6 +2704,10 @@ html.widescreen .settings-page {
   .card-detail-info-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .card-detail-info-cell--subject-pull-odds {
+    grid-column: span 1;
+  }
 }
 
 /* At small-tablet widths the modal's sm: overflow rule and the detail
@@ -2699,6 +2808,24 @@ html.widescreen .settings-page {
 
   .card-detail-info-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .card-detail-info-grid[data-has-character-subject="wide"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .card-detail-info-cell--subject-pull-odds {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 639px) {
+  [data-card-detail-shell] .card-detail-chart[data-mobile-persistent="true"] {
+    display: block;
+  }
+
+  [data-card-detail-shell] .card-detail-info-cell--subject-pull-odds {
+    grid-column: 1 / -1;
   }
 }
 

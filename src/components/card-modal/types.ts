@@ -11,6 +11,14 @@ import type { CardMarketStats } from "@/lib/card-market-stats";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 
+export type CardCharacterData = {
+  kind: "pokemon" | "trainer";
+  name: string;
+  slug: string;
+  spritePath: string;
+  pixelArt?: boolean;
+};
+
 export interface ModalCardData {
   id: string;
   game: TradingCardGame;
@@ -22,6 +30,7 @@ export interface ModalCardData {
   supertype: string | null;
   subtypes: string | null;
   artist: string | null;
+  characters?: CardCharacterData[];
   cardmarket_id: string | null;
   cardmarket_url: string | null;
   tcggo_url: string | null;

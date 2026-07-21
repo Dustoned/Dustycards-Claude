@@ -57,14 +57,18 @@ export default function SignalRadarDetailLoading() {
                 </div>
                 <Skeleton className="h-11 w-36" rounded="lg" />
               </div>
-              <div className="card-detail-kpis mt-5">
+              <div className="card-detail-kpis card-detail-kpis--hero mt-5">
                 {Array.from({ length: 4 }, (_, index) => (
                   <KpiSkeleton key={index} />
                 ))}
               </div>
             </section>
 
-            <section className="card-detail-chart" data-card-detail-region="chart">
+            <section
+              className="card-detail-chart"
+              data-card-detail-region="chart"
+              data-mobile-persistent="true"
+            >
               <div className="card-detail-surface h-full min-h-72">
                 <div className="flex items-center justify-between gap-4">
                   <Skeleton className="h-4 w-28" rounded="full" />

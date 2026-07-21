@@ -18,6 +18,12 @@ import { useSettings } from "@/components/SettingsProvider";
 const AUTO_SWITCH_SEARCH_PARAM = "autoswitch";
 const SEARCH_ROUTE_DEBOUNCE_MS = 300;
 
+function getPreservedSearchGame(game: string | null, onePieceEnabled: boolean) {
+  if (game === POKEMON_GAME) return POKEMON_GAME;
+  if (onePieceEnabled && game === ONE_PIECE_GAME) return ONE_PIECE_GAME;
+  return null;
+}
+
 export default function HeaderSearch() {
   const router = useRouter();
   const pathname = usePathname();
@@ -34,15 +40,11 @@ export default function HeaderSearch() {
   const [mobileQuery, setMobileQuery] = useState(activeQuery);
   const currentHref = buildPathWithQuery(pathname, searchParams);
   const gameParam = searchParams.get(GAME_SEARCH_PARAM);
-  const activeGameParam = settings.onePieceLibraryEnabled
-    ? gameParam === ONE_PIECE_GAME
+  const activeGameParam =
+    getPreservedSearchGame(gameParam, settings.onePieceLibraryEnabled) ??
+    (settings.onePieceLibraryEnabled && pathname.startsWith("/one-piece")
       ? ONE_PIECE_GAME
-      : gameParam === POKEMON_GAME
-        ? POKEMON_GAME
-        : pathname.startsWith("/one-piece")
-          ? ONE_PIECE_GAME
-          : null
-    : null;
+      : null);
 
   useEffect(() => {
     const input = inputRef.current;
@@ -147,11 +149,10 @@ export default function HeaderSearch() {
     const currentAutoSwitchParam =
       liveParams.get(AUTO_SWITCH_SEARCH_PARAM) ??
       searchParams.get(AUTO_SWITCH_SEARCH_PARAM);
-    const preservedGame =
-      settings.onePieceLibraryEnabled &&
-      (currentGameParam === ONE_PIECE_GAME || currentGameParam === POKEMON_GAME)
-        ? currentGameParam
-        : null;
+    const preservedGame = getPreservedSearchGame(
+      currentGameParam,
+      settings.onePieceLibraryEnabled
+    );
 
     return buildSearchHref({
       game: preservedGame,
@@ -191,10 +192,8 @@ export default function HeaderSearch() {
 
     const liveGameParam = liveUrl.searchParams.get(GAME_SEARCH_PARAM);
     const preservedGame =
-      settings.onePieceLibraryEnabled &&
-      (liveGameParam === ONE_PIECE_GAME || liveGameParam === POKEMON_GAME)
-        ? liveGameParam
-        : activeGameParam;
+      getPreservedSearchGame(liveGameParam, settings.onePieceLibraryEnabled) ??
+      activeGameParam;
     const href = buildSearchHref({
       query: trimmed,
       game: preservedGame,

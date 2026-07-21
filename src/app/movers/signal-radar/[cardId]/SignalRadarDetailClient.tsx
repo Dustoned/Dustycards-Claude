@@ -18,6 +18,11 @@ import CardDetailShell, {
   type CardDetailSize,
   type CardDetailTab,
 } from "@/components/card-detail/CardDetailShell";
+import {
+  CardCharacterLinks,
+  getCardCharacterFactLabel,
+  isCardCharacterFactLabel,
+} from "@/components/card-detail/CardCharacterLinks";
 import { CardDetailMediaSwitcher } from "@/components/card-detail/CardDetailMediaSwitcher";
 import {
   CardDetailGradeSelect,
@@ -204,11 +209,35 @@ function DetailSurface({
   );
 }
 
-function InfoGrid({ items }: { items: Array<[string, ReactNode]> }) {
+function InfoGrid({
+  items,
+  wideCharacterSubject = false,
+}: {
+  items: Array<[string, ReactNode]>;
+  wideCharacterSubject?: boolean;
+}) {
+  const hasCharacterSubject = items.some(([label]) => isCardCharacterFactLabel(label));
   return (
-    <dl className="card-detail-info-grid">
+    <dl
+      className="card-detail-info-grid"
+      data-has-character-subject={
+        hasCharacterSubject ? (wideCharacterSubject ? "wide" : "single") : undefined
+      }
+    >
       {items.map(([label, value], index) => (
-        <div key={`${label}-${index}`} className="card-detail-info-cell">
+        <div
+          key={`${label}-${index}`}
+          className={cx(
+            "card-detail-info-cell",
+            isCardCharacterFactLabel(label) && "card-detail-info-cell--character-subject",
+            isCardCharacterFactLabel(label) &&
+              wideCharacterSubject &&
+              "card-detail-info-cell--character-subject-wide",
+            label === "Pull odds" &&
+              wideCharacterSubject &&
+              "card-detail-info-cell--subject-pull-odds"
+          )}
+        >
           <dt>{label}</dt>
           <dd>{value}</dd>
         </div>
@@ -570,14 +599,22 @@ export default function SignalRadarDetailClient({
         copy="The essential printing details, kept in one predictable place."
       >
         <InfoGrid
+          wideCharacterSubject={(card.characters?.length ?? 0) > 1}
           items={[
             ["Expansion", <Link key="set" href={getExpansionHref(card.episode_id)} className="text-violet-200/82 hover:text-white">{card.episode_name}</Link>],
             ["Card number", card.card_number ? `#${card.card_number}` : "--"],
             ["Rarity", card.rarity ?? "--"],
             ["Illustrator", card.artist ? <Link key="artist" href={`/illustrators/${encodeURIComponent(card.artist)}`} className="text-violet-200/82 hover:text-white">{card.artist}</Link> : "--"],
             ["Type", [card.supertype, card.subtypes].filter(Boolean).join(" · ") || "--"],
-            ["HP", card.hp ?? "--"],
             ["Release", releaseLabel],
+            [
+              getCardCharacterFactLabel(card.characters),
+              <CardCharacterLinks
+                key="characters"
+                characters={card.characters}
+                hpFallback={card.hp}
+              />,
+            ],
             ["Pull odds", card.pull_rate_info?.specific_pull_odds ?? card.pull_rate_info?.pull_rate_odds ?? "Unknown"],
           ]}
         />
@@ -805,6 +842,7 @@ export default function SignalRadarDetailClient({
         }
         tabs={tabs}
         mobileChartTabs={["market", "forecast"]}
+        mobileChartAlwaysVisible
       />
 
       {threeDOpen && card.image_url ? (

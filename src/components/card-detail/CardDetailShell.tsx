@@ -112,6 +112,7 @@ interface CardDetailShellProps {
   tabs: CardDetailTab[];
   initialTab?: CardDetailTabId;
   mobileChartTabs?: CardDetailTabId[];
+  mobileChartAlwaysVisible?: boolean;
   className?: string;
 }
 
@@ -201,6 +202,7 @@ export default function CardDetailShell({
   tabs,
   initialTab = "overview",
   mobileChartTabs = ["market", "forecast"],
+  mobileChartAlwaysVisible = false,
   className = "",
 }: CardDetailShellProps) {
   const fallbackTab = tabs[0]?.id ?? "overview";
@@ -216,6 +218,7 @@ export default function CardDetailShell({
   const reactId = useId().replace(/:/g, "");
   const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const showMobileChart = mobileChartTabs.includes(active?.id ?? fallbackTab);
+  const visibleKpis = kpis.slice(0, 4);
   const actionContent = actions ? (
     <div className="card-detail-actions" aria-label="Card actions" data-card-detail-actions>
       {actions}
@@ -381,8 +384,11 @@ export default function CardDetailShell({
             {marketControls ? <div className="card-detail-market-controls">{marketControls}</div> : null}
           </div>
 
-          <div className="card-detail-kpis">
-            {kpis.slice(0, 4).map((item, index) => (
+          <div
+            className="card-detail-kpis card-detail-kpis--hero"
+            data-card-detail-kpis="hero"
+          >
+            {visibleKpis.map((item, index) => (
               <KpiCard key={`${item.label}-${index}`} item={item} />
             ))}
           </div>
@@ -392,6 +398,7 @@ export default function CardDetailShell({
           className="card-detail-chart"
           data-card-detail-region="chart"
           data-mobile-visible={showMobileChart ? "true" : "false"}
+          data-mobile-persistent={mobileChartAlwaysVisible ? "true" : "false"}
         >
           {chart}
         </section>
@@ -453,6 +460,17 @@ export default function CardDetailShell({
             className="card-detail-panel"
             data-card-detail-region="panel"
           >
+            {active?.id === "market" && visibleKpis.length > 0 ? (
+              <div
+                className="card-detail-kpis card-detail-kpis--market"
+                data-card-detail-kpis="market"
+                aria-label="Market summary"
+              >
+                {visibleKpis.map((item, index) => (
+                  <KpiCard key={`${item.label}-${index}`} item={item} />
+                ))}
+              </div>
+            ) : null}
             {active?.content}
           </section>
             </div>

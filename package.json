@@ -26,7 +26,8 @@
     "backfill:printed-card-numbers": "node scripts/backfill-printed-card-numbers.mjs",
     "db:snapshot": "node scripts/refresh-app-db-snapshot.mjs",
     "db:snapshot:sanitize": "node scripts/sanitize-app-snapshot.mjs",
-    "images:cache": "node scripts/cache-images.mjs"
+    "images:cache": "node scripts/cache-images.mjs",
+    "sprites:characters": "node scripts/sync-character-sprites.mjs"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.8.0",

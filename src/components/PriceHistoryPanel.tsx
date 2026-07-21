@@ -594,6 +594,7 @@ export default function PriceHistoryPanel({
   const [activeHover, setActiveHover] = useState<{
     index: number;
     pointerX: number;
+    pointerType: "mouse" | "touch" | "pen";
   } | null>(null);
   const effectiveRangeStorageKeys = useMemo(
     () =>
@@ -863,18 +864,40 @@ export default function PriceHistoryPanel({
           ? { stroke: "#fbbf24", text: "text-amber-200/78" }
           : { stroke: "#38bdf8", text: "text-sky-100/72" };
   const projectionSummary = projection?.summary ?? null;
+  const usesCornerTooltip =
+    activeHover?.pointerType === "touch" || activeHover?.pointerType === "pen";
+  const cornerTooltipPlacement =
+    (activeHover?.pointerX ?? measuredChartWidth / 2) <= measuredChartWidth / 2
+      ? "top-right"
+      : "top-left";
   const tooltipRawLeft = activeHover?.pointerX ?? activePoint?.x ?? measuredChartWidth / 2;
-  const tooltipLeft = clamp(tooltipRawLeft, 12, Math.max(measuredChartWidth - 12, 12));
+  const tooltipLeft = usesCornerTooltip
+    ? cornerTooltipPlacement === "top-right"
+      ? Math.max(measuredChartWidth - 8, 8)
+      : 8
+    : clamp(tooltipRawLeft, 12, Math.max(measuredChartWidth - 12, 12));
   const tooltipLeftRatio = measuredChartWidth > 0 ? tooltipLeft / measuredChartWidth : 0.5;
-  const tooltipTop = activePoint
-    ? clamp(activePoint.y - (compact ? 56 : isHeroLayout ? 76 : 64), 8, height - 64)
-    : 8;
-  const tooltipAlignmentClass =
-    tooltipLeftRatio <= 0.2
+  const tooltipTop = usesCornerTooltip
+    ? 8
+    : activePoint
+      ? clamp(activePoint.y - (compact ? 56 : isHeroLayout ? 76 : 64), 8, height - 64)
+      : 8;
+  const tooltipAlignmentClass = usesCornerTooltip
+    ? cornerTooltipPlacement === "top-right"
+      ? "-translate-x-full"
+      : "translate-x-0"
+    : tooltipLeftRatio <= 0.2
       ? "translate-x-0"
       : tooltipLeftRatio >= 0.8
         ? "-translate-x-full"
         : "-translate-x-1/2";
+  const tooltipPlacement = usesCornerTooltip
+    ? cornerTooltipPlacement
+    : tooltipLeftRatio <= 0.2
+      ? "point-left"
+      : tooltipLeftRatio >= 0.8
+        ? "point-right"
+        : "point-center";
   const rangeButtonClass = isDashboardLayout
     ? "min-h-7 px-2.5 py-1 text-[12px]"
     : compact
@@ -887,9 +910,14 @@ export default function PriceHistoryPanel({
 
   function updateHoverState(event: ReactPointerEvent<SVGSVGElement>) {
     const pointerX = getPointerChartX(event, measuredChartWidth);
+    const pointerType =
+      event.pointerType === "touch" || event.pointerType === "pen"
+        ? event.pointerType
+        : "mouse";
     setActiveHover({
       index: getNearestCoordinateIndex(pointerX, hoverCoordinates),
       pointerX,
+      pointerType,
     });
   }
 
@@ -987,6 +1015,10 @@ export default function PriceHistoryPanel({
                       <div
                         className={`pointer-events-none absolute z-10 w-max max-w-[calc(100%-8px)] rounded-xl border px-2.5 py-2 text-left ${tooltipClass} ${tooltipAlignmentClass}`}
                         style={{ left: tooltipLeft, top: tooltipTop }}
+                        data-chart-tooltip
+                        data-chart-tooltip-input={activeHover?.pointerType ?? "mouse"}
+                        data-chart-tooltip-mode={usesCornerTooltip ? "corner" : "point"}
+                        data-chart-tooltip-placement={tooltipPlacement}
                       >
                         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-60">
                           {activePoint.projected ? `${projection?.label ?? "Prediction"} · ` : ""}{formatPointDate(activePoint)}
@@ -1002,9 +1034,12 @@ export default function PriceHistoryPanel({
                       style={{ height }}
                       role="img"
                       aria-label={projection ? "Historical price with attached base prediction" : "Historical price"}
+                      data-chart-interaction-surface
+                      data-chart-touch-tooltip="opposite-corner"
                       onPointerMove={updateHoverState}
                       onPointerDown={updateHoverState}
                       onPointerLeave={() => setActiveHover(null)}
+                      onPointerCancel={() => setActiveHover(null)}
                     >
                       <defs>
                         <linearGradient id={`${chartId}-fill`} x1="0" x2="0" y1="0" y2="1">
@@ -1253,6 +1288,10 @@ export default function PriceHistoryPanel({
               <div
                 className={`pointer-events-none absolute z-10 w-max max-w-[calc(100%-8px)] rounded-xl border px-2.5 py-2 text-left ${tooltipClass} ${tooltipAlignmentClass}`}
                 style={{ left: tooltipLeft, top: tooltipTop }}
+                data-chart-tooltip
+                data-chart-tooltip-input={activeHover?.pointerType ?? "mouse"}
+                data-chart-tooltip-mode={usesCornerTooltip ? "corner" : "point"}
+                data-chart-tooltip-placement={tooltipPlacement}
               >
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-60">
                   {activePoint.projected ? `${projection?.label ?? "Prediction"} · ` : ""}{formatPointDate(activePoint)}
@@ -1269,9 +1308,12 @@ export default function PriceHistoryPanel({
               style={{ height }}
               role="img"
               aria-label={projection ? "Historical price with attached base prediction" : "Historical price"}
+              data-chart-interaction-surface
+              data-chart-touch-tooltip="opposite-corner"
               onPointerMove={updateHoverState}
               onPointerDown={updateHoverState}
               onPointerLeave={() => setActiveHover(null)}
+              onPointerCancel={() => setActiveHover(null)}
             >
               <defs>
                 <linearGradient id={`${chartId}-fill`} x1="0" x2="0" y1="0" y2="1">

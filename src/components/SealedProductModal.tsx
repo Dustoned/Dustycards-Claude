@@ -252,7 +252,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
           data-modal-size={displaySettings.modalSize}
         >
           <div
-            className="mx-auto hidden w-full items-center justify-between gap-4 px-6 py-4 md:flex lg:px-8"
+            className="mx-auto hidden w-full items-center justify-between gap-4 px-6 py-2 md:flex lg:px-8"
             style={desktopWorkspaceStyle}
           >
             <button
@@ -275,7 +275,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
           </div>
 
           <div
-            className={`${layout.pad} mx-auto w-full md:px-6 md:pb-6 md:pt-0 lg:px-8`}
+            className={`${layout.pad} mx-auto w-full md:px-6 md:pb-4 md:pt-0 lg:px-8`}
             style={desktopWorkspaceStyle}
           >
             <div className={desktopGridClass}>
@@ -331,7 +331,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
               </div>
             </div>
 
-            <div className="mt-5">
+            <div className="mt-5 md:mt-4">
               <SealedFeaturedCardsSection
                 product={modalProduct}
                 loading={detailsLoading}

@@ -529,7 +529,7 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
             id="desktop-top-account-panel"
             role="menu"
             aria-label="Account navigation"
-            className="absolute right-0 top-full z-[75] w-[18rem] pt-2"
+            className="absolute right-0 top-[calc(100%+0.5rem)] z-[75] w-[18rem]"
           >
             <div className="rounded-xl border border-[var(--dc-border)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.98)] p-2.5 shadow-2xl shadow-black/35 backdrop-blur-xl">
               <div className="px-1.5 pb-2">

@@ -190,6 +190,7 @@ const CARD_DETAIL_API_KEYS = [
   "card_number",
   "cardmarket_id",
   "cardmarket_url",
+  "characters",
   "collection_item",
   "ebay_sold_graded_checked_at",
   "ebay_sold_graded_price_history",

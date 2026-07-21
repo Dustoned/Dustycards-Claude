@@ -547,6 +547,94 @@ async function expectDetailHeroLayout(
   expect(Math.abs(identityBounds.y - chartBounds.y)).toBeLessThanOrEqual(4);
 }
 
+async function expectMobileChartPriorityLayout(shell: Locator) {
+  await resetDetailScroll(shell);
+  const identity = shell.locator('[data-card-detail-region="identity"]');
+  const priceBlock = identity.locator(".card-detail-price-block");
+  const chart = shell.locator('[data-card-detail-region="chart"]');
+  const tabs = shell.locator(".card-detail-tabs-shell");
+  const heroKpis = shell.locator('[data-card-detail-kpis="hero"]');
+  const [identityBounds, priceBounds, chartBounds, tabsBounds] = await Promise.all([
+    requiredBounds(identity),
+    requiredBounds(priceBlock),
+    requiredBounds(chart),
+    requiredBounds(tabs),
+  ]);
+
+  await expect(heroKpis).toBeHidden();
+  expect(identityBounds.y + identityBounds.height - (priceBounds.y + priceBounds.height))
+    .toBeLessThanOrEqual(28);
+  expect(priceBounds.y + priceBounds.height).toBeLessThanOrEqual(chartBounds.y);
+  expect(chartBounds.y).toBeGreaterThanOrEqual(
+    identityBounds.y + identityBounds.height - 2
+  );
+  expect(chartBounds.y - (identityBounds.y + identityBounds.height))
+    .toBeLessThanOrEqual(20);
+  expect(tabsBounds.y).toBeGreaterThanOrEqual(chartBounds.y + chartBounds.height - 2);
+  expect(tabsBounds.y - (chartBounds.y + chartBounds.height)).toBeLessThanOrEqual(20);
+}
+
+async function expectMobileMarketKpis(shell: Locator, labels: string[]) {
+  const marketKpis = shell.locator('[data-card-detail-kpis="market"]');
+  await expect(marketKpis).toBeVisible();
+  await expect(marketKpis.locator(".card-detail-kpi")).toHaveCount(4);
+  for (const label of labels) {
+    await expect(
+      marketKpis.locator(".card-detail-kpi-label").filter({ hasText: label })
+    ).toHaveCount(1);
+  }
+  await expect(shell.locator('[data-card-detail-kpis="hero"]')).toBeHidden();
+
+  const [tabsBounds, marketKpiBounds, panelBounds] = await Promise.all([
+    requiredBounds(shell.locator(".card-detail-tabs-shell")),
+    requiredBounds(marketKpis),
+    requiredBounds(shell.locator('[data-card-detail-region="panel"]')),
+  ]);
+  expect(marketKpiBounds.y).toBeGreaterThanOrEqual(tabsBounds.y + tabsBounds.height - 2);
+  expect(Math.abs(marketKpiBounds.y - panelBounds.y)).toBeLessThanOrEqual(2);
+}
+
+async function expectTouchChartTooltipOpposesPointer(
+  shell: Locator,
+  pointerSide: "left" | "right"
+) {
+  const chartSurface = shell.locator(
+    '[data-card-detail-region="chart"] [data-chart-interaction-surface]'
+  );
+  const chartBounds = await requiredBounds(chartSurface);
+  const pointerX =
+    chartBounds.x + chartBounds.width * (pointerSide === "left" ? 0.2 : 0.8);
+  const pointerY = chartBounds.y + chartBounds.height * 0.62;
+
+  await chartSurface.dispatchEvent("pointerdown", {
+    pointerType: "touch",
+    isPrimary: true,
+    clientX: pointerX,
+    clientY: pointerY,
+    bubbles: true,
+  });
+
+  const tooltip = shell.locator(
+    '[data-card-detail-region="chart"] [data-chart-tooltip][data-chart-tooltip-input="touch"]'
+  );
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toHaveAttribute("data-chart-tooltip-mode", "corner");
+  await expect(tooltip).toHaveAttribute(
+    "data-chart-tooltip-placement",
+    pointerSide === "left" ? "top-right" : "top-left"
+  );
+  await expect(tooltip).toContainText(/[\u20ac$]/);
+
+  const tooltipBounds = await requiredBounds(tooltip);
+  if (pointerSide === "left") {
+    expect(tooltipBounds.x).toBeGreaterThan(pointerX + 24);
+  } else {
+    expect(tooltipBounds.x + tooltipBounds.width).toBeLessThan(pointerX - 24);
+  }
+  expect(tooltipBounds.y).toBeLessThan(pointerY - 24);
+  expect(tooltipBounds.y).toBeGreaterThanOrEqual(chartBounds.y - 1);
+}
+
 async function expectBoundedCenteredDetailCanvas(shell: Locator) {
   await resetDetailScroll(shell);
   const [shellBounds, canvasBounds] = await Promise.all([
@@ -908,6 +996,7 @@ async function expectMobileDetailTabsKeepScrollAnchor(
 
     expect(after, `Missing mobile scroll state after ${tabLabel}`).not.toBeNull();
     await expect(tab).toHaveAttribute("aria-selected", "true");
+    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
     expect(Math.abs(after!.top - before!.top)).toBeLessThanOrEqual(2);
     expect(
       Math.abs(after!.scrollTop - before!.scrollTop),
@@ -1440,11 +1529,24 @@ test.describe("DustyCards smoke", () => {
     await topAccountButton.click();
     const topAccountPanel = page.locator("#desktop-top-account-panel");
     await expect(topAccountPanel).toBeVisible();
-    const topAccountPanelBox = await topAccountPanel.boundingBox();
+    const [topAccountButtonBox, topAccountPanelBox] = await Promise.all([
+      topAccountButton.boundingBox(),
+      topAccountPanel.boundingBox(),
+    ]);
+    expect(topAccountButtonBox).not.toBeNull();
     expect(topAccountPanelBox).not.toBeNull();
-    expect(topAccountPanelBox!.y).toBeGreaterThanOrEqual(
-      (topHeaderBox?.y ?? 0) + (topHeaderBox?.height ?? 0)
-    );
+    const accountPanelGap = topAccountPanelBox!.y -
+      (topAccountButtonBox!.y + topAccountButtonBox!.height);
+    expect(accountPanelGap).toBeGreaterThanOrEqual(6);
+    expect(accountPanelGap).toBeLessThanOrEqual(10);
+    expect(
+      Math.abs(
+        topAccountPanelBox!.x + topAccountPanelBox!.width -
+          (topAccountButtonBox!.x + topAccountButtonBox!.width)
+      )
+    ).toBeLessThanOrEqual(1);
+    expect(topAccountPanelBox!.x).toBeGreaterThanOrEqual(0);
+    expect(topAccountPanelBox!.x + topAccountPanelBox!.width).toBeLessThanOrEqual(1280);
     await topAccountButton.click();
     await expect(topAccountPanel).toBeHidden();
     const topMainPadding = await page.locator("[data-app-main]").evaluate((element) =>
@@ -1504,6 +1606,33 @@ test.describe("DustyCards smoke", () => {
     expect(wideAccountBox).not.toBeNull();
     expect(wideBrandBox!.x).toBeLessThanOrEqual(40);
     expect(wideAccountBox!.x + wideAccountBox!.width).toBeGreaterThanOrEqual(5080);
+    const wideAccountButton = page.locator("[data-top-navigation-account]");
+    await wideAccountButton.click();
+    const wideAccountPanel = page.locator("#desktop-top-account-panel");
+    await expect(wideAccountPanel).toBeVisible();
+    const [wideAccountButtonBox, wideAccountPanelBox] = await Promise.all([
+      wideAccountButton.boundingBox(),
+      wideAccountPanel.boundingBox(),
+    ]);
+    expect(wideAccountButtonBox).not.toBeNull();
+    expect(wideAccountPanelBox).not.toBeNull();
+    expect(
+      wideAccountPanelBox!.y -
+        (wideAccountButtonBox!.y + wideAccountButtonBox!.height)
+    ).toBeGreaterThanOrEqual(6);
+    expect(
+      wideAccountPanelBox!.y -
+        (wideAccountButtonBox!.y + wideAccountButtonBox!.height)
+    ).toBeLessThanOrEqual(10);
+    expect(
+      Math.abs(
+        wideAccountPanelBox!.x + wideAccountPanelBox!.width -
+          (wideAccountButtonBox!.x + wideAccountButtonBox!.width)
+      )
+    ).toBeLessThanOrEqual(1);
+    expect(wideAccountPanelBox!.x + wideAccountPanelBox!.width).toBeLessThanOrEqual(5120);
+    await wideAccountButton.click();
+    await expect(wideAccountPanel).toBeHidden();
     const pageBottomPadding = await canvas.evaluate((element) =>
       Number.parseFloat(window.getComputedStyle(element).paddingBottom)
     );
@@ -1881,6 +2010,9 @@ test.describe("DustyCards smoke", () => {
 
     await page.setViewportSize({ width: 768, height: 900 });
     await captureCardDetailScreenshot(page, shell, "standard-768x900.png");
+    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeHidden();
+    await expect(shell.locator('[data-card-detail-kpis="hero"]')).toBeVisible();
+    await expect(shell.locator('[data-card-detail-kpis="market"]')).toHaveCount(0);
     await marketTab.click();
     await expectDetailHeroLayout(shell, "double");
     await expect(shell.locator("[data-card-detail-media-switch]")).toBeHidden();
@@ -1905,6 +2037,19 @@ test.describe("DustyCards smoke", () => {
     await marketTab.click();
     await gradedHeroMode.click();
     await expect(gradedHeroMode).toHaveAttribute("aria-pressed", "true");
+    await expectMobileChartPriorityLayout(shell);
+    await expectMobileMarketKpis(shell, [
+      "Selected grade",
+      "Market source",
+      "Paid",
+      "Market score",
+    ]);
+    await expectSingleChartGradeSelector(shell);
+    await expectTouchChartTooltipOpposesPointer(shell, "left");
+    await expectMobileActionClusterNeverCoversDetail(page, shell, {
+      requireScrollable: false,
+    });
+    await expectNoHorizontalOverflow(page, shell);
     await expectVisiblePriceStatusItems(shell);
     await captureCardDetailStatusScreenshot(
       page,
@@ -1914,6 +2059,12 @@ test.describe("DustyCards smoke", () => {
     await rawHeroMode.click();
     await expect(rawHeroMode).toHaveAttribute("aria-pressed", "true");
     await overviewTab.click();
+    await expectMobileChartPriorityLayout(shell);
+    await expect(shell.locator('[data-card-detail-kpis="market"]')).toHaveCount(0);
+    await expect(
+      shell.locator('[data-card-detail-chart-series-control="language"]')
+    ).toBeVisible();
+    await expectNoHorizontalOverflow(page, shell);
     await captureCardDetailScreenshot(page, shell, "standard-390x844.png");
     await expectMobileActionClusterNeverCoversDetail(page, shell);
     await marketTab.click();
@@ -1935,7 +2086,7 @@ test.describe("DustyCards smoke", () => {
     await expect(dialog).toBeVisible();
     await expect(marketSignal).toHaveAttribute("data-signal-source", /^(market|external)$/);
     await overviewTab.click();
-    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeHidden();
+    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
     await marketTab.click();
     await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
     await expectMobileDetailTabsKeepScrollAnchor(page, shell, [
@@ -2624,6 +2775,9 @@ test.describe("DustyCards smoke", () => {
 
     await page.setViewportSize({ width: 768, height: 900 });
     await captureCardDetailScreenshot(page, shell, "radar-768x900.png");
+    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeHidden();
+    await expect(shell.locator('[data-card-detail-kpis="hero"]')).toBeVisible();
+    await expect(shell.locator('[data-card-detail-kpis="market"]')).toHaveCount(0);
     await forecastTab.click();
     await expectDetailHeroLayout(shell, "double");
     await expectSingleVisibleActionCluster(shell);
@@ -2632,11 +2786,31 @@ test.describe("DustyCards smoke", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await radarGradedMode.click();
     await expect(radarGradedMode).toHaveAttribute("aria-pressed", "true");
+    await marketTab.click();
+    await expectMobileChartPriorityLayout(shell);
+    await expectMobileMarketKpis(shell, [
+      "Opportunity",
+      "Setup strength",
+      "Confidence",
+      "180-day model",
+    ]);
+    await expectSingleChartGradeSelector(shell);
+    await expectMobileActionClusterNeverCoversDetail(page, shell, {
+      requireScrollable: false,
+    });
+    await expectNoHorizontalOverflow(page, shell);
     await captureCardDetailScreenshot(page, shell, "radar-graded-390x844.png");
     await radarRawMode.click();
     await expect(radarRawMode).toHaveAttribute("aria-pressed", "true");
     await overviewTab.click();
-    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeHidden();
+    await expectMobileChartPriorityLayout(shell);
+    await expect(shell.locator('[data-card-detail-kpis="market"]')).toHaveCount(0);
+    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
+    await expect(
+      shell.locator('[data-card-detail-chart-series-control="language"]')
+    ).toBeVisible();
+    await expectTouchChartTooltipOpposesPointer(shell, "right");
+    await expectNoHorizontalOverflow(page, shell);
     await captureCardDetailScreenshot(page, shell, "radar-390x844.png");
     await expectMobileActionClusterNeverCoversDetail(page, shell);
     await forecastTab.click();
@@ -3540,5 +3714,143 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page);
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
+  });
+
+  test("card profiles keep Pokemon and Trainer subjects linked on mobile", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await applyDisplaySettings(page, {
+      mobileModalSize: "small",
+      mobileUiScale: "small",
+    });
+    await page.goto("/search?q=Cynthia%27s%20Gible&game=pokemon&autoswitch=0", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+
+    const card = page
+      .locator("[role='button']")
+      .filter({ hasText: "Cynthia's Gible" })
+      .first();
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await card.click({ position: { x: 10, y: 10 } });
+    const shell = page.locator('[data-card-detail-shell][data-card-detail-mode="standard"]');
+    await expect(shell).toBeVisible({ timeout: 30_000 });
+
+    const subject = shell.locator(".card-detail-info-cell--character-subject");
+    const profileGrid = subject.locator("..");
+    const profileSurface = profileGrid.locator("..");
+    const pullOdds = profileGrid.locator(".card-detail-info-cell--subject-pull-odds");
+    const gible = subject.getByRole("link", { name: "View all Gible cards" });
+    const cynthia = subject.getByRole("link", { name: "View all Cynthia cards" });
+    await expect(subject).toContainText("Pokémon & Trainer");
+    await expect(profileGrid.getByText("Type", { exact: true })).toBeVisible();
+    await expect(profileGrid.getByText("HP", { exact: true })).toHaveCount(0);
+    const [profileBounds, pullOddsBounds] = await Promise.all([
+      requiredBounds(profileGrid),
+      requiredBounds(pullOdds),
+    ]);
+    expect(pullOddsBounds.width).toBeGreaterThanOrEqual(profileBounds.width - 2.1);
+    await expect(gible).toBeVisible();
+    await expect(cynthia).toBeVisible();
+
+    const subjectLayout = await subject.evaluate((element) => {
+      const cell = element.getBoundingClientRect();
+      const links = [...element.querySelectorAll("a")].map((link) => {
+        const bounds = link.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          top: bounds.top,
+          bottom: bounds.bottom,
+          height: bounds.height,
+        };
+      });
+      return { cell: { left: cell.left, right: cell.right }, links };
+    });
+    expect(subjectLayout.links).toHaveLength(2);
+    expect(subjectLayout.links[0]!.top).toBeCloseTo(subjectLayout.links[1]!.top, 0);
+    expect(subjectLayout.links[0]!.right).toBeLessThanOrEqual(
+      subjectLayout.links[1]!.left
+    );
+    for (const link of subjectLayout.links) {
+      expect(link.height).toBeGreaterThanOrEqual(44);
+      expect(link.left).toBeGreaterThanOrEqual(subjectLayout.cell.left - 1);
+      expect(link.right).toBeLessThanOrEqual(subjectLayout.cell.right + 1);
+    }
+    await expectNoHorizontalOverflow(page, shell);
+
+    if (CARD_DETAIL_SCREENSHOT_DIR) {
+      await profileSurface.evaluate((surface) => {
+        const viewport = surface.closest<HTMLElement>(
+          "[data-card-detail-scroll-viewport]"
+        );
+        if (!viewport) return;
+        const tabRail = viewport.querySelector<HTMLElement>(".card-detail-tabs-shell");
+        const top =
+          surface.getBoundingClientRect().top -
+          viewport.getBoundingClientRect().top +
+          viewport.scrollTop;
+        viewport.scrollTop = Math.max(0, top - (tabRail?.offsetHeight ?? 56) - 14);
+      });
+      await page.screenshot({
+        path: `${CARD_DETAIL_SCREENSHOT_DIR}/character-profile-pokemon-trainer-390x844.png`,
+        animations: "disabled",
+      });
+    }
+
+    await gible.click();
+    await expect(page).toHaveURL(/\/characters\/pokemon\/gible$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Gible" })).toBeVisible();
+    await expect(page.locator("[data-card-modal-root]")).toHaveCount(0);
+    await expect(
+      page.locator("[role='button']").filter({ hasText: "Gible" }).first()
+    ).toBeVisible({ timeout: 30_000 });
+    await expectNoHorizontalOverflow(page);
+    if (CARD_DETAIL_SCREENSHOT_DIR) {
+      await page.screenshot({
+        path: `${CARD_DETAIL_SCREENSHOT_DIR}/character-library-gible-390x844.png`,
+        animations: "disabled",
+      });
+    }
+
+    await page.goto("/characters/trainer/cynthia", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    await expect(page.getByRole("heading", { level: 1, name: "Cynthia" })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/search?q=sylveon&game=pokemon&autoswitch=0", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    const singlePokemonCard = page
+      .locator("[role='button']")
+      .filter({ hasText: "Sylveon" })
+      .first();
+    await expect(singlePokemonCard).toBeVisible({ timeout: 30_000 });
+    await singlePokemonCard.click({ position: { x: 10, y: 10 } });
+
+    const singlePokemonGrid = page.locator(
+      '.card-detail-info-grid[data-has-character-subject="single"]'
+    );
+    const singlePokemonSubject = singlePokemonGrid.locator(
+      ".card-detail-info-cell--character-subject"
+    );
+    const singlePokemonPullOdds = singlePokemonGrid
+      .locator(".card-detail-info-cell")
+      .filter({ hasText: "Pull odds" });
+    const [singleGridBounds, singleSubjectBounds, singlePullBounds] =
+      await Promise.all([
+        requiredBounds(singlePokemonGrid),
+        requiredBounds(singlePokemonSubject),
+        requiredBounds(singlePokemonPullOdds),
+      ]);
+    expect(singleSubjectBounds.width).toBeLessThan(singleGridBounds.width * 0.55);
+    expect(singlePullBounds.width).toBeLessThan(singleGridBounds.width * 0.55);
+    await expect(singlePokemonSubject).not.toHaveClass(/character-subject-wide/);
+    await expectNoHorizontalOverflow(page);
   });
 });

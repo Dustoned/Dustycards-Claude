@@ -9,6 +9,11 @@ import { useSettings } from "@/components/SettingsProvider";
 import CardDetailShell, {
   type CardDetailTab,
 } from "@/components/card-detail/CardDetailShell";
+import {
+  CardCharacterLinks,
+  getCardCharacterFactLabel,
+  isCardCharacterFactLabel,
+} from "@/components/card-detail/CardCharacterLinks";
 import { CardDetailMediaSwitcher } from "@/components/card-detail/CardDetailMediaSwitcher";
 import { CardDetailMarketControls } from "@/components/card-detail/CardDetailMarketControls";
 import { buildCardDetailSignalTabs } from "@/components/card-detail/CardDetailSignalTabs";
@@ -679,6 +684,8 @@ export default function CardModal({
         new Date(modalCard.episode_release_date)
       )
     : "Unknown";
+  const hasCharacterSubjects = (modalCard.characters?.length ?? 0) > 0;
+  const hasWideCharacterSubjects = (modalCard.characters?.length ?? 0) > 1;
   const detailFacts = [
     [
       "Expansion",
@@ -709,8 +716,16 @@ export default function CardModal({
       ),
     ],
     ["Type", [modalCard.supertype, modalCard.subtypes].filter(Boolean).join(" · ") || "--"],
-    ["HP", modalCard.hp ?? "--"],
     ["Release", releaseLabel],
+    [
+      getCardCharacterFactLabel(modalCard.characters),
+      <CardCharacterLinks
+        key="characters"
+        characters={modalCard.characters}
+        hpFallback={modalCard.hp}
+        onNavigate={onClose}
+      />,
+    ],
     [
       "Pull odds",
       modalCard.pull_rate_info?.specific_pull_odds ??
@@ -726,9 +741,31 @@ export default function CardModal({
         <p className="card-detail-surface-copy">
           The essential printing details, kept in one predictable place.
         </p>
-        <dl className="card-detail-info-grid mt-4">
+        <dl
+          className="card-detail-info-grid mt-4"
+          data-has-character-subject={
+            hasCharacterSubjects
+              ? hasWideCharacterSubjects
+                ? "wide"
+                : "single"
+              : undefined
+          }
+        >
           {detailFacts.map(([label, value]) => (
-            <div key={label} className="card-detail-info-cell">
+            <div
+              key={label}
+              className={`card-detail-info-cell${
+                isCardCharacterFactLabel(label)
+                  ? ` card-detail-info-cell--character-subject${
+                      hasWideCharacterSubjects
+                        ? " card-detail-info-cell--character-subject-wide"
+                        : ""
+                    }`
+                  : label === "Pull odds" && hasWideCharacterSubjects
+                    ? " card-detail-info-cell--subject-pull-odds"
+                    : ""
+              }`}
+            >
               <dt>{label}</dt>
               <dd>{value}</dd>
             </div>
@@ -974,6 +1011,7 @@ export default function CardModal({
               }
               tabs={tabs}
               mobileChartTabs={["market"]}
+              mobileChartAlwaysVisible
             />
           </div>
         </div>

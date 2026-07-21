@@ -23,6 +23,7 @@ import { buildCardMarketStats } from "@/lib/card-market-stats";
 import { getEbayDemandPayload } from "@/lib/ebay-demand";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import { loadRelatedCardPrintings } from "@/lib/card-printings";
+import { getCardCharacters } from "@/lib/card-characters-core";
 
 type CardDetailCollectionItem = {
   id: string;
@@ -527,6 +528,11 @@ export async function getCardDetailPayload(id: string, userId: string) {
     supertype: card.supertype,
     subtypes: card.subtypes,
     artist: card.artist,
+    characters: getCardCharacters({
+      game: card.game,
+      name: card.name,
+      supertype: card.supertype,
+    }),
     cardmarket_id: card.cardmarket_id,
     cardmarket_url: card.cardmarket_url,
     tcggo_url: card.tcggo_url,
