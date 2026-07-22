@@ -279,11 +279,13 @@ function getPriceStatusToneClass(tone: PriceStatusTone): string {
 function PriceStatusInlineItem({
   kind,
   value,
+  mobileValue,
   title,
   tone = "neutral",
 }: {
   kind: "source" | "updated" | "next" | "coverage" | "history";
   value: string;
+  mobileValue?: string;
   title: string;
   tone?: PriceStatusTone;
 }) {
@@ -295,7 +297,8 @@ function PriceStatusInlineItem({
       title={title}
       data-card-detail-price-status-item={kind}
     >
-      {value}
+      <span className={mobileValue ? "max-[640px]:hidden" : undefined}>{value}</span>
+      {mobileValue ? <span className="hidden max-[640px]:inline">{mobileValue}</span> : null}
     </span>
   );
 }
@@ -376,7 +379,7 @@ function CardPriceStatusLine({
       className={`min-w-0 border-b border-white/8 pb-2 ${className}`}
       data-card-detail-price-status
     >
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] leading-none text-white/28 max-[640px]:gap-1 max-[640px]:text-[10px]">
+      <div className="card-detail-price-status-items flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] leading-none text-white/28 max-[640px]:flex-nowrap max-[640px]:gap-1 max-[640px]:overflow-x-auto max-[640px]:text-[10px]">
         <PriceStatusInlineItem
           kind="source"
           value={sourceStatus.value}
@@ -386,6 +389,7 @@ function CardPriceStatusLine({
         <PriceStatusInlineItem
           kind="updated"
           value={updatedValue}
+          mobileValue={latestPriceAge ?? "No price"}
           title={`Latest price: ${latestPriceAge ?? "No price"}. ${
             latestPriceLabel ?? sourceCheckedLabel ?? "No source check yet"
           }`}
@@ -394,18 +398,29 @@ function CardPriceStatusLine({
         <PriceStatusInlineItem
           kind="next"
           value={nextUpdateValue}
+          mobileValue={
+            !refreshInfo.hasFetchedAt
+              ? "Pending"
+              : !refreshInfo.autoRefreshEnabled
+                ? "Manual"
+                : refreshInfo.due
+                  ? "Due now"
+                  : formatRefreshCountdown(refreshInfo.remainingMs).replace(/\s+\d+s$/, "")
+          }
           title={`Refresh: ${refreshValue}. ${refreshHint}`}
           tone={refreshTone}
         />
         <PriceStatusInlineItem
           kind="coverage"
           value={`${coverage.currentCount} of ${coverage.totalCount} sources`}
+          mobileValue={`${coverage.currentCount}/${coverage.totalCount} sources`}
           title={`Data: ${coverage.currentCount}/${coverage.totalCount} sources. CM ${coverage.cardMarketCount}/${coverage.cardMarketTotal} / TCG ${coverage.tcgPlayerCount}/${coverage.tcgPlayerTotal}`}
           tone={coverageTone}
         />
         <PriceStatusInlineItem
           kind="history"
           value={historyPoints.length > 0 ? `${historyPoints.length} history points` : "No history yet"}
+          mobileValue={historyPoints.length > 0 ? `${historyPoints.length} pts` : "No history"}
           title={`History: ${historyPoints.length > 0 ? `${historyPoints.length} points` : "None"}. ${historyHint}`}
           tone={historyPoints.length > 0 ? "neutral" : "warning"}
         />

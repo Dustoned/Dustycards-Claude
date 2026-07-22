@@ -779,7 +779,7 @@ export default function PriceHistoryPanel({
   const reserveDateSlot = visibleCoordinates.length > 0;
   const stableHeroHeaderClass =
     isMobileHeroLayout && stabilizeMobileHeader
-      ? "min-h-[6.75rem] overflow-visible"
+      ? "min-h-[5.25rem] overflow-visible"
       : scopedTimeDomain && isHeroLayout
         ? "min-h-[5.85rem] overflow-visible max-[640px]:min-h-[4.95rem]"
         : "";
@@ -960,7 +960,7 @@ export default function PriceHistoryPanel({
     isDashboardLayout ? "text-base" : isMobileHeroLayout ? "text-sm" : isHeroLayout ? "text-lg" : "text-sm";
   const deltaJsx =
     delta != null ? (
-      <div className={isMobileHeroLayout ? "max-w-[7.25rem] overflow-hidden text-right" : ""}>
+      <div className={isMobileHeroLayout ? "max-w-[10.5rem] overflow-hidden text-right" : ""}>
         <p
           className={`${
             deltaValueClass
@@ -976,7 +976,7 @@ export default function PriceHistoryPanel({
         >
           {formatDelta(delta, currency)}
           {delta != null && delta !== 0 && deltaEndValue != null ? (
-            <span className={isMobileHeroLayout ? "block sm:ml-1.5 sm:inline" : "ml-1.5"}>
+            <span className="ml-1.5 inline">
               ({delta >= 0 ? "+" : ""}
               {((delta / Math.max(0.01, deltaEndValue - delta)) * 100).toFixed(1)}%)
             </span>
@@ -988,14 +988,14 @@ export default function PriceHistoryPanel({
   const reservedDeltaJsx =
     !deltaJsx && isHeroLayout && (scopedTimeDomain || reserveStableMobileHeader) ? (
       <div
-        className={`invisible ${reserveStableMobileHeader ? "max-w-[7.25rem] text-right" : ""}`}
+        className={`invisible ${reserveStableMobileHeader ? "max-w-[10.5rem] text-right" : ""}`}
         aria-hidden="true"
       >
         <p
           className={`${reserveStableMobileHeader ? "text-sm" : "text-lg"} font-semibold leading-tight tabular-nums`}
         >
           +€0.00
-          {reserveStableMobileHeader ? <span className="block">(+0.0%)</span> : " (+0.0%)"}
+          {reserveStableMobileHeader ? <span className="ml-1.5 inline">(+0.0%)</span> : " (+0.0%)"}
         </p>
         <p className={`${subtitleClass} mt-0.5 leading-tight`}>vs {selectedPreset.deltaText}</p>
       </div>
@@ -1248,7 +1248,7 @@ export default function PriceHistoryPanel({
               ) : (
                 headerAccessory
               )}
-              {(reserveDateSlot || reserveStableMobileHeader) && (
+              {reserveDateSlot && !reserveStableMobileHeader && (
                 <p
                   className={`${metaClass} whitespace-nowrap text-right transition-opacity ${
                     hoverDateText ? "opacity-100" : "opacity-0"

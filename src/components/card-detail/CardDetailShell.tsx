@@ -377,8 +377,8 @@ export default function CardDetailShell({
             {subtitle ? <div className="card-detail-subtitle">{subtitle}</div> : null}
 
             <div className="card-detail-price-block">
-              <div className="min-w-0">
-                <p className="card-detail-price-label">{priceLabel}</p>
+              <p className="card-detail-price-label">{priceLabel}</p>
+              <div className="card-detail-price-copy">
                 <div className="card-detail-price">{price}</div>
                 {priceMeta ? <div className="card-detail-price-meta">{priceMeta}</div> : null}
               </div>

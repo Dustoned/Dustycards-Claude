@@ -2139,20 +2139,24 @@ html.widescreen .settings-page {
 }
 
 .card-detail-price-block {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.85rem;
+  column-gap: 0.85rem;
+  row-gap: 0.4rem;
   margin-top: 1.15rem;
   border-top: 1px solid rgba(255, 255, 255, 0.075);
   padding-top: 1rem;
 }
 
+.card-detail-price-block > .card-detail-price-label {
+  grid-column: 1 / -1 !important;
+}
+
 .card-detail-price {
   margin-top: 0.25rem;
-  font-size: clamp(2rem, 8vw, 2.85rem);
+  font-size: clamp(1.75rem, 8vw, 2.85rem);
   font-weight: 850;
   line-height: 1;
   letter-spacing: -0.045em;
@@ -2178,16 +2182,24 @@ html.widescreen .settings-page {
 
 .card-detail-price-block:has([data-card-detail-market-mode]) {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: end !important;
 }
 
-.card-detail-price-block:has([data-card-detail-market-mode]) > :first-child {
+.card-detail-price-copy {
   min-width: 0;
 }
 
 [data-card-detail-shell] [data-chart-range] {
   min-height: 2.5rem;
+}
+
+.card-detail-price-status-items {
+  scrollbar-width: none;
+}
+
+.card-detail-price-status-items::-webkit-scrollbar {
+  display: none;
 }
 
 .card-detail-kpis {
@@ -2824,6 +2836,12 @@ html.widescreen .settings-page {
 }
 
 @media (max-width: 639px) {
+  [data-card-detail-shell] .card-detail-price-meta {
+    white-space: nowrap;
+    font-size: 0.7rem;
+    letter-spacing: -0.01em;
+  }
+
   [data-card-detail-shell] .card-detail-layout {
     grid-template-columns: minmax(0, 1fr) !important;
     grid-template-areas:
