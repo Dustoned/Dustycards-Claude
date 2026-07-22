@@ -3010,6 +3010,7 @@ export function CardModalHistorySection({
                 headerLeadingAccessory={gradedHeaderLeadingAccessory}
                 tone="dark"
                 layout="hero"
+                stabilizeMobileHeader
                 rangeScopePoints={historyRangeScopePoints}
                 rangeStorageKey={`card-history-${card.id}`}
                 emptyText="No graded history yet"
@@ -3029,6 +3030,7 @@ export function CardModalHistorySection({
                 headerAccessory={rawHeaderAccessory}
                 tone="dark"
                 layout="hero"
+                stabilizeMobileHeader
                 rangeScopePoints={historyRangeScopePoints}
                 rangeStorageKey={`card-history-${card.id}`}
               />

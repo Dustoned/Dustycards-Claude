@@ -596,6 +596,45 @@ async function expectMobileChartPriorityLayout(shell: Locator) {
   expect(tabsBounds.y - (chartBounds.y + chartBounds.height)).toBeLessThanOrEqual(20);
 }
 
+interface MobileMarketHeroGeometry {
+  identityHeight: number;
+  chartOffsetTop: number;
+  chartHeight: number;
+  seriesOffsetTop: number;
+  marketHeroHeight: number;
+  tabsOffsetTop: number;
+}
+
+async function getMobileMarketHeroGeometry(shell: Locator): Promise<MobileMarketHeroGeometry> {
+  await resetDetailScroll(shell);
+  const [marketHero, identity, chart, series, tabs] = await Promise.all([
+    requiredBounds(shell.locator("[data-card-detail-market-hero]")),
+    requiredBounds(shell.locator('[data-card-detail-region="identity"]')),
+    requiredBounds(shell.locator('[data-card-detail-region="chart"]')),
+    requiredBounds(shell.locator("[data-chart-interaction-surface]")),
+    requiredBounds(shell.locator(".card-detail-tabs-shell")),
+  ]);
+
+  return {
+    identityHeight: identity.height,
+    chartOffsetTop: chart.y - marketHero.y,
+    chartHeight: chart.height,
+    seriesOffsetTop: series.y - marketHero.y,
+    marketHeroHeight: marketHero.height,
+    tabsOffsetTop: tabs.y - marketHero.y,
+  };
+}
+
+function expectMobileModeGeometryStable(
+  first: MobileMarketHeroGeometry,
+  second: MobileMarketHeroGeometry
+) {
+  for (const key of Object.keys(first) as Array<keyof MobileMarketHeroGeometry>) {
+    expect(Math.abs(first[key] - second[key]), `${key} shifted between Raw and Graded`)
+      .toBeLessThanOrEqual(2);
+  }
+}
+
 async function expectMobileMarketKpis(shell: Locator, labels: string[]) {
   const marketKpis = shell.locator('[data-card-detail-kpis="market"]');
   await expect(marketKpis).toBeVisible();
@@ -2060,6 +2099,7 @@ test.describe("DustyCards smoke", () => {
     await gradedHeroMode.click();
     await expect(gradedHeroMode).toHaveAttribute("aria-pressed", "true");
     await expectMobileChartPriorityLayout(shell);
+    const gradedMobileGeometry = await getMobileMarketHeroGeometry(shell);
     await captureCardDetailMarketHeroScreenshot(
       page,
       shell,
@@ -2085,6 +2125,11 @@ test.describe("DustyCards smoke", () => {
     );
     await rawHeroMode.click();
     await expect(rawHeroMode).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      shell.locator('[data-card-detail-chart-series-control="language"]')
+    ).toBeVisible();
+    const rawMobileGeometry = await getMobileMarketHeroGeometry(shell);
+    expectMobileModeGeometryStable(gradedMobileGeometry, rawMobileGeometry);
     await overviewTab.click();
     await expectMobileChartPriorityLayout(shell);
     await expect(shell.locator('[data-card-detail-kpis="market"]')).toHaveCount(0);
@@ -2815,6 +2860,7 @@ test.describe("DustyCards smoke", () => {
     await expect(radarGradedMode).toHaveAttribute("aria-pressed", "true");
     await marketTab.click();
     await expectMobileChartPriorityLayout(shell);
+    const radarGradedMobileGeometry = await getMobileMarketHeroGeometry(shell);
     await captureCardDetailMarketHeroScreenshot(
       page,
       shell,
@@ -2834,6 +2880,11 @@ test.describe("DustyCards smoke", () => {
     await captureCardDetailScreenshot(page, shell, "radar-graded-390x844.png");
     await radarRawMode.click();
     await expect(radarRawMode).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      shell.locator('[data-card-detail-chart-series-control="language"]')
+    ).toBeVisible();
+    const radarRawMobileGeometry = await getMobileMarketHeroGeometry(shell);
+    expectMobileModeGeometryStable(radarGradedMobileGeometry, radarRawMobileGeometry);
     await overviewTab.click();
     await expectMobileChartPriorityLayout(shell);
     await expect(shell.locator('[data-card-detail-kpis="market"]')).toHaveCount(0);

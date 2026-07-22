@@ -51,6 +51,7 @@ interface Props {
   fixedRange?: RangeKey;
   hideRangeControls?: boolean;
   projection?: PriceHistoryProjection | null;
+  stabilizeMobileHeader?: boolean;
 }
 
 interface ParsedHistoryPoint extends PriceHistoryValuePoint {
@@ -558,6 +559,7 @@ export default function PriceHistoryPanel({
   fixedRange,
   hideRangeControls = false,
   projection = null,
+  stabilizeMobileHeader = false,
 }: Props) {
   const pathname = usePathname();
   const isHeroLayout = !compact && layout === "hero";
@@ -776,9 +778,12 @@ export default function PriceHistoryPanel({
     Math.max(parsedPoints.length, parsedRangeScopePoints.length) > 1;
   const reserveDateSlot = visibleCoordinates.length > 0;
   const stableHeroHeaderClass =
-    scopedTimeDomain && isHeroLayout
-      ? "min-h-[5.85rem] overflow-visible max-[640px]:min-h-[4.95rem]"
-      : "";
+    isMobileHeroLayout && stabilizeMobileHeader
+      ? "min-h-[6.75rem] overflow-visible"
+      : scopedTimeDomain && isHeroLayout
+        ? "min-h-[5.85rem] overflow-visible max-[640px]:min-h-[4.95rem]"
+        : "";
+  const reserveStableMobileHeader = isMobileHeroLayout && stabilizeMobileHeader;
 
   const shellClass = isMobileHeroLayout
     ? "rounded-[20px] border border-white/10 bg-[#101011] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
@@ -981,9 +986,17 @@ export default function PriceHistoryPanel({
       </div>
     ) : null;
   const reservedDeltaJsx =
-    !deltaJsx && scopedTimeDomain && isHeroLayout && !isMobileHeroLayout ? (
-      <div className="invisible" aria-hidden="true">
-        <p className="text-lg font-semibold tabular-nums">+€0.00 (0.0%)</p>
+    !deltaJsx && isHeroLayout && (scopedTimeDomain || reserveStableMobileHeader) ? (
+      <div
+        className={`invisible ${reserveStableMobileHeader ? "max-w-[7.25rem] text-right" : ""}`}
+        aria-hidden="true"
+      >
+        <p
+          className={`${reserveStableMobileHeader ? "text-sm" : "text-lg"} font-semibold leading-tight tabular-nums`}
+        >
+          +€0.00
+          {reserveStableMobileHeader ? <span className="block">(+0.0%)</span> : " (+0.0%)"}
+        </p>
         <p className={`${subtitleClass} mt-0.5 leading-tight`}>vs {selectedPreset.deltaText}</p>
       </div>
     ) : null;
@@ -1213,7 +1226,7 @@ export default function PriceHistoryPanel({
           )}
         </div>
 
-        {(headerAccessory || delta != null || reserveDateSlot) && (
+        {(headerAccessory || delta != null || reserveDateSlot || reserveStableMobileHeader) && (
           <div
             className={`shrink-0 ${
               isMobileHeroLayout
@@ -1226,8 +1239,16 @@ export default function PriceHistoryPanel({
             }`}
           >
             <div className={`${isMobileHeroLayout ? "min-w-0 max-w-[10.5rem] gap-1.5" : "min-w-[4.5rem] gap-2"} flex flex-col items-end`}>
-              {headerAccessory}
-              {reserveDateSlot && (
+              {reserveStableMobileHeader ? (
+                <div className="flex min-h-11 min-w-[10.5rem] items-start justify-end">
+                  {headerAccessory ?? (
+                    <span className="invisible block h-11 w-[10.5rem]" aria-hidden="true" />
+                  )}
+                </div>
+              ) : (
+                headerAccessory
+              )}
+              {(reserveDateSlot || reserveStableMobileHeader) && (
                 <p
                   className={`${metaClass} whitespace-nowrap text-right transition-opacity ${
                     hoverDateText ? "opacity-100" : "opacity-0"

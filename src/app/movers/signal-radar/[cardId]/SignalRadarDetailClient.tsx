@@ -431,6 +431,10 @@ export default function SignalRadarDetailClient({
       : market.rawConfluence ?? market.confluence
     : undefined;
   const activeHistory = effectiveMode === "graded" ? priceHistory.graded : priceHistory.raw;
+  const combinedHistoryRangeScope = useMemo(
+    () => [...priceHistory.raw, ...priceHistory.graded],
+    [priceHistory.graded, priceHistory.raw]
+  );
   const activeHistoryCurrency =
     effectiveMode === "graded" ? priceHistory.gradedCurrency : priceHistory.rawCurrency;
   const rawMarketPrice = card.price?.cm_en_lowest_nm ?? signal.currentPrice;
@@ -817,8 +821,8 @@ export default function SignalRadarDetailClient({
             }
             tone="dark"
             layout="hero"
-            rangeScopePoints={activeHistory}
-            rangeStorageKey={`signal-history-${signal.cardId}-${effectiveMode}`}
+            rangeScopePoints={combinedHistoryRangeScope}
+            rangeStorageKey={`signal-history-${signal.cardId}`}
             emptyText="No reliable price history yet"
             projection={projection}
           />
