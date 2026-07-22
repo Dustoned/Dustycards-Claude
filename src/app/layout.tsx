@@ -23,6 +23,7 @@ import {
   resolveAppearancePalette,
 } from "@/lib/appearance-themes";
 import { getCurrentUser } from "@/lib/auth";
+import { buildVersion } from "@/lib/app-version";
 import { db } from "@/lib/db";
 import { initSettingsScript } from "@/lib/user-settings";
 import { getServerUserSettings } from "@/lib/user-settings-server";
@@ -132,7 +133,7 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
         syncToAccount={Boolean(currentUser)}
         currentUserRole={currentUser?.role ?? null}
       >
-        <AppVersionWatcher />
+        <AppVersionWatcher initialBuild={buildVersion} />
         {currentUser ? <RouteProgressBar /> : null}
         {currentUser ? <OfflineCacheRegistration /> : null}
         {currentUser ? <NavigationStateController /> : null}

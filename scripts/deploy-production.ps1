@@ -346,8 +346,22 @@ npx prisma generate
 # Keep the Next.js/Turbopack build below the physical-RAM ceiling. Production
 # also has swap as a safety net, but a bounded heap prevents another build from
 # starving sshd and systemd-journald.
-NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2560}" npm run build
+release_build="${DeploySha:-$(date -u +%Y%m%dT%H%M%SZ)}"
+NEXT_PUBLIC_APP_BUILD="$release_build" \
+  APP_BUILD="$release_build" \
+  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2560}" \
+  npm run build
 cleanup_remote_junk
+
+# Give both the server-rendered shell and /api/app-version the exact same,
+# immutable release id. The installed iOS app can then detect a new deploy even
+# when WebKit resumes an old in-memory page after hours in the background.
+install -d -m 0755 /etc/systemd/system/dustycards.service.d
+cat > /etc/systemd/system/dustycards.service.d/10-release-build.conf <<EOF
+[Service]
+Environment=APP_BUILD=$release_build
+EOF
+systemctl daemon-reload
 systemctl restart dustycards
 systemctl is-active dustycards
 

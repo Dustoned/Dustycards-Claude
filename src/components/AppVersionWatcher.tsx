@@ -19,8 +19,12 @@ async function fetchAppVersion(): Promise<string | null> {
   return typeof data?.version === "string" && data.version ? data.version : null;
 }
 
-export default function AppVersionWatcher() {
-  const firstVersionRef = useRef<string | null>(null);
+export function appBuildChanged(loadedBuild: string, liveBuild: string | null): boolean {
+  return Boolean(loadedBuild && liveBuild && loadedBuild !== liveBuild);
+}
+
+export default function AppVersionWatcher({ initialBuild }: { initialBuild: string }) {
+  const loadedBuildRef = useRef(initialBuild);
   const pendingReloadRef = useRef(false);
 
   useEffect(() => {
@@ -35,12 +39,7 @@ export default function AppVersionWatcher() {
         const version = await fetchAppVersion();
         if (cancelled || !version) return;
 
-        if (!firstVersionRef.current) {
-          firstVersionRef.current = version;
-          return;
-        }
-
-        if (version !== firstVersionRef.current) {
+        if (appBuildChanged(loadedBuildRef.current, version)) {
           if (document.visibilityState === "hidden") {
             pendingReloadRef.current = true;
             return;

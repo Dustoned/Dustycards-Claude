@@ -799,6 +799,7 @@ export default function PriceHistoryPanel({
       <section
         aria-hidden="true"
         className={shellClass}
+        data-price-history-panel
         style={{
           minHeight: compact ? 214 : isHeroLayout ? 318 : 286,
           pointerEvents: "none",
@@ -989,7 +990,7 @@ export default function PriceHistoryPanel({
 
   if (isDashboardLayout) {
     return (
-      <section className={shellClass}>
+      <section className={shellClass} data-price-history-panel>
         <div className="grid h-full min-w-0 gap-4 sm:grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] sm:gap-6">
           <div className="min-w-0 flex flex-col justify-center">
             <p className="text-sm font-medium text-white/55">{title}</p>
@@ -1178,7 +1179,7 @@ export default function PriceHistoryPanel({
   }
 
   return (
-    <section className={shellClass}>
+    <section className={shellClass} data-price-history-panel>
       <div
         className={`${stableHeroHeaderClass} ${
           isMobileHeroLayout

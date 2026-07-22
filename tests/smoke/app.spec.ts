@@ -512,6 +512,22 @@ async function captureCardDetailStatusScreenshot(page: Page, shell: Locator, fil
   });
 }
 
+async function captureCardDetailMarketHeroScreenshot(
+  page: Page,
+  shell: Locator,
+  fileName: string
+) {
+  if (!CARD_DETAIL_SCREENSHOT_DIR) return;
+  await shell.locator(".card-detail-price-block").evaluate((element) => {
+    element.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+  });
+  await page.waitForTimeout(80);
+  await page.screenshot({
+    path: `${CARD_DETAIL_SCREENSHOT_DIR}/${fileName}`,
+    animations: "disabled",
+  });
+}
+
 async function expectDetailHeroLayout(
   shell: Locator,
   layout: "single" | "double" | "triple"
@@ -549,12 +565,14 @@ async function expectDetailHeroLayout(
 
 async function expectMobileChartPriorityLayout(shell: Locator) {
   await resetDetailScroll(shell);
+  const marketHero = shell.locator("[data-card-detail-market-hero]");
   const identity = shell.locator('[data-card-detail-region="identity"]');
   const priceBlock = identity.locator(".card-detail-price-block");
   const chart = shell.locator('[data-card-detail-region="chart"]');
   const tabs = shell.locator(".card-detail-tabs-shell");
   const heroKpis = shell.locator('[data-card-detail-kpis="hero"]');
-  const [identityBounds, priceBounds, chartBounds, tabsBounds] = await Promise.all([
+  const [marketHeroBounds, identityBounds, priceBounds, chartBounds, tabsBounds] = await Promise.all([
+    requiredBounds(marketHero),
     requiredBounds(identity),
     requiredBounds(priceBlock),
     requiredBounds(chart),
@@ -569,7 +587,11 @@ async function expectMobileChartPriorityLayout(shell: Locator) {
     identityBounds.y + identityBounds.height - 2
   );
   expect(chartBounds.y - (identityBounds.y + identityBounds.height))
-    .toBeLessThanOrEqual(20);
+    .toBeLessThanOrEqual(2);
+  expect(marketHeroBounds.y).toBeLessThanOrEqual(identityBounds.y + 1);
+  expect(marketHeroBounds.y + marketHeroBounds.height).toBeGreaterThanOrEqual(
+    chartBounds.y + chartBounds.height - 1
+  );
   expect(tabsBounds.y).toBeGreaterThanOrEqual(chartBounds.y + chartBounds.height - 2);
   expect(tabsBounds.y - (chartBounds.y + chartBounds.height)).toBeLessThanOrEqual(20);
 }
@@ -2038,6 +2060,11 @@ test.describe("DustyCards smoke", () => {
     await gradedHeroMode.click();
     await expect(gradedHeroMode).toHaveAttribute("aria-pressed", "true");
     await expectMobileChartPriorityLayout(shell);
+    await captureCardDetailMarketHeroScreenshot(
+      page,
+      shell,
+      "standard-price-chart-join-390x844.png"
+    );
     await expectMobileMarketKpis(shell, [
       "Selected grade",
       "Market source",
@@ -2788,6 +2815,11 @@ test.describe("DustyCards smoke", () => {
     await expect(radarGradedMode).toHaveAttribute("aria-pressed", "true");
     await marketTab.click();
     await expectMobileChartPriorityLayout(shell);
+    await captureCardDetailMarketHeroScreenshot(
+      page,
+      shell,
+      "radar-price-chart-join-390x844.png"
+    );
     await expectMobileMarketKpis(shell, [
       "Opportunity",
       "Setup strength",

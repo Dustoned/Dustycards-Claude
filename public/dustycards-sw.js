@@ -1,4 +1,4 @@
-const CACHE_VERSION = "3.2.30";
+const CACHE_VERSION = "3.2.31";
 const STATIC_CACHE = `dustycards-static-${CACHE_VERSION}`;
 const PAGE_CACHE = "dustycards-pages-v1";
 const IMAGE_CACHE = "dustycards-images-v1";

@@ -367,41 +367,43 @@ export default function CardDetailShell({
           {mediaActions ? <div className="card-detail-media-actions">{mediaActions}</div> : null}
         </div>
 
-        <section className="card-detail-identity" data-card-detail-region="identity">
-          <div className="card-detail-identity-topline">
-            <div className="card-detail-eyebrow">{eyebrow}</div>
-            {badges ? <div className="card-detail-badges">{badges}</div> : null}
-          </div>
-          <h1 className="card-detail-title">{title}</h1>
-          {subtitle ? <div className="card-detail-subtitle">{subtitle}</div> : null}
-
-          <div className="card-detail-price-block">
-            <div className="min-w-0">
-              <p className="card-detail-price-label">{priceLabel}</p>
-              <div className="card-detail-price">{price}</div>
-              {priceMeta ? <div className="card-detail-price-meta">{priceMeta}</div> : null}
+        <div className="card-detail-market-hero" data-card-detail-market-hero>
+          <section className="card-detail-identity" data-card-detail-region="identity">
+            <div className="card-detail-identity-topline">
+              <div className="card-detail-eyebrow">{eyebrow}</div>
+              {badges ? <div className="card-detail-badges">{badges}</div> : null}
             </div>
-            {marketControls ? <div className="card-detail-market-controls">{marketControls}</div> : null}
-          </div>
+            <h1 className="card-detail-title">{title}</h1>
+            {subtitle ? <div className="card-detail-subtitle">{subtitle}</div> : null}
 
-          <div
-            className="card-detail-kpis card-detail-kpis--hero"
-            data-card-detail-kpis="hero"
+            <div className="card-detail-price-block">
+              <div className="min-w-0">
+                <p className="card-detail-price-label">{priceLabel}</p>
+                <div className="card-detail-price">{price}</div>
+                {priceMeta ? <div className="card-detail-price-meta">{priceMeta}</div> : null}
+              </div>
+              {marketControls ? <div className="card-detail-market-controls">{marketControls}</div> : null}
+            </div>
+
+            <div
+              className="card-detail-kpis card-detail-kpis--hero"
+              data-card-detail-kpis="hero"
+            >
+              {visibleKpis.map((item, index) => (
+                <KpiCard key={`${item.label}-${index}`} item={item} />
+              ))}
+            </div>
+          </section>
+
+          <section
+            className="card-detail-chart"
+            data-card-detail-region="chart"
+            data-mobile-visible={showMobileChart ? "true" : "false"}
+            data-mobile-persistent={mobileChartAlwaysVisible ? "true" : "false"}
           >
-            {visibleKpis.map((item, index) => (
-              <KpiCard key={`${item.label}-${index}`} item={item} />
-            ))}
-          </div>
-        </section>
-
-        <section
-          className="card-detail-chart"
-          data-card-detail-region="chart"
-          data-mobile-visible={showMobileChart ? "true" : "false"}
-          data-mobile-persistent={mobileChartAlwaysVisible ? "true" : "false"}
-        >
-          {chart}
-        </section>
+            {chart}
+          </section>
+        </div>
 
         <nav
           ref={tabsShellRef}
