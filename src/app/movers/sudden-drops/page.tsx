@@ -119,7 +119,7 @@ export default async function SuddenDropsPage({
   const headerStats = [
     {
       label: "24H Matches",
-      value: movers.length.toLocaleString("en-US"),
+      value: data.preview.total.toLocaleString("en-US"),
       Icon: ArrowDownRight,
       tone: "rose",
     },
@@ -268,7 +268,11 @@ export default async function SuddenDropsPage({
           metricWindowLabel="24H"
           eyebrow="Sudden Drops"
           title="Cards that became cheaper in the last 24 hours"
-          description={`Search, filter, and sort up to ${FAST_SUDDEN_DROP_FEED_LIMIT} verified raw cards whose current price is at least ${formatCurrency(activeDropMinimum, activeCurrency)} below their previous price within the rolling 24-hour window.`}
+          description={
+            data.preview.total > movers.length
+              ? `Showing the ${movers.length.toLocaleString("en-US")} largest of ${data.preview.total.toLocaleString("en-US")} verified raw-card drops. Every match is counted; the rendered list stays bounded for mobile performance.`
+              : `Search, filter, and sort all ${data.preview.total.toLocaleString("en-US")} verified raw cards whose current price is at least ${formatCurrency(activeDropMinimum, activeCurrency)} below their previous price within the rolling 24-hour window.`
+          }
           emptyTitle={`No verified ${formatCurrency(activeDropMinimum, activeCurrency)}+ drops in the last 24 hours`}
           emptyDescription="No raw cards currently meet the rolling 24-hour threshold. Suspicious listing outliers are excluded."
         />

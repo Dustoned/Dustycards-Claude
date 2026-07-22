@@ -18,7 +18,7 @@ import type { MoverPriceQuality } from "@/lib/mover-scoring";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import type { PriceSource } from "@/lib/user-settings";
 
-export const FAST_SUDDEN_DROP_FEED_LIMIT = 50;
+export const FAST_SUDDEN_DROP_FEED_LIMIT = 500;
 export const FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS = 1;
 export const FAST_SUDDEN_DROP_WINDOW_HOURS = 24;
 export const FAST_SUDDEN_DROP_MIN_AMOUNT = 5;
@@ -609,7 +609,8 @@ function buildFastSuddenDropsData(
   items: CollectionMoverItem[],
   limit: number,
   refresh: FastSuddenDropRefreshWindow | null,
-  thresholds: FastSuddenDropThresholds
+  thresholds: FastSuddenDropThresholds,
+  totalMatches = items.length
 ): FastSuddenDropsData {
   const refreshMetadata = toRefreshMetadata(refresh);
 
@@ -620,7 +621,7 @@ function buildFastSuddenDropsData(
       items: items
         .slice(0, 8)
         .map((item) => toPreviewItem(item, getDropAmount(item), getDropPercent(item))),
-      total: items.length,
+      total: totalMatches,
       threshold: thresholds.minimumAmount,
       windowDays: FAST_SUDDEN_DROP_LATEST_WINDOW_DAYS,
       limit,
@@ -639,7 +640,7 @@ async function getFastSuddenDropsForRefresh(
   thresholds: FastSuddenDropThresholds
 ): Promise<FastSuddenDropsData> {
   if (!refresh) {
-    return buildFastSuddenDropsData([], limit, null, thresholds);
+    return buildFastSuddenDropsData([], limit, null, thresholds, 0);
   }
 
   if (game === ALL_GAMES) {
@@ -651,7 +652,13 @@ async function getFastSuddenDropsForRefresh(
       .sort(compareFastSuddenDrops)
       .slice(0, limit);
 
-    return buildFastSuddenDropsData(items, limit, refresh, thresholds);
+    return buildFastSuddenDropsData(
+      items,
+      limit,
+      refresh,
+      thresholds,
+      pokemon.preview.total + onePiece.preview.total
+    );
   }
 
   const rowLimit = Math.min(Math.max(limit * 50, 500), 2500);
@@ -664,7 +671,13 @@ async function getFastSuddenDropsForRefresh(
     .sort(compareFastSuddenDrops);
   const items = filteredItems.slice(0, limit);
 
-  return buildFastSuddenDropsData(items, limit, refresh, thresholds);
+  return buildFastSuddenDropsData(
+    items,
+    limit,
+    refresh,
+    thresholds,
+    filteredItems.length
+  );
 }
 
 export async function getFastSuddenDropsData(

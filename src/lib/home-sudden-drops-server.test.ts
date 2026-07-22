@@ -147,6 +147,7 @@ describe("getFastSuddenDropsData", () => {
 
     try {
       const result = await getFastSuddenDropsData("cm_en", "pokemon");
+      const cappedResult = await getFastSuddenDropsData("cm_en", "pokemon", 1);
       const fullPageResult = await getFastSuddenDropsData("cm_en", "pokemon", 50, {
         minimumAmount: 50,
         minimumPercent: null,
@@ -160,6 +161,8 @@ describe("getFastSuddenDropsData", () => {
       expect(result.items[0]?.change7d).toBe(-60);
       expect(result.preview.threshold).toBe(5);
       expect(result.refresh?.status).toBe("rolling");
+      expect(cappedResult.items).toHaveLength(1);
+      expect(cappedResult.preview.total).toBe(3);
       expect(fullPageResult.items.map((item) => item.cardId)).toEqual([
         "new-drop",
         "large-absolute-drop",

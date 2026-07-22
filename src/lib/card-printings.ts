@@ -3,11 +3,17 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-const MAX_PRINTING_CANDIDATES = 40;
+const MAX_PRINTING_CANDIDATES = 80;
 const MAX_RELATED_PRINTINGS = 8;
 const MIN_REPRINT_IMAGE_SIMILARITY = 0.68;
+const STRONG_REPRINT_IMAGE_SIMILARITY = 0.82;
 const MAX_CACHED_ARTWORK_HASHES = 512;
-const artworkHashCache = new Map<string, Promise<string | null>>();
+const artworkHashCache = new Map<string, Promise<ArtworkHash | null>>();
+
+type ArtworkHash = {
+  full: string;
+  illustration: string;
+};
 
 type TcgDexAbility = {
   type?: string;
@@ -61,6 +67,7 @@ type PrintingLookupCard = {
   game: string;
   name: string;
   hp: number | null;
+  artist: string | null;
   image_url: string | null;
   tcgid?: string | null;
   supertype: string | null;
@@ -74,8 +81,25 @@ type PrintingLookupCard = {
 
 function normalizeText(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const normalized = value.toLowerCase().replace(/\s+/g, " ").trim();
+  const normalized = value
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
   return normalized || null;
+}
+
+function normalizeRulesLabel(value: unknown): string | null {
+  const normalized = normalizeText(value);
+  if (!normalized) return null;
+  if (["pokemon power", "poke-power", "pokepower"].includes(normalized)) {
+    return "pokemon power";
+  }
+  if (["pokemon body", "poke-body", "pokebody"].includes(normalized)) {
+    return "pokemon body";
+  }
+  return normalized;
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -124,7 +148,7 @@ export function buildCardIdentityFingerprint(card: TcgDexCardIdentity): string |
     energyType: normalizeText(card.energyType),
     effect: normalizeText(card.effect),
     abilities: (card.abilities ?? []).map((ability) => ({
-      type: normalizeText(ability.type),
+      type: normalizeRulesLabel(ability.type),
       name: normalizeText(ability.name),
       effect: normalizeText(ability.effect),
     })),
@@ -171,12 +195,26 @@ export function getPrintingMatchType(
   candidate: TcgDexCardIdentity,
   imageSimilarity: number
 ): RelatedCardPrinting["match_type"] | null {
+  const samePrintedIdentity =
+    normalizeText(current.category) === normalizeText(candidate.category) &&
+    normalizeText(current.name) === normalizeText(candidate.name) &&
+    normalizeText(current.illustrator) != null &&
+    normalizeText(current.illustrator) === normalizeText(candidate.illustrator);
+  if (!samePrintedIdentity || imageSimilarity < MIN_REPRINT_IMAGE_SIMILARITY) {
+    return null;
+  }
+
   const currentFingerprint = buildCardIdentityFingerprint(current);
   const candidateFingerprint = buildCardIdentityFingerprint(candidate);
-  return currentFingerprint &&
-    candidateFingerprint &&
-    currentFingerprint === candidateFingerprint &&
-    imageSimilarity >= MIN_REPRINT_IMAGE_SIMILARITY
+  if (currentFingerprint && candidateFingerprint) {
+    return currentFingerprint === candidateFingerprint ? "reprint" : null;
+  }
+
+  const sameHp =
+    typeof current.hp === "number" &&
+    typeof candidate.hp === "number" &&
+    current.hp === candidate.hp;
+  return sameHp && imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY
     ? "reprint"
     : null;
 }
@@ -196,7 +234,29 @@ function getComparableArtworkUrl(imageUrl: string): string {
   }
 }
 
-async function createArtworkHash(imageUrl: string): Promise<string | null> {
+async function createDifferenceHash(
+  image: Buffer,
+  extract?: { left: number; top: number; width: number; height: number }
+): Promise<string> {
+  let pipeline = sharp(image);
+  if (extract) pipeline = pipeline.extract(extract);
+  const { data } = await pipeline
+    .resize(17, 16, { fit: "fill" })
+    .grayscale()
+    .normalize()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  let hash = "";
+  for (let y = 0; y < 16; y += 1) {
+    for (let x = 0; x < 16; x += 1) {
+      hash += data[y * 17 + x] > data[y * 17 + x + 1] ? "1" : "0";
+    }
+  }
+  return hash;
+}
+
+async function createArtworkHash(imageUrl: string): Promise<ArtworkHash | null> {
   try {
     const response = await fetch(getComparableArtworkUrl(imageUrl), {
       headers: { accept: "image/avif,image/webp,image/*" },
@@ -206,27 +266,26 @@ async function createArtworkHash(imageUrl: string): Promise<string | null> {
     if (!response.ok) return null;
     const image = Buffer.from(await response.arrayBuffer());
     if (image.length === 0 || image.length > 5_000_000) return null;
+    const metadata = await sharp(image).metadata();
+    if (!metadata.width || !metadata.height) return null;
 
-    const { data } = await sharp(image)
-      .resize(17, 16, { fit: "fill" })
-      .grayscale()
-      .normalize()
-      .raw()
-      .toBuffer({ resolveWithObject: true });
-
-    let hash = "";
-    for (let y = 0; y < 16; y += 1) {
-      for (let x = 0; x < 16; x += 1) {
-        hash += data[y * 17 + x] > data[y * 17 + x + 1] ? "1" : "0";
-      }
-    }
-    return hash;
+    const illustrationBounds = {
+      left: Math.floor(metadata.width * 0.07),
+      top: Math.floor(metadata.height * 0.14),
+      width: Math.max(1, Math.floor(metadata.width * 0.86)),
+      height: Math.max(1, Math.floor(metadata.height * 0.43)),
+    };
+    const [full, illustration] = await Promise.all([
+      createDifferenceHash(image),
+      createDifferenceHash(image, illustrationBounds),
+    ]);
+    return { full, illustration };
   } catch {
     return null;
   }
 }
 
-function loadArtworkHash(imageUrl: string | null): Promise<string | null> {
+function loadArtworkHash(imageUrl: string | null): Promise<ArtworkHash | null> {
   if (!imageUrl) return Promise.resolve(null);
   const cacheKey = getComparableArtworkUrl(imageUrl);
   const cached = artworkHashCache.get(cacheKey);
@@ -239,6 +298,17 @@ function loadArtworkHash(imageUrl: string | null): Promise<string | null> {
   const pending = createArtworkHash(cacheKey);
   artworkHashCache.set(cacheKey, pending);
   return pending;
+}
+
+function getArtworkHashSimilarity(
+  left: ArtworkHash | null,
+  right: ArtworkHash | null
+): number {
+  if (!left || !right) return 0;
+  return Math.max(
+    getPerceptualHashSimilarity(left.full, right.full),
+    getPerceptualHashSimilarity(left.illustration, right.illustration)
+  );
 }
 
 async function fetchTcgdexCard(card: {
@@ -264,15 +334,15 @@ async function fetchTcgdexCard(card: {
 export async function loadRelatedCardPrintings(
   current: PrintingLookupCard
 ): Promise<RelatedCardPrinting[]> {
-  if (current.game !== "pokemon" || !getTcgdexCardId(current)) return [];
+  if (current.game !== "pokemon" || !current.image_url) return [];
 
   const candidates = await db.card.findMany({
     where: {
       id: { not: current.id },
       game: current.game,
       name: current.name,
-      hp: current.hp,
       supertype: current.supertype,
+      ...(current.artist ? { artist: current.artist } : { hp: current.hp }),
       image_url: { not: null },
     },
     orderBy: [{ episode: { release_date: "desc" } }, { card_number: "asc" }],
@@ -284,6 +354,7 @@ export async function loadRelatedCardPrintings(
       card_number: true,
       rarity: true,
       hp: true,
+      artist: true,
       image_url: true,
       tcgid: true,
       supertype: true,
@@ -309,30 +380,31 @@ export async function loadRelatedCardPrintings(
     loadArtworkHash(current.image_url),
   ]);
   const [currentIdentity, ...candidateIdentities] = identities;
-  if (!currentIdentity) return [];
-
-  const currentFingerprint = buildCardIdentityFingerprint(currentIdentity);
-  if (!currentFingerprint || !currentArtworkHash) return [];
+  if (!currentArtworkHash) return [];
 
   const candidateArtworkHashes = await Promise.all(
-    candidates.map((candidate, index) => {
-      const candidateIdentity = candidateIdentities[index];
-      return candidateIdentity &&
-        buildCardIdentityFingerprint(candidateIdentity) === currentFingerprint
-        ? loadArtworkHash(candidate.image_url)
-        : Promise.resolve(null);
-    })
+    candidates.map((candidate) => loadArtworkHash(candidate.image_url))
   );
 
   return candidates
     .map((candidate, index): RelatedCardPrinting | null => {
       const candidateIdentity = candidateIdentities[index];
       const candidateArtworkHash = candidateArtworkHashes[index];
-      if (!candidateIdentity || !candidateArtworkHash) return null;
+      if (!candidateArtworkHash) return null;
       const matchType = getPrintingMatchType(
-        currentIdentity,
-        candidateIdentity,
-        getPerceptualHashSimilarity(currentArtworkHash, candidateArtworkHash)
+        currentIdentity ?? {
+          category: current.supertype ?? undefined,
+          name: current.name,
+          illustrator: current.artist ?? undefined,
+          hp: current.hp ?? undefined,
+        },
+        candidateIdentity ?? {
+          category: candidate.supertype ?? undefined,
+          name: candidate.name,
+          illustrator: candidate.artist ?? undefined,
+          hp: candidate.hp ?? undefined,
+        },
+        getArtworkHashSimilarity(currentArtworkHash, candidateArtworkHash)
       );
       if (!matchType) return null;
       const latestPrice = candidate.prices[0] ?? null;

@@ -68,6 +68,47 @@ describe("card printings", () => {
     ).toBe("reprint");
   });
 
+  it("normalizes historical power labels before comparing otherwise identical reprints", () => {
+    const fossilGengar: TcgDexCardIdentity = {
+      category: "Pokemon",
+      name: "Gengar",
+      illustrator: "Keiji Kinebuchi",
+      hp: 80,
+      abilities: [{
+        type: "Pokémon Power",
+        name: "Curse",
+        effect: "Move 1 damage counter.",
+      }],
+      attacks: [{ name: "Dark Mind", damage: "30" }],
+    };
+
+    expect(
+      getPrintingMatchType(
+        fossilGengar,
+        {
+          ...fossilGengar,
+          category: "Pokémon",
+          abilities: [{
+            type: "Poké-Power",
+            name: "Curse",
+            effect: "Move 1 damage counter.",
+          }],
+        },
+        0.84
+      )
+    ).toBe("reprint");
+  });
+
+  it("uses a strong artwork match when one source lacks rule data", () => {
+    expect(
+      getPrintingMatchType(
+        { category: "Pokémon", name: "Gengar", illustrator: "Yukiko Baba", hp: 90 },
+        { category: "Pokemon", name: "Gengar", illustrator: "Yukiko Baba", hp: 90 },
+        0.9
+      )
+    ).toBe("reprint");
+  });
+
   it("compares same-length perceptual hashes", () => {
     expect(getPerceptualHashSimilarity("11110000", "11100000")).toBe(0.875);
     expect(getPerceptualHashSimilarity("1", "11")).toBe(0);
