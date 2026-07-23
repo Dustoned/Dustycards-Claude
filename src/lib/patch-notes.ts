@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.9",
+    releasedAt: "July 23, 2026",
+    title: "The scanner remembers what it really read",
+    summary:
+      "DustyCards 3.8.9 replaces camera-quality checkmarks with persistent, verified card details that improve the final printing match.",
+    tone: "fixed",
+    highlights: [
+      "Name, printed card number and attack text are read independently; a checkmark appears only after a real value has been recognized and stored.",
+      "Every stored value remains visible while the card moves, can be cleared manually and is carried into the final full-card analysis.",
+      "A close-up of only the name or bottom number is now useful: the camera remembers that detail before asking for the remaining evidence.",
+      "Recognized attack text is verified against official TCGdex attack data and helps separate similar printings without being trusted as sole automatic-add evidence.",
+      "Once enough identity is saved, the camera captures the complete card for a final artwork comparison while earlier cards continue processing in the background.",
+      "Automatic collection adds remain strict: exact printing number, independent identity evidence and a clear candidate lead are still required.",
+    ],
+  },
+  {
     version: "3.8.8",
     releasedAt: "July 23, 2026",
     title: "Hands-free bulk scanning",

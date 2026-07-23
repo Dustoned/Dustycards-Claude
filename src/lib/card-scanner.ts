@@ -4,6 +4,7 @@ export const CARD_SCANNER_MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const CARD_SCANNER_MAX_RESULTS = 5;
 
 export type CardScannerConfidence = "high" | "medium" | "low";
+export type CardScannerField = "name" | "number" | "attack";
 
 export interface CardScannerCatalogCard {
   id: string;
@@ -13,6 +14,7 @@ export interface CardScannerCatalogCard {
   printed_card_number: string | null;
   rarity: string | null;
   image_url: string | null;
+  tcgid?: string | null;
   episode: {
     id: string;
     name: string;
@@ -27,7 +29,14 @@ export interface RankedScannerCandidate {
   numberMatch: "exact" | "local" | null;
   setMatch: boolean;
   visualSimilarity: number | null;
+  attackSimilarity: number | null;
 }
+
+export type ScannerFieldObservation = {
+  value: string;
+  confidence: number;
+  catalogMatches: number;
+};
 
 export interface CardScannerMatch {
   id: string;
@@ -57,6 +66,7 @@ export interface CardScannerMatch {
     numberMatch: "exact" | "local" | null;
     setMatch: boolean;
     artworkSimilarity: number | null;
+    attackSimilarity: number | null;
   };
 }
 
@@ -69,6 +79,18 @@ export interface CardScannerResponse {
       strongestText: string | null;
       ocrConfidence: number | null;
     };
+    processingMs: number;
+  };
+}
+
+export interface CardScannerFieldResponse {
+  ok: true;
+  result: {
+    field: CardScannerField;
+    value: string | null;
+    confidence: number | null;
+    rawText: string | null;
+    catalogMatches: number;
     processingMs: number;
   };
 }
@@ -230,7 +252,8 @@ function getSetMatch(card: CardScannerCatalogCard, normalizedOcr: string): boole
 export function rankScannerCandidates(
   cards: CardScannerCatalogCard[],
   ocrText: string,
-  visualSimilarities: ReadonlyMap<string, number> = new Map()
+  visualSimilarities: ReadonlyMap<string, number> = new Map(),
+  attackSimilarities: ReadonlyMap<string, number> = new Map()
 ): RankedScannerCandidate[] {
   const normalizedOcr = normalizeScannerText(ocrText);
   const ocrLines = getMeaningfulOcrLines(ocrText);
@@ -242,6 +265,7 @@ export function rankScannerCandidates(
       const numberMatch = getNumberMatch(card, references);
       const setMatch = getSetMatch(card, normalizedOcr);
       const visualSimilarity = visualSimilarities.get(card.id) ?? null;
+      const attackSimilarity = attackSimilarities.get(card.id) ?? null;
 
       let score = nameSimilarity * 52;
       if (numberMatch === "exact") score += 38;
@@ -249,6 +273,9 @@ export function rankScannerCandidates(
       if (setMatch) score += 10;
       if (visualSimilarity != null) {
         score += Math.max(0, (visualSimilarity - 0.45) / 0.55) * 24;
+      }
+      if (attackSimilarity != null) {
+        score += Math.max(0, (attackSimilarity - 0.45) / 0.55) * 16;
       }
       if (numberMatch && nameSimilarity >= 0.64) score += 8;
       if (numberMatch === "exact" && (visualSimilarity ?? 0) >= 0.84) score += 22;
@@ -260,13 +287,15 @@ export function rankScannerCandidates(
         numberMatch,
         setMatch,
         visualSimilarity,
+        attackSimilarity,
       };
     })
     .filter((candidate) => {
       return (
         candidate.numberMatch != null ||
         candidate.nameSimilarity >= 0.48 ||
-        (candidate.visualSimilarity ?? 0) >= 0.72
+        (candidate.visualSimilarity ?? 0) >= 0.72 ||
+        (candidate.attackSimilarity ?? 0) >= 0.72
       );
     })
     .sort((left, right) => {
@@ -276,6 +305,118 @@ export function rankScannerCandidates(
       }
       return left.card.name.localeCompare(right.card.name);
     });
+}
+
+export function getScannerAttackObservation(
+  cards: CardScannerCatalogCard[],
+  ocrText: string
+): ScannerFieldObservation | null {
+  const references = new Set(extractScannerCardReferences(ocrText));
+  const cardNames = cards.map((card) => normalizeScannerText(card.name));
+  const ignored =
+    /^(?:ability|artist|basic|energy|evolves from|hp|illustration|pokemon|resistance|retreat|stage \d*|trainer|weakness)$/i;
+  const lines = ocrText
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length >= 4 && line.length <= 96)
+    .filter((line) => /[a-z]{3}/i.test(line))
+    .filter((line) => !ignored.test(line))
+    .filter(
+      (line) =>
+        !references.has(normalizeScannerCardReference(line) ?? "") &&
+        !cardNames.some(
+          (name) => getScannerTextSimilarity(name, line) >= 0.88
+        )
+    )
+    .sort((left, right) => {
+      const leftWords = left.split(/\s+/).length;
+      const rightWords = right.split(/\s+/).length;
+      const leftScore = Math.min(leftWords, 8) * 8 + Math.min(left.length, 48);
+      const rightScore = Math.min(rightWords, 8) * 8 + Math.min(right.length, 48);
+      return rightScore - leftScore;
+    })
+    .slice(0, 2);
+
+  if (lines.length === 0) return null;
+  return {
+    value: lines.join(" · ").slice(0, 140),
+    confidence: 100,
+    catalogMatches: 0,
+  };
+}
+
+export function getScannerAttackSimilarity(
+  observedText: string,
+  attackTexts: readonly string[]
+): number {
+  const observedLines = observedText
+    .split(/\s*[·\n]\s*/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 3);
+  if (observedLines.length === 0 || attackTexts.length === 0) return 0;
+
+  let best = 0;
+  for (const observed of observedLines) {
+    for (const attackText of attackTexts) {
+      best = Math.max(best, getScannerTextSimilarity(observed, attackText));
+    }
+  }
+  return best;
+}
+
+export function getScannerNameObservation(
+  cards: CardScannerCatalogCard[],
+  ocrText: string
+): ScannerFieldObservation | null {
+  const ranked = rankScannerCandidates(cards, ocrText);
+  const best = ranked[0];
+  const bestName = normalizeScannerText(best?.card.name ?? "");
+  const runnerUp = ranked.find(
+    (candidate) => normalizeScannerText(candidate.card.name) !== bestName
+  );
+  const similarityGap =
+    (best?.nameSimilarity ?? 0) - (runnerUp?.nameSimilarity ?? 0);
+  const hasClearExactRead =
+    (best?.nameSimilarity ?? 0) >= 0.82 && similarityGap >= 0.12;
+  const hasClearFuzzyRead =
+    (best?.nameSimilarity ?? 0) >= 0.74 && similarityGap >= 0.2;
+  if (!best || (!hasClearExactRead && !hasClearFuzzyRead)) {
+    return null;
+  }
+  return {
+    value: best.card.name,
+    confidence: Math.round(best.nameSimilarity * 1_000) / 10,
+    catalogMatches: cards.filter(
+      (card) => normalizeScannerText(card.name) === bestName
+    ).length,
+  };
+}
+
+export function getScannerNumberObservation(
+  cards: CardScannerCatalogCard[],
+  ocrText: string
+): ScannerFieldObservation | null {
+  const supported = extractScannerCardReferences(ocrText)
+    .map((reference) => ({
+      reference,
+      matches: cards.filter((card) => {
+        const printed = normalizeScannerCardReference(
+          card.printed_card_number ?? ""
+        );
+        const local = normalizeScannerCardReference(card.card_number ?? "");
+        return printed === reference || local === reference;
+      }).length,
+    }))
+    .filter((candidate) => candidate.matches > 0)
+    .sort((left, right) => left.matches - right.matches)[0];
+
+  return supported
+    ? {
+        value: supported.reference,
+        confidence: 100,
+        catalogMatches: supported.matches,
+      }
+    : null;
 }
 
 export function getScannerConfidence(score: number): CardScannerConfidence {
@@ -332,6 +473,9 @@ export function getScannerMatchReasons(candidate: RankedScannerCandidate): strin
   if (candidate.nameSimilarity >= 0.9) reasons.push("Strong name match");
   else if (candidate.nameSimilarity >= 0.6) reasons.push("Name match");
   if (candidate.setMatch) reasons.push("Set code match");
+  if ((candidate.attackSimilarity ?? 0) >= 0.78) {
+    reasons.push("Attack text match");
+  }
   if ((candidate.visualSimilarity ?? 0) >= 0.84) reasons.push("Artwork match");
   return reasons.slice(0, 3);
 }

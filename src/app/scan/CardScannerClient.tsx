@@ -34,6 +34,8 @@ import CollectionWantButton from "@/components/CollectionWantButton";
 import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type {
+  CardScannerField,
+  CardScannerFieldResponse,
   CardScannerMatch,
   CardScannerResponse,
 } from "@/lib/card-scanner";
@@ -87,6 +89,36 @@ type BackgroundScanJob = {
   processingMs: number | null;
   error: string | null;
 };
+
+type ObservedScannerPoint = {
+  value: string;
+  confidence: number | null;
+};
+
+type ObservedScannerIdentity = {
+  name: ObservedScannerPoint | null;
+  number: ObservedScannerPoint | null;
+  attack: ObservedScannerPoint | null;
+};
+
+const EMPTY_OBSERVED_IDENTITY: ObservedScannerIdentity = {
+  name: null,
+  number: null,
+  attack: null,
+};
+const SCANNER_FIELDS: CardScannerField[] = ["name", "number", "attack"];
+
+function getScannerFields(game: TradingCardGame): CardScannerField[] {
+  return game === POKEMON_GAME ? SCANNER_FIELDS : ["name", "number"];
+}
+
+function nextScannerField(
+  field: CardScannerField,
+  game: TradingCardGame
+): CardScannerField {
+  const fields = getScannerFields(game);
+  return fields[(fields.indexOf(field) + 1) % fields.length];
+}
 
 const EMPTY_FRAME_READINESS: ScannerFrameReadiness = {
   brightness: 0,
@@ -196,6 +228,30 @@ function drawCentralCardCrop(
   );
 }
 
+function drawFullCameraFrame(
+  canvas: HTMLCanvasElement,
+  source: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
+  outputWidth = 900
+) {
+  canvas.width = outputWidth;
+  canvas.height = Math.max(1, Math.round((sourceHeight / sourceWidth) * outputWidth));
+  const context = canvas.getContext("2d", { alpha: false });
+  if (!context) throw new Error("Camera reading is unavailable.");
+  context.drawImage(
+    source,
+    0,
+    0,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+}
+
 function ScannerArtwork({
   match,
   sizes,
@@ -255,6 +311,9 @@ export default function CardScannerClient() {
   const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
   const [frameReadiness, setFrameReadiness] =
     useState<ScannerFrameReadiness>(EMPTY_FRAME_READINESS);
+  const [observedIdentity, setObservedIdentity] =
+    useState<ObservedScannerIdentity>(EMPTY_OBSERVED_IDENTITY);
+  const [activeField, setActiveField] = useState<CardScannerField | null>(null);
   const [lastAutoMatch, setLastAutoMatch] = useState<CardScannerMatch | null>(null);
   const [bulkAdding, setBulkAdding] = useState(false);
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
@@ -263,10 +322,12 @@ export default function CardScannerClient() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const readinessCanvasRef = useRef<HTMLCanvasElement>(null);
+  const fieldCanvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const previewUrlRef = useRef<string | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
+  const fieldControllerRef = useRef<AbortController | null>(null);
   const backgroundControllersRef = useRef(new Map<string, AbortController>());
   const previousFrameRef = useRef<Uint8Array | null>(null);
   const currentFrameRef = useRef<Uint8Array | null>(null);
@@ -276,6 +337,21 @@ export default function CardScannerClient() {
   const autoCaptureArmedRef = useRef(true);
   const captureInProgressRef = useRef(false);
   const autoCaptureActionRef = useRef<() => void>(() => undefined);
+  const fieldReadActionRef = useRef<(field: CardScannerField) => void>(
+    () => undefined
+  );
+  const observedIdentityRef = useRef<ObservedScannerIdentity>(
+    EMPTY_OBSERVED_IDENTITY
+  );
+  const fieldInProgressRef = useRef(false);
+  const fieldStableStreakRef = useRef(0);
+  const fieldCooldownUntilRef = useRef(0);
+  const nextFieldRef = useRef<CardScannerField>("name");
+  const fieldAttemptCountsRef = useRef<Record<CardScannerField, number>>({
+    name: 0,
+    number: 0,
+    attack: 0,
+  });
 
   const selectedMatch = useMemo(
     () => matches.find((match) => match.id === selectedId) ?? matches[0] ?? null,
@@ -283,11 +359,15 @@ export default function CardScannerClient() {
   );
 
   const stopCamera = useCallback(() => {
+    fieldControllerRef.current?.abort();
+    fieldControllerRef.current = null;
+    fieldInProgressRef.current = false;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraSessionActive(false);
     setTorchSupported(false);
     setTorchEnabled(false);
+    setActiveField(null);
     if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
 
@@ -309,6 +389,7 @@ export default function CardScannerClient() {
     return () => {
       stopCamera();
       requestAbortRef.current?.abort();
+      fieldControllerRef.current?.abort();
       backgroundControllers.forEach((controller) => controller.abort());
       backgroundControllers.clear();
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -361,6 +442,11 @@ export default function CardScannerClient() {
       readyFrameStreakRef.current = 0;
       changedFrameStreakRef.current = 0;
       autoCaptureArmedRef.current = true;
+      fieldStableStreakRef.current = 0;
+      fieldCooldownUntilRef.current = 0;
+      nextFieldRef.current = "name";
+      fieldAttemptCountsRef.current = { name: 0, number: 0, attack: 0 };
+      replaceObservedIdentity(EMPTY_OBSERVED_IDENTITY);
       setFrameReadiness(EMPTY_FRAME_READINESS);
       setCameraSessionActive(true);
       setStage("camera");
@@ -408,13 +494,51 @@ export default function CardScannerClient() {
     setBatchMessage(null);
   }
 
+  function replaceObservedIdentity(next: ObservedScannerIdentity) {
+    observedIdentityRef.current = next;
+    setObservedIdentity(next);
+  }
+
+  function rememberObservedField(
+    field: CardScannerField,
+    point: ObservedScannerPoint
+  ) {
+    const next = {
+      ...observedIdentityRef.current,
+      [field]: point,
+    };
+    replaceObservedIdentity(next);
+  }
+
+  function clearObservedField(field: CardScannerField) {
+    fieldControllerRef.current?.abort();
+    fieldControllerRef.current = null;
+    fieldInProgressRef.current = false;
+    setActiveField(null);
+    replaceObservedIdentity({
+      ...observedIdentityRef.current,
+      [field]: null,
+    });
+    nextFieldRef.current = field;
+    fieldAttemptCountsRef.current[field] = 0;
+    fieldCooldownUntilRef.current = Date.now() + 600;
+  }
+
   async function requestCardScan(
     file: File,
-    controller: AbortController
+    controller: AbortController,
+    identity: ObservedScannerIdentity = EMPTY_OBSERVED_IDENTITY
   ): Promise<CardScannerResponse> {
     const body = new FormData();
     body.set("image", file);
     body.set("game", game);
+    if (identity.name?.value) body.set("knownName", identity.name.value);
+    if (identity.number?.value) {
+      body.set("knownReference", identity.number.value);
+    }
+    if (identity.attack?.value) {
+      body.set("knownAttackText", identity.attack.value);
+    }
     const response = await fetch("/api/cards/scan", {
       method: "POST",
       body,
@@ -429,7 +553,89 @@ export default function CardScannerClient() {
     return data;
   }
 
-  async function analyzePhotoInBackground(file: File) {
+  async function readFieldFromCamera(field: CardScannerField) {
+    const video = videoRef.current;
+    const canvas = fieldCanvasRef.current;
+    if (
+      fieldInProgressRef.current ||
+      !video ||
+      !canvas ||
+      !video.videoWidth ||
+      !video.videoHeight
+    ) {
+      return;
+    }
+
+    fieldInProgressRef.current = true;
+    fieldAttemptCountsRef.current[field] += 1;
+    setActiveField(field);
+    const controller = new AbortController();
+    fieldControllerRef.current = controller;
+    const timeout = window.setTimeout(() => controller.abort(), 24_000);
+
+    try {
+      drawFullCameraFrame(
+        canvas,
+        video,
+        video.videoWidth,
+        video.videoHeight
+      );
+      const file = await canvasToJpegFile(canvas);
+      const body = new FormData();
+      body.set("image", file);
+      body.set("game", game);
+      body.set("mode", "field");
+      body.set("field", field);
+      const remembered = observedIdentityRef.current;
+      if (remembered.name?.value) {
+        body.set("knownName", remembered.name.value);
+      }
+      if (remembered.number?.value) {
+        body.set("knownReference", remembered.number.value);
+      }
+      const response = await fetch("/api/cards/scan", {
+        method: "POST",
+        body,
+        signal: controller.signal,
+      });
+      const data = (await response.json()) as
+        | CardScannerFieldResponse
+        | { ok: false; error?: string };
+      if (!response.ok || !data.ok) {
+        throw new Error("error" in data ? data.error : "This field was not readable.");
+      }
+      if (data.result.value) {
+        rememberObservedField(field, {
+          value: data.result.value,
+          confidence: data.result.confidence,
+        });
+        setCameraError(null);
+      }
+      nextFieldRef.current = nextScannerField(field, game);
+    } catch (fieldError) {
+      if (!controller.signal.aborted) {
+        setCameraError(
+          fieldError instanceof Error
+            ? fieldError.message
+            : "This part could not be read yet."
+        );
+      }
+      nextFieldRef.current = nextScannerField(field, game);
+    } finally {
+      window.clearTimeout(timeout);
+      if (fieldControllerRef.current === controller) {
+        fieldControllerRef.current = null;
+      }
+      fieldInProgressRef.current = false;
+      setActiveField(null);
+      fieldCooldownUntilRef.current = Date.now() + 850;
+    }
+  }
+
+  async function analyzePhotoInBackground(
+    file: File,
+    identity: ObservedScannerIdentity
+  ) {
     const jobId = `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const controller = new AbortController();
     let timedOut = false;
@@ -452,7 +658,7 @@ export default function CardScannerClient() {
     ]);
 
     try {
-      const data = await requestCardScan(file, controller);
+      const data = await requestCardScan(file, controller, identity);
       const topMatch = data.result.matches[0] ?? null;
 
       if (topMatch?.autoAccept) {
@@ -522,12 +728,16 @@ export default function CardScannerClient() {
     try {
       drawCentralCardCrop(canvas, video, video.videoWidth, video.videoHeight);
       const file = await canvasToJpegFile(canvas);
+      const identity = observedIdentityRef.current;
       capturedFrameRef.current = currentFrameRef.current?.slice() ?? null;
       autoCaptureArmedRef.current = false;
       readyFrameStreakRef.current = 0;
       changedFrameStreakRef.current = 0;
+      replaceObservedIdentity(EMPTY_OBSERVED_IDENTITY);
+      nextFieldRef.current = "name";
+      fieldAttemptCountsRef.current = { name: 0, number: 0, attack: 0 };
       setCameraError(null);
-      void analyzePhotoInBackground(file);
+      void analyzePhotoInBackground(file, identity);
     } catch {
       setCameraError("The photo could not be captured. Please try again.");
       autoCaptureArmedRef.current = true;
@@ -539,6 +749,9 @@ export default function CardScannerClient() {
   useEffect(() => {
     autoCaptureActionRef.current = () => {
       void capturePhoto();
+    };
+    fieldReadActionRef.current = (field) => {
+      void readFieldFromCamera(field);
     };
   });
 
@@ -589,6 +802,49 @@ export default function CardScannerClient() {
           return;
         }
 
+        const remembered = observedIdentityRef.current;
+        const scannerFields = getScannerFields(game);
+        const savedCount = scannerFields.filter(
+          (field) => Boolean(remembered[field])
+        ).length;
+        const hasPrimaryIdentity = Boolean(remembered.name || remembered.number);
+        const identityHasEnoughEvidence = savedCount >= 2 && hasPrimaryIdentity;
+        const fieldsStillWorthTrying = scannerFields.filter(
+          (field) =>
+            !remembered[field] &&
+            (!identityHasEnoughEvidence ||
+              fieldAttemptCountsRef.current[field] < 2)
+        );
+        if (fieldsStillWorthTrying.length > 0) {
+          readyFrameStreakRef.current = 0;
+          if (
+            !autoCaptureEnabled ||
+            fieldInProgressRef.current ||
+            Date.now() < fieldCooldownUntilRef.current ||
+            !readiness.lightingGood ||
+            !readiness.stable ||
+            readiness.edgeStrength < 7
+          ) {
+            fieldStableStreakRef.current = 0;
+            return;
+          }
+
+          fieldStableStreakRef.current += 1;
+          if (fieldStableStreakRef.current >= 3) {
+            fieldStableStreakRef.current = 0;
+            const startIndex = scannerFields.indexOf(nextFieldRef.current);
+            const targetField =
+              scannerFields.map(
+                (_, offset) =>
+                  scannerFields[(startIndex + offset) % scannerFields.length]
+              ).find((field) => fieldsStillWorthTrying.includes(field)) ??
+              fieldsStillWorthTrying[0];
+            fieldReadActionRef.current(targetField);
+          }
+          return;
+        }
+
+        fieldStableStreakRef.current = 0;
         if (
           !autoCaptureEnabled ||
           captureInProgressRef.current ||
@@ -611,7 +867,7 @@ export default function CardScannerClient() {
     }, 280);
 
     return () => window.clearInterval(timer);
-  }, [autoCaptureEnabled, stage]);
+  }, [autoCaptureEnabled, game, stage]);
 
   useEffect(() => {
     if (!lastAutoMatch) return;
@@ -707,10 +963,16 @@ export default function CardScannerClient() {
     setLastAutoMatch(null);
     setBatchMessage(null);
     setFrameReadiness(EMPTY_FRAME_READINESS);
+    replaceObservedIdentity(EMPTY_OBSERVED_IDENTITY);
+    setActiveField(null);
     previousFrameRef.current = null;
     currentFrameRef.current = null;
     capturedFrameRef.current = null;
     autoCaptureArmedRef.current = true;
+    fieldStableStreakRef.current = 0;
+    fieldCooldownUntilRef.current = 0;
+    nextFieldRef.current = "name";
+    fieldAttemptCountsRef.current = { name: 0, number: 0, attack: 0 };
     setStage("ready");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -819,13 +1081,45 @@ export default function CardScannerClient() {
   const readingJobs = scanJobs.filter((job) => job.status === "reading");
   const reviewJobs = scanJobs.filter((job) => job.status === "review");
   const failedJobs = scanJobs.filter((job) => job.status === "failed");
-  const frameChecks = [
-    { label: "Card", ready: frameReadiness.cardInFrame },
-    { label: "Light", ready: frameReadiness.lightingGood },
-    { label: "Name", ready: frameReadiness.nameZoneReadable },
-    { label: "Number", ready: frameReadiness.numberZoneReadable },
-    { label: "Steady", ready: frameReadiness.stable },
+  const activeScannerFields = getScannerFields(game);
+  const savedIdentityCount = activeScannerFields.filter((field) =>
+    Boolean(observedIdentity[field])
+  ).length;
+  const identityReady = Boolean(
+    savedIdentityCount >= 2 &&
+      (observedIdentity.name || observedIdentity.number)
+  );
+  const scannerPrompt = activeField
+    ? `Reading ${
+        activeField === "name"
+          ? "card name"
+          : activeField === "number"
+            ? "card number"
+            : "attack text"
+      }…`
+    : identityReady
+      ? game !== POKEMON_GAME || observedIdentity.attack
+        ? `${savedIdentityCount} details saved · show the full card`
+        : "Name and number saved · checking attack text"
+      : observedIdentity.name
+        ? `${observedIdentity.name.value} saved · show another detail`
+        : observedIdentity.number
+          ? `${observedIdentity.number.value} saved · show another detail`
+          : observedIdentity.attack
+            ? "Attack text saved · show the name or number"
+            : "Show the name, number or attack text";
+  const allIdentityPoints: Array<{
+    field: CardScannerField;
+    label: string;
+    point: ObservedScannerPoint | null;
+  }> = [
+    { field: "name", label: "Name", point: observedIdentity.name },
+    { field: "number", label: "Number", point: observedIdentity.number },
+    { field: "attack", label: "Attack", point: observedIdentity.attack },
   ];
+  const identityPoints = allIdentityPoints.filter(({ field }) =>
+    activeScannerFields.includes(field)
+  );
 
   return (
     <>
@@ -849,8 +1143,8 @@ export default function CardScannerClient() {
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--dc-text-muted)] sm:text-[15px]">
                 Keep the camera open and scan cards one after another. DustyCards reads
-                the name and card number, compares the artwork and lets you confirm the
-                exact printing.
+                the name, printed number and attack text, remembers every real read,
+                then compares the full artwork to confirm the exact printing.
               </p>
             </div>
             {settings.onePieceLibraryEnabled ? (
@@ -867,7 +1161,21 @@ export default function CardScannerClient() {
                       aria-pressed={active}
                       onClick={() => {
                         setGame(option);
-                        if (stage === "results" || stage === "empty") resetScanner();
+                        if (stage === "results" || stage === "empty") {
+                          resetScanner();
+                        } else if (stage === "camera") {
+                          fieldControllerRef.current?.abort();
+                          fieldControllerRef.current = null;
+                          fieldInProgressRef.current = false;
+                          setActiveField(null);
+                          replaceObservedIdentity(EMPTY_OBSERVED_IDENTITY);
+                          nextFieldRef.current = "name";
+                          fieldAttemptCountsRef.current = {
+                            name: 0,
+                            number: 0,
+                            attack: 0,
+                          };
+                        }
                       }}
                       className={`min-h-10 rounded-xl px-3 text-xs font-bold transition ${
                         active
@@ -1032,11 +1340,6 @@ export default function CardScannerClient() {
                               <CheckCircle2 className="h-4 w-4 text-emerald-300" />
                               <span className="truncate">{lastAutoMatch.name} ready</span>
                             </>
-                          ) : readingJobs.length > 0 ? (
-                            <>
-                              <LoaderCircle className="h-4 w-4 motion-safe:animate-spin text-[var(--dc-primary-soft)]" />
-                              Reading {readingJobs.length} in background
-                            </>
                           ) : !autoCaptureArmedRef.current ? (
                             <>
                               <RefreshCcw className="h-4 w-4 text-[var(--dc-primary-soft)]" />
@@ -1044,11 +1347,21 @@ export default function CardScannerClient() {
                             </>
                           ) : (
                             <>
-                              <ScanLine className="h-4 w-4 text-[var(--dc-primary-soft)]" />
-                              Hold still · captures automatically
+                              {activeField ? (
+                                <LoaderCircle className="h-4 w-4 motion-safe:animate-spin text-[var(--dc-primary-soft)]" />
+                              ) : identityReady ? (
+                                <ScanLine className="h-4 w-4 text-[var(--dc-primary-soft)]" />
+                              ) : (
+                                <Search className="h-4 w-4 text-[var(--dc-primary-soft)]" />
+                              )}
+                              <span className="truncate">{scannerPrompt}</span>
                             </>
                           )}
-                          {scannedCards.length > 0 ? (
+                          {readingJobs.length > 0 ? (
+                            <span className="rounded-full bg-white/12 px-2 py-0.5 tabular-nums">
+                              {readingJobs.length} reading
+                            </span>
+                          ) : scannedCards.length > 0 ? (
                             <span className="rounded-full bg-white/12 px-2 py-0.5 tabular-nums">
                               {scannedCards.length}
                             </span>
@@ -1085,24 +1398,70 @@ export default function CardScannerClient() {
                       </div>
                     </div>
                     <div className="absolute inset-x-4 bottom-[7.4rem] flex justify-center">
-                      <div className="grid w-full max-w-md grid-cols-5 gap-1 rounded-2xl border border-white/16 bg-black/52 p-1.5 shadow-xl backdrop-blur-md">
-                        {frameChecks.map((check) => (
-                          <span
-                            key={check.label}
-                            className={`flex min-h-9 items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-black transition ${
-                              check.ready
-                                ? "bg-emerald-400/16 text-emerald-200"
-                                : "bg-white/5 text-white/52"
-                            }`}
-                          >
-                            {check.ready ? (
-                              <Check className="h-3 w-3" />
-                            ) : (
-                              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
-                            )}
-                            {check.label}
-                          </span>
-                        ))}
+                      <div className="w-full max-w-md rounded-2xl border border-white/16 bg-black/58 p-1.5 shadow-xl backdrop-blur-md">
+                        <div
+                          className={`grid gap-1.5 ${
+                            identityPoints.length === 3
+                              ? "grid-cols-3"
+                              : "grid-cols-2"
+                          }`}
+                        >
+                          {identityPoints.map(({ field, label, point }) => (
+                            <div
+                              key={field}
+                              className={`grid min-h-12 grid-cols-[1.65rem_minmax(0,1fr)_1.5rem] items-center gap-1 rounded-xl px-2 transition ${
+                                point
+                                  ? "bg-emerald-400/16 text-emerald-100"
+                                  : activeField === field
+                                    ? "bg-[rgb(var(--dc-primary-rgb)/0.24)] text-white"
+                                    : "bg-white/5 text-white/55"
+                              }`}
+                            >
+                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/20">
+                                {point ? (
+                                  <Check className="h-3.5 w-3.5" />
+                                ) : activeField === field ? (
+                                  <LoaderCircle className="h-3.5 w-3.5 motion-safe:animate-spin" />
+                                ) : (
+                                  <Search className="h-3.5 w-3.5" />
+                                )}
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block text-[8px] font-black uppercase tracking-[0.12em] opacity-70">
+                                  {label}
+                                </span>
+                                <span className="block truncate text-[11px] font-black">
+                                  {point?.value ??
+                                    (activeField === field ? "Reading…" : "Not read")}
+                                </span>
+                              </span>
+                              {point ? (
+                                <button
+                                  type="button"
+                                  onClick={() => clearObservedField(field)}
+                                  aria-label={`Clear saved ${label.toLowerCase()}`}
+                                  className="flex h-6 w-6 items-center justify-center rounded-full text-current opacity-65 hover:bg-black/20 hover:opacity-100"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              ) : (
+                                <span />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-1.5 flex min-h-7 items-center justify-center gap-1.5 rounded-lg bg-white/5 px-2 text-[9px] font-bold text-white/58">
+                          {identityReady ? (
+                            <>
+                              <ScanLine className="h-3 w-3 text-[var(--dc-primary-soft)]" />
+                              {frameReadiness.ready
+                                ? "Full card found · hold still"
+                                : "Saved · now fit the full card in the outline"}
+                            </>
+                          ) : (
+                            "A saved value stays checked while you move the camera"
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="absolute inset-x-0 bottom-0 grid grid-cols-[7rem_4.5rem_7rem] items-center justify-center gap-3 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
@@ -1534,6 +1893,7 @@ export default function CardScannerClient() {
         />
         <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
         <canvas ref={readinessCanvasRef} className="hidden" aria-hidden="true" />
+        <canvas ref={fieldCanvasRef} className="hidden" aria-hidden="true" />
       </div>
 
       {selectedModalCard ? (

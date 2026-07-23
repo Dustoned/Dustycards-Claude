@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   extractScannerCardReferences,
   canAutoAcceptScannerCandidate,
+  getScannerAttackObservation,
+  getScannerAttackSimilarity,
   getScannerConfidence,
+  getScannerNameObservation,
+  getScannerNumberObservation,
   getScannerTextSimilarity,
   normalizeScannerCardReference,
   rankScannerCandidates,
@@ -103,5 +107,57 @@ describe("card scanner recognition", () => {
       score: 90,
     };
     expect(canAutoAcceptScannerCandidate(exactButAmbiguous, 82)).toBe(false);
+  });
+
+  it("stores a card name only after a clear catalog lead", () => {
+    expect(
+      getScannerNameObservation(
+        [OTHER_CARD, SEISMITOAD],
+        "Seismitoad\nStage 1\n170 HP"
+      )
+    ).toMatchObject({ value: "Seismitoad", confidence: 100 });
+    expect(
+      getScannerNameObservation([OTHER_CARD, SEISMITOAD], "Stage 1\nAbility")
+    ).toBeNull();
+  });
+
+  it("stores only printed numbers that exist in the selected game catalog", () => {
+    expect(
+      getScannerNumberObservation(
+        [OTHER_CARD, SEISMITOAD],
+        "weakness\n105/086\nGAME FREAK"
+      )
+    ).toEqual({
+      value: "105/86",
+      confidence: 100,
+      catalogMatches: 1,
+    });
+    expect(
+      getScannerNumberObservation([OTHER_CARD, SEISMITOAD], "999/999")
+    ).toBeNull();
+  });
+
+  it("stores meaningful attack text without mistaking the card name for an attack", () => {
+    expect(
+      getScannerAttackObservation(
+        [OTHER_CARD, SEISMITOAD],
+        "Seismitoad\nRound\nThis attack does 70 damage for each of your Pokemon"
+      )
+    ).toMatchObject({
+      value: expect.stringContaining("This attack does 70 damage"),
+    });
+    expect(
+      getScannerAttackObservation([OTHER_CARD, SEISMITOAD], "Seismitoad\nStage 1")
+    ).toBeNull();
+  });
+
+  it("uses a saved attack fragment as supporting candidate evidence", () => {
+    expect(
+      getScannerAttackSimilarity("Hyper Voice", [
+        "Round",
+        "Hyper Voice",
+        "This attack does 160 damage.",
+      ])
+    ).toBeGreaterThan(0.95);
   });
 });

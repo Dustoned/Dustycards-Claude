@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import {
   CARD_SCANNER_MAX_UPLOAD_BYTES,
+  type CardScannerField,
+  type CardScannerFieldResponse,
   type CardScannerResponse,
 } from "@/lib/card-scanner";
-import { scanCardImage } from "@/lib/card-scanner-server";
+import {
+  readScannerFieldImage,
+  scanCardImage,
+} from "@/lib/card-scanner-server";
 import { normalizeTradingCardGame } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
@@ -44,10 +49,41 @@ export async function POST(request: Request) {
       );
     }
 
+    const image = Buffer.from(await file.arrayBuffer());
+    const game = normalizeTradingCardGame(String(body.get("game") ?? ""));
+    const mode = String(body.get("mode") ?? "match");
+    if (mode === "field") {
+      const field = String(body.get("field") ?? "") as CardScannerField;
+      if (field !== "name" && field !== "number" && field !== "attack") {
+        return NextResponse.json(
+          { ok: false, error: "Choose a scanner field." },
+          { status: 400 }
+        );
+      }
+      const fieldResult = await readScannerFieldImage({
+        image,
+        game,
+        field,
+        knownName: String(body.get("knownName") ?? "") || null,
+        knownReference: String(body.get("knownReference") ?? "") || null,
+      });
+      const response: CardScannerFieldResponse = {
+        ok: true,
+        result: {
+          ...fieldResult,
+          processingMs: Date.now() - startedAt,
+        },
+      };
+      return NextResponse.json(response);
+    }
+
     const result = await scanCardImage({
-      image: Buffer.from(await file.arrayBuffer()),
-      game: normalizeTradingCardGame(String(body.get("game") ?? "")),
+      image,
+      game,
       userId: user.id,
+      knownName: String(body.get("knownName") ?? "") || null,
+      knownReference: String(body.get("knownReference") ?? "") || null,
+      knownAttackText: String(body.get("knownAttackText") ?? "") || null,
     });
     const response: CardScannerResponse = {
       ok: true,

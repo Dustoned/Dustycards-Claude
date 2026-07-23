@@ -7,11 +7,17 @@ import { db } from "@/lib/db";
 import {
   canAutoAcceptScannerCandidate,
   extractScannerCardReferences,
+  getScannerAttackSimilarity,
   getScannerCandidateConfidence,
   getScannerMatchReasons,
+  getScannerNameObservation,
+  getScannerNumberObservation,
   getStrongestScannerText,
+  normalizeScannerCardReference,
+  normalizeScannerText,
   rankScannerCandidates,
   type CardScannerCatalogCard,
+  type CardScannerField,
   type CardScannerMatch,
 } from "@/lib/card-scanner";
 import {
@@ -25,6 +31,8 @@ const CATALOG_CACHE_MS = 10 * 60 * 1_000;
 const CANDIDATE_HASH_TIMEOUT_MS = 2_200;
 const MAX_VISUAL_CANDIDATES = 8;
 const MAX_HASH_CACHE_ENTRIES = 512;
+const MAX_ATTACK_CACHE_ENTRIES = 512;
+const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
 const TESSERACT_WORKER_PATH = path.join(
   process.cwd(),
   "node_modules",
@@ -60,6 +68,7 @@ type OcrResult = {
 
 const scannerCatalogCache = new Map<TradingCardGame, ScannerCatalogCacheEntry>();
 const scannerArtworkHashCache = new Map<string, Promise<ScannerArtworkHash | null>>();
+const scannerAttackTextCache = new Map<string, Promise<string[]>>();
 let ocrWorkerPromise: Promise<Worker> | null = null;
 let ocrQueue: Promise<unknown> = Promise.resolve();
 
@@ -77,6 +86,83 @@ function getComparableCardImageUrl(imageUrl: string): string {
   } catch {
     return imageUrl;
   }
+}
+
+function getTcgdexScannerCardId(card: CardScannerCatalogCard): string | null {
+  if (card.image_url) {
+    try {
+      const url = new URL(card.image_url);
+      if (url.hostname === "assets.tcgdex.net") {
+        const parts = url.pathname.split("/").filter(Boolean);
+        const languageIndex = parts.findIndex((part) => part === "en");
+        const setId = languageIndex >= 0 ? parts[languageIndex + 2] : null;
+        const localId = languageIndex >= 0 ? parts[languageIndex + 3] : null;
+        if (setId && localId) return `${setId}-${localId}`;
+      }
+    } catch {
+      // Fall through to the stored TCGdex id.
+    }
+  }
+  return card.tcgid?.trim() || null;
+}
+
+async function fetchScannerAttackTexts(
+  card: CardScannerCatalogCard
+): Promise<string[]> {
+  const cardId = getTcgdexScannerCardId(card);
+  if (!cardId || card.game !== "pokemon") return [];
+
+  const cached = scannerAttackTextCache.get(cardId);
+  if (cached) return cached;
+  if (scannerAttackTextCache.size >= MAX_ATTACK_CACHE_ENTRIES) {
+    const oldestKey = scannerAttackTextCache.keys().next().value;
+    if (oldestKey) scannerAttackTextCache.delete(oldestKey);
+  }
+
+  const pending = (async () => {
+    try {
+      const response = await fetch(
+        `${TCGDEX_CARD_ENDPOINT}/${encodeURIComponent(cardId)}`,
+        {
+          headers: { accept: "application/json" },
+          next: { revalidate: 60 * 60 * 24 * 7 },
+          signal: AbortSignal.timeout(2_500),
+        }
+      );
+      if (!response.ok) return [];
+      const data = (await response.json()) as {
+        attacks?: Array<{ name?: string; effect?: string }>;
+      };
+      return (data.attacks ?? [])
+        .flatMap((attack) => [attack.name, attack.effect])
+        .filter((value): value is string => Boolean(value?.trim()));
+    } catch {
+      return [];
+    }
+  })();
+  scannerAttackTextCache.set(cardId, pending);
+  return pending;
+}
+
+async function getAttackSimilarities(
+  observedText: string | null | undefined,
+  candidates: CardScannerCatalogCard[]
+): Promise<Map<string, number>> {
+  if (!observedText?.trim() || candidates.length === 0) return new Map();
+  const rows = await Promise.all(
+    candidates.map(async (candidate) => ({
+      id: candidate.id,
+      similarity: getScannerAttackSimilarity(
+        observedText,
+        await fetchScannerAttackTexts(candidate)
+      ),
+    }))
+  );
+  return new Map(
+    rows
+      .filter(({ similarity }) => similarity >= 0.45)
+      .map(({ id, similarity }) => [id, similarity])
+  );
 }
 
 async function createDifferenceHash(
@@ -296,6 +382,84 @@ async function recognizeCardText(image: Buffer): Promise<OcrResult> {
   return run;
 }
 
+async function recognizeScannerFieldUnsafe(
+  image: Buffer,
+  field: CardScannerField
+): Promise<{ text: string; confidence: number | null }> {
+  const normalizedImage = await sharp(image, {
+    limitInputPixels: 28_000_000,
+    animated: false,
+  })
+    .rotate()
+    .resize({
+      width: 1_400,
+      height: 1_400,
+      fit: "inside",
+      withoutEnlargement: false,
+    })
+    .flatten({ background: "#ffffff" })
+    .grayscale()
+    .normalize()
+    .sharpen({ sigma: 1.05 })
+    .png({ compressionLevel: 5 })
+    .toBuffer();
+  const worker = await getOcrWorker();
+  await worker.setParameters({
+    tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+    tessedit_char_whitelist:
+      field === "number"
+        ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
+        : "",
+  });
+  const result = await worker.recognize(normalizedImage);
+  const results = [result];
+
+  if (field === "name" || field === "number") {
+    const thresholdImage = await sharp(normalizedImage)
+      .threshold(field === "name" ? 145 : 130)
+      .png({ compressionLevel: 4 })
+      .toBuffer();
+    await worker.setParameters({
+      tessedit_pageseg_mode:
+        field === "name" ? PSM.SINGLE_BLOCK : PSM.SPARSE_TEXT,
+      tessedit_char_whitelist:
+        field === "number"
+          ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
+          : "",
+    });
+    results.push(await worker.recognize(thresholdImage));
+  } else if (field === "attack") {
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+      tessedit_char_whitelist: "",
+    });
+    results.push(await worker.recognize(normalizedImage));
+  }
+
+  const text = results
+    .map((item) => item.data.text.trim())
+    .filter(Boolean)
+    .join("\n");
+  const confidences = results
+    .map((item) => item.data.confidence)
+    .filter((value): value is number => Number.isFinite(value));
+  return {
+    text,
+    confidence: confidences.length > 0
+      ? Math.round(Math.max(...confidences) * 10) / 10
+      : null,
+  };
+}
+
+async function recognizeScannerField(
+  image: Buffer,
+  field: CardScannerField
+): Promise<{ text: string; confidence: number | null }> {
+  const run = ocrQueue.then(() => recognizeScannerFieldUnsafe(image, field));
+  ocrQueue = run.catch(() => undefined);
+  return run;
+}
+
 async function loadScannerCatalog(game: TradingCardGame): Promise<CardScannerCatalogCard[]> {
   const now = Date.now();
   const cached = scannerCatalogCache.get(game);
@@ -312,6 +476,7 @@ async function loadScannerCatalog(game: TradingCardGame): Promise<CardScannerCat
         printed_card_number: true,
         rarity: true,
         image_url: true,
+        tcgid: true,
         episode: {
           select: {
             id: true,
@@ -359,6 +524,9 @@ export async function scanCardImage(input: {
   image: Buffer;
   game: TradingCardGame;
   userId: string;
+  knownName?: string | null;
+  knownReference?: string | null;
+  knownAttackText?: string | null;
 }): Promise<{
   matches: CardScannerMatch[];
   detected: {
@@ -371,9 +539,14 @@ export async function scanCardImage(input: {
     recognizeCardText(input.image),
     loadScannerCatalog(input.game),
   ]);
-  const initialRank = rankScannerCandidates(catalog, ocr.text);
+  const rememberedText = [input.knownName, input.knownReference]
+    .filter((value): value is string => Boolean(value?.trim()))
+    .join("\n");
+  const combinedOcrText = [rememberedText, ocr.text].filter(Boolean).join("\n");
+  const initialRank = rankScannerCandidates(catalog, combinedOcrText);
   const strongestTextMatch = initialRank[0];
   const textMatchIsConclusive = Boolean(
+    !rememberedText &&
     strongestTextMatch?.numberMatch === "exact" &&
       strongestTextMatch.nameSimilarity >= 0.82 &&
       strongestTextMatch.score - (initialRank[1]?.score ?? 0) >= 10
@@ -383,11 +556,21 @@ export async function scanCardImage(input: {
     : initialRank
         .slice(0, MAX_VISUAL_CANDIDATES)
         .map((candidate) => candidate.card);
-  const visualSimilarities =
+  const [visualSimilarities, attackSimilarities] = await Promise.all([
     visualCandidateCards.length > 0
-      ? await getVisualSimilarities(ocr.normalizedImage, visualCandidateCards)
-      : new Map<string, number>();
-  const ranked = rankScannerCandidates(catalog, ocr.text, visualSimilarities).slice(0, 5);
+      ? getVisualSimilarities(ocr.normalizedImage, visualCandidateCards)
+      : Promise.resolve(new Map<string, number>()),
+    getAttackSimilarities(
+      input.knownAttackText,
+      initialRank.slice(0, MAX_VISUAL_CANDIDATES).map((candidate) => candidate.card)
+    ),
+  ]);
+  const ranked = rankScannerCandidates(
+    catalog,
+    combinedOcrText,
+    visualSimilarities,
+    attackSimilarities
+  ).slice(0, 5);
   const ids = ranked.map((candidate) => candidate.card.id);
 
   const detailedCards =
@@ -441,6 +624,7 @@ export async function scanCardImage(input: {
         numberMatch: candidate.numberMatch,
         setMatch: candidate.setMatch,
         artworkSimilarity: candidate.visualSimilarity,
+        attackSimilarity: candidate.attackSimilarity,
       },
     };
   });
@@ -448,9 +632,102 @@ export async function scanCardImage(input: {
   return {
     matches,
     detected: {
-      cardReferences: extractScannerCardReferences(ocr.text),
-      strongestText: getStrongestScannerText(ocr.text),
+      cardReferences: extractScannerCardReferences(combinedOcrText),
+      strongestText: input.knownName ?? getStrongestScannerText(ocr.text),
       ocrConfidence: ocr.confidence,
     },
+  };
+}
+
+export async function readScannerFieldImage(input: {
+  image: Buffer;
+  game: TradingCardGame;
+  field: CardScannerField;
+  knownName?: string | null;
+  knownReference?: string | null;
+}): Promise<{
+  field: CardScannerField;
+  value: string | null;
+  confidence: number | null;
+  rawText: string | null;
+  catalogMatches: number;
+}> {
+  const [ocr, catalog] = await Promise.all([
+    recognizeScannerField(input.image, input.field),
+    loadScannerCatalog(input.game),
+  ]);
+
+  if (input.field === "number") {
+    const observation = getScannerNumberObservation(catalog, ocr.text);
+
+    return {
+      field: input.field,
+      value: observation?.value ?? null,
+      confidence: observation ? ocr.confidence : null,
+      rawText: ocr.text.trim().slice(0, 280) || null,
+      catalogMatches: observation?.catalogMatches ?? 0,
+    };
+  }
+
+  if (input.field === "attack") {
+    const normalizedKnownName = normalizeScannerText(input.knownName ?? "");
+    const normalizedKnownReference = normalizeScannerCardReference(
+      input.knownReference ?? ""
+    );
+    const likelyCards = catalog
+      .filter((card) => {
+        if (
+          normalizedKnownName &&
+          normalizeScannerText(card.name) === normalizedKnownName
+        ) {
+          return true;
+        }
+        if (!normalizedKnownReference) return false;
+        return [card.printed_card_number, card.card_number].some(
+          (value) =>
+            normalizeScannerCardReference(value ?? "") ===
+            normalizedKnownReference
+        );
+      })
+      .slice(0, 20);
+    const canonicalTerms = [
+      ...new Set(
+        (
+          await Promise.all(
+            likelyCards.map((card) => fetchScannerAttackTexts(card))
+          )
+        ).flat()
+      ),
+    ];
+    const canonicalMatches = canonicalTerms
+      .map((value) => ({
+        value,
+        similarity: getScannerAttackSimilarity(ocr.text, [value]),
+      }))
+      .filter(({ similarity }) => similarity >= 0.62)
+      .sort((left, right) => right.similarity - left.similarity)
+      .slice(0, 2);
+    const value =
+      canonicalMatches.length > 0
+        ? canonicalMatches.map((match) => match.value).join(" · ").slice(0, 140)
+        : null;
+
+    return {
+      field: input.field,
+      value: value && (ocr.confidence ?? 0) >= 20 ? value : null,
+      confidence: value ? ocr.confidence : null,
+      rawText: ocr.text.trim().slice(0, 280) || null,
+      catalogMatches: likelyCards.length,
+    };
+  }
+
+  const observation = getScannerNameObservation(catalog, ocr.text);
+
+  return {
+    field: input.field,
+    value: observation?.value ?? null,
+    confidence: observation?.confidence ?? null,
+    rawText: ocr.text.trim().slice(0, 280) || null,
+    catalogMatches: observation?.catalogMatches ?? 0,
   };
 }
