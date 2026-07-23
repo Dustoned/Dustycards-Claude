@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.7",
+    releasedAt: "July 23, 2026",
+    title: "Scan, confirm and keep collecting",
+    summary:
+      "DustyCards 3.8.7 introduces a private card scanner, a complete feedback workflow and a cleaner final pass across Card Detail.",
+    tone: "new",
+    highlights: [
+      "The new Card Scanner reads the card name and number, compares the artwork and presents the most likely exact printing with a clear confidence score.",
+      "Live camera sessions stay open between cards, include a fitted card outline and expose a flashlight control whenever the rear camera supports it.",
+      "Confirm, Add copy and Want can return directly to the active camera, while the session strip keeps every confirmed scan within reach.",
+      "Feedback can be submitted from the app, reviewed by admins in Settings and optionally delivered by email without exposing private account data.",
+      "Owned Copy is compact instead of stretched, and Find in Sealed now prioritizes consumer boxes while cases and displays remain on the full product page.",
+      "Route loading can no longer remain stuck indefinitely, and Scanner entry points are available from search, navigation and collector tools.",
+    ],
+  },
+  {
     version: "3.8.6",
     releasedAt: "July 20, 2026",
     title: "Faster everywhere, brighter by choice",

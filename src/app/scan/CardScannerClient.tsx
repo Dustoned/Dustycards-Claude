@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  Flashlight,
   ImagePlus,
   LoaderCircle,
   LockKeyhole,
@@ -68,6 +69,14 @@ const CARD_ASPECT = 63 / 88;
 type ScannedCard = {
   key: string;
   match: CardScannerMatch;
+};
+
+type TorchMediaTrackCapabilities = MediaTrackCapabilities & {
+  torch?: boolean;
+};
+
+type TorchMediaTrackConstraintSet = MediaTrackConstraintSet & {
+  torch: boolean;
 };
 
 function confidenceLabel(match: CardScannerMatch): string {
@@ -205,6 +214,8 @@ export default function CardScannerClient() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraSupported, setCameraSupported] = useState(false);
   const [cameraSessionActive, setCameraSessionActive] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchEnabled, setTorchEnabled] = useState(false);
   const [scannedCards, setScannedCards] = useState<ScannedCard[]>([]);
   const [openingCardId, setOpeningCardId] = useState<string | null>(null);
   const [selectedModalCard, setSelectedModalCard] = useState<ModalCardData | null>(null);
@@ -224,6 +235,8 @@ export default function CardScannerClient() {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setCameraSessionActive(false);
+    setTorchSupported(false);
+    setTorchEnabled(false);
     if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
 
@@ -282,6 +295,12 @@ export default function CardScannerClient() {
         },
       });
       streamRef.current = stream;
+      const videoTrack = stream.getVideoTracks()[0];
+      const capabilities = videoTrack?.getCapabilities?.() as
+        | TorchMediaTrackCapabilities
+        | undefined;
+      setTorchSupported(Boolean(capabilities?.torch));
+      setTorchEnabled(false);
       setCameraSessionActive(true);
       setStage("camera");
     } catch (cameraAccessError) {
@@ -292,6 +311,28 @@ export default function CardScannerClient() {
           : "The camera could not be opened. Choose a photo instead.";
       setCameraError(message);
       setStage("ready");
+    }
+  }
+
+  async function toggleTorch() {
+    const videoTrack = streamRef.current?.getVideoTracks()[0];
+    if (!videoTrack || !torchSupported) return;
+
+    const nextEnabled = !torchEnabled;
+    try {
+      await videoTrack.applyConstraints({
+        advanced: [
+          {
+            torch: nextEnabled,
+          } as TorchMediaTrackConstraintSet,
+        ],
+      });
+      setTorchEnabled(nextEnabled);
+      setCameraError(null);
+    } catch {
+      setTorchSupported(false);
+      setTorchEnabled(false);
+      setCameraError("Flashlight control is not available on this camera.");
     }
   }
 
@@ -644,15 +685,17 @@ export default function CardScannerClient() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-5 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
-                      <button
-                        type="button"
-                        onClick={resetScanner}
-                        aria-label="Close camera"
-                        className="flex h-12 w-12 items-center justify-center rounded-full border border-white/18 bg-black/45 text-white/78 backdrop-blur-md"
-                      >
-                        <X className="h-5 w-5" />
-                      </button>
+                    <div className="absolute inset-x-0 bottom-0 grid grid-cols-[7rem_4.5rem_7rem] items-center justify-center gap-3 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={resetScanner}
+                          aria-label="Close camera"
+                          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/18 bg-black/45 text-white/78 backdrop-blur-md"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
                       <button
                         type="button"
                         onClick={capturePhoto}
@@ -661,14 +704,31 @@ export default function CardScannerClient() {
                       >
                         <Aperture className="h-7 w-7" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        aria-label="Choose photo"
-                        className="flex h-12 w-12 items-center justify-center rounded-full border border-white/18 bg-black/45 text-white/78 backdrop-blur-md"
-                      >
-                        <ImagePlus className="h-5 w-5" />
-                      </button>
+                      <div className="flex gap-2">
+                        {torchSupported ? (
+                          <button
+                            type="button"
+                            onClick={toggleTorch}
+                            aria-label={torchEnabled ? "Turn flashlight off" : "Turn flashlight on"}
+                            aria-pressed={torchEnabled}
+                            className={`flex h-12 w-12 items-center justify-center rounded-full border backdrop-blur-md transition ${
+                              torchEnabled
+                                ? "border-[rgb(var(--dc-primary-soft-rgb)/0.8)] bg-[var(--dc-primary)] text-white shadow-[0_0_24px_rgb(var(--dc-primary-rgb)/0.36)]"
+                                : "border-white/18 bg-black/45 text-white/78"
+                            }`}
+                          >
+                            <Flashlight className="h-5 w-5" />
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          aria-label="Choose photo"
+                          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/18 bg-black/45 text-white/78 backdrop-blur-md"
+                        >
+                          <ImagePlus className="h-5 w-5" />
+                        </button>
+                      </div>
                     </div>
                     {cameraError ? (
                       <p
