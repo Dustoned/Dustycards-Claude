@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractScannerCardReferences,
+  canAutoAcceptScannerCandidate,
   getScannerConfidence,
   getScannerTextSimilarity,
   normalizeScannerCardReference,
@@ -73,5 +74,34 @@ describe("card scanner recognition", () => {
     expect(ranked[0]?.card.id).toBe(SEISMITOAD.id);
     expect(ranked[0]?.score).toBeGreaterThanOrEqual(76);
     expect(getScannerConfidence(ranked[0]?.score ?? 0)).toBe("high");
+  });
+
+  it("only auto-accepts an exact printing with independent identity evidence", () => {
+    const ranked = rankScannerCandidates(
+      [OTHER_CARD, SEISMITOAD],
+      "Seismitoad\nBlack Bolt\n105/086",
+      new Map([[SEISMITOAD.id, 0.92]])
+    );
+    expect(canAutoAcceptScannerCandidate(ranked[0], ranked[1]?.score ?? null)).toBe(
+      true
+    );
+  });
+
+  it("never auto-accepts a shared local number or a close runner-up", () => {
+    const localOnly = rankScannerCandidates(
+      [OTHER_CARD, SEISMITOAD],
+      "Seismitoad\n105"
+    );
+    expect(
+      canAutoAcceptScannerCandidate(localOnly[0], localOnly[1]?.score ?? null)
+    ).toBe(false);
+
+    const exactButAmbiguous = {
+      ...localOnly[0],
+      numberMatch: "exact" as const,
+      nameSimilarity: 0.9,
+      score: 90,
+    };
+    expect(canAutoAcceptScannerCandidate(exactButAmbiguous, 82)).toBe(false);
   });
 });

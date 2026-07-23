@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Flashlight,
   ImagePlus,
+  Layers3,
   LoaderCircle,
   LockKeyhole,
   RefreshCcw,
@@ -36,6 +37,12 @@ import type {
   CardScannerMatch,
   CardScannerResponse,
 } from "@/lib/card-scanner";
+import {
+  getScannerFrameDifference,
+  measureScannerFrame,
+  rgbaToScannerGrayscale,
+  type ScannerFrameReadiness,
+} from "@/lib/card-scanner-frame";
 import { formatCurrency } from "@/lib/format";
 import {
   getGameLabel,
@@ -69,6 +76,31 @@ const CARD_ASPECT = 63 / 88;
 type ScannedCard = {
   key: string;
   match: CardScannerMatch;
+};
+
+type BackgroundScanJob = {
+  id: string;
+  status: "reading" | "review" | "failed";
+  matches: CardScannerMatch[];
+  detectedText: string | null;
+  detectedReferences: string[];
+  processingMs: number | null;
+  error: string | null;
+};
+
+const EMPTY_FRAME_READINESS: ScannerFrameReadiness = {
+  brightness: 0,
+  contrast: 0,
+  edgeStrength: 0,
+  nameZoneContrast: 0,
+  numberZoneContrast: 0,
+  motion: null,
+  cardInFrame: false,
+  lightingGood: false,
+  nameZoneReadable: false,
+  numberZoneReadable: false,
+  stable: false,
+  ready: false,
 };
 
 type TorchMediaTrackCapabilities = MediaTrackCapabilities & {
@@ -130,7 +162,8 @@ function drawCentralCardCrop(
   canvas: HTMLCanvasElement,
   source: CanvasImageSource,
   sourceWidth: number,
-  sourceHeight: number
+  sourceHeight: number,
+  outputWidth = 900
 ) {
   let sourceX = 0;
   let sourceY = 0;
@@ -146,8 +179,8 @@ function drawCentralCardCrop(
     sourceY = (sourceHeight - cropHeight) / 2;
   }
 
-  canvas.width = 900;
-  canvas.height = Math.round(900 / CARD_ASPECT);
+  canvas.width = outputWidth;
+  canvas.height = Math.round(outputWidth / CARD_ASPECT);
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Photo capture is unavailable.");
   context.drawImage(
@@ -217,14 +250,32 @@ export default function CardScannerClient() {
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [scannedCards, setScannedCards] = useState<ScannedCard[]>([]);
+  const [scanJobs, setScanJobs] = useState<BackgroundScanJob[]>([]);
+  const [activeReviewJobId, setActiveReviewJobId] = useState<string | null>(null);
+  const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
+  const [frameReadiness, setFrameReadiness] =
+    useState<ScannerFrameReadiness>(EMPTY_FRAME_READINESS);
+  const [lastAutoMatch, setLastAutoMatch] = useState<CardScannerMatch | null>(null);
+  const [bulkAdding, setBulkAdding] = useState(false);
+  const [batchMessage, setBatchMessage] = useState<string | null>(null);
   const [openingCardId, setOpeningCardId] = useState<string | null>(null);
   const [selectedModalCard, setSelectedModalCard] = useState<ModalCardData | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const readinessCanvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const previewUrlRef = useRef<string | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
+  const backgroundControllersRef = useRef(new Map<string, AbortController>());
+  const previousFrameRef = useRef<Uint8Array | null>(null);
+  const currentFrameRef = useRef<Uint8Array | null>(null);
+  const capturedFrameRef = useRef<Uint8Array | null>(null);
+  const readyFrameStreakRef = useRef(0);
+  const changedFrameStreakRef = useRef(0);
+  const autoCaptureArmedRef = useRef(true);
+  const captureInProgressRef = useRef(false);
+  const autoCaptureActionRef = useRef<() => void>(() => undefined);
 
   const selectedMatch = useMemo(
     () => matches.find((match) => match.id === selectedId) ?? matches[0] ?? null,
@@ -254,9 +305,12 @@ export default function CardScannerClient() {
   }, []);
 
   useEffect(() => {
+    const backgroundControllers = backgroundControllersRef.current;
     return () => {
       stopCamera();
       requestAbortRef.current?.abort();
+      backgroundControllers.forEach((controller) => controller.abort());
+      backgroundControllers.clear();
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
   }, [stopCamera]);
@@ -301,6 +355,13 @@ export default function CardScannerClient() {
         | undefined;
       setTorchSupported(Boolean(capabilities?.torch));
       setTorchEnabled(false);
+      previousFrameRef.current = null;
+      currentFrameRef.current = null;
+      capturedFrameRef.current = null;
+      readyFrameStreakRef.current = 0;
+      changedFrameStreakRef.current = 0;
+      autoCaptureArmedRef.current = true;
+      setFrameReadiness(EMPTY_FRAME_READINESS);
       setCameraSessionActive(true);
       setStage("camera");
     } catch (cameraAccessError) {
@@ -336,23 +397,227 @@ export default function CardScannerClient() {
     }
   }
 
+  function queueScannedCard(match: CardScannerMatch) {
+    setScannedCards((current) => [
+      ...current,
+      {
+        key: `${match.id}-${Date.now()}-${current.length}`,
+        match,
+      },
+    ]);
+    setBatchMessage(null);
+  }
+
+  async function requestCardScan(
+    file: File,
+    controller: AbortController
+  ): Promise<CardScannerResponse> {
+    const body = new FormData();
+    body.set("image", file);
+    body.set("game", game);
+    const response = await fetch("/api/cards/scan", {
+      method: "POST",
+      body,
+      signal: controller.signal,
+    });
+    const data = (await response.json()) as
+      | CardScannerResponse
+      | { ok: false; error?: string };
+    if (!response.ok || !data.ok) {
+      throw new Error("error" in data ? data.error : "The card could not be scanned.");
+    }
+    return data;
+  }
+
+  async function analyzePhotoInBackground(file: File) {
+    const jobId = `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 60_000);
+    backgroundControllersRef.current.set(jobId, controller);
+    setScanJobs((current) => [
+      ...current,
+      {
+        id: jobId,
+        status: "reading",
+        matches: [],
+        detectedText: null,
+        detectedReferences: [],
+        processingMs: null,
+        error: null,
+      },
+    ]);
+
+    try {
+      const data = await requestCardScan(file, controller);
+      const topMatch = data.result.matches[0] ?? null;
+
+      if (topMatch?.autoAccept) {
+        queueScannedCard(topMatch);
+        setLastAutoMatch(topMatch);
+        setScanJobs((current) => current.filter((job) => job.id !== jobId));
+        return;
+      }
+
+      setScanJobs((current) =>
+        current.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                status: data.result.matches.length > 0 ? "review" : "failed",
+                matches: data.result.matches,
+                detectedText: data.result.detected.strongestText,
+                detectedReferences: data.result.detected.cardReferences,
+                processingMs: data.result.processingMs,
+                error:
+                  data.result.matches.length > 0
+                    ? null
+                    : "No reliable printing was found.",
+              }
+            : job
+        )
+      );
+    } catch (scanError) {
+      if (controller.signal.aborted && !backgroundControllersRef.current.has(jobId)) {
+        return;
+      }
+      setScanJobs((current) =>
+        current.map((job) =>
+          job.id === jobId
+            ? {
+                ...job,
+                status: "failed",
+                error:
+                  timedOut
+                    ? "This scan took too long. Try again with less glare."
+                    : scanError instanceof Error
+                    ? scanError.message
+                    : "This card could not be identified.",
+              }
+            : job
+        )
+      );
+    } finally {
+      window.clearTimeout(timeout);
+      backgroundControllersRef.current.delete(jobId);
+    }
+  }
+
   async function capturePhoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
+    if (captureInProgressRef.current) return;
     if (!video || !canvas || !video.videoWidth || !video.videoHeight) {
       setCameraError("Hold the card still until the camera preview is ready.");
       return;
     }
+    if (backgroundControllersRef.current.size >= 6) {
+      setCameraError("Six cards are already being read. Hold on for a result.");
+      return;
+    }
+    captureInProgressRef.current = true;
     try {
       drawCentralCardCrop(canvas, video, video.videoWidth, video.videoHeight);
       const file = await canvasToJpegFile(canvas);
-      setImageFile(file);
-      replacePreviewUrl(URL.createObjectURL(file));
-      void analyzePhoto(file);
+      capturedFrameRef.current = currentFrameRef.current?.slice() ?? null;
+      autoCaptureArmedRef.current = false;
+      readyFrameStreakRef.current = 0;
+      changedFrameStreakRef.current = 0;
+      setCameraError(null);
+      void analyzePhotoInBackground(file);
     } catch {
       setCameraError("The photo could not be captured. Please try again.");
+      autoCaptureArmedRef.current = true;
+    } finally {
+      captureInProgressRef.current = false;
     }
   }
+
+  useEffect(() => {
+    autoCaptureActionRef.current = () => {
+      void capturePhoto();
+    };
+  });
+
+  useEffect(() => {
+    if (stage !== "camera") return;
+
+    const timer = window.setInterval(() => {
+      const video = videoRef.current;
+      const canvas = readinessCanvasRef.current;
+      if (!video || !canvas || !video.videoWidth || !video.videoHeight) return;
+
+      try {
+        drawCentralCardCrop(
+          canvas,
+          video,
+          video.videoWidth,
+          video.videoHeight,
+          126
+        );
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) return;
+        const rgba = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const grayscale = rgbaToScannerGrayscale(rgba);
+        const readiness = measureScannerFrame(
+          grayscale,
+          canvas.width,
+          canvas.height,
+          previousFrameRef.current
+        );
+        previousFrameRef.current = grayscale;
+        currentFrameRef.current = grayscale;
+        setFrameReadiness(readiness);
+
+        if (!autoCaptureArmedRef.current) {
+          const difference = getScannerFrameDifference(
+            capturedFrameRef.current,
+            grayscale
+          );
+          changedFrameStreakRef.current =
+            difference != null && difference >= 13
+              ? changedFrameStreakRef.current + 1
+              : 0;
+          if (changedFrameStreakRef.current >= 2) {
+            autoCaptureArmedRef.current = true;
+            readyFrameStreakRef.current = 0;
+            changedFrameStreakRef.current = 0;
+          }
+          return;
+        }
+
+        if (
+          !autoCaptureEnabled ||
+          captureInProgressRef.current ||
+          backgroundControllersRef.current.size >= 6
+        ) {
+          readyFrameStreakRef.current = 0;
+          return;
+        }
+
+        readyFrameStreakRef.current = readiness.ready
+          ? readyFrameStreakRef.current + 1
+          : 0;
+        if (readyFrameStreakRef.current >= 4) {
+          readyFrameStreakRef.current = 0;
+          autoCaptureActionRef.current();
+        }
+      } catch {
+        setFrameReadiness(EMPTY_FRAME_READINESS);
+      }
+    }, 280);
+
+    return () => window.clearInterval(timer);
+  }, [autoCaptureEnabled, stage]);
+
+  useEffect(() => {
+    if (!lastAutoMatch) return;
+    const timeout = window.setTimeout(() => setLastAutoMatch(null), 3_800);
+    return () => window.clearTimeout(timeout);
+  }, [lastAutoMatch]);
 
   function chooseFile(file: File | null) {
     if (!file) return;
@@ -394,20 +659,7 @@ export default function CardScannerClient() {
     setProcessingMs(null);
 
     try {
-      const body = new FormData();
-      body.set("image", fileToAnalyze);
-      body.set("game", game);
-      const response = await fetch("/api/cards/scan", {
-        method: "POST",
-        body,
-        signal: controller.signal,
-      });
-      const data = (await response.json()) as
-        | CardScannerResponse
-        | { ok: false; error?: string };
-      if (!response.ok || !data.ok) {
-        throw new Error("error" in data ? data.error : "The card could not be scanned.");
-      }
+      const data = await requestCardScan(fileToAnalyze, controller);
 
       setDetectedText(data.result.detected.strongestText);
       setDetectedReferences(data.result.detected.cardReferences);
@@ -437,6 +689,8 @@ export default function CardScannerClient() {
 
   function resetScanner() {
     requestAbortRef.current?.abort();
+    backgroundControllersRef.current.forEach((controller) => controller.abort());
+    backgroundControllersRef.current.clear();
     stopCamera();
     replacePreviewUrl(null);
     setImageFile(null);
@@ -448,6 +702,15 @@ export default function CardScannerClient() {
     setError(null);
     setCameraError(null);
     setScannedCards([]);
+    setScanJobs([]);
+    setActiveReviewJobId(null);
+    setLastAutoMatch(null);
+    setBatchMessage(null);
+    setFrameReadiness(EMPTY_FRAME_READINESS);
+    previousFrameRef.current = null;
+    currentFrameRef.current = null;
+    capturedFrameRef.current = null;
+    autoCaptureArmedRef.current = true;
     setStage("ready");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -455,13 +718,13 @@ export default function CardScannerClient() {
   function continueScanning(matchToRemember: CardScannerMatch | null = null) {
     requestAbortRef.current?.abort();
     if (matchToRemember) {
-      setScannedCards((current) => [
-        ...current,
-        {
-          key: `${matchToRemember.id}-${Date.now()}-${current.length}`,
-          match: matchToRemember,
-        },
-      ]);
+      queueScannedCard(matchToRemember);
+    }
+    if (activeReviewJobId) {
+      setScanJobs((current) =>
+        current.filter((job) => job.id !== activeReviewJobId)
+      );
+      setActiveReviewJobId(null);
     }
     replacePreviewUrl(null);
     setImageFile(null);
@@ -480,10 +743,60 @@ export default function CardScannerClient() {
     );
     if (cameraIsReady) {
       setCameraSessionActive(true);
+      previousFrameRef.current = null;
       setStage("camera");
     } else {
       setCameraSessionActive(false);
       setStage("ready");
+    }
+  }
+
+  function openReviewJob(job: BackgroundScanJob) {
+    if (job.status !== "review" || job.matches.length === 0) return;
+    setActiveReviewJobId(job.id);
+    setMatches(job.matches);
+    setSelectedId(job.matches[0].id);
+    setDetectedText(job.detectedText);
+    setDetectedReferences(job.detectedReferences);
+    setProcessingMs(job.processingMs);
+    setError(null);
+    setStage("results");
+  }
+
+  async function addBatchToCollection() {
+    if (bulkAdding || scannedCards.length === 0) return;
+    setBulkAdding(true);
+    setBatchMessage(null);
+    try {
+      const response = await fetch("/api/collection/cards", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          cardIds: scannedCards.map((item) => item.match.id),
+          condition: "Near Mint",
+          language: "English",
+        }),
+      });
+      const data = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+      };
+      if (!response.ok || !data.success) {
+        throw new Error(data.error ?? "The batch could not be added.");
+      }
+      const count = scannedCards.length;
+      setScannedCards([]);
+      setBatchMessage(
+        `${count} ${count === 1 ? "copy" : "copies"} added as English Near Mint.`
+      );
+    } catch (batchError) {
+      setBatchMessage(
+        batchError instanceof Error
+          ? batchError.message
+          : "The batch could not be added."
+      );
+    } finally {
+      setBulkAdding(false);
     }
   }
 
@@ -503,6 +816,16 @@ export default function CardScannerClient() {
 
   const manualSearchQuery =
     detectedReferences[0] ?? detectedText ?? selectedMatch?.name ?? "";
+  const readingJobs = scanJobs.filter((job) => job.status === "reading");
+  const reviewJobs = scanJobs.filter((job) => job.status === "review");
+  const failedJobs = scanJobs.filter((job) => job.status === "failed");
+  const frameChecks = [
+    { label: "Card", ready: frameReadiness.cardInFrame },
+    { label: "Light", ready: frameReadiness.lightingGood },
+    { label: "Name", ready: frameReadiness.nameZoneReadable },
+    { label: "Number", ready: frameReadiness.numberZoneReadable },
+    { label: "Steady", ready: frameReadiness.stable },
+  ];
 
   return (
     <>
@@ -564,36 +887,63 @@ export default function CardScannerClient() {
         {scannedCards.length > 0 ? (
           <section
             aria-label="Cards scanned in this session"
-            className="mt-3 flex items-center gap-3 overflow-x-auto rounded-[var(--ui-page-header-radius)] border border-[rgb(var(--dc-border-rgb)/0.84)] bg-[rgb(var(--dc-surface-primary-rgb)/0.66)] p-2.5 sm:mt-4"
+            className="mt-3 rounded-[var(--ui-page-header-radius)] border border-[rgb(var(--dc-border-rgb)/0.84)] bg-[rgb(var(--dc-surface-primary-rgb)/0.66)] p-2.5 sm:mt-4"
           >
-            <div className="flex min-h-14 shrink-0 items-center gap-2 border-r border-[rgb(var(--dc-border-rgb)/0.82)] px-2 pr-4">
-              <CheckCircle2 className="h-5 w-5 text-[var(--dc-success-hover)]" />
-              <span>
-                <span className="block text-sm font-black tabular-nums">
-                  {scannedCards.length} scanned
-                </span>
-                <span className="block text-[10px] font-bold text-[var(--dc-text-muted)]">
-                  Camera session
-                </span>
-              </span>
-            </div>
-            {scannedCards.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => openCardDetails(item.match)}
-                className="grid min-h-14 shrink-0 grid-cols-[2.15rem_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-bg-main-rgb)/0.34)] p-1.5 pr-3 text-left"
-              >
-                <ScannerArtwork match={item.match} sizes="35px" />
-                <span className="max-w-32">
-                  <span className="block truncate text-xs font-black">{item.match.name}</span>
-                  <span className="block truncate text-[9px] font-bold text-[var(--dc-text-muted)]">
-                    {item.match.episode.name}
+            <div className="flex items-center justify-between gap-3 px-1 pb-2.5">
+              <div className="flex min-h-11 items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-[var(--dc-success-hover)]" />
+                <span>
+                  <span className="block text-sm font-black tabular-nums">
+                    {scannedCards.length} ready
+                  </span>
+                  <span className="block text-[10px] font-bold text-[var(--dc-text-muted)]">
+                    English · Near Mint
                   </span>
                 </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void addBatchToCollection()}
+                disabled={bulkAdding}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--dc-primary-gradient)] px-4 text-xs font-black text-white shadow-[0_8px_22px_rgb(var(--dc-primary-rgb)/0.2)] disabled:opacity-60"
+              >
+                {bulkAdding ? (
+                  <LoaderCircle className="h-4 w-4 motion-safe:animate-spin" />
+                ) : (
+                  <Layers3 className="h-4 w-4" />
+                )}
+                Add batch
               </button>
-            ))}
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {scannedCards.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => openCardDetails(item.match)}
+                  className="grid min-h-14 shrink-0 grid-cols-[2.15rem_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-bg-main-rgb)/0.34)] p-1.5 pr-3 text-left"
+                >
+                  <ScannerArtwork match={item.match} sizes="35px" />
+                  <span className="max-w-32">
+                    <span className="block truncate text-xs font-black">
+                      {item.match.name}
+                    </span>
+                    <span className="block truncate text-[9px] font-bold text-[var(--dc-text-muted)]">
+                      {item.match.episode.name}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
           </section>
+        ) : null}
+        {batchMessage ? (
+          <p
+            role="status"
+            className="mt-3 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-primary-rgb)/0.6)] px-3 py-2 text-xs font-bold text-[var(--dc-text-secondary)]"
+          >
+            {batchMessage}
+          </p>
         ) : null}
 
         <div className="mt-3 sm:mt-4">
@@ -675,30 +1025,115 @@ export default function CardScannerClient() {
                       </div>
                     </div>
                     <div className="absolute inset-x-0 top-4 flex justify-center px-4">
-                      <div className="flex min-h-10 items-center gap-2 rounded-full border border-white/18 bg-black/52 px-4 text-xs font-bold text-white/88 shadow-xl backdrop-blur-md">
-                        <ScanLine className="h-4 w-4 text-[var(--dc-primary-soft)]" />
-                        Fit the full card inside the outline
-                        {scannedCards.length > 0 ? (
-                          <span className="rounded-full bg-white/12 px-2 py-0.5 tabular-nums">
-                            {scannedCards.length}
-                          </span>
+                      <div className="grid max-w-[calc(100vw-2rem)] gap-2">
+                        <div className="flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/18 bg-black/52 px-4 text-xs font-bold text-white/88 shadow-xl backdrop-blur-md">
+                          {lastAutoMatch ? (
+                            <>
+                              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                              <span className="truncate">{lastAutoMatch.name} ready</span>
+                            </>
+                          ) : readingJobs.length > 0 ? (
+                            <>
+                              <LoaderCircle className="h-4 w-4 motion-safe:animate-spin text-[var(--dc-primary-soft)]" />
+                              Reading {readingJobs.length} in background
+                            </>
+                          ) : !autoCaptureArmedRef.current ? (
+                            <>
+                              <RefreshCcw className="h-4 w-4 text-[var(--dc-primary-soft)]" />
+                              Move this card away
+                            </>
+                          ) : (
+                            <>
+                              <ScanLine className="h-4 w-4 text-[var(--dc-primary-soft)]" />
+                              Hold still · captures automatically
+                            </>
+                          )}
+                          {scannedCards.length > 0 ? (
+                            <span className="rounded-full bg-white/12 px-2 py-0.5 tabular-nums">
+                              {scannedCards.length}
+                            </span>
+                          ) : null}
+                        </div>
+                        {reviewJobs.length > 0 || failedJobs.length > 0 ? (
+                          <div className="flex justify-center gap-2">
+                            {reviewJobs.slice(0, 1).map((job) => (
+                              <button
+                                key={job.id}
+                                type="button"
+                                onClick={() => openReviewJob(job)}
+                                className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-200/30 bg-amber-400/15 px-3 text-[11px] font-black text-amber-100 backdrop-blur-md"
+                              >
+                                Review {reviewJobs.length}
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </button>
+                            ))}
+                            {failedJobs.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setScanJobs((current) =>
+                                    current.filter((job) => job.status !== "failed")
+                                  )
+                                }
+                                className="inline-flex min-h-9 items-center rounded-full border border-rose-200/25 bg-rose-400/15 px-3 text-[11px] font-black text-rose-100 backdrop-blur-md"
+                              >
+                                {failedJobs.length} unread
+                              </button>
+                            ) : null}
+                          </div>
                         ) : null}
+                      </div>
+                    </div>
+                    <div className="absolute inset-x-4 bottom-[7.4rem] flex justify-center">
+                      <div className="grid w-full max-w-md grid-cols-5 gap-1 rounded-2xl border border-white/16 bg-black/52 p-1.5 shadow-xl backdrop-blur-md">
+                        {frameChecks.map((check) => (
+                          <span
+                            key={check.label}
+                            className={`flex min-h-9 items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-black transition ${
+                              check.ready
+                                ? "bg-emerald-400/16 text-emerald-200"
+                                : "bg-white/5 text-white/52"
+                            }`}
+                          >
+                            {check.ready ? (
+                              <Check className="h-3 w-3" />
+                            ) : (
+                              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+                            )}
+                            {check.label}
+                          </span>
+                        ))}
                       </div>
                     </div>
                     <div className="absolute inset-x-0 bottom-0 grid grid-cols-[7rem_4.5rem_7rem] items-center justify-center gap-3 bg-gradient-to-t from-black/80 via-black/35 to-transparent px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-16">
                       <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={resetScanner}
-                          aria-label="Close camera"
-                          className="flex h-12 w-12 items-center justify-center rounded-full border border-white/18 bg-black/45 text-white/78 backdrop-blur-md"
-                        >
-                          <X className="h-5 w-5" />
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setAutoCaptureEnabled((current) => !current)}
+                            aria-pressed={autoCaptureEnabled}
+                            aria-label="Toggle automatic capture"
+                            className={`flex h-12 min-w-12 items-center justify-center rounded-full border px-2 text-[9px] font-black backdrop-blur-md ${
+                              autoCaptureEnabled
+                                ? "border-[rgb(var(--dc-primary-soft-rgb)/0.8)] bg-[var(--dc-primary)] text-white"
+                                : "border-white/18 bg-black/45 text-white/60"
+                            }`}
+                          >
+                            AUTO
+                          </button>
+                          <button
+                            type="button"
+                            onClick={resetScanner}
+                            aria-label="Close camera"
+                            className="flex h-12 w-12 items-center justify-center rounded-full border border-white/18 bg-black/45 text-white/78 backdrop-blur-md"
+                          >
+                            <X className="h-5 w-5" />
+                          </button>
+                        </div>
                       </div>
                       <button
                         type="button"
-                        onClick={capturePhoto}
+                        onClick={() => void capturePhoto()}
                         aria-label="Photograph card"
                         className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full border-[5px] border-white bg-[var(--dc-primary)] text-white shadow-[0_0_0_5px_rgba(0,0,0,0.28),0_12px_30px_rgba(0,0,0,0.42)]"
                       >
@@ -942,7 +1377,7 @@ export default function CardScannerClient() {
                         card={cardRef(selectedMatch)}
                         mode="button"
                         label="Add copy"
-                        onAdded={() => continueScanning(selectedMatch)}
+                        onAdded={() => continueScanning()}
                         className="min-h-12 w-full rounded-2xl"
                       />
                       <CollectionWantButton
@@ -951,7 +1386,7 @@ export default function CardScannerClient() {
                         initialWanted={Boolean(selectedMatch.want_item)}
                         wantItemId={selectedMatch.want_item?.id ?? null}
                         onChanged={(wantItem) => {
-                          if (wantItem) continueScanning(selectedMatch);
+                          if (wantItem) continueScanning();
                         }}
                         className="min-h-12 w-full rounded-2xl"
                       />
@@ -1098,6 +1533,7 @@ export default function CardScannerClient() {
           onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
         />
         <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
+        <canvas ref={readinessCanvasRef} className="hidden" aria-hidden="true" />
       </div>
 
       {selectedModalCard ? (

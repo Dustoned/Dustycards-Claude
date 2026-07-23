@@ -50,6 +50,14 @@ export interface CardScannerMatch {
   confidence: CardScannerConfidence;
   score: number;
   reasons: string[];
+  autoAccept: boolean;
+  runnerUpGap: number;
+  evidence: {
+    nameSimilarity: number;
+    numberMatch: "exact" | "local" | null;
+    setMatch: boolean;
+    artworkSimilarity: number | null;
+  };
 }
 
 export interface CardScannerResponse {
@@ -273,6 +281,47 @@ export function rankScannerCandidates(
 export function getScannerConfidence(score: number): CardScannerConfidence {
   if (score >= 76) return "high";
   if (score >= 54) return "medium";
+  return "low";
+}
+
+/**
+ * Automatic collection queues must be considerably stricter than the visual
+ * confidence badge. A score can be high because one signal is excellent; auto
+ * acceptance requires independent identity signals and a clear lead over the
+ * next printing.
+ */
+export function canAutoAcceptScannerCandidate(
+  candidate: RankedScannerCandidate,
+  runnerUpScore: number | null
+): boolean {
+  const gap = candidate.score - (runnerUpScore ?? 0);
+  const artworkSimilarity = candidate.visualSimilarity ?? 0;
+
+  if (candidate.numberMatch !== "exact" || gap < 12) return false;
+
+  if (candidate.nameSimilarity >= 0.84) return true;
+
+  return (
+    candidate.nameSimilarity >= 0.68 &&
+    artworkSimilarity >= 0.88 &&
+    gap >= 14
+  );
+}
+
+export function getScannerCandidateConfidence(
+  candidate: RankedScannerCandidate,
+  runnerUpScore: number | null
+): CardScannerConfidence {
+  if (canAutoAcceptScannerCandidate(candidate, runnerUpScore)) return "high";
+
+  if (
+    (candidate.numberMatch === "exact" && candidate.nameSimilarity >= 0.52) ||
+    (candidate.nameSimilarity >= 0.82 &&
+      (candidate.visualSimilarity ?? 0) >= 0.78)
+  ) {
+    return "medium";
+  }
+
   return "low";
 }
 

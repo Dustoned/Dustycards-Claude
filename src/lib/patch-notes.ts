@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.8",
+    releasedAt: "July 23, 2026",
+    title: "Hands-free bulk scanning",
+    summary:
+      "DustyCards 3.8.8 makes the camera scanner accurate enough for a real collection session without stopping after every card.",
+    tone: "improved",
+    highlights: [
+      "The live camera now checks card framing, light, name detail, number detail and stability before taking a photo automatically.",
+      "Recognition continues in the background while the camera is already ready for the next card, with up to six thorough scans safely queued.",
+      "Only an exact printing supported by independent name, number and artwork evidence can enter the batch automatically; ambiguous results wait in a separate review queue.",
+      "The same physical card cannot be captured repeatedly: automatic capture rearms only after the card has visibly left the frame.",
+      "Every confirmed scan enters one session batch, which can be added as English Near Mint copies in one transaction instead of one card at a time.",
+      "A dedicated card-number OCR pass improves exact-printing recognition without shortening the artwork comparison.",
+    ],
+  },
+  {
     version: "3.8.7",
     releasedAt: "July 23, 2026",
     title: "Scan, confirm and keep collecting",

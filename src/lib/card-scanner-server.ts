@@ -5,8 +5,9 @@ import sharp from "sharp";
 import { OEM, PSM, createWorker, type Worker } from "tesseract.js";
 import { db } from "@/lib/db";
 import {
+  canAutoAcceptScannerCandidate,
   extractScannerCardReferences,
-  getScannerConfidence,
+  getScannerCandidateConfidence,
   getScannerMatchReasons,
   getStrongestScannerText,
   rankScannerCandidates,
@@ -256,8 +257,24 @@ async function recognizeCardTextUnsafe(image: Buffer): Promise<OcrResult> {
     .png({ compressionLevel: 4 })
     .toBuffer();
   const result = await worker.recognize(ocrBands);
-  const text = result.data.text.trim();
-  const confidences = [result.data.confidence].filter(
+  await worker.setParameters({
+    tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- ",
+  });
+  const referenceBand = await sharp(bottomBand)
+    .resize({ width: 1_200, withoutEnlargement: false })
+    .normalize()
+    .sharpen({ sigma: 1.15 })
+    .png({ compressionLevel: 4 })
+    .toBuffer();
+  const referenceResult = await worker.recognize(referenceBand);
+  const text = [result.data.text.trim(), referenceResult.data.text.trim()]
+    .filter(Boolean)
+    .join("\n");
+  const confidences = [
+    result.data.confidence,
+    referenceResult.data.confidence,
+  ].filter(
     (value): value is number => Number.isFinite(value)
   );
 
@@ -398,9 +415,12 @@ export async function scanCardImage(input: {
       : [];
   const detailsById = new Map(detailedCards.map((card) => [card.id, card]));
 
-  const matches = ranked.map((candidate): CardScannerMatch => {
+  const matches = ranked.map((candidate, index): CardScannerMatch => {
     const details = detailsById.get(candidate.card.id);
     const want = details?.wants[0] ?? null;
+    const runnerUpScore =
+      index === 0 ? ranked[1]?.score ?? null : ranked[0]?.score ?? null;
+    const runnerUpGap = Math.max(0, candidate.score - (runnerUpScore ?? 0));
     return {
       ...candidate.card,
       price: details?.prices[0]?.cm_en_lowest_nm ?? null,
@@ -410,9 +430,18 @@ export async function scanCardImage(input: {
             created_at: want.created_at.toISOString(),
           }
         : null,
-      confidence: getScannerConfidence(candidate.score),
+      confidence: getScannerCandidateConfidence(candidate, runnerUpScore),
       score: candidate.score,
       reasons: getScannerMatchReasons(candidate),
+      autoAccept:
+        index === 0 && canAutoAcceptScannerCandidate(candidate, runnerUpScore),
+      runnerUpGap,
+      evidence: {
+        nameSimilarity: candidate.nameSimilarity,
+        numberMatch: candidate.numberMatch,
+        setMatch: candidate.setMatch,
+        artworkSimilarity: candidate.visualSimilarity,
+      },
     };
   });
 
