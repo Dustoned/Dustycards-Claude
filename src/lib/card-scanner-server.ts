@@ -29,6 +29,7 @@ const OCR_IMAGE_WIDTH = 900;
 const OCR_IMAGE_HEIGHT = 1_280;
 const CATALOG_CACHE_MS = 10 * 60 * 1_000;
 const CANDIDATE_HASH_TIMEOUT_MS = 2_200;
+const FIELD_OCR_PASS_TIMEOUT_MS = 8_000;
 const MAX_VISUAL_CANDIDATES = 8;
 const MAX_HASH_CACHE_ENTRIES = 512;
 const MAX_ATTACK_CACHE_ENTRIES = 512;
@@ -274,6 +275,21 @@ async function createOcrWorker(): Promise<Worker> {
   return worker;
 }
 
+async function recognizeFieldPass(worker: Worker, image: Buffer) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      void worker.terminate().catch(() => undefined);
+      reject(new Error("Scanner field OCR timed out."));
+    }, FIELD_OCR_PASS_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([worker.recognize(image), timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 function getOcrWorker(): Promise<Worker> {
   ocrWorkerPromise ??= createOcrWorker().catch((error) => {
     ocrWorkerPromise = null;
@@ -403,52 +419,115 @@ async function recognizeScannerFieldUnsafe(
     .sharpen({ sigma: 1.05 })
     .png({ compressionLevel: 5 })
     .toBuffer();
-  const worker = await getOcrWorker();
-  await worker.setParameters({
-    tessedit_pageseg_mode: PSM.SPARSE_TEXT,
-    tessedit_char_whitelist:
-      field === "number"
-        ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
-        : "",
-  });
-  const result = await worker.recognize(normalizedImage);
-  const results = [result];
-
-  if (field === "name" || field === "number") {
-    const thresholdImage = await sharp(normalizedImage)
-      .threshold(field === "name" ? 145 : 130)
-      .png({ compressionLevel: 4 })
-      .toBuffer();
-    await worker.setParameters({
-      tessedit_pageseg_mode:
-        field === "name" ? PSM.SINGLE_BLOCK : PSM.SPARSE_TEXT,
-      tessedit_char_whitelist:
-        field === "number"
-          ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
-          : "",
-    });
-    results.push(await worker.recognize(thresholdImage));
-  } else if (field === "attack") {
-    await worker.setParameters({
-      tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-      tessedit_char_whitelist: "",
-    });
-    results.push(await worker.recognize(normalizedImage));
+  const metadata = await sharp(normalizedImage).metadata();
+  const isCardShaped =
+    Boolean(metadata.width && metadata.height) &&
+    (metadata.height ?? 0) / Math.max(1, metadata.width ?? 1) >= 1.18;
+  let fieldZones: Buffer[] = [];
+  if (isCardShaped && metadata.width && metadata.height) {
+    const expectedBounds =
+      field === "name"
+        ? { left: 0.03, top: 0.015, width: 0.94, height: 0.24 }
+        : field === "number"
+          ? { left: 0.02, top: 0.82, width: 0.96, height: 0.16 }
+          : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
+    const focusBounds = {
+      left: 0.03,
+      top: 0.32,
+      width: 0.94,
+      height: 0.36,
+    };
+    const extractZone = async (bounds: typeof expectedBounds) => {
+      const left = Math.floor(metadata.width! * bounds.left);
+      const top = Math.floor(metadata.height! * bounds.top);
+      const width = Math.max(
+        1,
+        Math.min(
+          metadata.width! - left,
+          Math.floor(metadata.width! * bounds.width)
+        )
+      );
+      const height = Math.max(
+        1,
+        Math.min(
+          metadata.height! - top,
+          Math.floor(metadata.height! * bounds.height)
+        )
+      );
+      return sharp(normalizedImage)
+        .extract({ left, top, width, height })
+        .resize({ width: 1_200, withoutEnlargement: false })
+        .normalize()
+        .sharpen({ sigma: 1.1 })
+        .png({ compressionLevel: 4 })
+        .toBuffer();
+    };
+    fieldZones = await Promise.all([
+      extractZone(expectedBounds),
+      extractZone(focusBounds),
+    ]);
   }
 
-  const text = results
-    .map((item) => item.data.text.trim())
-    .filter(Boolean)
-    .join("\n");
-  const confidences = results
-    .map((item) => item.data.confidence)
-    .filter((value): value is number => Number.isFinite(value));
-  return {
-    text,
-    confidence: confidences.length > 0
-      ? Math.round(Math.max(...confidences) * 10) / 10
-      : null,
-  };
+  const worker = await createOcrWorker();
+  try {
+    const results: Array<{
+      data: { text: string; confidence: number };
+    }> = [];
+    const sourceImages =
+      fieldZones.length > 0 ? fieldZones : [normalizedImage];
+    for (const sourceImage of sourceImages) {
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+        tessedit_char_whitelist:
+          field === "number"
+            ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
+            : "",
+      });
+      results.push(await recognizeFieldPass(worker, sourceImage));
+    }
+
+    const primaryImage = fieldZones[0] ?? normalizedImage;
+    if (field === "name" || field === "number") {
+      const thresholdImage = await sharp(primaryImage)
+        .threshold(field === "name" ? 145 : 130)
+        .png({ compressionLevel: 4 })
+        .toBuffer();
+      await worker.setParameters({
+        tessedit_pageseg_mode:
+          field === "name" ? PSM.SINGLE_BLOCK : PSM.SPARSE_TEXT,
+        tessedit_char_whitelist:
+          field === "number"
+            ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
+            : "",
+      });
+      results.push(await recognizeFieldPass(worker, thresholdImage));
+    } else {
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+        tessedit_char_whitelist: "",
+      });
+      results.push(await recognizeFieldPass(worker, primaryImage));
+    }
+
+    const text = results
+      .map((item) => item.data.text.trim())
+      .filter(Boolean)
+      .join("\n");
+    const confidences = results
+      .map((item) => item.data.confidence)
+      .filter((value): value is number => Number.isFinite(value));
+    return {
+      text,
+      confidence:
+        confidences.length > 0
+          ? Math.round(Math.max(...confidences) * 10) / 10
+          : null,
+    };
+  } finally {
+    // Worker shutdown can outlive completed OCR in Next.js. Do not hold the
+    // field response open while the isolated worker cleans itself up.
+    void worker.terminate().catch(() => undefined);
+  }
 }
 
 async function recognizeScannerField(

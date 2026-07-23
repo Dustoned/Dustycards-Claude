@@ -368,11 +368,46 @@ export function getScannerNameObservation(
   cards: CardScannerCatalogCard[],
   ocrText: string
 ): ScannerFieldObservation | null {
-  const ranked = rankScannerCandidates(cards, ocrText);
-  const best = ranked[0];
+  const getNameFamily = (value: string) =>
+    normalizeScannerText(value)
+      .replace(/[-\s]+(?:break|ex|gx|lv x|v|vmax|vstar)$/i, "")
+      .trim();
+  const lines = getMeaningfulOcrLines(ocrText);
+  const rankedNames = cards
+    .flatMap((card) => {
+      const compactName = compactScannerText(card.name);
+      const minimumReadLength = Math.min(5, compactName.length);
+      const bestLine = lines
+        .map((line) => {
+          const compactLine = compactScannerText(line);
+          const coverage =
+            compactName.length > 0 ? compactLine.length / compactName.length : 0;
+          return {
+            line,
+            similarity: getScannerTextSimilarity(card.name, line),
+            eligible:
+              compactLine.length >= minimumReadLength &&
+              coverage >= 0.55 &&
+              coverage <= 1.75,
+          };
+        })
+        .filter((candidate) => candidate.eligible)
+        .sort((left, right) => right.similarity - left.similarity)[0];
+      return bestLine
+        ? [
+            {
+              card,
+              nameSimilarity: bestLine.similarity,
+              family: getNameFamily(card.name),
+            },
+          ]
+        : [];
+    })
+    .sort((left, right) => right.nameSimilarity - left.nameSimilarity);
+  const best = rankedNames[0];
   const bestName = normalizeScannerText(best?.card.name ?? "");
-  const runnerUp = ranked.find(
-    (candidate) => normalizeScannerText(candidate.card.name) !== bestName
+  const runnerUp = rankedNames.find(
+    (candidate) => candidate.family !== best?.family
   );
   const similarityGap =
     (best?.nameSimilarity ?? 0) - (runnerUp?.nameSimilarity ?? 0);
@@ -396,7 +431,33 @@ export function getScannerNumberObservation(
   cards: CardScannerCatalogCard[],
   ocrText: string
 ): ScannerFieldObservation | null {
-  const supported = extractScannerCardReferences(ocrText)
+  const inferredSeparators = [...ocrText.matchAll(/\b\d{4,9}\b/g)].flatMap(
+    (match) => {
+      const token = match[0];
+      const candidates: string[] = [];
+      for (let index = 1; index < token.length - 1; index += 1) {
+        if (token[index] !== "1" && token[index] !== "7") continue;
+        const left = token.slice(0, index);
+        const right = token.slice(index + 1);
+        if (
+          left.length >= 1 &&
+          left.length <= 4 &&
+          right.length >= 2 &&
+          right.length <= 4
+        ) {
+          const normalized = normalizeScannerCardReference(`${left}/${right}`);
+          if (normalized) candidates.push(normalized);
+        }
+      }
+      return candidates;
+    }
+  );
+  const supported = [
+    ...new Set([
+      ...extractScannerCardReferences(ocrText),
+      ...inferredSeparators,
+    ]),
+  ]
     .map((reference) => ({
       reference,
       matches: cards.filter((card) => {

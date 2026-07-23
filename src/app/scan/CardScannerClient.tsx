@@ -228,30 +228,6 @@ function drawCentralCardCrop(
   );
 }
 
-function drawFullCameraFrame(
-  canvas: HTMLCanvasElement,
-  source: CanvasImageSource,
-  sourceWidth: number,
-  sourceHeight: number,
-  outputWidth = 900
-) {
-  canvas.width = outputWidth;
-  canvas.height = Math.max(1, Math.round((sourceHeight / sourceWidth) * outputWidth));
-  const context = canvas.getContext("2d", { alpha: false });
-  if (!context) throw new Error("Camera reading is unavailable.");
-  context.drawImage(
-    source,
-    0,
-    0,
-    sourceWidth,
-    sourceHeight,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-}
-
 function ScannerArtwork({
   match,
   sizes,
@@ -574,7 +550,7 @@ export default function CardScannerClient() {
     const timeout = window.setTimeout(() => controller.abort(), 24_000);
 
     try {
-      drawFullCameraFrame(
+      drawCentralCardCrop(
         canvas,
         video,
         video.videoWidth,
@@ -821,16 +797,15 @@ export default function CardScannerClient() {
             !autoCaptureEnabled ||
             fieldInProgressRef.current ||
             Date.now() < fieldCooldownUntilRef.current ||
-            !readiness.lightingGood ||
-            !readiness.stable ||
-            readiness.edgeStrength < 7
+            readiness.brightness < 12 ||
+            readiness.contrast < 9
           ) {
             fieldStableStreakRef.current = 0;
             return;
           }
 
           fieldStableStreakRef.current += 1;
-          if (fieldStableStreakRef.current >= 3) {
+          if (fieldStableStreakRef.current >= 2) {
             fieldStableStreakRef.current = 0;
             const startIndex = scannerFields.indexOf(nextFieldRef.current);
             const targetField =
@@ -1459,7 +1434,7 @@ export default function CardScannerClient() {
                                 : "Saved · now fit the full card in the outline"}
                             </>
                           ) : (
-                            "A saved value stays checked while you move the camera"
+                            "Move any unread detail into the center · saved reads stay checked"
                           )}
                         </div>
                       </div>

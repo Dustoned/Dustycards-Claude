@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.10",
+    releasedAt: "July 24, 2026",
+    title: "Point the camera at any missing detail",
+    summary:
+      "DustyCards 3.8.10 makes live card reading start reliably and lets collectors bring an unread name, number or attack into the center of the camera.",
+    tone: "fixed",
+    highlights: [
+      "Live OCR is no longer blocked by overly strict lighting and stability checks when the card remains visibly readable.",
+      "Each pass reads both the field's normal card position and a central focus zone, so a difficult printed number can be moved into the middle and stored on its own.",
+      "Recognized names, numbers and attacks remain checked while the card is repositioned; the camera now explains this focus workflow directly.",
+      "Common slash confusion in tiny printed numbers is repaired only when the resulting number exists in the selected game's catalog.",
+      "Pokémon family variants no longer prevent a clearly readable base name such as Victini from being saved, while short unrelated fragments remain rejected.",
+      "Isolated OCR workers and per-pass deadlines prevent one difficult frame from blocking all following bulk scans.",
+    ],
+  },
+  {
     version: "3.8.9",
     releasedAt: "July 23, 2026",
     title: "The scanner remembers what it really read",

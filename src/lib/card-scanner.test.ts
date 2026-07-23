@@ -121,11 +121,50 @@ describe("card scanner recognition", () => {
     ).toBeNull();
   });
 
+  it("keeps a readable base name when suffix variants share the same Pokemon", () => {
+    const victini = {
+      ...SEISMITOAD,
+      id: "victini",
+      name: "Victini",
+    };
+    expect(
+      getScannerNameObservation(
+        [
+          victini,
+          { ...victini, id: "victini-ex", name: "Victini ex" },
+          { ...victini, id: "victini-v", name: "Victini V" },
+          OTHER_CARD,
+        ],
+        "ctini"
+      )
+    ).toMatchObject({ value: "Victini" });
+    expect(
+      getScannerNameObservation(
+        [
+          victini,
+          { ...victini, id: "bouffalant", name: "Bouffalant" },
+          OTHER_CARD,
+        ],
+        "Fa La"
+      )
+    ).toBeNull();
+  });
+
   it("stores only printed numbers that exist in the selected game catalog", () => {
     expect(
       getScannerNumberObservation(
         [OTHER_CARD, SEISMITOAD],
         "weakness\n105/086\nGAME FREAK"
+      )
+    ).toEqual({
+      value: "105/86",
+      confidence: 100,
+      catalogMatches: 1,
+    });
+    expect(
+      getScannerNumberObservation(
+        [OTHER_CARD, SEISMITOAD],
+        "BLK EN 1057086 GAME FREAK"
       )
     ).toEqual({
       value: "105/86",
