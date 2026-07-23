@@ -49,6 +49,56 @@ export function isMailConfigured(): boolean {
   return Boolean(getMailConfig());
 }
 
+export async function sendFeedbackNotificationEmail({
+  to,
+  submitterEmail,
+  category,
+  message,
+  pageUrl,
+  adminUrl,
+}: {
+  to: string[];
+  submitterEmail: string;
+  category: string;
+  message: string;
+  pageUrl: string | null;
+  adminUrl: string;
+}) {
+  const config = getMailConfig();
+  if (!config) throw new Error("SMTP mail is not configured.");
+  if (to.length === 0) return;
+
+  const transporter = createMailTransport(config);
+  const categoryLabel = category.charAt(0).toUpperCase() + category.slice(1);
+  const pageLine = pageUrl ? `Page: ${pageUrl}` : "Page: not supplied";
+
+  await transporter.sendMail({
+    from: `"${config.fromName}" <${config.fromEmail}>`,
+    to,
+    subject: `New DustyCards feedback: ${categoryLabel}`,
+    text: [
+      `Feedback from ${submitterEmail}`,
+      `Category: ${categoryLabel}`,
+      pageLine,
+      "",
+      message,
+      "",
+      `Review feedback: ${adminUrl}`,
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.55;max-width:680px;margin:0 auto;">
+        <h1 style="font-size:22px;margin:0 0 6px;">New DustyCards feedback</h1>
+        <p style="margin:0 0 18px;color:#6b7280;">Submitted by ${escapeHtml(submitterEmail)}</p>
+        <div style="margin:0 0 14px;padding:14px;border:1px solid #e5e7eb;border-radius:12px;background:#fafafa;">
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;">${escapeHtml(categoryLabel)}</div>
+          <div style="margin-top:10px;white-space:pre-wrap;font-size:15px;color:#111827;">${escapeHtml(message)}</div>
+          ${pageUrl ? `<div style="margin-top:12px;font-size:12px;color:#6b7280;">Page: ${escapeHtml(pageUrl)}</div>` : ""}
+        </div>
+        <a href="${escapeHtml(adminUrl)}" style="display:inline-block;padding:10px 14px;background:#6d4aff;color:#ffffff;border-radius:9px;text-decoration:none;font-weight:700;">Review in Settings</a>
+      </div>`,
+  });
+}
+
 export async function sendPasswordResetEmail({
   resetUrl,
   to,

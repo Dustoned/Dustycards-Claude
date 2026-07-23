@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Package } from "lucide-react";
+import { Package, ScanLine } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
@@ -540,8 +540,20 @@ function SearchPageContent({
             </div>
           ) : null}
         </div>
+        <Link
+          href={
+            activeGame === "one-piece"
+              ? "/scan?game=one-piece"
+              : "/scan"
+          }
+          prefetch={false}
+          className="inline-flex min-h-11 w-fit shrink-0 items-center justify-center gap-2 rounded-full border border-[rgb(var(--dc-primary-soft-rgb)/0.28)] bg-[rgb(var(--dc-primary-rgb)/0.11)] px-4 text-xs font-black text-[var(--dc-primary-soft)] transition-colors hover:border-[rgb(var(--dc-primary-soft-rgb)/0.48)] hover:bg-[rgb(var(--dc-primary-rgb)/0.17)]"
+        >
+          <ScanLine className="h-4 w-4" />
+          Scan card
+        </Link>
         {sectionChips ? (
-          <div className="flex shrink-0 flex-wrap items-center justify-start gap-1.5 sm:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center justify-start gap-1.5 sm:ml-auto sm:justify-end">
             {sectionChips.map((chip) => {
               const active = activeSection === chip.key;
               const disabled = chip.key !== "all" && chip.count === 0;

@@ -24,6 +24,7 @@ import { getEbayDemandPayload } from "@/lib/ebay-demand";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import { loadRelatedCardPrintings } from "@/lib/card-printings";
 import { getCardCharacters } from "@/lib/card-characters-core";
+import { selectCardDetailSealedProducts } from "@/lib/sealed-products";
 
 type CardDetailCollectionItem = {
   id: string;
@@ -307,8 +308,8 @@ export async function getCardDetailPayload(id: string, userId: string) {
         { includedCards: { some: { card_id: card.id } } },
       ],
     },
-    orderBy: [{ cm_lowest: "desc" }, { name: "asc" }],
-    take: 8,
+    orderBy: [{ name: "asc" }],
+    take: 100,
     select: {
       id: true,
       name: true,
@@ -362,13 +363,14 @@ export async function getCardDetailPayload(id: string, userId: string) {
         },
       ]);
   const relatedPrintingsPromise = loadRelatedCardPrintings(card);
-  const [sealedProducts, sealedProductCount, safePriceRowsByCard, relatedPrintings] =
+  const [sealedProductCandidates, sealedProductCount, safePriceRowsByCard, relatedPrintings] =
     await Promise.all([
       sealedProductsPromise,
       sealedProductCountPromise,
       safePriceRowsPromise,
       relatedPrintingsPromise,
     ]);
+  const sealedProducts = selectCardDetailSealedProducts(sealedProductCandidates, 8);
   const safePriceRows = safePriceRowsByCard.get(card.id) ?? [];
 
   const latestSourceSnapshot = safePriceRows[safePriceRows.length - 1] ?? null;

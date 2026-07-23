@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
+import FeedbackButton from "@/components/FeedbackButton";
 import type { DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import {
   NAVIGATION_ACCOUNT_ITEMS,
@@ -587,6 +588,10 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                       {SETTINGS_ITEM.label}
                     </Link>
                   </div>
+                  <FeedbackButton
+                    className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[rgb(var(--dc-primary-soft-rgb)/0.2)] bg-[rgb(var(--dc-primary-rgb)/0.1)] px-3 text-[11px] font-black text-[var(--dc-text-secondary)]"
+                    iconClassName="h-4 w-4 text-[var(--dc-primary-soft)]"
+                  />
                 </section>
 
                 <Link

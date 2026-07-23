@@ -3,6 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
+const MAX_PROGRESS_DURATION_MS = 8_000;
+
+export function isRouteProgressNavigation(
+  href: string,
+  currentHref: string,
+  origin: string
+): boolean {
+  try {
+    const target = new URL(href, origin);
+    const current = new URL(currentHref, origin);
+    return (
+      target.origin === current.origin &&
+      `${target.pathname}${target.search}` !== `${current.pathname}${current.search}`
+    );
+  } catch {
+    return false;
+  }
+}
+
 // A thin top progress bar that appears the moment an internal navigation starts
 // (link click or back/forward) and completes when the route actually changes.
 // This gives immediate feedback on slow server-rendered pages, which otherwise
@@ -14,6 +33,7 @@ export default function RouteProgressBar() {
   const [width, setWidth] = useState(0);
   const loadingRef = useRef(false);
   const timersRef = useRef<number[]>([]);
+  const navigationSequenceRef = useRef(0);
 
   const routeKey = `${pathname}?${searchParams?.toString() ?? ""}`;
 
@@ -28,13 +48,32 @@ export default function RouteProgressBar() {
       timersRef.current.push(window.setTimeout(trickle, 220));
     };
 
+    const finish = () => {
+      if (!loadingRef.current) return;
+      loadingRef.current = false;
+      navigationSequenceRef.current += 1;
+      clearTimers();
+      setWidth(100);
+      timersRef.current.push(window.setTimeout(() => setVisible(false), 240));
+      timersRef.current.push(window.setTimeout(() => setWidth(0), 520));
+    };
+
     const start = () => {
       if (loadingRef.current) return;
       loadingRef.current = true;
+      navigationSequenceRef.current += 1;
+      const sequence = navigationSequenceRef.current;
       clearTimers();
       setVisible(true);
       setWidth(8);
       timersRef.current.push(window.setTimeout(trickle, 220));
+      timersRef.current.push(
+        window.setTimeout(() => {
+          if (loadingRef.current && navigationSequenceRef.current === sequence) {
+            finish();
+          }
+        }, MAX_PROGRESS_DURATION_MS)
+      );
     };
 
     const onClick = (event: MouseEvent) => {
@@ -50,22 +89,26 @@ export default function RouteProgressBar() {
       }
       const target = event.target instanceof Element ? event.target : null;
       const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
-      if (!anchor || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
-      try {
-        const url = new URL(anchor.href);
-        if (url.origin !== window.location.origin) return;
-        if (url.pathname + url.search === window.location.pathname + window.location.search) return;
+      if (
+        !anchor ||
+        anchor.target === "_blank" ||
+        anchor.hasAttribute("download") ||
+        anchor.hasAttribute("data-no-route-progress")
+      ) return;
+      if (isRouteProgressNavigation(anchor.href, window.location.href, window.location.origin)) {
         start();
-      } catch {
-        // Ignore invalid anchors.
       }
     };
 
     document.addEventListener("click", onClick, true);
     window.addEventListener("popstate", start);
+    window.addEventListener("pageshow", finish);
+    window.addEventListener("pagehide", finish);
     return () => {
       document.removeEventListener("click", onClick, true);
       window.removeEventListener("popstate", start);
+      window.removeEventListener("pageshow", finish);
+      window.removeEventListener("pagehide", finish);
       clearTimers();
     };
   }, []);
@@ -75,6 +118,7 @@ export default function RouteProgressBar() {
     // the bar and fade it out.
     if (!loadingRef.current) return;
     loadingRef.current = false;
+    navigationSequenceRef.current += 1;
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
     timersRef.current = [];
     setWidth(100);

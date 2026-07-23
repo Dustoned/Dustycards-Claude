@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
+import FeedbackButton from "@/components/FeedbackButton";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import {
   buildNavigationMarketHref,
@@ -85,6 +86,12 @@ const SEARCH_ITEM: NavItem = {
   href: "/search",
   label: "Search",
   matches: ["/search"],
+};
+
+const SCANNER_ITEM: NavItem = {
+  href: "/scan",
+  label: "Card Scanner",
+  matches: ["/scan"],
 };
 
 const MARKET_ITEM: NavItem = {
@@ -200,12 +207,16 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
     {
       label: "Browse",
       items: onePieceEnabled
-        ? [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
-        : [SEARCH_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
+        ? [SEARCH_ITEM, SCANNER_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
+        : [SEARCH_ITEM, SCANNER_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
     },
     { label: "Market", items: [MARKET_ITEM, SIGNAL_RADAR_ITEM, COLLECTION_SELLING_ITEM] },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
   ];
+}
+
+function isFeedbackDialogTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest("[data-feedback-dialog]"));
 }
 
 type DesktopMenuGroup = {
@@ -226,7 +237,13 @@ const DESKTOP_RADAR_ITEM = getNavigationItem("market-radar");
 
 function getDesktopMenuGroups(onePieceEnabled: boolean): readonly DesktopMenuGroup[] {
   const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "graded", "wants"]);
-  const browseKeys = new Set(["expansions", "one-piece", "categories", "illustrators"]);
+  const browseKeys = new Set([
+    "expansions",
+    "one-piece",
+    "categories",
+    "illustrators",
+    "scan",
+  ]);
   const marketKeys = new Set([
     "market-raw",
     "market-graded",
@@ -331,7 +348,13 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
-      if (target instanceof Node && !rootRef.current?.contains(target)) setOpenMenu(null);
+      if (
+        target instanceof Node &&
+        !rootRef.current?.contains(target) &&
+        !isFeedbackDialogTarget(target)
+      ) {
+        setOpenMenu(null);
+      }
     }
 
     document.addEventListener("keydown", handleKeyDown);
@@ -492,6 +515,7 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
         className="absolute right-0 top-1/2 flex shrink-0 -translate-y-1/2 items-center"
         onBlur={(event) => {
           const nextTarget = event.relatedTarget;
+          if (isFeedbackDialogTarget(nextTarget)) return;
           if (!nextTarget || !event.currentTarget.contains(nextTarget as Node)) {
             setOpenMenu((current) => (current === "Account" ? null : current));
           }
@@ -571,6 +595,11 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
                     </Link>
                   );
                 })}
+                <FeedbackButton
+                  menuItem
+                  className="flex min-h-10 items-center gap-3 rounded-lg px-3 text-left text-[13px] font-semibold text-white/64 transition-colors hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] hover:text-white"
+                  iconClassName="h-4 w-4 text-white/46"
+                />
                 <button
                   type="button"
                   role="menuitem"

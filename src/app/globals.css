@@ -2714,7 +2714,7 @@ html.widescreen .settings-page {
   }
 
   .card-detail-section-grid.card-detail-collection-grid[data-columns="2"] {
-    grid-template-columns: minmax(18rem, 0.72fr) minmax(0, 1.28fr);
+    grid-template-columns: minmax(18rem, 27rem) minmax(0, 1fr);
   }
 
   .card-detail-info-grid {

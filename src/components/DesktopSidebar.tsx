@@ -10,6 +10,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
+import FeedbackButton from "@/components/FeedbackButton";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import {
   COLLECTION_CARD_ADDED_EVENT,
@@ -245,6 +246,10 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
                   </Link>
                 );
               })}
+              <FeedbackButton
+                className="flex min-h-[28px] items-center gap-2.5 rounded-lg px-2 text-left text-[12px] font-medium text-white/62 transition-colors hover:text-white"
+                iconClassName="h-3.5 w-3.5 text-white/55"
+              />
               <button
                 type="button"
                 onClick={logout}

@@ -1,6 +1,13 @@
 ﻿"use client";
 
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 
 const ACTIVE_TAB_CLASS =
   "border border-violet-400/40 bg-violet-600 text-white";
@@ -19,12 +26,29 @@ export default function SettingsTabs({
   tabs: SettingsTabItem[];
   defaultKey?: string;
 }) {
+  const searchParams = useSearchParams();
+  const requestedKey = searchParams.get("section");
   const initialKey = useMemo(
-    () => tabs.find((tab) => tab.key === defaultKey)?.key ?? tabs[0]?.key ?? "",
-    [defaultKey, tabs]
+    () =>
+      tabs.find((tab) => tab.key === requestedKey)?.key ??
+      tabs.find((tab) => tab.key === defaultKey)?.key ??
+      tabs[0]?.key ??
+      "",
+    [defaultKey, requestedKey, tabs]
   );
   const [selectedKey, setSelectedKey] = useState(initialKey);
   const selected = tabs.find((tab) => tab.key === selectedKey) ?? tabs[0] ?? null;
+
+  useEffect(() => {
+    const activeButton = document.getElementById(
+      `settings-tab-button-${selectedKey}`
+    );
+    activeButton?.scrollIntoView({
+      behavior: "auto",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [selectedKey]);
 
   function selectFromKeyboard(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let nextIndex: number | null = null;

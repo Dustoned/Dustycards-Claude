@@ -68,6 +68,7 @@ model User {
   ebayWatchedListings      EbayWatchedListing[]
   cardPriceAlerts          CardPriceAlert[]
   cardSubmissions          CardSubmission[]
+  feedback                 Feedback[]
   socialRequestsSent       SocialConnection[]        @relation("SocialConnectionRequester")
   socialRequestsReceived   SocialConnection[]        @relation("SocialConnectionAddressee")
   socialConnectionsAsA     SocialConnection[]        @relation("SocialConnectionUserA")
@@ -484,6 +485,22 @@ model CardSubmission {
   @@index([episode_id])
   @@index([official_card_id])
   @@index([cardmarket_id])
+}
+
+model Feedback {
+  id         String   @id @default(cuid())
+  user_id    String
+  category   String   @default("general")
+  message    String
+  page_url   String?
+  status     String   @default("new")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([status, created_at])
+  @@index([user_id, created_at])
 }
 
 model CardGradedPrice {

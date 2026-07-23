@@ -135,6 +135,59 @@ function normalizeSealedName(name: string): string {
     .trim()} `;
 }
 
+const CARD_DETAIL_PREVIEW_CATEGORY_RANK: Partial<Record<SealedCategory, number>> = {
+  booster_box: 0,
+  elite_trainer_box: 1,
+  ultra_premium_collection: 2,
+  super_premium_collection: 3,
+  premium_collection: 4,
+  box: 5,
+  special_collection: 6,
+  ex_collection: 7,
+  figure_collection: 8,
+  illustration_collection: 9,
+  collection: 10,
+  booster_bundle: 11,
+  build_battle_stadium: 12,
+  build_battle_kit: 13,
+  tin: 14,
+  mini_tin: 15,
+  blister: 16,
+  chest: 17,
+  other: 18,
+};
+
+/**
+ * Keeps the compact card-detail preview focused on consumer products.
+ * Wholesale cases and retail displays remain available on the full sealed page.
+ */
+export function selectCardDetailSealedProducts<T extends { name: string }>(
+  products: readonly T[],
+  limit = 8
+): T[] {
+  return products
+    .filter((product) => {
+      const normalized = normalizeSealedName(product.name);
+      return classifySealedProduct(product.name) !== "case" && !normalized.includes(" display ");
+    })
+    .sort((a, b) => {
+      const categoryA = classifySealedProduct(a.name);
+      const categoryB = classifySealedProduct(b.name);
+      const rankA = CARD_DETAIL_PREVIEW_CATEGORY_RANK[categoryA] ?? 50;
+      const rankB = CARD_DETAIL_PREVIEW_CATEGORY_RANK[categoryB] ?? 50;
+      if (rankA !== rankB) return rankA - rankB;
+
+      if (categoryA === "elite_trainer_box") {
+        const aPokemonCenter = normalizeSealedName(a.name).includes(" pokemon center ");
+        const bPokemonCenter = normalizeSealedName(b.name).includes(" pokemon center ");
+        if (aPokemonCenter !== bPokemonCenter) return aPokemonCenter ? 1 : -1;
+      }
+
+      return nameCollator.compare(a.name, b.name);
+    })
+    .slice(0, Math.max(0, limit));
+}
+
 export function getSealedProductPrice(product: {
   price: {
     cm_lowest: number | null;

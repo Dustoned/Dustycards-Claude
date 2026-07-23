@@ -152,6 +152,7 @@ const REQUIRED_RUNTIME_FIELDS = {
     "input_condition",
     "detected_condition",
   ],
+  Feedback: ["user_id", "category", "message", "page_url", "status"],
   CollectionBinder: ["user_id"],
   CollectionCard: ["user_id", "for_sale", "sale_price", "sold_at"],
   CollectionWant: ["user_id", "source", "source_episode_id", "dismissed_at"],

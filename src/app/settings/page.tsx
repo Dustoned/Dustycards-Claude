@@ -28,6 +28,7 @@ import AutomationSection from "./AutomationSection";
 import BackupsSection from "./BackupsSection";
 import DataQualitySection from "./DataQualitySection";
 import FirecrawlSection from "./FirecrawlSection";
+import FeedbackSection from "./FeedbackSection";
 import HealthDashboardSection from "./HealthDashboardSection";
 import PullRateImportSection from "./PullRateImportSection";
 import SettingsCollectionDefaultsPanel from "./SettingsCollectionDefaultsPanel";
@@ -797,6 +798,12 @@ export default async function SettingsPage() {
             label: "Updates",
             description: "Patch notes and a compact roadmap for the latest app changes.",
             content: <SettingsUpdatesPanel />,
+          },
+          {
+            key: "feedback",
+            label: "Feedback",
+            description: "Review reports and ideas submitted from inside DustyCards.",
+            content: <FeedbackSection />,
           },
           {
             key: "system",
