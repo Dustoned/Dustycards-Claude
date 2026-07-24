@@ -38,6 +38,16 @@ export type ScannerFieldObservation = {
   catalogMatches: number;
 };
 
+export type CardScannerFieldObservation = {
+  value: string;
+  confidence: number | null;
+  catalogMatches: number;
+};
+
+export type CardScannerFieldObservations = Partial<
+  Record<CardScannerField, CardScannerFieldObservation>
+>;
+
 export interface CardScannerMatch {
   id: string;
   game: TradingCardGame;
@@ -91,6 +101,7 @@ export interface CardScannerFieldResponse {
     confidence: number | null;
     rawText: string | null;
     catalogMatches: number;
+    observations?: CardScannerFieldObservations;
     processingMs: number;
   };
 }

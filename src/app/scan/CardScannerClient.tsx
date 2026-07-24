@@ -669,11 +669,32 @@ export default function CardScannerClient() {
       if (!response.ok || !data.ok) {
         throw new Error("error" in data ? data.error : "This field was not readable.");
       }
-      if (data.result.value) {
-        rememberObservedField(field, {
-          value: data.result.value,
-          confidence: data.result.confidence,
+      const responseObservations = data.result.observations ?? {};
+      const detectedObservations =
+        Object.keys(responseObservations).length > 0
+          ? responseObservations
+          : data.result.value
+            ? {
+                [field]: {
+                  value: data.result.value,
+                  confidence: data.result.confidence,
+                  catalogMatches: data.result.catalogMatches,
+                },
+              }
+            : {};
+      let savedAnObservation = false;
+      for (const detectedField of getScannerFields(game)) {
+        const observation = detectedObservations[detectedField];
+        if (!observation || observedIdentityRef.current[detectedField]) {
+          continue;
+        }
+        rememberObservedField(detectedField, {
+          value: observation.value,
+          confidence: observation.confidence,
         });
+        savedAnObservation = true;
+      }
+      if (savedAnObservation) {
         setCameraError(null);
       }
       if (!focusFieldRef.current) {

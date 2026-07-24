@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.12",
+    releasedAt: "July 24, 2026",
+    title: "Automatic centre-detail recognition",
+    summary:
+      "DustyCards 3.8.12 recognizes whichever useful card detail is held in the centre and saves it to the correct field automatically.",
+    tone: "fixed",
+    highlights: [
+      "The centre camera band now classifies a readable fragment as a name, printed card number or verified attack instead of assuming the scanner's current cycle.",
+      "Holding only a missing set/card number in the middle now saves Number immediately, even when the background reader happened to be checking Name or Attack.",
+      "One response can save multiple independently verified details, so moving around the card no longer waits for a matching field cycle.",
+      "The detail focus buttons remain available as optional controls, but they are no longer required for close-up scanning.",
+    ],
+  },
+  {
     version: "3.8.11",
     releasedAt: "July 24, 2026",
     title: "Fast focus scanning that keeps trying",
