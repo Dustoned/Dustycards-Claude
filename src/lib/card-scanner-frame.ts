@@ -16,6 +16,55 @@ export type ScannerFrameReadiness = ScannerFrameMetrics & {
   ready: boolean;
 };
 
+export type ScannerRectangle = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export function getScannerObjectCoverSourceRect(input: {
+  sourceWidth: number;
+  sourceHeight: number;
+  viewport: ScannerRectangle;
+  frame: ScannerRectangle;
+}): ScannerRectangle {
+  const { sourceWidth, sourceHeight, viewport, frame } = input;
+  if (
+    sourceWidth <= 0 ||
+    sourceHeight <= 0 ||
+    viewport.width <= 0 ||
+    viewport.height <= 0 ||
+    frame.width <= 0 ||
+    frame.height <= 0
+  ) {
+    return { x: 0, y: 0, width: sourceWidth, height: sourceHeight };
+  }
+
+  const coverScale = Math.max(
+    viewport.width / sourceWidth,
+    viewport.height / sourceHeight
+  );
+  const renderedWidth = sourceWidth * coverScale;
+  const renderedHeight = sourceHeight * coverScale;
+  const hiddenLeft = (renderedWidth - viewport.width) / 2;
+  const hiddenTop = (renderedHeight - viewport.height) / 2;
+  const unclamped = {
+    x: (frame.x - viewport.x + hiddenLeft) / coverScale,
+    y: (frame.y - viewport.y + hiddenTop) / coverScale,
+    width: frame.width / coverScale,
+    height: frame.height / coverScale,
+  };
+  const x = Math.max(0, Math.min(sourceWidth - 1, unclamped.x));
+  const y = Math.max(0, Math.min(sourceHeight - 1, unclamped.y));
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(sourceWidth - x, unclamped.width)),
+    height: Math.max(1, Math.min(sourceHeight - y, unclamped.height)),
+  };
+}
+
 function mean(values: Uint8Array, start = 0, end = values.length): number {
   if (end <= start) return 0;
   let total = 0;

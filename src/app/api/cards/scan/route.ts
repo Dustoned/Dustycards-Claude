@@ -64,6 +64,10 @@ export async function POST(request: Request) {
         image,
         game,
         field,
+        scanRegion:
+          String(body.get("scanRegion") ?? "") === "focus"
+            ? "focus"
+            : "expected",
         knownName: String(body.get("knownName") ?? "") || null,
         knownReference: String(body.get("knownReference") ?? "") || null,
       });

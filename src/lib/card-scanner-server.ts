@@ -2,7 +2,12 @@ import "server-only";
 
 import path from "node:path";
 import sharp from "sharp";
-import { OEM, PSM, createWorker, type Worker } from "tesseract.js";
+import {
+  OEM,
+  PSM,
+  createWorker,
+  type Worker,
+} from "tesseract.js";
 import { db } from "@/lib/db";
 import {
   canAutoAcceptScannerCandidate,
@@ -11,6 +16,7 @@ import {
   getScannerCandidateConfidence,
   getScannerMatchReasons,
   getScannerNameObservation,
+  getScannerNameFromUniqueReference,
   getScannerNumberObservation,
   getStrongestScannerText,
   normalizeScannerCardReference,
@@ -66,6 +72,13 @@ type OcrResult = {
   text: string;
   confidence: number | null;
   normalizedImage: Buffer;
+};
+
+type ScannerFieldOcrResult = {
+  text: string;
+  expectedText: string;
+  focusText: string;
+  confidence: number | null;
 };
 
 const scannerCatalogCache = new Map<TradingCardGame, ScannerCatalogCacheEntry>();
@@ -411,8 +424,9 @@ async function recognizeCardText(image: Buffer): Promise<OcrResult> {
 
 async function recognizeScannerFieldUnsafe(
   image: Buffer,
-  field: CardScannerField
-): Promise<{ text: string; confidence: number | null }> {
+  field: CardScannerField,
+  scanRegion: "expected" | "focus"
+): Promise<ScannerFieldOcrResult> {
   const normalizedImage = await sharp(image, {
     limitInputPixels: 28_000_000,
     animated: false,
@@ -425,7 +439,6 @@ async function recognizeScannerFieldUnsafe(
       withoutEnlargement: false,
     })
     .flatten({ background: "#ffffff" })
-    .grayscale()
     .normalize()
     .sharpen({ sigma: 1.05 })
     .png({ compressionLevel: 5 })
@@ -463,31 +476,37 @@ async function recognizeScannerFieldUnsafe(
       );
       return sharp(normalizedImage)
         .extract({ left, top, width, height })
-        .resize({ width: 1_200, withoutEnlargement: false })
+        .resize({ width: 1_400, withoutEnlargement: false })
         .normalize()
         .sharpen({ sigma: 1.1 })
+        .extend({
+          top: 18,
+          bottom: 18,
+          left: 18,
+          right: 18,
+          background: "#ffffff",
+        })
         .png({ compressionLevel: 4 })
         .toBuffer();
     };
 
     if (isFieldBandLayout) {
-      fieldZones = await Promise.all([
-        extractZone({ left: 0, top: 0, width: 1, height: 0.48 }),
-        extractZone({ left: 0, top: 0.52, width: 1, height: 0.48 }),
-      ]);
+      fieldZones = [
+        await extractZone({ left: 0, top: 0, width: 1, height: 1 }),
+      ];
     } else if (isCardShaped) {
-    const expectedBounds =
-      field === "name"
-        ? { left: 0.03, top: 0.015, width: 0.94, height: 0.24 }
-        : field === "number"
-          ? { left: 0.02, top: 0.82, width: 0.96, height: 0.16 }
-          : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
-    const focusBounds = {
-      left: 0.03,
-      top: 0.32,
-      width: 0.94,
-      height: 0.36,
-    };
+      const expectedBounds =
+        field === "name"
+          ? { left: 0.03, top: 0.015, width: 0.9, height: 0.15 }
+          : field === "number"
+            ? { left: 0.015, top: 0.86, width: 0.97, height: 0.13 }
+            : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
+      const focusBounds = {
+        left: 0.04,
+        top: 0.4,
+        width: 0.92,
+        height: field === "attack" ? 0.28 : 0.18,
+      };
       fieldZones = await Promise.all([
         extractZone(expectedBounds),
         extractZone(focusBounds),
@@ -501,23 +520,29 @@ async function recognizeScannerFieldUnsafe(
       data: { text: string; confidence: number };
     }> = [];
     const sourceImages =
-      fieldZones.length > 0 ? fieldZones : [normalizedImage];
+      fieldZones.length > 0 ? [...fieldZones] : [normalizedImage];
+    const focusResultIndex =
+      !isFieldBandLayout && fieldZones.length >= 2 ? 1 : -1;
     for (const [sourceIndex, sourceImage] of sourceImages.entries()) {
-      // The second magnified band is always the live centre focus area. Keep
-      // that read unrestricted so it can classify a name, number or attack
-      // independently from the scanner field currently being scheduled.
-      const isCentreFocusBand = isFieldBandLayout && sourceIndex === 1;
+      // Live requests contain one high-resolution expected or focus band.
+      // Full-card fallback requests still contain a second centre crop.
+      const isCentreFocusBand =
+        isFieldBandLayout
+          ? scanRegion === "focus"
+          : sourceIndex === focusResultIndex;
       await worker.setParameters({
         tessedit_pageseg_mode:
           isCentreFocusBand
             ? PSM.SPARSE_TEXT
-            : isFieldBandLayout && field !== "number"
-            ? PSM.SINGLE_BLOCK
-            : PSM.SPARSE_TEXT,
+            : isFieldBandLayout && field === "attack"
+              ? PSM.SINGLE_BLOCK
+              : PSM.SPARSE_TEXT,
         tessedit_char_whitelist:
-          !isCentreFocusBand && field === "number"
+          field === "number"
             ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
             : "",
+        thresholding_method: "2",
+        user_defined_dpi: "300",
       });
       results.push(await recognizeFieldPass(worker, sourceImage));
     }
@@ -559,6 +584,22 @@ async function recognizeScannerFieldUnsafe(
       .filter((value): value is number => Number.isFinite(value));
     return {
       text,
+      expectedText: isFieldBandLayout
+        ? scanRegion === "expected"
+          ? text
+          : ""
+        : results
+            .filter((_, index) => index !== focusResultIndex)
+            .map((result) => result.data.text.trim())
+            .filter(Boolean)
+            .join("\n"),
+      focusText: isFieldBandLayout
+        ? scanRegion === "focus"
+          ? text
+          : ""
+        : focusResultIndex >= 0
+          ? results[focusResultIndex]?.data.text.trim() ?? ""
+          : "",
       confidence:
         confidences.length > 0
           ? Math.round(Math.max(...confidences) * 10) / 10
@@ -575,10 +616,11 @@ async function recognizeScannerFieldUnsafe(
 
 async function recognizeScannerField(
   image: Buffer,
-  field: CardScannerField
-): Promise<{ text: string; confidence: number | null }> {
+  field: CardScannerField,
+  scanRegion: "expected" | "focus"
+): Promise<ScannerFieldOcrResult> {
   const run = fieldOcrQueue.then(() =>
-    recognizeScannerFieldUnsafe(image, field)
+    recognizeScannerFieldUnsafe(image, field, scanRegion)
   );
   fieldOcrQueue = run.catch(() => undefined);
   return run;
@@ -781,6 +823,7 @@ export async function readScannerFieldImage(input: {
   image: Buffer;
   game: TradingCardGame;
   field: CardScannerField;
+  scanRegion?: "expected" | "focus";
   knownName?: string | null;
   knownReference?: string | null;
 }): Promise<{
@@ -792,11 +835,18 @@ export async function readScannerFieldImage(input: {
   observations: CardScannerFieldObservations;
 }> {
   const [ocr, catalog] = await Promise.all([
-    recognizeScannerField(input.image, input.field),
+    recognizeScannerField(
+      input.image,
+      input.field,
+      input.scanRegion ?? "expected"
+    ),
     loadScannerCatalog(input.game),
   ]);
 
   const normalizedKnownName = normalizeScannerText(input.knownName ?? "");
+  const normalizedKnownReference = normalizeScannerCardReference(
+    input.knownReference ?? ""
+  );
   const matchingNameCatalog = normalizedKnownName
     ? catalog.filter(
         (card) => normalizeScannerText(card.name) === normalizedKnownName
@@ -804,10 +854,28 @@ export async function readScannerFieldImage(input: {
     : [];
   const numberCatalog =
     matchingNameCatalog.length > 0 ? matchingNameCatalog : catalog;
-  const nameObservation = getScannerNameObservation(catalog, ocr.text);
+  const matchingReferenceCatalog = normalizedKnownReference
+    ? catalog.filter((card) =>
+        [card.printed_card_number, card.card_number].some(
+          (value) =>
+            normalizeScannerCardReference(value ?? "") ===
+            normalizedKnownReference
+        )
+      )
+    : [];
+  const nameCatalog =
+    matchingReferenceCatalog.length > 0 ? matchingReferenceCatalog : catalog;
+  const nameObservation = [
+    getScannerNameObservation(nameCatalog, ocr.expectedText),
+    getScannerNameObservation(nameCatalog, ocr.focusText),
+  ]
+    .filter((observation) => observation != null)
+    .sort((left, right) => right.confidence - left.confidence)[0];
   const numberObservation = getScannerNumberObservation(
     numberCatalog,
-    ocr.text
+    input.field === "number" || input.scanRegion === "focus"
+      ? ocr.text
+      : ""
   );
   const observations: CardScannerFieldObservations = {};
 
@@ -824,31 +892,34 @@ export async function readScannerFieldImage(input: {
       confidence: ocr.confidence,
       catalogMatches: numberObservation.catalogMatches,
     };
+    const inferredName = getScannerNameFromUniqueReference(
+      catalog,
+      numberObservation.value
+    );
+    if (!observations.name && inferredName) {
+      observations.name = inferredName;
+    }
   }
 
-  // Attack text is only saved against a known card candidate. This keeps a
-  // random rules sentence from becoming identity evidence while still letting
-  // the centre band fill Attack during any non-number pass.
-  if (input.field !== "number" && (input.knownName || input.knownReference)) {
-    const normalizedKnownReference = normalizeScannerCardReference(
-      input.knownReference ?? ""
-    );
+  // Attack text is only saved after both primary identity fields point to the
+  // same printing. This prevents one bad name fragment from cascading into a
+  // convincing-looking but unrelated canonical attack.
+  if (input.field !== "number" && input.knownName && input.knownReference) {
     const likelyCards = catalog
       .filter((card) => {
-        if (
+        const nameMatches =
           normalizedKnownName &&
-          normalizeScannerText(card.name) === normalizedKnownName
-        ) {
-          return true;
-        }
-        if (!normalizedKnownReference) return false;
-        return [card.printed_card_number, card.card_number].some(
-          (value) =>
-            normalizeScannerCardReference(value ?? "") ===
-            normalizedKnownReference
-        );
+          normalizeScannerText(card.name) === normalizedKnownName;
+        const numberMatches =
+          normalizedKnownReference &&
+          [card.printed_card_number, card.card_number].some(
+            (value) =>
+              normalizeScannerCardReference(value ?? "") ===
+              normalizedKnownReference
+          );
+        return Boolean(nameMatches && numberMatches);
       })
-      .slice(0, 20);
+      .slice(0, 8);
     const canonicalTerms = [
       ...new Set(
         (
@@ -863,7 +934,7 @@ export async function readScannerFieldImage(input: {
         value,
         similarity: getScannerAttackSimilarity(ocr.text, [value]),
       }))
-      .filter(({ similarity }) => similarity >= 0.62)
+      .filter(({ similarity }) => similarity >= 0.78)
       .sort((left, right) => right.similarity - left.similarity)
       .slice(0, 2);
     const value =
@@ -871,7 +942,7 @@ export async function readScannerFieldImage(input: {
         ? canonicalMatches.map((match) => match.value).join(" · ").slice(0, 140)
         : null;
 
-    if (value && (ocr.confidence ?? 0) >= 20) {
+    if (value && (ocr.confidence ?? 0) >= 30) {
       observations.attack = {
         value,
         confidence: ocr.confidence,

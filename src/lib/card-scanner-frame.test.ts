@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getScannerFrameDifference,
+  getScannerObjectCoverSourceRect,
   measureScannerFrame,
 } from "@/lib/card-scanner-frame";
 
@@ -13,6 +14,22 @@ function detailedFrame(width: number, height: number): Uint8Array {
 }
 
 describe("scanner frame readiness", () => {
+  it("maps the visible outline to intrinsic object-cover camera pixels", () => {
+    expect(
+      getScannerObjectCoverSourceRect({
+        sourceWidth: 1_920,
+        sourceHeight: 1_440,
+        viewport: { x: 10, y: 20, width: 390, height: 700 },
+        frame: { x: 65, y: 73, width: 280, height: 391 },
+      })
+    ).toEqual({
+      x: 672,
+      y: 109.02857142857142,
+      width: 576,
+      height: 804.3428571428572,
+    });
+  });
+
   it("recognizes a detailed, stable and well-lit frame", () => {
     const frame = detailedFrame(36, 50);
     const metrics = measureScannerFrame(frame, 36, 50, frame);

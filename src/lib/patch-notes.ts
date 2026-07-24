@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.13",
+    releasedAt: "July 24, 2026",
+    title: "Accurate camera-frame card recognition",
+    summary:
+      "DustyCards 3.8.13 rebuilds live OCR around the card users actually see inside the camera outline and refuses unverified one-frame guesses.",
+    tone: "fixed",
+    highlights: [
+      "The visible card outline now maps exactly through the camera's object-cover crop to source pixels, so OCR no longer reads a larger hidden area around the card.",
+      "Name, number and attack bands preserve their aspect ratio and alternate automatically between the field's normal position and the centre focus area.",
+      "A detail remains amber until the same catalog-supported value is read twice; a single noisy frame can no longer become a green saved value.",
+      "Explicit printed numbers beat slash-like noise from HP, weight and rules text, while common digit confusion is corrected only when that printing exists for the confirmed card name.",
+      "Attack text is accepted only after name and number resolve to the same exact printing, preventing one wrong fragment from cascading into more false checks.",
+      "Supported cameras receive continuous autofocus, and exact name or number evidence narrows later OCR matching without blocking continued bulk scanning.",
+    ],
+  },
+  {
     version: "3.8.12",
     releasedAt: "July 24, 2026",
     title: "Automatic centre-detail recognition",

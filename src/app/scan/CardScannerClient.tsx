@@ -41,6 +41,7 @@ import type {
 } from "@/lib/card-scanner";
 import {
   getScannerFrameDifference,
+  getScannerObjectCoverSourceRect,
   measureScannerFrame,
   rgbaToScannerGrayscale,
   type ScannerFrameReadiness,
@@ -101,11 +102,21 @@ type ObservedScannerIdentity = {
   attack: ObservedScannerPoint | null;
 };
 
+type PendingScannerPoint = ObservedScannerPoint & {
+  confirmations: number;
+  lastSeenAt: number;
+};
+
+type PendingScannerIdentity = Partial<
+  Record<CardScannerField, PendingScannerPoint>
+>;
+
 const EMPTY_OBSERVED_IDENTITY: ObservedScannerIdentity = {
   name: null,
   number: null,
   attack: null,
 };
+const EMPTY_PENDING_IDENTITY: PendingScannerIdentity = {};
 const SCANNER_FIELDS: CardScannerField[] = ["name", "number", "attack"];
 
 function getScannerFields(game: TradingCardGame): CardScannerField[] {
@@ -135,12 +146,17 @@ const EMPTY_FRAME_READINESS: ScannerFrameReadiness = {
   ready: false,
 };
 
-type TorchMediaTrackCapabilities = MediaTrackCapabilities & {
+type ScannerMediaTrackCapabilities = MediaTrackCapabilities & {
   torch?: boolean;
+  focusMode?: string[];
 };
 
 type TorchMediaTrackConstraintSet = MediaTrackConstraintSet & {
   torch: boolean;
+};
+
+type FocusMediaTrackConstraintSet = MediaTrackConstraintSet & {
+  focusMode: "continuous";
 };
 
 function confidenceLabel(match: CardScannerMatch): string {
@@ -195,9 +211,11 @@ function drawCentralCardCrop(
   source: CanvasImageSource,
   sourceWidth: number,
   sourceHeight: number,
-  outputWidth = 900
+  outputWidth = 900,
+  cardSourceRect?: ReturnType<typeof getCentralCardSourceRect>
 ) {
-  const sourceRect = getCentralCardSourceRect(sourceWidth, sourceHeight);
+  const sourceRect =
+    cardSourceRect ?? getCentralCardSourceRect(sourceWidth, sourceHeight);
 
   canvas.width = outputWidth;
   canvas.height = Math.round(outputWidth / CARD_ASPECT);
@@ -239,25 +257,70 @@ function getCentralCardSourceRect(sourceWidth: number, sourceHeight: number) {
   };
 }
 
+function getCameraFrameSourceRect(
+  video: HTMLVideoElement,
+  cardFrame: HTMLElement | null
+) {
+  if (!cardFrame || !video.videoWidth || !video.videoHeight) {
+    return getCentralCardSourceRect(video.videoWidth, video.videoHeight);
+  }
+  const videoRect = video.getBoundingClientRect();
+  const frameRect = cardFrame.getBoundingClientRect();
+  if (
+    videoRect.width <= 0 ||
+    videoRect.height <= 0 ||
+    frameRect.width <= 0 ||
+    frameRect.height <= 0
+  ) {
+    return getCentralCardSourceRect(video.videoWidth, video.videoHeight);
+  }
+
+  // OCR and the collector now look at precisely the same visible outline.
+  return getScannerObjectCoverSourceRect({
+    sourceWidth: video.videoWidth,
+    sourceHeight: video.videoHeight,
+    viewport: {
+      x: videoRect.left,
+      y: videoRect.top,
+      width: videoRect.width,
+      height: videoRect.height,
+    },
+    frame: {
+      x: frameRect.left,
+      y: frameRect.top,
+      width: frameRect.width,
+      height: frameRect.height,
+    },
+  });
+}
+
 function drawScannerFieldBands(
   canvas: HTMLCanvasElement,
   source: CanvasImageSource,
   sourceWidth: number,
   sourceHeight: number,
-  field: CardScannerField
+  field: CardScannerField,
+  cardSourceRect?: ReturnType<typeof getCentralCardSourceRect>,
+  preferFocus = false
 ) {
-  const card = getCentralCardSourceRect(sourceWidth, sourceHeight);
+  const card =
+    cardSourceRect ?? getCentralCardSourceRect(sourceWidth, sourceHeight);
   const expected =
     field === "name"
-      ? { left: 0.02, top: 0.01, width: 0.96, height: 0.24 }
+      ? { left: 0.03, top: 0.015, width: 0.9, height: 0.15 }
       : field === "number"
-        ? { left: 0.01, top: 0.76, width: 0.98, height: 0.23 }
-        : { left: 0.02, top: 0.32, width: 0.96, height: 0.52 };
+        ? { left: 0.015, top: 0.86, width: 0.97, height: 0.13 }
+        : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
+  const focus = {
+    left: 0.04,
+    top: 0.4,
+    width: 0.92,
+    height: field === "attack" ? 0.28 : 0.18,
+  };
   const outputWidth = 960;
-  const bandHeight = field === "attack" ? 280 : 230;
-  const bandGap = 16;
+  const bandHeight = field === "attack" ? 340 : 220;
   canvas.width = outputWidth;
-  canvas.height = bandHeight * 2 + bandGap;
+  canvas.height = bandHeight;
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Camera reading is unavailable.");
   context.fillStyle = "#ffffff";
@@ -265,32 +328,35 @@ function drawScannerFieldBands(
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  // The first band magnifies the field's usual position on a complete card.
-  context.drawImage(
-    source,
-    card.x + card.width * expected.left,
-    card.y + card.height * expected.top,
-    card.width * expected.width,
-    card.height * expected.height,
-    0,
-    0,
-    canvas.width,
-    bandHeight
-  );
+  const drawBand = (
+    bounds: { left: number; top: number; width: number; height: number },
+    destinationTop: number
+  ) => {
+    const cropWidth = card.width * bounds.width;
+    const cropHeight = card.height * bounds.height;
+    const scale = Math.min(
+      canvas.width / cropWidth,
+      bandHeight / cropHeight
+    );
+    const destinationWidth = cropWidth * scale;
+    const destinationHeight = cropHeight * scale;
+    context.drawImage(
+      source,
+      card.x + card.width * bounds.left,
+      card.y + card.height * bounds.top,
+      cropWidth,
+      cropHeight,
+      (canvas.width - destinationWidth) / 2,
+      destinationTop + (bandHeight - destinationHeight) / 2,
+      destinationWidth,
+      destinationHeight
+    );
+  };
 
-  // The second band is a permanent focus reader. A collector can move only an
-  // unread number/name/attack into the centre instead of reframing the card.
-  context.drawImage(
-    source,
-    card.x + card.width * 0.02,
-    card.y + card.height * 0.35,
-    card.width * 0.96,
-    card.height * 0.3,
-    0,
-    bandHeight + bandGap,
-    canvas.width,
-    bandHeight
-  );
+  // Alternate one high-resolution read between the field's normal position
+  // and the centre focus area. This keeps close-up aiming automatic without
+  // doubling every Tesseract pass.
+  drawBand(preferFocus ? focus : expected, 0);
 }
 
 function ScannerArtwork({
@@ -354,6 +420,8 @@ export default function CardScannerClient() {
     useState<ScannerFrameReadiness>(EMPTY_FRAME_READINESS);
   const [observedIdentity, setObservedIdentity] =
     useState<ObservedScannerIdentity>(EMPTY_OBSERVED_IDENTITY);
+  const [pendingIdentity, setPendingIdentity] =
+    useState<PendingScannerIdentity>(EMPTY_PENDING_IDENTITY);
   const [activeField, setActiveField] = useState<CardScannerField | null>(null);
   const [focusField, setFocusField] = useState<CardScannerField | null>(null);
   const [lastAutoMatch, setLastAutoMatch] = useState<CardScannerMatch | null>(null);
@@ -362,6 +430,7 @@ export default function CardScannerClient() {
   const [openingCardId, setOpeningCardId] = useState<string | null>(null);
   const [selectedModalCard, setSelectedModalCard] = useState<ModalCardData | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cardFrameRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const readinessCanvasRef = useRef<HTMLCanvasElement>(null);
   const fieldCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -384,6 +453,9 @@ export default function CardScannerClient() {
   );
   const observedIdentityRef = useRef<ObservedScannerIdentity>(
     EMPTY_OBSERVED_IDENTITY
+  );
+  const pendingIdentityRef = useRef<PendingScannerIdentity>(
+    EMPTY_PENDING_IDENTITY
   );
   const focusFieldRef = useRef<CardScannerField | null>(null);
   const fieldInProgressRef = useRef(false);
@@ -477,8 +549,22 @@ export default function CardScannerClient() {
       streamRef.current = stream;
       const videoTrack = stream.getVideoTracks()[0];
       const capabilities = videoTrack?.getCapabilities?.() as
-        | TorchMediaTrackCapabilities
+        | ScannerMediaTrackCapabilities
         | undefined;
+      if (videoTrack && capabilities?.focusMode?.includes("continuous")) {
+        try {
+          await videoTrack.applyConstraints({
+            advanced: [
+              {
+                focusMode: "continuous",
+              } as FocusMediaTrackConstraintSet,
+            ],
+          });
+        } catch {
+          // Browsers may advertise image-capture capabilities that the active
+          // iPhone camera refuses. Native autofocus remains the safe fallback.
+        }
+      }
       setTorchSupported(Boolean(capabilities?.torch));
       setTorchEnabled(false);
       previousFrameRef.current = null;
@@ -544,6 +630,10 @@ export default function CardScannerClient() {
   function replaceObservedIdentity(next: ObservedScannerIdentity) {
     observedIdentityRef.current = next;
     setObservedIdentity(next);
+    if (!next.name && !next.number && !next.attack) {
+      pendingIdentityRef.current = EMPTY_PENDING_IDENTITY;
+      setPendingIdentity(EMPTY_PENDING_IDENTITY);
+    }
   }
 
   function rememberObservedField(
@@ -554,6 +644,10 @@ export default function CardScannerClient() {
       ...observedIdentityRef.current,
       [field]: point,
     };
+    const nextPending = { ...pendingIdentityRef.current };
+    delete nextPending[field];
+    pendingIdentityRef.current = nextPending;
+    setPendingIdentity(nextPending);
     replaceObservedIdentity(next);
     if (focusFieldRef.current === field) {
       focusFieldRef.current = null;
@@ -581,6 +675,10 @@ export default function CardScannerClient() {
       ...observedIdentityRef.current,
       [field]: null,
     });
+    const nextPending = { ...pendingIdentityRef.current };
+    delete nextPending[field];
+    pendingIdentityRef.current = nextPending;
+    setPendingIdentity(nextPending);
     nextFieldRef.current = field;
     fieldAttemptCountsRef.current[field] = 0;
     focusFieldRef.current = field;
@@ -632,6 +730,11 @@ export default function CardScannerClient() {
 
     fieldInProgressRef.current = true;
     fieldAttemptCountsRef.current[field] += 1;
+    const scanRegion =
+      focusFieldRef.current === field ||
+      fieldAttemptCountsRef.current[field] % 2 === 0
+        ? "focus"
+        : "expected";
     setActiveField(field);
     const controller = new AbortController();
     fieldControllerRef.current = controller;
@@ -643,7 +746,9 @@ export default function CardScannerClient() {
         video,
         video.videoWidth,
         video.videoHeight,
-        field
+        field,
+        getCameraFrameSourceRect(video, cardFrameRef.current),
+        scanRegion === "focus"
       );
       const file = await canvasToJpegFile(canvas);
       const body = new FormData();
@@ -651,6 +756,7 @@ export default function CardScannerClient() {
       body.set("game", game);
       body.set("mode", "field");
       body.set("field", field);
+      body.set("scanRegion", scanRegion);
       const remembered = observedIdentityRef.current;
       if (remembered.name?.value) {
         body.set("knownName", remembered.name.value);
@@ -683,9 +789,33 @@ export default function CardScannerClient() {
               }
             : {};
       let savedAnObservation = false;
+      let confirmationField: CardScannerField | null = null;
       for (const detectedField of getScannerFields(game)) {
         const observation = detectedObservations[detectedField];
         if (!observation || observedIdentityRef.current[detectedField]) {
+          continue;
+        }
+        const now = Date.now();
+        const previous = pendingIdentityRef.current[detectedField];
+        const confirmsPrevious =
+          previous?.value === observation.value &&
+          now - previous.lastSeenAt <= 12_000;
+        const pendingPoint: PendingScannerPoint = {
+          value: observation.value,
+          confidence: observation.confidence,
+          confirmations: confirmsPrevious
+            ? previous.confirmations + 1
+            : 1,
+          lastSeenAt: now,
+        };
+        const nextPending = {
+          ...pendingIdentityRef.current,
+          [detectedField]: pendingPoint,
+        };
+        pendingIdentityRef.current = nextPending;
+        setPendingIdentity(nextPending);
+        if (pendingPoint.confirmations < 2) {
+          confirmationField ??= detectedField;
           continue;
         }
         rememberObservedField(detectedField, {
@@ -698,7 +828,8 @@ export default function CardScannerClient() {
         setCameraError(null);
       }
       if (!focusFieldRef.current) {
-        nextFieldRef.current = nextScannerField(field, game);
+        nextFieldRef.current =
+          confirmationField ?? nextScannerField(field, game);
       }
     } catch (fieldError) {
       if (!controller.signal.aborted) {
@@ -823,7 +954,14 @@ export default function CardScannerClient() {
     }
     captureInProgressRef.current = true;
     try {
-      drawCentralCardCrop(canvas, video, video.videoWidth, video.videoHeight);
+      drawCentralCardCrop(
+        canvas,
+        video,
+        video.videoWidth,
+        video.videoHeight,
+        900,
+        getCameraFrameSourceRect(video, cardFrameRef.current)
+      );
       const file = await canvasToJpegFile(canvas);
       const identity = observedIdentityRef.current;
       capturedFrameRef.current = currentFrameRef.current?.slice() ?? null;
@@ -868,7 +1006,8 @@ export default function CardScannerClient() {
           video,
           video.videoWidth,
           video.videoHeight,
-          126
+          126,
+          getCameraFrameSourceRect(video, cardFrameRef.current)
         );
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) return;
@@ -908,11 +1047,12 @@ export default function CardScannerClient() {
             field !== "attack" &&
             !remembered[field]
         );
+        const primaryIdentityReady = missingPrimaryFields.length === 0;
         const shouldTryOptionalAttack =
           scannerFields.includes("attack") &&
+          primaryIdentityReady &&
           !remembered.attack &&
-          (missingPrimaryFields.length > 0 ||
-            fieldAttemptCountsRef.current.attack < 2);
+          fieldAttemptCountsRef.current.attack < 2;
         const missingFields = [
           ...missingPrimaryFields,
           ...(shouldTryOptionalAttack ? (["attack"] as const) : []),
@@ -1434,7 +1574,10 @@ export default function CardScannerClient() {
                       className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0,transparent_35%,rgba(0,0,0,0.58)_78%)]"
                     />
                     <div className="absolute inset-0 flex items-center justify-center p-6 sm:p-10">
-                      <div className="relative aspect-[63/88] h-auto max-h-[74vh] w-[min(72vw,22rem)] max-w-full rounded-[5%] border border-white/60 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16),0_0_0_9999px_rgba(0,0,0,0.18),0_0_42px_rgb(var(--dc-primary-rgb)/0.18)]">
+                      <div
+                        ref={cardFrameRef}
+                        className="relative aspect-[63/88] h-auto max-h-[74vh] w-[min(72vw,22rem)] max-w-full rounded-[5%] border border-white/60 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16),0_0_0_9999px_rgba(0,0,0,0.18),0_0_42px_rgb(var(--dc-primary-rgb)/0.18)]"
+                      >
                         {[
                           "left-[-1px] top-[-1px] border-l-4 border-t-4",
                           "right-[-1px] top-[-1px] border-r-4 border-t-4",
@@ -1523,63 +1666,75 @@ export default function CardScannerClient() {
                               : "grid-cols-2"
                           }`}
                         >
-                          {identityPoints.map(({ field, label, point }) => (
-                            <div
-                              key={field}
-                              className={`grid min-h-12 grid-cols-[1.65rem_minmax(0,1fr)_2.25rem] items-center gap-1 rounded-xl px-1.5 transition ${
-                                point
-                                  ? "bg-emerald-400/16 text-emerald-100"
-                                  : activeField === field
-                                    ? "bg-[rgb(var(--dc-primary-rgb)/0.24)] text-white"
-                                    : focusField === field
-                                      ? "bg-[rgb(var(--dc-primary-rgb)/0.16)] text-white"
-                                    : "bg-white/5 text-white/55"
-                              }`}
-                            >
-                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/20">
+                          {identityPoints.map(({ field, label, point }) => {
+                            const pending = pendingIdentity[field];
+                            return (
+                              <div
+                                key={field}
+                                className={`grid min-h-12 grid-cols-[1.65rem_minmax(0,1fr)_2.25rem] items-center gap-1 rounded-xl px-1.5 transition ${
+                                  point
+                                    ? "bg-emerald-400/16 text-emerald-100"
+                                    : pending
+                                      ? "bg-amber-300/14 text-amber-50"
+                                      : activeField === field
+                                        ? "bg-[rgb(var(--dc-primary-rgb)/0.24)] text-white"
+                                        : focusField === field
+                                          ? "bg-[rgb(var(--dc-primary-rgb)/0.16)] text-white"
+                                          : "bg-white/5 text-white/55"
+                                }`}
+                              >
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/20">
+                                  {point ? (
+                                    <Check className="h-3.5 w-3.5" />
+                                  ) : pending || activeField === field ? (
+                                    <LoaderCircle className="h-3.5 w-3.5 motion-safe:animate-spin" />
+                                  ) : (
+                                    <Search className="h-3.5 w-3.5" />
+                                  )}
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="block text-[8px] font-black uppercase tracking-[0.12em] opacity-70">
+                                    {label}
+                                  </span>
+                                  <span
+                                    className="block truncate text-[11px] font-black"
+                                    title={pending?.value}
+                                  >
+                                    {point?.value ??
+                                      (pending
+                                        ? `${pending.value} · checking`
+                                        : activeField === field
+                                          ? "Reading…"
+                                          : "Not read")}
+                                  </span>
+                                </span>
                                 {point ? (
-                                  <Check className="h-3.5 w-3.5" />
-                                ) : activeField === field ? (
-                                  <LoaderCircle className="h-3.5 w-3.5 motion-safe:animate-spin" />
+                                  <button
+                                    type="button"
+                                    onClick={() => clearObservedField(field)}
+                                    aria-label={`Clear saved ${label.toLowerCase()}`}
+                                    className="flex h-9 w-9 items-center justify-center rounded-full text-current opacity-65 hover:bg-black/20 hover:opacity-100"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
                                 ) : (
-                                  <Search className="h-3.5 w-3.5" />
+                                  <button
+                                    type="button"
+                                    onClick={() => prioritizeScannerField(field)}
+                                    aria-pressed={focusField === field}
+                                    aria-label={`Focus camera on ${label.toLowerCase()}`}
+                                    className={`flex h-9 w-9 items-center justify-center rounded-full transition ${
+                                      focusField === field
+                                        ? "bg-[var(--dc-primary)] text-white"
+                                        : "text-current opacity-60 hover:bg-white/10 hover:opacity-100"
+                                    }`}
+                                  >
+                                    <ScanLine className="h-3 w-3" />
+                                  </button>
                                 )}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block text-[8px] font-black uppercase tracking-[0.12em] opacity-70">
-                                  {label}
-                                </span>
-                                <span className="block truncate text-[11px] font-black">
-                                  {point?.value ??
-                                    (activeField === field ? "Reading…" : "Not read")}
-                                </span>
-                              </span>
-                              {point ? (
-                                <button
-                                  type="button"
-                                  onClick={() => clearObservedField(field)}
-                                  aria-label={`Clear saved ${label.toLowerCase()}`}
-                                  className="flex h-9 w-9 items-center justify-center rounded-full text-current opacity-65 hover:bg-black/20 hover:opacity-100"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => prioritizeScannerField(field)}
-                                  aria-pressed={focusField === field}
-                                  aria-label={`Focus camera on ${label.toLowerCase()}`}
-                                  className={`flex h-9 w-9 items-center justify-center rounded-full transition ${
-                                    focusField === field
-                                      ? "bg-[var(--dc-primary)] text-white"
-                                      : "text-current opacity-60 hover:bg-white/10 hover:opacity-100"
-                                  }`}
-                                >
-                                  <ScanLine className="h-3 w-3" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                         <div className="mt-1.5 flex min-h-7 items-center justify-center gap-1.5 rounded-lg bg-white/5 px-2 text-[9px] font-bold text-white/58">
                           {identityReady ? (

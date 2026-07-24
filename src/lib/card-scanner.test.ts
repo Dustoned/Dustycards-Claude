@@ -6,6 +6,7 @@ import {
   getScannerAttackSimilarity,
   getScannerConfidence,
   getScannerNameObservation,
+  getScannerNameFromUniqueReference,
   getScannerNumberObservation,
   getScannerTextSimilarity,
   normalizeScannerCardReference,
@@ -150,6 +151,84 @@ describe("card scanner recognition", () => {
     ).toBeNull();
   });
 
+  it("repairs a noisy full-art name without treating attack text as a card name", () => {
+    const tornadus = {
+      ...SEISMITOAD,
+      id: "tornadus",
+      name: "Tornadus",
+    };
+    expect(
+      getScannerNameObservation(
+        [
+          tornadus,
+          { ...tornadus, id: "tornadus-ex", name: "Tornadus-EX" },
+          { ...tornadus, id: "thundurus", name: "Thundurus" },
+          OTHER_CARD,
+        ],
+        "Tounaduss"
+      )
+    ).toMatchObject({ value: "Tornadus" });
+    expect(
+      getScannerNameObservation(
+        [
+          tornadus,
+          { ...tornadus, id: "tornadus-ex", name: "Tornadus-EX" },
+          { ...tornadus, id: "thundurus", name: "Thundurus" },
+          OTHER_CARD,
+        ],
+        "Torgasis"
+      )
+    ).toMatchObject({ value: "Tornadus" });
+    expect(
+      getScannerNameObservation(
+        [tornadus, { ...tornadus, id: "warp-point", name: "Warp Point" }],
+        "Wrapped in Wind\nHurricane"
+      )
+    ).toBeNull();
+  });
+
+  it("infers a card name only when an exact printed reference has one identity", () => {
+    const tornadus = {
+      ...SEISMITOAD,
+      id: "tornadus",
+      name: "Tornadus",
+      card_number: "78",
+      printed_card_number: "78/86",
+    };
+    expect(
+      getScannerNameFromUniqueReference(
+        [
+          tornadus,
+          { ...tornadus, id: "tornadus-reverse" },
+          {
+            ...OTHER_CARD,
+            id: "different-number",
+            card_number: "12",
+            printed_card_number: "12/86",
+          },
+        ],
+        "78/86"
+      )
+    ).toEqual({
+      value: "Tornadus",
+      confidence: 100,
+      catalogMatches: 2,
+    });
+    expect(
+      getScannerNameFromUniqueReference(
+        [
+          tornadus,
+          {
+            ...OTHER_CARD,
+            card_number: "78",
+            printed_card_number: "78/86",
+          },
+        ],
+        "78/86"
+      )
+    ).toBeNull();
+  });
+
   it("stores only printed numbers that exist in the selected game catalog", () => {
     expect(
       getScannerNumberObservation(
@@ -194,6 +273,46 @@ describe("card scanner recognition", () => {
     expect(
       getScannerNumberObservation([OTHER_CARD, SEISMITOAD], "999/999")
     ).toBeNull();
+  });
+
+  it("prefers an explicitly printed number over a slash inferred from unrelated stats", () => {
+    expect(
+      getScannerNumberObservation(
+        [
+          {
+            ...SEISMITOAD,
+            id: "tornadus",
+            name: "Tornadus",
+            card_number: "78",
+            printed_card_number: "78/86",
+          },
+          {
+            ...OTHER_CARD,
+            id: "weight-collision",
+            card_number: "138",
+            printed_card_number: "138/91",
+          },
+        ],
+        "WT: 13891\n078/086"
+      )
+    ).toMatchObject({ value: "78/86" });
+  });
+
+  it("repairs a supported 5/8 number confusion inside a known name family", () => {
+    expect(
+      getScannerNumberObservation(
+        [
+          {
+            ...SEISMITOAD,
+            id: "tornadus",
+            name: "Tornadus",
+            card_number: "78",
+            printed_card_number: "78/86",
+          },
+        ],
+        "075/086"
+      )
+    ).toMatchObject({ value: "78/86" });
   });
 
   it("stores meaningful attack text without mistaking the card name for an attack", () => {

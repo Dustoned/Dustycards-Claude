@@ -197,6 +197,69 @@ function buildBigrams(value: string): Set<string> {
   return bigrams;
 }
 
+function getJaroWinklerSimilarity(left: string, right: string): number {
+  const normalizedLeft = compactScannerText(left);
+  const normalizedRight = compactScannerText(right);
+  if (!normalizedLeft || !normalizedRight) return 0;
+  if (normalizedLeft === normalizedRight) return 1;
+
+  const matchDistance = Math.max(
+    0,
+    Math.floor(Math.max(normalizedLeft.length, normalizedRight.length) / 2) - 1
+  );
+  const leftMatches = Array<boolean>(normalizedLeft.length).fill(false);
+  const rightMatches = Array<boolean>(normalizedRight.length).fill(false);
+  let matches = 0;
+
+  for (let leftIndex = 0; leftIndex < normalizedLeft.length; leftIndex += 1) {
+    const start = Math.max(0, leftIndex - matchDistance);
+    const end = Math.min(
+      normalizedRight.length - 1,
+      leftIndex + matchDistance
+    );
+    for (let rightIndex = start; rightIndex <= end; rightIndex += 1) {
+      if (
+        rightMatches[rightIndex] ||
+        normalizedLeft[leftIndex] !== normalizedRight[rightIndex]
+      ) {
+        continue;
+      }
+      leftMatches[leftIndex] = true;
+      rightMatches[rightIndex] = true;
+      matches += 1;
+      break;
+    }
+  }
+
+  if (matches === 0) return 0;
+  const matchedLeft = [...normalizedLeft].filter(
+    (_, index) => leftMatches[index]
+  );
+  const matchedRight = [...normalizedRight].filter(
+    (_, index) => rightMatches[index]
+  );
+  let transpositions = 0;
+  for (let index = 0; index < matches; index += 1) {
+    if (matchedLeft[index] !== matchedRight[index]) transpositions += 1;
+  }
+
+  const jaro =
+    (matches / normalizedLeft.length +
+      matches / normalizedRight.length +
+      (matches - transpositions / 2) / matches) /
+    3;
+  let commonPrefix = 0;
+  while (
+    commonPrefix < 4 &&
+    commonPrefix < normalizedLeft.length &&
+    commonPrefix < normalizedRight.length &&
+    normalizedLeft[commonPrefix] === normalizedRight[commonPrefix]
+  ) {
+    commonPrefix += 1;
+  }
+  return jaro + commonPrefix * 0.1 * (1 - jaro);
+}
+
 export function getScannerTextSimilarity(left: string, right: string): number {
   const compactLeft = compactScannerText(left);
   const compactRight = compactScannerText(right);
@@ -212,16 +275,36 @@ export function getScannerTextSimilarity(left: string, right: string): number {
     if (rightBigrams.has(bigram)) intersection += 1;
   }
   const denominator = leftBigrams.size + rightBigrams.size;
-  return denominator > 0 ? (2 * intersection) / denominator : 0;
+  const bigramSimilarity =
+    denominator > 0 ? (2 * intersection) / denominator : 0;
+  return Math.max(
+    bigramSimilarity,
+    getJaroWinklerSimilarity(compactLeft, compactRight)
+  );
 }
 
 function getMeaningfulOcrLines(text: string): string[] {
-  return text
+  const rawLines = text
     .split(/\r?\n/)
     .map(normalizeScannerText)
-    .filter((line) => line.length >= 3)
+    .filter(Boolean)
     .filter((line) => !COMMON_CARD_TEXT.has(line))
     .slice(0, 80);
+  const lines = rawLines.filter((line) => line.length >= 3);
+  const joinedFragments = rawLines.flatMap((_, startIndex) =>
+    [2, 3].flatMap((windowSize) => {
+      const fragments = rawLines.slice(startIndex, startIndex + windowSize);
+      if (
+        fragments.length !== windowSize ||
+        fragments.some((fragment) => fragment.length > 18)
+      ) {
+        return [];
+      }
+      const joined = fragments.join(" ");
+      return joined.length <= 48 ? [joined] : [];
+    })
+  );
+  return [...new Set([...lines, ...joinedFragments])];
 }
 
 function getCardNameSimilarity(cardName: string, ocrText: string, ocrLines: string[]): number {
@@ -416,24 +499,45 @@ export function getScannerNameObservation(
     })
     .sort((left, right) => right.nameSimilarity - left.nameSimilarity);
   const best = rankedNames[0];
-  const bestName = normalizeScannerText(best?.card.name ?? "");
   const runnerUp = rankedNames.find(
     (candidate) => candidate.family !== best?.family
   );
   const similarityGap =
     (best?.nameSimilarity ?? 0) - (runnerUp?.nameSimilarity ?? 0);
   const hasClearExactRead =
-    (best?.nameSimilarity ?? 0) >= 0.82 && similarityGap >= 0.12;
+    (best?.nameSimilarity ?? 0) >= 0.9 && similarityGap >= 0.08;
   const hasClearFuzzyRead =
-    (best?.nameSimilarity ?? 0) >= 0.74 && similarityGap >= 0.2;
-  if (!best || (!hasClearExactRead && !hasClearFuzzyRead)) {
+    (best?.nameSimilarity ?? 0) >= 0.84 && similarityGap >= 0.13;
+  const hasVeryClearNoisyRead =
+    (best?.nameSimilarity ?? 0) >= 0.81 &&
+    similarityGap >= 0.22 &&
+    compactScannerText(best?.card.name ?? "").length >= 7;
+  if (
+    !best ||
+    (!hasClearExactRead && !hasClearFuzzyRead && !hasVeryClearNoisyRead)
+  ) {
     return null;
   }
+  const normalizedRead = normalizeScannerText(ocrText);
+  const readIncludesVariant =
+    /(?:^|\s)(?:break|ex|gx|lv x|v|vmax|vstar)(?:\s|$)/i.test(
+      normalizedRead
+    );
+  const preferredCard = readIncludesVariant
+    ? best.card
+    : rankedNames
+        .filter((candidate) => candidate.family === best.family)
+        .sort(
+          (left, right) =>
+            compactScannerText(left.card.name).length -
+            compactScannerText(right.card.name).length
+        )[0]?.card ?? best.card;
+  const preferredName = normalizeScannerText(preferredCard.name);
   return {
-    value: best.card.name,
+    value: preferredCard.name,
     confidence: Math.round(best.nameSimilarity * 1_000) / 10,
     catalogMatches: cards.filter(
-      (card) => normalizeScannerText(card.name) === bestName
+      (card) => normalizeScannerText(card.name) === preferredName
     ).length,
   };
 }
@@ -443,16 +547,26 @@ export function getScannerNumberObservation(
   ocrText: string
 ): ScannerFieldObservation | null {
   const explicitReferences = extractScannerCardReferences(ocrText);
+  const confusableDigits: Record<string, readonly string[]> = {
+    "0": ["6", "8", "9"],
+    "1": ["7"],
+    "2": ["7"],
+    "3": ["8"],
+    "5": ["6", "8"],
+    "6": ["0", "5", "8"],
+    "7": ["1", "2"],
+    "8": ["0", "3", "5", "6", "9"],
+    "9": ["0", "8"],
+  };
   const digitCorrections = explicitReferences.flatMap((reference) => {
     const candidates: string[] = [];
     for (let index = 0; index < reference.length; index += 1) {
-      if (reference[index] !== "1" && reference[index] !== "7") continue;
-      const corrected = normalizeScannerCardReference(
-        `${reference.slice(0, index)}${
-          reference[index] === "1" ? "7" : "1"
-        }${reference.slice(index + 1)}`
-      );
-      if (corrected) candidates.push(corrected);
+      for (const replacement of confusableDigits[reference[index]] ?? []) {
+        const corrected = normalizeScannerCardReference(
+          `${reference.slice(0, index)}${replacement}${reference.slice(index + 1)}`
+        );
+        if (corrected) candidates.push(corrected);
+      }
     }
     return candidates;
   });
@@ -492,31 +606,69 @@ export function getScannerNumberObservation(
       return candidates;
     }
   );
-  const supported = [
-    ...new Set([
-      ...explicitReferences,
-      ...digitCorrections,
-      ...inferredSeparators,
-    ]),
-  ]
+  const referenceQuality = new Map<string, number>();
+  for (const reference of inferredSeparators) {
+    referenceQuality.set(reference, Math.max(referenceQuality.get(reference) ?? 0, 1));
+  }
+  for (const reference of digitCorrections) {
+    referenceQuality.set(reference, Math.max(referenceQuality.get(reference) ?? 0, 2));
+  }
+  for (const reference of explicitReferences) {
+    referenceQuality.set(reference, 3);
+  }
+  const supported = [...referenceQuality]
     .map((reference) => ({
-      reference,
+      reference: reference[0],
+      quality: reference[1],
       matches: cards.filter((card) => {
         const printed = normalizeScannerCardReference(
           card.printed_card_number ?? ""
         );
         const local = normalizeScannerCardReference(card.card_number ?? "");
-        return printed === reference || local === reference;
+        return printed === reference[0] || local === reference[0];
       }).length,
     }))
     .filter((candidate) => candidate.matches > 0)
-    .sort((left, right) => left.matches - right.matches)[0];
+    .sort(
+      (left, right) =>
+        right.quality - left.quality || left.matches - right.matches
+    )[0];
 
   return supported
     ? {
         value: supported.reference,
         confidence: 100,
         catalogMatches: supported.matches,
+      }
+    : null;
+}
+
+export function getScannerNameFromUniqueReference(
+  cards: CardScannerCatalogCard[],
+  reference: string
+): ScannerFieldObservation | null {
+  const normalizedReference = normalizeScannerCardReference(reference);
+  if (!normalizedReference) return null;
+
+  const exactCards = cards.filter((card) =>
+    [card.printed_card_number, card.card_number].some(
+      (value) =>
+        normalizeScannerCardReference(value ?? "") === normalizedReference
+    )
+  );
+  const exactNames = [
+    ...new Set(exactCards.map((card) => normalizeScannerText(card.name))),
+  ];
+  if (exactNames.length !== 1) return null;
+
+  const inferredCard = exactCards
+    .filter((card) => normalizeScannerText(card.name) === exactNames[0])
+    .sort((left, right) => left.name.length - right.name.length)[0];
+  return inferredCard
+    ? {
+        value: inferredCard.name,
+        confidence: 100,
+        catalogMatches: exactCards.length,
       }
     : null;
 }
