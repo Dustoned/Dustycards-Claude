@@ -431,11 +431,40 @@ export function getScannerNumberObservation(
   cards: CardScannerCatalogCard[],
   ocrText: string
 ): ScannerFieldObservation | null {
+  const explicitReferences = extractScannerCardReferences(ocrText);
+  const digitCorrections = explicitReferences.flatMap((reference) => {
+    const candidates: string[] = [];
+    for (let index = 0; index < reference.length; index += 1) {
+      if (reference[index] !== "1" && reference[index] !== "7") continue;
+      const corrected = normalizeScannerCardReference(
+        `${reference.slice(0, index)}${
+          reference[index] === "1" ? "7" : "1"
+        }${reference.slice(index + 1)}`
+      );
+      if (corrected) candidates.push(corrected);
+    }
+    return candidates;
+  });
   const inferredSeparators = [...ocrText.matchAll(/\b\d{4,9}\b/g)].flatMap(
     (match) => {
       const token = match[0];
       const candidates: string[] = [];
       for (let index = 1; index < token.length - 1; index += 1) {
+        const joinedLeft = token.slice(0, index);
+        const joinedRight = token.slice(index);
+        if (
+          joinedLeft.length <= 4 &&
+          joinedRight.length >= 2 &&
+          joinedRight.length <= 4
+        ) {
+          const joined = normalizeScannerCardReference(
+            `${joinedLeft}/${joinedRight}`
+          );
+          if (joined) candidates.push(joined);
+        }
+
+        // Tesseract commonly turns a tiny slash into a narrow 1 or 7. Also
+        // test the reference with that separator-like character removed.
         if (token[index] !== "1" && token[index] !== "7") continue;
         const left = token.slice(0, index);
         const right = token.slice(index + 1);
@@ -454,7 +483,8 @@ export function getScannerNumberObservation(
   );
   const supported = [
     ...new Set([
-      ...extractScannerCardReferences(ocrText),
+      ...explicitReferences,
+      ...digitCorrections,
       ...inferredSeparators,
     ]),
   ]

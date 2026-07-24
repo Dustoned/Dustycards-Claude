@@ -17,6 +17,23 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.11",
+    releasedAt: "July 24, 2026",
+    title: "Fast focus scanning that keeps trying",
+    summary:
+      "DustyCards 3.8.11 rebuilds live camera recognition around magnified detail bands, persistent primary-field reads and foreground-priority OCR.",
+    tone: "fixed",
+    highlights: [
+      "Name, printed number and attack reads now send two compact magnified bands instead of repeatedly uploading and OCR-processing the complete card.",
+      "The first band targets the detail's normal card position; the second always reads the centre, so only a missing number can be held in the middle and saved.",
+      "Missing name and card-number reads no longer stop after two attempts. Exact primary identity stays active until it is actually recognized.",
+      "Each missing detail has a focus control in the camera overlay, while the currently focused field remains the only one retried until it is saved or focus is cancelled.",
+      "Live field OCR has its own persistent worker and queue; completed name and number evidence also lets background matching skip a redundant full OCR pass.",
+      "Background artwork confirmation yields to the next card for two seconds and compares a smaller exact-identity shortlist, keeping bulk camera reads responsive.",
+      "Tiny slashless numbers and common 1/7 OCR confusion are repaired only when the corrected printing exists in the relevant card-name catalog.",
+    ],
+  },
+  {
     version: "3.8.10",
     releasedAt: "July 24, 2026",
     title: "Point the camera at any missing detail",

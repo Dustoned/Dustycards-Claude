@@ -71,7 +71,9 @@ const scannerCatalogCache = new Map<TradingCardGame, ScannerCatalogCacheEntry>()
 const scannerArtworkHashCache = new Map<string, Promise<ScannerArtworkHash | null>>();
 const scannerAttackTextCache = new Map<string, Promise<string[]>>();
 let ocrWorkerPromise: Promise<Worker> | null = null;
+let fieldOcrWorkerPromise: Promise<Worker> | null = null;
 let ocrQueue: Promise<unknown> = Promise.resolve();
+let fieldOcrQueue: Promise<unknown> = Promise.resolve();
 
 function getComparableCardImageUrl(imageUrl: string): string {
   try {
@@ -298,6 +300,14 @@ function getOcrWorker(): Promise<Worker> {
   return ocrWorkerPromise;
 }
 
+function getFieldOcrWorker(): Promise<Worker> {
+  fieldOcrWorkerPromise ??= createOcrWorker().catch((error) => {
+    fieldOcrWorkerPromise = null;
+    throw error;
+  });
+  return fieldOcrWorkerPromise;
+}
+
 async function normalizeScanImage(image: Buffer): Promise<Buffer> {
   return sharp(image, { limitInputPixels: 28_000_000, animated: false })
     .rotate()
@@ -420,24 +430,20 @@ async function recognizeScannerFieldUnsafe(
     .png({ compressionLevel: 5 })
     .toBuffer();
   const metadata = await sharp(normalizedImage).metadata();
+  const isFieldBandLayout =
+    Boolean(metadata.width && metadata.height) &&
+    (metadata.width ?? 0) / Math.max(1, metadata.height ?? 1) >= 1.55;
   const isCardShaped =
     Boolean(metadata.width && metadata.height) &&
     (metadata.height ?? 0) / Math.max(1, metadata.width ?? 1) >= 1.18;
   let fieldZones: Buffer[] = [];
-  if (isCardShaped && metadata.width && metadata.height) {
-    const expectedBounds =
-      field === "name"
-        ? { left: 0.03, top: 0.015, width: 0.94, height: 0.24 }
-        : field === "number"
-          ? { left: 0.02, top: 0.82, width: 0.96, height: 0.16 }
-          : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
-    const focusBounds = {
-      left: 0.03,
-      top: 0.32,
-      width: 0.94,
-      height: 0.36,
-    };
-    const extractZone = async (bounds: typeof expectedBounds) => {
+  if (metadata.width && metadata.height) {
+    const extractZone = async (bounds: {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    }) => {
       const left = Math.floor(metadata.width! * bounds.left);
       const top = Math.floor(metadata.height! * bounds.top);
       const width = Math.max(
@@ -462,13 +468,33 @@ async function recognizeScannerFieldUnsafe(
         .png({ compressionLevel: 4 })
         .toBuffer();
     };
-    fieldZones = await Promise.all([
-      extractZone(expectedBounds),
-      extractZone(focusBounds),
-    ]);
+
+    if (isFieldBandLayout) {
+      fieldZones = await Promise.all([
+        extractZone({ left: 0, top: 0, width: 1, height: 0.48 }),
+        extractZone({ left: 0, top: 0.52, width: 1, height: 0.48 }),
+      ]);
+    } else if (isCardShaped) {
+    const expectedBounds =
+      field === "name"
+        ? { left: 0.03, top: 0.015, width: 0.94, height: 0.24 }
+        : field === "number"
+          ? { left: 0.02, top: 0.82, width: 0.96, height: 0.16 }
+          : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
+    const focusBounds = {
+      left: 0.03,
+      top: 0.32,
+      width: 0.94,
+      height: 0.36,
+    };
+      fieldZones = await Promise.all([
+        extractZone(expectedBounds),
+        extractZone(focusBounds),
+      ]);
+    }
   }
 
-  const worker = await createOcrWorker();
+  const worker = await getFieldOcrWorker();
   try {
     const results: Array<{
       data: { text: string; confidence: number };
@@ -477,7 +503,10 @@ async function recognizeScannerFieldUnsafe(
       fieldZones.length > 0 ? fieldZones : [normalizedImage];
     for (const sourceImage of sourceImages) {
       await worker.setParameters({
-        tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+        tessedit_pageseg_mode:
+          isFieldBandLayout && field !== "number"
+            ? PSM.SINGLE_BLOCK
+            : PSM.SPARSE_TEXT,
         tessedit_char_whitelist:
           field === "number"
             ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
@@ -487,26 +516,31 @@ async function recognizeScannerFieldUnsafe(
     }
 
     const primaryImage = fieldZones[0] ?? normalizedImage;
-    if (field === "name" || field === "number") {
-      const thresholdImage = await sharp(primaryImage)
-        .threshold(field === "name" ? 145 : 130)
-        .png({ compressionLevel: 4 })
-        .toBuffer();
-      await worker.setParameters({
-        tessedit_pageseg_mode:
-          field === "name" ? PSM.SINGLE_BLOCK : PSM.SPARSE_TEXT,
-        tessedit_char_whitelist:
-          field === "number"
-            ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
-            : "",
-      });
-      results.push(await recognizeFieldPass(worker, thresholdImage));
-    } else {
-      await worker.setParameters({
-        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
-        tessedit_char_whitelist: "",
-      });
-      results.push(await recognizeFieldPass(worker, primaryImage));
+    if (!isFieldBandLayout) {
+      if (field === "name") {
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+          tessedit_char_whitelist: "",
+        });
+        results.push(await recognizeFieldPass(worker, primaryImage));
+      } else if (field === "number") {
+        const thresholdImage = await sharp(primaryImage)
+          .threshold(130)
+          .png({ compressionLevel: 4 })
+          .toBuffer();
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+          tessedit_char_whitelist:
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- ",
+        });
+        results.push(await recognizeFieldPass(worker, thresholdImage));
+      } else {
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+          tessedit_char_whitelist: "",
+        });
+        results.push(await recognizeFieldPass(worker, primaryImage));
+      }
     }
 
     const text = results
@@ -523,10 +557,12 @@ async function recognizeScannerFieldUnsafe(
           ? Math.round(Math.max(...confidences) * 10) / 10
           : null,
     };
-  } finally {
-    // Worker shutdown can outlive completed OCR in Next.js. Do not hold the
-    // field response open while the isolated worker cleans itself up.
+  } catch (error) {
+    // A failed/terminated worker is never reused. The next live read receives
+    // a fresh worker without poisoning the independent field queue.
+    fieldOcrWorkerPromise = null;
     void worker.terminate().catch(() => undefined);
+    throw error;
   }
 }
 
@@ -534,8 +570,10 @@ async function recognizeScannerField(
   image: Buffer,
   field: CardScannerField
 ): Promise<{ text: string; confidence: number | null }> {
-  const run = ocrQueue.then(() => recognizeScannerFieldUnsafe(image, field));
-  ocrQueue = run.catch(() => undefined);
+  const run = fieldOcrQueue.then(() =>
+    recognizeScannerFieldUnsafe(image, field)
+  );
+  fieldOcrQueue = run.catch(() => undefined);
   return run;
 }
 
@@ -614,8 +652,19 @@ export async function scanCardImage(input: {
     ocrConfidence: number | null;
   };
 }> {
+  const hasRememberedPrimaryIdentity = Boolean(
+    input.knownName?.trim() && input.knownReference?.trim()
+  );
   const [ocr, catalog] = await Promise.all([
-    recognizeCardText(input.image),
+    hasRememberedPrimaryIdentity
+      ? normalizeScanImage(input.image).then(
+          (normalizedImage): OcrResult => ({
+            text: "",
+            confidence: null,
+            normalizedImage,
+          })
+        )
+      : recognizeCardText(input.image),
     loadScannerCatalog(input.game),
   ]);
   const rememberedText = [input.knownName, input.knownReference]
@@ -630,10 +679,13 @@ export async function scanCardImage(input: {
       strongestTextMatch.nameSimilarity >= 0.82 &&
       strongestTextMatch.score - (initialRank[1]?.score ?? 0) >= 10
   );
+  const analysisCandidateLimit = hasRememberedPrimaryIdentity
+    ? 3
+    : MAX_VISUAL_CANDIDATES;
   const visualCandidateCards = textMatchIsConclusive
     ? []
     : initialRank
-        .slice(0, MAX_VISUAL_CANDIDATES)
+        .slice(0, analysisCandidateLimit)
         .map((candidate) => candidate.card);
   const [visualSimilarities, attackSimilarities] = await Promise.all([
     visualCandidateCards.length > 0
@@ -641,7 +693,7 @@ export async function scanCardImage(input: {
       : Promise.resolve(new Map<string, number>()),
     getAttackSimilarities(
       input.knownAttackText,
-      initialRank.slice(0, MAX_VISUAL_CANDIDATES).map((candidate) => candidate.card)
+      initialRank.slice(0, analysisCandidateLimit).map((candidate) => candidate.card)
     ),
   ]);
   const ranked = rankScannerCandidates(
@@ -737,7 +789,15 @@ export async function readScannerFieldImage(input: {
   ]);
 
   if (input.field === "number") {
-    const observation = getScannerNumberObservation(catalog, ocr.text);
+    const normalizedKnownName = normalizeScannerText(input.knownName ?? "");
+    const matchingNameCatalog = normalizedKnownName
+      ? catalog.filter(
+          (card) => normalizeScannerText(card.name) === normalizedKnownName
+        )
+      : [];
+    const numberCatalog =
+      matchingNameCatalog.length > 0 ? matchingNameCatalog : catalog;
+    const observation = getScannerNumberObservation(numberCatalog, ocr.text);
 
     return {
       field: input.field,

@@ -172,6 +172,26 @@ describe("card scanner recognition", () => {
       catalogMatches: 1,
     });
     expect(
+      getScannerNumberObservation(
+        [OTHER_CARD, SEISMITOAD],
+        "BLK EN 105086 GAME FREAK"
+      )
+    ).toEqual({
+      value: "105/86",
+      confidence: 100,
+      catalogMatches: 1,
+    });
+    expect(
+      getScannerNumberObservation(
+        [OTHER_CARD, SEISMITOAD],
+        "BLK EN 705/086 GAME FREAK"
+      )
+    ).toEqual({
+      value: "105/86",
+      confidence: 100,
+      catalogMatches: 1,
+    });
+    expect(
       getScannerNumberObservation([OTHER_CARD, SEISMITOAD], "999/999")
     ).toBeNull();
   });
