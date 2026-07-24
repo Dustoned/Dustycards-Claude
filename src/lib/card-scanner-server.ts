@@ -518,12 +518,12 @@ async function recognizeScannerFieldUnsafe(
           : field === "number"
             ? { left: 0.015, top: 0.86, width: 0.97, height: 0.13 }
             : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
-      const focusBounds = {
-        left: 0.04,
-        top: 0.4,
-        width: 0.92,
-        height: field === "attack" ? 0.28 : 0.18,
-      };
+      const focusBounds =
+        field === "name"
+          ? { left: 0.14, top: 0.42, width: 0.72, height: 0.16 }
+          : field === "number"
+            ? { left: 0.23, top: 0.43, width: 0.54, height: 0.14 }
+            : { left: 0.08, top: 0.35, width: 0.84, height: 0.3 };
       fieldZones = await Promise.all([
         extractZone(expectedBounds),
         extractZone(focusBounds),
@@ -549,10 +549,10 @@ async function recognizeScannerFieldUnsafe(
           : sourceIndex === focusResultIndex;
       await worker.setParameters({
         tessedit_pageseg_mode:
-          isCentreFocusBand
-            ? PSM.SPARSE_TEXT
-            : isFieldBandLayout && field === "attack"
+          isFieldBandLayout && field === "attack"
               ? PSM.SINGLE_BLOCK
+              : isCentreFocusBand
+                ? PSM.SINGLE_LINE
               : PSM.SPARSE_TEXT,
         tessedit_char_whitelist:
           field === "number"
@@ -568,7 +568,7 @@ async function recognizeScannerFieldUnsafe(
     if (isFieldBandLayout && metadata.width && metadata.height) {
       const guidedBounds =
         scanRegion === "focus"
-          ? { left: 0.06, top: 0.08, width: 0.88, height: 0.84 }
+          ? { left: 0.02, top: 0.06, width: 0.96, height: 0.88 }
           : field === "name"
             ? { left: 0.12, top: 0, width: 0.44, height: 0.5 }
             : field === "number"
@@ -609,7 +609,7 @@ async function recognizeScannerFieldUnsafe(
           field === "attack"
             ? PSM.SINGLE_BLOCK
             : field === "number"
-              ? PSM.SPARSE_TEXT
+              ? PSM.RAW_LINE
               : PSM.SINGLE_LINE,
         tessedit_char_whitelist:
           field === "number"

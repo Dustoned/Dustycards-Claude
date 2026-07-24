@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.15",
+    releasedAt: "July 24, 2026",
+    title: "Real mobile detail capture",
+    summary:
+      "DustyCards 3.8.15 fixes the live camera pipeline that kept tiny printed card details too small for reliable recognition.",
+    tone: "fixed",
+    highlights: [
+      "Manual name, number and attack focus now shows the exact compact target that is sent to recognition instead of a misleading full-width centre line.",
+      "Focused card numbers use less than sixty percent of the old crop width, retain their natural aspect ratio and upload at higher detail quality without blank letterboxing.",
+      "Single-line OCR segmentation is now used for centred names and numbers, while attack text keeps its multi-line reading mode.",
+      "Applying continuous autofocus or the flashlight no longer discards the requested HD stream constraints on mobile browsers.",
+      "The camera requests a higher-detail stream and marks it as detail content so printed footer references receive more usable source pixels.",
+      "A unique catalog-supported number in explicit Number focus is saved after its first valid read instead of waiting for a duplicate server pass.",
+    ],
+  },
+  {
     version: "3.8.14",
     releasedAt: "July 24, 2026",
     title: "Printed card number first",

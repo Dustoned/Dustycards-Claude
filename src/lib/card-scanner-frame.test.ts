@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getScannerFieldCaptureBounds,
   getScannerFrameDifference,
   getScannerObjectCoverSourceRect,
   measureScannerFrame,
@@ -28,6 +29,31 @@ describe("scanner frame readiness", () => {
       width: 576,
       height: 804.3428571428572,
     });
+  });
+
+  it("uses a genuinely magnified centre target for a manually focused number", () => {
+    const focus = getScannerFieldCaptureBounds("number", "focus");
+    const expected = getScannerFieldCaptureBounds("number", "expected");
+
+    expect(focus).toEqual({
+      left: 0.23,
+      top: 0.43,
+      width: 0.54,
+      height: 0.14,
+    });
+    expect(focus.width).toBeLessThan(expected.width * 0.6);
+    expect(focus.left + focus.width / 2).toBeCloseTo(0.5);
+    expect(focus.top + focus.height / 2).toBeCloseTo(0.5);
+  });
+
+  it("keeps long names and attack text wider than the number target", () => {
+    const name = getScannerFieldCaptureBounds("name", "focus");
+    const number = getScannerFieldCaptureBounds("number", "focus");
+    const attack = getScannerFieldCaptureBounds("attack", "focus");
+
+    expect(name.width).toBeGreaterThan(number.width);
+    expect(attack.width).toBeGreaterThan(name.width);
+    expect(attack.height).toBeGreaterThan(name.height);
   });
 
   it("recognizes a detailed, stable and well-lit frame", () => {

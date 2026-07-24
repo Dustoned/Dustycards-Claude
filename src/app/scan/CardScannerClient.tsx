@@ -40,6 +40,7 @@ import type {
   CardScannerResponse,
 } from "@/lib/card-scanner";
 import {
+  getScannerFieldCaptureBounds,
   getScannerFrameDifference,
   getScannerObjectCoverSourceRect,
   measureScannerFrame,
@@ -151,13 +152,37 @@ type ScannerMediaTrackCapabilities = MediaTrackCapabilities & {
   focusMode?: string[];
 };
 
-type TorchMediaTrackConstraintSet = MediaTrackConstraintSet & {
-  torch: boolean;
+type ScannerCameraConstraintSet = MediaTrackConstraintSet & {
+  torch?: boolean;
+  focusMode?: "continuous";
 };
 
-type FocusMediaTrackConstraintSet = MediaTrackConstraintSet & {
-  focusMode: "continuous";
-};
+async function applyScannerCameraTuning(
+  videoTrack: MediaStreamTrack,
+  options: { torch?: boolean } = {}
+) {
+  const capabilities = videoTrack.getCapabilities?.() as
+    | ScannerMediaTrackCapabilities
+    | undefined;
+  const advanced: ScannerCameraConstraintSet = {};
+  if (capabilities?.focusMode?.includes("continuous")) {
+    advanced.focusMode = "continuous";
+  }
+  if (typeof options.torch === "boolean" && capabilities?.torch) {
+    advanced.torch = options.torch;
+  }
+  if (Object.keys(advanced).length === 0) return;
+
+  // applyConstraints replaces omitted constraints with their defaults. Keep
+  // the high-resolution camera request while applying focus/torch tuning;
+  // otherwise some mobile browsers silently fall back to a low-resolution
+  // stream immediately after the camera opens.
+  const current = videoTrack.getConstraints();
+  await videoTrack.applyConstraints({
+    ...current,
+    advanced: [advanced],
+  });
+}
 
 function confidenceLabel(match: CardScannerMatch): string {
   if (match.confidence === "high") return "High confidence";
@@ -193,12 +218,15 @@ function cardRef(match: CardScannerMatch): {
   };
 }
 
-async function canvasToJpegFile(canvas: HTMLCanvasElement): Promise<File> {
+async function canvasToJpegFile(
+  canvas: HTMLCanvasElement,
+  quality = 0.92
+): Promise<File> {
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       (result) => (result ? resolve(result) : reject(new Error("Photo capture failed."))),
       "image/jpeg",
-      0.9
+      quality
     );
   });
   return new File([blob], `dustycards-scan-${Date.now()}.jpg`, {
@@ -305,58 +333,38 @@ function drawScannerFieldBands(
 ) {
   const card =
     cardSourceRect ?? getCentralCardSourceRect(sourceWidth, sourceHeight);
-  const expected =
-    field === "name"
-      ? { left: 0.03, top: 0.015, width: 0.9, height: 0.15 }
-      : field === "number"
-        ? { left: 0.015, top: 0.86, width: 0.97, height: 0.13 }
-        : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
-  const focus = {
-    left: 0.04,
-    top: 0.4,
-    width: 0.92,
-    height: field === "attack" ? 0.28 : 0.18,
-  };
-  const outputWidth = 960;
-  const bandHeight = field === "attack" ? 340 : 220;
+  const bounds = getScannerFieldCaptureBounds(
+    field,
+    preferFocus ? "focus" : "expected"
+  );
+  const cropWidth = card.width * bounds.width;
+  const cropHeight = card.height * bounds.height;
+  const outputWidth = field === "attack" ? 1_280 : 1_440;
+  const outputHeight = Math.max(
+    240,
+    Math.min(820, Math.round((outputWidth * cropHeight) / cropWidth))
+  );
   canvas.width = outputWidth;
-  canvas.height = bandHeight;
+  canvas.height = outputHeight;
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Camera reading is unavailable.");
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, canvas.width, canvas.height);
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
 
-  const drawBand = (
-    bounds: { left: number; top: number; width: number; height: number },
-    destinationTop: number
-  ) => {
-    const cropWidth = card.width * bounds.width;
-    const cropHeight = card.height * bounds.height;
-    const scale = Math.min(
-      canvas.width / cropWidth,
-      bandHeight / cropHeight
-    );
-    const destinationWidth = cropWidth * scale;
-    const destinationHeight = cropHeight * scale;
-    context.drawImage(
-      source,
-      card.x + card.width * bounds.left,
-      card.y + card.height * bounds.top,
-      cropWidth,
-      cropHeight,
-      (canvas.width - destinationWidth) / 2,
-      destinationTop + (bandHeight - destinationHeight) / 2,
-      destinationWidth,
-      destinationHeight
-    );
-  };
-
-  // Alternate one high-resolution read between the field's normal position
-  // and the centre focus area. This keeps close-up aiming automatic without
-  // doubling every Tesseract pass.
-  drawBand(preferFocus ? focus : expected, 0);
+  // Fill the canvas with the exact source crop. The previous fixed-height
+  // canvas letterboxed narrow targets, leaving large blank margins that made
+  // a tiny promo number even harder for Tesseract to segment.
+  context.drawImage(
+    source,
+    card.x + card.width * bounds.left,
+    card.y + card.height * bounds.top,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
 }
 
 function ScannerArtwork({
@@ -542,8 +550,11 @@ export default function CardScannerClient() {
         audio: false,
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1_920 },
-          height: { ideal: 1_440 },
+          width: { ideal: 2_560 },
+          height: { ideal: 1_920 },
+          resizeMode: { ideal: "none" },
+        } as MediaTrackConstraints & {
+          resizeMode: { ideal: "none" };
         },
       });
       streamRef.current = stream;
@@ -551,15 +562,10 @@ export default function CardScannerClient() {
       const capabilities = videoTrack?.getCapabilities?.() as
         | ScannerMediaTrackCapabilities
         | undefined;
-      if (videoTrack && capabilities?.focusMode?.includes("continuous")) {
+      if (videoTrack) {
+        videoTrack.contentHint = "detail";
         try {
-          await videoTrack.applyConstraints({
-            advanced: [
-              {
-                focusMode: "continuous",
-              } as FocusMediaTrackConstraintSet,
-            ],
-          });
+          await applyScannerCameraTuning(videoTrack);
         } catch {
           // Browsers may advertise image-capture capabilities that the active
           // iPhone camera refuses. Native autofocus remains the safe fallback.
@@ -600,13 +606,7 @@ export default function CardScannerClient() {
 
     const nextEnabled = !torchEnabled;
     try {
-      await videoTrack.applyConstraints({
-        advanced: [
-          {
-            torch: nextEnabled,
-          } as TorchMediaTrackConstraintSet,
-        ],
-      });
+      await applyScannerCameraTuning(videoTrack, { torch: nextEnabled });
       setTorchEnabled(nextEnabled);
       setCameraError(null);
     } catch {
@@ -750,7 +750,7 @@ export default function CardScannerClient() {
         getCameraFrameSourceRect(video, cardFrameRef.current),
         scanRegion === "focus"
       );
-      const file = await canvasToJpegFile(canvas);
+      const file = await canvasToJpegFile(canvas, 0.97);
       const body = new FormData();
       body.set("image", file);
       body.set("game", game);
@@ -803,9 +803,15 @@ export default function CardScannerClient() {
         const pendingPoint: PendingScannerPoint = {
           value: observation.value,
           confidence: observation.confidence,
-          confirmations: confirmsPrevious
-            ? previous.confirmations + 1
-            : 1,
+          confirmations:
+            detectedField === "number" &&
+            focusFieldRef.current === "number" &&
+            observation.catalogMatches === 1 &&
+            (observation.confidence ?? 0) >= 25
+              ? 2
+              : confirmsPrevious
+                ? previous.confirmations + 1
+                : 1,
           lastSeenAt: now,
         };
         const nextPending = {
@@ -1342,6 +1348,9 @@ export default function CardScannerClient() {
       : focusField === "number"
         ? "card number"
         : "attack text";
+  const detailTargetBounds = focusField
+    ? getScannerFieldCaptureBounds(focusField, "focus")
+    : null;
   const scannerPrompt = activeField
     ? `Reading ${
         activeField === "name"
@@ -1589,7 +1598,23 @@ export default function CardScannerClient() {
                             className={`absolute h-10 w-10 rounded-[5px] border-[var(--dc-primary-soft)] ${classes}`}
                           />
                         ))}
-                        <span className="absolute inset-x-7 top-1/2 h-px bg-gradient-to-r from-transparent via-[var(--dc-primary-soft)] to-transparent opacity-75 motion-safe:animate-pulse" />
+                        {detailTargetBounds ? (
+                          <span
+                            className="absolute rounded-xl border-2 border-[var(--dc-primary-soft)] bg-[rgb(var(--dc-primary-rgb)/0.06)] shadow-[0_0_0_1px_rgba(0,0,0,0.45),0_0_24px_rgb(var(--dc-primary-rgb)/0.38)]"
+                            style={{
+                              left: `${detailTargetBounds.left * 100}%`,
+                              top: `${detailTargetBounds.top * 100}%`,
+                              width: `${detailTargetBounds.width * 100}%`,
+                              height: `${detailTargetBounds.height * 100}%`,
+                            }}
+                          >
+                            <span className="absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-white/82 backdrop-blur-sm">
+                              {focusFieldLabel}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="absolute inset-x-[23%] top-1/2 h-px bg-gradient-to-r from-transparent via-[var(--dc-primary-soft)] to-transparent opacity-70 motion-safe:animate-pulse" />
+                        )}
                       </div>
                     </div>
                     <div className="absolute inset-x-0 top-4 flex justify-center px-4">

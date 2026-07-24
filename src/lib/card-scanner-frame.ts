@@ -23,6 +23,46 @@ export type ScannerRectangle = {
   height: number;
 };
 
+export type ScannerCaptureField = "name" | "number" | "attack";
+export type ScannerCaptureRegion = "expected" | "focus";
+
+export type ScannerFieldCaptureBounds = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+/**
+ * Returns the part of the visible card outline that is sent to field OCR.
+ *
+ * The focus regions deliberately occupy only the centre of the outline. A
+ * collector can therefore move one small printed detail into the target and
+ * give OCR substantially more source pixels than a nearly full-width crop.
+ */
+export function getScannerFieldCaptureBounds(
+  field: ScannerCaptureField,
+  region: ScannerCaptureRegion
+): ScannerFieldCaptureBounds {
+  if (region === "focus") {
+    if (field === "name") {
+      return { left: 0.14, top: 0.42, width: 0.72, height: 0.16 };
+    }
+    if (field === "number") {
+      return { left: 0.23, top: 0.43, width: 0.54, height: 0.14 };
+    }
+    return { left: 0.08, top: 0.35, width: 0.84, height: 0.3 };
+  }
+
+  if (field === "name") {
+    return { left: 0.03, top: 0.015, width: 0.9, height: 0.15 };
+  }
+  if (field === "number") {
+    return { left: 0.015, top: 0.86, width: 0.97, height: 0.13 };
+  }
+  return { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
+}
+
 export function getScannerObjectCoverSourceRect(input: {
   sourceWidth: number;
   sourceHeight: number;
