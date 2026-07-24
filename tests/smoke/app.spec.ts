@@ -1129,6 +1129,47 @@ async function swipeBackFromMobileViewportEdge(
   }, options);
 }
 
+async function pullToRefreshFromMobileViewport(page: Page) {
+  await page.evaluate(async () => {
+    const originalMatchMedia = window.matchMedia.bind(window);
+    window.matchMedia = ((query: string) => {
+      const result = originalMatchMedia(query);
+      if (query !== "(pointer: coarse)") return result;
+      return new Proxy(result, {
+        get(target, property) {
+          if (property === "matches") return true;
+          const value = Reflect.get(target, property, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    }) as typeof window.matchMedia;
+
+    const dispatchTouch = (
+      type: "touchstart" | "touchmove" | "touchend",
+      y: number
+    ) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "touches", {
+        value: type === "touchend" ? [] : [{ clientX: 80, clientY: y }],
+      });
+      Object.defineProperty(event, "changedTouches", {
+        value: [{ clientX: 80, clientY: y }],
+      });
+      window.dispatchEvent(event);
+    };
+
+    try {
+      window.scrollTo(0, 0);
+      dispatchTouch("touchstart", 100);
+      dispatchTouch("touchmove", 290);
+      dispatchTouch("touchend", 290);
+      await new Promise((resolve) => window.setTimeout(resolve, 100));
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+}
+
 async function openSettingsTab(page: Page, name: string) {
   const tab = page.getByRole("tab", { name, exact: true });
   await expect(tab).toBeVisible();
@@ -2469,6 +2510,7 @@ test.describe("DustyCards smoke", () => {
   });
 
   test("appearance presets and custom colours apply, preview, and persist", async ({ page }) => {
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 1280, height: 900 });
 
     try {
@@ -2589,6 +2631,50 @@ test.describe("DustyCards smoke", () => {
           )
         )
         .toBe("#2457A6");
+
+      await page.setViewportSize({ width: 390, height: 844 });
+      await appearance.locator('[data-theme-preset="ocean-sapphire"]').click();
+      await expect(root).toHaveAttribute("data-appearance", "ocean-sapphire");
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              (
+                window as Window & {
+                  __dustycardsSettings?: { appearance?: { preset?: string } };
+                }
+              ).__dustycardsSettings?.appearance?.preset
+          )
+        )
+        .toBe("ocean-sapphire");
+      await expect
+        .poll(async () => {
+          const response = await page.request.get("/api/account/settings");
+          const payload = await response.json();
+          return payload.settings?.appearance?.preset;
+        })
+        .toBe("ocean-sapphire");
+      await page.request.put("/api/account/settings", {
+        data: {
+          settings: {
+            ...baseSettings,
+            appearance: {
+              ...baseSettings.appearance,
+              preset: "rose-quartz",
+            },
+          },
+        },
+      });
+      const pullRefreshResponse = page.waitForResponse(
+        (response) =>
+          response.url().includes("/settings") &&
+          response.request().headers().rsc === "1"
+      );
+      await pullToRefreshFromMobileViewport(page);
+      await pullRefreshResponse;
+      await expect(root).toHaveAttribute("data-appearance", "ocean-sapphire");
+      await page.reload();
+      await expect(root).toHaveAttribute("data-appearance", "ocean-sapphire");
     } finally {
       await page.request.put("/api/account/settings", { data: { settings: baseSettings } });
     }

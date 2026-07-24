@@ -6,14 +6,14 @@ import {
   resolveAppearanceColorScheme,
 } from "@/lib/appearance-themes";
 import {
+  loadBrowserSettings,
+  saveBrowserSettings,
+} from "@/lib/settings-browser-store";
+import {
   buildResolvedThemeCookie,
-  buildSettingsCookie,
   DEFAULT_SETTINGS,
   initSettingsScript,
   mergeSettings,
-  parseStoredSettings,
-  serializeSettings,
-  SETTINGS_STORAGE_KEY,
   type Card3dSize,
   type AppearancePalette,
   type AppearanceSettings,
@@ -70,38 +70,8 @@ export function useSettings() {
   return useContext(SettingsContext);
 }
 
-function load(): UserSettings {
-  return parseStoredSettings(localStorage.getItem(SETTINGS_STORAGE_KEY)) ?? DEFAULT_SETTINGS;
-}
-
-function loadBrowserSettings(): UserSettings | null {
-  if (typeof window === "undefined") return null;
-
-  const preloaded = (window as Window & { __dustycardsSettings?: Partial<UserSettings> })
-    .__dustycardsSettings;
-  if (preloaded) {
-    return mergeSettings(preloaded);
-  }
-
-  return parseStoredSettings(localStorage.getItem(SETTINGS_STORAGE_KEY));
-}
-
 function getInitialSettings(initialSettings?: UserSettings | null): UserSettings {
   return initialSettings ?? DEFAULT_SETTINGS;
-}
-
-function saveToBrowser(s: UserSettings) {
-  try {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, serializeSettings(s));
-  } catch {
-    // Cookies still preserve preferences when browser storage is unavailable.
-  }
-  try {
-    document.cookie = buildSettingsCookie(s);
-    document.cookie = buildResolvedThemeCookie(resolveAppearanceColorScheme(s.appearance));
-  } catch {
-    // The in-memory setting remains active for this session.
-  }
 }
 
 async function saveToAccount(s: UserSettings) {
@@ -203,11 +173,13 @@ export default function SettingsProvider({
   const displaySettings = getDisplaySettings(settings, isMobileViewport);
 
   useEffect(() => {
-    const s = mergeSettings(loadBrowserSettings() ?? initialSettings ?? load());
+    const s = mergeSettings(
+      loadBrowserSettings() ?? initialSettings ?? DEFAULT_SETTINGS
+    );
     const initial = initialSettings ?? DEFAULT_SETTINGS;
     const nextRaw = JSON.stringify(s);
     const initialRaw = JSON.stringify(initial);
-    saveToBrowser(s);
+    saveBrowserSettings(s);
     let cancelled = false;
 
     window.queueMicrotask(() => {
@@ -278,7 +250,7 @@ export default function SettingsProvider({
   function set<K extends keyof UserSettings>(key: K, value: UserSettings[K]) {
     const next = { ...settingsRef.current, [key]: value };
     settingsRef.current = next;
-    saveToBrowser(next);
+    saveBrowserSettings(next);
     setSettings(next);
     if (syncToAccount) {
       void settingsSaveQueueRef.current?.enqueue(next);
