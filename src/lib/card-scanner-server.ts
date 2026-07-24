@@ -514,9 +514,9 @@ async function recognizeScannerFieldUnsafe(
     } else if (isCardShaped) {
       const expectedBounds =
         field === "name"
-          ? { left: 0.03, top: 0.015, width: 0.9, height: 0.15 }
+          ? { left: 0.03, top: 0.01, width: 0.9, height: 0.22 }
           : field === "number"
-            ? { left: 0.015, top: 0.86, width: 0.97, height: 0.13 }
+            ? { left: 0.015, top: 0.62, width: 0.97, height: 0.36 }
             : { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
       const focusBounds =
         field === "name"
@@ -570,9 +570,9 @@ async function recognizeScannerFieldUnsafe(
         scanRegion === "focus"
           ? { left: 0.02, top: 0.06, width: 0.96, height: 0.88 }
           : field === "name"
-            ? { left: 0.12, top: 0, width: 0.44, height: 0.5 }
+            ? { left: 0.01, top: 0, width: 0.98, height: 0.49 }
             : field === "number"
-              ? { left: 0, top: 0.28, width: 0.4, height: 0.58 }
+              ? { left: 0.01, top: 0.01, width: 0.98, height: 0.98 }
               : { left: 0.02, top: 0.02, width: 0.96, height: 0.96 };
       const left = Math.floor(metadata.width * guidedBounds.left);
       const top = Math.floor(metadata.height * guidedBounds.top);
@@ -608,8 +608,10 @@ async function recognizeScannerFieldUnsafe(
         tessedit_pageseg_mode:
           field === "attack"
             ? PSM.SINGLE_BLOCK
-            : field === "number"
+            : field === "number" && scanRegion === "focus"
               ? PSM.RAW_LINE
+              : field === "number"
+                ? PSM.SPARSE_TEXT
               : PSM.SINGLE_LINE,
         tessedit_char_whitelist:
           field === "number"
@@ -967,7 +969,13 @@ export async function readScannerFieldImage(input: {
     numberCatalog,
     input.field === "number" || input.scanRegion === "focus"
       ? ocr.text
-      : ""
+      : "",
+    {
+      // A broad automatic band also contains HP and attack damage. Bare
+      // numbers are safe only when the collector deliberately aims the small
+      // Number target; automatic reads require a printed slash/promo code.
+      allowBareLocalNumber: input.scanRegion === "focus",
+    }
   );
   const observations: CardScannerFieldObservations = {};
 

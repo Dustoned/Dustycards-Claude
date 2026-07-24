@@ -602,9 +602,16 @@ export function getScannerNameObservation(
 
 export function getScannerNumberObservation(
   cards: CardScannerCatalogCard[],
-  ocrText: string
+  ocrText: string,
+  options: { allowBareLocalNumber?: boolean } = {}
 ): ScannerFieldObservation | null {
+  const allowBareLocalNumber = options.allowBareLocalNumber ?? true;
   const explicitReferences = extractScannerCardReferences(ocrText);
+  const nameFamilies = new Set(
+    cards.map((card) => normalizeScannerText(card.name))
+  );
+  const hasConfirmedNameFamily =
+    cards.length > 0 && cards.length <= 24 && nameFamilies.size === 1;
   const confusableDigits: Record<string, readonly string[]> = {
     "0": ["6", "8", "9"],
     "1": ["7"],
@@ -628,7 +635,7 @@ export function getScannerNumberObservation(
     }
     return candidates;
   });
-  const inferredSeparators = [...ocrText.matchAll(/\b\d{4,9}\b/g)].flatMap(
+  const inferredSeparators = [...ocrText.matchAll(/\b\d{5,9}\b/g)].flatMap(
     (match) => {
       const token = match[0];
       const candidates: string[] = [];
@@ -668,11 +675,13 @@ export function getScannerNumberObservation(
     .map((match) => normalizeScannerCardReference(match[0]))
     .filter((value): value is string => Boolean(value));
   const referenceQuality = new Map<string, number>();
-  for (const reference of localNumberTokens) {
-    referenceQuality.set(
-      reference,
-      Math.max(referenceQuality.get(reference) ?? 0, 1)
-    );
+  if (hasConfirmedNameFamily && allowBareLocalNumber) {
+    for (const reference of localNumberTokens) {
+      referenceQuality.set(
+        reference,
+        Math.max(referenceQuality.get(reference) ?? 0, 1)
+      );
+    }
   }
   for (const reference of inferredSeparators) {
     referenceQuality.set(reference, Math.max(referenceQuality.get(reference) ?? 0, 1));
@@ -710,8 +719,7 @@ export function getScannerNumberObservation(
   // useful for outlined promo typography where `210` is often read as `270`.
   // Never make this correction against the entire catalog: a bare local
   // number is only trustworthy inside an already confirmed name family.
-  const nameFamilies = new Set(cards.map((card) => normalizeScannerText(card.name)));
-  if (cards.length === 0 || cards.length > 24 || nameFamilies.size !== 1) {
+  if (!hasConfirmedNameFamily) {
     return null;
   }
   const digitRuns = [...ocrText.matchAll(/\d{2,7}/g)].flatMap((match) => {
@@ -728,6 +736,9 @@ export function getScannerNumberObservation(
   const promoPrefix = /\b(SVP|MEP|SWSH|SM|XY|BW|HGSS|DP|NP)\b/i.exec(
     ocrText.replace(/\s+/g, " ")
   )?.[1]?.toUpperCase();
+  if (!allowBareLocalNumber && !promoPrefix) {
+    return null;
+  }
   const fuzzyCandidates = cards.flatMap((card) => {
     const canonicalReferences = [
       card.printed_card_number,

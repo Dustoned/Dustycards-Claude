@@ -41,11 +41,12 @@ import type {
 } from "@/lib/card-scanner";
 import {
   getScannerFieldCaptureBounds,
+  getScannerFieldCaptureBands,
+  getScannerFieldScanRegion,
   getScannerFrameDifference,
   getScannerObjectCoverSourceRect,
   measureScannerFrame,
   rgbaToScannerGrayscale,
-  type ScannerFrameReadiness,
 } from "@/lib/card-scanner-frame";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -131,21 +132,6 @@ function nextScannerField(
   const fields = getScannerFields(game);
   return fields[(fields.indexOf(field) + 1) % fields.length];
 }
-
-const EMPTY_FRAME_READINESS: ScannerFrameReadiness = {
-  brightness: 0,
-  contrast: 0,
-  edgeStrength: 0,
-  nameZoneContrast: 0,
-  numberZoneContrast: 0,
-  motion: null,
-  cardInFrame: false,
-  lightingGood: false,
-  nameZoneReadable: false,
-  numberZoneReadable: false,
-  stable: false,
-  ready: false,
-};
 
 type ScannerMediaTrackCapabilities = MediaTrackCapabilities & {
   torch?: boolean;
@@ -333,38 +319,48 @@ function drawScannerFieldBands(
 ) {
   const card =
     cardSourceRect ?? getCentralCardSourceRect(sourceWidth, sourceHeight);
-  const bounds = getScannerFieldCaptureBounds(
+  const boundsList = getScannerFieldCaptureBands(
     field,
     preferFocus ? "focus" : "expected"
   );
-  const cropWidth = card.width * bounds.width;
-  const cropHeight = card.height * bounds.height;
   const outputWidth = field === "attack" ? 1_280 : 1_440;
-  const outputHeight = Math.max(
-    240,
-    Math.min(820, Math.round((outputWidth * cropHeight) / cropWidth))
-  );
+  const gap = boundsList.length > 1 ? 24 : 0;
+  const outputHeights = boundsList.map((bounds) => {
+    const cropWidth = card.width * bounds.width;
+    const cropHeight = card.height * bounds.height;
+    return Math.max(
+      240,
+      Math.min(820, Math.round((outputWidth * cropHeight) / cropWidth))
+    );
+  });
   canvas.width = outputWidth;
-  canvas.height = outputHeight;
+  canvas.height =
+    outputHeights.reduce((total, height) => total + height, 0) +
+    gap * Math.max(0, boundsList.length - 1);
   const context = canvas.getContext("2d", { alpha: false });
   if (!context) throw new Error("Camera reading is unavailable.");
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Fill the canvas with the exact source crop. The previous fixed-height
-  // canvas letterboxed narrow targets, leaving large blank margins that made
-  // a tiny promo number even harder for Tesseract to segment.
-  context.drawImage(
-    source,
-    card.x + card.width * bounds.left,
-    card.y + card.height * bounds.top,
-    cropWidth,
-    cropHeight,
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
+  let outputY = 0;
+  boundsList.forEach((bounds, index) => {
+    const cropWidth = card.width * bounds.width;
+    const cropHeight = card.height * bounds.height;
+    context.drawImage(
+      source,
+      card.x + card.width * bounds.left,
+      card.y + card.height * bounds.top,
+      cropWidth,
+      cropHeight,
+      0,
+      outputY,
+      canvas.width,
+      outputHeights[index]
+    );
+    outputY += outputHeights[index] + gap;
+  });
 }
 
 function ScannerArtwork({
@@ -424,8 +420,6 @@ export default function CardScannerClient() {
   const [scanJobs, setScanJobs] = useState<BackgroundScanJob[]>([]);
   const [activeReviewJobId, setActiveReviewJobId] = useState<string | null>(null);
   const [autoCaptureEnabled, setAutoCaptureEnabled] = useState(true);
-  const [frameReadiness, setFrameReadiness] =
-    useState<ScannerFrameReadiness>(EMPTY_FRAME_READINESS);
   const [observedIdentity, setObservedIdentity] =
     useState<ObservedScannerIdentity>(EMPTY_OBSERVED_IDENTITY);
   const [pendingIdentity, setPendingIdentity] =
@@ -586,7 +580,6 @@ export default function CardScannerClient() {
       focusFieldRef.current = null;
       setFocusField(null);
       replaceObservedIdentity(EMPTY_OBSERVED_IDENTITY);
-      setFrameReadiness(EMPTY_FRAME_READINESS);
       setCameraSessionActive(true);
       setStage("camera");
     } catch (cameraAccessError) {
@@ -730,11 +723,13 @@ export default function CardScannerClient() {
 
     fieldInProgressRef.current = true;
     fieldAttemptCountsRef.current[field] += 1;
-    const scanRegion =
-      focusFieldRef.current === field ||
-      fieldAttemptCountsRef.current[field] % 2 === 0
-        ? "focus"
-        : "expected";
+    // Automatic reads must never silently switch to the small centre target:
+    // that region contains HP, attack and damage values that look like card
+    // numbers. Centre focus is reserved for an explicit tap on a field.
+    const scanRegion = getScannerFieldScanRegion(
+      field,
+      focusFieldRef.current
+    );
     setActiveField(field);
     const controller = new AbortController();
     fieldControllerRef.current = controller;
@@ -1027,7 +1022,6 @@ export default function CardScannerClient() {
         );
         previousFrameRef.current = grayscale;
         currentFrameRef.current = grayscale;
-        setFrameReadiness(readiness);
 
         if (!autoCaptureArmedRef.current) {
           const difference = getScannerFrameDifference(
@@ -1114,7 +1108,7 @@ export default function CardScannerClient() {
           autoCaptureActionRef.current();
         }
       } catch {
-        setFrameReadiness(EMPTY_FRAME_READINESS);
+        // Ignore one transient camera frame and retry on the next interval.
       }
     }, 280);
 
@@ -1214,7 +1208,6 @@ export default function CardScannerClient() {
     setActiveReviewJobId(null);
     setLastAutoMatch(null);
     setBatchMessage(null);
-    setFrameReadiness(EMPTY_FRAME_READINESS);
     replaceObservedIdentity(EMPTY_OBSERVED_IDENTITY);
     setActiveField(null);
     focusFieldRef.current = null;
@@ -1582,10 +1575,10 @@ export default function CardScannerClient() {
                       aria-hidden="true"
                       className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0,transparent_35%,rgba(0,0,0,0.58)_78%)]"
                     />
-                    <div className="absolute inset-0 flex items-center justify-center p-6 sm:p-10">
+                    <div className="absolute inset-x-0 bottom-[10.75rem] top-[4.25rem] flex items-center justify-center p-3 sm:inset-0 sm:p-10">
                       <div
                         ref={cardFrameRef}
-                        className="relative aspect-[63/88] h-auto max-h-[74vh] w-[min(72vw,22rem)] max-w-full rounded-[5%] border border-white/60 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16),0_0_0_9999px_rgba(0,0,0,0.18),0_0_42px_rgb(var(--dc-primary-rgb)/0.18)]"
+                        className="relative aspect-[63/88] h-full max-h-full w-auto max-w-[82vw] rounded-[5%] border border-white/60 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16),0_0_0_9999px_rgba(0,0,0,0.18),0_0_42px_rgb(var(--dc-primary-rgb)/0.18)] sm:h-auto sm:max-h-[74vh] sm:w-[min(72vw,22rem)] sm:max-w-full"
                       >
                         {[
                           "left-[-1px] top-[-1px] border-l-4 border-t-4",
@@ -1682,8 +1675,8 @@ export default function CardScannerClient() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="absolute inset-x-4 bottom-[7.4rem] flex justify-center">
-                      <div className="w-full max-w-md rounded-2xl border border-white/16 bg-black/58 p-1.5 shadow-xl backdrop-blur-md">
+                    <div className="absolute inset-x-3 bottom-[7.1rem] flex justify-center">
+                      <div className="w-full max-w-md rounded-2xl border border-white/16 bg-black/58 p-1 shadow-xl backdrop-blur-md">
                         <div
                           className={`grid gap-1.5 ${
                             identityPoints.length === 3
@@ -1696,7 +1689,7 @@ export default function CardScannerClient() {
                             return (
                               <div
                                 key={field}
-                                className={`grid min-h-12 grid-cols-[1.65rem_minmax(0,1fr)_2.25rem] items-center gap-1 rounded-xl px-1.5 transition ${
+                                className={`grid min-h-12 grid-cols-[1.5rem_minmax(0,1fr)_2.75rem] items-center gap-1 rounded-xl px-1.5 transition ${
                                   point
                                     ? "bg-emerald-400/16 text-emerald-100"
                                     : pending
@@ -1738,7 +1731,7 @@ export default function CardScannerClient() {
                                     type="button"
                                     onClick={() => clearObservedField(field)}
                                     aria-label={`Clear saved ${label.toLowerCase()}`}
-                                    className="flex h-9 w-9 items-center justify-center rounded-full text-current opacity-65 hover:bg-black/20 hover:opacity-100"
+                                    className="flex h-11 w-11 items-center justify-center rounded-full text-current opacity-65 hover:bg-black/20 hover:opacity-100"
                                   >
                                     <X className="h-3 w-3" />
                                   </button>
@@ -1748,7 +1741,7 @@ export default function CardScannerClient() {
                                     onClick={() => prioritizeScannerField(field)}
                                     aria-pressed={focusField === field}
                                     aria-label={`Focus camera on ${label.toLowerCase()}`}
-                                    className={`flex h-9 w-9 items-center justify-center rounded-full transition ${
+                                    className={`flex h-11 w-11 items-center justify-center rounded-full transition ${
                                       focusField === field
                                         ? "bg-[var(--dc-primary)] text-white"
                                         : "text-current opacity-60 hover:bg-white/10 hover:opacity-100"
@@ -1760,18 +1753,6 @@ export default function CardScannerClient() {
                               </div>
                             );
                           })}
-                        </div>
-                        <div className="mt-1.5 flex min-h-7 items-center justify-center gap-1.5 rounded-lg bg-white/5 px-2 text-[9px] font-bold text-white/58">
-                          {identityReady ? (
-                            <>
-                              <ScanLine className="h-3 w-3 text-[var(--dc-primary-soft)]" />
-                              {frameReadiness.ready
-                                ? "Full card found · hold still"
-                                : "Saved · now fit the full card in the outline"}
-                            </>
-                          ) : (
-                            "Move any unread detail into the center · saved reads stay checked"
-                          )}
                         </div>
                       </div>
                     </div>

@@ -128,6 +128,95 @@ describe("card scanner recognition", () => {
     });
   });
 
+  it("never treats an unscoped HP or attack value as a card number", () => {
+    const damageNumberCard = {
+      ...OTHER_CARD,
+      id: "damage-number",
+      name: "Another Pokemon",
+      card_number: "120",
+      printed_card_number: "120/198",
+    };
+    const fortyFiveCard = {
+      ...OTHER_CARD,
+      id: "damage-number-45",
+      name: "Third Pokemon",
+      card_number: "45",
+      printed_card_number: "45/198",
+    };
+
+    expect(
+      getScannerNumberObservation(
+        [SEISMITOAD, OTHER_CARD, damageNumberCard, fortyFiveCard],
+        "120\n100\n45\n30"
+      )
+    ).toBeNull();
+    expect(
+      getScannerNumberObservation(
+        [SEISMITOAD, OTHER_CARD, damageNumberCard],
+        "120/198"
+      )
+    ).toMatchObject({
+      value: "120/198",
+      catalogMatches: 1,
+    });
+  });
+
+  it("requires a printed reference in automatic bands but allows a focused local number", () => {
+    const promo = {
+      ...SEISMITOAD,
+      id: "svp-210",
+      name: "Tornadus",
+      card_number: "SVP 210",
+      printed_card_number: null,
+    };
+
+    expect(
+      getScannerNumberObservation([promo], "120\n100\n210", {
+        allowBareLocalNumber: false,
+      })
+    ).toBeNull();
+    expect(
+      getScannerNumberObservation([promo], "SVP EN 210", {
+        allowBareLocalNumber: false,
+      })
+    ).toMatchObject({ value: "SVP210", catalogMatches: 1 });
+    expect(
+      getScannerNumberObservation([promo], "210", {
+        allowBareLocalNumber: true,
+      })
+    ).toMatchObject({ value: "210", catalogMatches: 1 });
+  });
+
+  it("recovers Tornadus from the noisy title visible in the iPhone capture", () => {
+    const cards = [
+      {
+        ...SEISMITOAD,
+        id: "svp-210",
+        name: "Tornadus",
+        card_number: "SVP 210",
+        printed_card_number: null,
+      },
+      {
+        ...OTHER_CARD,
+        id: "thundurus",
+        name: "Thundurus",
+      },
+    ];
+
+    expect(
+      getScannerNameObservation(
+        cards,
+        ": 200%\nTognaduss\nRC\n1\n7\nPla"
+      )
+    ).toMatchObject({ value: "Tornadus" });
+    expect(
+      getScannerNameObservation(
+        cards,
+        "i\nTognad u Z= a |\noF\nSwi\nN20 %\nPF"
+      )
+    ).toMatchObject({ value: "Tornadus" });
+  });
+
   it("keeps an exact printed reference ahead of a stronger wrong-name guess", () => {
     const promo = {
       ...SEISMITOAD,

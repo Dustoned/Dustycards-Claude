@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.16",
+    releasedAt: "July 24, 2026",
+    title: "Position-aware automatic card reading",
+    summary:
+      "DustyCards 3.8.16 stops automatic camera reads from confusing combat values with card numbers and searches displaced card details at full OCR size.",
+    tone: "fixed",
+    highlights: [
+      "Automatic name and number recognition now reads two overlapping magnified strips, so a card can sit higher or lower inside the camera guide without losing its title or footer.",
+      "The automatic scanner no longer switches invisibly to the centre focus crop, where HP, retreat and attack values could be mistaken for a printed card number.",
+      "Broad automatic scans accept only structured references such as SVP EN 210 or 123/198; a bare local number is accepted only in the explicit Number focus target.",
+      "Noisy title OCR like Tognaduss is safely resolved to Tornadus through the catalog while unrelated families remain excluded.",
+      "The three recognition checks now sit in a compact reserved shelf below the mobile card outline instead of covering the artwork and printed footer.",
+      "Regression coverage now includes the exact false 45/120/100/30 reads and the displaced Tornadus promo shown in the mobile camera report.",
+    ],
+  },
+  {
     version: "3.8.15",
     releasedAt: "July 24, 2026",
     title: "Real mobile detail capture",

@@ -55,12 +55,48 @@ export function getScannerFieldCaptureBounds(
   }
 
   if (field === "name") {
-    return { left: 0.03, top: 0.015, width: 0.9, height: 0.15 };
+    return { left: 0.03, top: 0.01, width: 0.9, height: 0.22 };
   }
   if (field === "number") {
-    return { left: 0.015, top: 0.86, width: 0.97, height: 0.13 };
+    // The live card does not always fill the full-height guide. Search the
+    // lower third instead of assuming that its footer is at exactly 86%.
+    return { left: 0.015, top: 0.62, width: 0.97, height: 0.36 };
   }
   return { left: 0.03, top: 0.4, width: 0.94, height: 0.42 };
+}
+
+/**
+ * Automatic OCR receives a small stack of magnified search strips. This keeps
+ * tiny title/footer text large while allowing for a real card sitting higher
+ * or lower inside the guide. Manual focus remains one precise centre target.
+ */
+export function getScannerFieldCaptureBands(
+  field: ScannerCaptureField,
+  region: ScannerCaptureRegion
+): ScannerFieldCaptureBounds[] {
+  if (region === "focus") {
+    return [getScannerFieldCaptureBounds(field, region)];
+  }
+  if (field === "name") {
+    return [
+      { left: 0.03, top: 0, width: 0.9, height: 0.16 },
+      { left: 0.03, top: 0.12, width: 0.9, height: 0.16 },
+    ];
+  }
+  if (field === "number") {
+    return [
+      { left: 0.015, top: 0.6, width: 0.97, height: 0.2 },
+      { left: 0.015, top: 0.78, width: 0.97, height: 0.2 },
+    ];
+  }
+  return [getScannerFieldCaptureBounds(field, region)];
+}
+
+export function getScannerFieldScanRegion(
+  field: ScannerCaptureField,
+  focusedField: ScannerCaptureField | null
+): ScannerCaptureRegion {
+  return focusedField === field ? "focus" : "expected";
 }
 
 export function getScannerObjectCoverSourceRect(input: {

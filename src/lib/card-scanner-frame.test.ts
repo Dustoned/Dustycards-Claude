@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   getScannerFieldCaptureBounds,
+  getScannerFieldCaptureBands,
+  getScannerFieldScanRegion,
   getScannerFrameDifference,
   getScannerObjectCoverSourceRect,
   measureScannerFrame,
@@ -44,6 +46,31 @@ describe("scanner frame readiness", () => {
     expect(focus.width).toBeLessThan(expected.width * 0.6);
     expect(focus.left + focus.width / 2).toBeCloseTo(0.5);
     expect(focus.top + focus.height / 2).toBeCloseTo(0.5);
+  });
+
+  it("searches a broad lower-card area during automatic number reads", () => {
+    const expected = getScannerFieldCaptureBounds("number", "expected");
+    const bands = getScannerFieldCaptureBands("number", "expected");
+
+    expect(expected.top).toBeLessThanOrEqual(0.62);
+    expect(expected.top + expected.height).toBeGreaterThanOrEqual(0.98);
+    expect(bands).toHaveLength(2);
+    expect(bands[0].top).toBeLessThanOrEqual(0.6);
+    expect(bands[0].top + bands[0].height).toBeGreaterThanOrEqual(0.76);
+    expect(bands[1].top).toBeLessThanOrEqual(0.8);
+    expect(bands[1].top + bands[1].height).toBeGreaterThanOrEqual(0.98);
+  });
+
+  it("uses one precise band only when manual field focus is active", () => {
+    expect(getScannerFieldCaptureBands("number", "focus")).toEqual([
+      getScannerFieldCaptureBounds("number", "focus"),
+    ]);
+  });
+
+  it("never switches an automatic number read to the centre crop", () => {
+    expect(getScannerFieldScanRegion("number", null)).toBe("expected");
+    expect(getScannerFieldScanRegion("number", "name")).toBe("expected");
+    expect(getScannerFieldScanRegion("number", "number")).toBe("focus");
   });
 
   it("keeps long names and attack text wider than the number target", () => {
